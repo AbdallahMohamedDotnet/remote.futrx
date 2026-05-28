@@ -25,7 +25,15 @@ set -euo pipefail
 
 # ───────────────── args ─────────────────
 
-HOSTNAME="${1:-}"
+HOSTNAME=""
+SKIP_DNS_CHECK=0
+for a in "$@"; do
+    case "$a" in
+        --skip-dns-check) SKIP_DNS_CHECK=1 ;;
+        --*) echo "unknown flag: $a" >&2; exit 1 ;;
+        *)   [ -z "$HOSTNAME" ] && HOSTNAME="$a" ;;
+    esac
+done
 if [ -z "$HOSTNAME" ]; then
     read -rp "Public hostname (must already point here in DNS): " HOSTNAME
 fi
@@ -37,6 +45,64 @@ fi
 if [ "$EUID" -ne 0 ]; then
     echo "this installer needs root; rerun with sudo" >&2
     exit 1
+fi
+
+log()  { printf "\n\033[1;36m==> %s\033[0m\n" "$*"; }
+warn() { printf "\n\033[1;33m!! %s\033[0m\n" "$*"; }
+ok()   { printf "\033[1;32m✓\033[0m %s\n" "$*"; }
+err()  { printf "\n\033[1;31m✗ %s\033[0m\n" "$*" >&2; }
+
+# ───────────────── DNS sanity check ─────────────────
+# Verify $HOSTNAME's A record points to this server BEFORE we install anything.
+# Otherwise Caddy's ACME challenge will fail at the end and the user wastes a
+# lot of apt/npm time. Use --skip-dns-check for Cloudflare proxy, tunnels, etc.
+
+if [ "$SKIP_DNS_CHECK" -eq 0 ]; then
+    log "Checking DNS: $HOSTNAME"
+
+    SERVER_IP=""
+    for endpoint in https://api.ipify.org https://ifconfig.me https://ipv4.icanhazip.com; do
+        SERVER_IP=$(curl -4 -fsSL --max-time 5 "$endpoint" 2>/dev/null | tr -d '[:space:]' || true)
+        [ -n "$SERVER_IP" ] && break
+    done
+    if [ -z "$SERVER_IP" ]; then
+        warn "Could not detect this server's public IPv4 — skipping DNS check."
+    else
+        HOSTNAME_IPS=$(getent ahostsv4 "$HOSTNAME" 2>/dev/null | awk '{print $1}' | sort -u)
+        if [ -z "$HOSTNAME_IPS" ]; then
+            err "$HOSTNAME does not resolve to any IPv4 address."
+            cat <<EOF >&2
+
+  This server's public IPv4: $SERVER_IP
+
+  Before re-running the installer, in your DNS provider:
+    Add A record:  $HOSTNAME  →  $SERVER_IP
+    Wait 1–15 min for propagation. Check with:  dig +short $HOSTNAME
+
+  If you're using Cloudflare proxy, a tunnel, or another reverse-proxy
+  setup where the public hostname doesn't point to this box's IP, re-run with:
+    $0 $HOSTNAME --skip-dns-check
+EOF
+            exit 1
+        elif ! echo "$HOSTNAME_IPS" | grep -qx "$SERVER_IP"; then
+            err "$HOSTNAME points somewhere else, not this server."
+            cat <<EOF >&2
+
+  $HOSTNAME currently resolves to: $(echo "$HOSTNAME_IPS" | paste -sd, -)
+  This server's public IPv4:       $SERVER_IP
+
+  Caddy needs the DNS record to point here to obtain a Let's Encrypt cert
+  via the HTTP-01 challenge.
+
+  Either:
+    - Update the A record to $SERVER_IP and wait for propagation
+    - Re-run with --skip-dns-check if you're behind Cloudflare proxy / a tunnel:
+        $0 $HOSTNAME --skip-dns-check
+EOF
+            exit 1
+        fi
+        ok "$HOSTNAME → $SERVER_IP (matches this server)"
+    fi
 fi
 
 # ───────────────── distro ─────────────────
@@ -60,10 +126,6 @@ REPO_URL="https://github.com/Kings-Of-The-Web/remote.futrx.dev.git"
 SERVICE_PORT=7682
 
 export DEBIAN_FRONTEND=noninteractive
-
-log()  { printf "\n\033[1;36m==> %s\033[0m\n" "$*"; }
-warn() { printf "\n\033[1;33m!! %s\033[0m\n" "$*"; }
-ok()   { printf "\033[1;32m✓\033[0m %s\n" "$*"; }
 
 # ───────────────── system deps ─────────────────
 
