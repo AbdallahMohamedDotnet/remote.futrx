@@ -16,16 +16,26 @@ import (
 // ChatStore manages chat dirs on disk. Single writer per chat via a per-id
 // mutex map; concurrent access across different chats is fine.
 type ChatStore struct {
-	root  string
-	mu    sync.Mutex
-	locks map[string]*sync.Mutex
+	root   string
+	mu     sync.Mutex
+	locks  map[string]*sync.Mutex
+	metaMu sync.RWMutex
+	metas  map[string]ChatMeta
 }
 
 func NewChatStore(root string) (*ChatStore, error) {
 	if err := os.MkdirAll(filepath.Join(root, "chats"), 0o755); err != nil {
 		return nil, err
 	}
-	return &ChatStore{root: root, locks: map[string]*sync.Mutex{}}, nil
+	store := &ChatStore{
+		root:  root,
+		locks: map[string]*sync.Mutex{},
+		metas: map[string]ChatMeta{},
+	}
+	if err := store.loadMetaIndex(); err != nil {
+		return nil, err
+	}
+	return store, nil
 }
 
 func (s *ChatStore) chatDir(id string) string {
@@ -70,6 +80,7 @@ func (s *ChatStore) Create(meta ChatMeta) (ChatMeta, error) {
 	if err := s.writeMeta(meta); err != nil {
 		return meta, err
 	}
+	s.setCachedMeta(meta)
 	// Touch events file so reads don't 404.
 	f, err := os.OpenFile(filepath.Join(dir, "events.jsonl"), os.O_CREATE|os.O_WRONLY, 0o644)
 	if err == nil {
@@ -92,7 +103,28 @@ func (s *ChatStore) writeMeta(meta ChatMeta) error {
 	return os.Rename(tmp, final)
 }
 
-func (s *ChatStore) GetMeta(id string) (ChatMeta, error) {
+func (s *ChatStore) loadMetaIndex() error {
+	entries, err := os.ReadDir(filepath.Join(s.root, "chats"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		if !e.IsDir() || !validChatID(e.Name()) {
+			continue
+		}
+		meta, err := s.readMeta(e.Name())
+		if err != nil {
+			continue
+		}
+		s.metas[e.Name()] = meta
+	}
+	return nil
+}
+
+func (s *ChatStore) readMeta(id string) (ChatMeta, error) {
 	if !validChatID(id) {
 		return ChatMeta{}, errors.New("invalid chat id")
 	}
@@ -104,6 +136,33 @@ func (s *ChatStore) GetMeta(id string) (ChatMeta, error) {
 	if err := json.Unmarshal(data, &meta); err != nil {
 		return ChatMeta{}, err
 	}
+	if meta.ID == "" {
+		meta.ID = id
+	}
+	return meta, nil
+}
+
+func (s *ChatStore) setCachedMeta(meta ChatMeta) {
+	s.metaMu.Lock()
+	defer s.metaMu.Unlock()
+	s.metas[meta.ID] = meta
+}
+
+func (s *ChatStore) GetMeta(id string) (ChatMeta, error) {
+	if !validChatID(id) {
+		return ChatMeta{}, errors.New("invalid chat id")
+	}
+	s.metaMu.RLock()
+	meta, ok := s.metas[id]
+	s.metaMu.RUnlock()
+	if ok {
+		return meta, nil
+	}
+	meta, err := s.readMeta(id)
+	if err != nil {
+		return ChatMeta{}, err
+	}
+	s.setCachedMeta(meta)
 	return meta, nil
 }
 
@@ -123,28 +182,17 @@ func (s *ChatStore) UpdateMeta(id string, fn func(*ChatMeta)) (ChatMeta, error) 
 	if err := s.writeMeta(meta); err != nil {
 		return meta, err
 	}
+	s.setCachedMeta(meta)
 	return meta, nil
 }
 
 func (s *ChatStore) List() ([]ChatMeta, error) {
-	entries, err := os.ReadDir(filepath.Join(s.root, "chats"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []ChatMeta{}, nil
-		}
-		return nil, err
-	}
-	out := make([]ChatMeta, 0, len(entries))
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		meta, err := s.GetMeta(e.Name())
-		if err != nil {
-			continue
-		}
+	s.metaMu.RLock()
+	out := make([]ChatMeta, 0, len(s.metas))
+	for _, meta := range s.metas {
 		out = append(out, meta)
 	}
+	s.metaMu.RUnlock()
 	sort.Slice(out, func(i, j int) bool { return out[i].LastMessageAt > out[j].LastMessageAt })
 	return out, nil
 }
@@ -153,7 +201,16 @@ func (s *ChatStore) Delete(id string) error {
 	if !validChatID(id) {
 		return errors.New("invalid chat id")
 	}
-	return os.RemoveAll(s.chatDir(id))
+	if err := os.RemoveAll(s.chatDir(id)); err != nil {
+		return err
+	}
+	s.metaMu.Lock()
+	delete(s.metas, id)
+	s.metaMu.Unlock()
+	s.mu.Lock()
+	delete(s.locks, id)
+	s.mu.Unlock()
+	return nil
 }
 
 // AppendEvent writes one event to events.jsonl and bumps lastMessageAt.
@@ -192,7 +249,9 @@ func (s *ChatStore) AppendEvent(id string, ev ChatEvent) error {
 		meta, err := s.GetMeta(id)
 		if err == nil {
 			meta.LastMessageAt = ev.T
-			_ = s.writeMeta(meta)
+			if err := s.writeMeta(meta); err == nil {
+				s.setCachedMeta(meta)
+			}
 		}
 	}
 	return nil

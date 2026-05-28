@@ -30,6 +30,12 @@ export function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    if (gateOpen) refresh();
+    // `refresh` always calls the latest polling function through usePoll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateOpen]);
+
   // Auto-select first chat on initial load.
   useEffect(() => {
     if (gateOpen && activeId === null && chats.length > 0) {
