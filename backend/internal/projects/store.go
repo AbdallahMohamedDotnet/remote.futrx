@@ -1,11 +1,13 @@
 package projects
 
 import (
+	"context"
 	crand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,12 +21,13 @@ const WorkspaceRoot = "/var/lib/remote/projects"
 
 // Store manages project metadata. Mirrors ChatStore's filesystem-backed style.
 type Store struct {
-	root           string
-	workspaceRoot  string
-	mu             sync.Mutex
-	locks          map[string]*sync.Mutex
-	indexMu        sync.RWMutex
-	bySlug         map[string]string // slug -> id (used for slug-collision lookups)
+	root          string
+	workspaceRoot string
+	manager       *Manager
+	mu            sync.Mutex
+	locks         map[string]*sync.Mutex
+	indexMu       sync.RWMutex
+	bySlug        map[string]string // slug -> id (used for slug-collision lookups)
 }
 
 func NewStore(dataDir string) (*Store, error) {
@@ -38,14 +41,23 @@ func NewStore(dataDir string) (*Store, error) {
 	s := &Store{
 		root:          dir,
 		workspaceRoot: WorkspaceRoot,
+		manager:       NewManager(),
 		locks:         map[string]*sync.Mutex{},
 		bySlug:        map[string]string{},
 	}
 	if err := s.loadSlugIndex(); err != nil {
 		return nil, err
 	}
+	// Best-effort reconcile of meta statuses with live container reality.
+	if err := s.Reconcile(context.Background()); err != nil {
+		log.Printf("projects: reconcile warning: %v", err)
+	}
 	return s, nil
 }
+
+// Manager exposes the LXC wrapper to callers that need it (e.g. claude.runner
+// in task #9 for `lxc exec`).
+func (s *Store) Manager() *Manager { return s.manager }
 
 func (s *Store) projectDir(id string) string {
 	return filepath.Join(s.root, id)
@@ -151,7 +163,11 @@ type CreateInput struct {
 	Name string
 }
 
-func (s *Store) Create(in CreateInput) (ProjectMeta, error) {
+// Create writes the meta + workspace, then spawns the LXC container. If the
+// container launch fails, the project lands in StatusError with the error
+// message — the meta still exists so the user can retry (POST /start) or
+// delete it. Returns the *latest* meta after container provisioning.
+func (s *Store) Create(ctx context.Context, in CreateInput) (ProjectMeta, error) {
 	name := in.Name
 	if name == "" {
 		return ProjectMeta{}, errors.New("name is required")
@@ -173,7 +189,7 @@ func (s *Store) Create(in CreateInput) (ProjectMeta, error) {
 		Slug:          slug,
 		Cwd:           ws,
 		ContainerName: "proj-" + slug,
-		Status:        StatusMissing, // no container yet; status meaningful after next commit
+		Status:        StatusProvisioning,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -183,7 +199,14 @@ func (s *Store) Create(in CreateInput) (ProjectMeta, error) {
 	s.indexMu.Lock()
 	s.bySlug[slug] = id
 	s.indexMu.Unlock()
-	return m, nil
+
+	// Launch the container synchronously. ~5–10s for unprivileged ubuntu.
+	// Could be async (return immediately, poll for status) — punt for v1.
+	if err := s.manager.Launch(ctx, m); err != nil {
+		log.Printf("projects: launch %s failed: %v", m.ContainerName, err)
+		return s.SetStatus(id, StatusError, err.Error())
+	}
+	return s.SetStatus(id, StatusRunning, "")
 }
 
 func (s *Store) Get(id string) (ProjectMeta, error) {
@@ -250,9 +273,9 @@ func (s *Store) SetStatus(id string, status ProjectStatus, errMsg string) (Proje
 	return m, nil
 }
 
-// Delete removes the meta.json + the workspace directory on disk. The
-// container teardown will be wired in the next commit.
-func (s *Store) Delete(id string) error {
+// Delete tears down the container first (force-stop + lxc delete), then
+// removes meta + workspace. Safe to call repeatedly.
+func (s *Store) Delete(ctx context.Context, id string) error {
 	lk := s.lock(id)
 	lk.Lock()
 	defer lk.Unlock()
@@ -260,17 +283,83 @@ func (s *Store) Delete(id string) error {
 	if err != nil {
 		return err
 	}
+	// Container teardown first — failures here shouldn't block meta cleanup,
+	// but we surface a useful error.
+	if m.ContainerName != "" {
+		if err := s.manager.Delete(ctx, m.ContainerName); err != nil {
+			log.Printf("projects: delete container %s: %v", m.ContainerName, err)
+		}
+	}
 	if err := os.RemoveAll(s.projectDir(id)); err != nil {
 		return fmt.Errorf("remove project meta dir: %w", err)
 	}
 	if m.Cwd != "" {
-		// Workspace removal is best-effort; the user might want to keep code on
-		// disk even after deleting the project. For now we keep behavior
-		// destructive (matches chat delete). Adjust later if it bites.
+		// Destructive by design (matches chat delete). Add a "keep workspace"
+		// option later if it bites.
 		_ = os.RemoveAll(filepath.Dir(m.Cwd)) // /var/lib/remote/projects/{slug}/
 	}
 	s.indexMu.Lock()
 	delete(s.bySlug, m.Slug)
 	s.indexMu.Unlock()
+	return nil
+}
+
+// Start brings up a stopped container. No-op if already running.
+func (s *Store) Start(ctx context.Context, id string) (ProjectMeta, error) {
+	m, err := s.Get(id)
+	if err != nil {
+		return ProjectMeta{}, err
+	}
+	if err := s.manager.Start(ctx, m.ContainerName); err != nil {
+		return s.SetStatus(id, StatusError, err.Error())
+	}
+	return s.SetStatus(id, StatusRunning, "")
+}
+
+// Stop shuts down a running container, preserving state.
+func (s *Store) Stop(ctx context.Context, id string) (ProjectMeta, error) {
+	m, err := s.Get(id)
+	if err != nil {
+		return ProjectMeta{}, err
+	}
+	if err := s.manager.Stop(ctx, m.ContainerName); err != nil {
+		return s.SetStatus(id, StatusError, err.Error())
+	}
+	return s.SetStatus(id, StatusStopped, "")
+}
+
+// Reconcile syncs meta.Status against live LXC state. Called at startup so
+// stale "provisioning" or "running" entries from a previous run get updated
+// to reflect what's actually on the box.
+func (s *Store) Reconcile(ctx context.Context) error {
+	if !s.manager.Available() {
+		return nil // LXD not installed; leave statuses alone
+	}
+	metas, err := s.List()
+	if err != nil {
+		return err
+	}
+	for _, m := range metas {
+		state, err := s.manager.State(ctx, m.ContainerName)
+		if err != nil {
+			continue
+		}
+		var want ProjectStatus
+		switch state {
+		case StateRunning:
+			want = StatusRunning
+		case StateStopped:
+			want = StatusStopped
+		case StateMissing:
+			want = StatusMissing
+		default:
+			want = StatusUnknown
+		}
+		if want != m.Status {
+			if _, err := s.SetStatus(m.ID, want, ""); err != nil {
+				log.Printf("projects: reconcile %s: %v", m.ID, err)
+			}
+		}
+	}
 	return nil
 }
