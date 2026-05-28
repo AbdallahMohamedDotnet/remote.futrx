@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
-  const { meta, events, status, error, sendPrompt, cancel, refreshMeta } = useChat(chat.id);
+  const { meta, events, status, error, canSendPrompt, sendPrompt, cancel, refreshMeta } = useChat(chat.id);
   const scrollRef = useRef<HTMLDivElement>(null);
   const userScrolledRef = useRef(false);
 
@@ -99,7 +99,10 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
             block={b}
             streaming={status === "streaming" && i === blocks.length - 1}
             chatId={chat.id}
-            onAnswerQuestion={(t) => { userScrolledRef.current = false; sendPrompt(t); }}
+            onAnswerQuestion={(t) => {
+              const sent = sendPrompt(t);
+              if (sent) userScrolledRef.current = false;
+            }}
           />
         ))}
 
@@ -113,7 +116,12 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
       <ChatInput
         chatId={chat.id}
         streaming={status === "streaming"}
-        onSend={(t) => { userScrolledRef.current = false; sendPrompt(t); }}
+        canSendPrompt={canSendPrompt}
+        onSend={(t) => {
+          const sent = sendPrompt(t);
+          if (sent) userScrolledRef.current = false;
+          return sent;
+        }}
         onCancel={cancel}
         onAfterUpload={onMetaUpdate}
       />

@@ -9,7 +9,8 @@ interface UseChatResult {
   events: ChatEvent[];
   status: ChatStatus;
   error: string | null;
-  sendPrompt: (text: string) => void;
+  canSendPrompt: boolean;
+  sendPrompt: (text: string) => boolean;
   cancel: () => void;
   refreshMeta: () => Promise<void>;
 }
@@ -24,6 +25,7 @@ export function useChat(chatId: string): UseChatResult {
   const [events, setEvents] = useState<ChatEvent[]>([]);
   const [status, setStatus] = useState<ChatStatus>("loading");
   const [error, setError] = useState<string | null>(null);
+  const [wsReady, setWsReady] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Load metadata when chat id changes.
@@ -33,6 +35,7 @@ export function useChat(chatId: string): UseChatResult {
     setEvents([]);
     setMeta(null);
     setError(null);
+    setWsReady(false);
 
     (async () => {
       try {
@@ -56,7 +59,12 @@ export function useChat(chatId: string): UseChatResult {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${proto}//${location.host}/ws/chat/${meta.id}`);
     wsRef.current = ws;
+    setWsReady(false);
+    ws.onopen = () => {
+      if (wsRef.current === ws) setWsReady(true);
+    };
     ws.onmessage = (e) => {
+      if (wsRef.current !== ws) return;
       try {
         const ev = JSON.parse(e.data) as ChatEvent;
         if (ev.type === "sync") {
@@ -71,20 +79,29 @@ export function useChat(chatId: string): UseChatResult {
         }
       } catch {}
     };
-    ws.onclose = () => { wsRef.current = null; };
+    ws.onclose = () => {
+      if (wsRef.current === ws) {
+        wsRef.current = null;
+        setWsReady(false);
+      }
+    };
     return () => {
-      wsRef.current = null;
+      if (wsRef.current === ws) {
+        wsRef.current = null;
+        setWsReady(false);
+      }
       try { ws.close(); } catch {}
     };
   }, [meta?.id, chatId]);
 
   const sendPrompt = useCallback((text: string) => {
     const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    if (status === "streaming") return;
+    if (!wsReady || !ws || ws.readyState !== WebSocket.OPEN) return false;
+    if (status !== "ready") return false;
     setStatus("streaming");
     ws.send(JSON.stringify({ type: "prompt", text }));
-  }, [status]);
+    return true;
+  }, [status, wsReady]);
 
   const cancel = useCallback(() => {
     const ws = wsRef.current;
@@ -101,5 +118,14 @@ export function useChat(chatId: string): UseChatResult {
     } catch {}
   }, [chatId]);
 
-  return { meta, events, status, error, sendPrompt, cancel, refreshMeta };
+  return {
+    meta,
+    events,
+    status,
+    error,
+    canSendPrompt: wsReady && status === "ready",
+    sendPrompt,
+    cancel,
+    refreshMeta,
+  };
 }

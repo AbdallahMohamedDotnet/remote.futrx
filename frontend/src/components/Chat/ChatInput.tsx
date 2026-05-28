@@ -5,7 +5,8 @@ import { ArrowUp, File as FileIcon, Plus, Square, Upload, X } from "../icons";
 interface Props {
   chatId: string;
   streaming: boolean;
-  onSend: (text: string) => void;
+  canSendPrompt: boolean;
+  onSend: (text: string) => boolean;
   onCancel: () => void;
   onAfterUpload?: () => void;
 }
@@ -29,7 +30,7 @@ function randomId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export function ChatInput({ chatId, streaming, onSend, onCancel, onAfterUpload }: Props) {
+export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, onAfterUpload }: Props) {
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -132,7 +133,7 @@ export function ChatInput({ chatId, streaming, onSend, onCancel, onAfterUpload }
   }
 
   function send() {
-    if (streaming || uploading) return;
+    if (streaming || uploading || !canSendPrompt) return;
     const userText = text.trim();
     // Only include attachments that finished uploading.
     const paths = attachments.filter((a) => a.serverPath).map((a) => a.serverPath);
@@ -140,7 +141,7 @@ export function ChatInput({ chatId, streaming, onSend, onCancel, onAfterUpload }
     const finalText = paths.length
       ? (userText ? `${userText}\n\n${paths.join(" ")}` : paths.join(" "))
       : userText;
-    onSend(finalText);
+    if (!onSend(finalText)) return;
     setText("");
     // Clear attachments + free previews
     attachments.forEach((a) => { if (a.objectUrl) URL.revokeObjectURL(a.objectUrl); });
@@ -204,7 +205,8 @@ export function ChatInput({ chatId, streaming, onSend, onCancel, onAfterUpload }
     }
   }
 
-  const canSend = !streaming && !uploading && (text.trim().length > 0 || attachments.some((a) => a.serverPath));
+  const disabled = !canSendPrompt && !streaming;
+  const canSend = canSendPrompt && !uploading && (text.trim().length > 0 || attachments.some((a) => a.serverPath));
 
   return (
     <div class="relative">
@@ -233,7 +235,7 @@ export function ChatInput({ chatId, streaming, onSend, onCancel, onAfterUpload }
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          disabled={uploading || streaming}
+          disabled={uploading || streaming || disabled}
           class="flex-none w-9 h-9 rounded-md bg-ink-600 border border-ink-500
                  hover:bg-ink-500 active:bg-accent-blue active:border-accent-blue
                  disabled:opacity-50 grid place-items-center text-ink-100"
@@ -273,9 +275,10 @@ export function ChatInput({ chatId, streaming, onSend, onCancel, onAfterUpload }
           placeholder={
             uploading ? "Uploading…" :
             streaming ? "Claude is thinking… (Esc to cancel)" :
+            disabled ? "Connecting…" :
             "Message Claude — Enter to send, Shift+Enter for newline"
           }
-          disabled={streaming}
+          disabled={streaming || disabled}
           class="flex-1 resize-none rounded-md
                  bg-ink-700 border border-ink-500 text-ink-100 placeholder:text-ink-300
                  focus:outline-none focus:border-accent-blue
