@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/chat"
@@ -28,10 +27,11 @@ type TmuxClient interface {
 type Runner struct {
 	store *chat.ChatStore
 	tmux  TmuxClient
+	hub   *Hub
 }
 
 func NewRunner(store *chat.ChatStore, tmux TmuxClient) *Runner {
-	return &Runner{store: store, tmux: tmux}
+	return &Runner{store: store, tmux: tmux, hub: NewHub(store)}
 }
 
 // claudeStreamMsg is the on-wire JSON shape from `claude -p --output-format
@@ -112,34 +112,25 @@ func (rnr *Runner) handleStream(upgrader websocket.Upgrader, w http.ResponseWrit
 	}
 	defer conn.Close()
 
-	// Single-flight per WS connection: at most one running claude process.
-	var (
-		mu      sync.Mutex
-		running context.CancelFunc
-	)
-	writeMu := &sync.Mutex{}
-
-	sendEvent := func(ev ChatEvent) {
-		writeMu.Lock()
-		defer writeMu.Unlock()
-		_ = conn.WriteJSON(ev)
+	sub, err := rnr.hub.Subscribe(id)
+	if err != nil {
+		_ = conn.Close()
+		return
 	}
+	defer sub.Close()
 
-	persistAndSend := func(ev ChatEvent) {
-		if err := rnr.store.AppendEvent(id, ev); err != nil {
-			log.Printf("chat %s append: %v", id, err)
+	go func() {
+		for ev := range sub.Events() {
+			if err := conn.WriteJSON(ev); err != nil {
+				_ = conn.Close()
+				return
+			}
 		}
-		sendEvent(ev)
-	}
+	}()
 
 	for {
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
-			mu.Lock()
-			if running != nil {
-				running()
-			}
-			mu.Unlock()
 			return
 		}
 		var msg struct {
@@ -152,39 +143,41 @@ func (rnr *Runner) handleStream(upgrader websocket.Upgrader, w http.ResponseWrit
 		}
 		switch msg.Type {
 		case "prompt":
-			mu.Lock()
-			if running != nil {
-				mu.Unlock()
-				sendEvent(ChatEvent{
-					T: time.Now().UnixMilli(), Type: "error",
-					Message: "a previous prompt is still running — cancel first",
-				})
-				continue
-			}
-			ctx, cancel := context.WithCancel(context.Background())
-			running = cancel
-			mu.Unlock()
-
-			go func(prompt string) {
-				defer func() {
-					mu.Lock()
-					if running != nil {
-						running = nil
-					}
-					mu.Unlock()
-				}()
-				rnr.runPrompt(ctx, id, prompt, persistAndSend, sendEvent)
-			}(msg.Text)
+			rnr.startPrompt(id, msg.Text, sub)
 
 		case "cancel":
-			mu.Lock()
-			if running != nil {
-				running()
-				running = nil
+			if !rnr.hub.CancelRun(id) {
+				sub.SendTransient(ChatEvent{
+					T: time.Now().UnixMilli(), Type: "error",
+					Message: "no prompt is currently running",
+				})
 			}
-			mu.Unlock()
 		}
 	}
+}
+
+func (rnr *Runner) startPrompt(id, prompt string, requester *Subscription) {
+	ctx, cancel := context.WithCancel(context.Background())
+	runID, ok := rnr.hub.StartRun(id, cancel)
+	if !ok {
+		cancel()
+		requester.SendTransient(ChatEvent{
+			T: time.Now().UnixMilli(), Type: "error",
+			Message: "a previous prompt is still running — cancel first",
+		})
+		return
+	}
+
+	go func() {
+		defer rnr.hub.FinishRun(id, runID)
+		rnr.runPrompt(
+			ctx,
+			id,
+			prompt,
+			func(ev ChatEvent) { rnr.hub.Emit(id, ev) },
+			requester.SendTransient,
+		)
+	}()
 }
 
 func (rnr *Runner) runPrompt(
@@ -371,11 +364,15 @@ func (rnr *Runner) runPrompt(
 			emit(ChatEvent{T: now, Type: "complete", Usage: raw.Usage})
 		}
 	}
-	if err := sc.Err(); err != nil {
+	if err := sc.Err(); err != nil && ctx.Err() == nil {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "stdout: " + err.Error()})
 	}
 
-	if err := cmd.Wait(); err != nil && !errors.Is(ctx.Err(), context.Canceled) {
+	err = cmd.Wait()
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return
+	}
+	if err != nil {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "claude exit: " + err.Error()})
 	}
 }

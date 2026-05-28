@@ -15,9 +15,9 @@ interface UseChatResult {
 }
 
 /**
- * useChat — load an existing chat by id, replay its history, then open a
- * streaming WS for live events. Replays only on chatId change so model /
- * cwd updates don't trigger a full reload.
+ * useChat — load chat metadata, then open a streaming WS. The server replays
+ * history over the socket before live events, which avoids gaps between an
+ * HTTP history fetch and the WS subscription.
  */
 export function useChat(chatId: string): UseChatResult {
   const [meta, setMeta] = useState<ChatMeta | null>(null);
@@ -26,7 +26,7 @@ export function useChat(chatId: string): UseChatResult {
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Load history when chat id changes.
+  // Load metadata when chat id changes.
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
@@ -36,14 +36,9 @@ export function useChat(chatId: string): UseChatResult {
 
     (async () => {
       try {
-        const [m, past] = await Promise.all([
-          chatsApi.get(chatId),
-          chatsApi.events(chatId),
-        ]);
+        const m = await chatsApi.get(chatId);
         if (cancelled) return;
         setMeta(m);
-        setEvents(past);
-        setStatus("ready");
       } catch (e) {
         if (!cancelled) {
           setError((e as Error).message);
@@ -64,8 +59,16 @@ export function useChat(chatId: string): UseChatResult {
     ws.onmessage = (e) => {
       try {
         const ev = JSON.parse(e.data) as ChatEvent;
+        if (ev.type === "sync") {
+          setStatus(ev.running ? "streaming" : "ready");
+          return;
+        }
         setEvents((prev) => [...prev, ev]);
-        if (ev.type === "complete" || ev.type === "error") setStatus("ready");
+        if (ev.type === "complete" || ev.type === "error") {
+          setStatus("ready");
+        } else {
+          setStatus("streaming");
+        }
       } catch {}
     };
     ws.onclose = () => { wsRef.current = null; };

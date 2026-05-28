@@ -32,7 +32,8 @@ export type ChatEvent =
   | { t: number; type: "system"; subtype: string; data?: Record<string, unknown> }
   | { t: number; type: "session"; claudeSessionId: string }
   | { t: number; type: "complete"; usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number } }
-  | { t: number; type: "error"; message: string };
+  | { t: number; type: "error"; message: string }
+  | { t: number; type: "sync"; running?: boolean };
 
 export type ClientToServer =
   | { type: "prompt"; text: string }

@@ -33,4 +33,5 @@ type ChatEvent struct {
 	ClaudeSessionID string          `json:"claudeSessionId,omitempty"`
 	Usage           json.RawMessage `json:"usage,omitempty"`
 	Message         string          `json:"message,omitempty"`
+	Running         bool            `json:"running,omitempty"`
 }
