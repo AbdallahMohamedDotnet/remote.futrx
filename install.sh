@@ -35,10 +35,12 @@ for a in "$@"; do
     esac
 done
 if [ -z "$HOSTNAME" ]; then
-    read -rp "Public hostname (must already point here in DNS): " HOSTNAME
+    # `|| true` so `set -e` doesn't kill us when read hits EOF (e.g., curl|bash).
+    read -rp "Public hostname (must already point here in DNS): " HOSTNAME || true
 fi
 if [ -z "$HOSTNAME" ]; then
-    echo "hostname is required" >&2
+    echo "hostname is required (pass as first argument)" >&2
+    echo "  example: sudo bash install.sh remote.example.com" >&2
     exit 1
 fi
 
@@ -68,7 +70,8 @@ if [ "$SKIP_DNS_CHECK" -eq 0 ]; then
     if [ -z "$SERVER_IP" ]; then
         warn "Could not detect this server's public IPv4 — skipping DNS check."
     else
-        HOSTNAME_IPS=$(getent ahostsv4 "$HOSTNAME" 2>/dev/null | awk '{print $1}' | sort -u)
+        # `|| true` so getent's NXDOMAIN exit doesn't kill us via set -e + pipefail.
+        HOSTNAME_IPS=$(getent ahostsv4 "$HOSTNAME" 2>/dev/null | awk '{print $1}' | sort -u || true)
         if [ -z "$HOSTNAME_IPS" ]; then
             err "$HOSTNAME does not resolve to any IPv4 address."
             cat <<EOF >&2
@@ -153,6 +156,30 @@ if ! command -v go >/dev/null; then
 fi
 ok "$(go version)"
 
+# Before installing Caddy, verify ports 80 + 443 aren't claimed by something
+# else (nginx/apache/another caddy). We tolerate Caddy already holding them.
+log "Checking ports 80 + 443 are available"
+for p in 80 443; do
+    if ss -tln 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${p}\$"; then
+        # Find what's listening — only allow if it's caddy.
+        owner=$(ss -tlnp 2>/dev/null | grep -E "[:.]${p} " | head -1 || true)
+        if ! echo "$owner" | grep -q "caddy"; then
+            err "Port ${p} is already in use by another process."
+            cat <<EOF >&2
+
+  $owner
+
+  Caddy needs ports 80 and 443 exclusively. Stop the other service first:
+    sudo ss -tlnp | grep ':$p '       # see who's listening
+    sudo systemctl stop <service>     # stop it
+    # then re-run this installer
+EOF
+            exit 1
+        fi
+    fi
+done
+ok "ports 80 + 443 are free (or held by Caddy)"
+
 # Caddy — official repo
 if ! command -v caddy >/dev/null; then
     log "Installing Caddy"
@@ -174,6 +201,11 @@ ok "claude $(claude --version 2>&1 | head -1)"
 
 # ───────────────── clone / update repo ─────────────────
 
+if [ -d "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR/.git" ]; then
+    err "$INSTALL_DIR exists but is not a git checkout."
+    echo "  Remove it (or move it aside) and re-run." >&2
+    exit 1
+fi
 if [ -d "$INSTALL_DIR/.git" ]; then
     log "Updating repo at $INSTALL_DIR"
     git -C "$INSTALL_DIR" pull --ff-only
@@ -217,9 +249,12 @@ $HOSTNAME {
     reverse_proxy 127.0.0.1:$SERVICE_PORT
 }
 EOF
-systemctl enable --now caddy >/dev/null 2>&1 || true
-systemctl reload caddy
-ok "Caddy reloaded"
+systemctl enable caddy >/dev/null 2>&1 || true
+# `restart` (not reload) on initial setup: surfaces bind-failure errors that
+# a reload would silently swallow. Subsequent runs also do a restart, which
+# is fine — Caddy reloads instantly and re-uses cached certs.
+systemctl restart caddy
+ok "Caddy restarted"
 
 # ───────────────── systemd ─────────────────
 
@@ -249,10 +284,28 @@ systemctl daemon-reload
 systemctl enable --now remote.futrx.dev.service
 sleep 1
 if ! systemctl is-active --quiet remote.futrx.dev.service; then
-    warn "Service failed to start — check: journalctl -u remote.futrx.dev.service -n 50"
+    err "Service failed to start. Recent logs:"
+    journalctl -u remote.futrx.dev.service -n 30 --no-pager >&2
     exit 1
 fi
 ok "remote.futrx.dev.service is active"
+
+# Verify the binary actually responds, not just that systemd thinks it's up.
+log "Health-checking backend on 127.0.0.1:$SERVICE_PORT"
+HEALTH_OK=0
+for _ in 1 2 3 4 5; do
+    if curl -fsS --max-time 3 "http://127.0.0.1:$SERVICE_PORT/" >/dev/null 2>&1; then
+        HEALTH_OK=1
+        break
+    fi
+    sleep 1
+done
+if [ "$HEALTH_OK" -eq 0 ]; then
+    err "Backend did not respond on 127.0.0.1:$SERVICE_PORT within 5s."
+    journalctl -u remote.futrx.dev.service -n 30 --no-pager >&2
+    exit 1
+fi
+ok "backend responding"
 
 # ───────────────── firewall ─────────────────
 
@@ -277,7 +330,11 @@ cat <<EOF
 
  Next:
    1. claude login         # interactive — authenticate the Claude CLI
-   2. open https://$HOSTNAME (after DNS + ACME settle, ~30s on first run)
+   2. open https://$HOSTNAME (Caddy fetches the cert on first hit, ~10s)
+
+ If you're on a cloud VPS with its own firewall (Hetzner Cloud, AWS, GCP,
+ DigitalOcean), ALSO open 80 and 443 in the provider's console — UFW only
+ manages the OS firewall.
 
  Manage:
    systemctl status   remote.futrx.dev
