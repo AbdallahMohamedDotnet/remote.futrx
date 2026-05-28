@@ -39,11 +39,6 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               : `Login error: ${error}`}
           </div>
         )}
-
-        <div class="text-[11px] text-ink-300 leading-relaxed pt-4 border-t border-ink-700">
-          Locked out? SSH to the server and remove{" "}
-          <code class="font-mono text-ink-200">data/admin.json</code> — the next login claims it.
-        </div>
       </div>
     </div>
   );
