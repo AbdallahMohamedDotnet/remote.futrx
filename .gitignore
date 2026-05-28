@@ -1,0 +1,24 @@
+# Build artifacts
+/remote
+/term-multi
+/term-multi-go
+/public/
+
+# Frontend deps + build outputs
+/web/node_modules/
+/web/dist/
+/web/.vite/
+
+# Runtime state — don't commit chat history or local data
+/data/
+
+# OS / editor noise
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log

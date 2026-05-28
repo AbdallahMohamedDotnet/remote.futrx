@@ -1,0 +1,161 @@
+# remote.futrx.dev
+
+A self-hosted, mobile-first **Claude Code chat UI** with a Go backend that drives the official `claude` CLI in streaming mode.
+
+Designed to feel like Claude Code Desktop, but accessible from any browser. Built for a single user on a personal box behind cookie auth.
+
+---
+
+## What it does
+
+- One sidebar of persistent **claude chats**, each backed by `claude --resume <session-id>` so context is preserved.
+- Token-level streaming UI rendered as proper HTML — markdown, tables, syntax-highlighted code blocks, inline tool-call widgets:
+  - **Read** → file pill, expandable content
+  - **Edit / MultiEdit** → real unified diff
+  - **Write** → file + content preview
+  - **Bash** → command + collapsible output
+  - **Glob / Grep** → pattern + path + results
+  - **AskUserQuestion** → paginated wizard (one question per page, Next disabled until answered)
+- **Chatbox** with drag-and-drop, paste-image-from-clipboard, and an attachments grid above the input. Uploaded files land in the chat's working directory; their paths are appended to the prompt on send.
+- **Per-chat model selector** (Opus / Sonnet / Haiku) and live token + cost readout in the header.
+- A separate tmux-PTY WebSocket endpoint (`/ws`) kept around for SSH-style raw shell access — unused by the SPA but available if needed.
+
+---
+
+## Architecture
+
+```
+Browser
+  │
+  │  HTTP + WebSocket (cookie auth at Caddy edge)
+  ▼
+Caddy (edge-caddy container)  ──── magic-link → cookie auth → reverse_proxy
+  │
+  ▼
+Go binary (/opt/remote.futrx.dev/remote)
+  │
+  ├─ /api/sessions, /api/sessions/{name}/*    tmux session control + upload
+  ├─ /api/chats, /api/chats/{id}/*            chat metadata (JSON-file persistence)
+  ├─ /ws  ?session=<name>                     tmux PTY bridge (xterm.js)
+  ├─ /ws/chat/{id}                            claude stream-json normalizer
+  └─ /                                        embedded SPA bundle
+  │
+  ▼
+claude CLI (one process per prompt)
+  │
+  └─ stream-json → parsed → normalized ChatEvents → appended to events.jsonl + streamed to WS client
+```
+
+### Stream-json normalization
+
+`claude -p --output-format stream-json --include-partial-messages --verbose --dangerously-skip-permissions [--model <m>] [--resume <id>]`
+
+Backend parses the JSON event lines, captures the `session_id` once on init, and normalizes into:
+
+```ts
+type ChatEvent =
+  | { type: "user"; text }
+  | { type: "assistant_text"; text }       // streamed from content_block_delta
+  | { type: "tool_use_start"; id; name; input }
+  | { type: "tool_use_end"; id; output; isError }
+  | { type: "session"; claudeSessionId }
+  | { type: "complete"; usage }
+  | { type: "error"; message }
+```
+
+Each event is **appended to `data/chats/{id}/events.jsonl`** and broadcast over the WS. The JSONL file is the replay source on page reload.
+
+---
+
+## Layout
+
+```
+.
+├── main.go             HTTP routes, tmux PTY WS, static SPA serve
+├── chat.go             Chat storage (JSON files), HTTP endpoints
+├── chat_stream.go      Claude streaming WS + event normalization
+├── go.mod, go.sum
+├── public/             Built SPA bundle (go:embed source — gitignored, regenerated)
+├── web/
+│   ├── package.json, vite.config.ts, tailwind.config.ts, tsconfig.json
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx, App.tsx, types.ts, index.css
+│       ├── lib/{api, useChat, usePoll, format}.ts
+│       └── components/
+│           ├── icons.tsx, ChatSidebar.tsx
+│           └── Chat/
+│               ├── ChatView.tsx, ChatHeader.tsx, ChatInput.tsx
+│               ├── Message.tsx, Markdown.tsx, StreamingText.tsx
+│               ├── ToolCall.tsx, AskUserQuestion.tsx
+│               └── messageBlocks.ts
+└── data/chats/{id}/
+    ├── meta.json       title, claudeSessionId, tmuxSession, cwd, model, timestamps
+    └── events.jsonl    append-only chat event stream
+```
+
+---
+
+## Build
+
+```bash
+cd web && npm install && npm run build   # → ../public/{index.html, assets/*}
+cd ..  && go build -trimpath -ldflags="-s -w" -o remote .
+```
+
+Production binary is ~6 MB, static (CGO_ENABLED=0).
+
+Frontend bundle is ~290 KB JS / 90 KB gzipped — Preact + react-markdown + remark-gfm + highlight.js + diff + xterm.
+
+## Run
+
+```bash
+HOST=172.18.0.1 PORT=7682 DATA_DIR=/opt/remote.futrx.dev/data ./remote
+```
+
+Reachable only from the Docker `edge` bridge (172.18.0.0/16). Caddy stub container (`/srv/terminal/docker-compose.yml`) carries the public TLS hostname + cookie-auth labels.
+
+### Environment
+
+| Var | Default | What it does |
+|---|---|---|
+| `HOST` | `172.18.0.1` | Bind interface |
+| `PORT` | `7682` | Bind port |
+| `DATA_DIR` | `/opt/remote.futrx.dev/data` | Chat metadata + events |
+| `HOME` | `/root` | Default cwd for new chats |
+
+### Dependencies on the host
+
+- `claude` (Claude Code CLI) on `$PATH`
+- `tmux` ≥ 3.0 (for the unused-but-running PTY bridge)
+- Go 1.22+
+- Node 18+ (build only)
+
+### Systemd
+
+```
+/etc/systemd/system/remote.futrx.dev.service
+   ExecStart=/opt/remote.futrx.dev/remote
+   KillMode=process    # tmux server (inherited cgroup) survives restarts
+   Restart=always
+```
+
+`systemctl restart remote.futrx.dev` does not kill running claude streams that have already started — but a fresh `claude -p` won't be spawned during the restart window. Active chats reconnect via WS auto-handling.
+
+---
+
+## Iteration
+
+```bash
+# Frontend: HMR dev server, proxies API/WS to Go on :7682
+cd web && npm run dev
+
+# Backend: rebuild + restart
+go build -trimpath -ldflags="-s -w" -o remote . && systemctl restart remote.futrx.dev
+```
+
+---
+
+## License
+
+Internal — no external license assigned. Don't redistribute without asking.

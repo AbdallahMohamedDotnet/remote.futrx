@@ -1,0 +1,26 @@
+// Lightweight inline SVG icons — keeps bundle small (no icon-library dep).
+import type { JSX } from "preact";
+
+type P = JSX.SVGAttributes<SVGSVGElement>;
+
+const base = { fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round" as const, "stroke-linejoin": "round" as const, viewBox: "0 0 24 24" };
+
+export const Plus = (p: P) => (<svg {...base} {...p}><path d="M12 5v14M5 12h14"/></svg>);
+export const X = (p: P) => (<svg {...base} {...p}><path d="M18 6 6 18M6 6l12 12"/></svg>);
+export const Menu = (p: P) => (<svg {...base} {...p}><path d="M3 6h18M3 12h18M3 18h18"/></svg>);
+export const Send = (p: P) => (<svg {...base} {...p}><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>);
+export const Folder = (p: P) => (<svg {...base} {...p}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>);
+export const Upload = (p: P) => (<svg {...base} {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>);
+export const Terminal = (p: P) => (<svg {...base} {...p}><path d="m4 17 6-6-6-6M12 19h8"/></svg>);
+export const MessageSquare = (p: P) => (<svg {...base} {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>);
+export const ArrowUp = (p: P) => (<svg {...base} {...p}><path d="M12 19V5M5 12l7-7 7 7"/></svg>);
+export const Square = (p: P) => (<svg {...base} {...p}><rect x="6" y="6" width="12" height="12" rx="1"/></svg>);
+export const ChevronDown = (p: P) => (<svg {...base} {...p}><path d="m6 9 6 6 6-6"/></svg>);
+export const ChevronRight = (p: P) => (<svg {...base} {...p}><path d="m9 6 6 6-6 6"/></svg>);
+export const ChevronLeft = (p: P) => (<svg {...base} {...p}><path d="m15 18-6-6 6-6"/></svg>);
+export const File = (p: P) => (<svg {...base} {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>);
+export const Edit = (p: P) => (<svg {...base} {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="m18.5 2.5 3 3L12 15l-4 1 1-4z"/></svg>);
+export const TerminalIcon = (p: P) => (<svg {...base} {...p}><path d="m4 9 4 4-4 4M10 17h4"/></svg>);
+export const AlertCircle = (p: P) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>);
+export const Loader = (p: P) => (<svg {...base} {...p}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>);
+export const Check = (p: P) => (<svg {...base} {...p}><path d="M20 6 9 17l-5-5"/></svg>);
