@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/httpserver"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -127,6 +128,16 @@ func LoadAuthService(dataDir, baseURL string) (*AuthService, error) {
 		},
 		sessionKey: sessionKey,
 	}, nil
+}
+
+func (s *AuthService) Routes() httpserver.AuthRoutes {
+	return httpserver.AuthRoutes{
+		Login:      s.handleLogin,
+		Callback:   s.handleCallback,
+		Logout:     s.handleLogout,
+		Me:         s.handleMe,
+		Middleware: s.Middleware,
+	}
 }
 
 // --- session cookie ---------------------------------------------------------
@@ -326,14 +337,14 @@ func (s *AuthService) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if p == nil {
-		sendJSON(w, 200, map[string]any{
+		httpserver.SendJSON(w, 200, map[string]any{
 			"authenticated": false,
 			"claimed":       claimed,
 			"adminEmail":    adminEmail, // shown on lockout to know who claimed it
 		})
 		return
 	}
-	sendJSON(w, 200, map[string]any{
+	httpserver.SendJSON(w, 200, map[string]any{
 		"authenticated": true,
 		"claimed":       claimed,
 		"adminEmail":    adminEmail,

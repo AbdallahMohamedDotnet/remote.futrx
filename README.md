@@ -32,7 +32,7 @@ Browser
 Caddy (edge-caddy container)  ──── magic-link → cookie auth → reverse_proxy
   │
   ▼
-Go binary (/opt/remote.futrx.dev/remote)
+Go binary (/opt/remote.futrx.dev/backend/remote)
   │
   ├─ /api/sessions, /api/sessions/{name}/*    tmux session control + upload
   ├─ /api/chats, /api/chats/{id}/*            chat metadata (JSON-file persistence)
@@ -75,9 +75,16 @@ Each event is **appended to `data/chats/{id}/events.jsonl`** and broadcast over 
 ├── README.md
 │
 ├── backend/                    Go service
-│   ├── main.go                 HTTP routes, tmux PTY WS, static SPA serve
-│   ├── chat.go                 Chat storage (JSON files), HTTP endpoints
-│   ├── chat_stream.go          Claude streaming WS + event normalization
+│   ├── cmd/remote/main.go      config, wiring, server start
+│   ├── internal/
+│   │   ├── auth/               Google OAuth, cookies, admin middleware
+│   │   ├── chat/               chat storage, HTTP handlers, titles
+│   │   ├── claude/             Claude stream runner + CLI login bridge
+│   │   ├── config/             env vars and defaults
+│   │   ├── httpserver/         routes, responses, websocket upgrader
+│   │   ├── tmux/               tmux commands + PTY WebSocket bridge
+│   │   └── upload/             shared multipart uploads
+│   ├── static.go               embedded SPA filesystem
 │   ├── go.mod, go.sum
 │   ├── public/                 Built SPA bundle — gitignored, written by vite
 │   └── remote                  Built binary — gitignored
@@ -128,13 +135,13 @@ then open `https://your-hostname/`.
 
 Re-running the installer pulls latest, rebuilds, and restarts. Idempotent.
 
-> ⚠ The installer configures **NO AUTH** — the URL is open to anyone on the internet, and Claude has full host access. Treat as dev/demo until you put an auth provider (Cloudflare Access, oauth2-proxy, etc.) in front of Caddy.
+> ⚠ Unless you pass Google OAuth flags to the installer, the URL is open to anyone on the internet, and Claude has full host access.
 
 ## Build manually
 
 ```bash
 cd frontend && npm install && npm run build   # → ../backend/public/{index.html, assets/*}
-cd ../backend && go build -trimpath -ldflags="-s -w" -o remote .
+cd ../backend && go build -trimpath -ldflags="-s -w" -o remote ./cmd/remote
 ```
 
 Production binary is ~6 MB, static (CGO_ENABLED=0). It lives at `backend/remote`.
@@ -186,7 +193,7 @@ Reachable only from the Docker `edge` bridge (172.18.0.0/16). Caddy stub contain
 cd frontend && npm run dev
 
 # Backend: rebuild + restart
-cd backend && go build -trimpath -ldflags="-s -w" -o remote . \
+cd backend && go build -trimpath -ldflags="-s -w" -o remote ./cmd/remote \
   && systemctl restart remote.futrx.dev
 ```
 

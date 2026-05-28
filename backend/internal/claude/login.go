@@ -1,4 +1,4 @@
-package main
+package claude
 
 // Web-bridged `claude auth login --claudeai` flow.
 //
@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/httpserver"
 	"github.com/creack/pty"
 )
 
@@ -83,15 +84,15 @@ func claudeHomeDir() string {
 
 // --- HTTP handlers ---------------------------------------------------------
 
-func (c *ClaudeLogin) handleStatus(w http.ResponseWriter, r *http.Request) {
-	sendJSON(w, 200, map[string]any{
+func (c *ClaudeLogin) HandleStatus(w http.ResponseWriter, r *http.Request) {
+	httpserver.SendJSON(w, 200, map[string]any{
 		"authenticated": claudeAuthenticated(),
 	})
 }
 
-func (c *ClaudeLogin) handleStart(w http.ResponseWriter, r *http.Request) {
+func (c *ClaudeLogin) HandleStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		sendErr(w, 405, "method not allowed")
+		httpserver.SendErr(w, 405, "method not allowed")
 		return
 	}
 
@@ -105,14 +106,14 @@ func (c *ClaudeLogin) handleStart(w http.ResponseWriter, r *http.Request) {
 		default:
 			url := c.session.url
 			c.mu.Unlock()
-			sendJSON(w, 200, map[string]any{"url": url, "resumed": true})
+			httpserver.SendJSON(w, 200, map[string]any{"url": url, "resumed": true})
 			return
 		}
 	}
 
 	if _, err := exec.LookPath("claude"); err != nil {
 		c.mu.Unlock()
-		sendErr(w, 500, "claude CLI not found on PATH — install it first")
+		httpserver.SendErr(w, 500, "claude CLI not found on PATH — install it first")
 		return
 	}
 
@@ -125,7 +126,7 @@ func (c *ClaudeLogin) handleStart(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		cancel()
 		c.mu.Unlock()
-		sendErr(w, 500, "pty start: "+err.Error())
+		httpserver.SendErr(w, 500, "pty start: "+err.Error())
 		return
 	}
 
@@ -177,7 +178,7 @@ func (c *ClaudeLogin) handleStart(w http.ResponseWriter, r *http.Request) {
 	// Wait up to claudeURLReadTimout for the URL to surface.
 	select {
 	case url := <-urlFound:
-		sendJSON(w, 200, map[string]any{"url": url})
+		httpserver.SendJSON(w, 200, map[string]any{"url": url})
 	case <-time.After(claudeURLReadTimout):
 		// Couldn't extract the URL. Kill the process to free the lock and
 		// return what we captured for debugging.
@@ -186,7 +187,7 @@ func (c *ClaudeLogin) handleStart(w http.ResponseWriter, r *http.Request) {
 		debugOut := sess.output.String()
 		c.session = nil
 		c.mu.Unlock()
-		sendErr(w, 500, "did not see Anthropic OAuth URL within "+
+		httpserver.SendErr(w, 500, "did not see Anthropic OAuth URL within "+
 			claudeURLReadTimout.String()+
 			"; first 500 bytes of claude output: "+truncate(debugOut, 500))
 	case <-sess.done:
@@ -200,13 +201,13 @@ func (c *ClaudeLogin) handleStart(w http.ResponseWriter, r *http.Request) {
 		if sess.exitErr != nil {
 			msg += " (" + sess.exitErr.Error() + ")"
 		}
-		sendErr(w, 500, msg+"; output: "+truncate(debugOut, 500))
+		httpserver.SendErr(w, 500, msg+"; output: "+truncate(debugOut, 500))
 	}
 }
 
-func (c *ClaudeLogin) handleCode(w http.ResponseWriter, r *http.Request) {
+func (c *ClaudeLogin) HandleCode(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		sendErr(w, 405, "method not allowed")
+		httpserver.SendErr(w, 405, "method not allowed")
 		return
 	}
 
@@ -214,12 +215,12 @@ func (c *ClaudeLogin) handleCode(w http.ResponseWriter, r *http.Request) {
 		Code string `json:"code"`
 	}
 	if err := readJSONBody(r, &body); err != nil {
-		sendErr(w, 400, err.Error())
+		httpserver.SendErr(w, 400, err.Error())
 		return
 	}
 	code := strings.TrimSpace(body.Code)
 	if code == "" {
-		sendErr(w, 400, "code is required")
+		httpserver.SendErr(w, 400, "code is required")
 		return
 	}
 
@@ -227,13 +228,13 @@ func (c *ClaudeLogin) handleCode(w http.ResponseWriter, r *http.Request) {
 	sess := c.session
 	c.mu.Unlock()
 	if sess == nil {
-		sendErr(w, 400, "no login session in progress — call /api/claude/login/start first")
+		httpserver.SendErr(w, 400, "no login session in progress — call /api/claude/login/start first")
 		return
 	}
 
 	// Send the code as if the user typed it + Enter.
 	if _, err := io.WriteString(sess.ptmx, code+"\r"); err != nil {
-		sendErr(w, 500, "write to claude stdin: "+err.Error())
+		httpserver.SendErr(w, 500, "write to claude stdin: "+err.Error())
 		return
 	}
 
@@ -248,7 +249,7 @@ func (c *ClaudeLogin) handleCode(w http.ResponseWriter, r *http.Request) {
 		c.mu.Lock()
 		c.session = nil
 		c.mu.Unlock()
-		sendErr(w, 500, "claude did not exit within "+claudeExitWait.String()+
+		httpserver.SendErr(w, 500, "claude did not exit within "+claudeExitWait.String()+
 			" after code paste; last output: "+truncate(sess.output.String(), 500))
 		return
 	}
@@ -260,21 +261,21 @@ func (c *ClaudeLogin) handleCode(w http.ResponseWriter, r *http.Request) {
 	c.mu.Unlock()
 
 	if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
-		sendErr(w, 500, "claude exited with error: "+exitErr.Error()+
+		httpserver.SendErr(w, 500, "claude exited with error: "+exitErr.Error()+
 			"; output: "+truncate(debugOut, 500))
 		return
 	}
 	if !claudeAuthenticated() {
-		sendErr(w, 500, "claude exited cleanly but no credentials file was written; output: "+
+		httpserver.SendErr(w, 500, "claude exited cleanly but no credentials file was written; output: "+
 			truncate(debugOut, 500))
 		return
 	}
-	sendJSON(w, 200, map[string]any{"success": true})
+	httpserver.SendJSON(w, 200, map[string]any{"success": true})
 }
 
-func (c *ClaudeLogin) handleCancel(w http.ResponseWriter, r *http.Request) {
+func (c *ClaudeLogin) HandleCancel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		sendErr(w, 405, "method not allowed")
+		httpserver.SendErr(w, 405, "method not allowed")
 		return
 	}
 	c.mu.Lock()
@@ -284,10 +285,10 @@ func (c *ClaudeLogin) handleCancel(w http.ResponseWriter, r *http.Request) {
 		c.session = nil
 	}
 	c.mu.Unlock()
-	sendJSON(w, 200, map[string]bool{"ok": true})
+	httpserver.SendJSON(w, 200, map[string]bool{"ok": true})
 }
 
-// readJSONBody is a small helper that pairs nicely with sendErr/sendJSON.
+// readJSONBody is a small helper that pairs nicely with SendErr/SendJSON.
 func readJSONBody(r *http.Request, v any) error {
 	const max = 1 << 16
 	body := http.MaxBytesReader(nil, r.Body, max)

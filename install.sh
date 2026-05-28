@@ -263,7 +263,7 @@ log "Building frontend (frontend/ → backend/public/)"
 log "Building backend (Go → backend/remote)"
 (
     cd backend
-    go build -trimpath -ldflags="-s -w" -o remote .
+    go build -trimpath -ldflags="-s -w" -o remote ./cmd/remote
 )
 ok "$(ls -lh backend/remote | awk '{print $5}') binary"
 

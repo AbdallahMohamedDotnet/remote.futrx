@@ -1,4 +1,4 @@
-package main
+package claude
 
 import (
 	"bufio"
@@ -12,7 +12,27 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/chat"
+	"github.com/gorilla/websocket"
 )
+
+type ChatStore = chat.ChatStore
+type ChatEvent = chat.ChatEvent
+type ChatMeta = chat.ChatMeta
+
+type TmuxClient interface {
+	Cwd(session string) (string, error)
+}
+
+type Runner struct {
+	store *chat.ChatStore
+	tmux  TmuxClient
+}
+
+func NewRunner(store *chat.ChatStore, tmux TmuxClient) *Runner {
+	return &Runner{store: store, tmux: tmux}
+}
 
 // claudeStreamMsg is the on-wire JSON shape from `claude -p --output-format
 // stream-json --include-partial-messages --verbose`. We parse the relevant
@@ -31,8 +51,8 @@ type claudeStreamMsg struct {
 
 // claudeStreamInner is the Anthropic-API streaming event wrapped by stream_event.
 type claudeStreamInner struct {
-	Type  string          `json:"type"`
-	Index int             `json:"index,omitempty"`
+	Type  string `json:"type"`
+	Index int    `json:"index,omitempty"`
 	Delta struct {
 		Type string `json:"type,omitempty"`
 		Text string `json:"text,omitempty"`
@@ -63,15 +83,21 @@ type claudeContentBlock struct {
 	Content   json.RawMessage `json:"content,omitempty"` // tool_result payload
 }
 
-// chatStreamHandler upgrades the WS, reads client prompts, spawns claude with
+// StreamHandler upgrades the WS, reads client prompts, spawns claude with
 // stream-json, normalizes its events, persists them, and forwards to client.
-func chatStreamHandler(store *ChatStore, w http.ResponseWriter, r *http.Request) {
+func (rnr *Runner) StreamHandler(upgrader websocket.Upgrader) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rnr.handleStream(upgrader, w, r)
+	}
+}
+
+func (rnr *Runner) handleStream(upgrader websocket.Upgrader, w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/ws/chat/")
-	if !validChatID(id) {
+	if !chat.ValidID(id) {
 		http.Error(w, "invalid chat id", http.StatusBadRequest)
 		return
 	}
-	if _, err := store.GetMeta(id); err != nil {
+	if _, err := rnr.store.GetMeta(id); err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, "chat not found", http.StatusNotFound)
 		} else {
@@ -100,7 +126,7 @@ func chatStreamHandler(store *ChatStore, w http.ResponseWriter, r *http.Request)
 	}
 
 	persistAndSend := func(ev ChatEvent) {
-		if err := store.AppendEvent(id, ev); err != nil {
+		if err := rnr.store.AppendEvent(id, ev); err != nil {
 			log.Printf("chat %s append: %v", id, err)
 		}
 		sendEvent(ev)
@@ -147,7 +173,7 @@ func chatStreamHandler(store *ChatStore, w http.ResponseWriter, r *http.Request)
 					}
 					mu.Unlock()
 				}()
-				runClaudePrompt(ctx, store, id, prompt, persistAndSend, sendEvent)
+				rnr.runPrompt(ctx, id, prompt, persistAndSend, sendEvent)
 			}(msg.Text)
 
 		case "cancel":
@@ -161,15 +187,14 @@ func chatStreamHandler(store *ChatStore, w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func runClaudePrompt(
+func (rnr *Runner) runPrompt(
 	ctx context.Context,
-	store *ChatStore,
 	id string,
 	prompt string,
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) {
-	meta, err := store.GetMeta(id)
+	meta, err := rnr.store.GetMeta(id)
 	if err != nil {
 		emitTransient(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
 		return
@@ -177,15 +202,15 @@ func runClaudePrompt(
 
 	// Auto-title from first user prompt if still default.
 	if meta.Title == "" || meta.Title == "New chat" {
-		_, _ = store.UpdateMeta(id, func(m *ChatMeta) {
-			m.Title = titleFromPrompt(prompt)
+		_, _ = rnr.store.UpdateMeta(id, func(m *ChatMeta) {
+			m.Title = chat.TitleFromPrompt(prompt)
 		})
 	}
 
 	// Resolve a fresh cwd: live tmux pane_current_path if linked, else stored.
 	cwd := meta.Cwd
 	if meta.TmuxSession != "" {
-		if c, err := tmuxCwd(meta.TmuxSession); err == nil && c != "" {
+		if c, err := rnr.tmux.Cwd(meta.TmuxSession); err == nil && c != "" {
 			cwd = c
 		}
 	}
@@ -273,7 +298,7 @@ func runClaudePrompt(
 		// the long-form name claude resolved internally.
 		if raw.SessionID != "" && raw.SessionID != sawSessionID {
 			sawSessionID = raw.SessionID
-			_, _ = store.UpdateMeta(id, func(m *ChatMeta) {
+			_, _ = rnr.store.UpdateMeta(id, func(m *ChatMeta) {
 				m.ClaudeSessionID = raw.SessionID
 				if m.Model == "" && raw.Model != "" {
 					m.Model = raw.Model
@@ -353,40 +378,4 @@ func runClaudePrompt(
 	if err := cmd.Wait(); err != nil && !errors.Is(ctx.Err(), context.Canceled) {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "claude exit: " + err.Error()})
 	}
-}
-
-// Tool result content can be either a plain string or a list of content
-// blocks (text/image). Squash to a string for display.
-func normalizeToolResult(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	// Try string first.
-	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
-		return s
-	}
-	// Otherwise it's a list of content blocks.
-	var blocks []struct {
-		Type string `json:"type"`
-		Text string `json:"text,omitempty"`
-	}
-	if err := json.Unmarshal(raw, &blocks); err == nil {
-		var b strings.Builder
-		for _, x := range blocks {
-			if x.Type == "text" {
-				b.WriteString(x.Text)
-			}
-		}
-		return b.String()
-	}
-	// Fall back to raw JSON.
-	return string(raw)
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }
