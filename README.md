@@ -96,7 +96,34 @@ Each event is **appended to `data/chats/{id}/events.jsonl`** and broadcast over 
 
 ---
 
-## Build
+## Install on a fresh server (one command)
+
+Ubuntu/Debian only. DNS for your chosen hostname must already point to the server.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kings-Of-The-Web/remote.futrx.dev/main/install.sh | sudo bash -s -- remote.example.com
+```
+
+The installer:
+
+1. Installs deps (`node 20`, `go`, `tmux`, `caddy`, `@anthropic-ai/claude-code`)
+2. Clones the repo to `/opt/remote.futrx.dev`
+3. Builds frontend + backend
+4. Writes a Caddyfile that reverse-proxies your hostname → `127.0.0.1:7682` with auto-TLS via Let's Encrypt
+5. Installs a systemd unit and starts the service
+6. Opens 80 + 443 in UFW if active
+
+After install:
+```bash
+claude login   # interactive — authenticates the Claude CLI under /root/.claude
+```
+then open `https://your-hostname/`.
+
+Re-running the installer pulls latest, rebuilds, and restarts. Idempotent.
+
+> ⚠ The installer configures **NO AUTH** — the URL is open to anyone on the internet, and Claude has full host access. Treat as dev/demo until you put an auth provider (Cloudflare Access, oauth2-proxy, etc.) in front of Caddy.
+
+## Build manually
 
 ```bash
 cd web && npm install && npm run build   # → ../public/{index.html, assets/*}

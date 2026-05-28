@@ -476,7 +476,11 @@ func envDefault(key, def string) string {
 }
 
 func main() {
-	host := envDefault("HOST", "172.18.0.1")
+	// Defaults assume a fresh install: bind to localhost so a local Caddy
+	// (or any reverse proxy) can reach the server on 127.0.0.1:7682, but
+	// nothing else can. The systemd unit overrides HOST/PORT/DATA_DIR if
+	// needed (e.g. for our docker-bridge deployment that binds to 172.18.0.1).
+	host := envDefault("HOST", "127.0.0.1")
 	port := envDefault("PORT", "7682")
 	dataDir := envDefault("DATA_DIR", "/opt/remote.futrx.dev/data")
 

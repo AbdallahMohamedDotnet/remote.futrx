@@ -22,3 +22,6 @@
 
 # Logs
 *.log
+
+# TS incremental cache
+/web/tsconfig.tsbuildinfo
