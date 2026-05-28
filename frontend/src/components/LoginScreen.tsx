@@ -15,7 +15,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           </div>
         </div>
 
-        {!auth.claimed ? (
+        {!auth.claimed && (
           <p class="text-sm text-accent-yellow leading-relaxed">
             This server is <span class="font-semibold">unclaimed</span>. The first Google
             account that signs in becomes the admin. Make sure that's you before continuing.
