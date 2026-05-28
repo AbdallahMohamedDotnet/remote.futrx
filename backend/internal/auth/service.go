@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,8 +48,12 @@ type adminInfo struct {
 // is enough to reassign admin — no restart needed. The file is small (<1 KB)
 // and the OS page cache means each read is effectively in-memory.
 type AuthService struct {
-	dataDir    string
-	baseURL    string
+	dataDir      string
+	baseURL      string
+	cookieDomain string // hostname extracted from baseURL; cookies set with
+	//                    Domain=this so they're valid on subdomains too
+	//                    (e.g. code.remote.futrx.dev when baseURL is
+	//                    https://remote.futrx.dev).
 	oauth      *oauth2.Config
 	sessionKey []byte
 	mu         sync.Mutex // serializes read-modify-write of admin.json
@@ -97,6 +102,15 @@ func LoadAuthService(dataDir, baseURL string) (*AuthService, error) {
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
 
+	// Parse the cookie domain (hostname) from BASE_URL. Setting Domain on the
+	// session cookie makes it valid for the host AND all subdomains, which
+	// lets a sibling service like code.remote.futrx.dev verify auth via the
+	// same cookie behind Caddy forward_auth.
+	cookieDomain := ""
+	if u, err := url.Parse(baseURL); err == nil {
+		cookieDomain = u.Hostname()
+	}
+
 	// Load or generate the HMAC session-signing key.
 	keyPath := filepath.Join(dataDir, "session.key")
 	sessionKey, err := os.ReadFile(keyPath)
@@ -117,8 +131,9 @@ func LoadAuthService(dataDir, baseURL string) (*AuthService, error) {
 	// instantly unclaims the server (next Google login re-claims).
 
 	return &AuthService{
-		dataDir: dataDir,
-		baseURL: baseURL,
+		dataDir:      dataDir,
+		baseURL:      baseURL,
+		cookieDomain: cookieDomain,
 		oauth: &oauth2.Config{
 			ClientID:     cfg.GoogleClientID,
 			ClientSecret: cfg.GoogleClientSecret,
@@ -136,8 +151,38 @@ func (s *AuthService) Routes() httpserver.AuthRoutes {
 		Callback:   s.handleCallback,
 		Logout:     s.handleLogout,
 		Me:         s.handleMe,
+		Verify:     s.handleVerify,
 		Middleware: s.Middleware,
 	}
+}
+
+// handleVerify is called by an edge reverse-proxy (Caddy forward_auth) on
+// sibling subdomains to gate them on this server's admin session.
+//
+//   - 200 OK with an empty body  → the request has a valid admin session;
+//                                  proxy should serve the upstream.
+//   - 302 to baseURL/            → no/invalid session; bounce the user to
+//                                  the main login. Once they sign in there,
+//                                  the cookie is scoped to .baseDomain so a
+//                                  subsequent request to the sibling
+//                                  subdomain carries it.
+//
+// We deliberately don't propagate a return_to URL through OAuth state today
+// — keeps the wire surface tiny. The user manually returns to the sibling
+// after login. If that ever rankles, add return_to here + plumb through state.
+func (s *AuthService) handleVerify(w http.ResponseWriter, r *http.Request) {
+	p := s.currentUser(r)
+	if p != nil && s.isAdmin(p.Email) {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	target := s.baseURL + "/"
+	if target == "/" {
+		// No BASE_URL configured — fall back to a plain 401.
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusFound)
 }
 
 // --- session cookie ---------------------------------------------------------
@@ -313,13 +358,20 @@ func (s *AuthService) handleCallback(w http.ResponseWriter, r *http.Request) {
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookieName, Value: cookie,
-		Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
+		Path: "/", Domain: s.cookieDomain,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
 		MaxAge: int(sessionDuration.Seconds()),
 	})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 func (s *AuthService) handleLogout(w http.ResponseWriter, r *http.Request) {
+	// Clear both the host-only and the .domain-scoped cookie so legacy sessions
+	// (pre-cross-subdomain) also expire cleanly.
+	http.SetCookie(w, &http.Cookie{
+		Name: sessionCookieName, Path: "/", Domain: s.cookieDomain, MaxAge: -1,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
+	})
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookieName, Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,

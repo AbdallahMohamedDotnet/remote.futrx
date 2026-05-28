@@ -10,6 +10,7 @@ type AuthRoutes struct {
 	Callback   http.HandlerFunc
 	Logout     http.HandlerFunc
 	Me         http.HandlerFunc
+	Verify     http.HandlerFunc // edge forward_auth: 200 if admin, 302 to baseURL/ otherwise
 	Middleware func(http.Handler) http.Handler
 }
 
@@ -45,6 +46,9 @@ func NewHandler(routes Routes) http.Handler {
 		mux.HandleFunc("/auth/google/callback", routes.Auth.Callback)
 		mux.HandleFunc("/auth/logout", routes.Auth.Logout)
 		mux.HandleFunc("/auth/me", routes.Auth.Me)
+		if routes.Auth.Verify != nil {
+			mux.HandleFunc("/auth/verify", routes.Auth.Verify)
+		}
 	}
 	mux.Handle("/", routes.Static)
 
