@@ -40,13 +40,39 @@ type adminInfo struct {
 
 // AuthService — Google OAuth + first-login-wins admin + HMAC-signed session
 // cookies. Stateless: no server-side session table; cookie carries everything.
+//
+// admin.json is the source of truth for who the admin is; we DO NOT cache it
+// in memory. That way `rm data/admin.json` (followed by another Google login)
+// is enough to reassign admin — no restart needed. The file is small (<1 KB)
+// and the OS page cache means each read is effectively in-memory.
 type AuthService struct {
 	dataDir    string
 	baseURL    string
 	oauth      *oauth2.Config
 	sessionKey []byte
-	mu         sync.RWMutex
-	admin      *adminInfo // nil = unclaimed
+	mu         sync.Mutex // serializes read-modify-write of admin.json
+}
+
+// readAdmin returns the admin from disk or nil if unclaimed.
+func (s *AuthService) readAdmin() *adminInfo {
+	data, err := os.ReadFile(filepath.Join(s.dataDir, "admin.json"))
+	if err != nil {
+		return nil
+	}
+	var a adminInfo
+	if err := json.Unmarshal(data, &a); err != nil || a.Email == "" {
+		return nil
+	}
+	return &a
+}
+
+// writeAdmin persists the admin record to disk with tight permissions.
+func (s *AuthService) writeAdmin(a *adminInfo) error {
+	data, err := json.MarshalIndent(a, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(s.dataDir, "admin.json"), data, 0o600)
 }
 
 // LoadAuthService returns nil, nil if no oauth.json exists (auth disabled).
@@ -86,14 +112,8 @@ func LoadAuthService(dataDir, baseURL string) (*AuthService, error) {
 		}
 	}
 
-	// Load admin if already claimed.
-	var admin *adminInfo
-	if data, err := os.ReadFile(filepath.Join(dataDir, "admin.json")); err == nil {
-		var a adminInfo
-		if err := json.Unmarshal(data, &a); err == nil && a.Email != "" {
-			admin = &a
-		}
-	}
+	// admin.json is read on every check, not cached, so rm data/admin.json
+	// instantly unclaims the server (next Google login re-claims).
 
 	return &AuthService{
 		dataDir: dataDir,
@@ -106,7 +126,6 @@ func LoadAuthService(dataDir, baseURL string) (*AuthService, error) {
 			Endpoint:     google.Endpoint,
 		},
 		sessionKey: sessionKey,
-		admin:      admin,
 	}, nil
 }
 
@@ -172,9 +191,8 @@ func (s *AuthService) currentUser(r *http.Request) *sessionPayload {
 }
 
 func (s *AuthService) isAdmin(email string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.admin != nil && strings.EqualFold(s.admin.Email, email)
+	a := s.readAdmin()
+	return a != nil && strings.EqualFold(a.Email, email)
 }
 
 // --- HTTP handlers ----------------------------------------------------------
@@ -249,27 +267,28 @@ func (s *AuthService) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// First-login-wins claim, or admin match.
+	// First-login-wins claim, or admin match. Read admin.json fresh under the
+	// lock so two simultaneous "claim" attempts can't both succeed.
 	s.mu.Lock()
-	if s.admin == nil {
-		s.admin = &adminInfo{
+	admin := s.readAdmin()
+	if admin == nil {
+		newAdmin := &adminInfo{
 			Email: userInfo.Email, Sub: userInfo.Sub,
 			Name: userInfo.Name, Picture: userInfo.Picture,
 			ClaimedAt: time.Now().UnixMilli(),
 		}
-		data, _ := json.MarshalIndent(s.admin, "", "  ")
-		if err := os.WriteFile(filepath.Join(s.dataDir, "admin.json"), data, 0o600); err != nil {
+		if err := s.writeAdmin(newAdmin); err != nil {
 			s.mu.Unlock()
 			http.Error(w, "write admin.json: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		log.Printf("auth: claimed by %s (sub=%s)", userInfo.Email, userInfo.Sub)
-	} else if !strings.EqualFold(s.admin.Email, userInfo.Email) {
-		claimed := s.admin.Email
+	} else if !strings.EqualFold(admin.Email, userInfo.Email) {
+		claimedBy := admin.Email
 		s.mu.Unlock()
 		http.Error(w, fmt.Sprintf(
 			"This server is claimed by %s. If you should have access, ask them to add you — or SSH in and remove data/admin.json to reset.",
-			claimed,
+			claimedBy,
 		), http.StatusForbidden)
 		return
 	}
@@ -299,13 +318,12 @@ func (s *AuthService) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func (s *AuthService) handleMe(w http.ResponseWriter, r *http.Request) {
 	p := s.currentUser(r)
-	s.mu.RLock()
-	claimed := s.admin != nil
+	admin := s.readAdmin()
+	claimed := admin != nil
 	var adminEmail string
 	if claimed {
-		adminEmail = s.admin.Email
+		adminEmail = admin.Email
 	}
-	s.mu.RUnlock()
 
 	if p == nil {
 		sendJSON(w, 200, map[string]any{
