@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ChatEvent, ChatMeta } from "../../types";
-import { chatsApi } from "../../lib/api";
 import { shortenPath } from "../../lib/format";
-import { ChevronDown, Folder, Menu, MessageSquare } from "../icons";
+import { Activity, ChevronDown, Folder, Menu, MessageSquare } from "../icons";
 
 interface Props {
   chat: ChatMeta;
@@ -14,22 +13,20 @@ interface Props {
 }
 
 const MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
-  { value: "opus",   label: "Opus",   sub: "deepest reasoning" },
+  { value: "opus", label: "Opus", sub: "deepest reasoning" },
   { value: "sonnet", label: "Sonnet", sub: "balanced" },
-  { value: "haiku",  label: "Haiku",  sub: "fast & cheap" },
+  { value: "haiku", label: "Haiku", sub: "fast" },
 ];
 
 function modelDisplayLabel(m?: string): string {
   if (!m) return "Auto";
   const lower = m.toLowerCase();
-  if (lower.includes("opus"))   return "Opus";
+  if (lower.includes("opus")) return "Opus";
   if (lower.includes("sonnet")) return "Sonnet";
-  if (lower.includes("haiku"))  return "Haiku";
+  if (lower.includes("haiku")) return "Haiku";
   return m;
 }
 
-// Pluck the latest complete event's usage stats. claude returns:
-//   input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens
 type Usage = {
   input_tokens?: number;
   output_tokens?: number;
@@ -38,18 +35,16 @@ type Usage = {
 } | null;
 
 function fmtTokens(n?: number): string {
-  if (!n && n !== 0) return "—";
+  if (!n && n !== 0) return "0";
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(n >= 10_000 ? 0 : 1) + "k";
   return String(n);
 }
 
-// Rough cost estimate (USD per 1M tokens). Used for live readouts only; the
-// canonical figure is whatever claude reports via total_cost_usd in result.
 const COST = {
-  opus:   { in: 15.0,  out: 75.0, cacheRead: 1.50, cacheWrite: 18.75 },
-  sonnet: { in:  3.0,  out: 15.0, cacheRead: 0.30, cacheWrite:  3.75 },
-  haiku:  { in:  0.8,  out:  4.0, cacheRead: 0.08, cacheWrite:  1.00 },
+  opus: { in: 15.0, out: 75.0, cacheRead: 1.5, cacheWrite: 18.75 },
+  sonnet: { in: 3.0, out: 15.0, cacheRead: 0.3, cacheWrite: 3.75 },
+  haiku: { in: 0.8, out: 4.0, cacheRead: 0.08, cacheWrite: 1.0 },
 };
 
 function estimateCost(u: Usage, model: string): number {
@@ -58,9 +53,9 @@ function estimateCost(u: Usage, model: string): number {
   const c = COST[key] ?? COST.sonnet;
   return (
     ((u.input_tokens ?? 0) * c.in +
-     (u.output_tokens ?? 0) * c.out +
-     (u.cache_read_input_tokens ?? 0) * c.cacheRead +
-     (u.cache_creation_input_tokens ?? 0) * c.cacheWrite) / 1_000_000
+      (u.output_tokens ?? 0) * c.out +
+      (u.cache_read_input_tokens ?? 0) * c.cacheRead +
+      (u.cache_creation_input_tokens ?? 0) * c.cacheWrite) / 1_000_000
   );
 }
 
@@ -72,7 +67,6 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
 
   useEffect(() => { setCwdInput(chat.cwd ?? ""); }, [chat.cwd]);
 
-  // Close model dropdown on outside click
   useEffect(() => {
     if (!modelOpen) return;
     const h = (e: MouseEvent) => {
@@ -82,7 +76,6 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
     return () => window.removeEventListener("mousedown", h);
   }, [modelOpen]);
 
-  // Aggregate usage across all "complete" events in this chat.
   const totals = useMemo(() => {
     let inT = 0, outT = 0, cacheR = 0, cacheW = 0;
     for (const ev of events) {
@@ -100,8 +93,12 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
   }, [events]);
 
   const costUsd = estimateCost(
-    { input_tokens: totals.inT, output_tokens: totals.outT,
-      cache_read_input_tokens: totals.cacheR, cache_creation_input_tokens: totals.cacheW },
+    {
+      input_tokens: totals.inT,
+      output_tokens: totals.outT,
+      cache_read_input_tokens: totals.cacheR,
+      cache_creation_input_tokens: totals.cacheW,
+    },
     chat.model || ""
   );
 
@@ -116,39 +113,55 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
     if (v !== (chat.cwd ?? "")) onCwdChange(v);
   }
 
+  const tokenTotal = totals.inT + totals.outT + totals.cacheR + totals.cacheW;
+
   return (
-    <header class="bg-ink-700 border-b border-ink-500 px-3 py-2 flex flex-col gap-1.5">
-      <div class="flex items-center gap-2 min-h-[28px]">
+    <header class="safe-top bg-[#101318]/95 backdrop-blur border-b border-white/10 px-3 md:px-4 py-2 flex flex-col gap-2">
+      <div class="flex items-center gap-2 min-h-11">
         <button
           type="button"
           onClick={onHamburger}
-          class="md:hidden text-ink-100 p-1 rounded hover:bg-ink-600 flex-none"
-          aria-label="Toggle sidebar"
+          class="md:hidden h-10 w-10 rounded-md text-ink-100 hover:bg-white/8 grid place-items-center flex-none"
+          aria-label="Open chats"
+          title="Chats"
         >
           <Menu class="w-5 h-5" />
         </button>
-        <MessageSquare class="w-4 h-4 text-ink-300 flex-none" />
-        <span class="text-sm text-ink-100 truncate flex-1 font-medium">
-          {chat.title || "Untitled chat"}
-        </span>
 
-        {/* Model dropdown */}
+        <div class="h-9 w-9 rounded-md bg-white/6 border border-white/10 text-ink-200 grid place-items-center flex-none">
+          <MessageSquare class="w-4 h-4" />
+        </div>
+
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 min-w-0">
+            <h1 class="truncate text-[15px] md:text-base font-semibold text-ink-50">
+              {chat.title || "Untitled chat"}
+            </h1>
+            <span
+              class={`h-2 w-2 rounded-full flex-none ${streaming ? "bg-accent-green animate-pulse" : "bg-ink-400"}`}
+              title={streaming ? "Streaming" : "Ready"}
+            />
+          </div>
+          <div class="text-[12px] text-ink-300 truncate">
+            {streaming ? "Claude is working" : "Ready"}
+          </div>
+        </div>
+
         <div ref={modelRef} class="relative flex-none">
           <button
             type="button"
             onClick={() => setModelOpen((o) => !o)}
-            class="flex items-center gap-1 text-xs font-mono px-2 py-1 rounded
-                   bg-ink-600 hover:bg-ink-500 border border-ink-500 text-ink-100"
+            class="h-9 inline-flex items-center gap-1.5 text-[13px] font-medium px-3 rounded-md
+                   bg-white/6 hover:bg-white/10 border border-white/10 text-ink-100 disabled:opacity-50"
             disabled={streaming}
-            title={streaming ? "Cannot change model mid-stream" : "Switch model"}
+            title={streaming ? "Cannot change model while streaming" : "Switch model"}
           >
             <span>{modelDisplayLabel(chat.model)}</span>
-            <ChevronDown class="w-3 h-3 text-ink-300" />
+            <ChevronDown class="w-3.5 h-3.5 text-ink-300" />
           </button>
           {modelOpen && (
-            <div class="absolute right-0 top-full mt-1 z-30 min-w-[200px]
-                        bg-ink-700 border border-ink-500 rounded-md shadow-xl
-                        py-1 text-sm">
+            <div class="absolute right-0 top-full mt-2 z-40 w-[220px]
+                        bg-[#151922] border border-white/12 rounded-lg shadow-2xl overflow-hidden p-1">
               {MODEL_OPTIONS.map((m) => {
                 const active = modelDisplayLabel(chat.model).toLowerCase() === m.value;
                 return (
@@ -156,11 +169,14 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
                     key={m.value}
                     type="button"
                     onClick={() => pickModel(m.value)}
-                    class={`w-full flex flex-col items-start gap-0 px-3 py-1.5 text-left
-                            ${active ? "bg-accent-blue/15 text-accent-blue" : "hover:bg-ink-600 text-ink-100"}`}
+                    class={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-md text-left
+                            ${active ? "bg-accent-blue/16 text-accent-blue" : "hover:bg-white/7 text-ink-100"}`}
                   >
-                    <span class="text-[13px]">{m.label}</span>
-                    <span class="text-[11px] text-ink-300">{m.sub}</span>
+                    <span>
+                      <span class="block text-[14px] font-medium">{m.label}</span>
+                      <span class="block text-[12px] text-ink-300">{m.sub}</span>
+                    </span>
+                    {active && <span class="h-2 w-2 rounded-full bg-accent-blue" />}
                   </button>
                 );
               })}
@@ -169,43 +185,44 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
         </div>
       </div>
 
-      {/* Sub-row: cwd + token + cost */}
-      <div class="flex items-center gap-3 text-[11px] text-ink-300 font-mono">
-        <Folder class="w-3 h-3 text-accent-blue flex-none" />
+      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
         {editingCwd ? (
           <input
-            class="flex-1 min-w-0 bg-ink-800 border border-ink-500 rounded px-1.5 py-0.5
-                   text-ink-100 focus:outline-none focus:border-accent-blue"
+            class="h-9 flex-1 min-w-[220px] bg-[#0b0d11] border border-accent-blue/70 rounded-md px-3
+                   text-ink-100 text-[13px] font-mono focus:outline-none"
             value={cwdInput}
             onInput={(e) => setCwdInput((e.currentTarget as HTMLInputElement).value)}
             onBlur={commitCwd}
-            onKeyDown={(e) => { if (e.key === "Enter") commitCwd(); if (e.key === "Escape") { setCwdInput(chat.cwd ?? ""); setEditingCwd(false); } }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitCwd();
+              if (e.key === "Escape") {
+                setCwdInput(chat.cwd ?? "");
+                setEditingCwd(false);
+              }
+            }}
             autofocus
           />
         ) : (
           <button
             type="button"
-            class="flex-1 min-w-0 text-left truncate text-ink-200 hover:text-ink-100"
+            class="h-9 max-w-[72vw] md:max-w-[520px] inline-flex items-center gap-2 px-3 rounded-md
+                   bg-white/5 hover:bg-white/9 border border-white/10 text-left text-ink-200"
             onClick={() => setEditingCwd(true)}
-            title="Click to change working directory"
-            style={{ direction: "rtl", textAlign: "left", unicodeBidi: "plaintext" }}
+            title="Change working directory"
           >
-            {shortenPath(chat.cwd || "~")}
+            <Folder class="w-4 h-4 text-accent-blue flex-none" />
+            <span class="truncate font-mono text-[12.5px]">{shortenPath(chat.cwd || "~")}</span>
           </button>
         )}
 
-        <div class="flex items-center gap-2 flex-none">
-          <span title={`Input ${totals.inT}\nOutput ${totals.outT}\nCache read ${totals.cacheR}\nCache write ${totals.cacheW}`}>
-            <span class="text-ink-200">↑</span> {fmtTokens(totals.inT)}
-            {" "}
-            <span class="text-ink-200">↓</span> {fmtTokens(totals.outT)}
-            {totals.cacheR > 0 && (
-              <> {" "} <span class="text-ink-200">⚡</span> {fmtTokens(totals.cacheR)}</>
-            )}
-          </span>
-          {costUsd > 0 && (
-            <span class="text-ink-200">${costUsd.toFixed(costUsd < 0.01 ? 4 : 2)}</span>
-          )}
+        <div
+          class="h-9 inline-flex items-center gap-2 px-3 rounded-md bg-white/5 border border-white/10
+                 text-[12.5px] text-ink-300 flex-none"
+          title={`Input ${totals.inT}\nOutput ${totals.outT}\nCache read ${totals.cacheR}\nCache write ${totals.cacheW}`}
+        >
+          <Activity class="w-4 h-4 text-accent-green" />
+          <span>{fmtTokens(tokenTotal)} tokens</span>
+          {costUsd > 0 && <span class="text-ink-100">${costUsd.toFixed(costUsd < 0.01 ? 4 : 2)}</span>}
         </div>
       </div>
     </header>

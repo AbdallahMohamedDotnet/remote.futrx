@@ -148,9 +148,59 @@ func (m *Manager) Start(ctx context.Context, containerName string) error {
 	lctx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
 	if out, err := lxcRun(lctx, "start", containerName); err != nil {
+		// Tolerate "already running".
+		if strings.Contains(out, "is already running") {
+			return nil
+		}
 		return fmt.Errorf("lxc start: %w; output: %s", err, out)
 	}
 	return nil
+}
+
+// EnsureClaude makes sure the claude CLI is installed inside the container.
+// Cheap no-op when it's already there; on a fresh container it installs Node
+// + @anthropic-ai/claude-code which takes ~60s. Idempotent + safe to call
+// before every prompt. We deliberately do not pre-install at provision-time
+// because containers are sometimes used for non-claude work too.
+func (m *Manager) EnsureClaude(ctx context.Context, containerName string) error {
+	if !m.Available() {
+		return errors.New("lxc not available")
+	}
+	// Quick check first — uses ~10ms, no network or apt traffic.
+	quickCtx, cancelQ := context.WithTimeout(ctx, queryTimeout)
+	defer cancelQ()
+	if _, err := lxcRun(quickCtx, "exec", containerName, "--", "which", "claude"); err == nil {
+		return nil
+	}
+
+	// Install claude via NodeSource Node 20 + npm. Same path install.sh uses
+	// on the host. Wait up to 5 minutes — first apt update on a fresh image
+	// can take real time.
+	installCtx, cancelI := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancelI()
+	script := `set -e
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq curl ca-certificates gnupg
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
+apt-get install -y -qq nodejs
+npm install -g @anthropic-ai/claude-code --silent 2>&1 | tail -3
+which claude && claude --version`
+	out, err := lxcRun(installCtx, "exec", containerName, "--", "bash", "-c", script)
+	if err != nil {
+		return fmt.Errorf("install claude in %s: %w; output: %s",
+			containerName, err, truncateOut(out, 1000))
+	}
+	return nil
+}
+
+// truncateOut is a small helper to avoid blasting kilobytes of apt output
+// into logs/errors.
+func truncateOut(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…"
 }
 
 func (m *Manager) Stop(ctx context.Context, containerName string) error {

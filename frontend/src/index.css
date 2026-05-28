@@ -7,10 +7,37 @@
 
 @layer base {
   html, body, #root { height: 100%; }
-  body { overscroll-behavior: none; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0;
+    overscroll-behavior: none;
+    background: #090b0f;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    touch-action: manipulation;
+  }
+  button, input, textarea, select {
+    font: inherit;
+    letter-spacing: 0;
+  }
+  * { -webkit-tap-highlight-color: transparent; }
 }
 
 @layer components {
+  .app-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .touch-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .mobile-sheet {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .safe-top { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: theme(colors.ink.500) transparent;

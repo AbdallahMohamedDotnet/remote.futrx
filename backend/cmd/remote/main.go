@@ -55,8 +55,8 @@ func main() {
 	}
 
 	tmuxClient := tmux.NewClient()
-	chatHandler := chat.NewHandler(chatStore, tmuxClient)
-	claudeRunner := claude.NewRunner(chatStore, tmuxClient)
+	chatHandler := chat.NewHandler(chatStore, tmuxClient, projectStore)
+	claudeRunner := claude.NewRunner(chatStore, tmuxClient, projectStore)
 	claudeLogin := claude.NewClaudeLogin()
 	projectHandler := projects.NewHandler(projectStore)
 	upgrader := httpserver.NewUpgrader()

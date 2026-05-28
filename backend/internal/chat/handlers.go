@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/httpserver"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/projects"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/tmux"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/upload"
 )
@@ -16,13 +17,20 @@ type TmuxClient interface {
 	Cwd(session string) (string, error)
 }
 
-type Handler struct {
-	Store *ChatStore
-	Tmux  TmuxClient
+// ProjectResolver is the subset of projects.Store this package needs.
+// Letting it be nil keeps chat usable on hosts without LXD.
+type ProjectResolver interface {
+	Get(id string) (projects.ProjectMeta, error)
 }
 
-func NewHandler(store *ChatStore, tmuxClient TmuxClient) *Handler {
-	return &Handler{Store: store, Tmux: tmuxClient}
+type Handler struct {
+	Store    *ChatStore
+	Tmux     TmuxClient
+	Projects ProjectResolver // nil-safe
+}
+
+func NewHandler(store *ChatStore, tmuxClient TmuxClient, projectResolver ProjectResolver) *Handler {
+	return &Handler{Store: store, Tmux: tmuxClient, Projects: projectResolver}
 }
 
 func (h *Handler) HandleChatsCollection(w http.ResponseWriter, r *http.Request) {
@@ -40,13 +48,24 @@ func (h *Handler) HandleChatsCollection(w http.ResponseWriter, r *http.Request) 
 			TmuxSession string `json:"tmuxSession,omitempty"`
 			Cwd         string `json:"cwd,omitempty"`
 			Model       string `json:"model,omitempty"`
+			ProjectID   string `json:"projectId,omitempty"`
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil && err != io.EOF {
 			httpserver.SendErr(w, 400, "invalid json")
 			return
 		}
-		// Resolve cwd from tmux if a session is given.
+		// Resolve cwd:
+		//   - explicit body.Cwd wins
+		//   - else if a project is given, the project's HOST workspace path
+		//     (uploads write there; claude.Runner translates to /workspace
+		//     inside the container when actually spawning claude)
+		//   - else from tmux session, if any
 		cwd := body.Cwd
+		if cwd == "" && body.ProjectID != "" && h.Projects != nil {
+			if p, err := h.Projects.Get(body.ProjectID); err == nil {
+				cwd = p.Cwd
+			}
+		}
 		if cwd == "" && body.TmuxSession != "" {
 			if !tmux.ValidName(body.TmuxSession) {
 				httpserver.SendErr(w, 400, "invalid tmuxSession")
@@ -62,6 +81,7 @@ func (h *Handler) HandleChatsCollection(w http.ResponseWriter, r *http.Request) 
 			TmuxSession: body.TmuxSession,
 			Cwd:         cwd,
 			Model:       body.Model,
+			ProjectID:   body.ProjectID,
 		})
 		if err != nil {
 			httpserver.SendErr(w, 500, err.Error())

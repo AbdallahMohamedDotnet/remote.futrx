@@ -52,8 +52,11 @@ export function App() {
 
   // --- gating UI --------------------------------------------------------
   const spinner = (
-    <div class="h-full grid place-items-center text-ink-300">
-      <Loader class="w-6 h-6 animate-spin" />
+    <div class="app-shell grid place-items-center bg-[#090b0f] text-ink-300">
+      <div class="grid place-items-center gap-3">
+        <Loader class="w-6 h-6 animate-spin" />
+        <span class="text-sm">Loading</span>
+      </div>
     </div>
   );
   if (auth.loading) return spinner;
@@ -80,7 +83,7 @@ export function App() {
   }
 
   return (
-    <div class="h-full flex bg-ink-800 text-ink-100">
+    <div class="app-shell flex bg-[#090b0f] text-ink-100 overflow-hidden">
       <ChatSidebar
         chats={chats}
         activeChatId={activeId}
@@ -90,7 +93,7 @@ export function App() {
         onClose={() => setSidebarOpen(false)}
         auth={auth}
       />
-      <main class="flex-1 flex flex-col min-w-0">
+      <main class="relative flex-1 flex flex-col min-w-0 bg-[#0b0d11]">
         {activeChat ? (
           <ChatView
             key={activeChat.id}
@@ -108,33 +111,34 @@ export function App() {
 
 function EmptyState({ onNew, onHamburger }: { onNew: () => void; onHamburger: () => void }) {
   return (
-    <div class="flex-1 flex flex-col">
-      <header class="bg-ink-700 border-b border-ink-500 px-3 py-2 flex items-center gap-2 min-h-[42px]">
+    <div class="flex-1 flex flex-col min-h-0">
+      <header class="safe-top bg-[#101318]/95 border-b border-white/10 px-3 py-2 flex items-center gap-2 min-h-[52px]">
         <button
           type="button"
           onClick={onHamburger}
-          class="md:hidden text-ink-100 p-1 rounded hover:bg-ink-600"
+          class="md:hidden h-10 w-10 text-ink-100 rounded-md hover:bg-white/8 grid place-items-center"
           aria-label="Toggle sidebar"
         >
           <Menu class="w-5 h-5" />
         </button>
         <span class="text-sm text-ink-200">No chat selected</span>
       </header>
-      <div class="flex-1 grid place-items-center text-center p-6">
-        <div class="space-y-4 max-w-sm">
-          <MessageSquare class="w-12 h-12 mx-auto opacity-30" />
+      <div class="flex-1 grid place-items-center text-center p-5">
+        <div class="space-y-5 max-w-sm">
+          <div class="mx-auto w-16 h-16 rounded-2xl bg-white/6 border border-white/10 grid place-items-center">
+            <MessageSquare class="w-8 h-8 opacity-70" />
+          </div>
           <div class="text-ink-200">
-            <div class="font-medium text-base text-ink-100">No chat selected</div>
+            <div class="font-semibold text-lg text-ink-50">Choose a chat or start fresh</div>
             <div class="text-xs mt-2 leading-relaxed text-ink-300">
-              Start a new conversation with Claude. Your messages, code edits, tool calls,
-              and file uploads are all rendered inline.
+              Messages, tool calls, file uploads, and code edits stay in one fast conversation view.
             </div>
           </div>
           <button
             type="button"
             onClick={onNew}
-            class="inline-flex items-center gap-1.5 bg-accent-blue hover:bg-accent-blue/85
-                   text-white text-sm font-medium px-4 py-2 rounded"
+            class="inline-flex items-center gap-2 bg-accent-blue hover:bg-accent-blue/90 active:scale-[0.99]
+                   text-white text-sm font-medium px-4 h-11 rounded-md transition"
           >
             <Plus class="w-4 h-4" /> New chat
           </button>

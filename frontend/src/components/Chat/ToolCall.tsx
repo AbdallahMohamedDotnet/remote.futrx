@@ -72,18 +72,18 @@ function ToolShell({
 }) {
   const [open, setOpen] = useState(!!defaultOpen);
   return (
-    <div class={`my-2 border rounded-md overflow-hidden text-sm
-                ${isError ? "border-accent-red/60" : "border-ink-500"}`}>
+    <div class={`my-2 border rounded-lg overflow-hidden text-sm shadow-sm
+                ${isError ? "border-accent-red/50 bg-accent-red/5" : "border-white/10 bg-[#101318]"}`}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        class={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left
-                ${isError ? "bg-accent-red/10" : "bg-ink-700 hover:bg-ink-600/70"}`}
+        class={`w-full min-h-10 flex items-center gap-2 px-3 py-2 text-left
+                ${isError ? "bg-accent-red/10" : "bg-white/[0.03] hover:bg-white/[0.06]"}`}
       >
         {children ? (open ? <ChevronDown class="w-3.5 h-3.5 text-ink-300 flex-none" /> : <ChevronRight class="w-3.5 h-3.5 text-ink-300 flex-none" />) : <span class="w-3.5 flex-none" />}
         <span class={`flex-none ${isError ? "text-accent-red" : "text-accent-blue"}`}>{icon}</span>
         <span class="flex-1 truncate text-ink-100">{label}</span>
-        {badge && <span class="text-[10px] uppercase tracking-wider text-ink-300 flex-none">{badge}</span>}
+        {badge && <span class="text-[11px] text-ink-300 flex-none">{badge}</span>}
         {status === "running"
           ? <Loader class="w-3.5 h-3.5 text-ink-300 animate-spin flex-none" />
           : isError
@@ -91,7 +91,7 @@ function ToolShell({
             : null}
       </button>
       {open && children && (
-        <div class="border-t border-ink-500 bg-ink-800">
+        <div class="border-t border-white/10 bg-[#0b0d11]">
           {children}
         </div>
       )}
@@ -101,7 +101,7 @@ function ToolShell({
 
 function CodeBlock({ text, lang }: { text: string; lang?: string }) {
   return (
-    <pre class={`overflow-x-auto p-3 text-[12.5px] leading-relaxed font-mono text-ink-100
+    <pre class={`overflow-x-auto touch-scroll p-3 text-[12.5px] leading-relaxed font-mono text-ink-100
                   ${lang === "diff" ? "" : ""}`}>
       {text}
     </pre>
@@ -154,7 +154,7 @@ function EditCall({ input, output, status, isError }: Omit<ToolCallProps, "name"
     >
       <div class="divide-y divide-ink-500">
         {patches.map((parts, i) => (
-          <pre key={i} class="overflow-x-auto p-3 text-[12.5px] leading-relaxed font-mono">
+          <pre key={i} class="overflow-x-auto touch-scroll p-3 text-[12.5px] leading-relaxed font-mono">
             {parts.map((p, j) => (
               <span
                 key={j}
@@ -248,13 +248,13 @@ function GenericCall({ name, input, output, status, isError }: ToolCallProps) {
       <div class="divide-y divide-ink-500">
         {input && Object.keys(input).length > 0 && (
           <div>
-            <div class="px-3 py-1 text-[10px] uppercase tracking-wider text-ink-300 bg-ink-700/60">Input</div>
+            <div class="px-3 py-1 text-[11px] text-ink-300 bg-white/[0.04]">Input</div>
             <CodeBlock text={JSON.stringify(input, null, 2)} lang="json" />
           </div>
         )}
         {output && (
           <div>
-            <div class="px-3 py-1 text-[10px] uppercase tracking-wider text-ink-300 bg-ink-700/60">Output</div>
+            <div class="px-3 py-1 text-[11px] text-ink-300 bg-white/[0.04]">Output</div>
             <CodeBlock text={truncate(output, 6000)} />
           </div>
         )}

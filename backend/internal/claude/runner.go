@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/chat"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/projects"
 	"github.com/gorilla/websocket"
 )
 
@@ -24,14 +26,23 @@ type TmuxClient interface {
 	Cwd(session string) (string, error)
 }
 
-type Runner struct {
-	store *chat.ChatStore
-	tmux  TmuxClient
-	hub   *Hub
+// ProjectResolver decouples runner from projects.Store internals — the runner
+// only needs Get + Start + Manager().EnsureClaude. Lets tests stub it later.
+type ProjectResolver interface {
+	Get(id string) (projects.ProjectMeta, error)
+	Start(ctx context.Context, id string) (projects.ProjectMeta, error)
+	Manager() *projects.Manager
 }
 
-func NewRunner(store *chat.ChatStore, tmux TmuxClient) *Runner {
-	return &Runner{store: store, tmux: tmux, hub: NewHub(store)}
+type Runner struct {
+	store    *chat.ChatStore
+	tmux     TmuxClient
+	projects ProjectResolver // nil = legacy host-only mode
+	hub      *Hub
+}
+
+func NewRunner(store *chat.ChatStore, tmux TmuxClient, projectStore ProjectResolver) *Runner {
+	return &Runner{store: store, tmux: tmux, projects: projectStore, hub: NewHub(store)}
 }
 
 // claudeStreamMsg is the on-wire JSON shape from `claude -p --output-format
@@ -237,13 +248,11 @@ func (rnr *Runner) runPrompt(
 		args = append(args, "--resume", meta.ClaudeSessionID)
 	}
 
-	cmd := exec.CommandContext(ctx, "claude", args...)
-	cmd.Dir = cwd
-	// IS_SANDBOX=1 lets `claude --dangerously-skip-permissions` run under
-	// uid 0 — claude otherwise refuses for safety. The box is single-user
-	// and the user explicitly asked for auto-approve in this UI.
-	cmd.Env = append(os.Environ(), "IS_SANDBOX=1")
-	cmd.Stdin = strings.NewReader(prompt)
+	cmd, err := rnr.buildClaudeCmd(ctx, meta, args, prompt, cwd, emit)
+	if err != nil {
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
+		return
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
@@ -375,4 +384,73 @@ func (rnr *Runner) runPrompt(
 	if err != nil {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "claude exit: " + err.Error()})
 	}
+}
+
+// buildClaudeCmd picks the right spawn target for a chat:
+//   - meta.ProjectID empty (or projects backend not wired) → run on the host
+//     the way we always have: claude binary at the chat's cwd.
+//   - meta.ProjectID set → run inside the project's LXC container via
+//     `lxc exec --cwd /workspace -- claude …`. The container's /workspace is
+//     a bind-mount of the host's project workspace dir; claude operates on
+//     it natively, never seeing the host filesystem outside the bind mounts.
+//
+// On the project path we also auto-start a stopped container and lazily
+// install the claude CLI on first prompt (one-time per project, ~60s).
+func (rnr *Runner) buildClaudeCmd(
+	ctx context.Context,
+	meta ChatMeta,
+	args []string,
+	prompt string,
+	hostCwd string,
+	emit func(ChatEvent),
+) (*exec.Cmd, error) {
+	if meta.ProjectID == "" || rnr.projects == nil {
+		cmd := exec.CommandContext(ctx, "claude", args...)
+		cmd.Dir = hostCwd
+		// IS_SANDBOX=1 lets `claude --dangerously-skip-permissions` run under
+		// uid 0. The box is single-user and the UI is auto-approve.
+		cmd.Env = append(os.Environ(), "IS_SANDBOX=1")
+		cmd.Stdin = strings.NewReader(prompt)
+		return cmd, nil
+	}
+
+	p, err := rnr.projects.Get(meta.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("project not found (%s): %w", meta.ProjectID, err)
+	}
+	if p.ContainerName == "" {
+		return nil, fmt.Errorf("project %s has no container — recreate the project", p.ID)
+	}
+
+	// Auto-start if the container isn't running. Surface progress to the
+	// client so the user sees what's happening (cold-start can be 5–10s).
+	if p.Status != projects.StatusRunning {
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "system", Subtype: "container_starting"})
+		if _, err := rnr.projects.Start(ctx, p.ID); err != nil {
+			return nil, fmt.Errorf("start container: %w", err)
+		}
+	}
+
+	// Lazy claude install. ~60s once per project, ~10ms after that.
+	mgr := rnr.projects.Manager()
+	if mgr != nil {
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "system", Subtype: "container_preparing"})
+		if err := mgr.EnsureClaude(ctx, p.ContainerName); err != nil {
+			return nil, fmt.Errorf("install claude in container: %w", err)
+		}
+	}
+
+	lxcArgs := []string{
+		"exec",
+		"--cwd", "/workspace",
+		"--env", "IS_SANDBOX=1",
+		"--env", "HOME=/root",
+		p.ContainerName,
+		"--",
+		"claude",
+	}
+	lxcArgs = append(lxcArgs, args...)
+	cmd := exec.CommandContext(ctx, "lxc", lxcArgs...)
+	cmd.Stdin = strings.NewReader(prompt)
+	return cmd, nil
 }
