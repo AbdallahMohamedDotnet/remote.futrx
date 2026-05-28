@@ -1,17 +1,34 @@
 import { useEffect, useState } from "preact/hooks";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { ChatView } from "./components/Chat/ChatView";
+import { LoginScreen } from "./components/LoginScreen";
 import { chatsApi } from "./lib/api";
+import { useAuth } from "./lib/useAuth";
 import { usePoll } from "./lib/usePoll";
 import type { ChatMeta } from "./types";
-import { Menu, MessageSquare, Plus } from "./components/icons";
+import { Loader, Menu, MessageSquare, Plus } from "./components/icons";
 
 export function App() {
+  const auth = useAuth();
+
+  // Don't fetch chats until we know the user is allowed in.
+  const canFetch = auth.authenticated && (auth.isAdmin || auth.noAuth);
   const { value: chats, refresh } = usePoll<ChatMeta[]>(
-    () => chatsApi.list(),
+    () => (canFetch ? chatsApi.list() : Promise.resolve([])),
     8000,
     []
   );
+
+  if (auth.loading) {
+    return (
+      <div class="h-full grid place-items-center text-ink-300">
+        <Loader class="w-6 h-6 animate-spin" />
+      </div>
+    );
+  }
+  if (!auth.authenticated || (!auth.isAdmin && !auth.noAuth)) {
+    return <LoginScreen auth={auth} />;
+  }
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -52,6 +69,7 @@ export function App() {
         onRefresh={refresh}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        auth={auth}
       />
       <main class="flex-1 flex flex-col min-w-0">
         {activeChat ? (

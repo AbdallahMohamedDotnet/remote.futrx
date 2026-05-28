@@ -2,6 +2,7 @@ import { useEffect } from "preact/hooks";
 import { chatsApi } from "../lib/api";
 import { shortenPath, timeAgo } from "../lib/format";
 import type { ChatMeta } from "../types";
+import type { AuthState } from "../lib/useAuth";
 import { Plus, X, MessageSquare } from "./icons";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   onRefresh: () => void;
   open: boolean;
   onClose: () => void;
+  auth?: AuthState;
 }
 
 function modelLabel(m?: string): string {
@@ -22,7 +24,7 @@ function modelLabel(m?: string): string {
   return m;
 }
 
-export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, onClose }: Props) {
+export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, onClose, auth }: Props) {
   useEffect(() => {
     if (!open) return;
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -131,6 +133,22 @@ export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, on
             </button>
           ))}
         </div>
+        {auth && !auth.noAuth && auth.authenticated && (
+          <footer class="border-t border-ink-500 px-3 py-2 flex items-center gap-2 text-xs">
+            <div class="w-6 h-6 rounded-full bg-accent-blue/20 text-accent-blue
+                        grid place-items-center font-semibold text-[11px] flex-none">
+              {(auth.email[0] || "?").toUpperCase()}
+            </div>
+            <span class="flex-1 truncate text-ink-200" title={auth.email}>{auth.email}</span>
+            <a
+              href="/auth/logout"
+              class="text-ink-300 hover:text-accent-red text-[11px] flex-none"
+              title="Sign out"
+            >
+              Sign out
+            </a>
+          </footer>
+        )}
       </aside>
     </>
   );

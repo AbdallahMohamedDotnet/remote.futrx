@@ -483,10 +483,23 @@ func main() {
 	host := envDefault("HOST", "127.0.0.1")
 	port := envDefault("PORT", "7682")
 	dataDir := envDefault("DATA_DIR", "/opt/remote.futrx.dev/data")
+	baseURL := envDefault("BASE_URL", "")
 
 	chatStore, err := NewChatStore(dataDir)
 	if err != nil {
 		log.Fatalf("init chat store: %v", err)
+	}
+
+	// Auth is optional. If data/oauth.json is absent, auth is nil and the
+	// server runs open (matches old behavior for existing deployments).
+	auth, err := LoadAuthService(dataDir, baseURL)
+	if err != nil {
+		log.Fatalf("init auth: %v", err)
+	}
+	if auth != nil {
+		log.Printf("auth: Google OAuth enabled; BASE_URL=%s", baseURL)
+	} else {
+		log.Printf("auth: DISABLED (no data/oauth.json) — server is open to anyone who can reach it")
 	}
 
 	static, err := fs.Sub(publicFS, "public")
@@ -504,12 +517,25 @@ func main() {
 	mux.HandleFunc("/ws/chat/", func(w http.ResponseWriter, r *http.Request) {
 		chatStreamHandler(chatStore, w, r)
 	})
+	if auth != nil {
+		mux.HandleFunc("/auth/google/login", auth.handleLogin)
+		mux.HandleFunc("/auth/google/callback", auth.handleCallback)
+		mux.HandleFunc("/auth/logout", auth.handleLogout)
+		mux.HandleFunc("/auth/me", auth.handleMe)
+	}
 	mux.Handle("/", staticHandler)
+
+	// Wrap with auth middleware if enabled. Static assets + /auth/* are
+	// public; everything else under /api/* and /ws/* requires session + admin.
+	var handler http.Handler = mux
+	if auth != nil {
+		handler = auth.Middleware(mux)
+	}
 
 	addr := host + ":" + port
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		// No write timeout: long-lived WebSockets.
 	}

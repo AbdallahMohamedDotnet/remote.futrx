@@ -27,9 +27,13 @@ set -euo pipefail
 
 HOSTNAME=""
 SKIP_DNS_CHECK=0
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
 for a in "$@"; do
     case "$a" in
-        --skip-dns-check) SKIP_DNS_CHECK=1 ;;
+        --skip-dns-check)        SKIP_DNS_CHECK=1 ;;
+        --google-client-id=*)    GOOGLE_CLIENT_ID="${a#*=}" ;;
+        --google-client-secret=*) GOOGLE_CLIENT_SECRET="${a#*=}" ;;
         --*) echo "unknown flag: $a" >&2; exit 1 ;;
         *)   [ -z "$HOSTNAME" ] && HOSTNAME="$a" ;;
     esac
@@ -231,6 +235,40 @@ log "Building backend (Go → backend/remote)"
 )
 ok "$(ls -lh backend/remote | awk '{print $5}') binary"
 
+# ───────────────── data dir + auth secrets ─────────────────
+# Pre-create data/ with tight perms so secret files we may write below land
+# in a directory only root can list.
+mkdir -p "$INSTALL_DIR/data"
+chmod 0700 "$INSTALL_DIR/data"
+
+if [ -n "$GOOGLE_CLIENT_ID" ] && [ -n "$GOOGLE_CLIENT_SECRET" ]; then
+    log "Writing Google OAuth config (data/oauth.json)"
+    # JSON-escape the secret in case it ever contains a quote or backslash.
+    # client_id is always URL-safe so no escape needed.
+    SECRET_ESC=$(printf '%s' "$GOOGLE_CLIENT_SECRET" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null \
+                 || printf '%s' "\"$GOOGLE_CLIENT_SECRET\"")
+    cat > "$INSTALL_DIR/data/oauth.json" <<EOF
+{
+  "googleClientId": "$GOOGLE_CLIENT_ID",
+  "googleClientSecret": $SECRET_ESC
+}
+EOF
+    chmod 0600 "$INSTALL_DIR/data/oauth.json"
+    ok "Google OAuth enabled; first login at https://$HOSTNAME will claim admin"
+    AUTH_NOTE="Google OAuth enabled. First Google login becomes admin."
+else
+    AUTH_NOTE=$(cat <<EON
+NO AUTH. To enable Google OAuth later:
+  1. In Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client ID (Web app):
+       Authorized redirect URI:  https://$HOSTNAME/auth/google/callback
+  2. Re-run this installer with:
+       --google-client-id=YOURID.apps.googleusercontent.com \\
+       --google-client-secret=YOURSECRET
+  3. First Google login then claims admin. Everyone else is locked out.
+EON
+)
+fi
+
 # ───────────────── Caddy ─────────────────
 
 log "Writing Caddyfile for $HOSTNAME"
@@ -271,6 +309,7 @@ Environment=HOST=127.0.0.1
 Environment=PORT=$SERVICE_PORT
 Environment=HOME=/root
 Environment=DATA_DIR=$INSTALL_DIR/data
+Environment=BASE_URL=https://$HOSTNAME
 # tmux server inherits this cgroup; KillMode=process spares it on restart.
 KillMode=process
 Restart=always
@@ -323,10 +362,7 @@ cat <<EOF
  ✓ Installed at: $INSTALL_DIR
  ✓ Reverse-proxied at: https://$HOSTNAME
 
- ⚠  NO AUTH. The URL is open to anyone on the internet.
-    Claude has full read/write/exec on this host. Spend will hit
-    your Anthropic account. Treat as dev/demo until you put an
-    auth provider in front of it.
+ $AUTH_NOTE
 
  Next:
    1. claude login         # interactive — authenticate the Claude CLI

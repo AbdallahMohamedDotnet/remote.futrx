@@ -6,8 +6,16 @@ async function json<T>(method: string, url: string, body?: unknown): Promise<T> 
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
+    credentials: "same-origin",
   };
   const r = await fetch(url, init);
+  if (r.status === 401) {
+    // Session expired or never had one — bounce to a fresh page load so the
+    // SPA re-runs useAuth, sees authenticated:false, and shows LoginScreen.
+    location.reload();
+    // Never resolves — we're navigating away.
+    return new Promise<T>(() => {});
+  }
   if (!r.ok) {
     let msg = `${r.status}`;
     try { msg = (await r.json()).error || msg; } catch {}

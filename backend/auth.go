@@ -1,0 +1,357 @@
+package main
+
+import (
+	"context"
+	"crypto/hmac"
+	crand "crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+)
+
+// oauthConfig is persisted at data/oauth.json. If the file is missing, the
+// service runs with no auth — useful for local dev and existing deployments
+// that haven't enabled auth yet.
+type oauthConfig struct {
+	GoogleClientID     string `json:"googleClientId"`
+	GoogleClientSecret string `json:"googleClientSecret"`
+}
+
+// adminInfo is persisted at data/admin.json. Existence == server is claimed.
+type adminInfo struct {
+	Email     string `json:"email"`
+	Sub       string `json:"sub"`
+	Name      string `json:"name,omitempty"`
+	Picture   string `json:"picture,omitempty"`
+	ClaimedAt int64  `json:"claimedAt"`
+}
+
+// AuthService — Google OAuth + first-login-wins admin + HMAC-signed session
+// cookies. Stateless: no server-side session table; cookie carries everything.
+type AuthService struct {
+	dataDir    string
+	baseURL    string
+	oauth      *oauth2.Config
+	sessionKey []byte
+	mu         sync.RWMutex
+	admin      *adminInfo // nil = unclaimed
+}
+
+// LoadAuthService returns nil, nil if no oauth.json exists (auth disabled).
+func LoadAuthService(dataDir, baseURL string) (*AuthService, error) {
+	cfgBytes, err := os.ReadFile(filepath.Join(dataDir, "oauth.json"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // auth disabled
+		}
+		return nil, fmt.Errorf("read oauth.json: %w", err)
+	}
+	var cfg oauthConfig
+	if err := json.Unmarshal(cfgBytes, &cfg); err != nil {
+		return nil, fmt.Errorf("parse oauth.json: %w", err)
+	}
+	if cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" {
+		return nil, errors.New("oauth.json present but missing googleClientId or googleClientSecret")
+	}
+	if baseURL == "" {
+		return nil, errors.New("BASE_URL env var required when auth is enabled (e.g. https://remote.example.com)")
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	// Load or generate the HMAC session-signing key.
+	keyPath := filepath.Join(dataDir, "session.key")
+	sessionKey, err := os.ReadFile(keyPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("read session.key: %w", err)
+		}
+		sessionKey = make([]byte, 32)
+		if _, err := crand.Read(sessionKey); err != nil {
+			return nil, fmt.Errorf("gen session key: %w", err)
+		}
+		if err := os.WriteFile(keyPath, sessionKey, 0o600); err != nil {
+			return nil, fmt.Errorf("write session.key: %w", err)
+		}
+	}
+
+	// Load admin if already claimed.
+	var admin *adminInfo
+	if data, err := os.ReadFile(filepath.Join(dataDir, "admin.json")); err == nil {
+		var a adminInfo
+		if err := json.Unmarshal(data, &a); err == nil && a.Email != "" {
+			admin = &a
+		}
+	}
+
+	return &AuthService{
+		dataDir: dataDir,
+		baseURL: baseURL,
+		oauth: &oauth2.Config{
+			ClientID:     cfg.GoogleClientID,
+			ClientSecret: cfg.GoogleClientSecret,
+			RedirectURL:  baseURL + "/auth/google/callback",
+			Scopes:       []string{"openid", "email", "profile"},
+			Endpoint:     google.Endpoint,
+		},
+		sessionKey: sessionKey,
+		admin:      admin,
+	}, nil
+}
+
+// --- session cookie ---------------------------------------------------------
+
+const (
+	sessionCookieName = "remote_session"
+	stateCookieName   = "remote_oauth_state"
+	sessionDuration   = 30 * 24 * time.Hour
+)
+
+type sessionPayload struct {
+	Email string `json:"email"`
+	Sub   string `json:"sub"`
+	Iat   int64  `json:"iat"`
+	Exp   int64  `json:"exp"`
+}
+
+func (s *AuthService) signCookie(p sessionPayload) string {
+	body, _ := json.Marshal(p)
+	b64 := base64.RawURLEncoding.EncodeToString(body)
+	mac := hmac.New(sha256.New, s.sessionKey)
+	mac.Write([]byte(b64))
+	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return b64 + "." + sig
+}
+
+func (s *AuthService) verifyCookie(v string) (*sessionPayload, error) {
+	parts := strings.SplitN(v, ".", 2)
+	if len(parts) != 2 {
+		return nil, errors.New("malformed")
+	}
+	mac := hmac.New(sha256.New, s.sessionKey)
+	mac.Write([]byte(parts[0]))
+	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(parts[1]), []byte(want)) {
+		return nil, errors.New("bad signature")
+	}
+	body, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, err
+	}
+	var p sessionPayload
+	if err := json.Unmarshal(body, &p); err != nil {
+		return nil, err
+	}
+	if time.Now().Unix() > p.Exp {
+		return nil, errors.New("expired")
+	}
+	return &p, nil
+}
+
+func (s *AuthService) currentUser(r *http.Request) *sessionPayload {
+	c, err := r.Cookie(sessionCookieName)
+	if err != nil {
+		return nil
+	}
+	p, err := s.verifyCookie(c.Value)
+	if err != nil {
+		return nil
+	}
+	return p
+}
+
+func (s *AuthService) isAdmin(email string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.admin != nil && strings.EqualFold(s.admin.Email, email)
+}
+
+// --- HTTP handlers ----------------------------------------------------------
+
+func (s *AuthService) handleLogin(w http.ResponseWriter, r *http.Request) {
+	stateBytes := make([]byte, 16)
+	if _, err := crand.Read(stateBytes); err != nil {
+		http.Error(w, "rand", http.StatusInternalServerError)
+		return
+	}
+	state := base64.RawURLEncoding.EncodeToString(stateBytes)
+	http.SetCookie(w, &http.Cookie{
+		Name: stateCookieName, Value: state,
+		Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
+		MaxAge: 600,
+	})
+	url := s.oauth.AuthCodeURL(state, oauth2.AccessTypeOnline)
+	http.Redirect(w, r, url, http.StatusFound)
+}
+
+func (s *AuthService) handleCallback(w http.ResponseWriter, r *http.Request) {
+	// Verify OAuth state.
+	stateCookie, err := r.Cookie(stateCookieName)
+	if err != nil || r.URL.Query().Get("state") != stateCookie.Value {
+		http.Error(w, "bad oauth state — try logging in again", http.StatusBadRequest)
+		return
+	}
+	// Best-effort clear of state cookie.
+	http.SetCookie(w, &http.Cookie{
+		Name: stateCookieName, Path: "/", MaxAge: -1,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
+	})
+
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Error(w, "missing code", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	tok, err := s.oauth.Exchange(ctx, code)
+	if err != nil {
+		http.Error(w, "token exchange failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	client := s.oauth.Client(ctx, tok)
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+	if err != nil {
+		http.Error(w, "userinfo request failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		http.Error(w, "userinfo non-200: "+resp.Status, http.StatusInternalServerError)
+		return
+	}
+
+	var userInfo struct {
+		Sub     string `json:"id"`
+		Email   string `json:"email"`
+		Name    string `json:"name"`
+		Picture string `json:"picture"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		http.Error(w, "userinfo parse: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if userInfo.Email == "" {
+		http.Error(w, "Google returned no email", http.StatusInternalServerError)
+		return
+	}
+
+	// First-login-wins claim, or admin match.
+	s.mu.Lock()
+	if s.admin == nil {
+		s.admin = &adminInfo{
+			Email: userInfo.Email, Sub: userInfo.Sub,
+			Name: userInfo.Name, Picture: userInfo.Picture,
+			ClaimedAt: time.Now().UnixMilli(),
+		}
+		data, _ := json.MarshalIndent(s.admin, "", "  ")
+		if err := os.WriteFile(filepath.Join(s.dataDir, "admin.json"), data, 0o600); err != nil {
+			s.mu.Unlock()
+			http.Error(w, "write admin.json: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		log.Printf("auth: claimed by %s (sub=%s)", userInfo.Email, userInfo.Sub)
+	} else if !strings.EqualFold(s.admin.Email, userInfo.Email) {
+		claimed := s.admin.Email
+		s.mu.Unlock()
+		http.Error(w, fmt.Sprintf(
+			"This server is claimed by %s. If you should have access, ask them to add you — or SSH in and remove data/admin.json to reset.",
+			claimed,
+		), http.StatusForbidden)
+		return
+	}
+	s.mu.Unlock()
+
+	// Issue session cookie.
+	now := time.Now()
+	cookie := s.signCookie(sessionPayload{
+		Email: userInfo.Email, Sub: userInfo.Sub,
+		Iat: now.Unix(), Exp: now.Add(sessionDuration).Unix(),
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name: sessionCookieName, Value: cookie,
+		Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
+		MaxAge: int(sessionDuration.Seconds()),
+	})
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func (s *AuthService) handleLogout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name: sessionCookieName, Path: "/", MaxAge: -1,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
+	})
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func (s *AuthService) handleMe(w http.ResponseWriter, r *http.Request) {
+	p := s.currentUser(r)
+	s.mu.RLock()
+	claimed := s.admin != nil
+	var adminEmail string
+	if claimed {
+		adminEmail = s.admin.Email
+	}
+	s.mu.RUnlock()
+
+	if p == nil {
+		sendJSON(w, 200, map[string]any{
+			"authenticated": false,
+			"claimed":       claimed,
+			"adminEmail":    adminEmail, // shown on lockout to know who claimed it
+		})
+		return
+	}
+	sendJSON(w, 200, map[string]any{
+		"authenticated": true,
+		"claimed":       claimed,
+		"adminEmail":    adminEmail,
+		"email":         p.Email,
+		"sub":           p.Sub,
+		"isAdmin":       s.isAdmin(p.Email),
+	})
+}
+
+// Middleware gates /api/* and /ws/* on a valid session + admin match.
+// Static assets and the auth flow itself are always public — the SPA
+// handles displaying the login screen client-side when /auth/me returns
+// authenticated:false.
+func (s *AuthService) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		// Public paths: everything except API / WS calls.
+		if !strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/ws") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// /auth/me is the only /api endpoint that's public (so the SPA can
+		// detect logged-out state). Everything else under /api/ is gated.
+		if path == "/auth/me" || strings.HasPrefix(path, "/auth/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		p := s.currentUser(r)
+		if p == nil {
+			http.Error(w, "authentication required", http.StatusUnauthorized)
+			return
+		}
+		if !s.isAdmin(p.Email) {
+			http.Error(w, "forbidden — not the admin", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
