@@ -76,7 +76,7 @@ jobs:
           ( cd frontend && npm install --silent --no-audit --no-fund 2>&1 | tail -3 && npm run build 2>&1 | tail -5 )
 
           echo "==> backend build"
-          ( cd backend && go build -trimpath -ldflags="-s -w" -o remote . )
+          ( cd backend && go build -trimpath -ldflags="-s -w" -o remote ./cmd/remote )
 
           echo "==> restart service"
           systemctl restart remote.futrx.dev
