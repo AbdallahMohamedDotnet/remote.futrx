@@ -71,12 +71,18 @@ Each event is **appended to `data/chats/{id}/events.jsonl`** and broadcast over 
 
 ```
 .
-├── main.go             HTTP routes, tmux PTY WS, static SPA serve
-├── chat.go             Chat storage (JSON files), HTTP endpoints
-├── chat_stream.go      Claude streaming WS + event normalization
-├── go.mod, go.sum
-├── public/             Built SPA bundle (go:embed source — gitignored, regenerated)
-├── web/
+├── install.sh                  one-shot installer for fresh Ubuntu/Debian
+├── README.md
+│
+├── backend/                    Go service
+│   ├── main.go                 HTTP routes, tmux PTY WS, static SPA serve
+│   ├── chat.go                 Chat storage (JSON files), HTTP endpoints
+│   ├── chat_stream.go          Claude streaming WS + event normalization
+│   ├── go.mod, go.sum
+│   ├── public/                 Built SPA bundle — gitignored, written by vite
+│   └── remote                  Built binary — gitignored
+│
+├── frontend/                   Preact + Vite + Tailwind SPA
 │   ├── package.json, vite.config.ts, tailwind.config.ts, tsconfig.json
 │   ├── index.html
 │   └── src/
@@ -89,9 +95,10 @@ Each event is **appended to `data/chats/{id}/events.jsonl`** and broadcast over 
 │               ├── Message.tsx, Markdown.tsx, StreamingText.tsx
 │               ├── ToolCall.tsx, AskUserQuestion.tsx
 │               └── messageBlocks.ts
-└── data/chats/{id}/
-    ├── meta.json       title, claudeSessionId, tmuxSession, cwd, model, timestamps
-    └── events.jsonl    append-only chat event stream
+│
+└── data/chats/{id}/            Runtime state — gitignored
+    ├── meta.json               title, claudeSessionId, cwd, model, timestamps
+    └── events.jsonl            append-only chat event stream
 ```
 
 ---
@@ -126,18 +133,18 @@ Re-running the installer pulls latest, rebuilds, and restarts. Idempotent.
 ## Build manually
 
 ```bash
-cd web && npm install && npm run build   # → ../public/{index.html, assets/*}
-cd ..  && go build -trimpath -ldflags="-s -w" -o remote .
+cd frontend && npm install && npm run build   # → ../backend/public/{index.html, assets/*}
+cd ../backend && go build -trimpath -ldflags="-s -w" -o remote .
 ```
 
-Production binary is ~6 MB, static (CGO_ENABLED=0).
+Production binary is ~6 MB, static (CGO_ENABLED=0). It lives at `backend/remote`.
 
 Frontend bundle is ~290 KB JS / 90 KB gzipped — Preact + react-markdown + remark-gfm + highlight.js + diff + xterm.
 
 ## Run
 
 ```bash
-HOST=172.18.0.1 PORT=7682 DATA_DIR=/opt/remote.futrx.dev/data ./remote
+HOST=127.0.0.1 PORT=7682 DATA_DIR=/opt/remote.futrx.dev/data backend/remote
 ```
 
 Reachable only from the Docker `edge` bridge (172.18.0.0/16). Caddy stub container (`/srv/terminal/docker-compose.yml`) carries the public TLS hostname + cookie-auth labels.
@@ -162,7 +169,8 @@ Reachable only from the Docker `edge` bridge (172.18.0.0/16). Caddy stub contain
 
 ```
 /etc/systemd/system/remote.futrx.dev.service
-   ExecStart=/opt/remote.futrx.dev/remote
+   ExecStart=/opt/remote.futrx.dev/backend/remote
+   WorkingDirectory=/opt/remote.futrx.dev
    KillMode=process    # tmux server (inherited cgroup) survives restarts
    Restart=always
 ```
@@ -175,10 +183,11 @@ Reachable only from the Docker `edge` bridge (172.18.0.0/16). Caddy stub contain
 
 ```bash
 # Frontend: HMR dev server, proxies API/WS to Go on :7682
-cd web && npm run dev
+cd frontend && npm run dev
 
 # Backend: rebuild + restart
-go build -trimpath -ldflags="-s -w" -o remote . && systemctl restart remote.futrx.dev
+cd backend && go build -trimpath -ldflags="-s -w" -o remote . \
+  && systemctl restart remote.futrx.dev
 ```
 
 ---

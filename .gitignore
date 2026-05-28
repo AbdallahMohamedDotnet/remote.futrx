@@ -1,13 +1,12 @@
 # Build artifacts
-/remote
-/term-multi
-/term-multi-go
-/public/
+/backend/remote
+/backend/public/
 
 # Frontend deps + build outputs
-/web/node_modules/
-/web/dist/
-/web/.vite/
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.vite/
+/frontend/tsconfig.tsbuildinfo
 
 # Runtime state — don't commit chat history or local data
 /data/
@@ -22,6 +21,3 @@
 
 # Logs
 *.log
-
-# TS incremental cache
-/web/tsconfig.tsbuildinfo

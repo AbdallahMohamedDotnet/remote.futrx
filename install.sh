@@ -185,16 +185,19 @@ cd "$INSTALL_DIR"
 
 # ───────────────── build ─────────────────
 
-log "Building frontend (web → public/)"
+log "Building frontend (frontend/ → backend/public/)"
 (
-    cd web
+    cd frontend
     npm install --silent --no-audit --no-fund 2>&1 | tail -3
     npm run build 2>&1 | tail -5
 )
 
-log "Building backend (Go → ./remote)"
-go build -trimpath -ldflags="-s -w" -o remote .
-ok "$(ls -lh remote | awk '{print $5}') binary"
+log "Building backend (Go → backend/remote)"
+(
+    cd backend
+    go build -trimpath -ldflags="-s -w" -o remote .
+)
+ok "$(ls -lh backend/remote | awk '{print $5}') binary"
 
 # ───────────────── Caddy ─────────────────
 
@@ -227,7 +230,7 @@ Description=remote.futrx.dev — self-hosted Claude Code chat UI
 After=network.target
 
 [Service]
-ExecStart=$INSTALL_DIR/remote
+ExecStart=$INSTALL_DIR/backend/remote
 WorkingDirectory=$INSTALL_DIR
 Environment=HOST=127.0.0.1
 Environment=PORT=$SERVICE_PORT

@@ -2,8 +2,8 @@ import { defineConfig } from "vite";
 import preact from "@preact/preset-vite";
 import { resolve } from "node:path";
 
-// Vite owns /opt/term-multi-go/public/ at build time.
-// Go's //go:embed public picks it up at the next `go build`.
+// Vite writes the built bundle into backend/public/ at build time.
+// Go's //go:embed public (inside backend/) picks it up at the next `go build`.
 export default defineConfig({
   plugins: [preact()],
   resolve: {
@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: resolve(__dirname, "../public"),
+    outDir: resolve(__dirname, "../backend/public"),
     emptyOutDir: true,
     sourcemap: false,
     target: "es2020",
