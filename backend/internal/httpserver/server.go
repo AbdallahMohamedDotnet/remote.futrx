@@ -19,6 +19,8 @@ type Routes struct {
 	SessionResource http.HandlerFunc
 	Chats           http.HandlerFunc
 	ChatResource    http.HandlerFunc
+	Projects        http.HandlerFunc
+	ProjectResource http.HandlerFunc
 	ClaudeAuth      http.HandlerFunc
 	ClaudeLogin     http.HandlerFunc
 	ClaudeCode      http.HandlerFunc
@@ -35,6 +37,12 @@ func NewHandler(routes Routes) http.Handler {
 	mux.HandleFunc("/api/sessions/", routes.SessionResource)
 	mux.HandleFunc("/api/chats", routes.Chats)
 	mux.HandleFunc("/api/chats/", routes.ChatResource)
+	if routes.Projects != nil {
+		mux.HandleFunc("/api/projects", routes.Projects)
+	}
+	if routes.ProjectResource != nil {
+		mux.HandleFunc("/api/projects/", routes.ProjectResource)
+	}
 	mux.HandleFunc("/api/claude/auth-status", routes.ClaudeAuth)
 	mux.HandleFunc("/api/claude/login/start", routes.ClaudeLogin)
 	mux.HandleFunc("/api/claude/login/code", routes.ClaudeCode)

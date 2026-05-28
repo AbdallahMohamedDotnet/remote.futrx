@@ -13,6 +13,9 @@ type ChatMeta struct {
 	CreatedAt       int64  `json:"createdAt"`
 	LastMessageAt   int64  `json:"lastMessageAt"`
 	Model           string `json:"model,omitempty"`
+	// ProjectID links a chat to a project. Empty = legacy chat (runs claude on
+	// the host); non-empty = future container-spawn target. Wired in task #9.
+	ProjectID string `json:"projectId,omitempty"`
 }
 
 // ChatEvent is the normalized shape we persist and stream. It mirrors the

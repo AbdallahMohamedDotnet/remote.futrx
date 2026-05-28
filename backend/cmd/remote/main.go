@@ -20,6 +20,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/claude"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/httpserver"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/projects"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/tmux"
 )
 
@@ -29,6 +30,11 @@ func main() {
 	chatStore, err := chat.NewChatStore(cfg.DataDir)
 	if err != nil {
 		log.Fatalf("init chat store: %v", err)
+	}
+
+	projectStore, err := projects.NewStore(cfg.DataDir)
+	if err != nil {
+		log.Fatalf("init project store: %v", err)
 	}
 
 	// Auth is optional. If data/oauth.json is absent, auth is nil and the
@@ -52,6 +58,7 @@ func main() {
 	chatHandler := chat.NewHandler(chatStore, tmuxClient)
 	claudeRunner := claude.NewRunner(chatStore, tmuxClient)
 	claudeLogin := claude.NewClaudeLogin()
+	projectHandler := projects.NewHandler(projectStore)
 	upgrader := httpserver.NewUpgrader()
 
 	var authRoutes *httpserver.AuthRoutes
@@ -65,6 +72,8 @@ func main() {
 		SessionResource: tmuxClient.HandleSessionResource,
 		Chats:           chatHandler.HandleChatsCollection,
 		ChatResource:    chatHandler.HandleChatResource,
+		Projects:        projectHandler.HandleCollection,
+		ProjectResource: projectHandler.HandleResource,
 		ClaudeAuth:      claudeLogin.HandleStatus,
 		ClaudeLogin:     claudeLogin.HandleStart,
 		ClaudeCode:      claudeLogin.HandleCode,
