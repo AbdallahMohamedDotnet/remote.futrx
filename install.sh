@@ -29,11 +29,15 @@ HOSTNAME=""
 SKIP_DNS_CHECK=0
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
+# Also honor GITHUB_TOKEN from the environment — convenient for one-liners
+# like:  GITHUB_TOKEN=ghp_xxx curl -fsSL .../install.sh | sudo -E bash -s -- host
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 for a in "$@"; do
     case "$a" in
         --skip-dns-check)        SKIP_DNS_CHECK=1 ;;
         --google-client-id=*)    GOOGLE_CLIENT_ID="${a#*=}" ;;
         --google-client-secret=*) GOOGLE_CLIENT_SECRET="${a#*=}" ;;
+        --github-token=*)        GITHUB_TOKEN="${a#*=}" ;;
         --*) echo "unknown flag: $a" >&2; exit 1 ;;
         *)   [ -z "$HOSTNAME" ] && HOSTNAME="$a" ;;
     esac
@@ -210,12 +214,40 @@ if [ -d "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR/.git" ]; then
     echo "  Remove it (or move it aside) and re-run." >&2
     exit 1
 fi
+
+# Private-repo support: if a token is provided, embed it in the clone URL.
+# The token persists in .git/config so subsequent `git pull --ff-only` runs
+# work without re-supplying it. We chmod the config file to 0600 right after
+# clone so only root can read the embedded token.
+CLONE_URL="$REPO_URL"
+if [ -n "$GITHUB_TOKEN" ]; then
+    CLONE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/Kings-Of-The-Web/remote.futrx.dev.git"
+fi
+
 if [ -d "$INSTALL_DIR/.git" ]; then
     log "Updating repo at $INSTALL_DIR"
     git -C "$INSTALL_DIR" pull --ff-only
 else
     log "Cloning repo to $INSTALL_DIR"
-    git clone --depth=1 "$REPO_URL" "$INSTALL_DIR"
+    if ! git clone --depth=1 "$CLONE_URL" "$INSTALL_DIR" 2>&1; then
+        err "git clone failed."
+        if [ -z "$GITHUB_TOKEN" ]; then
+            cat <<EOF >&2
+
+  This repo is private. Provide a GitHub Personal Access Token:
+    1. Go to https://github.com/settings/personal-access-tokens
+    2. Generate token (fine-grained) → select repo
+       Kings-Of-The-Web/remote.futrx.dev → Repository permissions
+       → Contents: Read
+    3. Re-run with:
+         sudo $0 $HOSTNAME --github-token=ghp_xxxxxx [other flags]
+       or:
+         sudo GITHUB_TOKEN=ghp_xxxxxx bash $0 $HOSTNAME [other flags]
+EOF
+        fi
+        exit 1
+    fi
+    chmod 0600 "$INSTALL_DIR/.git/config"
 fi
 cd "$INSTALL_DIR"
 
