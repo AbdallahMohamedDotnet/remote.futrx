@@ -508,11 +508,17 @@ func main() {
 	}
 	staticHandler := http.FileServer(http.FS(static))
 
+	claudeLogin := NewClaudeLogin()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/sessions", apiSessions)
 	mux.HandleFunc("/api/sessions/", apiSession)
 	mux.HandleFunc("/api/chats", chatStore.handleChatsCollection)
 	mux.HandleFunc("/api/chats/", chatStore.handleChatResource)
+	mux.HandleFunc("/api/claude/auth-status", claudeLogin.handleStatus)
+	mux.HandleFunc("/api/claude/login/start", claudeLogin.handleStart)
+	mux.HandleFunc("/api/claude/login/code", claudeLogin.handleCode)
+	mux.HandleFunc("/api/claude/login/cancel", claudeLogin.handleCancel)
 	mux.HandleFunc("/ws", wsHandler)
 	mux.HandleFunc("/ws/chat/", func(w http.ResponseWriter, r *http.Request) {
 		chatStreamHandler(chatStore, w, r)

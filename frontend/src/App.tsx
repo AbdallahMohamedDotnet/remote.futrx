@@ -1,44 +1,41 @@
 import { useEffect, useState } from "preact/hooks";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { ChatView } from "./components/Chat/ChatView";
+import { ClaudeLoginScreen } from "./components/ClaudeLoginScreen";
 import { LoginScreen } from "./components/LoginScreen";
 import { chatsApi } from "./lib/api";
 import { useAuth } from "./lib/useAuth";
+import { useClaudeAuth } from "./lib/useClaudeAuth";
 import { usePoll } from "./lib/usePoll";
 import type { ChatMeta } from "./types";
 import { Loader, Menu, MessageSquare, Plus } from "./components/icons";
 
 export function App() {
   const auth = useAuth();
+  // Only ask the server about claude after Google auth is confirmed
+  // (otherwise we'd hit the admin-only middleware and 401 → reload loop).
+  const googleOk = auth.authenticated && (auth.isAdmin || auth.noAuth);
+  const claudeAuth = useClaudeAuth(googleOk);
 
-  // Don't fetch chats until we know the user is allowed in.
-  const canFetch = auth.authenticated && (auth.isAdmin || auth.noAuth);
+  // Gate everything on Google admin auth being good AND claude CLI being
+  // authenticated on the server. Only then do we even fetch chats.
+  const gateOpen = googleOk && claudeAuth.authenticated;
+
   const { value: chats, refresh } = usePoll<ChatMeta[]>(
-    () => (canFetch ? chatsApi.list() : Promise.resolve([])),
+    () => (gateOpen ? chatsApi.list() : Promise.resolve([])),
     8000,
     []
   );
 
-  if (auth.loading) {
-    return (
-      <div class="h-full grid place-items-center text-ink-300">
-        <Loader class="w-6 h-6 animate-spin" />
-      </div>
-    );
-  }
-  if (!auth.authenticated || (!auth.isAdmin && !auth.noAuth)) {
-    return <LoginScreen auth={auth} />;
-  }
-
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Auto-select first chat on initial load, only if user hasn't picked.
+  // Auto-select first chat on initial load.
   useEffect(() => {
-    if (activeId === null && chats.length > 0) {
+    if (gateOpen && activeId === null && chats.length > 0) {
       setActiveId(chats[0].id);
     }
-  }, [chats, activeId]);
+  }, [chats, activeId, gateOpen]);
 
   // Clear selection if active chat was deleted elsewhere.
   useEffect(() => {
@@ -47,6 +44,22 @@ export function App() {
     }
   }, [chats, activeId]);
 
+  // --- gating UI --------------------------------------------------------
+  const spinner = (
+    <div class="h-full grid place-items-center text-ink-300">
+      <Loader class="w-6 h-6 animate-spin" />
+    </div>
+  );
+  if (auth.loading) return spinner;
+  if (!googleOk) return <LoginScreen auth={auth} />;
+  // Google is good; wait for the first claude-auth check before deciding
+  // whether to render the chat UI or the ClaudeLoginScreen.
+  if (!claudeAuth.checked || claudeAuth.loading) return spinner;
+  if (!claudeAuth.authenticated) {
+    return <ClaudeLoginScreen onDone={claudeAuth.refresh} />;
+  }
+
+  // --- main app ---------------------------------------------------------
   const activeChat = activeId ? chats.find((c) => c.id === activeId) ?? null : null;
 
   async function newChat() {

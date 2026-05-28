@@ -50,6 +50,17 @@ export const chatsApi = {
     json<ChatEvent[]>("GET", `/api/chats/${encodeURIComponent(id)}/events`),
 };
 
+// --- claude CLI authentication on the server ------------------------------
+// Surfaces ~/.claude/.credentials.json status + bridges `claude auth login`
+// through HTTP so the admin can authenticate without SSH.
+
+export const claudeAuthApi = {
+  status: () => json<{ authenticated: boolean }>("GET", "/api/claude/auth-status"),
+  startLogin: () => json<{ url: string; resumed?: boolean }>("POST", "/api/claude/login/start", {}),
+  submitCode: (code: string) => json<{ success: boolean }>("POST", "/api/claude/login/code", { code }),
+  cancelLogin: () => json<{ ok: boolean }>("POST", "/api/claude/login/cancel", {}),
+};
+
 // Multipart upload to chat's working directory. Returns the resolved cwd
 // (in case it changed) and per-file results.
 export async function uploadChatFiles(
