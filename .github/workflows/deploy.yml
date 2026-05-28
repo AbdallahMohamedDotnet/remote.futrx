@@ -1,0 +1,105 @@
+# Push to main → SSH into the production server → git pull + rebuild + restart.
+#
+# This is the "fast path" deploy: skips the dep checks install.sh does (apt /
+# Caddy / Node 20 / claude CLI) because those don't change between code pushes.
+# If you need to add a new system dep, SSH in and re-run install.sh by hand
+# (or trigger this workflow with `installer` set to true via workflow_dispatch).
+#
+# Secrets required (set via `gh secret set --repo Kings-Of-The-Web/remote.futrx.dev`):
+#   SSH_KEY      private OpenSSH key authorized on $DEPLOY_HOST as $DEPLOY_USER
+#   KNOWN_HOSTS  output of `ssh-keyscan -t ed25519 <host>`
+#   DEPLOY_HOST  hostname or IP of the server
+#   DEPLOY_USER  ssh user (root for our setup)
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      installer:
+        description: 'Re-run install.sh on the box (slower, picks up system-dep changes)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Prepare SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          RUN_INSTALLER: ${{ github.event.inputs.installer || 'false' }}
+        run: |
+          set -euo pipefail
+          echo "Deploying ${GITHUB_SHA::7} (${GITHUB_REF_NAME}) → ${DEPLOY_USER}@${DEPLOY_HOST}"
+          echo
+
+          # Heredoc with quoted EOF so the remote shell parses the body, not us.
+          ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              "RUN_INSTALLER=${RUN_INSTALLER} bash -se" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/remote.futrx.dev
+
+          echo "==> git fetch + fast-forward"
+          git fetch --quiet --tags origin
+          git reset --hard origin/main
+
+          if [ "${RUN_INSTALLER:-false}" = "true" ]; then
+              echo "==> running full install.sh (system-dep refresh requested)"
+              # Re-run install with --skip-dns-check (DNS already verified at install time).
+              bash install.sh remote.futrx.dev --skip-dns-check
+              exit 0
+          fi
+
+          echo "==> frontend build"
+          ( cd frontend && npm install --silent --no-audit --no-fund 2>&1 | tail -3 && npm run build 2>&1 | tail -5 )
+
+          echo "==> backend build"
+          ( cd backend && go build -trimpath -ldflags="-s -w" -o remote . )
+
+          echo "==> restart service"
+          systemctl restart remote.futrx.dev
+          sleep 1
+          systemctl is-active --quiet remote.futrx.dev || {
+              echo "✗ service failed to start"
+              journalctl -u remote.futrx.dev -n 30 --no-pager
+              exit 1
+          }
+
+          echo "==> health check"
+          for _ in 1 2 3 4 5; do
+              if curl -fsS --max-time 3 http://127.0.0.1:7682/ >/dev/null 2>&1; then
+                  echo "✓ backend responding"
+                  exit 0
+              fi
+              sleep 1
+          done
+          echo "✗ backend did not respond on 127.0.0.1:7682 within 5s"
+          journalctl -u remote.futrx.dev -n 30 --no-pager
+          exit 1
+          REMOTE
+
+      - name: Summary
+        if: success()
+        run: echo "::notice ::Deployed ${GITHUB_SHA::7} to https://remote.futrx.dev"
