@@ -11,8 +11,13 @@ package projects
 //     host's uid 1000000. To make bind-mounted workspaces writable from
 //     inside the container, we chown the workspace dir to uid 1000000:1000000
 //     on the host. Host root can still read/write (root bypasses perms).
-//   - We bind-mount /root/.claude read-only so all containers share the host's
-//     Anthropic auth without a per-container login.
+//   - Anthropic auth is seeded into each container by pushing the host's
+//     ~/.claude.json and ~/.claude/.credentials.json once per container.
+//     We deliberately do NOT share /root/.claude via a bind-mount: claude
+//     mutates both files (token refresh, statsig writes, backups rotation,
+//     session JSONLs under projects/) — a read-only mount blocks all of it,
+//     a read-write shared mount would race and leak session state across
+//     projects.
 //   - Image is vanilla ubuntu:24.04. claude CLI + dev tools are installed by
 //     claude itself on the first prompt of a project (task #9).
 
@@ -32,10 +37,13 @@ const (
 	// container's root can read/write them.
 	hostMappedUID = 1000000
 
-	defaultImage    = "ubuntu:24.04"
-	hostClaudePath  = "/root/.claude"
-	containerWS     = "/workspace"
-	containerClaude = "/root/.claude"
+	defaultImage = "ubuntu:24.04"
+	containerWS  = "/workspace"
+
+	// Host paths we read claude auth state from. These are paths under the
+	// service user's $HOME on the host (the server runs as root, so $HOME=/root).
+	hostClaudeJSON  = "/root/.claude.json"
+	hostClaudeCreds = "/root/.claude/.credentials.json"
 
 	// Operation timeouts. Launching an unprivileged Ubuntu container takes
 	// 5–10 seconds the first time the image is cached.
@@ -115,13 +123,12 @@ func (m *Manager) Launch(ctx context.Context, p ProjectMeta) error {
 		return fmt.Errorf("attach workspace: %w", err)
 	}
 
-	// Attach the read-only claude credentials, if the host has them.
-	if info, err := os.Stat(hostClaudePath); err == nil && info.IsDir() {
-		if err := m.attachDisk(ctx, p.ContainerName, "claude-auth", hostClaudePath, containerClaude, true); err != nil {
-			// Not fatal — the user can still `claude auth login` inside.
-			// Log via the returned error chain, but don't fail the launch.
-			_ = err
-		}
+	// Seed claude auth + config into the container. Best-effort: a missing
+	// host auth file means the user just hasn't done `claude auth login` yet
+	// (the ClaudeLoginScreen flow). EnsureClaudeAuth will retry on next prompt.
+	if err := m.EnsureClaudeAuth(ctx, p.ContainerName); err != nil {
+		// Log via fmt.Errorf chain is enough — don't fail launch.
+		_ = err
 	}
 
 	return nil
@@ -154,6 +161,70 @@ func (m *Manager) Start(ctx context.Context, containerName string) error {
 		}
 		return fmt.Errorf("lxc start: %w; output: %s", err, out)
 	}
+	return nil
+}
+
+// EnsureClaudeAuth seeds /root/.claude.json and /root/.claude/.credentials.json
+// into the container by pushing from the host. Idempotent: the per-container
+// state files grow under /root/.claude/ (projects/, statsig/, backups/) but
+// the seed files we manage here only need to exist — claude will mutate them
+// in place from then on.
+//
+// Strategy: only push if .claude.json is missing in the container. After
+// initial seed we leave the container's claude state alone (token refresh,
+// state writes etc. happen locally). When the host re-logs to claude, run
+// ReseedClaudeAuth (TODO) to refresh seeded containers.
+//
+// Also runs a one-time migration: removes the legacy `claude-auth` disk
+// device left over from when we bind-mounted /root/.claude read-only.
+func (m *Manager) EnsureClaudeAuth(ctx context.Context, containerName string) error {
+	if !m.Available() {
+		return errors.New("lxc not available")
+	}
+
+	// Migration: drop the old read-only claude-auth bind-mount if it exists.
+	// Safe to call when the device is absent (lxc returns non-zero, we ignore).
+	dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
+	_, _ = lxcRun(dctx, "config", "device", "remove", containerName, "claude-auth")
+	cancelD()
+
+	// Quick check: is the config file already there?
+	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
+	defer cancelQ()
+	if _, err := lxcRun(qctx, "exec", containerName, "--", "test", "-s", "/root/.claude.json"); err == nil {
+		return nil
+	}
+
+	// Refuse to push if the host hasn't been authenticated yet — the user
+	// needs to complete ClaudeLoginScreen first. Surface a clear error.
+	if _, err := os.Stat(hostClaudeJSON); err != nil {
+		return fmt.Errorf("host claude not authenticated yet: %s missing", hostClaudeJSON)
+	}
+
+	pctx, cancelP := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelP()
+
+	// Ensure ~/.claude/ exists inside the container with the right perms.
+	if out, err := lxcRun(pctx, "exec", containerName, "--",
+		"install", "-d", "-m", "700", "/root/.claude"); err != nil {
+		return fmt.Errorf("mkdir /root/.claude in container: %w; output: %s", err, out)
+	}
+
+	// Push the main config. `lxc file push --mode` sets perms on the destination.
+	if out, err := lxcRun(pctx, "file", "push", "--mode=600",
+		hostClaudeJSON, containerName+"/root/.claude.json"); err != nil {
+		return fmt.Errorf("push .claude.json: %w; output: %s", err, out)
+	}
+
+	// Push credentials if they exist on the host. Without these, claude will
+	// reach the login prompt — useful in dev but a blocker in prod.
+	if _, err := os.Stat(hostClaudeCreds); err == nil {
+		if out, err := lxcRun(pctx, "file", "push", "--mode=600",
+			hostClaudeCreds, containerName+"/root/.claude/.credentials.json"); err != nil {
+			return fmt.Errorf("push .credentials.json: %w; output: %s", err, out)
+		}
+	}
+
 	return nil
 }
 
