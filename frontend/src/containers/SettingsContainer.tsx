@@ -1,0 +1,29 @@
+import { SettingsPage } from "../components/settings/SettingsPage";
+import { useSettingsCredentials } from "../hooks/settings/useSettingsCredentials";
+import { CREDENTIAL_PROVIDERS } from "../state/settings/providers";
+
+export function SettingsContainer({
+  onBack,
+  onHamburger,
+}: {
+  onBack: () => void;
+  onHamburger: () => void;
+}) {
+  const credentials = useSettingsCredentials();
+
+  return (
+    <SettingsPage
+      providers={CREDENTIAL_PROVIDERS}
+      values={credentials.values}
+      expandedHelp={credentials.expandedHelp}
+      revealed={credentials.revealed}
+      savedAt={credentials.savedAt}
+      onBack={onBack}
+      onHamburger={onHamburger}
+      onValueChange={credentials.setValue}
+      onToggleHelp={credentials.toggleHelp}
+      onToggleReveal={credentials.toggleReveal}
+      onSave={credentials.save}
+    />
+  );
+}

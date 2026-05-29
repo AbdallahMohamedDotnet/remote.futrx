@@ -1,0 +1,62 @@
+import type { ChatMode } from "../../models/chat";
+import { COMPOSER_MODEL_OPTIONS, MODE_OPTIONS } from "../../state/chat/usage";
+import { Clock } from "../ui/icons";
+
+export function ComposerToolbar({
+  model,
+  mode,
+  streaming,
+  onModelChange,
+  onModeChange,
+}: {
+  model: string;
+  mode: ChatMode;
+  streaming: boolean;
+  onModelChange: (model: string) => void;
+  onModeChange: (mode: ChatMode) => void;
+}) {
+  return (
+    <div class="codex-composer-controls px-3 pt-2 pb-1.5">
+      <div class="mx-auto max-w-[980px] flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <label class="codex-model-control hidden sm:inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
+          <span class="hidden sm:inline text-ink-400">Model</span>
+          <select
+            value={model}
+            onChange={(event) => onModelChange((event.currentTarget as HTMLSelectElement).value)}
+            class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
+            title="Model"
+          >
+            {model && !COMPOSER_MODEL_OPTIONS.some((option) => option.value === model) && (
+              <option value={model}>{model}</option>
+            )}
+            {COMPOSER_MODEL_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label class="codex-mode-control inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
+          <span class="hidden sm:inline text-ink-400">Mode</span>
+          <select
+            value={mode}
+            onChange={(event) => onModeChange((event.currentTarget as HTMLSelectElement).value as ChatMode)}
+            class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
+            title="Mode"
+          >
+            {MODE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+
+        {streaming && (
+          <div class="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md bg-accent-blue/[0.12] border border-accent-blue/25 text-[12px] text-accent-blue flex-none">
+            <Clock class="w-3.5 h-3.5" />
+            <span class="hidden sm:inline">Next send queues</span>
+            <span class="sm:hidden">Queues</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

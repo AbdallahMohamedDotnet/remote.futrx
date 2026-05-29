@@ -19,3 +19,12 @@ export function timeAgo(ms: number, now = Date.now()): string {
   if (days < 7) return `${days}d ago`;
   return new Date(ms).toLocaleDateString();
 }
+
+export function formatModelShortLabel(model?: string): string {
+  if (!model) return "auto";
+  const lower = model.toLowerCase();
+  if (lower.includes("opus")) return "opus";
+  if (lower.includes("sonnet")) return "sonnet";
+  if (lower.includes("haiku")) return "haiku";
+  return model;
+}
