@@ -27,6 +27,8 @@ type runState struct {
 	cancel context.CancelFunc
 }
 
+const subscriptionLiveBuffer = 4096
+
 type Subscription struct {
 	room   *room
 	events chan ChatEvent
@@ -64,7 +66,7 @@ func (h *Hub) Subscribe(chatID string) (*Subscription, error) {
 
 	sub := &Subscription{
 		room:   r,
-		events: make(chan ChatEvent, len(replay)+128),
+		events: make(chan ChatEvent, len(replay)+subscriptionLiveBuffer),
 	}
 	for _, ev := range replay {
 		sub.events <- ev

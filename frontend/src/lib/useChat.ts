@@ -54,44 +54,80 @@ export function useChat(chatId: string): UseChatResult {
     return () => { cancelled = true; };
   }, [chatId]);
 
-  // Open WS once we have meta. Re-open if chat id changes.
+  // Open WS once we have meta. If the connection closes mid-stream, reconnect
+  // and let the server replay history so the UI catches up without refresh.
   useEffect(() => {
     if (!meta || meta.id !== chatId) return;
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${location.host}/ws/chat/${meta.id}`);
-    wsRef.current = ws;
+    const wsChatId = meta.id;
+    let stopped = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
     setWsReady(false);
-    ws.onopen = () => {
-      if (wsRef.current === ws) setWsReady(true);
-    };
-    ws.onmessage = (e) => {
-      if (wsRef.current !== ws) return;
-      try {
-        const ev = JSON.parse(e.data) as ChatEvent;
-        if (ev.type === "sync") {
-          setStatus(ev.running ? "streaming" : "ready");
-          return;
+
+    function scheduleReconnect() {
+      if (stopped) return;
+      const delay = Math.min(5000, 400 * 2 ** attempt);
+      attempt++;
+      reconnectTimer = setTimeout(connect, delay);
+    }
+
+    function connect() {
+      if (stopped) return;
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${proto}//${location.host}/ws/chat/${wsChatId}`);
+      wsRef.current = ws;
+      setWsReady(false);
+
+      ws.onopen = () => {
+        if (stopped || wsRef.current !== ws) return;
+        attempt = 0;
+        setError(null);
+        setEvents([]);
+        setWsReady(true);
+      };
+
+      ws.onmessage = (e) => {
+        if (stopped || wsRef.current !== ws) return;
+        try {
+          const ev = JSON.parse(e.data) as ChatEvent;
+          if (ev.type === "sync") {
+            setStatus(ev.running ? "streaming" : "ready");
+            return;
+          }
+          setEvents((prev) => [...prev, ev]);
+          if (ev.type === "complete" || ev.type === "error") {
+            setStatus("ready");
+          } else {
+            setStatus("streaming");
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        if (wsRef.current === ws) {
+          wsRef.current = null;
+          setWsReady(false);
+          scheduleReconnect();
         }
-        setEvents((prev) => [...prev, ev]);
-        if (ev.type === "complete" || ev.type === "error") {
-          setStatus("ready");
-        } else {
-          setStatus("streaming");
-        }
-      } catch {}
-    };
-    ws.onclose = () => {
-      if (wsRef.current === ws) {
-        wsRef.current = null;
-        setWsReady(false);
-      }
-    };
+      };
+
+      ws.onerror = () => {
+        try { ws.close(); } catch {}
+      };
+    }
+
+    connect();
+
     return () => {
-      if (wsRef.current === ws) {
-        wsRef.current = null;
-        setWsReady(false);
+      stopped = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
       }
-      try { ws.close(); } catch {}
+      const ws = wsRef.current;
+      wsRef.current = null;
+      setWsReady(false);
+      try { ws?.close(); } catch {}
     };
   }, [meta?.id, chatId]);
 

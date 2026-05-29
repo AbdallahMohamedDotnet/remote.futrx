@@ -131,10 +131,25 @@ func (rnr *Runner) handleStream(upgrader websocket.Upgrader, w http.ResponseWrit
 	defer sub.Close()
 
 	go func() {
-		for ev := range sub.Events() {
-			if err := conn.WriteJSON(ev); err != nil {
-				_ = conn.Close()
-				return
+		ticker := time.NewTicker(25 * time.Second)
+		defer ticker.Stop()
+		defer conn.Close()
+
+		for {
+			select {
+			case ev, ok := <-sub.Events():
+				if !ok {
+					return
+				}
+				_ = conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
+				if err := conn.WriteJSON(ev); err != nil {
+					return
+				}
+			case <-ticker.C:
+				deadline := time.Now().Add(15 * time.Second)
+				if err := conn.WriteControl(websocket.PingMessage, []byte("ping"), deadline); err != nil {
+					return
+				}
 			}
 		}
 	}()
