@@ -61,48 +61,62 @@ Notes:
   container has its own network namespace, so `proj-a` on :3000 and
   `proj-b` on :3000 don't collide.
 
-### Dev-server Host-header gotcha — fix this before running
+### Dev-server Host-header allowlists (per-framework)
 
-Modern dev servers reject requests whose `Host` header isn't on a
-trusted allowlist (CSRF/DNS-rebinding defense). Caddy preserves the
-public host (`<slug>--<port>.dev.remote.futrx.dev`) when proxying, so
-out of the box you'll see:
+Caddy preserves the public host (`<slug>--<port>.dev.remote.futrx.dev`)
+when proxying — that's correct (so frameworks generate the right
+absolute URLs for OAuth, assets, etc.) but several dev servers have
+a Host allowlist for DNS-rebinding/CSRF defense and refuse it. When
+the user asks you to start a dev server, apply the right fix below
+as part of the same change so the public URL works first try.
 
-> Blocked request. This host is not allowed. To allow this host, add
-> it to `server.allowedHosts`.
+**Just works, no config needed** — start them and the public URL
+serves immediately:
 
-You need to disable that check (or widen the allowlist) **in the
-project's config** before the dev URL works:
+- `php -S 0.0.0.0:<port>`, Laravel `artisan serve`, Symfony local
+- `python -m http.server`, Flask, FastAPI, Uvicorn
+- Plain Node `http.createServer`, Go `net/http`, Rust hyper, etc.
 
-- **Vite** (`vite.config.{js,ts}`):
+**Has a Host allowlist, widen it**:
 
-  ```js
-  server: {
-    host: true,                    // bind 0.0.0.0
-    allowedHosts: ['.dev.remote.futrx.dev'],
-  }
-  ```
-
-- **Next.js 13+** (`next.config.{js,ts}`):
+- **Vite** — `vite.config.{js,ts}`:
 
   ```js
-  experimental: {
-    allowedDevOrigins: ['*.dev.remote.futrx.dev'],
-  }
+  server: { host: true, allowedHosts: ['.dev.remote.futrx.dev'] }
   ```
 
-- **Webpack dev-server** (`webpack.config.js` `devServer`):
+- **Next.js 13+ dev** — `next.config.{js,ts}`:
+
+  ```js
+  experimental: { allowedDevOrigins: ['*.dev.remote.futrx.dev'] }
+  ```
+
+- **Webpack dev-server** — `webpack.config.js`:
 
   ```js
   devServer: { allowedHosts: 'all', host: '0.0.0.0' }
   ```
 
-- **Create React App**: set `DANGEROUSLY_DISABLE_HOST_CHECK=true` in
-  the env (no other knob exists).
+- **Create React App** — env: `DANGEROUSLY_DISABLE_HOST_CHECK=true`
 
-When the user asks you to spin up a dev server, apply the right knob
-above as part of the same change — they shouldn't have to come back
-and ask why the public URL throws "host not allowed".
+- **Angular CLI** — `ng serve --host 0.0.0.0 --allowed-hosts '.dev.remote.futrx.dev'`
+
+- **Django** — `settings.py`:
+
+  ```py
+  ALLOWED_HOSTS = ['.dev.remote.futrx.dev', 'localhost']
+  ```
+
+- **Rails 6+** — `config/environments/development.rb`:
+
+  ```rb
+  config.hosts << '.dev.remote.futrx.dev'
+  ```
+
+Generic rule when configuring a stack you don't recognize: search
+its docs for "allowed hosts" / "host allowlist" / "disable host
+check" and either add `.dev.remote.futrx.dev` (with the leading dot
+to cover all subdomains) or set the "allow all" knob if available.
 
 ## Not yet wired
 
