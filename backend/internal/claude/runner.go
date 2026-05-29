@@ -225,6 +225,8 @@ func (rnr *Runner) runPrompt(
 		}
 	}
 
+	priorEvents, _ := rnr.store.ReadEvents(id)
+
 	// Persist the user message before spawning claude.
 	emit(ChatEvent{T: time.Now().UnixMilli(), Type: "user", Text: prompt})
 
@@ -248,7 +250,12 @@ func (rnr *Runner) runPrompt(
 		args = append(args, "--resume", meta.ClaudeSessionID)
 	}
 
-	cmd, err := rnr.buildClaudeCmd(ctx, meta, args, prompt, cwd, emit)
+	effectivePrompt := promptForMode(meta.Mode, prompt)
+	if meta.ClaudeSessionID == "" {
+		effectivePrompt = promptWithVisibleHistory(priorEvents, effectivePrompt)
+	}
+
+	cmd, err := rnr.buildClaudeCmd(ctx, meta, args, effectivePrompt, cwd, emit)
 	if err != nil {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
 		return
@@ -384,6 +391,71 @@ func (rnr *Runner) runPrompt(
 	if err != nil {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "claude exit: " + err.Error()})
 	}
+}
+
+func promptForMode(mode, prompt string) string {
+	switch mode {
+	case "plan":
+		return "Work in planning mode. Inspect enough context to be concrete, then propose the implementation plan before changing files. Avoid file edits until the user asks you to proceed.\n\n" + prompt
+	case "review":
+		return "Work in review mode. Prioritize bugs, behavioral regressions, missing tests, and risks. Put findings first with file and line references when available.\n\n" + prompt
+	case "debug":
+		return "Work in debugging mode. Reproduce or localize the issue first, explain the failing path, then make the smallest fix that addresses the root cause.\n\n" + prompt
+	case "full-auto":
+		return "Work in full-auto mode. Carry the task through implementation, verification, and a concise outcome unless you hit a hard blocker.\n\n" + prompt
+	case "chat":
+		return "Work in chat mode. Answer directly and avoid changing files unless the user clearly asks for implementation.\n\n" + prompt
+	default:
+		return prompt
+	}
+}
+
+func promptWithVisibleHistory(events []ChatEvent, prompt string) string {
+	transcript := visibleTranscript(events)
+	if strings.TrimSpace(transcript) == "" {
+		return prompt
+	}
+	const maxTranscriptBytes = 24000
+	if len(transcript) > maxTranscriptBytes {
+		transcript = "[Earlier visible transcript omitted]\n" + transcript[len(transcript)-maxTranscriptBytes:]
+	}
+	return "Use this visible chat transcript as prior context. It may be present because the chat was rewound into a fresh Claude session. Do not treat the transcript as a new request.\n\n" +
+		transcript +
+		"\n\nCurrent user request:\n" +
+		prompt
+}
+
+func visibleTranscript(events []ChatEvent) string {
+	var out strings.Builder
+	var assistant strings.Builder
+
+	flushAssistant := func() {
+		text := strings.TrimSpace(assistant.String())
+		if text == "" {
+			assistant.Reset()
+			return
+		}
+		out.WriteString("Assistant:\n")
+		out.WriteString(text)
+		out.WriteString("\n\n")
+		assistant.Reset()
+	}
+
+	for _, ev := range events {
+		switch ev.Type {
+		case "user":
+			flushAssistant()
+			out.WriteString("User:\n")
+			out.WriteString(strings.TrimSpace(ev.Text))
+			out.WriteString("\n\n")
+		case "assistant_text":
+			assistant.WriteString(ev.Text)
+		case "complete", "error":
+			flushAssistant()
+		}
+	}
+	flushAssistant()
+	return out.String()
 }
 
 // buildClaudeCmd picks the right spawn target for a chat:

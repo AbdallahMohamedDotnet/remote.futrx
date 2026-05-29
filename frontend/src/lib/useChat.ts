@@ -12,6 +12,7 @@ interface UseChatResult {
   canSendPrompt: boolean;
   sendPrompt: (text: string) => boolean;
   cancel: () => void;
+  rewind: (beforeT: number) => Promise<ChatEvent[]>;
   refreshMeta: () => Promise<void>;
 }
 
@@ -110,6 +111,13 @@ export function useChat(chatId: string): UseChatResult {
     }
   }, []);
 
+  const rewind = useCallback(async (beforeT: number) => {
+    const res = await chatsApi.rewind(chatId, beforeT);
+    setEvents(res.events);
+    setStatus("ready");
+    return res.events;
+  }, [chatId]);
+
   const refreshMeta = useCallback(async () => {
     if (!chatId) return;
     try {
@@ -126,6 +134,7 @@ export function useChat(chatId: string): UseChatResult {
     canSendPrompt: wsReady && status === "ready",
     sendPrompt,
     cancel,
+    rewind,
     refreshMeta,
   };
 }

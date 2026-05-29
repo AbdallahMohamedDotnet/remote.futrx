@@ -13,6 +13,7 @@ interface Props {
 }
 
 const MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
+  { value: "", label: "Auto", sub: "server default" },
   { value: "opus", label: "Opus", sub: "deepest reasoning" },
   { value: "sonnet", label: "Sonnet", sub: "balanced" },
   { value: "haiku", label: "Haiku", sub: "fast" },
@@ -163,7 +164,8 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
             <div class="absolute right-0 top-full mt-2 z-40 w-[220px]
                         bg-[#151922] border border-white/[0.12] rounded-lg shadow-2xl overflow-hidden p-1">
               {MODEL_OPTIONS.map((m) => {
-                const active = modelDisplayLabel(chat.model).toLowerCase() === m.value;
+                const active = (chat.model || "") === m.value ||
+                  (m.value !== "" && modelDisplayLabel(chat.model).toLowerCase() === m.value);
                 return (
                   <button
                     key={m.value}

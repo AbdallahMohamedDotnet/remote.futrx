@@ -73,6 +73,9 @@ func (s *ChatStore) Create(meta ChatMeta) (ChatMeta, error) {
 	if meta.Title == "" {
 		meta.Title = "New chat"
 	}
+	if meta.Mode == "" {
+		meta.Mode = "code"
+	}
 	dir := s.chatDir(meta.ID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return meta, err
@@ -261,6 +264,10 @@ func (s *ChatStore) ReadEvents(id string) ([]ChatEvent, error) {
 	if !validChatID(id) {
 		return nil, errors.New("invalid chat id")
 	}
+	return s.readEventsFile(id)
+}
+
+func (s *ChatStore) readEventsFile(id string) ([]ChatEvent, error) {
 	f, err := os.Open(filepath.Join(s.chatDir(id), "events.jsonl"))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -284,6 +291,72 @@ func (s *ChatStore) ReadEvents(id string) ([]ChatEvent, error) {
 		out = append(out, ev)
 	}
 	return out, sc.Err()
+}
+
+// TruncateEventsBefore rewinds a chat by removing the selected event and every
+// event after it. The returned slice is the complete remaining history.
+func (s *ChatStore) TruncateEventsBefore(id string, beforeT int64) ([]ChatEvent, error) {
+	if !validChatID(id) {
+		return nil, errors.New("invalid chat id")
+	}
+	if beforeT <= 0 {
+		return nil, errors.New("invalid rewind timestamp")
+	}
+	lk := s.lock(id)
+	lk.Lock()
+	defer lk.Unlock()
+
+	events, err := s.readEventsFile(id)
+	if err != nil {
+		return nil, err
+	}
+	kept := make([]ChatEvent, 0, len(events))
+	var lastT int64
+	for _, ev := range events {
+		if ev.T >= beforeT {
+			continue
+		}
+		kept = append(kept, ev)
+		if ev.T > lastT {
+			lastT = ev.T
+		}
+	}
+
+	tmp := filepath.Join(s.chatDir(id), "events.jsonl.tmp")
+	final := filepath.Join(s.chatDir(id), "events.jsonl")
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	enc := json.NewEncoder(f)
+	for _, ev := range kept {
+		if err := enc.Encode(ev); err != nil {
+			_ = f.Close()
+			_ = os.Remove(tmp)
+			return nil, err
+		}
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return nil, err
+	}
+	if err := os.Rename(tmp, final); err != nil {
+		_ = os.Remove(tmp)
+		return nil, err
+	}
+
+	if meta, err := s.GetMeta(id); err == nil {
+		if lastT == 0 {
+			lastT = meta.CreatedAt
+		}
+		meta.ClaudeSessionID = ""
+		meta.LastMessageAt = lastT
+		if err := s.writeMeta(meta); err == nil {
+			s.setCachedMeta(meta)
+		}
+	}
+
+	return kept, nil
 }
 
 func validChatID(id string) bool {

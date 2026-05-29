@@ -48,6 +48,7 @@ func (h *Handler) HandleChatsCollection(w http.ResponseWriter, r *http.Request) 
 			TmuxSession string `json:"tmuxSession,omitempty"`
 			Cwd         string `json:"cwd,omitempty"`
 			Model       string `json:"model,omitempty"`
+			Mode        string `json:"mode,omitempty"`
 			ProjectID   string `json:"projectId,omitempty"`
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil && err != io.EOF {
@@ -81,6 +82,7 @@ func (h *Handler) HandleChatsCollection(w http.ResponseWriter, r *http.Request) 
 			TmuxSession: body.TmuxSession,
 			Cwd:         cwd,
 			Model:       body.Model,
+			Mode:        body.Mode,
 			ProjectID:   body.ProjectID,
 		})
 		if err != nil {
@@ -114,6 +116,28 @@ func (h *Handler) HandleChatResource(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		httpserver.SendJSON(w, 200, events)
+		return
+	}
+
+	// /api/chats/{id}/rewind
+	if len(parts) == 2 && parts[1] == "rewind" {
+		if r.Method != http.MethodPost {
+			httpserver.SendErr(w, 405, "method not allowed")
+			return
+		}
+		var body struct {
+			BeforeT int64 `json:"beforeT"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
+			httpserver.SendErr(w, 400, "invalid json")
+			return
+		}
+		events, err := h.Store.TruncateEventsBefore(id, body.BeforeT)
+		if err != nil {
+			httpserver.SendErr(w, 500, err.Error())
+			return
+		}
+		httpserver.SendJSON(w, 200, map[string][]ChatEvent{"events": events})
 		return
 	}
 
@@ -163,6 +187,7 @@ func (h *Handler) HandleChatResource(w http.ResponseWriter, r *http.Request) {
 				Title *string `json:"title,omitempty"`
 				Cwd   *string `json:"cwd,omitempty"`
 				Model *string `json:"model,omitempty"`
+				Mode  *string `json:"mode,omitempty"`
 			}
 			if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
 				httpserver.SendErr(w, 400, "invalid json")
@@ -177,6 +202,9 @@ func (h *Handler) HandleChatResource(w http.ResponseWriter, r *http.Request) {
 				}
 				if body.Model != nil {
 					m.Model = *body.Model
+				}
+				if body.Mode != nil {
+					m.Mode = *body.Mode
 				}
 			})
 			if err != nil {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { ChatMeta } from "../../types";
+import type { ChatMeta, ChatMode } from "../../types";
 import { chatsApi } from "../../lib/api";
 import { useChat } from "../../lib/useChat";
 import { groupEvents } from "./messageBlocks";
@@ -14,13 +14,38 @@ interface Props {
   onMetaUpdate: () => void;
 }
 
+interface QueuedPrompt {
+  id: string;
+  text: string;
+}
+
+function queueId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
-  const { meta, events, status, error, canSendPrompt, sendPrompt, cancel, refreshMeta } = useChat(chat.id);
+  const { meta, events, status, error, canSendPrompt, sendPrompt, cancel, rewind, refreshMeta } = useChat(chat.id);
   const scrollRef = useRef<HTMLDivElement>(null);
   const userScrolledRef = useRef(false);
   const [showJump, setShowJump] = useState(false);
+  const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
+  const [draft, setDraft] = useState<{ key: number; text: string } | null>(null);
 
   const blocks = useMemo(() => groupEvents(events), [events]);
+
+  useEffect(() => {
+    setQueuedPrompts([]);
+    setDraft(null);
+  }, [chat.id]);
+
+  useEffect(() => {
+    if (status !== "ready" || !canSendPrompt || queuedPrompts.length === 0) return;
+    const next = queuedPrompts[0];
+    const sent = sendPrompt(next.text);
+    if (!sent) return;
+    setQueuedPrompts((prev) => prev.filter((p) => p.id !== next.id));
+    userScrolledRef.current = false;
+  }, [status, canSendPrompt, queuedPrompts, sendPrompt]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -45,7 +70,7 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }
 
-  async function applyMeta(patch: { model?: string; cwd?: string; title?: string }) {
+  async function applyMeta(patch: { model?: string; mode?: ChatMode; cwd?: string; title?: string }) {
     try {
       await chatsApi.patch(chat.id, patch);
       await refreshMeta();
@@ -64,6 +89,27 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
   }, [status, cancel]);
 
   const displayMeta = meta ?? chat;
+  const displayMode = displayMeta.mode || "code";
+
+  async function handleRewind(t: number, text: string) {
+    if (status === "streaming") {
+      alert("Cancel the current run before rewinding this chat.");
+      return;
+    }
+    if (!confirm("Rewind to this prompt? Messages from this point forward will be removed.")) return;
+    try {
+      await rewind(t);
+      setQueuedPrompts([]);
+      setDraft({ key: Date.now(), text });
+      await refreshMeta();
+      onMetaUpdate();
+      userScrolledRef.current = false;
+      setShowJump(false);
+      setTimeout(jumpToBottom, 0);
+    } catch (e) {
+      alert("rewind failed: " + (e as Error).message);
+    }
+  }
 
   return (
     <div class="flex-1 flex flex-col min-h-0 bg-[#0b0d11]">
@@ -113,6 +159,7 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
                   const sent = sendPrompt(t);
                   if (sent) userScrolledRef.current = false;
                 }}
+                onRewind={(t, text) => handleRewind(t, text)}
               />
             ))}
 
@@ -142,7 +189,19 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
         chatId={chat.id}
         streaming={status === "streaming"}
         canSendPrompt={canSendPrompt}
+        model={displayMeta.model || ""}
+        mode={displayMode}
+        queuedPrompts={queuedPrompts}
+        draftText={draft?.text}
+        draftKey={draft?.key}
+        onModelChange={(m) => applyMeta({ model: m })}
+        onModeChange={(m) => applyMeta({ mode: m })}
+        onRemoveQueued={(id) => setQueuedPrompts((prev) => prev.filter((p) => p.id !== id))}
         onSend={(t) => {
+          if (status === "streaming") {
+            setQueuedPrompts((prev) => [...prev, { id: queueId(), text: t }]);
+            return true;
+          }
           const sent = sendPrompt(t);
           if (sent) userScrolledRef.current = false;
           return sent;

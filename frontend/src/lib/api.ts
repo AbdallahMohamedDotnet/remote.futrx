@@ -1,5 +1,5 @@
 // Thin fetch wrapper. All endpoints are cookie-authenticated by Caddy.
-import type { Session, ChatMeta, ChatEvent, ProjectMeta } from "../types";
+import type { Session, ChatMeta, ChatEvent, ChatMode, ProjectMeta } from "../types";
 
 async function json<T>(method: string, url: string, body?: unknown): Promise<T> {
   const init: RequestInit = {
@@ -44,16 +44,19 @@ export const chatsApi = {
     cwd?: string;
     title?: string;
     model?: string;
+    mode?: ChatMode;
     projectId?: string;
   } = {}) =>
     json<ChatMeta>("POST", "/api/chats", body),
   get: (id: string) => json<ChatMeta>("GET", `/api/chats/${encodeURIComponent(id)}`),
-  patch: (id: string, body: { title?: string; cwd?: string; model?: string }) =>
+  patch: (id: string, body: { title?: string; cwd?: string; model?: string; mode?: ChatMode }) =>
     json<ChatMeta>("PATCH", `/api/chats/${encodeURIComponent(id)}`, body),
   delete: (id: string) =>
     json<{ ok: boolean }>("DELETE", `/api/chats/${encodeURIComponent(id)}`),
   events: (id: string) =>
     json<ChatEvent[]>("GET", `/api/chats/${encodeURIComponent(id)}/events`),
+  rewind: (id: string, beforeT: number) =>
+    json<{ events: ChatEvent[] }>("POST", `/api/chats/${encodeURIComponent(id)}/rewind`, { beforeT }),
 };
 
 // --- projects (LXC containers) --------------------------------------------

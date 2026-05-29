@@ -17,10 +17,13 @@ export interface ChatMeta {
   createdAt: number;
   lastMessageAt: number;
   model?: string;
+  mode?: ChatMode;
   // When set, claude spawns inside the project's LXC container. When empty,
   // legacy host-spawn mode (or the chat predates the projects feature).
   projectId?: string;
 }
+
+export type ChatMode = "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
 
 // Mirror of backend internal/projects/types.go ProjectStatus.
 export type ProjectStatus =

@@ -1,23 +1,39 @@
 import type { Block } from "./messageBlocks";
 import { StreamingText } from "./StreamingText";
 import { ToolCall } from "./ToolCall";
-import { AlertCircle, Loader } from "../icons";
+import { AlertCircle, Loader, RotateCcw } from "../icons";
 
 interface MessageBlockProps {
   block: Block;
   streaming: boolean;
   chatId?: string;
   onAnswerQuestion?: (text: string) => void;
+  onRewind?: (t: number, text: string) => void;
 }
 
-export function MessageBlock({ block, streaming, chatId, onAnswerQuestion }: MessageBlockProps) {
+export function MessageBlock({ block, streaming, chatId, onAnswerQuestion, onRewind }: MessageBlockProps) {
   if (block.type === "user") {
     return (
-      <div class="flex justify-end">
-        <div class="max-w-[92%] sm:max-w-[78%] bg-accent-blue/15 border border-accent-blue/30
-                    rounded-[18px] rounded-br-md px-3.5 py-2.5 text-[14.5px] leading-relaxed
-                    whitespace-pre-wrap break-words shadow-sm">
-          {block.text}
+      <div class="group flex justify-end">
+        <div class="max-w-[92%] sm:max-w-[78%] flex flex-col items-end gap-1.5">
+          <div class="bg-accent-blue/15 border border-accent-blue/30
+                      rounded-[18px] rounded-br-md px-3.5 py-2.5 text-[14.5px] leading-relaxed
+                      whitespace-pre-wrap break-words shadow-sm">
+            {block.text}
+          </div>
+          {onRewind && (
+            <button
+              type="button"
+              onClick={() => onRewind(block.t, block.text)}
+              class="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[12px]
+                     text-ink-300 hover:text-ink-100 hover:bg-white/[0.07]
+                     opacity-100 md:opacity-0 md:group-hover:opacity-100 transition"
+              title="Rewind and edit from here"
+            >
+              <RotateCcw class="w-3.5 h-3.5" />
+              Rewind
+            </button>
+          )}
         </div>
       </div>
     );

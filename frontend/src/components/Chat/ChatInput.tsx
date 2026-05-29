@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { uploadChatFiles } from "../../lib/api";
-import { ArrowUp, File as FileIcon, Plus, Square, Upload, X } from "../icons";
+import type { ChatMode } from "../../types";
+import { ArrowUp, Clock, File as FileIcon, Plus, Square, Upload, X } from "../icons";
 
 interface Props {
   chatId: string;
   streaming: boolean;
   canSendPrompt: boolean;
+  model: string;
+  mode: ChatMode;
+  queuedPrompts: Array<{ id: string; text: string }>;
+  draftText?: string;
+  draftKey?: number;
+  onModelChange: (model: string) => void;
+  onModeChange: (mode: ChatMode) => void;
+  onRemoveQueued: (id: string) => void;
   onSend: (text: string) => boolean;
   onCancel: () => void;
   onAfterUpload?: () => void;
@@ -30,7 +39,38 @@ function randomId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, onAfterUpload }: Props) {
+const MODEL_OPTIONS = [
+  { value: "", label: "Auto" },
+  { value: "opus", label: "Opus" },
+  { value: "sonnet", label: "Sonnet" },
+  { value: "haiku", label: "Haiku" },
+];
+
+const MODE_OPTIONS: Array<{ value: ChatMode; label: string }> = [
+  { value: "chat", label: "Chat" },
+  { value: "plan", label: "Plan" },
+  { value: "code", label: "Code" },
+  { value: "review", label: "Review" },
+  { value: "debug", label: "Debug" },
+  { value: "full-auto", label: "Full auto" },
+];
+
+export function ChatInput({
+  chatId,
+  streaming,
+  canSendPrompt,
+  model,
+  mode,
+  queuedPrompts,
+  draftText,
+  draftKey,
+  onModelChange,
+  onModeChange,
+  onRemoveQueued,
+  onSend,
+  onCancel,
+  onAfterUpload,
+}: Props) {
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -45,6 +85,12 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
     ta.style.height = "auto";
     ta.style.height = Math.min(ta.scrollHeight, 220) + "px";
   }, [text]);
+
+  useEffect(() => {
+    if (draftKey === undefined) return;
+    setText(draftText ?? "");
+    setTimeout(focusInput, 0);
+  }, [draftKey, draftText]);
 
   // Clear attachments when switching chats.
   useEffect(() => {
@@ -133,7 +179,7 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
   }
 
   function send() {
-    if (streaming || uploading || !canSendPrompt) return;
+    if (uploading || (!streaming && !canSendPrompt)) return;
     const userText = text.trim();
     // Only include attachments that finished uploading.
     const paths = attachments.filter((a) => a.serverPath).map((a) => a.serverPath);
@@ -205,8 +251,10 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
     }
   }
 
-  const disabled = !canSendPrompt && !streaming;
-  const canSend = canSendPrompt && !uploading && (text.trim().length > 0 || attachments.some((a) => a.serverPath));
+  const disconnected = !canSendPrompt && !streaming;
+  const hasContent = text.trim().length > 0 || attachments.some((a) => a.serverPath);
+  const canSend = !uploading && !disconnected && hasContent;
+  const hasComposerChrome = attachments.length > 0 || queuedPrompts.length > 0;
 
   return (
     <div class="relative bg-[#0b0d11] safe-bottom">
@@ -219,8 +267,80 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
         </div>
       )}
 
+      <div class="px-3 pt-3 pb-2 border-t border-white/10">
+        <div class="mx-auto max-w-[980px] flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <label class="inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
+            <span class="text-ink-400">Model</span>
+            <select
+              value={model}
+              onChange={(e) => onModelChange((e.currentTarget as HTMLSelectElement).value)}
+              class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
+              title="Model"
+            >
+              {model && !MODEL_OPTIONS.some((opt) => opt.value === model) && (
+                <option value={model}>{model}</option>
+              )}
+              {MODEL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label class="inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
+            <span class="text-ink-400">Mode</span>
+            <select
+              value={mode}
+              onChange={(e) => onModeChange((e.currentTarget as HTMLSelectElement).value as ChatMode)}
+              class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
+              title="Mode"
+            >
+              {MODE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+
+          {streaming && (
+            <div class="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md bg-accent-blue/[0.12] border border-accent-blue/25 text-[12px] text-accent-blue flex-none">
+              <Clock class="w-3.5 h-3.5" />
+              Next send queues
+            </div>
+          )}
+        </div>
+      </div>
+
+      {queuedPrompts.length > 0 && (
+        <div class="px-3 pb-2">
+          <div class="mx-auto max-w-[980px] rounded-lg border border-white/10 bg-white/[0.035] p-2">
+            <div class="flex items-center justify-between gap-3 px-1 pb-1.5">
+              <div class="text-[12px] font-medium text-ink-200">Queue</div>
+              <div class="text-[11px] text-ink-400">{queuedPrompts.length} waiting</div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              {queuedPrompts.map((q, index) => (
+                <div key={q.id} class="group min-w-0 max-w-full inline-flex items-center gap-2 rounded-md bg-[#101318] border border-white/10 px-2 py-1.5">
+                  <span class="text-[11px] text-ink-400 flex-none">#{index + 1}</span>
+                  <span class="text-[12px] text-ink-100 truncate max-w-[260px] sm:max-w-[420px]" title={q.text}>
+                    {q.text}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveQueued(q.id)}
+                    class="w-6 h-6 grid place-items-center rounded text-ink-300 hover:text-accent-red hover:bg-accent-red/10 flex-none"
+                    aria-label="Remove queued prompt"
+                    title="Remove queued prompt"
+                  >
+                    <X class="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {attachments.length > 0 && (
-        <div class="px-3 pt-3 pb-1 border-t border-white/10 flex flex-wrap gap-2 max-h-[180px] overflow-y-auto touch-scroll scrollbar-thin">
+        <div class="px-3 pb-1 flex flex-wrap gap-2 max-h-[180px] overflow-y-auto touch-scroll scrollbar-thin">
           {attachments.map((a) => (
             <AttachmentChip key={a.id} att={a} onRemove={() => removeAttachment(a.id)} />
           ))}
@@ -229,12 +349,12 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
 
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
-        class={`flex gap-2 items-end p-3 ${attachments.length === 0 ? "border-t border-white/10" : ""}`}
+        class={`flex gap-2 items-end p-3 ${hasComposerChrome ? "" : "border-t border-white/10"}`}
       >
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          disabled={uploading || streaming || disabled}
+          disabled={uploading || disconnected}
           class="flex-none w-11 h-11 rounded-md bg-white/[0.06] border border-white/10
                  hover:bg-white/10 active:bg-accent-blue active:border-accent-blue active:scale-[0.98]
                  disabled:opacity-50 disabled:active:scale-100 grid place-items-center text-ink-100 transition"
@@ -274,11 +394,11 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
           spellcheck={false}
           placeholder={
             uploading ? "Uploading…" :
-            streaming ? "Claude is thinking… (Esc to cancel)" :
-            disabled ? "Connecting…" :
+            streaming ? "Queue next prompt while Claude is working" :
+            disconnected ? "Connecting…" :
             "Message Claude — Enter to send, Shift+Enter for newline"
           }
-          disabled={streaming || disabled}
+          disabled={disconnected}
           class="flex-1 resize-none rounded-md
                  bg-[#101318] border border-white/10 text-ink-100 placeholder:text-ink-300
                  focus:outline-none focus:border-accent-blue/80 focus:bg-[#121722]
@@ -286,7 +406,19 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
                  min-h-[44px] max-h-[220px] shadow-inner
                  disabled:opacity-60 transition-colors"
         />
-        {streaming ? (
+        <button
+          type="submit"
+          disabled={!canSend}
+          class={`flex-none w-11 h-11 rounded-md
+                  ${streaming ? "bg-accent-blue hover:bg-accent-blue/85" : "bg-accent-green hover:bg-accent-green/85"}
+                  disabled:bg-ink-500 disabled:cursor-not-allowed
+                  active:scale-[0.98] disabled:active:scale-100 grid place-items-center text-white transition`}
+          aria-label={streaming ? "Queue prompt" : "Send"}
+          title={canSend ? (streaming ? "Queue prompt" : "Send") : disconnected ? "Connecting" : "Send"}
+        >
+          {streaming ? <Clock class="w-4 h-4" /> : <ArrowUp class="w-4 h-4" />}
+        </button>
+        {streaming && (
           <button
             type="button"
             onClick={onCancel}
@@ -296,18 +428,6 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
             title="Cancel current generation"
           >
             <Square class="w-3.5 h-3.5" />
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={!canSend}
-            class="flex-none w-11 h-11 rounded-md bg-accent-green hover:bg-accent-green/85
-                   disabled:bg-ink-500 disabled:cursor-not-allowed
-                   active:scale-[0.98] disabled:active:scale-100 grid place-items-center text-white transition"
-            aria-label="Send"
-            title={canSend ? "Send" : disabled ? "Connecting" : "Send"}
-          >
-            <ArrowUp class="w-4 h-4" />
           </button>
         )}
       </form>
