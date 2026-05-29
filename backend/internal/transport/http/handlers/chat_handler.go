@@ -1,4 +1,4 @@
-package httptransport
+package httphandlers
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type ChatHandler struct {
@@ -26,12 +27,12 @@ func (h *ChatHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
 			sendChatError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusOK, metas)
+		httptransport.SendJSON(w, http.StatusOK, metas)
 
 	case http.MethodPost:
 		var in servicechat.CreateInput
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&in); err != nil && err != io.EOF {
-			SendErr(w, http.StatusBadRequest, "invalid json")
+			httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 			return
 		}
 		meta, err := h.chats.Create(r.Context(), in)
@@ -39,10 +40,10 @@ func (h *ChatHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
 			sendChatError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusCreated, meta)
+		httptransport.SendJSON(w, http.StatusCreated, meta)
 
 	default:
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
 }
 
@@ -60,7 +61,7 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 		case "upload":
 			h.handleUpload(w, r, id)
 		default:
-			SendErr(w, http.StatusNotFound, "not found")
+			httptransport.SendErr(w, http.StatusNotFound, "not found")
 		}
 		return
 	}
@@ -72,12 +73,12 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			sendChatError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusOK, meta)
+		httptransport.SendJSON(w, http.StatusOK, meta)
 
 	case http.MethodPatch:
 		var in servicechat.UpdateInput
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&in); err != nil {
-			SendErr(w, http.StatusBadRequest, "invalid json")
+			httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 			return
 		}
 		meta, err := h.chats.Update(r.Context(), id, in)
@@ -85,23 +86,23 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			sendChatError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusOK, meta)
+		httptransport.SendJSON(w, http.StatusOK, meta)
 
 	case http.MethodDelete:
 		if err := h.chats.Delete(r.Context(), id); err != nil {
 			sendChatError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		httptransport.SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
 
 	default:
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
 }
 
 func (h *ChatHandler) handleEvents(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
 	if r.Method != http.MethodGet {
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	events, err := h.chats.Events(r.Context(), id)
@@ -109,19 +110,19 @@ func (h *ChatHandler) handleEvents(w http.ResponseWriter, r *http.Request, id se
 		sendChatError(w, err)
 		return
 	}
-	SendJSON(w, http.StatusOK, events)
+	httptransport.SendJSON(w, http.StatusOK, events)
 }
 
 func (h *ChatHandler) handleRewind(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
 	if r.Method != http.MethodPost {
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	var body struct {
 		BeforeT int64 `json:"beforeT"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
-		SendErr(w, http.StatusBadRequest, "invalid json")
+		httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 	events, err := h.chats.Rewind(r.Context(), id, body.BeforeT)
@@ -129,12 +130,12 @@ func (h *ChatHandler) handleRewind(w http.ResponseWriter, r *http.Request, id se
 		sendChatError(w, err)
 		return
 	}
-	SendJSON(w, http.StatusOK, map[string][]servicechat.Event{"events": events})
+	httptransport.SendJSON(w, http.StatusOK, map[string][]servicechat.Event{"events": events})
 }
 
 func (h *ChatHandler) handleUpload(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
 	if r.Method != http.MethodPost {
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	cwd, err := h.chats.UploadTarget(r.Context(), id)
@@ -142,7 +143,7 @@ func (h *ChatHandler) handleUpload(w http.ResponseWriter, r *http.Request, id se
 		sendChatError(w, err)
 		return
 	}
-	HandleMultipart(cwd, w, r)
+	httptransport.HandleMultipart(cwd, w, r)
 }
 
 func sendChatError(w http.ResponseWriter, err error) {
@@ -150,12 +151,12 @@ func sendChatError(w http.ResponseWriter, err error) {
 	case errors.Is(err, servicechat.ErrInvalidID),
 		errors.Is(err, servicechat.ErrInvalidTmuxSession),
 		errors.Is(err, servicechat.ErrInvalidRewindTimestamp):
-		SendErr(w, http.StatusBadRequest, err.Error())
+		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, servicechat.ErrNotFound):
-		SendErr(w, http.StatusNotFound, "chat not found")
+		httptransport.SendErr(w, http.StatusNotFound, "chat not found")
 	case errors.Is(err, servicechat.ErrChatRunning):
-		SendErr(w, http.StatusConflict, err.Error())
+		httptransport.SendErr(w, http.StatusConflict, err.Error())
 	default:
-		SendErr(w, http.StatusInternalServerError, err.Error())
+		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 	}
 }

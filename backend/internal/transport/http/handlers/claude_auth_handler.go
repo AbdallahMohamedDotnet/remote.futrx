@@ -1,4 +1,4 @@
-package httptransport
+package httphandlers
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
+	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type ClaudeAuthHandler struct {
@@ -18,20 +19,20 @@ func NewClaudeAuthHandler(login *claudelogin.Manager) *ClaudeAuthHandler {
 }
 
 func (h *ClaudeAuthHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
-	SendJSON(w, http.StatusOK, map[string]any{
+	httptransport.SendJSON(w, http.StatusOK, map[string]any{
 		"authenticated": h.login.Authenticated(),
 	})
 }
 
 func (h *ClaudeAuthHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	result, err := h.login.Start(r.Context())
 	if err != nil {
-		SendErr(w, http.StatusInternalServerError, err.Error())
+		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -39,12 +40,12 @@ func (h *ClaudeAuthHandler) HandleStart(w http.ResponseWriter, r *http.Request) 
 	if result.Resumed {
 		out["resumed"] = true
 	}
-	SendJSON(w, http.StatusOK, out)
+	httptransport.SendJSON(w, http.StatusOK, out)
 }
 
 func (h *ClaudeAuthHandler) HandleCode(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -52,7 +53,7 @@ func (h *ClaudeAuthHandler) HandleCode(w http.ResponseWriter, r *http.Request) {
 		Code string `json:"code"`
 	}
 	if err := readJSONBody(r, &body); err != nil {
-		SendErr(w, http.StatusBadRequest, err.Error())
+		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -60,28 +61,28 @@ func (h *ClaudeAuthHandler) HandleCode(w http.ResponseWriter, r *http.Request) {
 		sendClaudeLoginError(w, err)
 		return
 	}
-	SendJSON(w, http.StatusOK, map[string]bool{"success": true})
+	httptransport.SendJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
 func (h *ClaudeAuthHandler) HandleCancel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	if err := h.login.Cancel(r.Context()); err != nil {
-		SendErr(w, http.StatusInternalServerError, err.Error())
+		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	httptransport.SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func sendClaudeLoginError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, claudelogin.ErrCodeRequired),
 		errors.Is(err, claudelogin.ErrNoSession):
-		SendErr(w, http.StatusBadRequest, err.Error())
+		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 	default:
-		SendErr(w, http.StatusInternalServerError, err.Error())
+		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 	}
 }
 

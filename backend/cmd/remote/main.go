@@ -28,6 +28,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/filechat"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
 	wstransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/ws"
 )
 
@@ -74,13 +75,13 @@ func main() {
 		chatTmuxResolver{client: tmuxClient},
 		runHub,
 	)
-	chatHandler := httptransport.NewChatHandler(chatService)
+	chatHandler := httphandlers.NewChatHandler(chatService)
 	promptService := prompt.New(chatStore, tmuxClient, projectService, containerManager, runHub)
 	chatSocket := wstransport.NewChatSocket(chatStore, runHub, promptService)
 	claudeLogin := claudelogin.New()
-	claudeAuthHandler := httptransport.NewClaudeAuthHandler(claudeLogin)
-	projectHandler := httptransport.NewProjectHandler(projectService)
-	tmuxHandler := httptransport.NewTmuxHandler(tmuxClient)
+	claudeAuthHandler := httphandlers.NewClaudeAuthHandler(claudeLogin)
+	projectHandler := httphandlers.NewProjectHandler(projectService)
+	tmuxHandler := httphandlers.NewTmuxHandler(tmuxClient)
 	tmuxSocket := wstransport.NewTmuxSocket(tmuxClient)
 	upgrader := httptransport.NewUpgrader()
 

@@ -1,4 +1,4 @@
-package httptransport
+package httphandlers
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type ProjectHandler struct {
@@ -28,12 +29,12 @@ func (h *ProjectHandler) HandleCollection(w http.ResponseWriter, r *http.Request
 			sendProjectError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusOK, metas)
+		httptransport.SendJSON(w, http.StatusOK, metas)
 
 	case http.MethodPost:
 		var body serviceproject.CreateInput
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
-			SendErr(w, http.StatusBadRequest, "invalid json")
+			httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 			return
 		}
 		m, err := h.projects.Create(r.Context(), body)
@@ -41,10 +42,10 @@ func (h *ProjectHandler) HandleCollection(w http.ResponseWriter, r *http.Request
 			sendProjectError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusCreated, m)
+		httptransport.SendJSON(w, http.StatusCreated, m)
 
 	default:
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
 }
 
@@ -53,7 +54,7 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 	parts := strings.SplitN(rest, "/", 2)
 	id := serviceproject.ID(parts[0])
 	if id == "" {
-		SendErr(w, http.StatusBadRequest, "missing id")
+		httptransport.SendErr(w, http.StatusBadRequest, "missing id")
 		return
 	}
 
@@ -61,7 +62,7 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 		switch parts[1] {
 		case "start":
 			if r.Method != http.MethodPost {
-				SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+				httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 				return
 			}
 			m, err := h.projects.Start(r.Context(), id)
@@ -69,10 +70,10 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 				sendProjectError(w, err)
 				return
 			}
-			SendJSON(w, http.StatusOK, m)
+			httptransport.SendJSON(w, http.StatusOK, m)
 		case "stop":
 			if r.Method != http.MethodPost {
-				SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+				httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 				return
 			}
 			m, err := h.projects.Stop(r.Context(), id)
@@ -80,9 +81,9 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 				sendProjectError(w, err)
 				return
 			}
-			SendJSON(w, http.StatusOK, m)
+			httptransport.SendJSON(w, http.StatusOK, m)
 		default:
-			SendErr(w, http.StatusNotFound, "unknown action")
+			httptransport.SendErr(w, http.StatusNotFound, "unknown action")
 		}
 		return
 	}
@@ -94,12 +95,12 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 			sendProjectError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusOK, m)
+		httptransport.SendJSON(w, http.StatusOK, m)
 
 	case http.MethodPatch:
 		var body serviceproject.UpdateInput
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
-			SendErr(w, http.StatusBadRequest, "invalid json")
+			httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 			return
 		}
 		m, err := h.projects.Update(r.Context(), id, body)
@@ -107,17 +108,17 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 			sendProjectError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusOK, m)
+		httptransport.SendJSON(w, http.StatusOK, m)
 
 	case http.MethodDelete:
 		if err := h.projects.Delete(r.Context(), id); err != nil {
 			sendProjectError(w, err)
 			return
 		}
-		SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		httptransport.SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
 
 	default:
-		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
 }
 
@@ -155,10 +156,10 @@ func sendProjectError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, serviceproject.ErrNameRequired),
 		errors.Is(err, serviceproject.ErrInvalidID):
-		SendErr(w, http.StatusBadRequest, err.Error())
+		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, serviceproject.ErrNotFound):
-		SendErr(w, http.StatusNotFound, "project not found")
+		httptransport.SendErr(w, http.StatusNotFound, "project not found")
 	default:
-		SendErr(w, http.StatusInternalServerError, err.Error())
+		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 	}
 }
