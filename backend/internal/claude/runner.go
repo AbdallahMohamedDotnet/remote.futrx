@@ -442,6 +442,9 @@ func (rnr *Runner) buildClaudeCmd(
 		if err := mgr.EnsureClaudeAuth(ctx, p.ContainerName); err != nil {
 			return nil, fmt.Errorf("seed claude auth in container: %w", err)
 		}
+		if err := mgr.EnsureClaudeMD(ctx, p.ContainerName); err != nil {
+			return nil, fmt.Errorf("push CLAUDE.md to container: %w", err)
+		}
 	}
 
 	lxcArgs := []string{
