@@ -67,10 +67,10 @@ export function ClaudeLoginScreen({ onDone }: Props) {
   }
 
   return (
-    <div class="h-full grid place-items-center bg-ink-800 text-ink-100 p-6">
+    <div class="app-shell grid place-items-center bg-[#090b0f] text-ink-100 p-5">
       <div class="w-full max-w-md space-y-6">
         <div class="flex flex-col items-center gap-3 text-center">
-          <div class="w-12 h-12 rounded-full bg-accent-blue/15 grid place-items-center">
+          <div class="w-14 h-14 rounded-lg bg-accent-blue/[0.14] border border-accent-blue/25 grid place-items-center">
             <MessageSquare class="w-6 h-6 text-accent-blue" />
           </div>
           <div>
@@ -78,7 +78,7 @@ export function ClaudeLoginScreen({ onDone }: Props) {
             <div class="text-xs text-ink-300 mt-1.5 leading-relaxed">
               Claude CLI is not signed into Anthropic on this server. Sign in once
               so chats can actually call the model. Tokens land in
-              {" "}<code class="font-mono text-ink-100 bg-ink-700 px-1 rounded">~/.claude/.credentials.json</code>.
+              {" "}<code class="font-mono text-ink-100 bg-white/[0.08] px-1 rounded">~/.claude/.credentials.json</code>.
             </div>
           </div>
         </div>
@@ -88,7 +88,7 @@ export function ClaudeLoginScreen({ onDone }: Props) {
             type="button"
             onClick={startLogin}
             class="w-full bg-accent-blue hover:bg-accent-blue/85 text-white text-sm
-                   font-medium rounded-md py-2.5"
+                   font-medium rounded-md h-11 active:scale-[0.99] transition"
           >
             Login to Claude
           </button>
@@ -97,7 +97,7 @@ export function ClaudeLoginScreen({ onDone }: Props) {
         {phase === "starting" && (
           <div class="flex items-center justify-center gap-2 text-ink-200 text-sm py-4">
             <Loader class="w-4 h-4 animate-spin" />
-            Spawning <code class="font-mono text-ink-100">claude auth login</code>…
+            Spawning <code class="font-mono text-ink-100">claude auth login</code>
           </div>
         )}
 
@@ -115,7 +115,7 @@ export function ClaudeLoginScreen({ onDone }: Props) {
                     target="_blank"
                     rel="noopener noreferrer"
                     class="block mt-2 break-all text-accent-blue hover:underline font-mono text-[12px]
-                           bg-ink-700 border border-ink-500 rounded p-2"
+                           bg-[#101318] border border-white/10 rounded-lg p-2.5"
                   >
                     {authUrl}
                   </a>
@@ -146,15 +146,15 @@ export function ClaudeLoginScreen({ onDone }: Props) {
               autocapitalize="off"
               autocorrect="off"
               spellcheck={false}
-              class="w-full resize-none rounded-md bg-ink-700 border border-ink-500
-                     text-ink-100 placeholder:text-ink-300 px-3 py-2 font-mono text-[13px]
+              class="w-full resize-none rounded-md bg-[#101318] border border-white/10
+                     text-ink-100 placeholder:text-ink-300 px-3 py-2.5 font-mono text-[13px]
                      focus:outline-none focus:border-accent-blue"
             />
             <div class="flex gap-2">
               <button
                 type="button"
                 onClick={cancel}
-                class="px-3 py-2 text-sm text-ink-200 hover:text-ink-100 rounded"
+                class="px-3 h-10 text-sm text-ink-200 hover:text-ink-100 hover:bg-white/[0.08] rounded-md"
               >
                 Cancel
               </button>
@@ -164,7 +164,7 @@ export function ClaudeLoginScreen({ onDone }: Props) {
                 disabled={!code.trim()}
                 class="flex-1 bg-accent-blue hover:bg-accent-blue/85
                        disabled:bg-ink-500 disabled:cursor-not-allowed
-                       text-white text-sm font-medium rounded-md py-2"
+                       text-white text-sm font-medium rounded-md h-10"
               >
                 Submit code
               </button>
@@ -175,7 +175,7 @@ export function ClaudeLoginScreen({ onDone }: Props) {
         {phase === "submitting" && (
           <div class="flex items-center justify-center gap-2 text-ink-200 text-sm py-4">
             <Loader class="w-4 h-4 animate-spin" />
-            Finishing up…
+            Finishing up
           </div>
         )}
 
@@ -188,14 +188,14 @@ export function ClaudeLoginScreen({ onDone }: Props) {
         {phase === "error" && (
           <div class="space-y-3">
             <div class="text-accent-red text-sm bg-accent-red/10 border border-accent-red/30
-                        rounded p-2.5 whitespace-pre-wrap break-words font-mono text-[12px]">
+                        rounded-lg p-3 whitespace-pre-wrap break-words font-mono text-[12px]">
               {errMsg}
             </div>
             <button
               type="button"
               onClick={() => { setPhase("idle"); setCode(""); setAuthUrl(""); setErrMsg(""); }}
-              class="w-full bg-ink-600 hover:bg-ink-500 text-ink-100 text-sm font-medium
-                     rounded-md py-2"
+              class="w-full bg-white/[0.08] hover:bg-white/[0.12] text-ink-100 text-sm font-medium
+                     rounded-md h-10"
             >
               Try again
             </button>

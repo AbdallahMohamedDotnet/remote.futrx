@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ChatMeta } from "../../types";
 import { chatsApi } from "../../lib/api";
 import { useChat } from "../../lib/useChat";
@@ -6,7 +6,7 @@ import { groupEvents } from "./messageBlocks";
 import { MessageBlock } from "./Message";
 import { ChatInput } from "./ChatInput";
 import { ChatHeader } from "./ChatHeader";
-import { Loader, MessageSquare } from "../icons";
+import { ArrowDown, Loader, MessageSquare } from "../icons";
 
 interface Props {
   chat: ChatMeta;
@@ -18,6 +18,7 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
   const { meta, events, status, error, canSendPrompt, sendPrompt, cancel, refreshMeta } = useChat(chat.id);
   const scrollRef = useRef<HTMLDivElement>(null);
   const userScrolledRef = useRef(false);
+  const [showJump, setShowJump] = useState(false);
 
   const blocks = useMemo(() => groupEvents(events), [events]);
 
@@ -31,8 +32,17 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
   function onScroll() {
     const el = scrollRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     userScrolledRef.current = !nearBottom;
+    setShowJump(!nearBottom);
+  }
+
+  function jumpToBottom() {
+    const el = scrollRef.current;
+    if (!el) return;
+    userScrolledRef.current = false;
+    setShowJump(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }
 
   async function applyMeta(patch: { model?: string; cwd?: string; title?: string }) {
@@ -45,7 +55,6 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
     }
   }
 
-  // Esc cancels streaming.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape" && status === "streaming") cancel();
@@ -54,12 +63,10 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [status, cancel]);
 
-  // Prefer the freshly-loaded meta from useChat (has the live model field
-  // populated after first init) but fall back to the listing copy.
   const displayMeta = meta ?? chat;
 
   return (
-    <div class="flex-1 flex flex-col min-h-0">
+    <div class="flex-1 flex flex-col min-h-0 bg-[#0b0d11]">
       <ChatHeader
         chat={displayMeta}
         events={events}
@@ -69,47 +76,65 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
         onHamburger={onHamburger}
       />
 
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        class="flex-1 overflow-y-auto scrollbar-thin px-3 md:px-6 py-4 space-y-4"
-      >
-        {status === "loading" && (
-          <div class="flex items-center gap-2 text-ink-300 text-sm">
-            <Loader class="w-4 h-4 animate-spin" /> Loading conversation…
-          </div>
-        )}
+      <div class="relative flex-1 min-h-0">
+        <div
+          ref={scrollRef}
+          onScroll={onScroll}
+          class="h-full overflow-y-auto touch-scroll scrollbar-thin px-3 md:px-6 py-4 md:py-6"
+        >
+          <div class="mx-auto max-w-[880px] space-y-5">
+            {status === "loading" && (
+              <div class="flex items-center gap-2 text-ink-300 text-sm rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                <Loader class="w-4 h-4 animate-spin" /> Loading conversation
+              </div>
+            )}
 
-        {status !== "loading" && blocks.length === 0 && (
-          <div class="text-center text-ink-300 text-sm py-12 px-4 max-w-md mx-auto">
-            <MessageSquare class="w-8 h-8 mx-auto mb-3 opacity-40" />
-            <div class="font-medium text-ink-200">Start a conversation</div>
-            <div class="text-xs mt-2 leading-relaxed">
-              Claude runs with full tool access in
-              {" "}<span class="font-mono text-ink-100">{displayMeta.cwd || "~"}</span>.
-              Drop, paste, or upload files to reference them.
-              Pick a model in the top-right.
-            </div>
-          </div>
-        )}
+            {status !== "loading" && blocks.length === 0 && (
+              <div class="text-center text-ink-300 text-sm py-12 px-4 max-w-md mx-auto">
+                <div class="w-14 h-14 mx-auto mb-4 rounded-lg bg-white/[0.06] border border-white/10 grid place-items-center">
+                  <MessageSquare class="w-7 h-7 opacity-70" />
+                </div>
+                <div class="font-semibold text-ink-100 text-base">Start a conversation</div>
+                <div class="text-xs mt-2 leading-relaxed">
+                  Claude runs with full tool access in{" "}
+                  <span class="font-mono text-ink-100">{displayMeta.cwd || "~"}</span>.
+                  Drop, paste, or upload files to reference them.
+                </div>
+              </div>
+            )}
 
-        {blocks.map((b, i) => (
-          <MessageBlock
-            key={`${b.type}-${b.t}-${i}`}
-            block={b}
-            streaming={status === "streaming" && i === blocks.length - 1}
-            chatId={chat.id}
-            onAnswerQuestion={(t) => {
-              const sent = sendPrompt(t);
-              if (sent) userScrolledRef.current = false;
-            }}
-          />
-        ))}
+            {blocks.map((b, i) => (
+              <MessageBlock
+                key={`${b.type}-${b.t}-${i}`}
+                block={b}
+                streaming={status === "streaming" && i === blocks.length - 1}
+                chatId={chat.id}
+                onAnswerQuestion={(t) => {
+                  const sent = sendPrompt(t);
+                  if (sent) userScrolledRef.current = false;
+                }}
+              />
+            ))}
 
-        {error && (
-          <div class="text-accent-red text-sm bg-accent-red/10 border border-accent-red/30 rounded p-2">
-            {error}
+            {error && (
+              <div class="text-accent-red text-sm bg-accent-red/10 border border-accent-red/30 rounded-lg p-3">
+                {error}
+              </div>
+            )}
           </div>
+        </div>
+
+        {showJump && (
+          <button
+            type="button"
+            onClick={jumpToBottom}
+            class="absolute right-4 bottom-4 h-10 w-10 rounded-md bg-[#151922] border border-white/[0.12]
+                   text-ink-100 shadow-xl grid place-items-center hover:bg-[#1b202b] active:scale-[0.98] transition"
+            aria-label="Jump to latest message"
+            title="Jump to latest"
+          >
+            <ArrowDown class="w-4 h-4" />
+          </button>
         )}
       </div>
 

@@ -209,18 +209,18 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
   const canSend = canSendPrompt && !uploading && (text.trim().length > 0 || attachments.some((a) => a.serverPath));
 
   return (
-    <div class="relative">
+    <div class="relative bg-[#0b0d11] safe-bottom">
       {dragging && (
-        <div class="absolute inset-x-2 -top-16 z-20 rounded-md border-2 border-dashed border-accent-blue
-                    bg-ink-700/95 text-accent-blue text-sm flex items-center justify-center
-                    h-14 gap-2 backdrop-blur-sm">
+        <div class="absolute inset-x-3 -top-16 z-20 rounded-lg border-2 border-dashed border-accent-blue
+                    bg-[#151922]/95 text-accent-blue text-sm flex items-center justify-center
+                    h-14 gap-2 backdrop-blur">
           <Upload class="w-5 h-5" />
           Drop files to upload to the chat directory
         </div>
       )}
 
       {attachments.length > 0 && (
-        <div class="px-2 pt-2 pb-1 bg-ink-800 border-t border-ink-500 flex flex-wrap gap-2 max-h-[180px] overflow-y-auto scrollbar-thin">
+        <div class="px-3 pt-3 pb-1 border-t border-white/10 flex flex-wrap gap-2 max-h-[180px] overflow-y-auto touch-scroll scrollbar-thin">
           {attachments.map((a) => (
             <AttachmentChip key={a.id} att={a} onRemove={() => removeAttachment(a.id)} />
           ))}
@@ -229,16 +229,15 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
 
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
-        class={`flex gap-2 items-end p-2 bg-ink-800 ${attachments.length === 0 ? "border-t border-ink-500" : ""}`}
-        style={{ paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))" }}
+        class={`flex gap-2 items-end p-3 ${attachments.length === 0 ? "border-t border-white/10" : ""}`}
       >
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading || streaming || disabled}
-          class="flex-none w-9 h-9 rounded-md bg-ink-600 border border-ink-500
-                 hover:bg-ink-500 active:bg-accent-blue active:border-accent-blue
-                 disabled:opacity-50 grid place-items-center text-ink-100"
+          class="flex-none w-11 h-11 rounded-md bg-white/[0.06] border border-white/10
+                 hover:bg-white/10 active:bg-accent-blue active:border-accent-blue active:scale-[0.98]
+                 disabled:opacity-50 disabled:active:scale-100 grid place-items-center text-ink-100 transition"
           aria-label="Attach files"
           title="Attach (or drag-and-drop / paste images)"
         >
@@ -268,6 +267,7 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
           }}
           onPaste={onPaste}
           rows={1}
+          enterkeyhint="send"
           autocomplete="off"
           autocapitalize="off"
           autocorrect="off"
@@ -280,18 +280,18 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
           }
           disabled={streaming || disabled}
           class="flex-1 resize-none rounded-md
-                 bg-ink-700 border border-ink-500 text-ink-100 placeholder:text-ink-300
-                 focus:outline-none focus:border-accent-blue
-                 px-3 py-2 text-[14px] leading-normal
-                 min-h-[36px] max-h-[220px]
-                 disabled:opacity-60"
+                 bg-[#101318] border border-white/10 text-ink-100 placeholder:text-ink-300
+                 focus:outline-none focus:border-accent-blue/80 focus:bg-[#121722]
+                 px-3.5 py-3 text-[16px] sm:text-[14.5px] leading-normal
+                 min-h-[44px] max-h-[220px] shadow-inner
+                 disabled:opacity-60 transition-colors"
         />
         {streaming ? (
           <button
             type="button"
             onClick={onCancel}
-            class="flex-none w-9 h-9 rounded-md bg-accent-red/90 hover:bg-accent-red
-                   grid place-items-center text-white"
+            class="flex-none w-11 h-11 rounded-md bg-accent-red/90 hover:bg-accent-red
+                   active:scale-[0.98] grid place-items-center text-white transition"
             aria-label="Cancel"
             title="Cancel current generation"
           >
@@ -301,10 +301,11 @@ export function ChatInput({ chatId, streaming, canSendPrompt, onSend, onCancel, 
           <button
             type="submit"
             disabled={!canSend}
-            class="flex-none w-9 h-9 rounded-md bg-accent-green hover:bg-accent-green/85
+            class="flex-none w-11 h-11 rounded-md bg-accent-green hover:bg-accent-green/85
                    disabled:bg-ink-500 disabled:cursor-not-allowed
-                   grid place-items-center text-white"
+                   active:scale-[0.98] disabled:active:scale-100 grid place-items-center text-white transition"
             aria-label="Send"
+            title={canSend ? "Send" : disabled ? "Connecting" : "Send"}
           >
             <ArrowUp class="w-4 h-4" />
           </button>
@@ -318,7 +319,7 @@ function AttachmentChip({ att, onRemove }: { att: Attachment; onRemove: () => vo
   const pending = !att.serverPath;
   if (att.isImage && att.objectUrl) {
     return (
-      <div class="relative w-20 h-20 rounded-md overflow-hidden bg-ink-700 border border-ink-500 group">
+      <div class="relative w-20 h-20 rounded-lg overflow-hidden bg-[#101318] border border-white/10 group">
         <img src={att.objectUrl} class="w-full h-full object-cover" alt={att.name} />
         {pending && (
           <div class="absolute inset-0 bg-black/40 grid place-items-center">
@@ -328,7 +329,7 @@ function AttachmentChip({ att, onRemove }: { att: Attachment; onRemove: () => vo
         <button
           type="button"
           onClick={onRemove}
-          class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-accent-red text-white grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity"
+          class="absolute top-1 right-1 w-6 h-6 rounded-md bg-black/70 hover:bg-accent-red text-white grid place-items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
           aria-label={`Remove ${att.name}`}
         >
           <X class="w-3 h-3" />
@@ -340,7 +341,7 @@ function AttachmentChip({ att, onRemove }: { att: Attachment; onRemove: () => vo
     );
   }
   return (
-    <div class="group flex items-center gap-1.5 bg-ink-700 border border-ink-500 rounded-md px-2 py-1.5 text-xs h-9">
+    <div class="group flex items-center gap-1.5 bg-[#101318] border border-white/10 rounded-md px-2 py-1.5 text-xs min-h-10">
       {pending ? (
         <div class="w-3.5 h-3.5 border-2 border-ink-300 border-t-transparent rounded-full animate-spin flex-none" />
       ) : (
@@ -351,7 +352,7 @@ function AttachmentChip({ att, onRemove }: { att: Attachment; onRemove: () => vo
       <button
         type="button"
         onClick={onRemove}
-        class="text-ink-300 hover:text-accent-red flex-none -mr-1"
+        class="w-6 h-6 grid place-items-center rounded text-ink-300 hover:text-accent-red hover:bg-accent-red/10 flex-none -mr-1"
         aria-label={`Remove ${att.name}`}
       >
         <X class="w-3 h-3" />

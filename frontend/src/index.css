@@ -36,6 +36,14 @@
     height: 100vh;
     height: 100dvh;
   }
+  .drawer-panel {
+    transform: none;
+  }
+  @media (min-width: 768px) {
+    .drawer-panel {
+      transform: none;
+    }
+  }
   .safe-top { padding-top: env(safe-area-inset-top, 0px); }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
   .scrollbar-thin {

@@ -5,18 +5,20 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   const error = new URLSearchParams(location.search).get("error");
 
   return (
-    <div class="h-full grid place-items-center bg-ink-800 text-ink-100 p-6">
+    <div class="app-shell grid place-items-center bg-[#090b0f] text-ink-100 p-5">
       <div class="w-full max-w-sm space-y-6 text-center">
         <div class="flex flex-col items-center gap-3">
-          <MessageSquare class="w-10 h-10 text-accent-blue" />
+          <div class="w-14 h-14 rounded-lg bg-accent-blue/[0.14] border border-accent-blue/25 grid place-items-center">
+            <MessageSquare class="w-7 h-7 text-accent-blue" />
+          </div>
           <div>
-            <div class="text-lg font-semibold">remote.futrx.dev</div>
+            <div class="text-xl font-semibold">remote.futrx.dev</div>
             <div class="text-xs text-ink-300 mt-1">Self-hosted Claude Code</div>
           </div>
         </div>
 
         {!auth.claimed && (
-          <p class="text-sm text-accent-yellow leading-relaxed">
+          <p class="text-sm text-accent-yellow leading-relaxed rounded-lg border border-accent-yellow/25 bg-accent-yellow/[0.08] p-3">
             This server is <span class="font-semibold">unclaimed</span>. The first Google
             account that signs in becomes the admin. Make sure that's you before continuing.
           </p>
@@ -26,14 +28,14 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           href="/auth/google/login"
           class="inline-flex items-center justify-center gap-2.5 w-full
                  bg-white hover:bg-ink-50 text-ink-800 font-medium text-sm
-                 rounded-md px-4 py-2.5 transition-colors"
+                 rounded-md px-4 h-11 transition-colors active:scale-[0.99]"
         >
           <GoogleG class="w-4 h-4" />
           Sign in with Google
         </a>
 
         {error && (
-          <div class="text-xs text-accent-red bg-accent-red/10 border border-accent-red/30 rounded p-2 text-left">
+          <div class="text-xs text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-left">
             {error === "not-admin"
               ? `This account isn't the admin (${auth.adminEmail || "configured admin"}).`
               : `Login error: ${error}`}

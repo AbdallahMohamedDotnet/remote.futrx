@@ -121,14 +121,14 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
         <button
           type="button"
           onClick={onHamburger}
-          class="md:hidden h-10 w-10 rounded-md text-ink-100 hover:bg-white/8 grid place-items-center flex-none"
+          class="md:hidden h-10 w-10 rounded-md text-ink-100 hover:bg-white/[0.08] grid place-items-center flex-none"
           aria-label="Open chats"
           title="Chats"
         >
           <Menu class="w-5 h-5" />
         </button>
 
-        <div class="h-9 w-9 rounded-md bg-white/6 border border-white/10 text-ink-200 grid place-items-center flex-none">
+        <div class="h-9 w-9 rounded-md bg-white/[0.06] border border-white/10 text-ink-200 grid place-items-center flex-none">
           <MessageSquare class="w-4 h-4" />
         </div>
 
@@ -152,7 +152,7 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
             type="button"
             onClick={() => setModelOpen((o) => !o)}
             class="h-9 inline-flex items-center gap-1.5 text-[13px] font-medium px-3 rounded-md
-                   bg-white/6 hover:bg-white/10 border border-white/10 text-ink-100 disabled:opacity-50"
+                   bg-white/[0.06] hover:bg-white/10 border border-white/10 text-ink-100 disabled:opacity-50"
             disabled={streaming}
             title={streaming ? "Cannot change model while streaming" : "Switch model"}
           >
@@ -161,7 +161,7 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
           </button>
           {modelOpen && (
             <div class="absolute right-0 top-full mt-2 z-40 w-[220px]
-                        bg-[#151922] border border-white/12 rounded-lg shadow-2xl overflow-hidden p-1">
+                        bg-[#151922] border border-white/[0.12] rounded-lg shadow-2xl overflow-hidden p-1">
               {MODEL_OPTIONS.map((m) => {
                 const active = modelDisplayLabel(chat.model).toLowerCase() === m.value;
                 return (
@@ -170,7 +170,7 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
                     type="button"
                     onClick={() => pickModel(m.value)}
                     class={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-md text-left
-                            ${active ? "bg-accent-blue/16 text-accent-blue" : "hover:bg-white/7 text-ink-100"}`}
+                            ${active ? "bg-accent-blue/[0.16] text-accent-blue" : "hover:bg-white/[0.07] text-ink-100"}`}
                   >
                     <span>
                       <span class="block text-[14px] font-medium">{m.label}</span>
@@ -206,7 +206,7 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
           <button
             type="button"
             class="h-9 max-w-[72vw] md:max-w-[520px] inline-flex items-center gap-2 px-3 rounded-md
-                   bg-white/5 hover:bg-white/9 border border-white/10 text-left text-ink-200"
+                   bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200"
             onClick={() => setEditingCwd(true)}
             title="Change working directory"
           >

@@ -50,8 +50,8 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
 
   if (answered) {
     return (
-      <div class="my-2 rounded-md border border-ink-500 bg-ink-700/50 p-3 text-sm">
-        <div class="flex items-center gap-2 text-ink-300 text-[11px] uppercase tracking-wider mb-1.5">
+      <div class="my-2 rounded-lg border border-white/10 bg-white/[0.04] p-3 text-sm">
+        <div class="flex items-center gap-2 text-ink-300 text-[11px] mb-1.5">
           <Check class="w-3 h-3 text-accent-green" /> Answered
         </div>
         <div class="text-ink-200 whitespace-pre-wrap text-[13px]">{answered}</div>
@@ -128,11 +128,11 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
 
   return (
     <div class="my-2 rounded-lg border border-accent-blue/40 bg-accent-blue/5 overflow-hidden">
-      <div class="px-3 py-1.5 bg-accent-blue/10 text-[11px] uppercase tracking-wider text-accent-blue
+      <div class="px-3 py-2 bg-accent-blue/10 text-[11px] text-accent-blue
                   flex items-center justify-between gap-2 border-b border-accent-blue/20">
         <span>Claude is asking</span>
         {total > 1 && (
-          <span class="flex items-center gap-1.5 normal-case tracking-normal text-accent-blue/80">
+            <span class="flex items-center gap-1.5 text-accent-blue/80">
             <span class="font-mono text-[10.5px]">{page + 1} / {total}</span>
             <span class="flex gap-1">
               {questions.map((_, i) => (
@@ -150,8 +150,8 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
 
       <div class="p-3 space-y-3">
         {q.header && (
-          <div class="inline-block text-[10px] font-mono uppercase tracking-wider
-                      px-1.5 py-0.5 rounded bg-ink-700 text-ink-200 border border-ink-500">
+        <div class="inline-block text-[10px] font-mono
+                      px-1.5 py-0.5 rounded bg-white/[0.06] text-ink-200 border border-white/10">
             {q.header}
           </div>
         )}
@@ -165,10 +165,10 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
                 key={oi}
                 type="button"
                 onClick={() => toggle(page, oi, multi)}
-                class={`text-left rounded-md border px-3 py-2 transition-colors
+                class={`text-left rounded-md border px-3 py-2.5 min-h-12 transition-colors
                         ${active
                           ? "border-accent-blue bg-accent-blue/15"
-                          : "border-ink-500 bg-ink-700/50 hover:bg-ink-700"}`}
+                          : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"}`}
               >
                 <div class="flex items-start gap-2">
                   <div class={`flex-none mt-0.5 w-4 h-4 ${multi ? "rounded-sm" : "rounded-full"}
@@ -193,10 +193,10 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
           <button
             type="button"
             onClick={() => activateOther(page, multi)}
-            class={`text-left rounded-md border px-3 py-2 transition-colors
+            class={`text-left rounded-md border px-3 py-2.5 min-h-12 transition-colors
                     ${isOtherActive
                       ? "border-accent-blue bg-accent-blue/15"
-                      : "border-ink-500 border-dashed bg-ink-700/30 hover:bg-ink-700"} sm:col-span-2`}
+                      : "border-white/10 border-dashed bg-white/[0.03] hover:bg-white/[0.07]"} sm:col-span-2`}
           >
             <div class="flex items-start gap-2">
               <div class={`flex-none mt-0.5 w-4 h-4 ${multi ? "rounded-sm" : "rounded-full"}
@@ -216,7 +216,7 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
                     onInput={(e) => setOther((p) => ({ ...p, [page]: (e.currentTarget as HTMLTextAreaElement).value }))}
                     onClick={(e) => e.stopPropagation()}
                     placeholder="Your custom answer"
-                    class="mt-2 w-full resize-none bg-ink-800 border border-ink-500 rounded
+                    class="mt-2 w-full resize-none bg-[#0b0d11] border border-white/10 rounded-md
                            text-ink-100 text-[13px] px-2 py-1 focus:outline-none focus:border-accent-blue"
                   />
                 )}
@@ -230,8 +230,8 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
             type="button"
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            class="flex items-center gap-1 text-sm px-2.5 py-1.5 rounded
-                   text-ink-200 hover:text-ink-100 hover:bg-ink-700/70
+            class="flex items-center gap-1 text-sm px-3 h-10 rounded-md
+                   text-ink-200 hover:text-ink-100 hover:bg-white/[0.08]
                    disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
           >
             <ChevronLeft class="w-3.5 h-3.5" /> Back
@@ -241,9 +241,9 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
               type="button"
               onClick={submit}
               disabled={!canAdvance}
-              class="flex items-center gap-1.5 bg-accent-blue hover:bg-accent-blue/85
+              class="flex items-center gap-1.5 bg-accent-blue hover:bg-accent-blue/85 h-10
                      disabled:bg-ink-500 disabled:cursor-not-allowed
-                     text-white text-sm font-medium px-3.5 py-1.5 rounded"
+                     text-white text-sm font-medium px-3.5 rounded-md"
             >
               Send answer <ChevronRight class="w-3.5 h-3.5" />
             </button>
@@ -252,9 +252,9 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
               type="button"
               onClick={() => setPage((p) => Math.min(total - 1, p + 1))}
               disabled={!canAdvance}
-              class="flex items-center gap-1.5 bg-accent-blue/90 hover:bg-accent-blue
+              class="flex items-center gap-1.5 bg-accent-blue/90 hover:bg-accent-blue h-10
                      disabled:bg-ink-500 disabled:cursor-not-allowed
-                     text-white text-sm font-medium px-3.5 py-1.5 rounded"
+                     text-white text-sm font-medium px-3.5 rounded-md"
             >
               Next <ChevronRight class="w-3.5 h-3.5" />
             </button>

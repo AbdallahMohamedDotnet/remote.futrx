@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
+import type { JSX } from "preact";
 import { chatsApi } from "../lib/api";
 import { shortenPath, timeAgo } from "../lib/format";
 import type { ChatMeta } from "../types";
@@ -32,6 +33,7 @@ function matchesQuery(c: ChatMeta, q: string): boolean {
 
 export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, onClose, auth }: Props) {
   const [query, setQuery] = useState("");
+  const drawerStyle = { left: open ? "0px" : "-100vw" } as JSX.CSSProperties;
 
   useEffect(() => {
     if (!open) return;
@@ -78,10 +80,10 @@ export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, on
         onClick={onClose}
       />
       <aside
-        class={`mobile-sheet safe-top fixed md:static z-40 inset-y-0 left-0 w-[min(92vw,380px)] md:w-[300px]
-                bg-[#101318] border-r border-white/10 flex flex-col shadow-2xl md:shadow-none
-                transition-transform duration-200 ease-out will-change-transform
-                ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+        data-open={open ? "true" : "false"}
+        style={drawerStyle}
+        class="drawer-panel mobile-sheet safe-top absolute md:static z-40 inset-y-0 w-[min(92vw,380px)] md:w-[300px]
+                bg-[#101318] border-r border-white/10 flex flex-col shadow-2xl md:shadow-none"
       >
         <header class="px-3 pt-3 pb-2 border-b border-white/10">
           <div class="flex items-center gap-2 min-h-11">
@@ -97,7 +99,7 @@ export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, on
               aria-label="New chat"
               title="New chat"
             >
-              <Plus class="w-4.5 h-4.5" />
+              <Plus class="w-5 h-5" />
             </button>
             <button
               type="button"
@@ -107,7 +109,7 @@ export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, on
               aria-label="Close chats"
               title="Close"
             >
-              <X class="w-4.5 h-4.5" />
+              <X class="w-5 h-5" />
             </button>
           </div>
 
@@ -148,14 +150,14 @@ export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, on
 
         <div class="flex-1 overflow-y-auto touch-scroll px-2 pb-3 space-y-1">
           {filtered.length === 0 && (
-            <div class="mx-2 rounded-lg border border-dashed border-white/12 bg-white/[0.03] text-center text-ink-300 text-sm py-8 px-4">
+            <div class="mx-2 rounded-lg border border-dashed border-white/[0.12] bg-white/[0.03] text-center text-ink-300 text-sm py-8 px-4">
               <MessageSquare class="w-8 h-8 mx-auto mb-3 opacity-50" />
               <div class="text-ink-100 font-medium">{query ? "No matching chats" : "No chats yet"}</div>
               <button
                 type="button"
                 onClick={newChat}
                 class="mt-4 inline-flex items-center gap-1.5 h-9 px-3 rounded-md
-                       bg-white/8 hover:bg-white/12 text-ink-100 text-sm"
+                       bg-white/[0.08] hover:bg-white/[0.12] text-ink-100 text-sm"
               >
                 <Plus class="w-4 h-4" /> New chat
               </button>
@@ -169,7 +171,7 @@ export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, on
                 key={c.id}
                 class={`group flex items-stretch gap-1 rounded-lg border transition-colors
                         ${active
-                          ? "border-accent-blue/35 bg-accent-blue/12"
+                          ? "border-accent-blue/[0.35] bg-accent-blue/[0.12]"
                           : "border-transparent hover:border-white/10 hover:bg-white/[0.04]"}`}
               >
                 <button
@@ -180,7 +182,7 @@ export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, on
                   <div class="flex items-start gap-2">
                     <div
                       class={`mt-0.5 h-8 w-8 rounded-md grid place-items-center flex-none
-                              ${active ? "bg-accent-blue/20 text-accent-blue" : "bg-white/6 text-ink-300"}`}
+                              ${active ? "bg-accent-blue/20 text-accent-blue" : "bg-white/[0.06] text-ink-300"}`}
                     >
                       <MessageSquare class="w-4 h-4" />
                     </div>
@@ -189,7 +191,7 @@ export function ChatSidebar({ chats, activeChatId, onSelect, onRefresh, open, on
                         {c.title || "Untitled"}
                       </div>
                       <div class="mt-1 flex items-center gap-2 text-[12px] text-ink-300">
-                        <span class={`px-1.5 py-0.5 rounded bg-white/6 ${active ? "text-accent-blue" : ""}`}>
+                        <span class={`px-1.5 py-0.5 rounded bg-white/[0.06] ${active ? "text-accent-blue" : ""}`}>
                           {modelLabel(c.model)}
                         </span>
                         <span>{timeAgo(c.lastMessageAt)}</span>

@@ -24,7 +24,7 @@ export function MessageBlock({ block, streaming, chatId, onAnswerQuestion }: Mes
   }
   if (block.type === "error") {
     return (
-      <div class="flex items-start gap-2 text-accent-red text-sm rounded-lg border border-accent-red/25 bg-accent-red/8 px-3 py-2">
+      <div class="flex items-start gap-2 text-accent-red text-sm rounded-lg border border-accent-red/25 bg-accent-red/[0.08] px-3 py-2">
         <AlertCircle class="w-4 h-4 flex-none mt-0.5" />
         <div>{block.message}</div>
       </div>
@@ -43,7 +43,7 @@ export function MessageBlock({ block, streaming, chatId, onAnswerQuestion }: Mes
         }
         if (p.kind === "thinking") {
           return (
-            <div key={i} class="text-[13px] italic text-ink-300 border-l-2 border-accent-yellow/45 pl-3 my-2">
+            <div key={i} class="text-[13px] italic text-ink-300 border-l-2 border-accent-yellow/[0.45] pl-3 my-2">
               {p.text}
             </div>
           );

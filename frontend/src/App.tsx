@@ -83,7 +83,7 @@ export function App() {
   }
 
   return (
-    <div class="app-shell flex bg-[#090b0f] text-ink-100 overflow-hidden">
+    <div class="app-shell relative flex bg-[#090b0f] text-ink-100 overflow-hidden">
       <ChatSidebar
         chats={chats}
         activeChatId={activeId}
@@ -116,7 +116,7 @@ function EmptyState({ onNew, onHamburger }: { onNew: () => void; onHamburger: ()
         <button
           type="button"
           onClick={onHamburger}
-          class="md:hidden h-10 w-10 text-ink-100 rounded-md hover:bg-white/8 grid place-items-center"
+          class="md:hidden h-10 w-10 text-ink-100 rounded-md hover:bg-white/[0.08] grid place-items-center"
           aria-label="Toggle sidebar"
         >
           <Menu class="w-5 h-5" />
@@ -125,7 +125,7 @@ function EmptyState({ onNew, onHamburger }: { onNew: () => void; onHamburger: ()
       </header>
       <div class="flex-1 grid place-items-center text-center p-5">
         <div class="space-y-5 max-w-sm">
-          <div class="mx-auto w-16 h-16 rounded-2xl bg-white/6 border border-white/10 grid place-items-center">
+          <div class="mx-auto w-16 h-16 rounded-lg bg-white/[0.06] border border-white/10 grid place-items-center">
             <MessageSquare class="w-8 h-8 opacity-70" />
           </div>
           <div class="text-ink-200">
