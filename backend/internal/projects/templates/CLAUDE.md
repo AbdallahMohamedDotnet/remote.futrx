@@ -12,9 +12,10 @@ processes, deleted files only affect you.
   project itself is deleted.
 - `/root/.claude/` — your auth + session state. Seeded once from
   the host, mutated locally from then on.
-- `/root/CLAUDE.md` — this file. Templated and re-pushed by the host
-  on every prompt when the template changes, so don't edit it
-  expecting changes to stick.
+- `/root/.claude/CLAUDE.md` — this file. Loaded by claude as
+  user-level memory on every session. Templated and re-pushed by
+  the host on every prompt when the template changes, so don't edit
+  it expecting changes to stick.
 - Everything else: ephemeral. Container reprovision wipes it.
 
 ## Capabilities

@@ -23,8 +23,12 @@ import (
 var claudeMDTemplate []byte
 
 const (
-	// Path inside the container where the template lands.
-	containerClaudeMD = "/root/CLAUDE.md"
+	// Path inside the container where the template lands. /root/.claude/CLAUDE.md
+	// is the canonical user-level memory location claude reads on every session
+	// (alongside walking up from $CWD for project-level CLAUDE.md files).
+	// Earlier we used /root/CLAUDE.md — HOME directly — which claude does NOT
+	// auto-load.
+	containerClaudeMD = "/root/.claude/CLAUDE.md"
 	// Marker file holding the SHA256 of the last-pushed template.
 	containerClaudeMDHash = "/root/.claude/.claude-md.sha256"
 )
