@@ -30,10 +30,37 @@ processes, deleted files only affect you.
   container between your prompts. They die when the container is
   stopped or rebooted.
 
+## Public URLs for dev servers
+
+Any TCP port you bind to inside the container is reachable from the
+public internet at:
+
+```
+https://<project-slug>--<port>.dev.remote.futrx.dev
+```
+
+Examples — if you start a Vite server on port 5173:
+
+```
+$ npm run dev -- --host 0.0.0.0
+# → https://<slug>--5173.dev.remote.futrx.dev
+```
+
+Notes:
+
+- **Bind to 0.0.0.0**, not 127.0.0.1 — the latter is unreachable from
+  the LXD bridge gateway that Caddy forwards through.
+- Allowed ports: 1024–65535. Ports below 1024 are blocked.
+- Cert is issued on first hit (~5s ACME round trip), then cached.
+- Same Google login as the main remote.futrx.dev site — collaborators
+  who aren't the admin will be bounced to login. To share an
+  unauthenticated URL, you'll need a tunnel like ngrok inside the
+  container; that's intentional.
+- Same port across different projects is fine: each project's
+  container has its own network namespace, so `proj-a` on :3000 and
+  `proj-b` on :3000 don't collide.
+
 ## Not yet wired
 
-- **Public subdomains per project.** Dev servers you start inside
-  the container are not reachable from outside yet. When this lands,
-  this file will document the exact host pattern.
 - **Resource limits.** No CPU / memory / disk quotas today — be a
   good neighbor on the shared host.

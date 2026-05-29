@@ -207,6 +207,59 @@ if ! command -v claude >/dev/null; then
 fi
 ok "claude $(claude --version 2>&1 | head -1)"
 
+# ───────────────── LXD ─────────────────
+# Each project becomes its own unprivileged LXD container. claude runs inside,
+# /workspace is bind-mounted, and the container's IP serves dev URLs via the
+# wildcard Caddy block below.
+
+if ! command -v lxc >/dev/null; then
+    log "Installing LXD (via snap)"
+    if ! command -v snap >/dev/null; then
+        apt-get install -y -qq snapd
+        systemctl enable --now snapd.socket
+        # snapd takes a moment to come up on first install; the next `snap install`
+        # otherwise greets us with "too early for operation".
+        for _ in 1 2 3 4 5; do snap wait system seed.loaded && break; sleep 1; done
+    fi
+    snap install lxd
+    # ensure /snap/bin is on PATH for this shell
+    export PATH="/snap/bin:$PATH"
+fi
+
+# Initialize storage + bridge if not already done. `lxc network show lxdbr0`
+# is our "is initialized" probe — fresh installs lack it.
+if ! lxc network show lxdbr0 >/dev/null 2>&1; then
+    log "Initializing LXD (lxd init --auto)"
+    lxd init --auto
+fi
+ok "lxd $(lxc version --format=csv 2>/dev/null | tr ',' ' ' | awk '{print $1}' || echo ok)"
+
+# Find the bridge gateway IP so we can wire DNS forwarding + diagnostics. LXD
+# picks a random 10.x/16 on first init; don't hardcode.
+LXD_BRIDGE_IP=$(lxc network get lxdbr0 ipv4.address 2>/dev/null | sed 's|/.*||')
+if [ -z "$LXD_BRIDGE_IP" ]; then
+    warn "Could not detect lxdbr0 bridge IP — per-project subdomain routing will fail."
+fi
+
+# ───────────────── systemd-resolved: forward *.lxd to the bridge ─────────────────
+# So the host (and Caddy) can resolve <container>.lxd names that LXD's own
+# dnsmasq serves on the bridge. Without this, the wildcard Caddy block can't
+# proxy to project containers.
+
+if [ -n "$LXD_BRIDGE_IP" ] && systemctl is-active --quiet systemd-resolved; then
+    log "Wiring systemd-resolved to forward *.lxd → $LXD_BRIDGE_IP"
+    mkdir -p /etc/systemd/resolved.conf.d
+    cat > /etc/systemd/resolved.conf.d/lxd.conf <<EOF
+# Managed by remote.futrx.dev installer.
+# Forwards <name>.lxd queries to the LXD bridge's dnsmasq so the host can
+# resolve container names.
+[Resolve]
+DNS=$LXD_BRIDGE_IP
+Domains=~lxd
+EOF
+    systemctl restart systemd-resolved
+fi
+
 # ───────────────── clone / update repo ─────────────────
 
 if [ -d "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR/.git" ]; then
@@ -306,17 +359,55 @@ fi
 log "Writing Caddyfile for $HOSTNAME"
 # We REPLACE /etc/caddy/Caddyfile entirely. If you have other sites here,
 # move them into a separate file and `import` it.
+
+# Escape dots in $HOSTNAME for the regex below (dots in regex match anything,
+# we want literal matches).
+HOSTNAME_RE=$(printf '%s' "$HOSTNAME" | sed 's/\./\\./g')
+
 cat > /etc/caddy/Caddyfile <<EOF
 # remote.futrx.dev — managed by install.sh. Edit and re-run to re-apply.
 {
     # Email used for Let's Encrypt ACME registration. Leave empty for now;
     # Caddy works without it but a real address is recommended.
     # email you@example.com
+
+    # On-demand TLS for the *.dev.$HOSTNAME wildcard. Caddy queries the
+    # backend's /internal/tls-ask before issuing a cert so we don't chase
+    # certs for arbitrary names attackers can request.
+    on_demand_tls {
+        ask http://127.0.0.1:$SERVICE_PORT/internal/tls-ask
+    }
 }
 
 $HOSTNAME {
     encode zstd gzip
+    # Defense in depth: /internal/* is supposed to be reachable only on
+    # loopback (Caddy → backend). Reject any external attempt.
+    @internal path /internal/*
+    handle @internal { respond 403 }
     reverse_proxy 127.0.0.1:$SERVICE_PORT
+}
+
+# Per-project dev URLs: <slug>--<port>.dev.$HOSTNAME proxies into the
+# project's LXD container at proj-<slug>.lxd:<port>. Same Google login as
+# the main site (forward_auth → /auth/verify).
+*.dev.$HOSTNAME {
+    encode zstd gzip
+    tls {
+        on_demand
+    }
+    forward_auth 127.0.0.1:$SERVICE_PORT {
+        uri /auth/verify
+        copy_headers Cookie
+    }
+    @internal path /internal/*
+    handle @internal { respond 403 }
+
+    @valid host_regexp host ^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.${HOSTNAME_RE}\$
+    handle @valid {
+        reverse_proxy proj-{re.host.1}.lxd:{re.host.2}
+    }
+    respond "Use <slug>--<port>.dev.$HOSTNAME (e.g. myproj--3000.dev.$HOSTNAME)" 400
 }
 EOF
 systemctl enable caddy >/dev/null 2>&1 || true

@@ -213,6 +213,18 @@ func (s *Store) Get(id string) (ProjectMeta, error) {
 	return s.readMeta(id)
 }
 
+// GetBySlug looks up a project by its URL-safe slug. Used by the on-demand-TLS
+// ask endpoint to confirm a requested subdomain belongs to a real project.
+func (s *Store) GetBySlug(slug string) (ProjectMeta, error) {
+	s.indexMu.RLock()
+	id, ok := s.bySlug[slug]
+	s.indexMu.RUnlock()
+	if !ok {
+		return ProjectMeta{}, fmt.Errorf("project not found: slug=%s", slug)
+	}
+	return s.Get(id)
+}
+
 func (s *Store) List() ([]ProjectMeta, error) {
 	entries, err := os.ReadDir(s.root)
 	if err != nil {

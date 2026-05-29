@@ -21,6 +21,7 @@ type Routes struct {
 	ChatResource    http.HandlerFunc
 	Projects        http.HandlerFunc
 	ProjectResource http.HandlerFunc
+	TLSAsk          http.HandlerFunc // Caddy on_demand_tls ask probe; localhost only.
 	ClaudeAuth      http.HandlerFunc
 	ClaudeLogin     http.HandlerFunc
 	ClaudeCode      http.HandlerFunc
@@ -42,6 +43,9 @@ func NewHandler(routes Routes) http.Handler {
 	}
 	if routes.ProjectResource != nil {
 		mux.HandleFunc("/api/projects/", routes.ProjectResource)
+	}
+	if routes.TLSAsk != nil {
+		mux.HandleFunc("/internal/tls-ask", routes.TLSAsk)
 	}
 	mux.HandleFunc("/api/claude/auth-status", routes.ClaudeAuth)
 	mux.HandleFunc("/api/claude/login/start", routes.ClaudeLogin)

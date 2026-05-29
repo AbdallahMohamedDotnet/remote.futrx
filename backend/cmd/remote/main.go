@@ -74,6 +74,7 @@ func main() {
 		ChatResource:    chatHandler.HandleChatResource,
 		Projects:        projectHandler.HandleCollection,
 		ProjectResource: projectHandler.HandleResource,
+		TLSAsk:          projectHandler.HandleTLSAsk,
 		ClaudeAuth:      claudeLogin.HandleStatus,
 		ClaudeLogin:     claudeLogin.HandleStart,
 		ClaudeCode:      claudeLogin.HandleCode,
