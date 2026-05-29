@@ -3,6 +3,7 @@ import { ChatSidebar } from "./components/ChatSidebar";
 import { ChatView } from "./components/Chat/ChatView";
 import { ClaudeLoginScreen } from "./components/ClaudeLoginScreen";
 import { LoginScreen } from "./components/LoginScreen";
+import { SettingsPage } from "./components/SettingsPage";
 import { chatsApi, projectsApi } from "./lib/api";
 import { useAuth } from "./lib/useAuth";
 import { useClaudeAuth } from "./lib/useClaudeAuth";
@@ -34,6 +35,7 @@ export function App() {
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [view, setView] = useState<"chat" | "settings">("chat");
 
   useEffect(() => {
     if (gateOpen) {
@@ -106,17 +108,23 @@ export function App() {
         chats={chats}
         projects={projects}
         activeChatId={activeId}
-        onSelect={(id) => { setActiveId(id); setSidebarOpen(false); }}
+        onSelect={(id) => { setActiveId(id); setSidebarOpen(false); setView("chat"); }}
         onRefreshChats={refreshChats}
         onRefreshProjects={refreshProjects}
         onNewProject={newProject}
         onNewChatInProject={newChatInProject}
+        onOpenSettings={() => { setView("settings"); setSidebarOpen(false); }}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         auth={auth}
       />
       <main class="relative flex-1 flex flex-col min-w-0 bg-[#0b0d11]">
-        {activeChat ? (
+        {view === "settings" ? (
+          <SettingsPage
+            onBack={() => setView("chat")}
+            onHamburger={() => setSidebarOpen((o) => !o)}
+          />
+        ) : activeChat ? (
           <ChatView
             key={activeChat.id}
             chat={activeChat}
@@ -149,7 +157,7 @@ function EmptyState({
 }) {
   return (
     <div class="flex-1 flex flex-col min-h-0">
-      <header class="safe-top bg-[#101318]/95 border-b border-white/10 px-3 py-2 flex items-center gap-2 min-h-[52px]">
+      <header class="top-chrome bg-[#101318] border-b border-white/10 px-3 pb-2 flex items-center gap-2 min-h-[52px]">
         <button
           type="button"
           onClick={onHamburger}

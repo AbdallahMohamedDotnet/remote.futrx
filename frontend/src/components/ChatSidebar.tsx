@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
-import type { JSX } from "preact";
 import { chatsApi, projectsApi } from "../lib/api";
 import { timeAgo } from "../lib/format";
 import type { ChatMeta, ProjectMeta, ProjectStatus } from "../types";
@@ -14,6 +13,7 @@ import {
   MessageSquare,
   Plus,
   Search,
+  Settings,
   X,
 } from "./icons";
 
@@ -26,6 +26,7 @@ interface Props {
   onRefreshProjects: () => void;
   onNewProject: () => void;
   onNewChatInProject: (projectId?: string) => void;
+  onOpenSettings?: () => void;
   open: boolean;
   onClose: () => void;
   auth?: AuthState;
@@ -91,13 +92,13 @@ export function ChatSidebar({
   onRefreshProjects,
   onNewProject,
   onNewChatInProject,
+  onOpenSettings,
   open,
   onClose,
   auth,
 }: Props) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const drawerStyle = { left: open ? "0px" : "-100vw" } as JSX.CSSProperties;
 
   useEffect(() => {
     if (!open) return;
@@ -204,14 +205,13 @@ export function ChatSidebar({
   return (
     <>
       <div
-        class={`md:hidden fixed inset-0 z-30 bg-black/55 backdrop-blur-[2px] transition-opacity duration-200
+        class={`md:hidden fixed inset-0 z-30 bg-black/60 transition-opacity duration-200
                 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
         onClick={onClose}
       />
       <aside
         data-open={open ? "true" : "false"}
-        style={drawerStyle}
-        class="drawer-panel mobile-sheet safe-top absolute md:static z-40 inset-y-0 w-[min(92vw,380px)] md:w-[300px]
+        class="drawer-panel mobile-sheet safe-top fixed md:static z-40 inset-y-0 left-0 w-[min(92vw,380px)] md:w-[300px]
                 bg-[#101318] border-r border-white/10 flex flex-col shadow-2xl md:shadow-none"
       >
         <header class="px-3 pt-3 pb-2 border-b border-white/10">
@@ -423,12 +423,24 @@ export function ChatSidebar({
         </div>
 
         {auth && !auth.noAuth && auth.authenticated && (
-          <footer class="safe-bottom border-t border-white/10 px-3 py-3 flex items-center gap-2 text-sm bg-[#0d1015]">
+          <footer class="safe-bottom-control border-t border-white/10 px-3 pt-3 flex items-center gap-2 text-sm bg-[#0d1015]">
             <div class="w-9 h-9 rounded-md bg-accent-green/15 text-accent-green
                         grid place-items-center font-semibold flex-none">
               {(auth.email[0] || "?").toUpperCase()}
             </div>
             <span class="flex-1 min-w-0 truncate text-ink-200" title={auth.email}>{auth.email}</span>
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                class="h-9 w-9 rounded-md text-ink-300 hover:text-ink-50 hover:bg-white/[0.08]
+                       grid place-items-center flex-none"
+                title="Settings"
+                aria-label="Settings"
+              >
+                <Settings class="w-4 h-4" />
+              </button>
+            )}
             <a
               href="/auth/logout"
               class="h-9 w-9 rounded-md text-ink-300 hover:text-accent-red hover:bg-accent-red/10
