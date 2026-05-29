@@ -188,10 +188,14 @@ func (m *Manager) EnsureClaudeAuth(ctx context.Context, containerName string) er
 	_, _ = lxcRun(dctx, "config", "device", "remove", containerName, "claude-auth")
 	cancelD()
 
-	// Quick check: is the config file already there?
+	// Has this container already been seeded? Use the credentials file as the
+	// sentinel: claude never bootstraps it on its own (it writes a stub for
+	// .claude.json when missing, which would defeat a size check), so presence
+	// of .credentials.json is a reliable "we seeded this" signal.
 	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
 	defer cancelQ()
-	if _, err := lxcRun(qctx, "exec", containerName, "--", "test", "-s", "/root/.claude.json"); err == nil {
+	if _, err := lxcRun(qctx, "exec", containerName, "--",
+		"test", "-f", "/root/.claude/.credentials.json"); err == nil {
 		return nil
 	}
 
