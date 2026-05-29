@@ -22,6 +22,33 @@ Designed to feel like Claude Code Desktop, but accessible from any browser. Buil
 
 ---
 
+## Projects: per-project sandboxes
+
+Each project in the sidebar is its own **unprivileged LXC container** on the host. `claude` runs *inside* the container, not on the host. Chats under a project only see that container's filesystem; the host stays clean.
+
+- `/workspace` is bind-mounted from the host (`/var/lib/remote/projects/<slug>/workspace`) — this is the persistent project dir. Everything else inside the container is ephemeral and wiped on reprovision.
+- Public dev URLs: `https://<slug>--<port>.dev.<HOSTNAME>` proxies to `proj-<slug>.lxd:<port>` via a wildcard Caddy block with on-demand TLS. Same Google login as the main UI gates access.
+- The `claude` CLI is auto-installed inside the container on first prompt (Node 20 + `@anthropic-ai/claude-code` via npm). Anthropic auth (`~/.claude.json` + `.credentials.json`) is seeded by the host into each container's `/root/` once at provision; the container then mutates its own copy.
+- A `CLAUDE.md` briefing is also pushed to `/root/.claude/CLAUDE.md` so the in-container agent knows the shape of its sandbox (filesystem, dev URL pattern, etc.). Template lives at [`backend/internal/projects/templates/CLAUDE.md`](backend/internal/projects/templates/CLAUDE.md); edits re-propagate to every container on its next prompt via a hash-gated push.
+
+### What's isolated vs. shared
+
+`apt install <pkg>` inside a project's container **only affects that container** — its own `/usr/`, `/var/lib/dpkg/`, package versions, configs. Other projects don't see it, the host doesn't see it. Two projects can install conflicting versions of the same package without colliding. Deleting the project deletes the container, so cleanup is total.
+
+What containers **do** share with each other and the host:
+
+| Resource | Shared? | Notes |
+|---|---|---|
+| Disk pool | yes | one filesystem; 100 projects each running `apt install texlive-full` fills it for everyone |
+| Kernel | yes | one Linux kernel; packages needing custom kernel modules won't work |
+| Network egress | yes | one uplink |
+| RAM / CPU | yes | no per-container quotas today — be a good neighbor |
+| IPv4 on the LXD bridge | each container gets its own | host can resolve `<container-name>.lxd` via the bridge's dnsmasq |
+
+So normal "install runtime + deps + build something" work is cleanly scoped per project. The only ways one project can affect another are blunt: disk full, RAM exhausted, CPU pegged.
+
+---
+
 ## Architecture
 
 ```
