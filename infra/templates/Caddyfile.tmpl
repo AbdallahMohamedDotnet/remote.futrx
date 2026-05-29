@@ -1,0 +1,70 @@
+# Caddyfile for remote.futrx.dev — managed by infra/install.sh.
+#
+# Three site blocks:
+#   1. ${HOSTNAME}            main chat UI + backend API
+#   2. code.${HOSTNAME}       code-server (VS Code in browser)
+#   3. *.dev.${HOSTNAME}      per-project dev URLs (<slug>--<port>.dev.<host>)
+#
+# All three live behind the same Google admin session — code + dev URLs use
+# forward_auth, the main block hosts the OAuth endpoints themselves.
+
+{
+    # Email used for Let's Encrypt ACME registration. Set to a real address
+    # if you want renewal-failure emails from LE.
+    # email you@example.com
+
+    # On-demand TLS for the *.dev.${HOSTNAME} wildcard. Caddy queries the
+    # backend's /internal/tls-ask before issuing each cert so attackers
+    # can't burn through ACME rate limits by hitting random subdomains.
+    on_demand_tls {
+        ask http://127.0.0.1:${SERVICE_PORT}/internal/tls-ask
+    }
+}
+
+${HOSTNAME} {
+    encode zstd gzip
+    # Defense in depth: /internal/* is reachable only on loopback (Caddy →
+    # backend). Reject any external attempt.
+    @internal path /internal/*
+    handle @internal {
+        respond 403
+    }
+    reverse_proxy 127.0.0.1:${SERVICE_PORT}
+}
+
+code.${HOSTNAME} {
+    encode zstd gzip
+    # Gate every request through ${HOSTNAME}'s admin session check.
+    # Caddy makes a localhost call to /auth/verify; 2xx → pass through,
+    # 302 → forwarded to the browser so the user lands on the main login.
+    forward_auth 127.0.0.1:${SERVICE_PORT} {
+        uri /auth/verify
+        copy_headers Cookie
+    }
+    reverse_proxy 127.0.0.1:${CODE_SERVER_PORT}
+}
+
+# Per-project dev URLs. <slug>--<port>.dev.${HOSTNAME} proxies into the
+# project's LXD container at proj-<slug>.lxd:<port>. The .lxd resolution
+# depends on the systemd-resolved drop-in installed by infra/steps/01-host-deps.sh.
+*.dev.${HOSTNAME} {
+    encode zstd gzip
+    tls {
+        on_demand
+    }
+    forward_auth 127.0.0.1:${SERVICE_PORT} {
+        uri /auth/verify
+        copy_headers Cookie
+    }
+    @internal path /internal/*
+    handle @internal {
+        respond 403
+    }
+    @valid {
+        header_regexp host Host ^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.${HOSTNAME_RE}$
+    }
+    handle @valid {
+        reverse_proxy proj-{re.host.1}.lxd:{re.host.2}
+    }
+    respond "Use <slug>--<port>.dev.${HOSTNAME} (e.g. myproj--3000.dev.${HOSTNAME})" 400
+}

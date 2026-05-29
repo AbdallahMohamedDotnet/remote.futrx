@@ -1,0 +1,21 @@
+[Unit]
+Description=remote.futrx.dev — self-hosted Claude Code chat UI
+After=network.target
+
+[Service]
+ExecStart=${INSTALL_DIR}/backend/remote
+WorkingDirectory=${INSTALL_DIR}
+Environment=HOST=127.0.0.1
+Environment=PORT=${SERVICE_PORT}
+Environment=HOME=/root
+Environment=DATA_DIR=${INSTALL_DIR}/data
+Environment=BASE_URL=https://${HOSTNAME}
+# tmux server inherits this cgroup; KillMode=process keeps long-running
+# child processes (claude, lxc exec) alive during a backend restart.
+KillMode=process
+Restart=always
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=multi-user.target

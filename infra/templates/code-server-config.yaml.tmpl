@@ -1,0 +1,10 @@
+# code-server config — managed by infra/steps/02-code-server.sh.
+#
+# auth=none because Caddy's forward_auth gates code.${HOSTNAME} with the
+# same admin Google session that protects ${HOSTNAME}. code-server never
+# sees the unauthenticated traffic.
+#
+# bind-addr is loopback only; Caddy is the public face.
+bind-addr: 127.0.0.1:${CODE_SERVER_PORT}
+auth: none
+cert: false
