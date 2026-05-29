@@ -61,6 +61,49 @@ Notes:
   container has its own network namespace, so `proj-a` on :3000 and
   `proj-b` on :3000 don't collide.
 
+### Dev-server Host-header gotcha — fix this before running
+
+Modern dev servers reject requests whose `Host` header isn't on a
+trusted allowlist (CSRF/DNS-rebinding defense). Caddy preserves the
+public host (`<slug>--<port>.dev.remote.futrx.dev`) when proxying, so
+out of the box you'll see:
+
+> Blocked request. This host is not allowed. To allow this host, add
+> it to `server.allowedHosts`.
+
+You need to disable that check (or widen the allowlist) **in the
+project's config** before the dev URL works:
+
+- **Vite** (`vite.config.{js,ts}`):
+
+  ```js
+  server: {
+    host: true,                    // bind 0.0.0.0
+    allowedHosts: ['.dev.remote.futrx.dev'],
+  }
+  ```
+
+- **Next.js 13+** (`next.config.{js,ts}`):
+
+  ```js
+  experimental: {
+    allowedDevOrigins: ['*.dev.remote.futrx.dev'],
+  }
+  ```
+
+- **Webpack dev-server** (`webpack.config.js` `devServer`):
+
+  ```js
+  devServer: { allowedHosts: 'all', host: '0.0.0.0' }
+  ```
+
+- **Create React App**: set `DANGEROUSLY_DISABLE_HOST_CHECK=true` in
+  the env (no other knob exists).
+
+When the user asks you to spin up a dev server, apply the right knob
+above as part of the same change — they shouldn't have to come back
+and ask why the public URL throws "host not allowed".
+
 ## Not yet wired
 
 - **Resource limits.** No CPU / memory / disk quotas today — be a
