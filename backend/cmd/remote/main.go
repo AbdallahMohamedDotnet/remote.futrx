@@ -16,7 +16,6 @@ import (
 	"net/http"
 
 	remote "github.com/Kings-Of-The-Web/remote.futrx.dev"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/auth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
@@ -50,13 +49,13 @@ func main() {
 		log.Printf("projects: reconcile warning: %v", err)
 	}
 
-	// Auth is optional. If data/oauth.json is absent, auth is nil and the
+	// Auth is optional. If data/oauth.json is absent, authRoutes is nil and the
 	// server runs open (matches old behavior for existing deployments).
-	authService, err := auth.LoadAuthService(cfg.DataDir, cfg.BaseURL)
+	authRoutes, authEnabled, err := loadAuthRoutes(context.Background(), cfg.DataDir, cfg.BaseURL)
 	if err != nil {
 		log.Fatalf("init auth: %v", err)
 	}
-	if authService != nil {
+	if authEnabled {
 		log.Printf("auth: Google OAuth enabled; BASE_URL=%s", cfg.BaseURL)
 	} else {
 		log.Printf("auth: DISABLED (no data/oauth.json) — server is open to anyone who can reach it")
@@ -84,12 +83,6 @@ func main() {
 	tmuxHandler := httphandlers.NewTmuxHandler(tmuxClient)
 	tmuxSocket := wstransport.NewTmuxSocket(tmuxClient)
 	upgrader := httptransport.NewUpgrader()
-
-	var authRoutes *httptransport.AuthRoutes
-	if authService != nil {
-		routes := authService.Routes()
-		authRoutes = &routes
-	}
 
 	handler := httptransport.NewHandler(httptransport.Routes{
 		Sessions:        tmuxHandler.HandleSessionsCollection,
