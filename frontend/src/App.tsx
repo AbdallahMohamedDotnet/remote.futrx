@@ -122,13 +122,13 @@ export function App() {
         {view === "settings" ? (
           <SettingsPage
             onBack={() => setView("chat")}
-            onHamburger={() => setSidebarOpen((o) => !o)}
+            onHamburger={() => setSidebarOpen(true)}
           />
         ) : activeChat ? (
           <ChatView
             key={activeChat.id}
             chat={activeChat}
-            onHamburger={() => setSidebarOpen((o) => !o)}
+            onHamburger={() => setSidebarOpen(true)}
             onMetaUpdate={refreshChats}
           />
         ) : (
@@ -136,7 +136,7 @@ export function App() {
             hasProjects={projects.length > 0}
             onNewProject={newProject}
             onNewChat={() => newChatInProject(undefined)}
-            onHamburger={() => setSidebarOpen((o) => !o)}
+            onHamburger={() => setSidebarOpen(true)}
           />
         )}
       </main>
