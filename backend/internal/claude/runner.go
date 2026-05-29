@@ -532,6 +532,9 @@ func (rnr *Runner) buildClaudeCmd(
 		if err := mgr.EnsureClaudeMD(ctx, p.ContainerName); err != nil {
 			return nil, fmt.Errorf("push CLAUDE.md to container: %w", err)
 		}
+		if err := mgr.EnsureBootAutostart(ctx, p.ContainerName); err != nil {
+			return nil, fmt.Errorf("set container boot.autostart: %w", err)
+		}
 	}
 
 	lxcArgs := []string{

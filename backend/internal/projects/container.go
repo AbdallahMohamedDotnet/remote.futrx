@@ -123,6 +123,12 @@ func (m *Manager) Launch(ctx context.Context, p ProjectMeta) error {
 		return fmt.Errorf("attach workspace: %w", err)
 	}
 
+	// Mark for auto-start on host reboot so cron / systemd timers running
+	// inside the container survive a reboot. Best-effort.
+	if err := m.EnsureBootAutostart(ctx, p.ContainerName); err != nil {
+		_ = err
+	}
+
 	// Seed claude auth + config into the container. Best-effort: a missing
 	// host auth file means the user just hasn't done `claude auth login` yet
 	// (the ClaudeLoginScreen flow). EnsureClaudeAuth will retry on next prompt.
@@ -131,6 +137,28 @@ func (m *Manager) Launch(ctx context.Context, p ProjectMeta) error {
 		_ = err
 	}
 
+	return nil
+}
+
+// EnsureBootAutostart marks the container as auto-starting after a host
+// reboot. Without this, a host reboot leaves every project's container in
+// `stopped` state until the runner brings it back via a prompt — which
+// silently breaks anything time-driven (cron, systemd timers). Idempotent;
+// cheap; safe to call on every prompt as a migration for older containers.
+func (m *Manager) EnsureBootAutostart(ctx context.Context, containerName string) error {
+	if !m.Available() {
+		return errors.New("lxc not available")
+	}
+	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	// `lxc config get` returns empty (no error) when unset; "true" once set.
+	cur, _ := lxcRun(lctx, "config", "get", containerName, "boot.autostart")
+	if strings.TrimSpace(cur) == "true" {
+		return nil
+	}
+	if out, err := lxcRun(lctx, "config", "set", containerName, "boot.autostart", "true"); err != nil {
+		return fmt.Errorf("set boot.autostart: %w; output: %s", err, out)
+	}
 	return nil
 }
 
