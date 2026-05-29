@@ -1,0 +1,90 @@
+package chat
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+)
+
+type ID string
+type ProjectID string
+
+type Meta struct {
+	ID              ID        `json:"id"`
+	Title           string    `json:"title"`
+	ClaudeSessionID string    `json:"claudeSessionId,omitempty"`
+	TmuxSession     string    `json:"tmuxSession,omitempty"`
+	Cwd             string    `json:"cwd,omitempty"`
+	CreatedAt       int64     `json:"createdAt"`
+	LastMessageAt   int64     `json:"lastMessageAt"`
+	Model           string    `json:"model,omitempty"`
+	Mode            string    `json:"mode,omitempty"`
+	ProjectID       ProjectID `json:"projectId,omitempty"`
+}
+
+type Event struct {
+	T               int64           `json:"t"`
+	Type            string          `json:"type"`
+	Text            string          `json:"text,omitempty"`
+	MessageID       string          `json:"messageId,omitempty"`
+	ID              string          `json:"id,omitempty"`
+	Name            string          `json:"name,omitempty"`
+	Input           json.RawMessage `json:"input,omitempty"`
+	Output          string          `json:"output,omitempty"`
+	IsError         bool            `json:"isError,omitempty"`
+	ToolName        string          `json:"toolName,omitempty"`
+	Subtype         string          `json:"subtype,omitempty"`
+	Data            json.RawMessage `json:"data,omitempty"`
+	ClaudeSessionID string          `json:"claudeSessionId,omitempty"`
+	Usage           json.RawMessage `json:"usage,omitempty"`
+	Message         string          `json:"message,omitempty"`
+	Running         bool            `json:"running,omitempty"`
+}
+
+type CreateInput struct {
+	Title       string    `json:"title,omitempty"`
+	TmuxSession string    `json:"tmuxSession,omitempty"`
+	Cwd         string    `json:"cwd,omitempty"`
+	Model       string    `json:"model,omitempty"`
+	Mode        string    `json:"mode,omitempty"`
+	ProjectID   ProjectID `json:"projectId,omitempty"`
+}
+
+type UpdateInput struct {
+	Title *string `json:"title,omitempty"`
+	Cwd   *string `json:"cwd,omitempty"`
+	Model *string `json:"model,omitempty"`
+	Mode  *string `json:"mode,omitempty"`
+}
+
+func ValidID(id ID) bool {
+	if len(id) < 4 || len(id) > 32 {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
+// TitleFromPrompt produces a short summary used when a chat is created with
+// no explicit title. First 60 chars of the first prompt, single line.
+func TitleFromPrompt(prompt string) string {
+	t := strings.TrimSpace(prompt)
+	t = strings.ReplaceAll(t, "\n", " ")
+	t = strings.ReplaceAll(t, "\r", " ")
+	for strings.Contains(t, "  ") {
+		t = strings.ReplaceAll(t, "  ", " ")
+	}
+	if len(t) > 60 {
+		t = t[:60] + "..."
+	}
+	if t == "" {
+		t = fmt.Sprintf("Chat %s", time.Now().Format("Jan 2 15:04"))
+	}
+	return t
+}

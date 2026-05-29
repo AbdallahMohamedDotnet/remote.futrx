@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"log"
@@ -16,25 +17,36 @@ import (
 
 	remote "github.com/Kings-Of-The-Web/remote.futrx.dev"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/auth"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/chat"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/claude"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/httpserver"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/projects"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/tmux"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
+	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/filechat"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
+	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	wstransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/ws"
 )
 
 func main() {
 	cfg := config.Load()
 
-	chatStore, err := chat.NewChatStore(cfg.DataDir)
+	chatStore, err := filechat.New(cfg.DataDir)
 	if err != nil {
 		log.Fatalf("init chat store: %v", err)
 	}
 
-	projectStore, err := projects.NewStore(cfg.DataDir)
+	projectStore, err := fileproject.New(cfg.DataDir)
 	if err != nil {
 		log.Fatalf("init project store: %v", err)
+	}
+	containerManager := lxc.New()
+	projectService := serviceproject.New(projectStore, containerManager)
+	if err := projectService.Reconcile(context.Background()); err != nil {
+		log.Printf("projects: reconcile warning: %v", err)
 	}
 
 	// Auth is optional. If data/oauth.json is absent, auth is nil and the
@@ -54,38 +66,49 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tmuxClient := tmux.NewClient()
-	chatHandler := chat.NewHandler(chatStore, tmuxClient, projectStore)
-	claudeRunner := claude.NewRunner(chatStore, tmuxClient, projectStore)
-	claudeLogin := claude.NewClaudeLogin()
-	projectHandler := projects.NewHandler(projectStore)
-	upgrader := httpserver.NewUpgrader()
+	tmuxClient := tmuxcli.New()
+	runHub := runhub.New(chatStore)
+	chatService := servicechat.New(
+		chatStore,
+		chatProjectResolver{projects: projectService},
+		chatTmuxResolver{client: tmuxClient},
+		runHub,
+	)
+	chatHandler := httptransport.NewChatHandler(chatService)
+	promptService := prompt.New(chatStore, tmuxClient, projectService, containerManager, runHub)
+	chatSocket := wstransport.NewChatSocket(chatStore, runHub, promptService)
+	claudeLogin := claudelogin.New()
+	claudeAuthHandler := httptransport.NewClaudeAuthHandler(claudeLogin)
+	projectHandler := httptransport.NewProjectHandler(projectService)
+	tmuxHandler := httptransport.NewTmuxHandler(tmuxClient)
+	tmuxSocket := wstransport.NewTmuxSocket(tmuxClient)
+	upgrader := httptransport.NewUpgrader()
 
-	var authRoutes *httpserver.AuthRoutes
+	var authRoutes *httptransport.AuthRoutes
 	if authService != nil {
 		routes := authService.Routes()
 		authRoutes = &routes
 	}
 
-	handler := httpserver.NewHandler(httpserver.Routes{
-		Sessions:        tmuxClient.HandleSessionsCollection,
-		SessionResource: tmuxClient.HandleSessionResource,
-		Chats:           chatHandler.HandleChatsCollection,
-		ChatResource:    chatHandler.HandleChatResource,
+	handler := httptransport.NewHandler(httptransport.Routes{
+		Sessions:        tmuxHandler.HandleSessionsCollection,
+		SessionResource: tmuxHandler.HandleSessionResource,
+		Chats:           chatHandler.HandleCollection,
+		ChatResource:    chatHandler.HandleResource,
 		Projects:        projectHandler.HandleCollection,
 		ProjectResource: projectHandler.HandleResource,
 		TLSAsk:          projectHandler.HandleTLSAsk,
-		ClaudeAuth:      claudeLogin.HandleStatus,
-		ClaudeLogin:     claudeLogin.HandleStart,
-		ClaudeCode:      claudeLogin.HandleCode,
-		ClaudeCancel:    claudeLogin.HandleCancel,
-		TmuxWS:          tmuxClient.PTYHandler(upgrader),
-		ChatWS:          claudeRunner.StreamHandler(upgrader),
+		ClaudeAuth:      claudeAuthHandler.HandleStatus,
+		ClaudeLogin:     claudeAuthHandler.HandleStart,
+		ClaudeCode:      claudeAuthHandler.HandleCode,
+		ClaudeCancel:    claudeAuthHandler.HandleCancel,
+		TmuxWS:          tmuxSocket.Handle(upgrader),
+		ChatWS:          chatSocket.Handle(upgrader),
 		Auth:            authRoutes,
 		Static:          http.FileServer(http.FS(static)),
 	})
 
-	srv := httpserver.NewServer(cfg.Addr(), handler)
+	srv := httptransport.NewServer(cfg.Addr(), handler)
 	log.Printf("remote.futrx.dev listening on %s", cfg.Addr())
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)

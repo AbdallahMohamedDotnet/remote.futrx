@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/httpserver"
+	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -145,8 +145,8 @@ func LoadAuthService(dataDir, baseURL string) (*AuthService, error) {
 	}, nil
 }
 
-func (s *AuthService) Routes() httpserver.AuthRoutes {
-	return httpserver.AuthRoutes{
+func (s *AuthService) Routes() httptransport.AuthRoutes {
+	return httptransport.AuthRoutes{
 		Login:      s.handleLogin,
 		Callback:   s.handleCallback,
 		Logout:     s.handleLogout,
@@ -389,14 +389,14 @@ func (s *AuthService) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if p == nil {
-		httpserver.SendJSON(w, 200, map[string]any{
+		httptransport.SendJSON(w, 200, map[string]any{
 			"authenticated": false,
 			"claimed":       claimed,
 			"adminEmail":    adminEmail, // shown on lockout to know who claimed it
 		})
 		return
 	}
-	httpserver.SendJSON(w, 200, map[string]any{
+	httptransport.SendJSON(w, 200, map[string]any{
 		"authenticated": true,
 		"claimed":       claimed,
 		"adminEmail":    adminEmail,

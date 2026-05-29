@@ -1,0 +1,161 @@
+package httptransport
+
+import (
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+
+	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+)
+
+type ChatHandler struct {
+	chats *servicechat.Service
+}
+
+func NewChatHandler(chats *servicechat.Service) *ChatHandler {
+	return &ChatHandler{chats: chats}
+}
+
+func (h *ChatHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		metas, err := h.chats.List(r.Context())
+		if err != nil {
+			sendChatError(w, err)
+			return
+		}
+		SendJSON(w, http.StatusOK, metas)
+
+	case http.MethodPost:
+		var in servicechat.CreateInput
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&in); err != nil && err != io.EOF {
+			SendErr(w, http.StatusBadRequest, "invalid json")
+			return
+		}
+		meta, err := h.chats.Create(r.Context(), in)
+		if err != nil {
+			sendChatError(w, err)
+			return
+		}
+		SendJSON(w, http.StatusCreated, meta)
+
+	default:
+		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/chats/")
+	parts := strings.SplitN(rest, "/", 2)
+	id := servicechat.ID(parts[0])
+
+	if len(parts) == 2 {
+		switch parts[1] {
+		case "events":
+			h.handleEvents(w, r, id)
+		case "rewind":
+			h.handleRewind(w, r, id)
+		case "upload":
+			h.handleUpload(w, r, id)
+		default:
+			SendErr(w, http.StatusNotFound, "not found")
+		}
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		meta, err := h.chats.Get(r.Context(), id)
+		if err != nil {
+			sendChatError(w, err)
+			return
+		}
+		SendJSON(w, http.StatusOK, meta)
+
+	case http.MethodPatch:
+		var in servicechat.UpdateInput
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&in); err != nil {
+			SendErr(w, http.StatusBadRequest, "invalid json")
+			return
+		}
+		meta, err := h.chats.Update(r.Context(), id, in)
+		if err != nil {
+			sendChatError(w, err)
+			return
+		}
+		SendJSON(w, http.StatusOK, meta)
+
+	case http.MethodDelete:
+		if err := h.chats.Delete(r.Context(), id); err != nil {
+			sendChatError(w, err)
+			return
+		}
+		SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
+
+	default:
+		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (h *ChatHandler) handleEvents(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
+	if r.Method != http.MethodGet {
+		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	events, err := h.chats.Events(r.Context(), id)
+	if err != nil {
+		sendChatError(w, err)
+		return
+	}
+	SendJSON(w, http.StatusOK, events)
+}
+
+func (h *ChatHandler) handleRewind(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
+	if r.Method != http.MethodPost {
+		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var body struct {
+		BeforeT int64 `json:"beforeT"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
+		SendErr(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	events, err := h.chats.Rewind(r.Context(), id, body.BeforeT)
+	if err != nil {
+		sendChatError(w, err)
+		return
+	}
+	SendJSON(w, http.StatusOK, map[string][]servicechat.Event{"events": events})
+}
+
+func (h *ChatHandler) handleUpload(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
+	if r.Method != http.MethodPost {
+		SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	cwd, err := h.chats.UploadTarget(r.Context(), id)
+	if err != nil {
+		sendChatError(w, err)
+		return
+	}
+	HandleMultipart(cwd, w, r)
+}
+
+func sendChatError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, servicechat.ErrInvalidID),
+		errors.Is(err, servicechat.ErrInvalidTmuxSession),
+		errors.Is(err, servicechat.ErrInvalidRewindTimestamp):
+		SendErr(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, servicechat.ErrNotFound):
+		SendErr(w, http.StatusNotFound, "chat not found")
+	case errors.Is(err, servicechat.ErrChatRunning):
+		SendErr(w, http.StatusConflict, err.Error())
+	default:
+		SendErr(w, http.StatusInternalServerError, err.Error())
+	}
+}
