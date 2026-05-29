@@ -1,5 +1,5 @@
 // Thin fetch wrapper. All endpoints are cookie-authenticated by Caddy.
-import type { Session, ChatMeta, ChatEvent } from "../types";
+import type { Session, ChatMeta, ChatEvent, ProjectMeta } from "../types";
 
 async function json<T>(method: string, url: string, body?: unknown): Promise<T> {
   const init: RequestInit = {
@@ -39,7 +39,13 @@ export const sessionsApi = {
 
 export const chatsApi = {
   list: () => json<ChatMeta[]>("GET", "/api/chats"),
-  create: (body: { tmuxSession?: string; cwd?: string; title?: string; model?: string } = {}) =>
+  create: (body: {
+    tmuxSession?: string;
+    cwd?: string;
+    title?: string;
+    model?: string;
+    projectId?: string;
+  } = {}) =>
     json<ChatMeta>("POST", "/api/chats", body),
   get: (id: string) => json<ChatMeta>("GET", `/api/chats/${encodeURIComponent(id)}`),
   patch: (id: string, body: { title?: string; cwd?: string; model?: string }) =>
@@ -48,6 +54,22 @@ export const chatsApi = {
     json<{ ok: boolean }>("DELETE", `/api/chats/${encodeURIComponent(id)}`),
   events: (id: string) =>
     json<ChatEvent[]>("GET", `/api/chats/${encodeURIComponent(id)}/events`),
+};
+
+// --- projects (LXC containers) --------------------------------------------
+
+export const projectsApi = {
+  list: () => json<ProjectMeta[]>("GET", "/api/projects"),
+  create: (name: string) => json<ProjectMeta>("POST", "/api/projects", { name }),
+  get: (id: string) => json<ProjectMeta>("GET", `/api/projects/${encodeURIComponent(id)}`),
+  patch: (id: string, body: { name?: string }) =>
+    json<ProjectMeta>("PATCH", `/api/projects/${encodeURIComponent(id)}`, body),
+  delete: (id: string) =>
+    json<{ ok: boolean }>("DELETE", `/api/projects/${encodeURIComponent(id)}`),
+  start: (id: string) =>
+    json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/start`, {}),
+  stop: (id: string) =>
+    json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/stop`, {}),
 };
 
 // --- claude CLI authentication on the server ------------------------------

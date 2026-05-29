@@ -17,6 +17,30 @@ export interface ChatMeta {
   createdAt: number;
   lastMessageAt: number;
   model?: string;
+  // When set, claude spawns inside the project's LXC container. When empty,
+  // legacy host-spawn mode (or the chat predates the projects feature).
+  projectId?: string;
+}
+
+// Mirror of backend internal/projects/types.go ProjectStatus.
+export type ProjectStatus =
+  | ""              // unknown
+  | "provisioning"  // container is being launched
+  | "running"       // container is up
+  | "stopped"       // container exists but is not running
+  | "error"         // last operation failed; see errorMsg
+  | "missing";      // meta exists but no container — needs reprovision
+
+export interface ProjectMeta {
+  id: string;
+  name: string;
+  slug: string;
+  cwd: string;            // host workspace path; mount inside container at /workspace
+  containerName: string;  // LXC container name (e.g. "proj-demo-app")
+  status: ProjectStatus;
+  errorMsg?: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 // Events appended to events.jsonl AND streamed live over /ws/chat/{id}.

@@ -3,12 +3,12 @@ import { ChatSidebar } from "./components/ChatSidebar";
 import { ChatView } from "./components/Chat/ChatView";
 import { ClaudeLoginScreen } from "./components/ClaudeLoginScreen";
 import { LoginScreen } from "./components/LoginScreen";
-import { chatsApi } from "./lib/api";
+import { chatsApi, projectsApi } from "./lib/api";
 import { useAuth } from "./lib/useAuth";
 import { useClaudeAuth } from "./lib/useClaudeAuth";
 import { usePoll } from "./lib/usePoll";
-import type { ChatMeta } from "./types";
-import { Loader, Menu, MessageSquare, Plus } from "./components/icons";
+import type { ChatMeta, ProjectMeta } from "./types";
+import { Folder, Loader, Menu, MessageSquare, Plus } from "./components/icons";
 
 export function App() {
   const auth = useAuth();
@@ -18,11 +18,16 @@ export function App() {
   const claudeAuth = useClaudeAuth(googleOk);
 
   // Gate everything on Google admin auth being good AND claude CLI being
-  // authenticated on the server. Only then do we even fetch chats.
+  // authenticated on the server. Only then do we even fetch chats/projects.
   const gateOpen = googleOk && claudeAuth.authenticated;
 
-  const { value: chats, refresh } = usePoll<ChatMeta[]>(
+  const { value: chats, refresh: refreshChats } = usePoll<ChatMeta[]>(
     () => (gateOpen ? chatsApi.list() : Promise.resolve([])),
+    8000,
+    []
+  );
+  const { value: projects, refresh: refreshProjects } = usePoll<ProjectMeta[]>(
+    () => (gateOpen ? projectsApi.list() : Promise.resolve([])),
     8000,
     []
   );
@@ -31,8 +36,10 @@ export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (gateOpen) refresh();
-    // `refresh` always calls the latest polling function through usePoll.
+    if (gateOpen) {
+      refreshChats();
+      refreshProjects();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gateOpen]);
 
@@ -71,14 +78,25 @@ export function App() {
   // --- main app ---------------------------------------------------------
   const activeChat = activeId ? chats.find((c) => c.id === activeId) ?? null : null;
 
-  async function newChat() {
+  async function newProject() {
+    const name = prompt("Project name?", "");
+    if (!name || !name.trim()) return;
     try {
-      const c = await chatsApi.create({});
-      refresh();
+      await projectsApi.create(name.trim());
+      refreshProjects();
+    } catch (e) {
+      alert("create project failed: " + (e as Error).message);
+    }
+  }
+
+  async function newChatInProject(projectId?: string) {
+    try {
+      const c = await chatsApi.create(projectId ? { projectId } : {});
+      refreshChats();
       setActiveId(c.id);
       setSidebarOpen(false);
     } catch (e) {
-      alert("create failed: " + (e as Error).message);
+      alert("create chat failed: " + (e as Error).message);
     }
   }
 
@@ -86,9 +104,13 @@ export function App() {
     <div class="app-shell relative flex bg-[#090b0f] text-ink-100 overflow-hidden">
       <ChatSidebar
         chats={chats}
+        projects={projects}
         activeChatId={activeId}
         onSelect={(id) => { setActiveId(id); setSidebarOpen(false); }}
-        onRefresh={refresh}
+        onRefreshChats={refreshChats}
+        onRefreshProjects={refreshProjects}
+        onNewProject={newProject}
+        onNewChatInProject={newChatInProject}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         auth={auth}
@@ -99,17 +121,32 @@ export function App() {
             key={activeChat.id}
             chat={activeChat}
             onHamburger={() => setSidebarOpen((o) => !o)}
-            onMetaUpdate={refresh}
+            onMetaUpdate={refreshChats}
           />
         ) : (
-          <EmptyState onNew={newChat} onHamburger={() => setSidebarOpen((o) => !o)} />
+          <EmptyState
+            hasProjects={projects.length > 0}
+            onNewProject={newProject}
+            onNewChat={() => newChatInProject(undefined)}
+            onHamburger={() => setSidebarOpen((o) => !o)}
+          />
         )}
       </main>
     </div>
   );
 }
 
-function EmptyState({ onNew, onHamburger }: { onNew: () => void; onHamburger: () => void }) {
+function EmptyState({
+  hasProjects,
+  onNewProject,
+  onNewChat,
+  onHamburger,
+}: {
+  hasProjects: boolean;
+  onNewProject: () => void;
+  onNewChat: () => void;
+  onHamburger: () => void;
+}) {
   return (
     <div class="flex-1 flex flex-col min-h-0">
       <header class="safe-top bg-[#101318]/95 border-b border-white/10 px-3 py-2 flex items-center gap-2 min-h-[52px]">
@@ -126,22 +163,40 @@ function EmptyState({ onNew, onHamburger }: { onNew: () => void; onHamburger: ()
       <div class="flex-1 grid place-items-center text-center p-5">
         <div class="space-y-5 max-w-sm">
           <div class="mx-auto w-16 h-16 rounded-lg bg-white/[0.06] border border-white/10 grid place-items-center">
-            <MessageSquare class="w-8 h-8 opacity-70" />
+            {hasProjects
+              ? <MessageSquare class="w-8 h-8 opacity-70" />
+              : <Folder class="w-8 h-8 opacity-70" />}
           </div>
           <div class="text-ink-200">
-            <div class="font-semibold text-lg text-ink-50">Choose a chat or start fresh</div>
+            <div class="font-semibold text-lg text-ink-50">
+              {hasProjects ? "Choose a chat or start fresh" : "Create your first project"}
+            </div>
             <div class="text-xs mt-2 leading-relaxed text-ink-300">
-              Messages, tool calls, file uploads, and code edits stay in one fast conversation view.
+              {hasProjects
+                ? "Pick a project on the left, then create a chat inside it. Each project is its own sandboxed container."
+                : "Projects are sandboxed dev environments — claude installs and runs inside each project's container, isolated from the rest of the host."}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onNew}
-            class="inline-flex items-center gap-2 bg-accent-blue hover:bg-accent-blue/90 active:scale-[0.99]
-                   text-white text-sm font-medium px-4 h-11 rounded-md transition"
-          >
-            <Plus class="w-4 h-4" /> New chat
-          </button>
+          <div class="flex gap-2 justify-center">
+            <button
+              type="button"
+              onClick={onNewProject}
+              class="inline-flex items-center gap-2 bg-accent-blue hover:bg-accent-blue/90 active:scale-[0.99]
+                     text-white text-sm font-medium px-4 h-11 rounded-md transition"
+            >
+              <Folder class="w-4 h-4" /> New project
+            </button>
+            {hasProjects && (
+              <button
+                type="button"
+                onClick={onNewChat}
+                class="inline-flex items-center gap-2 bg-white/[0.08] hover:bg-white/[0.12]
+                       text-ink-100 text-sm font-medium px-4 h-11 rounded-md transition"
+              >
+                <Plus class="w-4 h-4" /> Loose chat
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
