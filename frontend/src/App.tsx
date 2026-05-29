@@ -157,7 +157,7 @@ function EmptyState({
 }) {
   return (
     <div class="flex-1 flex flex-col min-h-0">
-      <header class="codex-header top-chrome flex-none sticky top-0 z-20 bg-[#101318] border-b border-white/10 px-3 pb-2 flex items-center gap-2 min-h-[52px]">
+      <header class="codex-header top-chrome flex-none z-20 bg-[#101318] border-b border-white/10 px-3 pb-2 flex items-center gap-2 min-h-[52px]">
         <button
           type="button"
           onClick={onHamburger}

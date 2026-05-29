@@ -117,7 +117,7 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
   const tokenTotal = totals.inT + totals.outT + totals.cacheR + totals.cacheW;
 
   return (
-    <header class="codex-header top-chrome flex-none sticky top-0 z-20 bg-[#101318] md:bg-[#101318]/95 md:backdrop-blur border-b border-white/10 px-3 md:px-4 pb-2 flex flex-col gap-2">
+    <header class="codex-header top-chrome flex-none z-20 bg-[#101318] md:bg-[#101318]/95 md:backdrop-blur border-b border-white/10 px-3 md:px-4 pb-2 flex flex-col gap-2">
       <div class="flex items-center gap-2 min-h-11">
         <button
           type="button"

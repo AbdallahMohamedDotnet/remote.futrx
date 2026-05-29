@@ -256,7 +256,7 @@ export function ChatInput({
   const canSend = !uploading && !disconnected && hasContent;
 
   return (
-    <div class="codex-composer-shell flex-none sticky bottom-0 z-20 relative bg-[#0b0d11] border-t border-white/10">
+    <div class="codex-composer-shell flex-none z-20 relative bg-[#0b0d11] border-t border-white/10">
       {dragging && (
         <div class="absolute inset-x-3 -top-16 z-20 rounded-lg border-2 border-dashed border-accent-blue
                     bg-[#151922] text-accent-blue text-sm flex items-center justify-center

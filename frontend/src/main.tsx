@@ -5,10 +5,17 @@ import "@xterm/xterm/css/xterm.css";
 
 function installViewportHeightFix() {
   let raf = 0;
+  const keyboardLikelyOpen = () => {
+    const active = document.activeElement;
+    const tag = active?.tagName.toLowerCase();
+    return tag === "input" || tag === "textarea" || active?.getAttribute("contenteditable") === "true";
+  };
+
   const sync = () => {
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(() => {
-      const height = window.visualViewport?.height ?? window.innerHeight;
+      const visualHeight = window.visualViewport?.height;
+      const height = keyboardLikelyOpen() && visualHeight ? visualHeight : window.innerHeight;
       document.documentElement.style.setProperty("--app-height", `${Math.round(height)}px`);
     });
   };
@@ -16,8 +23,9 @@ function installViewportHeightFix() {
   sync();
   window.addEventListener("resize", sync);
   window.addEventListener("orientationchange", sync);
+  window.addEventListener("focusin", sync);
+  window.addEventListener("focusout", () => window.setTimeout(sync, 120));
   window.visualViewport?.addEventListener("resize", sync);
-  window.visualViewport?.addEventListener("scroll", sync);
 }
 
 installViewportHeightFix();

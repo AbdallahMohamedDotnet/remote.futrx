@@ -26,6 +26,8 @@ function queueId(): string {
 export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
   const { meta, events, status, error, canSendPrompt, sendPrompt, cancel, rewind, refreshMeta } = useChat(chat.id);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const userScrolledRef = useRef(false);
   const [showJump, setShowJump] = useState(false);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
@@ -36,6 +38,8 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
   useEffect(() => {
     setQueuedPrompts([]);
     setDraft(null);
+    userScrolledRef.current = false;
+    setShowJump(false);
   }, [chat.id]);
 
   useEffect(() => {
@@ -48,26 +52,39 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
   }, [status, canSendPrompt, queuedPrompts, sendPrompt]);
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
     if (userScrolledRef.current) return;
-    el.scrollTop = el.scrollHeight;
+    scrollToBottom("auto");
   }, [events.length, blocks]);
+
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (!userScrolledRef.current) scrollToBottom("auto");
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
   function onScroll() {
     const el = scrollRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 96;
     userScrolledRef.current = !nearBottom;
-    setShowJump(!nearBottom);
+    const shouldShowJump = !nearBottom;
+    setShowJump((prev) => (prev === shouldShowJump ? prev : shouldShowJump));
+  }
+
+  function scrollToBottom(behavior: ScrollBehavior) {
+    requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ block: "end", behavior });
+    });
   }
 
   function jumpToBottom() {
-    const el = scrollRef.current;
-    if (!el) return;
     userScrolledRef.current = false;
     setShowJump(false);
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    scrollToBottom("smooth");
   }
 
   async function applyMeta(patch: { model?: string; mode?: ChatMode; cwd?: string; title?: string }) {
@@ -128,7 +145,7 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
           onScroll={onScroll}
           class="codex-message-scroll h-full overflow-y-auto touch-scroll scrollbar-thin px-3 sm:px-4 md:px-6 pt-3 md:pt-6 pb-5 md:pb-6"
         >
-          <div class="mx-auto max-w-[880px] space-y-4 md:space-y-5">
+          <div ref={contentRef} class="mx-auto max-w-[880px] space-y-4 md:space-y-5">
             {status === "loading" && (
               <div class="flex items-center gap-2 text-ink-300 text-sm rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
                 <Loader class="w-4 h-4 animate-spin" /> Loading conversation
@@ -168,6 +185,8 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
                 {error}
               </div>
             )}
+
+            <div ref={bottomRef} class="h-px" aria-hidden="true" />
           </div>
         </div>
 
