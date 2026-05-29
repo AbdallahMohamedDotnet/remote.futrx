@@ -254,23 +254,22 @@ export function ChatInput({
   const disconnected = !canSendPrompt && !streaming;
   const hasContent = text.trim().length > 0 || attachments.some((a) => a.serverPath);
   const canSend = !uploading && !disconnected && hasContent;
-  const hasComposerChrome = attachments.length > 0 || queuedPrompts.length > 0;
 
   return (
-    <div class="relative bg-[#0b0d11] safe-bottom">
+    <div class="codex-composer-shell flex-none sticky bottom-0 z-20 relative bg-[#0b0d11] border-t border-white/10">
       {dragging && (
         <div class="absolute inset-x-3 -top-16 z-20 rounded-lg border-2 border-dashed border-accent-blue
-                    bg-[#151922]/95 text-accent-blue text-sm flex items-center justify-center
-                    h-14 gap-2 backdrop-blur">
+                    bg-[#151922] text-accent-blue text-sm flex items-center justify-center
+                    h-14 gap-2">
           <Upload class="w-5 h-5" />
           Drop files to upload to the chat directory
         </div>
       )}
 
-      <div class="px-3 pt-3 pb-2 border-t border-white/10">
+      <div class="codex-composer-controls px-3 pt-2 pb-1.5">
         <div class="mx-auto max-w-[980px] flex items-center gap-2 overflow-x-auto no-scrollbar">
-          <label class="inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
-            <span class="text-ink-400">Model</span>
+          <label class="codex-model-control hidden sm:inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
+            <span class="hidden sm:inline text-ink-400">Model</span>
             <select
               value={model}
               onChange={(e) => onModelChange((e.currentTarget as HTMLSelectElement).value)}
@@ -286,8 +285,8 @@ export function ChatInput({
             </select>
           </label>
 
-          <label class="inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
-            <span class="text-ink-400">Mode</span>
+          <label class="codex-mode-control inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
+            <span class="hidden sm:inline text-ink-400">Mode</span>
             <select
               value={mode}
               onChange={(e) => onModeChange((e.currentTarget as HTMLSelectElement).value as ChatMode)}
@@ -303,7 +302,8 @@ export function ChatInput({
           {streaming && (
             <div class="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md bg-accent-blue/[0.12] border border-accent-blue/25 text-[12px] text-accent-blue flex-none">
               <Clock class="w-3.5 h-3.5" />
-              Next send queues
+              <span class="hidden sm:inline">Next send queues</span>
+              <span class="sm:hidden">Queues</span>
             </div>
           )}
         </div>
@@ -349,13 +349,13 @@ export function ChatInput({
 
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
-        class={`flex gap-2 items-end p-3 ${hasComposerChrome ? "" : "border-t border-white/10"}`}
+        class="codex-composer-form composer-form flex gap-2 items-end px-3 pt-2"
       >
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading || disconnected}
-          class="flex-none w-11 h-11 rounded-md bg-white/[0.06] border border-white/10
+          class="codex-icon-button flex-none w-11 h-11 rounded-md bg-white/[0.06] border border-white/10
                  hover:bg-white/10 active:bg-accent-blue active:border-accent-blue active:scale-[0.98]
                  disabled:opacity-50 disabled:active:scale-100 grid place-items-center text-ink-100 transition"
           aria-label="Attach files"
@@ -396,10 +396,10 @@ export function ChatInput({
             uploading ? "Uploading…" :
             streaming ? "Queue next prompt while Claude is working" :
             disconnected ? "Connecting…" :
-            "Message Claude — Enter to send, Shift+Enter for newline"
+            "Ask Codex anything, @ to add files, / for commands"
           }
           disabled={disconnected}
-          class="flex-1 resize-none rounded-md
+          class="codex-composer-textarea flex-1 resize-none rounded-md
                  bg-[#101318] border border-white/10 text-ink-100 placeholder:text-ink-300
                  focus:outline-none focus:border-accent-blue/80 focus:bg-[#121722]
                  px-3.5 py-3 text-[16px] sm:text-[14.5px] leading-normal
@@ -409,7 +409,7 @@ export function ChatInput({
         <button
           type="submit"
           disabled={!canSend}
-          class={`flex-none w-11 h-11 rounded-md
+          class={`codex-send-button flex-none w-11 h-11 rounded-md
                   ${streaming ? "bg-accent-blue hover:bg-accent-blue/85" : "bg-accent-green hover:bg-accent-green/85"}
                   disabled:bg-ink-500 disabled:cursor-not-allowed
                   active:scale-[0.98] disabled:active:scale-100 grid place-items-center text-white transition`}
@@ -422,7 +422,7 @@ export function ChatInput({
           <button
             type="button"
             onClick={onCancel}
-            class="flex-none w-11 h-11 rounded-md bg-accent-red/90 hover:bg-accent-red
+            class="codex-cancel-button flex-none w-11 h-11 rounded-md bg-accent-red/90 hover:bg-accent-red
                    active:scale-[0.98] grid place-items-center text-white transition"
             aria-label="Cancel"
             title="Cancel current generation"

@@ -112,7 +112,7 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
   }
 
   return (
-    <div class="flex-1 flex flex-col min-h-0 bg-[#0b0d11]">
+    <div class="codex-thread flex-1 h-full flex flex-col min-h-0 overflow-hidden bg-[#0b0d11]">
       <ChatHeader
         chat={displayMeta}
         events={events}
@@ -126,9 +126,9 @@ export function ChatView({ chat, onHamburger, onMetaUpdate }: Props) {
         <div
           ref={scrollRef}
           onScroll={onScroll}
-          class="h-full overflow-y-auto touch-scroll scrollbar-thin px-3 md:px-6 py-4 md:py-6"
+          class="codex-message-scroll h-full overflow-y-auto touch-scroll scrollbar-thin px-3 sm:px-4 md:px-6 pt-3 md:pt-6 pb-5 md:pb-6"
         >
-          <div class="mx-auto max-w-[880px] space-y-5">
+          <div class="mx-auto max-w-[880px] space-y-4 md:space-y-5">
             {status === "loading" && (
               <div class="flex items-center gap-2 text-ink-300 text-sm rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
                 <Loader class="w-4 h-4 animate-spin" /> Loading conversation

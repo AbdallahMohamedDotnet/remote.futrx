@@ -211,7 +211,7 @@ export function ChatSidebar({
       />
       <aside
         data-open={open ? "true" : "false"}
-        class="drawer-panel mobile-sheet safe-top fixed md:static z-40 inset-y-0 left-0 w-[min(92vw,380px)] md:w-[300px]
+        class="codex-sidebar drawer-panel mobile-sheet safe-top fixed md:static z-40 inset-y-0 left-0 w-[min(92vw,380px)] md:w-[300px]
                 bg-[#101318] border-r border-white/10 flex flex-col shadow-2xl md:shadow-none"
       >
         <header class="px-3 pt-3 pb-2 border-b border-white/10">

@@ -72,12 +72,12 @@ function ToolShell({
 }) {
   const [open, setOpen] = useState(!!defaultOpen);
   return (
-    <div class={`my-2 border rounded-lg overflow-hidden text-sm shadow-sm
+    <div class={`codex-tool-shell my-2 border rounded-lg overflow-hidden text-sm shadow-sm
                 ${isError ? "border-accent-red/50 bg-accent-red/5" : "border-white/10 bg-[#101318]"}`}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        class={`w-full min-h-10 flex items-center gap-2 px-3 py-2 text-left
+        class={`codex-tool-trigger w-full min-h-10 flex items-center gap-2 px-3 py-2 text-left
                 ${isError ? "bg-accent-red/10" : "bg-white/[0.03] hover:bg-white/[0.06]"}`}
       >
         {children ? (open ? <ChevronDown class="w-3.5 h-3.5 text-ink-300 flex-none" /> : <ChevronRight class="w-3.5 h-3.5 text-ink-300 flex-none" />) : <span class="w-3.5 flex-none" />}

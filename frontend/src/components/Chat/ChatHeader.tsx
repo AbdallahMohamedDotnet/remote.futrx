@@ -117,7 +117,7 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
   const tokenTotal = totals.inT + totals.outT + totals.cacheR + totals.cacheW;
 
   return (
-    <header class="safe-top bg-[#101318]/95 backdrop-blur border-b border-white/10 px-3 md:px-4 py-2 flex flex-col gap-2">
+    <header class="codex-header top-chrome flex-none sticky top-0 z-20 bg-[#101318] md:bg-[#101318]/95 md:backdrop-blur border-b border-white/10 px-3 md:px-4 pb-2 flex flex-col gap-2">
       <div class="flex items-center gap-2 min-h-11">
         <button
           type="button"
@@ -129,7 +129,7 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
           <Menu class="w-5 h-5" />
         </button>
 
-        <div class="h-9 w-9 rounded-md bg-white/[0.06] border border-white/10 text-ink-200 grid place-items-center flex-none">
+        <div class="hidden sm:grid h-9 w-9 rounded-md bg-white/[0.06] border border-white/10 text-ink-200 place-items-center flex-none">
           <MessageSquare class="w-4 h-4" />
         </div>
 
@@ -144,7 +144,7 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
             />
           </div>
           <div class="text-[12px] text-ink-300 truncate">
-            {streaming ? "Claude is working" : "Ready"}
+            {streaming ? "Working" : "Ready"}
           </div>
         </div>
 
@@ -152,7 +152,7 @@ export function ChatHeader({ chat, events, streaming, onModelChange, onCwdChange
           <button
             type="button"
             onClick={() => setModelOpen((o) => !o)}
-            class="h-9 inline-flex items-center gap-1.5 text-[13px] font-medium px-3 rounded-md
+            class="h-9 inline-flex items-center justify-center gap-1.5 text-[13px] font-medium px-2.5 sm:px-3 rounded-md
                    bg-white/[0.06] hover:bg-white/10 border border-white/10 text-ink-100 disabled:opacity-50"
             disabled={streaming}
             title={streaming ? "Cannot change model while streaming" : "Switch model"}

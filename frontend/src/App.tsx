@@ -103,7 +103,7 @@ export function App() {
   }
 
   return (
-    <div class="app-shell relative flex bg-[#090b0f] text-ink-100 overflow-hidden">
+    <div class="codex-app app-shell relative flex bg-[#090b0f] text-ink-100 overflow-hidden">
       <ChatSidebar
         chats={chats}
         projects={projects}
@@ -118,7 +118,7 @@ export function App() {
         onClose={() => setSidebarOpen(false)}
         auth={auth}
       />
-      <main class="relative flex-1 flex flex-col min-w-0 bg-[#0b0d11]">
+      <main class="codex-main relative flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0b0d11]">
         {view === "settings" ? (
           <SettingsPage
             onBack={() => setView("chat")}
@@ -157,7 +157,7 @@ function EmptyState({
 }) {
   return (
     <div class="flex-1 flex flex-col min-h-0">
-      <header class="top-chrome bg-[#101318] border-b border-white/10 px-3 pb-2 flex items-center gap-2 min-h-[52px]">
+      <header class="codex-header top-chrome flex-none sticky top-0 z-20 bg-[#101318] border-b border-white/10 px-3 pb-2 flex items-center gap-2 min-h-[52px]">
         <button
           type="button"
           onClick={onHamburger}

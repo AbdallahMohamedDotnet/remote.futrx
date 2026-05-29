@@ -16,7 +16,7 @@ export function MessageBlock({ block, streaming, chatId, onAnswerQuestion, onRew
     return (
       <div class="group flex justify-end">
         <div class="max-w-[92%] sm:max-w-[78%] flex flex-col items-end gap-1.5">
-          <div class="bg-accent-blue/15 border border-accent-blue/30
+          <div class="codex-user-bubble bg-accent-blue/15 border border-accent-blue/30
                       rounded-[18px] rounded-br-md px-3.5 py-2.5 text-[14.5px] leading-relaxed
                       whitespace-pre-wrap break-words shadow-sm">
             {block.text}
@@ -48,7 +48,7 @@ export function MessageBlock({ block, streaming, chatId, onAnswerQuestion, onRew
   }
   // assistant
   return (
-    <div class="space-y-2 max-w-full">
+    <div class="codex-assistant-block space-y-2 max-w-full">
       {block.parts.map((p, i) => {
         if (p.kind === "text") {
           return (
