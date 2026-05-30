@@ -4,8 +4,12 @@
 # Walks through infra/steps/*.sh in order. Idempotent: safe to re-run on
 # every CI deploy as well as the initial bootstrap.
 #
-# Usage:
+# Usage (from a clone):
 #   sudo bash infra/install.sh <hostname> [flags]
+#
+# Usage (fresh box, curl|bash):
+#   curl -fsSL https://raw.githubusercontent.com/Kings-Of-The-Web/remote.futrx.dev/main/infra/install.sh \
+#     | sudo bash -s -- <hostname> [flags]
 #
 # Flags:
 #   --skip-dns-check                            useful on cloud bootstrap where the public
@@ -19,6 +23,56 @@
 #   CODE_SERVER_VERSION                         override the pinned code-server version.
 
 set -euo pipefail
+
+# ───────────────── self-bootstrap (curl|bash mode) ─────────────────
+# When piped from curl, BASH_SOURCE points at /dev/stdin and there are no
+# sibling steps/ or templates/. Install git, clone the repo to the canonical
+# install dir, and re-exec from there so the rest of this script sees real
+# files on disk.
+INFRA_DIR_PROBE="$( cd "$( dirname "${BASH_SOURCE[0]:-}" 2>/dev/null || echo . )" >/dev/null 2>&1 && pwd || true )"
+if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
+    if [ "$EUID" -ne 0 ]; then
+        echo "this installer needs root; rerun with sudo" >&2
+        exit 1
+    fi
+    export DEBIAN_FRONTEND=noninteractive
+    if ! command -v git >/dev/null; then
+        apt-get update -qq
+        apt-get install -y -qq git ca-certificates
+    fi
+
+    TARGET="/opt/remote.futrx.dev"
+
+    # Honor --github-token / GITHUB_TOKEN for the bootstrap clone of a private
+    # repo. The full arg loop later re-parses everything.
+    BOOTSTRAP_TOKEN="${GITHUB_TOKEN:-}"
+    for a in "$@"; do
+        case "$a" in
+            --github-token=*) BOOTSTRAP_TOKEN="${a#*=}" ;;
+        esac
+    done
+    CLONE_URL="https://github.com/Kings-Of-The-Web/remote.futrx.dev.git"
+    if [ -n "$BOOTSTRAP_TOKEN" ]; then
+        CLONE_URL="https://x-access-token:${BOOTSTRAP_TOKEN}@github.com/Kings-Of-The-Web/remote.futrx.dev.git"
+    fi
+
+    if [ ! -d "$TARGET/.git" ]; then
+        echo "==> bootstrapping: cloning repo to $TARGET"
+        if [ -d "$TARGET" ] && [ -n "$(ls -A "$TARGET" 2>/dev/null)" ]; then
+            echo "$TARGET exists and is not empty — refusing to overwrite" >&2
+            exit 1
+        fi
+        mkdir -p "$TARGET"
+        git clone --depth=1 "$CLONE_URL" "$TARGET"
+        chmod 0600 "$TARGET/.git/config"
+    else
+        echo "==> repo already at $TARGET, pulling latest"
+        git -C "$TARGET" fetch --quiet --tags origin
+        git -C "$TARGET" reset --hard origin/main
+    fi
+
+    exec bash "$TARGET/infra/install.sh" "$@"
+fi
 
 # ───────────────── args ─────────────────
 HOSTNAME=""
