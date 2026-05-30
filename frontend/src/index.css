@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* highlight.js GitHub Dark — minimal subset to keep bundle small.
-   We import this file lazily in CodeBlock if needed. */
-
 @layer base {
   html, body, #root {
     width: 100%;
@@ -74,6 +71,16 @@
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  .md-code { color: #c9d1d9; }
+  .md-code-comment { color: #8b949e; }
+  .md-code-keyword { color: #ff7b72; }
+  .md-code-string { color: #a5d6ff; }
+  .md-code-number,
+  .md-code-literal { color: #79c0ff; }
+  .md-code-addition { color: #aff5b4; }
+  .md-code-deletion { color: #ffdcd7; }
+  .md-code-meta { color: #d2a8ff; }
 }
 
 @layer utilities {

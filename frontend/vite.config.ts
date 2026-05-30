@@ -6,14 +6,6 @@ import { resolve } from "node:path";
 // Go's //go:embed public (inside backend/) picks it up at the next `go build`.
 export default defineConfig({
   plugins: [preact()],
-  resolve: {
-    alias: {
-      // react-markdown imports from "react" / "react-dom"; route to preact/compat.
-      react: "preact/compat",
-      "react-dom": "preact/compat",
-      "react/jsx-runtime": "preact/jsx-runtime",
-    },
-  },
   build: {
     outDir: resolve(__dirname, "../backend/public"),
     emptyOutDir: true,
