@@ -298,8 +298,8 @@ func (rnr *Service) buildClaudeCmd(
 		}
 	}
 
-	// Lazy claude install + auth seed. Both are no-ops after the first hit:
-	// install is ~60s once per project, auth-seed is ~50ms then 0 forever.
+	// Lazy claude install + auth refresh. Install is ~60s once per project;
+	// auth only pushes when the host login files are newer than the container copy.
 	if rnr.containers != nil {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "system", Subtype: "container_preparing"})
 		if err := rnr.containers.EnsureClaude(ctx, p.ContainerName); err != nil {

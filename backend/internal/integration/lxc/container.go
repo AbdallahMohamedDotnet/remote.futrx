@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -147,13 +148,6 @@ func (m *Manager) EnsureClaudeAuth(ctx context.Context, containerName string) er
 	_, _ = lxcRun(dctx, "config", "device", "remove", containerName, "claude-auth")
 	cancelD()
 
-	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
-	defer cancelQ()
-	if _, err := lxcRun(qctx, "exec", containerName, "--",
-		"test", "-f", "/root/.claude/.credentials.json"); err == nil {
-		return nil
-	}
-
 	if _, err := os.Stat(hostClaudeJSON); err != nil {
 		return fmt.Errorf("host claude not authenticated yet: %s missing", hostClaudeJSON)
 	}
@@ -166,18 +160,38 @@ func (m *Manager) EnsureClaudeAuth(ctx context.Context, containerName string) er
 		return fmt.Errorf("mkdir /root/.claude in container: %w; output: %s", err, out)
 	}
 
-	if out, err := lxcRun(pctx, "file", "push", "--mode=600",
-		hostClaudeJSON, containerName+"/root/.claude.json"); err != nil {
-		return fmt.Errorf("push .claude.json: %w; output: %s", err, out)
+	if err := pushClaudeAuthFileIfNewer(pctx, hostClaudeJSON, containerName, "/root/.claude.json"); err != nil {
+		return err
 	}
 
 	if _, err := os.Stat(hostClaudeCreds); err == nil {
-		if out, err := lxcRun(pctx, "file", "push", "--mode=600",
-			hostClaudeCreds, containerName+"/root/.claude/.credentials.json"); err != nil {
-			return fmt.Errorf("push .credentials.json: %w; output: %s", err, out)
+		if err := pushClaudeAuthFileIfNewer(pctx, hostClaudeCreds, containerName, "/root/.claude/.credentials.json"); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func pushClaudeAuthFileIfNewer(ctx context.Context, hostPath, containerName, containerPath string) error {
+	hostInfo, err := os.Stat(hostPath)
+	if err != nil {
+		return err
+	}
+
+	shouldPush := true
+	if out, err := lxcRun(ctx, "exec", containerName, "--", "stat", "-c", "%Y", containerPath); err == nil {
+		if containerUnix, parseErr := strconv.ParseInt(strings.TrimSpace(out), 10, 64); parseErr == nil {
+			shouldPush = hostInfo.ModTime().Unix() > containerUnix
+		}
+	}
+	if !shouldPush {
+		return nil
+	}
+
+	if out, err := lxcRun(ctx, "file", "push", "--mode=600", hostPath, containerName+containerPath); err != nil {
+		return fmt.Errorf("push %s: %w; output: %s", containerPath, err, out)
+	}
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
 	"time"
 
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
@@ -98,6 +99,7 @@ func (r *Runner) Run(
 	sc := bufio.NewScanner(stdout)
 	sc.Buffer(make([]byte, 0, 64*1024), 16<<20)
 	sawSessionID := currentSessionID
+	var resultErr error
 
 	for sc.Scan() {
 		line := sc.Bytes()
@@ -168,6 +170,15 @@ func (r *Runner) Run(
 			}
 
 		case "result":
+			if raw.IsError {
+				msg := strings.TrimSpace(raw.Result)
+				if msg == "" {
+					msg = "Claude returned an error"
+				}
+				emit(ChatEvent{T: now, Type: "error", Message: msg})
+				resultErr = errors.New(msg)
+				continue
+			}
 			emit(ChatEvent{T: now, Type: "complete", Usage: raw.Usage})
 		}
 	}
@@ -177,6 +188,9 @@ func (r *Runner) Run(
 
 	err = cmd.Wait()
 	if errors.Is(ctx.Err(), context.Canceled) {
+		return nil
+	}
+	if resultErr != nil {
 		return nil
 	}
 	return err
