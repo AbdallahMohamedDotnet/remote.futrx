@@ -5,10 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
+	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
 	wstransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/ws"
@@ -17,37 +14,28 @@ import (
 type TmuxClient interface {
 	httphandlers.TmuxClient
 	wstransport.TmuxSessionClient
-	prompt.TmuxClient
 }
 
 type Dependencies struct {
-	ChatStore        servicechat.Repository
-	ChatService      *servicechat.Service
-	ProjectService   *serviceproject.Service
-	TmuxClient       TmuxClient
-	RunHub           *runhub.Hub
-	ContainerManager prompt.ContainerPreparer
-	Auth             httptransport.AuthRegistrar
-	Static           fs.FS
+	Services   service.Services
+	TmuxClient TmuxClient
+	Static     fs.FS
 }
 
 func NewHTTPHandler(deps Dependencies) http.Handler {
-	promptService := prompt.New(
-		deps.ChatStore,
-		deps.TmuxClient,
-		deps.ProjectService,
-		deps.ContainerManager,
-		deps.RunHub,
-	)
+	var auth httptransport.AuthRegistrar
+	if deps.Services.Auth != nil {
+		auth = httphandlers.NewAuthHandler(deps.Services.Auth)
+	}
 
 	return httptransport.NewHandler(httptransport.Handlers{
 		Sessions:   httphandlers.NewTmuxHandler(deps.TmuxClient),
-		Chats:      httphandlers.NewChatHandler(deps.ChatService),
-		Projects:   httphandlers.NewProjectHandler(deps.ProjectService),
+		Chats:      httphandlers.NewChatHandler(deps.Services.Chats),
+		Projects:   httphandlers.NewProjectHandler(deps.Services.Projects),
 		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
 		TmuxWS:     wstransport.NewTmuxSocket(deps.TmuxClient),
-		ChatWS:     wstransport.NewChatSocket(deps.ChatStore, deps.RunHub, promptService),
-		Auth:       deps.Auth,
+		ChatWS:     wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt),
+		Auth:       auth,
 		Static:     httptransport.NewStaticHandler(deps.Static),
 	})
 }

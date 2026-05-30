@@ -19,13 +19,13 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport"
 )
 
 func main() {
+	ctx := context.Background()
 	cfg := config.Load()
 
 	storeSet, err := stores.New(cfg.DataDir)
@@ -33,17 +33,26 @@ func main() {
 		log.Fatalf("init stores: %v", err)
 	}
 	containerManager := lxc.New()
-
-	// Auth is optional. If data/oauth.json is absent, authHandler is nil and the
-	// server runs open (matches old behavior for existing deployments).
-	authHandler, authEnabled, err := loadAuthHandler(context.Background(), storeSet.Auth, cfg.BaseURL)
+	tmuxClient := tmuxcli.New()
+	serviceSet, err := service.New(ctx, service.Dependencies{
+		Chats:         storeSet.Chats,
+		Projects:      storeSet.Projects,
+		Auth:          storeSet.Auth,
+		AuthBaseURL:   cfg.BaseURL,
+		Containers:    containerManager,
+		TmuxClient:    tmuxClient,
+		ValidTmuxName: tmuxcli.ValidName,
+	})
 	if err != nil {
-		log.Fatalf("init auth: %v", err)
+		log.Fatalf("init services: %v", err)
 	}
-	if authEnabled {
+	if serviceSet.AuthEnabled() {
 		log.Printf("auth: Google OAuth enabled; BASE_URL=%s", cfg.BaseURL)
 	} else {
 		log.Printf("auth: DISABLED (no data/oauth.json) — server is open to anyone who can reach it")
+	}
+	if err := serviceSet.Reconcile(ctx); err != nil {
+		log.Printf("services: reconcile warning: %v", err)
 	}
 
 	static, err := fs.Sub(remote.PublicFS, "public")
@@ -51,29 +60,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tmuxClient := tmuxcli.New()
-	runHub := runhub.New(storeSet.Chats)
-	serviceSet := service.New(service.Dependencies{
-		Chats:         storeSet.Chats,
-		Projects:      storeSet.Projects,
-		Containers:    containerManager,
-		TmuxClient:    tmuxClient,
-		ValidTmuxName: tmuxcli.ValidName,
-		Runs:          runHub,
-	})
-	if err := serviceSet.Reconcile(context.Background()); err != nil {
-		log.Printf("services: reconcile warning: %v", err)
-	}
-
 	handler := transport.NewHTTPHandler(transport.Dependencies{
-		ChatStore:        storeSet.Chats,
-		ChatService:      serviceSet.Chats,
-		ProjectService:   serviceSet.Projects,
-		TmuxClient:       tmuxClient,
-		RunHub:           runHub,
-		ContainerManager: containerManager,
-		Auth:             authHandler,
-		Static:           static,
+		Services:   serviceSet,
+		TmuxClient: tmuxClient,
+		Static:     static,
 	})
 
 	srv := transport.NewHTTPServer(cfg.Addr(), handler)
