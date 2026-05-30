@@ -6,12 +6,11 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileauth"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
 )
 
-func loadAuthHandler(ctx context.Context, dataDir, baseURL string) (*httphandlers.AuthHandler, bool, error) {
-	store := fileauth.New(dataDir)
+func loadAuthHandler(ctx context.Context, store stores.AuthStore, baseURL string) (*httphandlers.AuthHandler, bool, error) {
 	oauthConfig, err := store.OAuthConfig(ctx)
 	if err != nil {
 		if errors.Is(err, serviceauth.ErrOAuthConfigNotFound) {

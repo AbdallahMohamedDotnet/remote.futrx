@@ -19,39 +19,24 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/filechat"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
-	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
-	wstransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/ws"
+	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport"
 )
 
 func main() {
 	cfg := config.Load()
 
-	chatStore, err := filechat.New(cfg.DataDir)
+	storeSet, err := stores.New(cfg.DataDir)
 	if err != nil {
-		log.Fatalf("init chat store: %v", err)
-	}
-
-	projectStore, err := fileproject.New(cfg.DataDir)
-	if err != nil {
-		log.Fatalf("init project store: %v", err)
+		log.Fatalf("init stores: %v", err)
 	}
 	containerManager := lxc.New()
-	projectService := serviceproject.New(projectStore, containerManager)
-	if err := projectService.Reconcile(context.Background()); err != nil {
-		log.Printf("projects: reconcile warning: %v", err)
-	}
 
 	// Auth is optional. If data/oauth.json is absent, authHandler is nil and the
 	// server runs open (matches old behavior for existing deployments).
-	authHandler, authEnabled, err := loadAuthHandler(context.Background(), cfg.DataDir, cfg.BaseURL)
+	authHandler, authEnabled, err := loadAuthHandler(context.Background(), storeSet.Auth, cfg.BaseURL)
 	if err != nil {
 		log.Fatalf("init auth: %v", err)
 	}
@@ -67,34 +52,31 @@ func main() {
 	}
 
 	tmuxClient := tmuxcli.New()
-	runHub := runhub.New(chatStore)
-	chatService := servicechat.New(
-		chatStore,
-		chatProjectResolver{projects: projectService},
-		chatTmuxResolver{client: tmuxClient},
-		runHub,
-	)
-	chatHandler := httphandlers.NewChatHandler(chatService)
-	promptService := prompt.New(chatStore, tmuxClient, projectService, containerManager, runHub)
-	chatSocket := wstransport.NewChatSocket(chatStore, runHub, promptService)
-	claudeLogin := claudelogin.New()
-	claudeAuthHandler := httphandlers.NewClaudeAuthHandler(claudeLogin)
-	projectHandler := httphandlers.NewProjectHandler(projectService)
-	tmuxHandler := httphandlers.NewTmuxHandler(tmuxClient)
-	tmuxSocket := wstransport.NewTmuxSocket(tmuxClient)
+	runHub := runhub.New(storeSet.Chats)
+	serviceSet := service.New(service.Dependencies{
+		Chats:         storeSet.Chats,
+		Projects:      storeSet.Projects,
+		Containers:    containerManager,
+		TmuxClient:    tmuxClient,
+		ValidTmuxName: tmuxcli.ValidName,
+		Runs:          runHub,
+	})
+	if err := serviceSet.Reconcile(context.Background()); err != nil {
+		log.Printf("services: reconcile warning: %v", err)
+	}
 
-	handler := httptransport.NewHandler(httptransport.Handlers{
-		Sessions:   tmuxHandler,
-		Chats:      chatHandler,
-		Projects:   projectHandler,
-		ClaudeAuth: claudeAuthHandler,
-		TmuxWS:     tmuxSocket,
-		ChatWS:     chatSocket,
-		Auth:       authHandler,
-		Static:     httptransport.NewStaticHandler(static),
+	handler := transport.NewHTTPHandler(transport.Dependencies{
+		ChatStore:        storeSet.Chats,
+		ChatService:      serviceSet.Chats,
+		ProjectService:   serviceSet.Projects,
+		TmuxClient:       tmuxClient,
+		RunHub:           runHub,
+		ContainerManager: containerManager,
+		Auth:             authHandler,
+		Static:           static,
 	})
 
-	srv := httptransport.NewServer(cfg.Addr(), handler)
+	srv := transport.NewHTTPServer(cfg.Addr(), handler)
 	log.Printf("remote.futrx.dev listening on %s", cfg.Addr())
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)

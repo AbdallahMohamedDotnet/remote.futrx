@@ -4,6 +4,9 @@ This documents the backend HTTP and WebSocket surface used by the frontend in th
 
 Current source of truth:
 
+- Store assembly: `backend/internal/stores/`
+- Service assembly: `backend/internal/service/`
+- Transport assembly: `backend/internal/transport/`
 - Route composition and middleware wrapping: `backend/internal/transport/http/server.go`
 - Route group registration and HTTP handlers: `backend/internal/transport/http/handlers/`
 - WebSocket handlers: `backend/internal/transport/ws/`
