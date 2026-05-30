@@ -11,7 +11,8 @@ import (
 
 type EventStore interface {
 	ReadEvents(ctx context.Context, chatID servicechat.ID) ([]servicechat.Event, error)
-	AppendEvent(ctx context.Context, chatID servicechat.ID, ev servicechat.Event) error
+	ReadEventsAfter(ctx context.Context, chatID servicechat.ID, afterSeq int64) ([]servicechat.Event, error)
+	AppendEvent(ctx context.Context, chatID servicechat.ID, ev servicechat.Event) (servicechat.Event, error)
 }
 
 type Hub struct {
@@ -60,13 +61,27 @@ func (h *Hub) room(chatID servicechat.ID) *room {
 }
 
 func (h *Hub) Subscribe(ctx context.Context, chatID servicechat.ID) (*Subscription, error) {
+	return h.SubscribeAfter(ctx, chatID, 0)
+}
+
+func (h *Hub) SubscribeAfter(
+	ctx context.Context,
+	chatID servicechat.ID,
+	afterSeq int64,
+) (*Subscription, error) {
 	r := h.room(chatID)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	var replay []servicechat.Event
 	if h.store != nil {
-		events, err := h.store.ReadEvents(ctx, chatID)
+		var events []servicechat.Event
+		var err error
+		if afterSeq > 0 {
+			events, err = h.store.ReadEventsAfter(ctx, chatID, afterSeq)
+		} else {
+			events, err = h.store.ReadEvents(ctx, chatID)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -133,12 +148,16 @@ func (h *Hub) Emit(chatID servicechat.ID, ev servicechat.Event) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	stored := ev
 	if h.store != nil {
-		if err := h.store.AppendEvent(context.Background(), chatID, ev); err != nil {
+		next, err := h.store.AppendEvent(context.Background(), chatID, ev)
+		if err != nil {
 			log.Printf("chat %s append: %v", chatID, err)
+		} else {
+			stored = next
 		}
 	}
-	r.broadcastLocked(ev)
+	r.broadcastLocked(stored)
 }
 
 func (h *Hub) BroadcastTransient(chatID servicechat.ID, ev servicechat.Event) {

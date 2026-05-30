@@ -50,6 +50,7 @@ func (r metaRecord) toDomain() servicechat.Meta {
 }
 
 type eventRecord struct {
+	Seq             int64           `json:"seq,omitempty"`
 	T               int64           `json:"t"`
 	Type            string          `json:"type"`
 	Text            string          `json:"text,omitempty"`
@@ -70,6 +71,7 @@ type eventRecord struct {
 
 func eventRecordFromDomain(ev servicechat.Event) eventRecord {
 	return eventRecord{
+		Seq:             ev.Seq,
 		T:               ev.T,
 		Type:            ev.Type,
 		Text:            ev.Text,
@@ -91,6 +93,7 @@ func eventRecordFromDomain(ev servicechat.Event) eventRecord {
 
 func (r eventRecord) toDomain() servicechat.Event {
 	return servicechat.Event{
+		Seq:             r.Seq,
 		T:               r.T,
 		Type:            r.Type,
 		Text:            r.Text,

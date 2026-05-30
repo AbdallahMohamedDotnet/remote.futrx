@@ -35,8 +35,13 @@ func NewHTTPHandler(deps Dependencies) http.Handler {
 		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
 		TmuxWS:     wstransport.NewTmuxSocket(deps.TmuxClient),
 		ChatWS:     wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt),
-		Auth:       auth,
-		Static:     httptransport.NewStaticHandler(deps.Static),
+		WorkspaceWS: wstransport.NewWorkspaceSocket(
+			deps.Services.Chats,
+			deps.Services.Projects,
+			deps.Services.Workspace,
+		),
+		Auth:   auth,
+		Static: httptransport.NewStaticHandler(deps.Static),
 	})
 }
 

@@ -13,17 +13,18 @@ export interface ChatMeta {
 
 export type ChatMode = "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
 
-export type ChatEvent =
-  | { t: number; type: "user"; text: string }
-  | { t: number; type: "assistant_text"; text: string; messageId?: string }
-  | { t: number; type: "thinking"; text: string }
-  | { t: number; type: "tool_use_start"; id: string; name: string; input: Record<string, unknown> }
-  | { t: number; type: "tool_use_end"; id: string; output?: string; isError?: boolean }
-  | { t: number; type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
-  | { t: number; type: "system"; subtype: string; data?: Record<string, unknown> }
-  | { t: number; type: "session"; claudeSessionId: string }
+type ChatEventBase = { seq?: number; t: number };
+
+export type ChatEvent = ChatEventBase & (
+  | { type: "user"; text: string }
+  | { type: "assistant_text"; text: string; messageId?: string }
+  | { type: "thinking"; text: string }
+  | { type: "tool_use_start"; id: string; name: string; input: Record<string, unknown> }
+  | { type: "tool_use_end"; id: string; output?: string; isError?: boolean }
+  | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
+  | { type: "system"; subtype: string; data?: Record<string, unknown> }
+  | { type: "session"; claudeSessionId: string }
   | {
-      t: number;
       type: "complete";
       usage?: {
         input_tokens?: number;
@@ -32,8 +33,16 @@ export type ChatEvent =
         cache_creation_input_tokens?: number;
       };
     }
-  | { t: number; type: "error"; message: string }
-  | { t: number; type: "sync"; running?: boolean };
+  | { type: "error"; message: string }
+  | { type: "sync"; running?: boolean }
+);
+
+export interface ChatEventPage {
+  events: ChatEvent[];
+  nextBefore?: number;
+  lastSeq: number;
+  hasMore: boolean;
+}
 
 export type ClientToServer =
   | { type: "prompt"; text: string }

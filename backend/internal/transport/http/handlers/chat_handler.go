@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
@@ -110,12 +111,15 @@ func (h *ChatHandler) handleEvents(w http.ResponseWriter, r *http.Request, id se
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	events, err := h.chats.Events(r.Context(), id)
+	page, err := h.chats.EventPage(r.Context(), id, servicechat.EventPageQuery{
+		Limit:     intQuery(r, "limit", 200),
+		BeforeSeq: int64Query(r, "before", 0),
+	})
 	if err != nil {
 		sendChatError(w, err)
 		return
 	}
-	httptransport.SendJSON(w, http.StatusOK, events)
+	httptransport.SendJSON(w, http.StatusOK, page)
 }
 
 func (h *ChatHandler) handleRewind(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
@@ -130,12 +134,16 @@ func (h *ChatHandler) handleRewind(w http.ResponseWriter, r *http.Request, id se
 		httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	events, err := h.chats.Rewind(r.Context(), id, body.BeforeT)
+	if _, err := h.chats.Rewind(r.Context(), id, body.BeforeT); err != nil {
+		sendChatError(w, err)
+		return
+	}
+	page, err := h.chats.EventPage(r.Context(), id, servicechat.EventPageQuery{Limit: 200})
 	if err != nil {
 		sendChatError(w, err)
 		return
 	}
-	httptransport.SendJSON(w, http.StatusOK, map[string][]servicechat.Event{"events": events})
+	httptransport.SendJSON(w, http.StatusOK, page)
 }
 
 func (h *ChatHandler) handleUpload(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
@@ -149,6 +157,30 @@ func (h *ChatHandler) handleUpload(w http.ResponseWriter, r *http.Request, id se
 		return
 	}
 	httptransport.HandleMultipart(cwd, w, r)
+}
+
+func intQuery(r *http.Request, key string, fallback int) int {
+	value := strings.TrimSpace(r.URL.Query().Get(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func int64Query(r *http.Request, key string, fallback int64) int64 {
+	value := strings.TrimSpace(r.URL.Query().Get(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func sendChatError(w http.ResponseWriter, err error) {

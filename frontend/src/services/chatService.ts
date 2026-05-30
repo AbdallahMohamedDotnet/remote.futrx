@@ -1,5 +1,5 @@
 import { json } from "../api/http";
-import type { ChatEvent, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
+import type { ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 
 export const chatService = {
   list: () => json<ChatMeta[]>("GET", "/api/chats"),
@@ -9,8 +9,16 @@ export const chatService = {
     json<ChatMeta>("PATCH", `/api/chats/${encodeURIComponent(id)}`, body),
   delete: (id: string) =>
     json<{ ok: boolean }>("DELETE", `/api/chats/${encodeURIComponent(id)}`),
-  events: (id: string) =>
-    json<ChatEvent[]>("GET", `/api/chats/${encodeURIComponent(id)}/events`),
+  events: (id: string, params: { limit?: number; before?: number } = {}) => {
+    const search = new URLSearchParams();
+    if (params.limit) search.set("limit", String(params.limit));
+    if (params.before) search.set("before", String(params.before));
+    const query = search.toString();
+    return json<ChatEventPage>(
+      "GET",
+      `/api/chats/${encodeURIComponent(id)}/events${query ? `?${query}` : ""}`
+    );
+  },
   rewind: (id: string, beforeT: number) =>
-    json<{ events: ChatEvent[] }>("POST", `/api/chats/${encodeURIComponent(id)}/rewind`, { beforeT }),
+    json<ChatEventPage>("POST", `/api/chats/${encodeURIComponent(id)}/rewind`, { beforeT }),
 };

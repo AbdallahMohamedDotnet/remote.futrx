@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,7 +66,7 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 	defer conn.Close()
 	conn.SetReadLimit(1 << 20)
 
-	sub, err := s.hub.Subscribe(r.Context(), id)
+	sub, err := s.hub.SubscribeAfter(r.Context(), id, sinceSeq(r))
 	if err != nil {
 		_ = conn.Close()
 		return
@@ -121,4 +122,16 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 			}
 		}
 	}
+}
+
+func sinceSeq(r *http.Request) int64 {
+	raw := strings.TrimSpace(r.URL.Query().Get("since"))
+	if raw == "" {
+		return 0
+	}
+	seq, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || seq < 0 {
+		return 0
+	}
+	return seq
 }

@@ -114,6 +114,13 @@ func (s *Service) Events(ctx context.Context, id ID) ([]Event, error) {
 	return s.repo.ReadEvents(ctx, id)
 }
 
+func (s *Service) EventPage(ctx context.Context, id ID, query EventPageQuery) (EventPage, error) {
+	if !ValidID(id) {
+		return EventPage{}, ErrInvalidID
+	}
+	return s.repo.ReadEventsPage(ctx, id, query)
+}
+
 func (s *Service) Rewind(ctx context.Context, id ID, beforeT int64) ([]Event, error) {
 	if !ValidID(id) {
 		return nil, ErrInvalidID

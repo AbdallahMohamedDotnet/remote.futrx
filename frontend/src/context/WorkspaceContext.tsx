@@ -51,10 +51,6 @@ export function WorkspaceProvider({
   const activeChat = selectActiveChat(data.chats, ui.activeChatId);
 
   useEffect(() => {
-    if (enabled) data.refreshAll();
-  }, [enabled]);
-
-  useEffect(() => {
     const chatId = shouldSelectInitialChat(enabled, ui.activeChatId, data.chats);
     if (chatId) dispatch({ type: "select-chat", chatId });
   }, [data.chats, enabled, ui.activeChatId]);

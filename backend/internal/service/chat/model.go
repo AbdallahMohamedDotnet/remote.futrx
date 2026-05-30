@@ -24,6 +24,7 @@ type Meta struct {
 }
 
 type Event struct {
+	Seq             int64           `json:"seq,omitempty"`
 	T               int64           `json:"t"`
 	Type            string          `json:"type"`
 	Text            string          `json:"text,omitempty"`
@@ -40,6 +41,18 @@ type Event struct {
 	Usage           json.RawMessage `json:"usage,omitempty"`
 	Message         string          `json:"message,omitempty"`
 	Running         bool            `json:"running,omitempty"`
+}
+
+type EventPageQuery struct {
+	Limit     int
+	BeforeSeq int64
+}
+
+type EventPage struct {
+	Events     []Event `json:"events"`
+	NextBefore int64   `json:"nextBefore,omitempty"`
+	LastSeq    int64   `json:"lastSeq"`
+	HasMore    bool    `json:"hasMore"`
 }
 
 type CreateInput struct {

@@ -1,50 +1,111 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatWebSocketUrl } from "../../api/websocket";
 import { chatService } from "../../services/chatService";
-import type { ChatEvent, ChatMeta, ChatStatus } from "../../models/chat";
-import { appendEventToBlocks, type Block } from "../../state/chat/messageBlocks";
+import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../models/chat";
+import { groupEvents, type Block } from "../../state/chat/messageBlocks";
 import {
   addUsageFromEvent,
   EMPTY_USAGE_TOTALS,
   type UsageTotals,
 } from "../../state/chat/usage";
 
+const CHAT_EVENT_PAGE_LIMIT = 240;
+
 interface UseChatResult {
   meta: ChatMeta | null;
   blocks: Block[];
   usageTotals: UsageTotals;
   eventCount: number;
+  hasOlder: boolean;
+  loadingOlder: boolean;
   status: ChatStatus;
   error: string | null;
   canSendPrompt: boolean;
   sendPrompt: (text: string) => boolean;
   cancel: () => void;
-  rewind: (beforeT: number) => Promise<ChatEvent[]>;
+  rewind: (beforeT: number) => Promise<ChatEventPage>;
+  loadOlder: () => Promise<void>;
   refreshMeta: () => Promise<void>;
 }
 
 interface ChatRenderState {
+  events: ChatEvent[];
   blocks: Block[];
   usageTotals: UsageTotals;
   eventCount: number;
+  hasOlder: boolean;
+  nextBefore: number;
+  lastSeq: number;
 }
 
 function emptyChatRenderState(): ChatRenderState {
-  return { blocks: [], usageTotals: EMPTY_USAGE_TOTALS, eventCount: 0 };
+  return {
+    events: [],
+    blocks: [],
+    usageTotals: EMPTY_USAGE_TOTALS,
+    eventCount: 0,
+    hasOlder: false,
+    nextBefore: 0,
+    lastSeq: 0,
+  };
 }
 
-function applyChatEvents(state: ChatRenderState, events: ChatEvent[]): ChatRenderState {
-  let blocks = state.blocks;
-  let usageTotals = state.usageTotals;
-  let eventCount = state.eventCount;
+function stateFromEvents(
+  events: ChatEvent[],
+  page: Pick<ChatEventPage, "hasMore" | "nextBefore" | "lastSeq">
+): ChatRenderState {
+  let usageTotals = EMPTY_USAGE_TOTALS;
 
   for (const event of events) {
-    blocks = appendEventToBlocks(blocks, event);
     usageTotals = addUsageFromEvent(usageTotals, event);
-    eventCount++;
   }
 
-  return { blocks, usageTotals, eventCount };
+  return {
+    events,
+    blocks: groupEvents(events),
+    usageTotals,
+    eventCount: events.length,
+    hasOlder: page.hasMore,
+    nextBefore: page.nextBefore ?? 0,
+    lastSeq: Math.max(page.lastSeq, latestSeq(events)),
+  };
+}
+
+function appendChatEvents(state: ChatRenderState, events: ChatEvent[]): ChatRenderState {
+  if (events.length === 0) return state;
+  const merged = mergeEvents(state.events, events);
+  return stateFromEvents(merged, {
+    hasMore: state.hasOlder,
+    nextBefore: state.nextBefore,
+    lastSeq: Math.max(state.lastSeq, latestSeq(events)),
+  });
+}
+
+function prependChatPage(state: ChatRenderState, page: ChatEventPage): ChatRenderState {
+  const merged = mergeEvents(page.events, state.events);
+  return stateFromEvents(merged, page);
+}
+
+function mergeEvents(a: ChatEvent[], b: ChatEvent[]): ChatEvent[] {
+  const merged = [...a];
+  const seenSeqs = new Set<number>();
+  for (const event of merged) {
+    if (event.seq) seenSeqs.add(event.seq);
+  }
+  for (const event of b) {
+    if (event.seq && seenSeqs.has(event.seq)) continue;
+    merged.push(event);
+    if (event.seq) seenSeqs.add(event.seq);
+  }
+  return merged.sort((left, right) => eventOrder(left) - eventOrder(right));
+}
+
+function eventOrder(event: ChatEvent): number {
+  return event.seq || event.t;
+}
+
+function latestSeq(events: ChatEvent[]): number {
+  return events.reduce((max, event) => Math.max(max, event.seq || 0), 0);
 }
 
 function statusAfterEvent(event: ChatEvent): ChatStatus {
@@ -62,9 +123,11 @@ export function useChat(chatId: string): UseChatResult {
   const [status, setStatus] = useState<ChatStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [wsReady, setWsReady] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const pendingEventsRef = useRef<ChatEvent[]>([]);
   const pendingFrameRef = useRef<number | null>(null);
+  const lastSeqRef = useRef(0);
 
   function clearPendingEvents() {
     if (pendingFrameRef.current !== null) {
@@ -79,7 +142,8 @@ export function useChat(chatId: string): UseChatResult {
     const events = pendingEventsRef.current;
     if (events.length === 0) return;
     pendingEventsRef.current = [];
-    setRenderState((current) => applyChatEvents(current, events));
+    lastSeqRef.current = Math.max(lastSeqRef.current, latestSeq(events));
+    setRenderState((current) => appendChatEvents(current, events));
     setStatus(statusAfterEvent(events[events.length - 1]));
   }
 
@@ -99,12 +163,20 @@ export function useChat(chatId: string): UseChatResult {
     setMeta(null);
     setError(null);
     setWsReady(false);
+    setLoadingOlder(false);
+    lastSeqRef.current = 0;
 
     (async () => {
       try {
-        const m = await chatService.get(chatId);
+        const [m, page] = await Promise.all([
+          chatService.get(chatId),
+          chatService.events(chatId, { limit: CHAT_EVENT_PAGE_LIMIT }),
+        ]);
         if (cancelled) return;
+        lastSeqRef.current = Math.max(page.lastSeq, latestSeq(page.events));
+        setRenderState(stateFromEvents(page.events, page));
         setMeta(m);
+        setStatus("ready");
       } catch (e) {
         if (!cancelled) {
           setError((e as Error).message);
@@ -116,8 +188,8 @@ export function useChat(chatId: string): UseChatResult {
     return () => { cancelled = true; };
   }, [chatId]);
 
-  // Open WS once we have meta. If the connection closes mid-stream, reconnect
-  // and let the server replay history so the UI catches up without refresh.
+  // Open WS once the latest page is loaded. Reconnects request only events
+  // after the latest sequence this client has already applied.
   useEffect(() => {
     if (!meta || meta.id !== chatId) return;
     const wsChatId = meta.id;
@@ -135,7 +207,7 @@ export function useChat(chatId: string): UseChatResult {
 
     function connect() {
       if (stopped) return;
-      const ws = new WebSocket(chatWebSocketUrl(wsChatId));
+      const ws = new WebSocket(chatWebSocketUrl(wsChatId, lastSeqRef.current));
       wsRef.current = ws;
       setWsReady(false);
 
@@ -144,7 +216,6 @@ export function useChat(chatId: string): UseChatResult {
         attempt = 0;
         setError(null);
         clearPendingEvents();
-        setRenderState(emptyChatRenderState());
         setWsReady(true);
       };
 
@@ -208,10 +279,25 @@ export function useChat(chatId: string): UseChatResult {
   const rewind = useCallback(async (beforeT: number) => {
     const res = await chatService.rewind(chatId, beforeT);
     clearPendingEvents();
-    setRenderState(applyChatEvents(emptyChatRenderState(), res.events));
+    lastSeqRef.current = Math.max(res.lastSeq, latestSeq(res.events));
+    setRenderState(stateFromEvents(res.events, res));
     setStatus("ready");
-    return res.events;
+    return res;
   }, [chatId]);
+
+  const loadOlder = useCallback(async () => {
+    if (loadingOlder || !renderState.hasOlder || !renderState.nextBefore) return;
+    setLoadingOlder(true);
+    try {
+      const page = await chatService.events(chatId, {
+        limit: CHAT_EVENT_PAGE_LIMIT,
+        before: renderState.nextBefore,
+      });
+      setRenderState((current) => prependChatPage(current, page));
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [chatId, loadingOlder, renderState.hasOlder, renderState.nextBefore]);
 
   const refreshMeta = useCallback(async () => {
     if (!chatId) return;
@@ -226,12 +312,15 @@ export function useChat(chatId: string): UseChatResult {
     blocks: renderState.blocks,
     usageTotals: renderState.usageTotals,
     eventCount: renderState.eventCount,
+    hasOlder: renderState.hasOlder,
+    loadingOlder,
     status,
     error,
     canSendPrompt: wsReady && status === "ready",
     sendPrompt,
     cancel,
     rewind,
+    loadOlder,
     refreshMeta,
   };
 }

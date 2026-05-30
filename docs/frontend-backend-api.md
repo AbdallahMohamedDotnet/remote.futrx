@@ -51,20 +51,20 @@ Registered but not called directly by frontend code:
 
 | Method | Path | Frontend caller | Request | Response |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/chats` | `chatService.list()` | None | `ChatMeta[]`. Polled by workspace data. |
+| `GET` | `/api/chats` | `chatService.list()` | None | `ChatMeta[]`. Used for explicit refresh/fallback; normal workspace updates arrive over `/ws/workspace`. |
 | `POST` | `/api/chats` | `chatService.create(body)` | `CreateChatInput` | `201` with `ChatMeta`. |
 | `GET` | `/api/chats/{id}` | `chatService.get(id)` | None | `ChatMeta`. Loaded before opening the chat WebSocket. |
 | `PATCH` | `/api/chats/{id}` | `chatService.update(id, body)` | `UpdateChatInput` | Updated `ChatMeta`. |
 | `DELETE` | `/api/chats/{id}` | `chatService.delete(id)` | None | `{ "ok": true }`. |
-| `GET` | `/api/chats/{id}/events` | `chatService.events(id)` | None | `ChatEvent[]`. Present in the service; the active chat screen primarily uses WebSocket replay. |
-| `POST` | `/api/chats/{id}/rewind` | `chatService.rewind(id, beforeT)` | `{ "beforeT": number }` | `{ "events": ChatEvent[] }`. |
+| `GET` | `/api/chats/{id}/events` | `chatService.events(id, params)` | Optional query: `limit`, `before`. | `ChatEventPage`. Loads the newest page by default; `before` is an exclusive event sequence cursor for older pages. |
+| `POST` | `/api/chats/{id}/rewind` | `chatService.rewind(id, beforeT)` | `{ "beforeT": number }` | `ChatEventPage` for the rewound chat. |
 | `POST` | `/api/chats/{id}/upload` | `uploadChatFiles(chatId, files)` | Multipart field `files`, max 200 MiB total. | `{ "cwd": string, "results": UploadResult[] }`. |
 
 ### Projects
 
 | Method | Path | Frontend caller | Request | Response |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/projects` | `projectService.list()` | None | `ProjectMeta[]`. Polled by workspace data. |
+| `GET` | `/api/projects` | `projectService.list()` | None | `ProjectMeta[]`. Used for explicit refresh/fallback; normal workspace updates arrive over `/ws/workspace`. |
 | `POST` | `/api/projects` | `projectService.create(name)` | `{ "name": string }` | `201` with `ProjectMeta`. |
 | `GET` | `/api/projects/{id}` | `projectService.get(id)` | None | `ProjectMeta`. |
 | `PATCH` | `/api/projects/{id}` | `projectService.update(id, body)` | `{ "name"?: string }` | Updated `ProjectMeta`. |
@@ -106,7 +106,8 @@ Connection details:
 - Uses `wss://` when the frontend is served over HTTPS, otherwise `ws://`.
 - Auth uses the same cookies as `/api/*`.
 - The server rejects invalid chat ids with `400` and missing chats with `404`.
-- On connection, the server replays persisted chat events, then sends a `sync` event with the current running state.
+- Optional query `since={seq}` replays only persisted events after that sequence, then sends a `sync` event with the current running state.
+- If `since` is absent or zero, the server keeps backward-compatible full replay behavior.
 
 Client to server messages:
 
@@ -136,6 +137,44 @@ Server to client messages are JSON `ChatEvent` objects. Common types:
 | `session` | Claude session id update. Includes `claudeSessionId`. |
 | `complete` | Claude run completed. Includes raw Claude `usage` when available. |
 | `error` | User-visible error. Includes `message`. |
+
+### Workspace Stream
+
+`/ws/workspace` is the primary source for sidebar/workspace updates.
+
+Frontend entry points:
+
+- URL builder: `frontend/src/api/websocket.ts`
+- Hook: `frontend/src/hooks/workspace/useWorkspaceData.ts`
+
+Connection details:
+
+- Uses `wss://` when the frontend is served over HTTPS, otherwise `ws://`.
+- Auth uses the same cookies as `/api/*`.
+- The server sends a snapshot first, then incremental updates.
+- The frontend falls back to HTTP list refreshes when the socket reconnects.
+
+Server to client messages:
+
+```json
+{ "type": "workspace.snapshot", "chats": [], "projects": [] }
+```
+
+```json
+{ "type": "chat.upsert", "chat": {} }
+```
+
+```json
+{ "type": "chat.delete", "id": "..." }
+```
+
+```json
+{ "type": "project.upsert", "project": {} }
+```
+
+```json
+{ "type": "project.delete", "id": "..." }
+```
 
 ### Tmux Terminal Stream
 
@@ -191,6 +230,20 @@ interface ChatMeta {
   projectId?: string;
 }
 ```
+
+### ChatEventPage
+
+```ts
+interface ChatEventPage {
+  events: ChatEvent[];
+  nextBefore?: number;
+  lastSeq: number;
+  hasMore: boolean;
+}
+```
+
+`events` are returned in chronological order. `nextBefore` is passed back as
+`before` to load the next older page.
 
 ### CreateChatInput
 

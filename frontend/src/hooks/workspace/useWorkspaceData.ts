@@ -1,25 +1,128 @@
-import { usePoll } from "../shared/usePoll";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { workspaceWebSocketUrl } from "../../api/websocket";
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatService } from "../../services/chatService";
 import { projectService } from "../../services/projectService";
 
-export function useWorkspaceData(enabled: boolean) {
-  const { value: chats, refresh: refreshChats } = usePoll<ChatMeta[]>(
-    () => (enabled ? chatService.list() : Promise.resolve([])),
-    8000,
-    [],
-    { equals: sameChats }
-  );
-  const { value: projects, refresh: refreshProjects } = usePoll<ProjectMeta[]>(
-    () => (enabled ? projectService.list() : Promise.resolve([])),
-    8000,
-    [],
-    { equals: sameProjects }
-  );
+type WorkspaceMessage =
+  | { type: "workspace.snapshot"; chats: ChatMeta[]; projects: ProjectMeta[] }
+  | { type: "chat.upsert"; chat: ChatMeta }
+  | { type: "chat.delete"; id: string }
+  | { type: "project.upsert"; project: ProjectMeta }
+  | { type: "project.delete"; id: string };
 
-  async function refreshAll() {
+export function useWorkspaceData(enabled: boolean) {
+  const [chats, setChats] = useState<ChatMeta[]>([]);
+  const [projects, setProjects] = useState<ProjectMeta[]>([]);
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refreshChats = useCallback(async () => {
+    if (!enabled) {
+      setChatsIfChanged([]);
+      return;
+    }
+    const next = await chatService.list();
+    setChatsIfChanged(next);
+  }, [enabled]);
+
+  const refreshProjects = useCallback(async () => {
+    if (!enabled) {
+      setProjectsIfChanged([]);
+      return;
+    }
+    const next = await projectService.list();
+    setProjectsIfChanged(next);
+  }, [enabled]);
+
+  const refreshAll = useCallback(async () => {
     await Promise.all([refreshChats(), refreshProjects()]);
+  }, [refreshChats, refreshProjects]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setChatsIfChanged([]);
+      setProjectsIfChanged([]);
+      return;
+    }
+
+    let stopped = false;
+    let attempt = 0;
+    let socket: WebSocket | null = null;
+
+    void refreshAll();
+
+    function scheduleReconnect() {
+      if (stopped) return;
+      const delay = Math.min(5000, 400 * 2 ** attempt);
+      attempt++;
+      reconnectRef.current = setTimeout(connect, delay);
+    }
+
+    function connect() {
+      if (stopped) return;
+      socket = new WebSocket(workspaceWebSocketUrl());
+
+      socket.onopen = () => {
+        attempt = 0;
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          applyWorkspaceMessage(JSON.parse(event.data) as WorkspaceMessage);
+        } catch {}
+      };
+
+      socket.onclose = () => {
+        socket = null;
+        void refreshAll();
+        scheduleReconnect();
+      };
+
+      socket.onerror = () => {
+        try { socket?.close(); } catch {}
+      };
+    }
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (reconnectRef.current) {
+        clearTimeout(reconnectRef.current);
+        reconnectRef.current = null;
+      }
+      try { socket?.close(); } catch {}
+    };
+  }, [enabled, refreshAll]);
+
+  function applyWorkspaceMessage(message: WorkspaceMessage) {
+    switch (message.type) {
+      case "workspace.snapshot":
+        setChatsIfChanged(message.chats);
+        setProjectsIfChanged(message.projects);
+        break;
+      case "chat.upsert":
+        setChats((current) => nextChats(upsertById(current, message.chat), current));
+        break;
+      case "chat.delete":
+        setChats((current) => nextChats(current.filter((chat) => chat.id !== message.id), current));
+        break;
+      case "project.upsert":
+        setProjects((current) => nextProjects(upsertById(current, message.project), current));
+        break;
+      case "project.delete":
+        setProjects((current) => nextProjects(current.filter((project) => project.id !== message.id), current));
+        break;
+    }
+  }
+
+  function setChatsIfChanged(next: ChatMeta[]) {
+    setChats((current) => nextChats(next, current));
+  }
+
+  function setProjectsIfChanged(next: ProjectMeta[]) {
+    setProjects((current) => nextProjects(next, current));
   }
 
   return {
@@ -29,6 +132,24 @@ export function useWorkspaceData(enabled: boolean) {
     refreshProjects,
     refreshAll,
   };
+}
+
+function upsertById<T extends { id: string }>(items: T[], item: T): T[] {
+  const index = items.findIndex((candidate) => candidate.id === item.id);
+  if (index < 0) return [...items, item];
+  const next = items.slice();
+  next[index] = item;
+  return next;
+}
+
+function nextChats(next: ChatMeta[], current?: ChatMeta[]): ChatMeta[] {
+  const sorted = next.slice().sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+  return current && sameChats(current, sorted) ? current : sorted;
+}
+
+function nextProjects(next: ProjectMeta[], current?: ProjectMeta[]): ProjectMeta[] {
+  const sorted = next.slice().sort((a, b) => b.createdAt - a.createdAt);
+  return current && sameProjects(current, sorted) ? current : sorted;
 }
 
 function sameChats(a: ChatMeta[], b: ChatMeta[]): boolean {

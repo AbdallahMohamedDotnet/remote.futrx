@@ -174,9 +174,9 @@ func (s *Store) Delete(ctx context.Context, id servicechat.ID) error {
 
 // AppendEvent writes one event to events.jsonl and bumps lastMessageAt.
 // Safe for concurrent calls on the same chat (serialized via per-id lock).
-func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicechat.Event) error {
+func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicechat.Event) (servicechat.Event, error) {
 	if !servicechat.ValidID(id) {
-		return servicechat.ErrInvalidID
+		return servicechat.Event{}, servicechat.ErrInvalidID
 	}
 	if ev.T == 0 {
 		ev.T = time.Now().UnixMilli()
@@ -185,9 +185,15 @@ func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicech
 	lk.Lock()
 	defer lk.Unlock()
 
+	seq, err := s.lastEventSeqLocked(id)
+	if err != nil {
+		return servicechat.Event{}, err
+	}
+	ev.Seq = seq + 1
+
 	line, err := json.Marshal(eventRecordFromDomain(ev))
 	if err != nil {
-		return err
+		return servicechat.Event{}, err
 	}
 	line = append(line, '\n')
 
@@ -197,13 +203,13 @@ func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicech
 		0o644,
 	)
 	if err != nil {
-		return err
+		return servicechat.Event{}, err
 	}
 	defer f.Close()
 	if _, err := f.Write(line); err != nil {
-		return err
+		return servicechat.Event{}, err
 	}
-	if ev.Type == "user" || ev.Type == "assistant_text" || ev.Type == "complete" {
+	if eventTouchesChatMeta(ev.Type) {
 		meta, err := s.Get(ctx, id)
 		if err == nil {
 			meta.LastMessageAt = ev.T
@@ -212,7 +218,7 @@ func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicech
 			}
 		}
 	}
-	return nil
+	return ev, nil
 }
 
 func (s *Store) ReadEvents(ctx context.Context, id servicechat.ID) ([]servicechat.Event, error) {
@@ -220,6 +226,75 @@ func (s *Store) ReadEvents(ctx context.Context, id servicechat.ID) ([]servicecha
 		return nil, servicechat.ErrInvalidID
 	}
 	return s.readEventsFile(id)
+}
+
+func (s *Store) ReadEventsPage(
+	ctx context.Context,
+	id servicechat.ID,
+	query servicechat.EventPageQuery,
+) (servicechat.EventPage, error) {
+	if !servicechat.ValidID(id) {
+		return servicechat.EventPage{}, servicechat.ErrInvalidID
+	}
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 200
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	var lastSeq int64
+	var candidates int
+	events := make([]servicechat.Event, 0, limit)
+	err := s.scanEventsFile(ctx, id, func(ev servicechat.Event) bool {
+		if ev.Seq > lastSeq {
+			lastSeq = ev.Seq
+		}
+		if query.BeforeSeq > 0 && ev.Seq >= query.BeforeSeq {
+			return true
+		}
+		candidates++
+		events = append(events, ev)
+		if len(events) > limit {
+			copy(events, events[1:])
+			events = events[:limit]
+		}
+		return true
+	})
+	if err != nil {
+		return servicechat.EventPage{}, err
+	}
+
+	hasMore := candidates > len(events)
+	var nextBefore int64
+	if hasMore && len(events) > 0 {
+		nextBefore = events[0].Seq
+	}
+	return servicechat.EventPage{
+		Events:     events,
+		NextBefore: nextBefore,
+		LastSeq:    lastSeq,
+		HasMore:    hasMore,
+	}, nil
+}
+
+func (s *Store) ReadEventsAfter(
+	ctx context.Context,
+	id servicechat.ID,
+	afterSeq int64,
+) ([]servicechat.Event, error) {
+	if !servicechat.ValidID(id) {
+		return nil, servicechat.ErrInvalidID
+	}
+	out := make([]servicechat.Event, 0, 32)
+	err := s.scanEventsFile(ctx, id, func(ev servicechat.Event) bool {
+		if ev.Seq > afterSeq {
+			out = append(out, ev)
+		}
+		return true
+	})
+	return out, err
 }
 
 // TruncateEventsBefore rewinds a chat by removing the selected event and every
@@ -353,28 +428,66 @@ func (s *Store) setCachedMeta(meta servicechat.Meta) {
 }
 
 func (s *Store) readEventsFile(id servicechat.ID) ([]servicechat.Event, error) {
+	out := make([]servicechat.Event, 0, 64)
+	err := s.scanEventsFile(context.Background(), id, func(ev servicechat.Event) bool {
+		out = append(out, ev)
+		return true
+	})
+	return out, err
+}
+
+func (s *Store) scanEventsFile(
+	ctx context.Context,
+	id servicechat.ID,
+	visit func(servicechat.Event) bool,
+) error {
 	f, err := os.Open(filepath.Join(s.chatDir(id), "events.jsonl"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return []servicechat.Event{}, nil
+			return nil
 		}
-		return nil, err
+		return err
 	}
 	defer f.Close()
 
-	out := make([]servicechat.Event, 0, 64)
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+	var seq int64
 	for sc.Scan() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		line := sc.Bytes()
 		if len(line) == 0 {
 			continue
 		}
+		seq++
 		var rec eventRecord
 		if err := json.Unmarshal(line, &rec); err != nil {
 			continue
 		}
-		out = append(out, rec.toDomain())
+		ev := rec.toDomain()
+		if ev.Seq == 0 {
+			ev.Seq = seq
+		}
+		if !visit(ev) {
+			break
+		}
 	}
-	return out, sc.Err()
+	return sc.Err()
+}
+
+func (s *Store) lastEventSeqLocked(id servicechat.ID) (int64, error) {
+	var last int64
+	err := s.scanEventsFile(context.Background(), id, func(ev servicechat.Event) bool {
+		if ev.Seq > last {
+			last = ev.Seq
+		}
+		return true
+	})
+	return last, err
+}
+
+func eventTouchesChatMeta(eventType string) bool {
+	return eventType == "user" || eventType == "complete" || eventType == "error"
 }

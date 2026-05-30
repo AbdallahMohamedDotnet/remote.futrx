@@ -17,7 +17,7 @@ func TestHubSubscribeReplaysAndBroadcasts(t *testing.T) {
 	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{T: 1, Type: "user", Text: "hi"}); err != nil {
+	if _, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{T: 1, Type: "user", Text: "hi"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -38,6 +38,36 @@ func TestHubSubscribeReplaysAndBroadcasts(t *testing.T) {
 	hub.Emit("abcd", servicechat.Event{T: 2, Type: "assistant_text", Text: "hello"})
 	if ev := receiveEvent(t, sub); ev.Type != "assistant_text" || ev.Text != "hello" {
 		t.Fatalf("unexpected broadcast event: %#v", ev)
+	}
+}
+
+func TestHubSubscribeAfterOnlyReplaysMissingEvents(t *testing.T) {
+	store, err := filechat.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{T: 1, Type: "user", Text: "first"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{T: 2, Type: "assistant_text", Text: "second"}); err != nil {
+		t.Fatal(err)
+	}
+
+	hub := New(store)
+	sub, err := hub.SubscribeAfter(context.Background(), "abcd", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+
+	if ev := receiveEvent(t, sub); ev.Type != "assistant_text" || ev.Seq != 2 {
+		t.Fatalf("unexpected replay event: %#v", ev)
+	}
+	if ev := receiveEvent(t, sub); ev.Type != "sync" || ev.Running {
+		t.Fatalf("unexpected sync event: %#v", ev)
 	}
 }
 

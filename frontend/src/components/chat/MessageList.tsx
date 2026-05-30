@@ -12,6 +12,8 @@ const LOAD_MORE_BLOCKS = 80;
 export function MessageList({
   status,
   blocks,
+  hasOlder,
+  loadingOlder,
   error,
   chatId,
   cwd,
@@ -20,10 +22,13 @@ export function MessageList({
   bottomRef,
   onScroll,
   onAnswerQuestion,
+  onLoadOlder,
   onRewind,
 }: {
   status: ChatStatus;
   blocks: Block[];
+  hasOlder: boolean;
+  loadingOlder: boolean;
   error: string | null;
   chatId: string;
   cwd?: string;
@@ -32,6 +37,7 @@ export function MessageList({
   bottomRef: RefObject<HTMLDivElement>;
   onScroll: () => void;
   onAnswerQuestion: (text: string) => void;
+  onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
 }) {
   const [visibleBlockCount, setVisibleBlockCount] = useState(INITIAL_VISIBLE_BLOCKS);
@@ -45,6 +51,23 @@ export function MessageList({
   useEffect(() => {
     setVisibleBlockCount(INITIAL_VISIBLE_BLOCKS);
   }, [chatId]);
+
+  async function showOlder() {
+    if (hiddenCount > 0) {
+      setVisibleBlockCount((count) => count + LOAD_MORE_BLOCKS);
+      return;
+    }
+    const element = scrollRef.current;
+    const beforeHeight = element?.scrollHeight ?? 0;
+    const beforeTop = element?.scrollTop ?? 0;
+    await onLoadOlder();
+    setVisibleBlockCount((count) => count + LOAD_MORE_BLOCKS);
+    requestAnimationFrame(() => {
+      const next = scrollRef.current;
+      if (!next) return;
+      next.scrollTop = beforeTop + next.scrollHeight - beforeHeight;
+    });
+  }
 
   return (
     <div
@@ -61,14 +84,19 @@ export function MessageList({
 
         {status !== "loading" && blocks.length === 0 && <ThreadEmptyState cwd={cwd} />}
 
-        {hiddenCount > 0 && (
+        {(hiddenCount > 0 || hasOlder) && (
           <div class="flex justify-center">
             <button
               type="button"
-              onClick={() => setVisibleBlockCount((count) => count + LOAD_MORE_BLOCKS)}
+              onClick={showOlder}
+              disabled={loadingOlder}
               class="h-8 px-3 rounded-md text-[12px] text-ink-300 hover:text-ink-100 hover:bg-white/[0.07] border border-white/10"
             >
-              Show {Math.min(hiddenCount, LOAD_MORE_BLOCKS)} older message{Math.min(hiddenCount, LOAD_MORE_BLOCKS) === 1 ? "" : "s"}
+              {hiddenCount > 0
+                ? `Show ${Math.min(hiddenCount, LOAD_MORE_BLOCKS)} older message${Math.min(hiddenCount, LOAD_MORE_BLOCKS) === 1 ? "" : "s"}`
+                : loadingOlder
+                  ? "Loading older messages"
+                  : "Load older messages"}
             </button>
           </div>
         )}

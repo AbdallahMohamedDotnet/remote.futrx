@@ -31,12 +31,15 @@ export function ChatContainer({
     blocks,
     usageTotals,
     eventCount,
+    hasOlder,
+    loadingOlder,
     status,
     error,
     canSendPrompt,
     sendPrompt,
     cancel,
     rewind,
+    loadOlder,
     refreshMeta,
   } = useChat(chat.id);
   const displayMeta = meta ?? chat;
@@ -152,6 +155,8 @@ export function ChatContainer({
     <ChatThread
       chat={displayMeta}
       blocks={blocks}
+      hasOlder={hasOlder}
+      loadingOlder={loadingOlder}
       status={status}
       error={error}
       canSendPrompt={canSendPrompt}
@@ -192,6 +197,7 @@ export function ChatContainer({
         const sent = sendPrompt(answer);
         if (sent) scroll.unlockAutoScroll();
       }}
+      onLoadOlder={loadOlder}
       onRewind={handleRewind}
       onTextChange={setText}
       onFilesSelected={upload.doUpload}

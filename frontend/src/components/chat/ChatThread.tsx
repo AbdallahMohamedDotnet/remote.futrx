@@ -11,6 +11,8 @@ import { ThreadHeader } from "./ThreadHeader";
 export function ChatThread({
   chat,
   blocks,
+  hasOlder,
+  loadingOlder,
   status,
   error,
   canSendPrompt,
@@ -37,6 +39,7 @@ export function ChatThread({
   onScroll,
   onJumpToBottom,
   onAnswerQuestion,
+  onLoadOlder,
   onRewind,
   onTextChange,
   onFilesSelected,
@@ -50,6 +53,8 @@ export function ChatThread({
 }: {
   chat: ChatMeta;
   blocks: Block[];
+  hasOlder: boolean;
+  loadingOlder: boolean;
   status: ChatStatus;
   error: string | null;
   canSendPrompt: boolean;
@@ -89,6 +94,7 @@ export function ChatThread({
   onScroll: () => void;
   onJumpToBottom: () => void;
   onAnswerQuestion: (text: string) => void;
+  onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
   onTextChange: (text: string) => void;
   onFilesSelected: (files: File[]) => void;
@@ -127,6 +133,8 @@ export function ChatThread({
         <MessageList
           status={status}
           blocks={blocks}
+          hasOlder={hasOlder}
+          loadingOlder={loadingOlder}
           error={error}
           chatId={chat.id}
           cwd={chat.cwd}
@@ -135,6 +143,7 @@ export function ChatThread({
           bottomRef={bottomRef}
           onScroll={onScroll}
           onAnswerQuestion={onAnswerQuestion}
+          onLoadOlder={onLoadOlder}
           onRewind={onRewind}
         />
         {showJump && <JumpToLatestButton onClick={onJumpToBottom} />}

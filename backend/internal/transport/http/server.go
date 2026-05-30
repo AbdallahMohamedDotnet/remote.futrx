@@ -21,14 +21,15 @@ type AuthRegistrar interface {
 }
 
 type Handlers struct {
-	Sessions   RouteRegistrar
-	Chats      RouteRegistrar
-	Projects   RouteRegistrar
-	ClaudeAuth RouteRegistrar
-	TmuxWS     WebSocketRegistrar
-	ChatWS     WebSocketRegistrar
-	Auth       AuthRegistrar
-	Static     http.Handler
+	Sessions    RouteRegistrar
+	Chats       RouteRegistrar
+	Projects    RouteRegistrar
+	ClaudeAuth  RouteRegistrar
+	TmuxWS      WebSocketRegistrar
+	ChatWS      WebSocketRegistrar
+	WorkspaceWS WebSocketRegistrar
+	Auth        AuthRegistrar
+	Static      http.Handler
 }
 
 func NewHandler(handlers Handlers) http.Handler {
@@ -51,6 +52,9 @@ func NewHandler(handlers Handlers) http.Handler {
 	}
 	if handlers.ChatWS != nil {
 		handlers.ChatWS.RegisterRoutes(mux, upgrader)
+	}
+	if handlers.WorkspaceWS != nil {
+		handlers.WorkspaceWS.RegisterRoutes(mux, upgrader)
 	}
 	if handlers.Auth != nil {
 		handlers.Auth.RegisterRoutes(mux)

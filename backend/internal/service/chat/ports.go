@@ -10,7 +10,9 @@ type Repository interface {
 	Delete(ctx context.Context, id ID) error
 
 	ReadEvents(ctx context.Context, id ID) ([]Event, error)
-	AppendEvent(ctx context.Context, id ID, ev Event) error
+	ReadEventsPage(ctx context.Context, id ID, query EventPageQuery) (EventPage, error)
+	ReadEventsAfter(ctx context.Context, id ID, afterSeq int64) ([]Event, error)
+	AppendEvent(ctx context.Context, id ID, ev Event) (Event, error)
 	TruncateEventsBefore(ctx context.Context, id ID, beforeT int64) ([]Event, error)
 }
 

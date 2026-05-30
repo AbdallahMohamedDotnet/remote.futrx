@@ -6,6 +6,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/workspacehub"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -38,16 +39,20 @@ type Dependencies struct {
 }
 
 type Services struct {
-	Chats    *servicechat.Service
-	Projects *serviceproject.Service
-	Prompt   *prompt.Service
-	Runs     *runhub.Hub
-	Auth     *serviceauth.Service
+	Chats     *servicechat.Service
+	Projects  *serviceproject.Service
+	Prompt    *prompt.Service
+	Runs      *runhub.Hub
+	Workspace *workspacehub.Hub
+	Auth      *serviceauth.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
-	projectService := serviceproject.New(deps.Projects, deps.Containers)
-	runs := runhub.New(deps.Chats)
+	workspace := workspacehub.New()
+	chats := notifyingChatRepository{Repository: deps.Chats, workspace: workspace}
+	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
+	projectService := serviceproject.New(projects, deps.Containers)
+	runs := runhub.New(chats)
 
 	var tmuxResolver servicechat.TmuxResolver
 	if deps.TmuxClient != nil {
@@ -55,13 +60,13 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	}
 
 	chatService := servicechat.New(
-		deps.Chats,
+		chats,
 		chatProjectResolver{projects: projectService},
 		tmuxResolver,
 		runs,
 	)
 	promptService := prompt.New(
-		deps.Chats,
+		chats,
 		deps.TmuxClient,
 		projectService,
 		deps.Containers,
@@ -73,11 +78,12 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	}
 
 	return Services{
-		Chats:    chatService,
-		Projects: projectService,
-		Prompt:   promptService,
-		Runs:     runs,
-		Auth:     authService,
+		Chats:     chatService,
+		Projects:  projectService,
+		Prompt:    promptService,
+		Runs:      runs,
+		Workspace: workspace,
+		Auth:      authService,
 	}, nil
 }
 
