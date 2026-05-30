@@ -235,10 +235,15 @@ func (m *Manager) EnsureClaude(ctx context.Context, containerName string) error 
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
-	quickCtx, cancelQ := context.WithTimeout(ctx, queryTimeout)
-	defer cancelQ()
-	if _, err := lxcRun(quickCtx, "exec", containerName, "--", "which", "claude"); err == nil {
+	if m.claudeInstalled(ctx, containerName) {
 		return nil
+	}
+	if m.claudeInstallRunning(ctx, containerName) {
+		waitCtx, cancelW := context.WithTimeout(ctx, 2*time.Minute)
+		defer cancelW()
+		if err := m.waitForClaude(waitCtx, containerName); err == nil {
+			return nil
+		}
 	}
 
 	installCtx, cancelI := context.WithTimeout(ctx, 5*time.Minute)
@@ -253,10 +258,45 @@ npm install -g @anthropic-ai/claude-code --silent 2>&1 | tail -3
 which claude && claude --version`
 	out, err := lxcRun(installCtx, "exec", containerName, "--", "bash", "-c", script)
 	if err != nil {
+		waitCtx, cancelW := context.WithTimeout(ctx, 90*time.Second)
+		defer cancelW()
+		if waitErr := m.waitForClaude(waitCtx, containerName); waitErr == nil {
+			return nil
+		}
 		return fmt.Errorf("install claude in %s: %w; output: %s",
 			containerName, err, truncateOut(out, 1000))
 	}
 	return nil
+}
+
+func (m *Manager) claudeInstalled(ctx context.Context, containerName string) bool {
+	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	_, err := lxcRun(quickCtx, "exec", containerName, "--", "which", "claude")
+	return err == nil
+}
+
+func (m *Manager) claudeInstallRunning(ctx context.Context, containerName string) bool {
+	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	out, err := lxcRun(quickCtx, "exec", containerName, "--",
+		"pgrep", "-f", "npm install.*@anthropic-ai/claude-code")
+	return err == nil && strings.TrimSpace(out) != ""
+}
+
+func (m *Manager) waitForClaude(ctx context.Context, containerName string) error {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		if m.claudeInstalled(ctx, containerName) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func truncateOut(s string, max int) string {
