@@ -1,16 +1,18 @@
-# Push to main → SSH into the production server → re-run the full installer.
+# Push to main → SSH into the production server → fast-path code deploy.
 #
-# The installer at infra/install.sh is fully idempotent — its slow operations
-# (apt update, snap install, etc.) skip themselves when their work is already
-# done, so a CI deploy takes ~30s for a backend code change and only goes
-# longer on the rare push that touches infra (new dep, code-server bump).
+# Default ("fast path"): git pull + frontend & backend build + systemctl
+# restart + health check. Takes ~25s. Does NOT touch Caddy, host packages,
+# code-server, systemd unit, or LXD config — those are infra-level and only
+# need to change when you edit infra/ in the repo.
 #
-# This means EVERY push to main reconciles:
-#   - host packages (apt/Caddy/Node/Go/claude/LXD)
-#   - code-server install + config
-#   - frontend + backend build
-#   - Caddyfile (re-rendered from template)
-#   - systemd units (re-rendered from templates)
+# When you DO edit infra/ (Caddyfile.tmpl, a new host dep, code-server bump,
+# etc.), trigger the deploy manually with `installer: true`:
+#
+#   gh workflow run deploy --field installer=true
+#
+# or via the Actions tab in GitHub. That runs the full infra/install.sh on
+# the box and reconciles every dependency. Read infra/README.md for the
+# step-by-step layout.
 #
 # Secrets required (set via `gh secret set --repo Kings-Of-The-Web/remote.futrx.dev`):
 #   SSH_KEY      private OpenSSH key authorized on $DEPLOY_HOST as $DEPLOY_USER
@@ -18,21 +20,24 @@
 #   DEPLOY_HOST  hostname or IP for SSH connectivity (can be a raw IP)
 #   DEPLOY_USER  ssh user (root for our setup)
 #
-# The PUBLIC_HOSTNAME below is the hostname Caddy serves on and Let's Encrypt
-# issues certs for. It is NOT pulled from secrets because (a) it's not secret,
-# (b) it must NEVER be an IP (LE refuses IP identifiers), and a typo in a
-# secret silently swapping in $DEPLOY_HOST has already produced an outage.
-# Fork users: change this string.
+# PUBLIC_HOSTNAME is hardcoded below (NOT pulled from secrets): a typo in a
+# secret silently swapping in $DEPLOY_HOST took the site down before. Fork
+# users: change this string.
+
+name: deploy
 
 env:
   PUBLIC_HOSTNAME: remote.futrx.dev
-
-name: deploy
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      installer:
+        description: 'Re-run infra/install.sh on the box (picks up Caddy / host-dep / code-server changes)'
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-prod
@@ -59,16 +64,18 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          RUN_INSTALLER: ${{ github.event.inputs.installer || 'false' }}
         run: |
           set -euo pipefail
-          echo "Deploying ${GITHUB_SHA::7} (${GITHUB_REF_NAME}) → ${DEPLOY_USER}@${DEPLOY_HOST}"
+          MODE="fast-path"
+          [ "$RUN_INSTALLER" = "true" ] && MODE="full installer"
+          echo "Deploying ${GITHUB_SHA::7} (${GITHUB_REF_NAME}) [$MODE] → ${DEPLOY_USER}@${DEPLOY_HOST}"
           echo
 
           # Heredoc with quoted EOF so the remote shell parses the body.
-          # PUBLIC_HOSTNAME is passed via env so it's available inside the heredoc.
           ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 \
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
-              "PUBLIC_HOSTNAME=${PUBLIC_HOSTNAME} bash -se" <<'REMOTE'
+              "PUBLIC_HOSTNAME=${PUBLIC_HOSTNAME} RUN_INSTALLER=${RUN_INSTALLER} bash -se" <<'REMOTE'
           set -euo pipefail
           cd /opt/remote.futrx.dev
 
@@ -76,12 +83,40 @@ jobs:
           git fetch --quiet --tags origin
           git reset --hard origin/main
 
-          echo "==> running infra/install.sh ${PUBLIC_HOSTNAME} --skip-dns-check"
-          # Full reconciliation. Idempotent ~30s on a typical backend code change;
-          # longer only on infra changes (new system dep, code-server bump).
-          bash infra/install.sh "${PUBLIC_HOSTNAME}" --skip-dns-check
+          if [ "${RUN_INSTALLER:-false}" = "true" ]; then
+              echo "==> running full infra/install.sh ${PUBLIC_HOSTNAME} --skip-dns-check"
+              bash infra/install.sh "${PUBLIC_HOSTNAME}" --skip-dns-check
+              exit 0
+          fi
+
+          echo "==> frontend build"
+          ( cd frontend && npm install --silent --no-audit --no-fund 2>&1 | tail -3 && npm run build 2>&1 | tail -5 )
+
+          echo "==> backend build"
+          ( cd backend && go build -trimpath -ldflags="-s -w" -o remote ./cmd/remote )
+
+          echo "==> restart backend"
+          systemctl restart remote.futrx.dev
+          sleep 1
+          systemctl is-active --quiet remote.futrx.dev || {
+              echo "✗ service failed to start"
+              journalctl -u remote.futrx.dev -n 30 --no-pager
+              exit 1
+          }
+
+          echo "==> health check"
+          for _ in 1 2 3 4 5; do
+              if curl -fsS --max-time 3 http://127.0.0.1:7682/ >/dev/null 2>&1; then
+                  echo "✓ backend responding"
+                  exit 0
+              fi
+              sleep 1
+          done
+          echo "✗ backend did not respond on 127.0.0.1:7682 within 5s"
+          journalctl -u remote.futrx.dev -n 30 --no-pager
+          exit 1
           REMOTE
 
       - name: Summary
         if: success()
-        run: echo "::notice ::Deployed ${GITHUB_SHA::7} to https://${{ secrets.DEPLOY_HOST }}"
+        run: echo "::notice ::Deployed ${GITHUB_SHA::7} to https://${{ env.PUBLIC_HOSTNAME }}"

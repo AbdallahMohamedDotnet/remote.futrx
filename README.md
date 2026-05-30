@@ -164,6 +164,64 @@ Re-running the installer pulls latest, rebuilds, and restarts. Idempotent.
 
 > ⚠ Unless you pass Google OAuth flags to the installer, the URL is open to anyone on the internet, and Claude has full host access.
 
+---
+
+## Updating the server
+
+Two paths depending on what you changed:
+
+### Code-only change (backend Go, frontend Preact)
+
+Just push to `main`. CI (`.github/workflows/deploy.yml`) takes the **fast path**:
+
+1. `git reset --hard origin/main` on the box
+2. `npm install` + `vite build`
+3. `go build` → `backend/remote`
+4. `systemctl restart remote.futrx.dev`
+5. health check on `127.0.0.1:7682`
+
+Typical time: ~25s. Does **not** touch Caddy, host packages, code-server, systemd unit, or LXD.
+
+### Infra change (anything under `infra/`)
+
+Any edit to `infra/templates/*` (Caddyfile, systemd unit, code-server config),
+`infra/steps/*.sh` (host deps, LXD config, code-server install), or
+`infra/install.sh` itself, needs the full installer to land on the box. Two
+ways:
+
+**(a) Trigger the workflow with `installer=true`** — preferred, runs through CI with the same SSH setup:
+
+```bash
+gh workflow run deploy --field installer=true
+```
+
+or in the GitHub Actions UI: Deploy → Run workflow → check "installer".
+
+**(b) SSH in and run it directly** — useful when iterating:
+
+```bash
+ssh root@remote.futrx.dev 'bash /opt/remote.futrx.dev/infra/install.sh remote.futrx.dev --skip-dns-check'
+```
+
+Either way, `infra/install.sh` is fully idempotent — re-running it on an
+up-to-date box is a ~25s no-op.
+
+### Caddyfile edits
+
+**Permanent**: edit [`infra/templates/Caddyfile.tmpl`](infra/templates/Caddyfile.tmpl), commit, then run the installer (path (a) or (b) above).
+
+**Experimental** (one-off, gets overwritten next time the installer runs): SSH in, edit `/etc/caddy/Caddyfile` directly, `systemctl reload caddy`.
+
+### Adding a host dependency
+
+Edit [`infra/steps/01-host-deps.sh`](infra/steps/01-host-deps.sh) (guard
+your install with `command -v X` or `dpkg -l X` so it's a no-op when the
+dep is already there), commit, then trigger the installer.
+
+### Bumping code-server
+
+Bump `CODE_SERVER_VERSION` near the top of [`infra/steps/02-code-server.sh`](infra/steps/02-code-server.sh), commit, then trigger the installer. The step detects a version mismatch and re-installs the .deb.
+
 ## Build manually
 
 ```bash
