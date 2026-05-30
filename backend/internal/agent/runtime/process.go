@@ -65,6 +65,7 @@ func RunProcess(
 
 	sc := bufio.NewScanner(stdout)
 	sc.Buffer(make([]byte, 0, 64*1024), maxBytes(opts.StdoutMaxLineBytes, 16<<20))
+	runFailed := false
 	for sc.Scan() {
 		line := sc.Bytes()
 		if len(line) == 0 {
@@ -76,6 +77,9 @@ func RunProcess(
 			continue
 		}
 		for _, ev := range events {
+			if ev.Type == agent.EventRunFailed {
+				runFailed = true
+			}
 			emit(ev)
 		}
 	}
@@ -92,6 +96,9 @@ func RunProcess(
 	err = cmd.Wait()
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return nil
+	}
+	if err != nil && runFailed {
+		return agent.ErrRunFailed
 	}
 	return err
 }

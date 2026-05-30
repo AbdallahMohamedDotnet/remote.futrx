@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ type ContainerPreparer interface {
 	EnsureClaudeAuth(ctx context.Context, containerName string) error
 	EnsureClaudeMD(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
+	SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error
 }
 
 type Service struct {
@@ -151,7 +153,7 @@ func (rnr *Service) runPrompt(
 	}, func(ev agent.Event) {
 		rnr.emitAgentEvent(ctx, id, ev, emit)
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, agent.ErrRunFailed) {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "claude exit: " + err.Error()})
 	}
 }

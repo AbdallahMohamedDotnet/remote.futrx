@@ -2,6 +2,8 @@ package claude
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
 	agentruntime "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/runtime"
@@ -18,6 +20,7 @@ type ContainerPreparer interface {
 	EnsureClaudeAuth(ctx context.Context, containerName string) error
 	EnsureClaudeMD(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
+	SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error
 }
 
 type Provider struct {
@@ -45,14 +48,22 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 		req.Provider = agent.ProviderClaude
 	}
 
-	cmd, err := p.buildCmd(ctx, req, p.args(req), emit)
+	cmd, containerName, err := p.buildCmd(ctx, req, p.args(req), emit)
 	if err != nil {
 		return err
 	}
-	return agentruntime.RunProcess(ctx, cmd, p.Parser(req), emit, agentruntime.ProcessOptions{
+	err = agentruntime.RunProcess(ctx, cmd, p.Parser(req), emit, agentruntime.ProcessOptions{
 		Name:           "claude",
 		LogID:          req.ConversationID,
 		Provider:       agent.ProviderClaude,
 		ConversationID: req.ConversationID,
 	})
+	if err == nil && containerName != "" && p.containers != nil {
+		syncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if syncErr := p.containers.SyncClaudeAuthFromContainer(syncCtx, containerName); syncErr != nil {
+			log.Printf("claude[%s] sync auth from %s: %v", req.ConversationID, containerName, syncErr)
+		}
+	}
+	return err
 }

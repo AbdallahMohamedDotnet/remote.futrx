@@ -42,7 +42,7 @@ func (p *Provider) buildCmd(
 	req agent.RunRequest,
 	args []string,
 	emit func(agent.Event),
-) (*exec.Cmd, error) {
+) (*exec.Cmd, string, error) {
 	cwd := req.Cwd
 	if cwd == "" {
 		cwd = os.Getenv("HOME")
@@ -58,37 +58,37 @@ func (p *Provider) buildCmd(
 		// uid 0. The box is single-user and the UI is auto-approve.
 		cmd.Env = append(os.Environ(), "IS_SANDBOX=1")
 		cmd.Stdin = strings.NewReader(req.Prompt)
-		return cmd, nil
+		return cmd, "", nil
 	}
 
 	project, err := p.projects.Get(ctx, serviceproject.ID(req.ProjectID))
 	if err != nil {
-		return nil, fmt.Errorf("project not found (%s): %w", req.ProjectID, err)
+		return nil, "", fmt.Errorf("project not found (%s): %w", req.ProjectID, err)
 	}
 	if project.ContainerName == "" {
-		return nil, fmt.Errorf("project %s has no container - recreate the project", project.ID)
+		return nil, "", fmt.Errorf("project %s has no container - recreate the project", project.ID)
 	}
 
 	if project.Status != serviceproject.StatusRunning {
 		emitSystem(req, emit, "container_starting")
 		if _, err := p.projects.Start(ctx, project.ID); err != nil {
-			return nil, fmt.Errorf("start container: %w", err)
+			return nil, "", fmt.Errorf("start container: %w", err)
 		}
 	}
 
 	if p.containers != nil {
 		emitSystem(req, emit, "container_preparing")
 		if err := p.containers.EnsureClaude(ctx, project.ContainerName); err != nil {
-			return nil, fmt.Errorf("install claude in container: %w", err)
+			return nil, "", fmt.Errorf("install claude in container: %w", err)
 		}
 		if err := p.containers.EnsureClaudeAuth(ctx, project.ContainerName); err != nil {
-			return nil, fmt.Errorf("seed claude auth in container: %w", err)
+			return nil, "", fmt.Errorf("seed claude auth in container: %w", err)
 		}
 		if err := p.containers.EnsureClaudeMD(ctx, project.ContainerName); err != nil {
-			return nil, fmt.Errorf("push CLAUDE.md to container: %w", err)
+			return nil, "", fmt.Errorf("push CLAUDE.md to container: %w", err)
 		}
 		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
-			return nil, fmt.Errorf("set container boot.autostart: %w", err)
+			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
 		}
 	}
 
@@ -104,7 +104,7 @@ func (p *Provider) buildCmd(
 	lxcArgs = append(lxcArgs, args...)
 	cmd := exec.CommandContext(ctx, "lxc", lxcArgs...)
 	cmd.Stdin = strings.NewReader(req.Prompt)
-	return cmd, nil
+	return cmd, project.ContainerName, nil
 }
 
 func emitSystem(req agent.RunRequest, emit func(agent.Event), subtype string) {

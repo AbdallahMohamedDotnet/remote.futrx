@@ -3,7 +3,10 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 )
+
+var ErrRunFailed = errors.New("agent run failed")
 
 type ProviderID string
 

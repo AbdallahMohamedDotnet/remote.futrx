@@ -173,6 +173,42 @@ func (m *Manager) EnsureClaudeAuth(ctx context.Context, containerName string) er
 	return nil
 }
 
+func (m *Manager) SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error {
+	if !m.Available() {
+		return errors.New("lxc not available")
+	}
+	if err := os.MkdirAll("/root/.claude", 0o700); err != nil {
+		return fmt.Errorf("create host /root/.claude: %w", err)
+	}
+	_ = os.Chmod("/root/.claude", 0o700)
+
+	pctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	for _, file := range []struct {
+		containerPath string
+		hostPath      string
+		required      bool
+	}{
+		{containerPath: "/root/.claude.json", hostPath: hostClaudeJSON, required: true},
+		{containerPath: "/root/.claude/.credentials.json", hostPath: hostClaudeCreds, required: true},
+	} {
+		if out, err := lxcRun(pctx, "exec", containerName, "--", "test", "-f", file.containerPath); err != nil {
+			if file.required {
+				return fmt.Errorf("container auth file missing %s: %w; output: %s", file.containerPath, err, out)
+			}
+			continue
+		}
+		if out, err := lxcRun(pctx, "file", "pull", containerName+file.containerPath, file.hostPath); err != nil {
+			return fmt.Errorf("pull %s: %w; output: %s", file.containerPath, err, out)
+		}
+		_ = os.Chmod(file.hostPath, 0o600)
+		now := time.Now()
+		_ = os.Chtimes(file.hostPath, now, now)
+	}
+	return nil
+}
+
 func pushClaudeAuthFileIfNewer(ctx context.Context, hostPath, containerName, containerPath string) error {
 	hostInfo, err := os.Stat(hostPath)
 	if err != nil {

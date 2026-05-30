@@ -37,6 +37,20 @@ func TestParserMapsSessionAndComplete(t *testing.T) {
 	}
 }
 
+func TestParserMapsClaudeResultErrorAsRunFailed(t *testing.T) {
+	parser := NewParser(agent.RunRequest{ConversationID: "chat-1"})
+	events, err := parser.ParseLine([]byte(`{"type":"result","is_error":true,"result":"Failed to authenticate","usage":{"input_tokens":0}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected failure event, got %d", len(events))
+	}
+	if events[0].Type != agent.EventRunFailed || events[0].Message != "Failed to authenticate" || !events[0].IsError {
+		t.Fatalf("unexpected failure event: %#v", events[0])
+	}
+}
+
 func TestParserMapsToolLifecycle(t *testing.T) {
 	parser := NewParser(agent.RunRequest{ConversationID: "chat-1"})
 	start, err := parser.ParseLine([]byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tool-1","name":"Bash","input":{"cmd":"go test ./..."}}]}}`))

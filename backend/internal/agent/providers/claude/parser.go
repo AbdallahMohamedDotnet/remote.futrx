@@ -101,6 +101,18 @@ func (p *Parser) ParseLine(line []byte) ([]agent.Event, error) {
 		}
 
 	case "result":
+		if raw.IsError {
+			message := strings.TrimSpace(raw.Result)
+			if message == "" {
+				message = "Claude returned an error"
+			}
+			events = append(events, p.event(now, agent.EventRunFailed, rawLine, func(ev *agent.Event) {
+				ev.Message = message
+				ev.IsError = true
+				ev.Usage = raw.Usage
+			}))
+			return events, nil
+		}
 		events = append(events, p.event(now, agent.EventRunCompleted, rawLine, func(ev *agent.Event) {
 			ev.Usage = raw.Usage
 		}))
