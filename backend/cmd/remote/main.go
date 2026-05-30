@@ -91,7 +91,7 @@ func main() {
 		TmuxWS:     tmuxSocket,
 		ChatWS:     chatSocket,
 		Auth:       authHandler,
-		Static:     http.FileServer(http.FS(static)),
+		Static:     httptransport.NewStaticHandler(static),
 	})
 
 	srv := httptransport.NewServer(cfg.Addr(), handler)
