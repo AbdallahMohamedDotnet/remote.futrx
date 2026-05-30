@@ -2,13 +2,12 @@ package prompt
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/claudecli"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	claudeprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/claude"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -35,24 +34,11 @@ type ContainerPreparer interface {
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 }
 
-type ClaudeRunner interface {
-	Run(
-		ctx context.Context,
-		id servicechat.ID,
-		cmd *exec.Cmd,
-		currentSessionID string,
-		emit func(ChatEvent),
-		updateSession func(sessionID, model string),
-	) error
-}
-
 type Service struct {
-	store      servicechat.Repository
-	tmux       TmuxClient
-	projects   ProjectResolver // nil = legacy host-only mode
-	containers ContainerPreparer
-	hub        *runhub.Hub
-	claude     ClaudeRunner
+	store servicechat.Repository
+	tmux  TmuxClient
+	hub   *runhub.Hub
+	agent agent.Provider
 }
 
 func New(
@@ -66,12 +52,10 @@ func New(
 		hub = runhub.New(store)
 	}
 	return &Service{
-		store:      store,
-		tmux:       tmux,
-		projects:   projects,
-		containers: containers,
-		hub:        hub,
-		claude:     claudecli.New(),
+		store: store,
+		tmux:  tmux,
+		hub:   hub,
+		agent: claudeprovider.New(projects, containers),
 	}
 }
 
@@ -145,43 +129,27 @@ func (rnr *Service) runPrompt(
 	// Persist the user message before spawning claude.
 	emit(ChatEvent{T: time.Now().UnixMilli(), Type: "user", Text: prompt})
 
-	args := []string{
-		"-p",
-		"--output-format", "stream-json",
-		"--include-partial-messages",
-		"--verbose",
-		"--dangerously-skip-permissions",
-	}
-	if meta.Model != "" {
-		// Strip context-window suffixes like "[1m]" that may appear in older
-		// stored metadata — claude --model doesn't accept those.
-		modelArg := meta.Model
-		if idx := strings.Index(modelArg, "["); idx > 0 {
-			modelArg = modelArg[:idx]
-		}
-		args = append(args, "--model", modelArg)
-	}
-	if meta.ClaudeSessionID != "" {
-		args = append(args, "--resume", meta.ClaudeSessionID)
-	}
-
 	effectivePrompt := promptForMode(meta.Mode, prompt)
 	if meta.ClaudeSessionID == "" {
 		effectivePrompt = promptWithVisibleHistory(priorEvents, effectivePrompt)
 	}
 
-	cmd, err := rnr.buildClaudeCmd(ctx, meta, args, effectivePrompt, cwd, emit)
-	if err != nil {
-		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
+	if rnr.agent == nil {
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "agent provider not configured"})
 		return
 	}
-	err = rnr.claude.Run(ctx, id, cmd, meta.ClaudeSessionID, emit, func(sessionID, model string) {
-		_, _ = rnr.store.Update(ctx, id, func(m *ChatMeta) {
-			m.ClaudeSessionID = sessionID
-			if m.Model == "" && model != "" {
-				m.Model = model
-			}
-		})
+
+	err = rnr.agent.Run(ctx, agent.RunRequest{
+		Provider:       agent.ProviderClaude,
+		ConversationID: string(id),
+		Prompt:         effectivePrompt,
+		Cwd:            cwd,
+		Model:          meta.Model,
+		Mode:           meta.Mode,
+		ResumeID:       meta.ClaudeSessionID,
+		ProjectID:      string(meta.ProjectID),
+	}, func(ev agent.Event) {
+		rnr.emitAgentEvent(ctx, id, ev, emit)
 	})
 	if err != nil {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "claude exit: " + err.Error()})
@@ -251,82 +219,4 @@ func visibleTranscript(events []ChatEvent) string {
 	}
 	flushAssistant()
 	return out.String()
-}
-
-// buildClaudeCmd picks the right spawn target for a chat:
-//   - meta.ProjectID empty (or projects backend not wired) → run on the host
-//     the way we always have: claude binary at the chat's cwd.
-//   - meta.ProjectID set → run inside the project's LXC container via
-//     `lxc exec --cwd /workspace -- claude …`. The container's /workspace is
-//     a bind-mount of the host's project workspace dir; claude operates on
-//     it natively, never seeing the host filesystem outside the bind mounts.
-//
-// On the project path we also auto-start a stopped container and lazily
-// install the claude CLI on first prompt (one-time per project, ~60s).
-func (rnr *Service) buildClaudeCmd(
-	ctx context.Context,
-	meta ChatMeta,
-	args []string,
-	prompt string,
-	hostCwd string,
-	emit func(ChatEvent),
-) (*exec.Cmd, error) {
-	if meta.ProjectID == "" || rnr.projects == nil {
-		cmd := exec.CommandContext(ctx, "claude", args...)
-		cmd.Dir = hostCwd
-		// IS_SANDBOX=1 lets `claude --dangerously-skip-permissions` run under
-		// uid 0. The box is single-user and the UI is auto-approve.
-		cmd.Env = append(os.Environ(), "IS_SANDBOX=1")
-		cmd.Stdin = strings.NewReader(prompt)
-		return cmd, nil
-	}
-
-	p, err := rnr.projects.Get(ctx, serviceproject.ID(meta.ProjectID))
-	if err != nil {
-		return nil, fmt.Errorf("project not found (%s): %w", meta.ProjectID, err)
-	}
-	if p.ContainerName == "" {
-		return nil, fmt.Errorf("project %s has no container — recreate the project", p.ID)
-	}
-
-	// Auto-start if the container isn't running. Surface progress to the
-	// client so the user sees what's happening (cold-start can be 5–10s).
-	if p.Status != serviceproject.StatusRunning {
-		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "system", Subtype: "container_starting"})
-		if _, err := rnr.projects.Start(ctx, p.ID); err != nil {
-			return nil, fmt.Errorf("start container: %w", err)
-		}
-	}
-
-	// Lazy claude install + auth refresh. Install is ~60s once per project;
-	// auth only pushes when the host login files are newer than the container copy.
-	if rnr.containers != nil {
-		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "system", Subtype: "container_preparing"})
-		if err := rnr.containers.EnsureClaude(ctx, p.ContainerName); err != nil {
-			return nil, fmt.Errorf("install claude in container: %w", err)
-		}
-		if err := rnr.containers.EnsureClaudeAuth(ctx, p.ContainerName); err != nil {
-			return nil, fmt.Errorf("seed claude auth in container: %w", err)
-		}
-		if err := rnr.containers.EnsureClaudeMD(ctx, p.ContainerName); err != nil {
-			return nil, fmt.Errorf("push CLAUDE.md to container: %w", err)
-		}
-		if err := rnr.containers.EnsureBootAutostart(ctx, p.ContainerName); err != nil {
-			return nil, fmt.Errorf("set container boot.autostart: %w", err)
-		}
-	}
-
-	lxcArgs := []string{
-		"exec",
-		"--cwd", "/workspace",
-		"--env", "IS_SANDBOX=1",
-		"--env", "HOME=/root",
-		p.ContainerName,
-		"--",
-		"claude",
-	}
-	lxcArgs = append(lxcArgs, args...)
-	cmd := exec.CommandContext(ctx, "lxc", lxcArgs...)
-	cmd.Stdin = strings.NewReader(prompt)
-	return cmd, nil
 }
