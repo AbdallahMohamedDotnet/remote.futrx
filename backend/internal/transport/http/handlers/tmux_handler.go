@@ -27,6 +27,11 @@ func NewTmuxHandler(client TmuxClient) *TmuxHandler {
 	return &TmuxHandler{client: client}
 }
 
+func (h *TmuxHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/sessions", h.HandleSessionsCollection)
+	mux.HandleFunc("/api/sessions/", h.HandleSessionResource)
+}
+
 func (h *TmuxHandler) HandleSessionsCollection(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:

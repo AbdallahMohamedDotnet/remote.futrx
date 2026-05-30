@@ -18,6 +18,13 @@ func NewClaudeAuthHandler(login *claudelogin.Manager) *ClaudeAuthHandler {
 	return &ClaudeAuthHandler{login: login}
 }
 
+func (h *ClaudeAuthHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/claude/auth-status", h.HandleStatus)
+	mux.HandleFunc("/api/claude/login/start", h.HandleStart)
+	mux.HandleFunc("/api/claude/login/code", h.HandleCode)
+	mux.HandleFunc("/api/claude/login/cancel", h.HandleCancel)
+}
+
 func (h *ClaudeAuthHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	httptransport.SendJSON(w, http.StatusOK, map[string]any{
 		"authenticated": h.login.Authenticated(),

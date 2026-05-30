@@ -22,8 +22,8 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/filechat"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
@@ -49,9 +49,9 @@ func main() {
 		log.Printf("projects: reconcile warning: %v", err)
 	}
 
-	// Auth is optional. If data/oauth.json is absent, authRoutes is nil and the
+	// Auth is optional. If data/oauth.json is absent, authHandler is nil and the
 	// server runs open (matches old behavior for existing deployments).
-	authRoutes, authEnabled, err := loadAuthRoutes(context.Background(), cfg.DataDir, cfg.BaseURL)
+	authHandler, authEnabled, err := loadAuthHandler(context.Background(), cfg.DataDir, cfg.BaseURL)
 	if err != nil {
 		log.Fatalf("init auth: %v", err)
 	}
@@ -82,24 +82,16 @@ func main() {
 	projectHandler := httphandlers.NewProjectHandler(projectService)
 	tmuxHandler := httphandlers.NewTmuxHandler(tmuxClient)
 	tmuxSocket := wstransport.NewTmuxSocket(tmuxClient)
-	upgrader := httptransport.NewUpgrader()
 
-	handler := httptransport.NewHandler(httptransport.Routes{
-		Sessions:        tmuxHandler.HandleSessionsCollection,
-		SessionResource: tmuxHandler.HandleSessionResource,
-		Chats:           chatHandler.HandleCollection,
-		ChatResource:    chatHandler.HandleResource,
-		Projects:        projectHandler.HandleCollection,
-		ProjectResource: projectHandler.HandleResource,
-		TLSAsk:          projectHandler.HandleTLSAsk,
-		ClaudeAuth:      claudeAuthHandler.HandleStatus,
-		ClaudeLogin:     claudeAuthHandler.HandleStart,
-		ClaudeCode:      claudeAuthHandler.HandleCode,
-		ClaudeCancel:    claudeAuthHandler.HandleCancel,
-		TmuxWS:          tmuxSocket.Handle(upgrader),
-		ChatWS:          chatSocket.Handle(upgrader),
-		Auth:            authRoutes,
-		Static:          http.FileServer(http.FS(static)),
+	handler := httptransport.NewHandler(httptransport.Handlers{
+		Sessions:   tmuxHandler,
+		Chats:      chatHandler,
+		Projects:   projectHandler,
+		ClaudeAuth: claudeAuthHandler,
+		TmuxWS:     tmuxSocket,
+		ChatWS:     chatSocket,
+		Auth:       authHandler,
+		Static:     http.FileServer(http.FS(static)),
 	})
 
 	srv := httptransport.NewServer(cfg.Addr(), handler)

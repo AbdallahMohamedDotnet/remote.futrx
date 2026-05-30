@@ -29,15 +29,12 @@ func NewAuthHandler(auth *serviceauth.Service) *AuthHandler {
 	return &AuthHandler{auth: auth}
 }
 
-func (h *AuthHandler) Routes() httptransport.AuthRoutes {
-	return httptransport.AuthRoutes{
-		Login:      h.HandleLogin,
-		Callback:   h.HandleCallback,
-		Logout:     h.HandleLogout,
-		Me:         h.HandleMe,
-		Verify:     h.HandleVerify,
-		Middleware: h.Middleware,
-	}
+func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/auth/google/login", h.HandleLogin)
+	mux.HandleFunc("/auth/google/callback", h.HandleCallback)
+	mux.HandleFunc("/auth/logout", h.HandleLogout)
+	mux.HandleFunc("/auth/me", h.HandleMe)
+	mux.HandleFunc("/auth/verify", h.HandleVerify)
 }
 
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {

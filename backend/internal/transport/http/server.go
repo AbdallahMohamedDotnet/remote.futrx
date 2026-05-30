@@ -3,70 +3,65 @@ package httptransport
 import (
 	"net/http"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
-type AuthRoutes struct {
-	Login      http.HandlerFunc
-	Callback   http.HandlerFunc
-	Logout     http.HandlerFunc
-	Me         http.HandlerFunc
-	Verify     http.HandlerFunc // edge forward_auth: 200 if admin, 302 to baseURL/ otherwise
-	Middleware func(http.Handler) http.Handler
+type RouteRegistrar interface {
+	RegisterRoutes(*http.ServeMux)
 }
 
-type Routes struct {
-	Sessions        http.HandlerFunc
-	SessionResource http.HandlerFunc
-	Chats           http.HandlerFunc
-	ChatResource    http.HandlerFunc
-	Projects        http.HandlerFunc
-	ProjectResource http.HandlerFunc
-	TLSAsk          http.HandlerFunc // Caddy on_demand_tls ask probe; localhost only.
-	ClaudeAuth      http.HandlerFunc
-	ClaudeLogin     http.HandlerFunc
-	ClaudeCode      http.HandlerFunc
-	ClaudeCancel    http.HandlerFunc
-	TmuxWS          http.HandlerFunc
-	ChatWS          http.HandlerFunc
-	Auth            *AuthRoutes
-	Static          http.Handler
+type WebSocketRegistrar interface {
+	RegisterRoutes(*http.ServeMux, websocket.Upgrader)
 }
 
-func NewHandler(routes Routes) http.Handler {
+type AuthRegistrar interface {
+	RouteRegistrar
+	Middleware(http.Handler) http.Handler
+}
+
+type Handlers struct {
+	Sessions   RouteRegistrar
+	Chats      RouteRegistrar
+	Projects   RouteRegistrar
+	ClaudeAuth RouteRegistrar
+	TmuxWS     WebSocketRegistrar
+	ChatWS     WebSocketRegistrar
+	Auth       AuthRegistrar
+	Static     http.Handler
+}
+
+func NewHandler(handlers Handlers) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/sessions", routes.Sessions)
-	mux.HandleFunc("/api/sessions/", routes.SessionResource)
-	mux.HandleFunc("/api/chats", routes.Chats)
-	mux.HandleFunc("/api/chats/", routes.ChatResource)
-	if routes.Projects != nil {
-		mux.HandleFunc("/api/projects", routes.Projects)
-	}
-	if routes.ProjectResource != nil {
-		mux.HandleFunc("/api/projects/", routes.ProjectResource)
-	}
-	if routes.TLSAsk != nil {
-		mux.HandleFunc("/internal/tls-ask", routes.TLSAsk)
-	}
-	mux.HandleFunc("/api/claude/auth-status", routes.ClaudeAuth)
-	mux.HandleFunc("/api/claude/login/start", routes.ClaudeLogin)
-	mux.HandleFunc("/api/claude/login/code", routes.ClaudeCode)
-	mux.HandleFunc("/api/claude/login/cancel", routes.ClaudeCancel)
-	mux.HandleFunc("/ws", routes.TmuxWS)
-	mux.HandleFunc("/ws/chat/", routes.ChatWS)
-	if routes.Auth != nil {
-		mux.HandleFunc("/auth/google/login", routes.Auth.Login)
-		mux.HandleFunc("/auth/google/callback", routes.Auth.Callback)
-		mux.HandleFunc("/auth/logout", routes.Auth.Logout)
-		mux.HandleFunc("/auth/me", routes.Auth.Me)
-		if routes.Auth.Verify != nil {
-			mux.HandleFunc("/auth/verify", routes.Auth.Verify)
+
+	register := func(handler RouteRegistrar) {
+		if handler != nil {
+			handler.RegisterRoutes(mux)
 		}
 	}
-	mux.Handle("/", routes.Static)
+
+	register(handlers.Sessions)
+	register(handlers.Chats)
+	register(handlers.Projects)
+	register(handlers.ClaudeAuth)
+
+	upgrader := NewUpgrader()
+	if handlers.TmuxWS != nil {
+		handlers.TmuxWS.RegisterRoutes(mux, upgrader)
+	}
+	if handlers.ChatWS != nil {
+		handlers.ChatWS.RegisterRoutes(mux, upgrader)
+	}
+	if handlers.Auth != nil {
+		handlers.Auth.RegisterRoutes(mux)
+	}
+	if handlers.Static != nil {
+		mux.Handle("/", handlers.Static)
+	}
 
 	var handler http.Handler = mux
-	if routes.Auth != nil && routes.Auth.Middleware != nil {
-		handler = routes.Auth.Middleware(mux)
+	if handlers.Auth != nil {
+		handler = handlers.Auth.Middleware(handler)
 	}
 	return handler
 }

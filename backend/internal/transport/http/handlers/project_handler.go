@@ -21,6 +21,12 @@ func NewProjectHandler(projects *serviceproject.Service) *ProjectHandler {
 	return &ProjectHandler{projects: projects}
 }
 
+func (h *ProjectHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/projects", h.HandleCollection)
+	mux.HandleFunc("/api/projects/", h.HandleResource)
+	mux.HandleFunc("/internal/tls-ask", h.HandleTLSAsk)
+}
+
 func (h *ProjectHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:

@@ -19,6 +19,11 @@ func NewChatHandler(chats *servicechat.Service) *ChatHandler {
 	return &ChatHandler{chats: chats}
 }
 
+func (h *ChatHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/chats", h.HandleCollection)
+	mux.HandleFunc("/api/chats/", h.HandleResource)
+}
+
 func (h *ChatHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:

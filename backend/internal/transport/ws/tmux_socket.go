@@ -39,6 +39,10 @@ func (s *TmuxSocket) Handle(upgrader websocket.Upgrader) http.HandlerFunc {
 	}
 }
 
+func (s *TmuxSocket) RegisterRoutes(mux *http.ServeMux, upgrader websocket.Upgrader) {
+	mux.HandleFunc("/ws", s.Handle(upgrader))
+}
+
 func (s *TmuxSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("session")
 	if !tmuxcli.ValidName(name) {

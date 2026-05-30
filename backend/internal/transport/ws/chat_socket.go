@@ -39,6 +39,10 @@ func (s *ChatSocket) Handle(upgrader websocket.Upgrader) http.HandlerFunc {
 	}
 }
 
+func (s *ChatSocket) RegisterRoutes(mux *http.ServeMux, upgrader websocket.Upgrader) {
+	mux.HandleFunc("/ws/chat/", s.Handle(upgrader))
+}
+
 func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, r *http.Request) {
 	id := servicechat.ID(strings.TrimPrefix(r.URL.Path, "/ws/chat/"))
 	if !servicechat.ValidID(id) {

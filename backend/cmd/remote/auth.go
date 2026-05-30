@@ -7,11 +7,10 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileauth"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
 )
 
-func loadAuthRoutes(ctx context.Context, dataDir, baseURL string) (*httptransport.AuthRoutes, bool, error) {
+func loadAuthHandler(ctx context.Context, dataDir, baseURL string) (*httphandlers.AuthHandler, bool, error) {
 	store := fileauth.New(dataDir)
 	oauthConfig, err := store.OAuthConfig(ctx)
 	if err != nil {
@@ -39,6 +38,5 @@ func loadAuthRoutes(ctx context.Context, dataDir, baseURL string) (*httptranspor
 	if err != nil {
 		return nil, false, err
 	}
-	routes := httphandlers.NewAuthHandler(authService).Routes()
-	return &routes, true, nil
+	return httphandlers.NewAuthHandler(authService), true, nil
 }

@@ -4,8 +4,8 @@ This documents the backend HTTP and WebSocket surface used by the frontend in th
 
 Current source of truth:
 
-- Top-level route registration: `backend/internal/transport/http/server.go`
-- HTTP handlers: `backend/internal/transport/http/handlers/`
+- Route composition and middleware wrapping: `backend/internal/transport/http/server.go`
+- Route group registration and HTTP handlers: `backend/internal/transport/http/handlers/`
 - WebSocket handlers: `backend/internal/transport/ws/`
 - Frontend callers: `frontend/src/services/`, `frontend/src/hooks/`, `frontend/src/api/`
 
