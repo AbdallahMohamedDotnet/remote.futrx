@@ -1,43 +1,22 @@
-# Push to main → SSH into the production server → fast-path code deploy.
+# Push to main → fast-path code deploy.
 #
-# Default ("fast path"): git pull + frontend & backend build + systemctl
-# restart + health check. Takes ~25s. Does NOT touch Caddy, host packages,
-# code-server, systemd unit, or LXD config — those are infra-level and only
-# need to change when you edit infra/ in the repo.
+# Pulls latest, rebuilds frontend + backend, restarts the backend service,
+# health-checks it. Takes ~25s. Does NOT touch Caddy, host packages,
+# code-server, systemd unit, or LXD. For those, run the `installer` workflow
+# (.github/workflows/installer.yml).
 #
-# When you DO edit infra/ (Caddyfile.tmpl, a new host dep, code-server bump,
-# etc.), trigger the deploy manually with `installer: true`:
-#
-#   gh workflow run deploy --field installer=true
-#
-# or via the Actions tab in GitHub. That runs the full infra/install.sh on
-# the box and reconciles every dependency. Read infra/README.md for the
-# step-by-step layout.
-#
-# Secrets required (set via `gh secret set --repo Kings-Of-The-Web/remote.futrx.dev`):
+# Secrets required:
 #   SSH_KEY      private OpenSSH key authorized on $DEPLOY_HOST as $DEPLOY_USER
 #   KNOWN_HOSTS  output of `ssh-keyscan -t ed25519 <host>`
 #   DEPLOY_HOST  hostname or IP for SSH connectivity (can be a raw IP)
 #   DEPLOY_USER  ssh user (root for our setup)
-#
-# PUBLIC_HOSTNAME is hardcoded below (NOT pulled from secrets): a typo in a
-# secret silently swapping in $DEPLOY_HOST took the site down before. Fork
-# users: change this string.
 
 name: deploy
-
-env:
-  PUBLIC_HOSTNAME: remote.futrx.dev
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      installer:
-        description: 'Re-run infra/install.sh on the box (picks up Caddy / host-dep / code-server changes)'
-        type: boolean
-        default: false
 
 concurrency:
   group: deploy-prod
@@ -64,30 +43,20 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          RUN_INSTALLER: ${{ github.event.inputs.installer || 'false' }}
         run: |
           set -euo pipefail
-          MODE="fast-path"
-          [ "$RUN_INSTALLER" = "true" ] && MODE="full installer"
-          echo "Deploying ${GITHUB_SHA::7} (${GITHUB_REF_NAME}) [$MODE] → ${DEPLOY_USER}@${DEPLOY_HOST}"
+          echo "Deploying ${GITHUB_SHA::7} (${GITHUB_REF_NAME}) → ${DEPLOY_USER}@${DEPLOY_HOST}"
           echo
 
-          # Heredoc with quoted EOF so the remote shell parses the body.
           ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 \
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
-              "PUBLIC_HOSTNAME=${PUBLIC_HOSTNAME} RUN_INSTALLER=${RUN_INSTALLER} bash -se" <<'REMOTE'
+              "bash -se" <<'REMOTE'
           set -euo pipefail
           cd /opt/remote.futrx.dev
 
           echo "==> git fetch + fast-forward to origin/main"
           git fetch --quiet --tags origin
           git reset --hard origin/main
-
-          if [ "${RUN_INSTALLER:-false}" = "true" ]; then
-              echo "==> running full infra/install.sh ${PUBLIC_HOSTNAME} --skip-dns-check"
-              bash infra/install.sh "${PUBLIC_HOSTNAME}" --skip-dns-check
-              exit 0
-          fi
 
           echo "==> frontend build"
           ( cd frontend && npm install --silent --no-audit --no-fund 2>&1 | tail -3 && npm run build 2>&1 | tail -5 )
@@ -119,4 +88,4 @@ jobs:
 
       - name: Summary
         if: success()
-        run: echo "::notice ::Deployed ${GITHUB_SHA::7} to https://${{ env.PUBLIC_HOSTNAME }}"
+        run: echo "::notice ::Deployed ${GITHUB_SHA::7}"

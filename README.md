@@ -27,12 +27,12 @@ then open `https://<HOSTNAME>`. Pass `--google-client-id=` / `--google-client-se
 
 ## Updating the server
 
-**Code change** (Go / Preact) → push to `main`. CI fast path: git pull + build + restart backend, ~25s. Doesn't touch Caddy, host deps, or code-server.
+**Code change** (Go / Preact) → push to `main`. The [`deploy`](.github/workflows/deploy.yml) workflow runs: git pull + build + restart backend, ~25s. Doesn't touch Caddy, host deps, or code-server.
 
-**Infra change** (anything under `infra/`) → push, then trigger the full installer:
+**Infra change** (anything under `infra/`) → push, then trigger the [`installer`](.github/workflows/installer.yml) workflow:
 
 ```bash
-gh workflow run deploy --field installer=true
+gh workflow run installer
 # or: ssh root@<HOSTNAME> 'bash /opt/remote.futrx.dev/infra/install.sh <HOSTNAME> --skip-dns-check'
 ```
 
