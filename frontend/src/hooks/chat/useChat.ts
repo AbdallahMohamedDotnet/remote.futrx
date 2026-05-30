@@ -2,10 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatWebSocketUrl } from "../../api/websocket";
 import { chatService } from "../../services/chatService";
 import type { ChatEvent, ChatMeta, ChatStatus } from "../../models/chat";
+import { appendEventToBlocks, type Block } from "../../state/chat/messageBlocks";
+import {
+  addUsageFromEvent,
+  EMPTY_USAGE_TOTALS,
+  type UsageTotals,
+} from "../../state/chat/usage";
 
 interface UseChatResult {
   meta: ChatMeta | null;
-  events: ChatEvent[];
+  blocks: Block[];
+  usageTotals: UsageTotals;
+  eventCount: number;
   status: ChatStatus;
   error: string | null;
   canSendPrompt: boolean;
@@ -15,6 +23,34 @@ interface UseChatResult {
   refreshMeta: () => Promise<void>;
 }
 
+interface ChatRenderState {
+  blocks: Block[];
+  usageTotals: UsageTotals;
+  eventCount: number;
+}
+
+function emptyChatRenderState(): ChatRenderState {
+  return { blocks: [], usageTotals: EMPTY_USAGE_TOTALS, eventCount: 0 };
+}
+
+function applyChatEvents(state: ChatRenderState, events: ChatEvent[]): ChatRenderState {
+  let blocks = state.blocks;
+  let usageTotals = state.usageTotals;
+  let eventCount = state.eventCount;
+
+  for (const event of events) {
+    blocks = appendEventToBlocks(blocks, event);
+    usageTotals = addUsageFromEvent(usageTotals, event);
+    eventCount++;
+  }
+
+  return { blocks, usageTotals, eventCount };
+}
+
+function statusAfterEvent(event: ChatEvent): ChatStatus {
+  return event.type === "complete" || event.type === "error" ? "ready" : "streaming";
+}
+
 /**
  * useChat — load chat metadata, then open a streaming WS. The server replays
  * history over the socket before live events, which avoids gaps between an
@@ -22,17 +58,44 @@ interface UseChatResult {
  */
 export function useChat(chatId: string): UseChatResult {
   const [meta, setMeta] = useState<ChatMeta | null>(null);
-  const [events, setEvents] = useState<ChatEvent[]>([]);
+  const [renderState, setRenderState] = useState<ChatRenderState>(() => emptyChatRenderState());
   const [status, setStatus] = useState<ChatStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [wsReady, setWsReady] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const pendingEventsRef = useRef<ChatEvent[]>([]);
+  const pendingFrameRef = useRef<number | null>(null);
+
+  function clearPendingEvents() {
+    if (pendingFrameRef.current !== null) {
+      cancelAnimationFrame(pendingFrameRef.current);
+      pendingFrameRef.current = null;
+    }
+    pendingEventsRef.current = [];
+  }
+
+  function flushPendingEvents() {
+    pendingFrameRef.current = null;
+    const events = pendingEventsRef.current;
+    if (events.length === 0) return;
+    pendingEventsRef.current = [];
+    setRenderState((current) => applyChatEvents(current, events));
+    setStatus(statusAfterEvent(events[events.length - 1]));
+  }
+
+  function enqueueEvent(event: ChatEvent) {
+    pendingEventsRef.current.push(event);
+    if (pendingFrameRef.current === null) {
+      pendingFrameRef.current = requestAnimationFrame(flushPendingEvents);
+    }
+  }
 
   // Load metadata when chat id changes.
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
-    setEvents([]);
+    clearPendingEvents();
+    setRenderState(emptyChatRenderState());
     setMeta(null);
     setError(null);
     setWsReady(false);
@@ -80,7 +143,8 @@ export function useChat(chatId: string): UseChatResult {
         if (stopped || wsRef.current !== ws) return;
         attempt = 0;
         setError(null);
-        setEvents([]);
+        clearPendingEvents();
+        setRenderState(emptyChatRenderState());
         setWsReady(true);
       };
 
@@ -92,12 +156,7 @@ export function useChat(chatId: string): UseChatResult {
             setStatus(ev.running ? "streaming" : "ready");
             return;
           }
-          setEvents((prev) => [...prev, ev]);
-          if (ev.type === "complete" || ev.type === "error") {
-            setStatus("ready");
-          } else {
-            setStatus("streaming");
-          }
+          enqueueEvent(ev);
         } catch {}
       };
 
@@ -125,6 +184,7 @@ export function useChat(chatId: string): UseChatResult {
       const ws = wsRef.current;
       wsRef.current = null;
       setWsReady(false);
+      clearPendingEvents();
       try { ws?.close(); } catch {}
     };
   }, [meta?.id, chatId]);
@@ -147,7 +207,8 @@ export function useChat(chatId: string): UseChatResult {
 
   const rewind = useCallback(async (beforeT: number) => {
     const res = await chatService.rewind(chatId, beforeT);
-    setEvents(res.events);
+    clearPendingEvents();
+    setRenderState(applyChatEvents(emptyChatRenderState(), res.events));
     setStatus("ready");
     return res.events;
   }, [chatId]);
@@ -162,7 +223,9 @@ export function useChat(chatId: string): UseChatResult {
 
   return {
     meta,
-    events,
+    blocks: renderState.blocks,
+    usageTotals: renderState.usageTotals,
+    eventCount: renderState.eventCount,
     status,
     error,
     canSendPrompt: wsReady && status === "ready",

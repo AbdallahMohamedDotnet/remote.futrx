@@ -76,10 +76,6 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
 }
 
-/* xterm.js viewport tweaks — match our dark palette. */
-.xterm .xterm-viewport { background-color: theme(colors.ink.800) !important; }
-.xterm-screen { outline: none; }
-
 @layer utilities {
   .top-chrome {
     padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));

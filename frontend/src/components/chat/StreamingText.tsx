@@ -52,7 +52,11 @@ export function StreamingText({ text, streaming }: Props) {
 
   return (
     <div class="relative">
-      <Markdown>{displayed}</Markdown>
+      {streaming ? (
+        <div class="whitespace-pre-wrap break-words">{displayed}</div>
+      ) : (
+        <Markdown>{displayed}</Markdown>
+      )}
       {showCaret && (
         <span
           class="inline-block w-1.5 h-4 -mb-0.5 ml-0.5 align-middle bg-accent-blue/80

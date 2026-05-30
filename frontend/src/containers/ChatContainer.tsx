@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ChatMeta, ChatMode } from "../models/chat";
 import { ChatThread } from "../components/chat/ChatThread";
 import { useChat } from "../hooks/chat/useChat";
@@ -9,9 +9,7 @@ import { useDragUpload } from "../hooks/chat/useDragUpload";
 import { usePromptQueue } from "../hooks/chat/usePromptQueue";
 import { useThreadHeaderState } from "../hooks/chat/useThreadHeaderState";
 import { useThreadScroll } from "../hooks/chat/useThreadScroll";
-import { groupEvents } from "../state/chat/messageBlocks";
 import {
-  computeUsageTotals,
   estimateCost,
   formatTokens,
   MODEL_OPTIONS,
@@ -28,16 +26,27 @@ export function ChatContainer({
   onHamburger: () => void;
   onMetaUpdate: () => void;
 }) {
-  const { meta, events, status, error, canSendPrompt, sendPrompt, cancel, rewind, refreshMeta } = useChat(chat.id);
+  const {
+    meta,
+    blocks,
+    usageTotals,
+    eventCount,
+    status,
+    error,
+    canSendPrompt,
+    sendPrompt,
+    cancel,
+    rewind,
+    refreshMeta,
+  } = useChat(chat.id);
   const displayMeta = meta ?? chat;
   const displayMode = displayMeta.mode || "code";
-  const blocks = useMemo(() => groupEvents(events), [events]);
   const [text, setText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { textareaRef, focusInput } = useAutosizeTextarea(text);
   const upload = useAttachmentUpload(chat.id, onMetaUpdate);
   const drag = useDragUpload(upload.doUpload);
-  const scroll = useThreadScroll(chat.id, `${events.length}:${blocks.length}`);
+  const scroll = useThreadScroll(chat.id, `${eventCount}:${blocks.length}`);
   const metaActions = useChatMetaActions({
     chatId: chat.id,
     refreshMeta,
@@ -51,7 +60,6 @@ export function ChatContainer({
     sendPrompt,
     onSent: scroll.unlockAutoScroll,
   });
-  const usageTotals = useMemo(() => computeUsageTotals(events), [events]);
   const costUsd = estimateCost(usageTotals, displayMeta.model || "");
   const tokenLabel = formatTokens(tokenTotal(usageTotals));
 

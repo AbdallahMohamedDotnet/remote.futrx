@@ -1,7 +1,6 @@
 import { render } from "preact";
 import { App } from "./app/App";
 import "./index.css";
-import "@xterm/xterm/css/xterm.css";
 
 function installViewportHeightFix() {
   let raf = 0;

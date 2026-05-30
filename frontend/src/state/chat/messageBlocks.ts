@@ -24,86 +24,101 @@ export type Block =
   | { type: "error"; message: string; t: number };
 
 export function groupEvents(events: ChatEvent[]): Block[] {
-  const blocks: Block[] = [];
-  // Track the trailing assistant block by index so TS can narrow cleanly.
-  let curIdx = -1;
+  return events.reduce(appendEventToBlocks, [] as Block[]);
+}
 
-  const getCur = (): AssistantBlock | null => {
-    if (curIdx < 0) return null;
-    const b = blocks[curIdx];
-    return b.type === "assistant" ? b : null;
-  };
-  const ensureAssistant = (t: number): AssistantBlock => {
-    const c = getCur();
-    if (c) return c;
-    const fresh: AssistantBlock = { type: "assistant", parts: [], t, isComplete: false };
-    blocks.push(fresh);
-    curIdx = blocks.length - 1;
-    return fresh;
-  };
-  const endAssistant = () => {
-    const c = getCur();
-    if (c) c.isComplete = true;
-    curIdx = -1;
-  };
-
-  for (const ev of events) {
-    switch (ev.type) {
-      case "user":
-        endAssistant();
-        blocks.push({ type: "user", text: ev.text, t: ev.t });
-        break;
-      case "assistant_text": {
-        const a = ensureAssistant(ev.t);
-        const last = a.parts[a.parts.length - 1];
-        if (last && last.kind === "text") {
-          last.text += ev.text;
-        } else {
-          a.parts.push({ kind: "text", text: ev.text });
-        }
-        break;
-      }
-      case "thinking": {
-        const a = ensureAssistant(ev.t);
-        a.parts.push({ kind: "thinking", text: ev.text });
-        break;
-      }
-      case "tool_use_start": {
-        const a = ensureAssistant(ev.t);
-        a.parts.push({
-          kind: "tool",
-          id: ev.id,
-          name: ev.name,
-          input: (ev.input as unknown as Record<string, unknown>) ?? {},
-          status: "running",
-        });
-        break;
-      }
-      case "tool_use_end": {
-        const c = getCur();
-        if (c) {
-          const tool = c.parts.find(
-            (p): p is Extract<AssistantPart, { kind: "tool" }> =>
-              p.kind === "tool" && p.id === ev.id
-          );
-          if (tool) {
-            tool.output = ev.output;
-            tool.isError = ev.isError;
-            tool.status = "done";
-          }
-        }
-        break;
-      }
-      case "complete":
-        endAssistant();
-        break;
-      case "error":
-        endAssistant();
-        blocks.push({ type: "error", message: ev.message, t: ev.t });
-        break;
-      // session, system — intentionally not rendered
+export function appendEventToBlocks(blocks: Block[], ev: ChatEvent): Block[] {
+  switch (ev.type) {
+    case "user": {
+      const next = endTrailingAssistant(blocks);
+      return [...next, { type: "user", text: ev.text, t: ev.t }];
     }
+    case "assistant_text": {
+      const { blocks: next, assistant } = ensureTrailingAssistant(blocks, ev.t);
+      const lastIndex = assistant.parts.length - 1;
+      const last = assistant.parts[lastIndex];
+      if (last?.kind === "text") {
+        assistant.parts[lastIndex] = { ...last, text: last.text + ev.text };
+      } else {
+        assistant.parts.push({ kind: "text", text: ev.text });
+      }
+      return next;
+    }
+    case "thinking": {
+      const { blocks: next, assistant } = ensureTrailingAssistant(blocks, ev.t);
+      assistant.parts.push({ kind: "thinking", text: ev.text });
+      return next;
+    }
+    case "tool_use_start": {
+      const { blocks: next, assistant } = ensureTrailingAssistant(blocks, ev.t);
+      assistant.parts.push({
+        kind: "tool",
+        id: ev.id,
+        name: ev.name,
+        input: (ev.input as unknown as Record<string, unknown>) ?? {},
+        status: "running",
+      });
+      return next;
+    }
+    case "tool_use_end":
+      return updateTrailingTool(blocks, ev.id, {
+        output: ev.output,
+        isError: ev.isError,
+        status: "done",
+      });
+    case "complete":
+      return endTrailingAssistant(blocks);
+    case "error": {
+      const next = endTrailingAssistant(blocks);
+      return [...next, { type: "error", message: ev.message, t: ev.t }];
+    }
+    // sync, session, system, permission_request — intentionally not rendered.
+    default:
+      return blocks;
+  }
+}
+
+function endTrailingAssistant(blocks: Block[]): Block[] {
+  const lastIndex = blocks.length - 1;
+  const last = blocks[lastIndex];
+  if (!last || last.type !== "assistant" || last.isComplete) return blocks;
+  const next = blocks.slice();
+  next[lastIndex] = { ...last, isComplete: true };
+  return next;
+}
+
+function ensureTrailingAssistant(
+  blocks: Block[],
+  t: number
+): { blocks: Block[]; assistant: AssistantBlock } {
+  const lastIndex = blocks.length - 1;
+  const last = blocks[lastIndex];
+  if (last?.type === "assistant" && !last.isComplete) {
+    const next = blocks.slice();
+    const assistant: AssistantBlock = { ...last, parts: last.parts.slice() };
+    next[lastIndex] = assistant;
+    return { blocks: next, assistant };
   }
 
-  return blocks;
+  const assistant: AssistantBlock = { type: "assistant", parts: [], t, isComplete: false };
+  return { blocks: [...blocks, assistant], assistant };
+}
+
+function updateTrailingTool(
+  blocks: Block[],
+  id: string,
+  patch: Partial<Extract<AssistantPart, { kind: "tool" }>>
+): Block[] {
+  const lastIndex = blocks.length - 1;
+  const last = blocks[lastIndex];
+  if (!last || last.type !== "assistant") return blocks;
+
+  const partIndex = last.parts.findIndex((part) => part.kind === "tool" && part.id === id);
+  if (partIndex < 0) return blocks;
+
+  const next = blocks.slice();
+  const parts = last.parts.slice();
+  parts[partIndex] = { ...parts[partIndex], ...patch } as AssistantPart;
+  next[lastIndex] = { ...last, parts };
+  return next;
 }

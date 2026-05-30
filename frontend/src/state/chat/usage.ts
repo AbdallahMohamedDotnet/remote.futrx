@@ -35,6 +35,13 @@ export interface UsageTotals {
   cacheWriteTokens: number;
 }
 
+export const EMPTY_USAGE_TOTALS: UsageTotals = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+};
+
 type Usage =
   | {
       input_tokens?: number;
@@ -51,26 +58,30 @@ const COST = {
 };
 
 export function computeUsageTotals(events: ChatEvent[]): UsageTotals {
-  const totals: UsageTotals = {
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheReadTokens: 0,
-    cacheWriteTokens: 0,
-  };
+  let totals = EMPTY_USAGE_TOTALS;
 
   for (const event of events) {
-    if (event.type !== "complete" || !event.usage) continue;
-    try {
-      const usage = (typeof event.usage === "string" ? JSON.parse(event.usage) : event.usage) as Usage;
-      if (!usage) continue;
-      totals.inputTokens += usage.input_tokens ?? 0;
-      totals.outputTokens += usage.output_tokens ?? 0;
-      totals.cacheReadTokens += usage.cache_read_input_tokens ?? 0;
-      totals.cacheWriteTokens += usage.cache_creation_input_tokens ?? 0;
-    } catch {}
+    totals = addUsageFromEvent(totals, event);
   }
 
   return totals;
+}
+
+export function addUsageFromEvent(totals: UsageTotals, event: ChatEvent): UsageTotals {
+  if (event.type !== "complete" || !event.usage) return totals;
+
+  try {
+    const usage = (typeof event.usage === "string" ? JSON.parse(event.usage) : event.usage) as Usage;
+    if (!usage) return totals;
+    return {
+      inputTokens: totals.inputTokens + (usage.input_tokens ?? 0),
+      outputTokens: totals.outputTokens + (usage.output_tokens ?? 0),
+      cacheReadTokens: totals.cacheReadTokens + (usage.cache_read_input_tokens ?? 0),
+      cacheWriteTokens: totals.cacheWriteTokens + (usage.cache_creation_input_tokens ?? 0),
+    };
+  } catch {
+    return totals;
+  }
 }
 
 export function tokenTotal(totals: UsageTotals): number {
