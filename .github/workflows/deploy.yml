@@ -15,8 +15,17 @@
 # Secrets required (set via `gh secret set --repo Kings-Of-The-Web/remote.futrx.dev`):
 #   SSH_KEY      private OpenSSH key authorized on $DEPLOY_HOST as $DEPLOY_USER
 #   KNOWN_HOSTS  output of `ssh-keyscan -t ed25519 <host>`
-#   DEPLOY_HOST  hostname or IP of the server
+#   DEPLOY_HOST  hostname or IP for SSH connectivity (can be a raw IP)
 #   DEPLOY_USER  ssh user (root for our setup)
+#
+# The PUBLIC_HOSTNAME below is the hostname Caddy serves on and Let's Encrypt
+# issues certs for. It is NOT pulled from secrets because (a) it's not secret,
+# (b) it must NEVER be an IP (LE refuses IP identifiers), and a typo in a
+# secret silently swapping in $DEPLOY_HOST has already produced an outage.
+# Fork users: change this string.
+
+env:
+  PUBLIC_HOSTNAME: remote.futrx.dev
 
 name: deploy
 
@@ -56,10 +65,10 @@ jobs:
           echo
 
           # Heredoc with quoted EOF so the remote shell parses the body.
-          # DEPLOY_HOST is passed via env so it's available inside the heredoc.
+          # PUBLIC_HOSTNAME is passed via env so it's available inside the heredoc.
           ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 \
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
-              "DEPLOY_HOST=${DEPLOY_HOST} bash -se" <<'REMOTE'
+              "PUBLIC_HOSTNAME=${PUBLIC_HOSTNAME} bash -se" <<'REMOTE'
           set -euo pipefail
           cd /opt/remote.futrx.dev
 
@@ -67,10 +76,10 @@ jobs:
           git fetch --quiet --tags origin
           git reset --hard origin/main
 
-          echo "==> running infra/install.sh ${DEPLOY_HOST} --skip-dns-check"
+          echo "==> running infra/install.sh ${PUBLIC_HOSTNAME} --skip-dns-check"
           # Full reconciliation. Idempotent ~30s on a typical backend code change;
           # longer only on infra changes (new system dep, code-server bump).
-          bash infra/install.sh "${DEPLOY_HOST}" --skip-dns-check
+          bash infra/install.sh "${PUBLIC_HOSTNAME}" --skip-dns-check
           REMOTE
 
       - name: Summary

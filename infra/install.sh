@@ -44,6 +44,15 @@ if [ -z "$HOSTNAME" ]; then
     echo "  example: sudo bash infra/install.sh remote.example.com" >&2
     exit 1
 fi
+# Refuse an IP literal — Let's Encrypt rejects IP identifiers, and rendering
+# the Caddyfile with an IP as the hostname produces a config Caddy still
+# loads but can't get a cert for, taking the site down silently. A short
+# regex catches both IPv4 and bracketed-IPv6 attempts.
+if printf '%s' "$HOSTNAME" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$|^\[.*\]$'; then
+    echo "hostname must be a DNS name, not an IP address (got: $HOSTNAME)" >&2
+    echo "  Let's Encrypt cannot issue certs for IPs and your site will lose TLS." >&2
+    exit 1
+fi
 if [ "$EUID" -ne 0 ]; then
     echo "this installer needs root; rerun with sudo" >&2
     exit 1
