@@ -195,6 +195,8 @@ fi
 . "$INFRA_DIR/steps/01-host-deps.sh"
 # shellcheck source=steps/02-code-server.sh
 . "$INFRA_DIR/steps/02-code-server.sh"
+# shellcheck source=steps/02-db-viewer.sh
+. "$INFRA_DIR/steps/02-db-viewer.sh"
 # shellcheck source=steps/03-app.sh
 . "$INFRA_DIR/steps/03-app.sh"
 # shellcheck source=steps/04-caddy.sh
