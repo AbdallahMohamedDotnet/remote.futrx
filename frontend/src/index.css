@@ -273,3 +273,102 @@
     border-color: rgba(255, 255, 255, 0.1) !important;
   }
 }
+
+html[data-theme="light"],
+html[data-theme="light"] body {
+  color-scheme: light;
+  background: #f6f8fa;
+}
+
+html[data-theme="light"] .codex-app,
+html[data-theme="light"] .codex-main,
+html[data-theme="light"] .codex-thread,
+html[data-theme="light"] .codex-message-scroll {
+  background: #ffffff !important;
+  color: #24292f !important;
+}
+
+html[data-theme="light"] .codex-header,
+html[data-theme="light"] .codex-sidebar,
+html[data-theme="light"] .codex-sidebar header,
+html[data-theme="light"] .codex-sidebar footer,
+html[data-theme="light"] .codex-tool-shell,
+html[data-theme="light"] section.bg-\[\#101318\],
+html[data-theme="light"] .bg-\[\#101318\] {
+  background: #f6f8fa !important;
+  border-color: rgba(31, 35, 40, 0.12) !important;
+  color: #24292f !important;
+}
+
+html[data-theme="light"] .codex-composer-shell {
+  background: linear-gradient(to top, #ffffff 82%, rgba(255, 255, 255, 0.92)) !important;
+  border-color: rgba(31, 35, 40, 0.12) !important;
+  color: #24292f !important;
+}
+
+html[data-theme="light"] .codex-composer-form {
+  background: #ffffff !important;
+  border-color: #d0d7de !important;
+  box-shadow: 0 10px 28px rgba(140, 149, 159, 0.2);
+}
+
+html[data-theme="light"] .codex-composer-textarea,
+html[data-theme="light"] input,
+html[data-theme="light"] textarea,
+html[data-theme="light"] select {
+  color: #24292f !important;
+}
+
+html[data-theme="light"] .codex-composer-textarea::placeholder,
+html[data-theme="light"] input::placeholder,
+html[data-theme="light"] textarea::placeholder {
+  color: #6e7781 !important;
+}
+
+html[data-theme="light"] .text-ink-50,
+html[data-theme="light"] .text-ink-100,
+html[data-theme="light"] .text-ink-200,
+html[data-theme="light"] .codex-header button,
+html[data-theme="light"] .codex-sidebar button,
+html[data-theme="light"] .codex-sidebar input {
+  color: #24292f !important;
+}
+
+html[data-theme="light"] .text-ink-300,
+html[data-theme="light"] .text-ink-400 {
+  color: #57606a !important;
+}
+
+html[data-theme="light"] [class*="border-white"] {
+  border-color: rgba(31, 35, 40, 0.12) !important;
+}
+
+html[data-theme="light"] [class*="bg-white/"],
+html[data-theme="light"] .bg-white\/5,
+html[data-theme="light"] .bg-white\/10 {
+  background-color: rgba(31, 35, 40, 0.06) !important;
+}
+
+html[data-theme="light"] .bg-\[\#090b0f\],
+html[data-theme="light"] .bg-\[\#0b0d11\] {
+  background-color: #ffffff !important;
+}
+
+html[data-theme="light"] .codex-user-bubble {
+  background: rgba(9, 105, 218, 0.1) !important;
+  border-color: rgba(9, 105, 218, 0.25) !important;
+  color: #24292f !important;
+}
+
+html[data-theme="light"] .codex-assistant-block,
+html[data-theme="light"] .codex-tool-trigger {
+  color: #24292f !important;
+}
+
+html[data-theme="light"] .scrollbar-thin {
+  scrollbar-color: #afb8c1 transparent;
+}
+
+html[data-theme="light"] .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #afb8c1;
+}

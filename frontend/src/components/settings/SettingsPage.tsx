@@ -1,27 +1,38 @@
-import type { CredentialProvider, ProviderKey } from "../../models/settings";
+import type { AppearanceTheme, CredentialProvider, ProviderKey } from "../../models/settings";
 import { AlertCircle, ChevronLeft, Menu } from "../ui/icons";
+import { AppearanceSettings } from "./AppearanceSettings";
 import { ProviderCard } from "./ProviderCard";
 
 export function SettingsPage({
   providers,
+  appearanceTheme,
+  appearanceLoading,
+  appearanceSaving,
+  appearanceError,
   values,
   expandedHelp,
   revealed,
   savedAt,
   onBack,
   onHamburger,
+  onAppearanceThemeChange,
   onValueChange,
   onToggleHelp,
   onToggleReveal,
   onSave,
 }: {
   providers: CredentialProvider[];
+  appearanceTheme: AppearanceTheme;
+  appearanceLoading: boolean;
+  appearanceSaving: boolean;
+  appearanceError: string | null;
   values: Record<ProviderKey, string>;
   expandedHelp: Record<ProviderKey, boolean>;
   revealed: Record<ProviderKey, boolean>;
   savedAt: Record<ProviderKey, number | undefined>;
   onBack: () => void;
   onHamburger: () => void;
+  onAppearanceThemeChange: (theme: AppearanceTheme) => void;
   onValueChange: (key: ProviderKey, value: string) => void;
   onToggleHelp: (key: ProviderKey) => void;
   onToggleReveal: (key: ProviderKey) => void;
@@ -47,13 +58,21 @@ export function SettingsPage({
           <ChevronLeft class="w-4 h-4" /> Chats
         </button>
         <div class="flex-1 min-w-0">
-          <div class="text-[11px] text-ink-300">Host configuration</div>
-          <div class="text-[15px] font-semibold text-ink-50 truncate">API credentials</div>
+          <div class="text-[11px] text-ink-300">Preferences</div>
+          <div class="text-[15px] font-semibold text-ink-50 truncate">Settings</div>
         </div>
       </header>
 
       <div class="flex-1 overflow-y-auto touch-scroll">
         <div class="max-w-2xl mx-auto px-4 py-5 space-y-4">
+          <AppearanceSettings
+            theme={appearanceTheme}
+            loading={appearanceLoading}
+            saving={appearanceSaving}
+            error={appearanceError}
+            onThemeChange={onAppearanceThemeChange}
+          />
+
           <p class="text-[13px] leading-relaxed text-ink-300">
             These credentials are <strong class="text-ink-100">host-wide</strong>. Paste once
             and every project's container gets seeded so <code class="font-mono text-ink-100">gh</code>,{" "}
@@ -69,7 +88,7 @@ export function SettingsPage({
             <div>
               <div class="font-medium text-accent-yellow">Backend storage not wired yet</div>
               <div class="text-ink-200 mt-0.5">
-                Values entered here are not persisted or pushed to containers. This page is the UI stub.
+                Credential values are not persisted or pushed to containers. This section is the UI stub.
               </div>
             </div>
           </div>
