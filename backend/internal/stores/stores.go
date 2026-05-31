@@ -7,9 +7,11 @@ import (
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileauth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/filechat"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileusersettings"
 )
 
 type AuthStore interface {
@@ -19,9 +21,10 @@ type AuthStore interface {
 }
 
 type Stores struct {
-	Chats    servicechat.Repository
-	Projects serviceproject.Repository
-	Auth     AuthStore
+	Chats        servicechat.Repository
+	Projects     serviceproject.Repository
+	Auth         AuthStore
+	UserSettings serviceusersettings.Repository
 }
 
 func New(dataDir string) (Stores, error) {
@@ -35,9 +38,15 @@ func New(dataDir string) (Stores, error) {
 		return Stores{}, fmt.Errorf("init project store: %w", err)
 	}
 
+	userSettings, err := fileusersettings.New(dataDir)
+	if err != nil {
+		return Stores{}, fmt.Errorf("init user settings store: %w", err)
+	}
+
 	return Stores{
-		Chats:    chats,
-		Projects: projects,
-		Auth:     fileauth.New(dataDir),
+		Chats:        chats,
+		Projects:     projects,
+		Auth:         fileauth.New(dataDir),
+		UserSettings: userSettings,
 	}, nil
 }

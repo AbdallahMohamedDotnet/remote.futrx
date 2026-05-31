@@ -18,8 +18,8 @@ import (
 	remote "github.com/Kings-Of-The-Web/remote.futrx.dev"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/containers"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/containers"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport"
@@ -40,6 +40,7 @@ func main() {
 		Chats:         storeSet.Chats,
 		Projects:      storeSet.Projects,
 		Auth:          storeSet.Auth,
+		UserSettings:  storeSet.UserSettings,
 		AuthBaseURL:   cfg.BaseURL,
 		Containers:    containerManager,
 		TmuxClient:    tmuxClient,

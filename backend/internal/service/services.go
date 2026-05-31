@@ -11,6 +11,7 @@ import (
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
+	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
 )
 
 type AuthStore interface {
@@ -32,6 +33,7 @@ type Dependencies struct {
 	Chats         servicechat.Repository
 	Projects      serviceproject.Repository
 	Auth          AuthStore
+	UserSettings  serviceusersettings.Repository
 	AuthBaseURL   string
 	Containers    ContainerManager
 	TmuxClient    TmuxCwdClient
@@ -39,12 +41,13 @@ type Dependencies struct {
 }
 
 type Services struct {
-	Chats     *servicechat.Service
-	Projects  *serviceproject.Service
-	Prompt    *prompt.Service
-	Runs      *runhub.Hub
-	Workspace *workspacehub.Hub
-	Auth      *serviceauth.Service
+	Chats        *servicechat.Service
+	Projects     *serviceproject.Service
+	Prompt       *prompt.Service
+	Runs         *runhub.Hub
+	Workspace    *workspacehub.Hub
+	Auth         *serviceauth.Service
+	UserSettings *serviceusersettings.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -76,14 +79,16 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if err != nil {
 		return Services{}, err
 	}
+	userSettingsService := serviceusersettings.New(deps.UserSettings)
 
 	return Services{
-		Chats:     chatService,
-		Projects:  projectService,
-		Prompt:    promptService,
-		Runs:      runs,
-		Workspace: workspace,
-		Auth:      authService,
+		Chats:        chatService,
+		Projects:     projectService,
+		Prompt:       promptService,
+		Runs:         runs,
+		Workspace:    workspace,
+		Auth:         authService,
+		UserSettings: userSettingsService,
 	}, nil
 }
 
