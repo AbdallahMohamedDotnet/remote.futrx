@@ -1,7 +1,7 @@
 # Managed by infra/steps/01-host-deps.sh.
 #
 # Forwards <name>.lxd DNS queries to the LXD bridge's dnsmasq so the host
-# (and Caddy, when reverse-proxying *.dev.${HOSTNAME} → proj-<slug>.lxd)
+# (and Caddy, when reverse-proxying *.dev.${HOSTNAME} → <slug>.lxd)
 # can resolve container names. Without this, Caddy gets NXDOMAIN and the
 # dev URL routing breaks.
 [Resolve]
