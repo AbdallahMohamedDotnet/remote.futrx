@@ -130,7 +130,7 @@ export function AskUserQuestion({ toolUseId, input, onSubmit }: Props) {
     <div class="my-2 rounded-lg border border-accent-blue/40 bg-accent-blue/5 overflow-hidden">
       <div class="px-3 py-2 bg-accent-blue/10 text-[11px] text-accent-blue
                   flex items-center justify-between gap-2 border-b border-accent-blue/20">
-        <span>Claude is asking</span>
+        <span>Agent is asking</span>
         {total > 1 && (
             <span class="flex items-center gap-1.5 text-accent-blue/80">
             <span class="font-mono text-[10.5px]">{page + 1} / {total}</span>

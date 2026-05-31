@@ -3,8 +3,8 @@ package containers
 // Base-image provisioning. The same install script is used in two places:
 //   1. As the recipe baked into the published futrx-remote-dev-base LXD image
 //      (run once by cmd/build-base-image on a fresh ubuntu:24.04 builder).
-//   2. As the fallback in EnsureClaude — runs inside an already-running
-//      container if the CLI is missing (covers older proj-* containers that
+//   2. As the fallback in EnsureClaude / EnsureCodex — runs inside an
+//      already-running container if either CLI is missing (covers older proj-* containers that
 //      pre-date the custom image).
 // Keeping it in one constant guarantees the two paths can never drift.
 
@@ -24,7 +24,7 @@ const (
 	BaseImageSourceImage = "ubuntu:24.04"
 
 	// BaseImageDescription is attached to the published image.
-	BaseImageDescription = "futrx remote dev base: ubuntu 24.04 + node 20 + @anthropic-ai/claude-code"
+	BaseImageDescription = "futrx remote dev base: ubuntu 24.04 + node 20 + claude-code + codex"
 
 	// baseImageBuilderName is the name used for the throwaway builder
 	// container. Kept stable so a retry can clean up a leftover builder
@@ -38,7 +38,7 @@ const (
 
 // BaseImageInstallScript is the shell recipe that turns a fresh
 // ubuntu:24.04 rootfs into the futrx-remote-dev-base image. It is also the
-// fallback EnsureClaude runs inside an already-launched container.
+// fallback EnsureClaude / EnsureCodex run inside an already-launched container.
 const BaseImageInstallScript = `set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
@@ -65,12 +65,13 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githu
 apt-get update -qq
 apt-get install -y -qq gh
 
-# Anthropic Claude CLI.
-npm install -g @anthropic-ai/claude-code --silent 2>&1 | tail -3
+# Agent CLIs.
+npm install -g @anthropic-ai/claude-code @openai/codex --silent 2>&1 | tail -8
 
 # Sanity check the full toolchain.
-which claude git gh jq node npm python3 ssh
+which claude codex git gh jq node npm python3 ssh
 claude --version
+codex --version
 node --version
 gh --version | head -1`
 

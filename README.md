@@ -1,6 +1,6 @@
 # remote.futrx.dev
 
-Self-hosted Claude Code chat UI. Go server (embeds the Preact SPA) + one unprivileged LXD container per "project". Dev servers inside any project are reachable at `<slug>--<port>.dev.<HOSTNAME>`.
+Self-hosted Claude Code / Codex chat UI. Go server (embeds the Preact SPA) + one unprivileged LXD container per "project". Dev servers inside any project are reachable at `<slug>--<port>.dev.<HOSTNAME>`.
 
 ## Install (fresh Ubuntu/Debian)
 
@@ -16,7 +16,8 @@ The installer self-bootstraps when run from a pipe: clones the repo to `/opt/rem
 After it finishes:
 
 ```bash
-claude login     # writes /root/.claude*, the credentials every project container inherits
+claude login     # writes /root/.claude*, inherited by Claude project runs
+# Optional: open Settings in the UI and save an OpenAI API key for Codex
 ```
 
 Open `https://<HOSTNAME>`. Pass `--google-client-id=` / `--google-client-secret=` to the installer for Google OAuth; otherwise the site is open to anyone who can reach it.
@@ -40,6 +41,7 @@ backend/
 └── internal/
     ├── manager/containers/      LXD container lifecycle, auth bundles, image build
     ├── manager/claudelogin/     host-side `claude auth login` PTY driver
+    ├── manager/codexauth/       host-side `codex login --with-api-key` driver
     ├── integration/lxc/         thin wrapper around the `lxc` CLI
     ├── service/                 chat, project, prompt, auth
     └── transport/               http handlers + ws sockets
@@ -49,7 +51,7 @@ frontend/                        Preact SPA, embedded into the Go binary at buil
 infra/
 ├── install.sh                   orchestrator
 ├── steps/
-│   ├── 01-host-deps.sh          apt + Node 20 + Go + Caddy + claude CLI + LXD
+│   ├── 01-host-deps.sh          apt + Node 20 + Go + Caddy + agent CLIs + LXD
 │   ├── 02-code-server.sh        code-server + systemd unit
 │   ├── 03-app.sh                clone/update repo + build + auth-secret seed
 │   ├── 04-caddy.sh              Caddyfile render + reload
@@ -69,7 +71,7 @@ docs/                            base-image.md, frontend-backend-api.md
 | Host dependency | [`infra/steps/01-host-deps.sh`](infra/steps/01-host-deps.sh) — guard so re-runs are no-ops |
 | code-server version | `CODE_SERVER_VERSION=` in [`infra/steps/02-code-server.sh`](infra/steps/02-code-server.sh) |
 | Backend systemd unit | [`infra/templates/remote.futrx.dev.service.tmpl`](infra/templates/remote.futrx.dev.service.tmpl) |
-| Base-image contents (Node, Claude) | `BaseImageInstallScript` in [`backend/internal/manager/containers/baseimage.go`](backend/internal/manager/containers/baseimage.go) — same constant `EnsureClaude` uses as a fallback, so the image build and the per-container fallback can't drift |
+| Base-image contents (Node, Claude, Codex) | `BaseImageInstallScript` in [`backend/internal/manager/containers/baseimage.go`](backend/internal/manager/containers/baseimage.go) — same constant `EnsureClaude` / `EnsureCodex` use as a fallback, so the image build and the per-container fallback can't drift |
 
 ## Services (systemd)
 
@@ -82,7 +84,7 @@ The Preact SPA is embedded in the Go binary at build time, so the backend serves
 | `code-server@root.service` | upstream template; config from [`infra/templates/code-server-config.yaml.tmpl`](infra/templates/code-server-config.yaml.tmpl) | `127.0.0.1:8080` | `always` |
 | `snap.lxd.daemon.service` | snap | LXD API socket; bridge `lxdbr0` | snap watchdog |
 
-All units `enable`d → come back on host reboot. Project containers come back because the backend sets `boot.autostart=true` on each at launch time (see `containers.Manager.EnsureBootAutostart`). `KillMode=process` on the backend unit keeps in-flight `claude` subprocesses alive across deploys.
+All units `enable`d → come back on host reboot. Project containers come back because the backend sets `boot.autostart=true` on each at launch time (see `containers.Manager.EnsureBootAutostart`). `KillMode=process` on the backend unit keeps in-flight agent subprocesses alive across deploys.
 
 Inspect:
 

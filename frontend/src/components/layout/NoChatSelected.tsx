@@ -40,7 +40,7 @@ export function NoChatSelected({
             <div class="text-xs mt-2 leading-relaxed text-ink-300">
               {hasProjects
                 ? "Pick a project on the left, then create a chat inside it. Each project is its own sandboxed container."
-                : "Projects are sandboxed dev environments. Claude installs and runs inside each project's container, isolated from the rest of the host."}
+                : "Projects are sandboxed dev environments. Agent CLIs install and run inside each project's container, isolated from the rest of the host."}
             </div>
           </div>
           <div class="flex gap-2 justify-center">

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bake the futrx-remote-dev-base LXD image used by every project container.
 # Driven by backend/cmd/build-base-image, which is the single source of
-# truth for the install recipe (Node 20 + Claude CLI baked in).
+# truth for the install recipe (Node 20 + agent CLIs baked in).
 #
 # Idempotent: skips when the alias is already published. Set
 # FORCE_REBUILD_BASE_IMAGE=1 to delete + rebuild even when present.
@@ -42,7 +42,7 @@ if [ -n "${FORCE_REBUILD_BASE_IMAGE:-}" ]; then
     CLI_ARGS+=(-overwrite)
 fi
 
-log "Running cmd/build-base-image (60-120s: apt + nodejs + npm install claude)"
+log "Running cmd/build-base-image (60-120s: apt + nodejs + npm install agent CLIs)"
 (
     cd "$INSTALL_DIR/backend"
     go run ./cmd/build-base-image "${CLI_ARGS[@]}"

@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import type { ChatMeta, ChatMode, ChatStatus, QueuedPrompt } from "../../models/chat";
+import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt } from "../../models/chat";
 import type { Attachment } from "../../models/upload";
 import type { Block } from "../../state/chat/messageBlocks";
 import type { UsageTotals } from "../../state/chat/usage";
@@ -48,6 +48,7 @@ export function ChatThread({
   onCancel,
   onRemoveQueued,
   onRemoveAttachment,
+  onProviderChange,
   onModelChange,
   onModeChange,
   onOpenTerminal,
@@ -106,6 +107,7 @@ export function ChatThread({
   onCancel: () => void;
   onRemoveQueued: (id: string) => void;
   onRemoveAttachment: (id: string) => void;
+  onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
   onOpenTerminal: () => void;
@@ -163,6 +165,7 @@ export function ChatThread({
         streaming={streaming}
         canSendPrompt={canSendPrompt}
         model={chat.model || ""}
+        provider={chat.provider || "claude"}
         mode={mode}
         queuedPrompts={queuedPrompts}
         draftText={draftText}
@@ -180,6 +183,7 @@ export function ChatThread({
         onCancel={onCancel}
         onRemoveQueued={onRemoveQueued}
         onRemoveAttachment={onRemoveAttachment}
+        onProviderChange={onProviderChange}
         onModelChange={onModelChange}
         onModeChange={onModeChange}
       />

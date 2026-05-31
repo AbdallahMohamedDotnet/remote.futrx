@@ -1,18 +1,19 @@
 # Base Image: `futrx-remote-dev-base`
 
-Every project container is launched from a custom LXD image, **`futrx-remote-dev-base`**, baked once on the host. Keeping the image preinstalled with Node + Claude means container creation takes ~5s instead of ~90s, and the first prompt is no longer dominated by an apt/npm install.
+Every project container is launched from a custom LXD image, **`futrx-remote-dev-base`**, baked once on the host. Keeping the image preinstalled with Node + Claude + Codex means container creation takes ~5s instead of ~90s, and the first prompt is no longer dominated by an apt/npm install.
 
 ## What the image contains
 
 - Ubuntu 24.04 (from `ubuntu:24.04`)
 - Node.js 20 (via `deb.nodesource.com/setup_20.x`)
 - `@anthropic-ai/claude-code` (latest at build time)
+- `@openai/codex` (latest at build time)
 
 The exact recipe lives in one place in the codebase:
 
 - [`internal/manager/containers/baseimage.go`](../backend/internal/manager/containers/baseimage.go) — the `BaseImageInstallScript` constant.
 
-That same constant is what `EnsureClaude` runs as a fallback inside any container that was launched from an older image and is missing Claude. The two paths can't drift.
+That same constant is what `EnsureClaude` / `EnsureCodex` run as a fallback inside any container that was launched from an older image and is missing either CLI. The two paths can't drift.
 
 ## Building / rebuilding the image
 
@@ -24,7 +25,7 @@ cd backend
 # First-time build (no existing alias):
 go run ./cmd/build-base-image
 
-# Rebuild after bumping Node / Claude:
+# Rebuild after bumping Node / Claude / Codex:
 go run ./cmd/build-base-image -overwrite
 
 # Custom alias (for testing a new image without disrupting production):
@@ -37,7 +38,7 @@ Typical runtime: 60-120s. The CLI logs progress and prints the published alias o
 
 ## Effect on existing containers
 
-Rebuilding the image only affects **new** containers (launched from this point forward). Existing containers keep whatever Node / Claude they were created with. Three ways to bring them up to date — pick based on whether you care about preserving their non-`/workspace` state:
+Rebuilding the image only affects **new** containers (launched from this point forward). Existing containers keep whatever Node / agent CLIs they were created with. Three ways to bring them up to date — pick based on whether you care about preserving their non-`/workspace` state:
 
 | Path | Effect | Command |
 | --- | --- | --- |

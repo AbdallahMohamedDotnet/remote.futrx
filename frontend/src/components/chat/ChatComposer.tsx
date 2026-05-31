@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import type { ChatMode, QueuedPrompt } from "../../models/chat";
+import type { ChatMode, ChatProvider, QueuedPrompt } from "../../models/chat";
 import type { Attachment } from "../../models/upload";
 import { Plus, Upload } from "../ui/icons";
 import { AttachmentTray } from "./AttachmentTray";
@@ -12,6 +12,7 @@ export function ChatComposer({
   streaming,
   canSendPrompt,
   model,
+  provider,
   mode,
   queuedPrompts,
   attachments,
@@ -27,6 +28,7 @@ export function ChatComposer({
   onCancel,
   onRemoveQueued,
   onRemoveAttachment,
+  onProviderChange,
   onModelChange,
   onModeChange,
 }: {
@@ -34,6 +36,7 @@ export function ChatComposer({
   streaming: boolean;
   canSendPrompt: boolean;
   model: string;
+  provider: ChatProvider;
   mode: ChatMode;
   queuedPrompts: QueuedPrompt[];
   draftText?: string;
@@ -51,6 +54,7 @@ export function ChatComposer({
   onCancel: () => void;
   onRemoveQueued: (id: string) => void;
   onRemoveAttachment: (id: string) => void;
+  onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
 }) {
@@ -71,8 +75,10 @@ export function ChatComposer({
 
       <ComposerToolbar
         model={model}
+        provider={provider}
         mode={mode}
         streaming={streaming}
+        onProviderChange={onProviderChange}
         onModelChange={onModelChange}
         onModeChange={onModeChange}
       />

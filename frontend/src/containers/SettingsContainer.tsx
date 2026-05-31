@@ -1,5 +1,6 @@
 import { SettingsPage } from "../components/settings/SettingsPage";
 import { useUserSettingsContext } from "../context/UserSettingsContext";
+import { useCodexAuth } from "../hooks/auth/useCodexAuth";
 
 export function SettingsContainer({
   onBack,
@@ -9,6 +10,7 @@ export function SettingsContainer({
   onHamburger: () => void;
 }) {
   const userSettings = useUserSettingsContext();
+  const codexAuth = useCodexAuth(true);
 
   return (
     <SettingsPage
@@ -16,9 +18,14 @@ export function SettingsContainer({
       appearanceLoading={userSettings.loading}
       appearanceSaving={userSettings.saving}
       appearanceError={userSettings.error}
+      codexAuthenticated={codexAuth.authenticated}
+      codexLoading={codexAuth.loading}
+      codexSaving={codexAuth.saving}
+      codexError={codexAuth.error}
       onBack={onBack}
       onHamburger={onHamburger}
       onAppearanceThemeChange={(theme) => void userSettings.setTheme(theme)}
+      onSaveCodexAPIKey={codexAuth.loginWithAPIKey}
     />
   );
 }

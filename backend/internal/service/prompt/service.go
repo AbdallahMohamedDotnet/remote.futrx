@@ -9,6 +9,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
 	claudeprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/claude"
+	codexprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/codex"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -35,13 +36,16 @@ type ContainerPreparer interface {
 	EnsureClaudeMD(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error
+	EnsureCodex(ctx context.Context, containerName string) error
+	EnsureCodexAuth(ctx context.Context, containerName string) error
+	SyncCodexAuthFromContainer(ctx context.Context, containerName string) error
 }
 
 type Service struct {
-	store servicechat.Repository
-	tmux  TmuxClient
-	hub   *runhub.Hub
-	agent agent.Provider
+	store  servicechat.Repository
+	tmux   TmuxClient
+	hub    *runhub.Hub
+	agents map[agent.ProviderID]agent.Provider
 }
 
 func New(
@@ -58,7 +62,10 @@ func New(
 		store: store,
 		tmux:  tmux,
 		hub:   hub,
-		agent: claudeprovider.New(projects, containers),
+		agents: map[agent.ProviderID]agent.Provider{
+			agent.ProviderClaude: claudeprovider.New(projects, containers),
+			agent.ProviderCodex:  codexprovider.New(projects, containers),
+		},
 	}
 }
 
@@ -129,33 +136,54 @@ func (rnr *Service) runPrompt(
 
 	priorEvents, _ := rnr.store.ReadEvents(ctx, id)
 
-	// Persist the user message before spawning claude.
+	// Persist the user message before spawning the selected agent.
 	emit(ChatEvent{T: time.Now().UnixMilli(), Type: "user", Text: prompt})
 
+	providerID := providerIDFromChatProvider(meta.Provider)
+	resumeID := sessionIDForProvider(meta, providerID)
 	effectivePrompt := promptForMode(meta.Mode, prompt)
-	if meta.ClaudeSessionID == "" {
+	if resumeID == "" {
 		effectivePrompt = promptWithVisibleHistory(priorEvents, effectivePrompt)
 	}
 
-	if rnr.agent == nil {
-		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "agent provider not configured"})
+	provider := rnr.agents[providerID]
+	if provider == nil {
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " provider not configured"})
 		return
 	}
 
-	err = rnr.agent.Run(ctx, agent.RunRequest{
-		Provider:       agent.ProviderClaude,
+	err = provider.Run(ctx, agent.RunRequest{
+		Provider:       providerID,
 		ConversationID: string(id),
 		Prompt:         effectivePrompt,
 		Cwd:            cwd,
 		Model:          meta.Model,
 		Mode:           meta.Mode,
-		ResumeID:       meta.ClaudeSessionID,
+		ResumeID:       resumeID,
 		ProjectID:      string(meta.ProjectID),
 	}, func(ev agent.Event) {
 		rnr.emitAgentEvent(ctx, id, ev, emit)
 	})
 	if err != nil && !errors.Is(err, agent.ErrRunFailed) {
-		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: "claude exit: " + err.Error()})
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " exit: " + err.Error()})
+	}
+}
+
+func providerIDFromChatProvider(provider servicechat.Provider) agent.ProviderID {
+	switch servicechat.NormalizeProvider(provider) {
+	case servicechat.ProviderCodex:
+		return agent.ProviderCodex
+	default:
+		return agent.ProviderClaude
+	}
+}
+
+func sessionIDForProvider(meta ChatMeta, provider agent.ProviderID) string {
+	switch provider {
+	case agent.ProviderCodex:
+		return meta.CodexSessionID
+	default:
+		return meta.ClaudeSessionID
 	}
 }
 

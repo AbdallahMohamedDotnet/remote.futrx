@@ -1,14 +1,36 @@
 import type { ChatEvent } from "../../models/chat";
 import type { ChatMode } from "../../models/chat";
+import type { ChatProvider } from "../../models/chat";
 
-export const MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
+export const PROVIDER_OPTIONS: Array<{ value: ChatProvider; label: string }> = [
+  { value: "claude", label: "Claude" },
+  { value: "codex", label: "Codex" },
+];
+
+export const CLAUDE_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
   { value: "", label: "Auto", sub: "server default" },
   { value: "opus", label: "Opus", sub: "deepest reasoning" },
   { value: "sonnet", label: "Sonnet", sub: "balanced" },
   { value: "haiku", label: "Haiku", sub: "fast" },
 ];
 
-export const COMPOSER_MODEL_OPTIONS = MODEL_OPTIONS.map(({ value, label }) => ({ value, label }));
+export const CODEX_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
+  { value: "", label: "Auto", sub: "codex default" },
+  { value: "gpt-5.5", label: "GPT-5.5", sub: "frontier coding" },
+  { value: "gpt-5.4", label: "GPT-5.4", sub: "strong everyday coding" },
+  { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", sub: "fast" },
+  { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", sub: "coding optimized" },
+];
+
+export const MODEL_OPTIONS = CLAUDE_MODEL_OPTIONS;
+
+export function modelOptionsForProvider(provider?: ChatProvider) {
+  return provider === "codex" ? CODEX_MODEL_OPTIONS : CLAUDE_MODEL_OPTIONS;
+}
+
+export function composerModelOptionsForProvider(provider?: ChatProvider) {
+  return modelOptionsForProvider(provider).map(({ value, label }) => ({ value, label }));
+}
 
 export const MODE_OPTIONS: Array<{ value: ChatMode; label: string }> = [
   { value: "chat", label: "Chat" },
@@ -19,9 +41,17 @@ export const MODE_OPTIONS: Array<{ value: ChatMode; label: string }> = [
   { value: "full-auto", label: "Full auto" },
 ];
 
-export function modelDisplayLabel(model?: string): string {
+export function providerDisplayLabel(provider?: ChatProvider): string {
+  return provider === "codex" ? "Codex" : "Claude";
+}
+
+export function modelDisplayLabel(model?: string, provider?: ChatProvider): string {
   if (!model) return "Auto";
   const lower = model.toLowerCase();
+  if (provider === "codex") {
+    const match = CODEX_MODEL_OPTIONS.find((option) => option.value === model);
+    return match?.label ?? model;
+  }
   if (lower.includes("opus")) return "Opus";
   if (lower.includes("sonnet")) return "Sonnet";
   if (lower.includes("haiku")) return "Haiku";

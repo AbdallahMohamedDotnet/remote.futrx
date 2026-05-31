@@ -9,11 +9,19 @@ import (
 
 type ID string
 type ProjectID string
+type Provider string
+
+const (
+	ProviderClaude Provider = "claude"
+	ProviderCodex  Provider = "codex"
+)
 
 type Meta struct {
 	ID              ID        `json:"id"`
 	Title           string    `json:"title"`
+	Provider        Provider  `json:"provider,omitempty"`
 	ClaudeSessionID string    `json:"claudeSessionId,omitempty"`
+	CodexSessionID  string    `json:"codexSessionId,omitempty"`
 	TmuxSession     string    `json:"tmuxSession,omitempty"`
 	Cwd             string    `json:"cwd,omitempty"`
 	CreatedAt       int64     `json:"createdAt"`
@@ -38,6 +46,8 @@ type Event struct {
 	Subtype         string          `json:"subtype,omitempty"`
 	Data            json.RawMessage `json:"data,omitempty"`
 	ClaudeSessionID string          `json:"claudeSessionId,omitempty"`
+	CodexSessionID  string          `json:"codexSessionId,omitempty"`
+	Provider        Provider        `json:"provider,omitempty"`
 	Usage           json.RawMessage `json:"usage,omitempty"`
 	Message         string          `json:"message,omitempty"`
 	Running         bool            `json:"running,omitempty"`
@@ -59,16 +69,27 @@ type CreateInput struct {
 	Title       string    `json:"title,omitempty"`
 	TmuxSession string    `json:"tmuxSession,omitempty"`
 	Cwd         string    `json:"cwd,omitempty"`
+	Provider    Provider  `json:"provider,omitempty"`
 	Model       string    `json:"model,omitempty"`
 	Mode        string    `json:"mode,omitempty"`
 	ProjectID   ProjectID `json:"projectId,omitempty"`
 }
 
 type UpdateInput struct {
-	Title *string `json:"title,omitempty"`
-	Cwd   *string `json:"cwd,omitempty"`
-	Model *string `json:"model,omitempty"`
-	Mode  *string `json:"mode,omitempty"`
+	Title    *string   `json:"title,omitempty"`
+	Cwd      *string   `json:"cwd,omitempty"`
+	Provider *Provider `json:"provider,omitempty"`
+	Model    *string   `json:"model,omitempty"`
+	Mode     *string   `json:"mode,omitempty"`
+}
+
+func NormalizeProvider(provider Provider) Provider {
+	switch provider {
+	case ProviderCodex:
+		return ProviderCodex
+	default:
+		return ProviderClaude
+	}
 }
 
 func ValidID(id ID) bool {

@@ -6,7 +6,7 @@ export function SidebarEmptyState({ onNewProject }: { onNewProject: () => void }
       <Folder class="w-8 h-8 mx-auto mb-3 opacity-50" />
       <div class="text-ink-100 font-medium">No projects yet</div>
       <div class="text-[12px] mt-1.5 leading-relaxed">
-        Each project gets its own sandboxed container. Claude runs inside.
+        Each project gets its own sandboxed container. Agent CLIs run inside.
       </div>
       <button
         type="button"

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/codexauth"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
@@ -39,11 +40,12 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		Chats:      httphandlers.NewChatHandler(deps.Services.Chats),
 		Projects:   httphandlers.NewProjectHandler(deps.Services.Projects),
 		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
+		CodexAuth:  httphandlers.NewCodexAuthHandler(codexauth.New()),
 		UserSettings: httphandlers.NewUserSettingsHandler(
 			deps.Services.UserSettings,
 			deps.Services.Auth,
 		),
-		Uploads: uploads,
+		Uploads:    uploads,
 		TmuxWS:     wstransport.NewTmuxSocket(deps.TmuxClient),
 		TerminalWS: wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects),
 		ChatWS:     wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt),

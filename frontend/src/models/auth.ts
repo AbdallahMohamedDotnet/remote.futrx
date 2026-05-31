@@ -16,6 +16,10 @@ export interface ClaudeLoginStart {
   resumed?: boolean;
 }
 
+export interface CodexAuthStatus {
+  authenticated: boolean;
+}
+
 export type ClaudeLoginPhase =
   | "idle"
   | "starting"

@@ -39,9 +39,9 @@ export function PromptTextarea({
       spellcheck={false}
       placeholder={
         uploading ? "Uploading..." :
-        streaming ? "Queue next prompt while Claude is working" :
+        streaming ? "Queue next prompt while the agent is working" :
         disconnected ? "Connecting..." :
-        "Ask Codex anything, @ to add files, / for commands"
+        "Ask anything, @ to add files, / for commands"
       }
       disabled={disconnected}
       class="codex-composer-textarea flex-1 resize-none rounded-md

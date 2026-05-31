@@ -1,10 +1,10 @@
-// remote.futrx.dev: self-hosted Claude Code chat + terminal-PTY server.
+// remote.futrx.dev: self-hosted Claude Code / Codex chat + terminal-PTY server.
 //
 // Backend serves:
 //   - Static SPA (Preact/Vite bundle) embedded via go:embed
 //   - HTTP API for chat metadata + per-chat upload
 //   - WS /ws for tmux PTY streaming (terminal SSH bridge, no UI surfaces it)
-//   - WS /ws/chat/{id} for claude streaming (stream-json + partial messages)
+//   - WS /ws/chat/{id} for agent streaming
 
 package main
 
@@ -35,13 +35,14 @@ func main() {
 	}
 	containerManager := containers.New(lxc.New())
 	containerManager.RegisterAuthBundle(containers.ClaudeAuthBundle())
+	containerManager.RegisterAuthBundle(containers.CodexAuthBundle())
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:          storeSet.Chats,
 		Projects:       storeSet.Projects,
 		ProjectSecrets: storeSet.ProjectSecrets,
 		Auth:           storeSet.Auth,
-		UserSettings:  storeSet.UserSettings,
+		UserSettings:   storeSet.UserSettings,
 		AuthBaseURL:    cfg.BaseURL,
 		Containers:     containerManager,
 		TmuxClient:     tmuxClient,

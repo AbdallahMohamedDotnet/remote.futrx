@@ -81,6 +81,11 @@ export interface ClaudeContainerStatus {
   claudeMdInSync: boolean;
 }
 
+export interface CodexContainerStatus {
+  installed: boolean;
+  version?: string;
+}
+
 export interface AuthBundleFileStatus {
   hostPath: string;
   containerPath: string;
@@ -114,6 +119,7 @@ export interface ProjectContainerInfo {
   disks?: DiskUsage[];
   limits?: ContainerLimits;
   claude: ClaudeContainerStatus;
+  codex: CodexContainerStatus;
   authBundles: AuthBundleStatus[];
 }
 

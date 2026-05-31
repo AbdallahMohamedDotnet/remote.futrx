@@ -1,23 +1,34 @@
 import type { AppearanceTheme } from "../../models/settings";
 import { ChevronLeft, Menu } from "../ui/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
+import { CodexAuthSettings } from "./CodexAuthSettings";
 
 export function SettingsPage({
   appearanceTheme,
   appearanceLoading,
   appearanceSaving,
   appearanceError,
+  codexAuthenticated,
+  codexLoading,
+  codexSaving,
+  codexError,
   onBack,
   onHamburger,
   onAppearanceThemeChange,
+  onSaveCodexAPIKey,
 }: {
   appearanceTheme: AppearanceTheme;
   appearanceLoading: boolean;
   appearanceSaving: boolean;
   appearanceError: string | null;
+  codexAuthenticated: boolean;
+  codexLoading: boolean;
+  codexSaving: boolean;
+  codexError: string | null;
   onBack: () => void;
   onHamburger: () => void;
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
+  onSaveCodexAPIKey: (apiKey: string) => Promise<void>;
 }) {
   return (
     <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -54,8 +65,16 @@ export function SettingsPage({
             onThemeChange={onAppearanceThemeChange}
           />
 
+          <CodexAuthSettings
+            authenticated={codexAuthenticated}
+            loading={codexLoading}
+            saving={codexSaving}
+            error={codexError}
+            onSaveAPIKey={onSaveCodexAPIKey}
+          />
+
           <p class="text-[13px] leading-relaxed text-ink-300">
-            Provider credentials (GitHub PAT, Cloudflare token, Hetzner token, GCP service-account JSON)
+            Project credentials (GitHub PAT, Cloudflare token, Hetzner token, GCP service-account JSON)
             are now configured <strong class="text-ink-100">per project</strong> from each project's
             Containers page. That keeps account boundaries clean — project A can target one Cloudflare
             account, project B another, without conflating them.

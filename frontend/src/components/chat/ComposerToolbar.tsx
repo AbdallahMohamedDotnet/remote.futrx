@@ -1,23 +1,43 @@
-import type { ChatMode } from "../../models/chat";
-import { COMPOSER_MODEL_OPTIONS, MODE_OPTIONS } from "../../state/chat/usage";
+import type { ChatMode, ChatProvider } from "../../models/chat";
+import { composerModelOptionsForProvider, MODE_OPTIONS, PROVIDER_OPTIONS } from "../../state/chat/usage";
 import { Clock } from "../ui/icons";
 
 export function ComposerToolbar({
   model,
+  provider,
   mode,
   streaming,
+  onProviderChange,
   onModelChange,
   onModeChange,
 }: {
   model: string;
+  provider: ChatProvider;
   mode: ChatMode;
   streaming: boolean;
+  onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
 }) {
+  const modelOptions = composerModelOptionsForProvider(provider);
   return (
     <div class="codex-composer-controls px-3 pt-2 pb-1.5">
       <div class="w-full flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <label class="codex-model-control inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
+          <span class="hidden sm:inline text-ink-400">Provider</span>
+          <select
+            value={provider}
+            onChange={(event) => onProviderChange((event.currentTarget as HTMLSelectElement).value as ChatProvider)}
+            class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
+            title="Provider"
+            disabled={streaming}
+          >
+            {PROVIDER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+
         <label class="codex-model-control hidden sm:inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
           <span class="hidden sm:inline text-ink-400">Model</span>
           <select
@@ -25,11 +45,12 @@ export function ComposerToolbar({
             onChange={(event) => onModelChange((event.currentTarget as HTMLSelectElement).value)}
             class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
             title="Model"
+            disabled={streaming}
           >
-            {model && !COMPOSER_MODEL_OPTIONS.some((option) => option.value === model) && (
+            {model && !modelOptions.some((option) => option.value === model) && (
               <option value={model}>{model}</option>
             )}
-            {COMPOSER_MODEL_OPTIONS.map((option) => (
+            {modelOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>

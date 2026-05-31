@@ -49,6 +49,15 @@ These endpoints drive the host's interactive `claude auth login`. They are the *
 | `POST` | `/api/claude/login/code` | `claudeAuthService.submitCode(code)` | `{ "code": string }` | `{ "success": true }` when the pasted OAuth code completes login. | Immediately after `/login/start`, when the user pastes the code returned from claude.com. |
 | `POST` | `/api/claude/login/cancel` | `claudeAuthService.cancelLogin()` | `{}` | `{ "ok": true }`. Cancels the active Claude login process. | User abandons the in-progress login (closes the modal, navigates away). |
 
+### Codex CLI Auth
+
+These endpoints drive the host's `codex login --with-api-key` flow. The resulting `/root/.codex/auth.json` is pushed into project containers before Codex prompt runs and pulled back after successful runs.
+
+| Method | Path | Frontend caller | Request | Response | When called |
+| --- | --- | --- | --- | --- | --- |
+| `GET` | `/api/codex/auth-status` | `codexAuthService.status()` | None | `{ "authenticated": boolean }` based on `/root/.codex/auth.json`. | Settings page load / refresh. |
+| `POST` | `/api/codex/login/api-key` | `codexAuthService.loginWithAPIKey(apiKey)` | `{ "apiKey": string }` | `{ "success": true }` when `codex login --with-api-key` writes auth. | Admin saves or replaces the Codex API key in Settings. |
+
 ### Chats
 
 | Method | Path | Frontend caller | Request | Response |
@@ -117,13 +126,13 @@ Client to server messages:
 { "type": "prompt", "text": "User prompt text" }
 ```
 
-Starts a Claude prompt run for the chat.
+Starts a prompt run for the chat's selected provider.
 
 ```json
 { "type": "cancel" }
 ```
 
-Cancels the active Claude prompt run.
+Cancels the active provider prompt run.
 
 Server to client messages are JSON `ChatEvent` objects. Common types:
 
@@ -132,12 +141,12 @@ Server to client messages are JSON `ChatEvent` objects. Common types:
 | `sync` | Current running state, for example `{ "type": "sync", "running": true }`. |
 | `user` | Persisted user prompt. |
 | `assistant_text` | Streamed assistant text delta. |
-| `thinking` | Claude thinking text when present. |
+| `thinking` | Provider reasoning/thinking text when present. |
 | `tool_use_start` | Tool call started. Includes `id`, `name`, and `input`. |
 | `tool_use_end` | Tool call completed. Includes `id`, `output`, and optional `isError`. |
 | `system` | Progress/system event. Includes `subtype` and optional `data`. |
-| `session` | Claude session id update. Includes `claudeSessionId`. |
-| `complete` | Claude run completed. Includes raw Claude `usage` when available. |
+| `session` | Provider session/thread id update. Includes `provider` plus `claudeSessionId` or `codexSessionId`. |
+| `complete` | Provider run completed. Includes normalized `usage` when available. |
 | `error` | User-visible error. Includes `message`. |
 
 ### Workspace Stream
@@ -222,7 +231,9 @@ interface AuthSession {
 interface ChatMeta {
   id: string;
   title: string;
+  provider?: "claude" | "codex";
   claudeSessionId?: string;
+  codexSessionId?: string;
   tmuxSession?: string;
   cwd?: string;
   createdAt: number;

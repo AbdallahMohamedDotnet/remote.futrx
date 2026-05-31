@@ -25,6 +25,7 @@ type Handlers struct {
 	Chats        RouteRegistrar
 	Projects     RouteRegistrar
 	ClaudeAuth   RouteRegistrar
+	CodexAuth    RouteRegistrar
 	UserSettings RouteRegistrar
 	Uploads      RouteRegistrar
 	TmuxWS       WebSocketRegistrar
@@ -48,6 +49,7 @@ func NewHandler(handlers Handlers) http.Handler {
 	register(handlers.Chats)
 	register(handlers.Projects)
 	register(handlers.ClaudeAuth)
+	register(handlers.CodexAuth)
 	register(handlers.UserSettings)
 	register(handlers.Uploads)
 

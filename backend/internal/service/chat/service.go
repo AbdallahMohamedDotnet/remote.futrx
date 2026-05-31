@@ -43,6 +43,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 	if mode == "" {
 		mode = "code"
 	}
+	provider := NormalizeProvider(in.Provider)
 
 	cwd := strings.TrimSpace(in.Cwd)
 	if cwd == "" && in.ProjectID != "" && s.projects != nil {
@@ -64,6 +65,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 
 	return s.repo.Create(ctx, Meta{
 		Title:       title,
+		Provider:    provider,
 		TmuxSession: in.TmuxSession,
 		Cwd:         cwd,
 		Model:       in.Model,
@@ -83,6 +85,9 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		}
 		if in.Cwd != nil {
 			m.Cwd = *in.Cwd
+		}
+		if in.Provider != nil {
+			m.Provider = NormalizeProvider(*in.Provider)
 		}
 		if in.Model != nil {
 			m.Model = *in.Model

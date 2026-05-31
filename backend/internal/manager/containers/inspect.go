@@ -143,6 +143,7 @@ func (m *Manager) Inspect(ctx context.Context, containerName string) (servicepro
 		out.OS = osInfo
 		out.Disks = disks
 		out.Claude = m.inspectClaude(ctx, containerName)
+		out.Codex = m.inspectCodex(ctx, containerName)
 	}
 
 	out.AuthBundles = m.inspectAuthBundles(ctx, containerName, state)
@@ -279,6 +280,17 @@ func (m *Manager) inspectClaude(ctx context.Context, containerName string) servi
 	}
 	if got, err := m.runQuick(ctx, "exec", containerName, "--", "cat", containerClaudeMDHash); err == nil {
 		cs.ClaudeMDInSync = strings.TrimSpace(got) == claudeMDHash()
+	}
+	return cs
+}
+
+func (m *Manager) inspectCodex(ctx context.Context, containerName string) serviceproject.CodexContainerStatus {
+	var cs serviceproject.CodexContainerStatus
+	if _, err := m.runQuick(ctx, "exec", containerName, "--", "which", "codex"); err == nil {
+		cs.Installed = true
+		if v, err := m.runQuick(ctx, "exec", containerName, "--", "codex", "--version"); err == nil {
+			cs.Version = strings.TrimSpace(v)
+		}
 	}
 	return cs
 }

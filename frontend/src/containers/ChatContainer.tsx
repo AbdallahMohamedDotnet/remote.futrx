@@ -1,6 +1,6 @@
 import type { ComponentType } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { ChatMeta, ChatMode } from "../models/chat";
+import type { ChatMeta, ChatMode, ChatProvider } from "../models/chat";
 import { ChatThread } from "../components/chat/ChatThread";
 import { useChat } from "../hooks/chat/useChat";
 import { useAttachmentUpload } from "../hooks/chat/useAttachmentUpload";
@@ -14,7 +14,7 @@ import { projectService } from "../services/projectService";
 import {
   estimateCost,
   formatTokens,
-  MODEL_OPTIONS,
+  modelOptionsForProvider,
   modelDisplayLabel,
   tokenTotal,
 } from "../state/chat/usage";
@@ -51,6 +51,7 @@ export function ChatContainer({
     refreshMeta,
   } = useChat(chat.id);
   const displayMeta = meta ?? chat;
+  const displayProvider = displayMeta.provider || "claude";
   const displayMode = displayMeta.mode || "code";
   const [text, setText] = useState("");
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -74,7 +75,7 @@ export function ChatContainer({
     sendPrompt,
     onSent: scroll.unlockAutoScroll,
   });
-  const costUsd = estimateCost(usageTotals, displayMeta.model || "");
+  const costUsd = displayProvider === "claude" ? estimateCost(usageTotals, displayMeta.model || "") : 0;
   const tokenLabel = formatTokens(tokenTotal(usageTotals));
 
   useEffect(() => {
@@ -171,6 +172,11 @@ export function ChatContainer({
     if (model !== displayMeta.model) metaActions.applyMeta({ model });
   }
 
+  function changeProvider(provider: ChatProvider) {
+    if (provider === displayProvider) return;
+    metaActions.applyMeta({ provider, model: "" });
+  }
+
   function changeMode(mode: ChatMode) {
     metaActions.applyMeta({ mode });
   }
@@ -226,8 +232,8 @@ export function ChatContainer({
         header={{
           modelRef: header.modelRef,
           modelOpen: header.modelOpen,
-          modelOptions: MODEL_OPTIONS,
-          modelDisplayLabel,
+          modelOptions: modelOptionsForProvider(displayProvider),
+          modelDisplayLabel: (model) => modelDisplayLabel(model, displayProvider),
           editingCwd: header.editingCwd,
           cwdInput: header.cwdInput,
           onToggleModel: () => header.setModelOpen(!header.modelOpen),
@@ -256,6 +262,7 @@ export function ChatContainer({
         onCancel={cancel}
         onRemoveQueued={queue.removeQueuedPrompt}
         onRemoveAttachment={upload.removeAttachment}
+        onProviderChange={changeProvider}
         onModelChange={(model) => metaActions.applyMeta({ model })}
         onModeChange={changeMode}
         onOpenTerminal={() => setTerminalOpen(true)}

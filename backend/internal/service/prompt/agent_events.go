@@ -16,7 +16,12 @@ func (rnr *Service) emitAgentEvent(
 ) {
 	if ev.Type == agent.EventSessionUpdated && ev.SessionID != "" {
 		_, _ = rnr.store.Update(ctx, id, func(m *ChatMeta) {
-			m.ClaudeSessionID = ev.SessionID
+			switch ev.Provider {
+			case agent.ProviderCodex:
+				m.CodexSessionID = ev.SessionID
+			default:
+				m.ClaudeSessionID = ev.SessionID
+			}
 			if m.Model == "" && ev.Model != "" {
 				m.Model = ev.Model
 			}
@@ -39,7 +44,13 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 	switch ev.Type {
 	case agent.EventSessionUpdated:
 		out.Type = "session"
-		out.ClaudeSessionID = ev.SessionID
+		out.Provider = chatProviderFromAgentProvider(ev.Provider)
+		switch ev.Provider {
+		case agent.ProviderCodex:
+			out.CodexSessionID = ev.SessionID
+		default:
+			out.ClaudeSessionID = ev.SessionID
+		}
 	case agent.EventSystem:
 		out.Type = "system"
 		out.Subtype = ev.Subtype
@@ -70,4 +81,13 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		return ChatEvent{}, false
 	}
 	return out, true
+}
+
+func chatProviderFromAgentProvider(provider agent.ProviderID) servicechat.Provider {
+	switch provider {
+	case agent.ProviderCodex:
+		return servicechat.ProviderCodex
+	default:
+		return servicechat.ProviderClaude
+	}
 }

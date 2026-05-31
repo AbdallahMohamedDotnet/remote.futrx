@@ -1,6 +1,7 @@
 import type { RefObject } from "preact";
 import type { ChatMeta } from "../../models/chat";
 import type { UsageTotals } from "../../state/chat/usage";
+import { providerDisplayLabel } from "../../state/chat/usage";
 import { Menu, MessageSquare } from "../ui/icons";
 import { CwdEditor } from "./CwdEditor";
 import { ModelPicker } from "./ModelPicker";
@@ -79,7 +80,7 @@ export function ThreadHeader({
             />
           </div>
           <div class="text-[12px] text-ink-300 truncate">
-            {streaming ? "Working" : "Ready"}
+            {providerDisplayLabel(chat.provider)} · {streaming ? "Working" : "Ready"}
           </div>
         </div>
 

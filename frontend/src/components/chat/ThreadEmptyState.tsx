@@ -8,7 +8,7 @@ export function ThreadEmptyState({ cwd }: { cwd?: string }) {
       </div>
       <div class="font-semibold text-ink-100 text-base">Start a conversation</div>
       <div class="text-xs mt-2 leading-relaxed">
-        Claude runs with full tool access in{" "}
+        The selected agent runs with full tool access in{" "}
         <span class="font-mono text-ink-100">{cwd || "~"}</span>.
         Drop, paste, or upload files to reference them.
       </div>

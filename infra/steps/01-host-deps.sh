@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host-level system dependencies: apt base, Node 20, Go, Caddy, claude CLI, LXD.
+# Host-level system dependencies: apt base, Node 20, Go, Caddy, agent CLIs, LXD.
 # Idempotent — re-runs are fast no-ops when everything's already installed.
 #
 # Expects from caller:
@@ -73,12 +73,18 @@ if ! command -v caddy >/dev/null; then
 fi
 ok "$(caddy version | head -1)"
 
-# ───────────────── claude CLI (host-side; only used by claude-login bridge) ─────────────────
+# ───────────────── agent CLIs (host-side auth/provisioning) ─────────────────
 if ! command -v claude >/dev/null; then
     log "Installing Claude Code CLI (via npm)"
     npm install -g @anthropic-ai/claude-code --silent 2>&1 | tail -3
 fi
 ok "claude $(claude --version 2>&1 | head -1)"
+
+if ! command -v codex >/dev/null; then
+    log "Installing Codex CLI (via npm)"
+    npm install -g @openai/codex --silent 2>&1 | tail -3
+fi
+ok "codex $(codex --version 2>&1 | head -1)"
 
 # ───────────────── LXD (one container per project) ─────────────────
 if ! command -v lxc >/dev/null; then

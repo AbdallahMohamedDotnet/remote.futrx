@@ -83,6 +83,7 @@ type ContainerInspect struct {
 	Disks         []DiskUsage           `json:"disks,omitempty"`
 	Limits        *ContainerLimits      `json:"limits,omitempty"`
 	Claude        ClaudeContainerStatus `json:"claude"`
+	Codex         CodexContainerStatus  `json:"codex"`
 	AuthBundles   []AuthBundleStatus    `json:"authBundles"`
 }
 
@@ -140,6 +141,11 @@ type ClaudeContainerStatus struct {
 	Version           string `json:"version,omitempty"`
 	ClaudeMDInstalled bool   `json:"claudeMdInstalled"`
 	ClaudeMDInSync    bool   `json:"claudeMdInSync"`
+}
+
+type CodexContainerStatus struct {
+	Installed bool   `json:"installed"`
+	Version   string `json:"version,omitempty"`
 }
 
 type AuthBundleStatus struct {

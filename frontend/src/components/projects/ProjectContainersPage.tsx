@@ -243,6 +243,7 @@ function InfoBody({
       {info.workspace && <WorkspacePanel ws={info.workspace} />}
       {info.limits && <LimitsPanel limits={info.limits} />}
       <ClaudePanel claude={info.claude} />
+      <CodexPanel codex={info.codex} />
       {info.authBundles && info.authBundles.length > 0 && <AuthBundlesPanel bundles={info.authBundles} />}
     </>
   );
@@ -268,7 +269,7 @@ function SecretsBody({
       <SecretEditor onSave={onSave} />
       <SecretsList list={record.data ?? []} loading={record.loading && !record.data} onSave={onSave} onDelete={onDelete} />
       <p class="text-[11.5px] text-ink-400 leading-relaxed">
-        Secrets are passed to <span class="font-mono">claude</span> as <span class="font-mono">--env KEY=VALUE</span> on every prompt run. They never land in the container's filesystem and are not synced back from it.
+        Secrets are passed to the selected agent CLI as <span class="font-mono">--env KEY=VALUE</span> on every prompt run. They never land in the container's filesystem and are not synced back from it.
       </p>
     </>
   );
@@ -630,6 +631,17 @@ function ClaudePanel({ claude }: { claude: ProjectContainerInfo["claude"] }) {
           mono
           tone={claude.claudeMdInstalled && !claude.claudeMdInSync ? "warn" : undefined}
         />
+      </Grid>
+    </Panel>
+  );
+}
+
+function CodexPanel({ codex }: { codex: ProjectContainerInfo["codex"] }) {
+  return (
+    <Panel title="Codex provisioning">
+      <Grid>
+        <Field label="CLI installed" value={codex.installed ? "yes" : "no"} mono />
+        <Field label="Version" value={codex.version || "—"} mono />
       </Grid>
     </Panel>
   );

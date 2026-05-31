@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 )
 
 func TestChatEventFromAgentEventMapsSession(t *testing.T) {
@@ -17,6 +18,21 @@ func TestChatEventFromAgentEventMapsSession(t *testing.T) {
 		t.Fatal("expected event to map")
 	}
 	if ev.Type != "session" || ev.ClaudeSessionID != "claude-session" || ev.T != 123 {
+		t.Fatalf("unexpected chat event: %#v", ev)
+	}
+}
+
+func TestChatEventFromAgentEventMapsCodexSession(t *testing.T) {
+	ev, ok := chatEventFromAgentEvent(agent.Event{
+		T:         123,
+		Type:      agent.EventSessionUpdated,
+		Provider:  agent.ProviderCodex,
+		SessionID: "codex-thread",
+	})
+	if !ok {
+		t.Fatal("expected event to map")
+	}
+	if ev.Type != "session" || ev.CodexSessionID != "codex-thread" || ev.Provider != servicechat.ProviderCodex {
 		t.Fatalf("unexpected chat event: %#v", ev)
 	}
 }

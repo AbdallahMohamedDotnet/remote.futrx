@@ -9,7 +9,9 @@ import (
 type metaRecord struct {
 	ID              string `json:"id"`
 	Title           string `json:"title"`
+	Provider        string `json:"provider,omitempty"`
 	ClaudeSessionID string `json:"claudeSessionId,omitempty"`
+	CodexSessionID  string `json:"codexSessionId,omitempty"`
 	TmuxSession     string `json:"tmuxSession,omitempty"`
 	Cwd             string `json:"cwd,omitempty"`
 	CreatedAt       int64  `json:"createdAt"`
@@ -23,7 +25,9 @@ func metaRecordFromDomain(m servicechat.Meta) metaRecord {
 	return metaRecord{
 		ID:              string(m.ID),
 		Title:           m.Title,
+		Provider:        string(m.Provider),
 		ClaudeSessionID: m.ClaudeSessionID,
+		CodexSessionID:  m.CodexSessionID,
 		TmuxSession:     m.TmuxSession,
 		Cwd:             m.Cwd,
 		CreatedAt:       m.CreatedAt,
@@ -38,7 +42,9 @@ func (r metaRecord) toDomain() servicechat.Meta {
 	return servicechat.Meta{
 		ID:              servicechat.ID(r.ID),
 		Title:           r.Title,
+		Provider:        servicechat.NormalizeProvider(servicechat.Provider(r.Provider)),
 		ClaudeSessionID: r.ClaudeSessionID,
+		CodexSessionID:  r.CodexSessionID,
 		TmuxSession:     r.TmuxSession,
 		Cwd:             r.Cwd,
 		CreatedAt:       r.CreatedAt,
@@ -64,6 +70,8 @@ type eventRecord struct {
 	Subtype         string          `json:"subtype,omitempty"`
 	Data            json.RawMessage `json:"data,omitempty"`
 	ClaudeSessionID string          `json:"claudeSessionId,omitempty"`
+	CodexSessionID  string          `json:"codexSessionId,omitempty"`
+	Provider        string          `json:"provider,omitempty"`
 	Usage           json.RawMessage `json:"usage,omitempty"`
 	Message         string          `json:"message,omitempty"`
 	Running         bool            `json:"running,omitempty"`
@@ -85,6 +93,8 @@ func eventRecordFromDomain(ev servicechat.Event) eventRecord {
 		Subtype:         ev.Subtype,
 		Data:            ev.Data,
 		ClaudeSessionID: ev.ClaudeSessionID,
+		CodexSessionID:  ev.CodexSessionID,
+		Provider:        string(ev.Provider),
 		Usage:           ev.Usage,
 		Message:         ev.Message,
 		Running:         ev.Running,
@@ -107,6 +117,8 @@ func (r eventRecord) toDomain() servicechat.Event {
 		Subtype:         r.Subtype,
 		Data:            r.Data,
 		ClaudeSessionID: r.ClaudeSessionID,
+		CodexSessionID:  r.CodexSessionID,
+		Provider:        servicechat.Provider(r.Provider),
 		Usage:           r.Usage,
 		Message:         r.Message,
 		Running:         r.Running,

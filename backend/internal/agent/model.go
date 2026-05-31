@@ -12,6 +12,7 @@ type ProviderID string
 
 const (
 	ProviderClaude ProviderID = "claude"
+	ProviderCodex  ProviderID = "codex"
 )
 
 type EventType string

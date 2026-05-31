@@ -1,7 +1,9 @@
 export interface ChatMeta {
   id: string;
   title: string;
+  provider?: ChatProvider;
   claudeSessionId?: string;
+  codexSessionId?: string;
   tmuxSession?: string;
   cwd?: string;
   createdAt: number;
@@ -11,6 +13,7 @@ export interface ChatMeta {
   projectId?: string;
 }
 
+export type ChatProvider = "claude" | "codex";
 export type ChatMode = "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
 
 type ChatEventBase = { seq?: number; t: number };
@@ -23,7 +26,7 @@ export type ChatEvent = ChatEventBase & (
   | { type: "tool_use_end"; id: string; output?: string; isError?: boolean }
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
   | { type: "system"; subtype: string; data?: Record<string, unknown> }
-  | { type: "session"; claudeSessionId: string }
+  | { type: "session"; provider?: ChatProvider; claudeSessionId?: string; codexSessionId?: string }
   | {
       type: "complete";
       usage?: {
@@ -60,6 +63,7 @@ export interface CreateChatInput {
   tmuxSession?: string;
   cwd?: string;
   title?: string;
+  provider?: ChatProvider;
   model?: string;
   mode?: ChatMode;
   projectId?: string;
@@ -68,6 +72,7 @@ export interface CreateChatInput {
 export interface UpdateChatInput {
   title?: string;
   cwd?: string;
+  provider?: ChatProvider;
   model?: string;
   mode?: ChatMode;
 }
