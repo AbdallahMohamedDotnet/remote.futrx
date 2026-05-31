@@ -39,7 +39,6 @@ code.${HOSTNAME} {
     # 302 → forwarded to the browser so the user lands on the main login.
     forward_auth 127.0.0.1:${SERVICE_PORT} {
         uri /auth/verify
-        copy_headers Cookie
     }
     reverse_proxy 127.0.0.1:${CODE_SERVER_PORT}
 }
@@ -54,7 +53,6 @@ code.${HOSTNAME} {
     }
     forward_auth 127.0.0.1:${SERVICE_PORT} {
         uri /auth/verify
-        copy_headers Cookie
     }
     @internal path /internal/*
     handle @internal {
