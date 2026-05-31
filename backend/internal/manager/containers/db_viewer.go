@@ -41,19 +41,24 @@ install -d -m 0755 "$root"
 rm -f "$root/index.php"
 cat > "$root/index.php" <<'PHP'
 <?php
-function adminer_object() {
-    class RemoteFutrxAdminer extends Adminer {
-        function login($login, $password) {
-            return true;
+if (!function_exists('adminer_object')) {
+    function adminer_object() {
+        if (!class_exists('RemoteFutrxAdminer', false)) {
+            class RemoteFutrxAdminer extends Adminer {
+                function login($login, $password) {
+                    return true;
+                }
+            }
         }
+        return new RemoteFutrxAdminer();
     }
-    return new RemoteFutrxAdminer();
 }
 require "/usr/share/adminer/adminer.php";
 PHP
 
 if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
-  exit 0
+  kill "$(cat "$pidfile")" 2>/dev/null || true
+  rm -f "$pidfile"
 fi
 
 if timeout 1 bash -c ":</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
