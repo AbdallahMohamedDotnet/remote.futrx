@@ -20,12 +20,18 @@ type Dependencies struct {
 	Services   service.Services
 	TmuxClient TmuxClient
 	Static     fs.FS
+	DataDir    string
 }
 
-func NewHTTPHandler(deps Dependencies) http.Handler {
+func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	var auth httptransport.AuthRegistrar
 	if deps.Services.Auth != nil {
 		auth = httphandlers.NewAuthHandler(deps.Services.Auth)
+	}
+
+	uploads, err := httptransport.NewUploadHandler(deps.Services.Chats, deps.DataDir)
+	if err != nil {
+		return nil, err
 	}
 
 	return httptransport.NewHandler(httptransport.Handlers{
@@ -37,6 +43,7 @@ func NewHTTPHandler(deps Dependencies) http.Handler {
 			deps.Services.UserSettings,
 			deps.Services.Auth,
 		),
+		Uploads: uploads,
 		TmuxWS:     wstransport.NewTmuxSocket(deps.TmuxClient),
 		TerminalWS: wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects),
 		ChatWS:     wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt),
@@ -47,7 +54,7 @@ func NewHTTPHandler(deps Dependencies) http.Handler {
 		),
 		Auth:   auth,
 		Static: httptransport.NewStaticHandler(deps.Static),
-	})
+	}), nil
 }
 
 func NewHTTPServer(addr string, handler http.Handler) *http.Server {

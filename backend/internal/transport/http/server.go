@@ -26,6 +26,7 @@ type Handlers struct {
 	Projects     RouteRegistrar
 	ClaudeAuth   RouteRegistrar
 	UserSettings RouteRegistrar
+	Uploads      RouteRegistrar
 	TmuxWS       WebSocketRegistrar
 	TerminalWS   WebSocketRegistrar
 	ChatWS       WebSocketRegistrar
@@ -48,6 +49,7 @@ func NewHandler(handlers Handlers) http.Handler {
 	register(handlers.Projects)
 	register(handlers.ClaudeAuth)
 	register(handlers.UserSettings)
+	register(handlers.Uploads)
 
 	upgrader := NewUpgrader()
 	if handlers.TmuxWS != nil {

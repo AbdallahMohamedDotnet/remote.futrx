@@ -64,11 +64,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	handler := transport.NewHTTPHandler(transport.Dependencies{
+	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:   serviceSet,
 		TmuxClient: tmuxClient,
 		Static:     static,
+		DataDir:    cfg.DataDir,
 	})
+	if err != nil {
+		log.Fatalf("init http handler: %v", err)
+	}
 
 	srv := transport.NewHTTPServer(cfg.Addr(), handler)
 	log.Printf("remote.futrx.dev listening on %s", cfg.Addr())

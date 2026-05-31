@@ -64,8 +64,6 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			h.handleEvents(w, r, id)
 		case "rewind":
 			h.handleRewind(w, r, id)
-		case "upload":
-			h.handleUpload(w, r, id)
 		default:
 			httptransport.SendErr(w, http.StatusNotFound, "not found")
 		}
@@ -146,18 +144,6 @@ func (h *ChatHandler) handleRewind(w http.ResponseWriter, r *http.Request, id se
 	httptransport.SendJSON(w, http.StatusOK, page)
 }
 
-func (h *ChatHandler) handleUpload(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
-	if r.Method != http.MethodPost {
-		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	cwd, err := h.chats.UploadTarget(r.Context(), id)
-	if err != nil {
-		sendChatError(w, err)
-		return
-	}
-	httptransport.HandleMultipart(cwd, w, r)
-}
 
 func intQuery(r *http.Request, key string, fallback int) int {
 	value := strings.TrimSpace(r.URL.Query().Get(key))
