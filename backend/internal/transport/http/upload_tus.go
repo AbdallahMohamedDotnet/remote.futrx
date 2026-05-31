@@ -96,16 +96,21 @@ func NewUploadHandler(chats ChatUploadResolver, dataDir string) (*UploadHandler,
 }
 
 func (u *UploadHandler) RegisterRoutes(mux *http.ServeMux) {
-	// tusd's UnroutedHandler dispatches by method internally. We register
-	// the collection path (POST/OPTIONS) and the per-upload path (PATCH/HEAD/GET/DELETE).
-	mux.Handle("/api/uploads", u.tus.Middleware(http.HandlerFunc(u.tus.PostFile)))
-	mux.Handle("/api/uploads/", u.tus.Middleware(http.HandlerFunc(u.dispatchPerUpload)))
+	// tusd v2's extractIDFromPath does NOT strip the BasePath — it just
+	// trims slashes off whatever r.URL.Path it sees. Without StripPrefix
+	// the upload ID ends up as "api/uploads/<id>" and every PATCH 404s.
+	handler := http.StripPrefix("/api/uploads", u.tus.Middleware(http.HandlerFunc(u.dispatch)))
+	mux.Handle("/api/uploads", handler)
+	mux.Handle("/api/uploads/", handler)
 }
 
-// dispatchPerUpload routes the per-upload-URL methods that tusd exposes as
-// separate handlers.
-func (u *UploadHandler) dispatchPerUpload(w http.ResponseWriter, r *http.Request) {
+// dispatch routes one tus request to the right method handler. The tus
+// middleware already filtered OPTIONS / version checks / CORS before we
+// got here.
+func (u *UploadHandler) dispatch(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
+	case http.MethodPost:
+		u.tus.PostFile(w, r)
 	case http.MethodHead:
 		u.tus.HeadFile(w, r)
 	case http.MethodPatch:
