@@ -45,7 +45,7 @@ code.${HOSTNAME} {
 }
 
 # Per-project dev URLs. <slug>--<port>.dev.${HOSTNAME} proxies into the
-# project's LXD container at proj-<slug>.lxd:<port>. The .lxd resolution
+# project's LXD container at <slug>.lxd:<port>. The .lxd resolution
 # depends on the systemd-resolved drop-in installed by infra/steps/01-host-deps.sh.
 *.dev.${HOSTNAME} {
     encode zstd gzip
@@ -64,7 +64,7 @@ code.${HOSTNAME} {
         header_regexp host Host ^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.${HOSTNAME_RE}$
     }
     handle @valid {
-        reverse_proxy proj-{re.host.1}.lxd:{re.host.2}
+        reverse_proxy {re.host.1}.lxd:{re.host.2}
     }
     respond "Use <slug>--<port>.dev.${HOSTNAME} (e.g. myproj--3000.dev.${HOSTNAME})" 400
 }
