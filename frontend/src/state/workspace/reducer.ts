@@ -1,7 +1,8 @@
-export type WorkspaceView = "chat" | "settings";
+export type WorkspaceView = "chat" | "settings" | "project-containers";
 
 export interface WorkspaceUiState {
   activeChatId: string | null;
+  containerProjectId: string | null;
   sidebarOpen: boolean;
   view: WorkspaceView;
 }
@@ -11,10 +12,12 @@ export type WorkspaceUiAction =
   | { type: "open-sidebar" }
   | { type: "close-sidebar" }
   | { type: "show-chat" }
-  | { type: "show-settings" };
+  | { type: "show-settings" }
+  | { type: "show-project-containers"; projectId: string | null };
 
 export const initialWorkspaceUiState: WorkspaceUiState = {
   activeChatId: null,
+  containerProjectId: null,
   sidebarOpen: false,
   view: "chat",
 };
@@ -39,5 +42,12 @@ export function workspaceUiReducer(
       return { ...state, view: "chat" };
     case "show-settings":
       return { ...state, view: "settings", sidebarOpen: false };
+    case "show-project-containers":
+      return {
+        ...state,
+        containerProjectId: action.projectId,
+        view: "project-containers",
+        sidebarOpen: false,
+      };
   }
 }

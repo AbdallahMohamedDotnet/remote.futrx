@@ -27,6 +27,7 @@ interface WorkspaceContextValue {
   closeSidebar: () => void;
   showChat: () => void;
   showSettings: () => void;
+  showProjectContainers: (projectId: string | null) => void;
   refreshChats: () => void;
   refreshProjects: () => void;
   createProject: (name: string) => Promise<ProjectMeta>;
@@ -106,6 +107,8 @@ export function WorkspaceProvider({
         closeSidebar: () => dispatch({ type: "close-sidebar" }),
         showChat: () => dispatch({ type: "show-chat" }),
         showSettings: () => dispatch({ type: "show-settings" }),
+        showProjectContainers: (projectId) =>
+          dispatch({ type: "show-project-containers", projectId }),
         refreshChats: data.refreshChats,
         refreshProjects: data.refreshProjects,
         createProject,

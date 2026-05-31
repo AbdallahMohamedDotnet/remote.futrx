@@ -17,3 +17,5 @@ export interface ProjectMeta {
   createdAt: number;
   updatedAt: number;
 }
+
+export type ProjectContainerInfo = unknown;

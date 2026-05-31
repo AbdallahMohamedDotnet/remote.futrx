@@ -1,5 +1,5 @@
 import { json } from "../api/http";
-import type { ProjectMeta } from "../models/project";
+import type { ProjectContainerInfo, ProjectMeta } from "../models/project";
 
 export const projectService = {
   list: () => json<ProjectMeta[]>("GET", "/api/projects"),
@@ -13,4 +13,6 @@ export const projectService = {
     json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/start`, {}),
   stop: (id: string) =>
     json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/stop`, {}),
+  containerInfo: (id: string) =>
+    json<ProjectContainerInfo>("GET", `/api/projects/${encodeURIComponent(id)}/container`),
 };

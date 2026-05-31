@@ -26,6 +26,7 @@ export function Sidebar({
   onStartProject,
   onStopProject,
   onDeleteProject,
+  onOpenProjectContainers,
   onOpenSettings,
 }: {
   open: boolean;
@@ -45,6 +46,7 @@ export function Sidebar({
   onStartProject: (project: ProjectMeta, event: Event) => void;
   onStopProject: (project: ProjectMeta, event: Event) => void;
   onDeleteProject: (project: ProjectMeta, event: Event) => void;
+  onOpenProjectContainers: (projectId: string) => void;
   onOpenSettings?: () => void;
 }) {
   return (
@@ -117,6 +119,7 @@ export function Sidebar({
               onStart={(event) => onStartProject(node.project, event)}
               onStop={(event) => onStopProject(node.project, event)}
               onDelete={(event) => onDeleteProject(node.project, event)}
+              onOpenContainer={() => onOpenProjectContainers(node.project.id)}
               onSelectChat={onSelectChat}
               onDeleteChat={onDeleteChat}
             />

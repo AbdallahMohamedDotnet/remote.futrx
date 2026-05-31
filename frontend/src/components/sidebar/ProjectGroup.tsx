@@ -1,6 +1,6 @@
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
-import { ChevronDown, ChevronRight, Folder, Loader, Plus, X } from "../ui/icons";
+import { ChevronDown, ChevronRight, Loader, Plus, Settings, X } from "../ui/icons";
 import { ChatRow } from "./ChatRow";
 import { ProjectStatusDot } from "./ProjectStatusDot";
 
@@ -15,6 +15,7 @@ export function ProjectGroup({
   onStart,
   onStop,
   onDelete,
+  onOpenContainer,
   onSelectChat,
   onDeleteChat,
 }: {
@@ -28,6 +29,7 @@ export function ProjectGroup({
   onStart: (event: Event) => void;
   onStop: (event: Event) => void;
   onDelete: (event: Event) => void;
+  onOpenContainer: () => void;
   onSelectChat: (chatId: string) => void;
   onDeleteChat: (chat: ChatMeta, event: Event) => void;
 }) {
@@ -48,7 +50,18 @@ export function ProjectGroup({
         </button>
         <div class="flex-1 min-w-0 py-2 pr-1 flex items-center gap-2">
           <ProjectStatusDot status={project.status} />
-          <Folder class="w-4 h-4 flex-none text-ink-300" />
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenContainer();
+            }}
+            class="w-6 h-6 -ml-1 rounded grid place-items-center text-ink-300 hover:text-ink-50 hover:bg-white/[0.08]"
+            aria-label={`Open container info for ${project.name}`}
+            title="Container info"
+          >
+            <Settings class="w-4 h-4" />
+          </button>
           <div class="flex-1 min-w-0">
             <div class="text-[13.5px] leading-tight truncate font-medium text-ink-100">
               {project.name}

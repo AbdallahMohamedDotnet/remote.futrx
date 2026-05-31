@@ -39,6 +39,7 @@ export function SidebarContainer() {
       onStartProject={commands.startProject}
       onStopProject={commands.stopProject}
       onDeleteProject={commands.deleteProject}
+      onOpenProjectContainers={workspace.showProjectContainers}
       onOpenSettings={workspace.showSettings}
     />
   );

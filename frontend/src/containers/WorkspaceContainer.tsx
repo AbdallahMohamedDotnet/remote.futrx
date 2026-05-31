@@ -1,3 +1,4 @@
+import { ProjectContainersRoute } from "../app/routes/ProjectContainersRoute";
 import { SettingsRoute } from "../app/routes/SettingsRoute";
 import { AppShell } from "../components/layout/AppShell";
 import { NoChatSelected } from "../components/layout/NoChatSelected";
@@ -14,6 +15,13 @@ export function WorkspaceContainer() {
     <AppShell sidebar={<SidebarContainer />}>
       {workspace.ui.view === "settings" ? (
         <SettingsRoute
+          onBack={workspace.showChat}
+          onHamburger={workspace.openSidebar}
+        />
+      ) : workspace.ui.view === "project-containers" ? (
+        <ProjectContainersRoute
+          projects={workspace.projects}
+          selectedProjectId={workspace.ui.containerProjectId}
           onBack={workspace.showChat}
           onHamburger={workspace.openSidebar}
         />
