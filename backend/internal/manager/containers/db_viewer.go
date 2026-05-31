@@ -32,7 +32,13 @@ if ! command -v php >/dev/null 2>&1 || [ ! -f /usr/share/adminer/adminer.php ]; 
   apt-get install -y -qq --no-install-recommends adminer php-cli php-mysql php-pgsql php-sqlite3
 fi
 
+if grep -q 'RemoteFutrxAdminer' /usr/share/adminer/adminer.php 2>/dev/null; then
+  apt-get update -qq
+  apt-get install -y -qq --reinstall adminer
+fi
+
 install -d -m 0755 "$root"
+rm -f "$root/index.php"
 cat > "$root/index.php" <<'PHP'
 <?php
 function adminer_object() {
