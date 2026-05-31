@@ -18,6 +18,9 @@ export function TerminalOverlay({
   onClose: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<XTerm | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
   const [status, setStatus] = useState<TerminalStatus>("closed");
   const [error, setError] = useState<string | null>(null);
   const [entered, setEntered] = useState(false);
@@ -32,7 +35,7 @@ export function TerminalOverlay({
   }, [open]);
 
   useEffect(() => {
-    if (!open || !hostRef.current) return;
+    if (!hostRef.current) return;
 
     const terminal = new XTerm({
       cursorBlink: true,
@@ -67,10 +70,12 @@ export function TerminalOverlay({
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(hostRef.current);
-    terminal.focus();
+    terminalRef.current = terminal;
+    fitRef.current = fit;
 
     const socket = new WebSocket(terminalWebSocketUrl(chat.id));
     socket.binaryType = "arraybuffer";
+    socketRef.current = socket;
     setStatus("connecting");
     setError(null);
 
@@ -119,8 +124,29 @@ export function TerminalOverlay({
       inputSub.dispose();
       try { socket.close(); } catch {}
       terminal.dispose();
+      socketRef.current = null;
+      terminalRef.current = null;
+      fitRef.current = null;
     };
-  }, [chat.id, chat.title, open]);
+  }, [chat.id, chat.title]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      const terminal = terminalRef.current;
+      const fit = fitRef.current;
+      const socket = socketRef.current;
+      if (!terminal || !fit) return;
+      terminal.focus();
+      try {
+        fit.fit();
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows }));
+        }
+      } catch {}
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   const workspacePath = chat.cwd || "/workspace";
   const statusLabel =
