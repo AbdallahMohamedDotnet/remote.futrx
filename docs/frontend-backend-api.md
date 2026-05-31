@@ -40,12 +40,14 @@ Registered but not called directly by frontend code:
 
 ### Claude CLI Auth
 
-| Method | Path | Frontend caller | Request | Response |
-| --- | --- | --- | --- | --- |
-| `GET` | `/api/claude/auth-status` | `claudeAuthService.status()` | None | `{ "authenticated": boolean }` based on server-side Claude credentials. |
-| `POST` | `/api/claude/login/start` | `claudeAuthService.startLogin()` | `{}` | `{ "url": string, "resumed"?: true }`. Starts or resumes `claude auth login --claudeai`. |
-| `POST` | `/api/claude/login/code` | `claudeAuthService.submitCode(code)` | `{ "code": string }` | `{ "success": true }` when the pasted OAuth code completes login. |
-| `POST` | `/api/claude/login/cancel` | `claudeAuthService.cancelLogin()` | `{}` | `{ "ok": true }`. Cancels the active Claude login process. |
+These endpoints drive the host's interactive `claude auth login`. They are the *source* of the credentials at `/root/.claude*` on the server. Container creation and per-prompt provisioning never call these — the `containers` manager only reads the resulting files and ships them into containers.
+
+| Method | Path | Frontend caller | Request | Response | When called |
+| --- | --- | --- | --- | --- | --- |
+| `GET` | `/api/claude/auth-status` | `claudeAuthService.status()` | None | `{ "authenticated": boolean }` based on server-side Claude credentials. | Once on app mount after Google auth resolves; again on manual `refresh()` after a login attempt completes. |
+| `POST` | `/api/claude/login/start` | `claudeAuthService.startLogin()` | `{}` | `{ "url": string, "resumed"?: true }`. Starts or resumes `claude auth login --claudeai`. | First-ever login, or after the user signs back in following a revocation / expired refresh token. |
+| `POST` | `/api/claude/login/code` | `claudeAuthService.submitCode(code)` | `{ "code": string }` | `{ "success": true }` when the pasted OAuth code completes login. | Immediately after `/login/start`, when the user pastes the code returned from claude.com. |
+| `POST` | `/api/claude/login/cancel` | `claudeAuthService.cancelLogin()` | `{}` | `{ "ok": true }`. Cancels the active Claude login process. | User abandons the in-progress login (closes the modal, navigates away). |
 
 ### Chats
 
