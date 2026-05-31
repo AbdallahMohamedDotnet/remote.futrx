@@ -1,3 +1,4 @@
+import type { ComponentType } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ChatMeta, ChatMode } from "../models/chat";
 import { ChatThread } from "../components/chat/ChatThread";
@@ -16,6 +17,12 @@ import {
   modelDisplayLabel,
   tokenTotal,
 } from "../state/chat/usage";
+
+type TerminalOverlayComponent = ComponentType<{
+  chat: ChatMeta;
+  open: boolean;
+  onClose: () => void;
+}>;
 
 export function ChatContainer({
   chat,
@@ -45,6 +52,8 @@ export function ChatContainer({
   const displayMeta = meta ?? chat;
   const displayMode = displayMeta.mode || "code";
   const [text, setText] = useState("");
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [TerminalOverlay, setTerminalOverlay] = useState<TerminalOverlayComponent | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { textareaRef, focusInput } = useAutosizeTextarea(text);
   const upload = useAttachmentUpload(chat.id, onMetaUpdate);
@@ -68,8 +77,20 @@ export function ChatContainer({
 
   useEffect(() => {
     setText("");
+    setTerminalOpen(false);
     scroll.unlockAutoScroll();
   }, [chat.id]);
+
+  useEffect(() => {
+    if (!terminalOpen || TerminalOverlay) return;
+    let cancelled = false;
+    import("../components/chat/TerminalOverlay").then((module) => {
+      if (!cancelled) setTerminalOverlay(() => module.TerminalOverlay);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [TerminalOverlay, terminalOpen]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -152,63 +173,73 @@ export function ChatContainer({
   }
 
   return (
-    <ChatThread
-      chat={displayMeta}
-      blocks={blocks}
-      hasOlder={hasOlder}
-      loadingOlder={loadingOlder}
-      status={status}
-      error={error}
-      canSendPrompt={canSendPrompt}
-      streaming={status === "streaming"}
-      mode={displayMode}
-      queuedPrompts={queue.queuedPrompts}
-      attachments={upload.attachments}
-      uploading={upload.uploading}
-      dragging={drag.dragging}
-      text={text}
-      textareaRef={textareaRef}
-      fileInputRef={fileInputRef}
-      showJump={scroll.showJump}
-      scrollRef={scroll.scrollRef}
-      contentRef={scroll.contentRef}
-      bottomRef={scroll.bottomRef}
-      header={{
-        modelRef: header.modelRef,
-        modelOpen: header.modelOpen,
-        modelOptions: MODEL_OPTIONS,
-        modelDisplayLabel,
-        editingCwd: header.editingCwd,
-        cwdInput: header.cwdInput,
-        onToggleModel: () => header.setModelOpen(!header.modelOpen),
-        onPickModel: pickModel,
-        onStartEditCwd: () => header.setEditingCwd(true),
-        onCwdInput: header.setCwdInput,
-        onCommitCwd: header.commitCwd,
-        onCancelCwdEdit: header.cancelCwdEdit,
-      }}
-      usageTotals={usageTotals}
-      tokenLabel={tokenLabel}
-      costUsd={costUsd}
-      onHamburger={onHamburger}
-      onScroll={scroll.onScroll}
-      onJumpToBottom={scroll.jumpToBottom}
-      onAnswerQuestion={(answer) => {
-        const sent = sendPrompt(answer);
-        if (sent) scroll.unlockAutoScroll();
-      }}
-      onLoadOlder={loadOlder}
-      onRewind={handleRewind}
-      onTextChange={setText}
-      onFilesSelected={upload.doUpload}
-      onPaste={handlePaste}
-      onSend={handleSend}
-      onCancel={cancel}
-      onRemoveQueued={queue.removeQueuedPrompt}
-      onRemoveAttachment={upload.removeAttachment}
-      onModelChange={(model) => metaActions.applyMeta({ model })}
-      onModeChange={changeMode}
-    />
+    <>
+      <ChatThread
+        chat={displayMeta}
+        blocks={blocks}
+        hasOlder={hasOlder}
+        loadingOlder={loadingOlder}
+        status={status}
+        error={error}
+        canSendPrompt={canSendPrompt}
+        streaming={status === "streaming"}
+        mode={displayMode}
+        queuedPrompts={queue.queuedPrompts}
+        attachments={upload.attachments}
+        uploading={upload.uploading}
+        dragging={drag.dragging}
+        text={text}
+        textareaRef={textareaRef}
+        fileInputRef={fileInputRef}
+        showJump={scroll.showJump}
+        scrollRef={scroll.scrollRef}
+        contentRef={scroll.contentRef}
+        bottomRef={scroll.bottomRef}
+        header={{
+          modelRef: header.modelRef,
+          modelOpen: header.modelOpen,
+          modelOptions: MODEL_OPTIONS,
+          modelDisplayLabel,
+          editingCwd: header.editingCwd,
+          cwdInput: header.cwdInput,
+          onToggleModel: () => header.setModelOpen(!header.modelOpen),
+          onPickModel: pickModel,
+          onStartEditCwd: () => header.setEditingCwd(true),
+          onCwdInput: header.setCwdInput,
+          onCommitCwd: header.commitCwd,
+          onCancelCwdEdit: header.cancelCwdEdit,
+        }}
+        usageTotals={usageTotals}
+        tokenLabel={tokenLabel}
+        costUsd={costUsd}
+        onHamburger={onHamburger}
+        onScroll={scroll.onScroll}
+        onJumpToBottom={scroll.jumpToBottom}
+        onAnswerQuestion={(answer) => {
+          const sent = sendPrompt(answer);
+          if (sent) scroll.unlockAutoScroll();
+        }}
+        onLoadOlder={loadOlder}
+        onRewind={handleRewind}
+        onTextChange={setText}
+        onFilesSelected={upload.doUpload}
+        onPaste={handlePaste}
+        onSend={handleSend}
+        onCancel={cancel}
+        onRemoveQueued={queue.removeQueuedPrompt}
+        onRemoveAttachment={upload.removeAttachment}
+        onModelChange={(model) => metaActions.applyMeta({ model })}
+        onModeChange={changeMode}
+        onOpenTerminal={() => setTerminalOpen(true)}
+      />
+      {TerminalOverlay && (
+        <TerminalOverlay
+          chat={displayMeta}
+          open={terminalOpen}
+          onClose={() => setTerminalOpen(false)}
+        />
+      )}
+    </>
   );
 }
 

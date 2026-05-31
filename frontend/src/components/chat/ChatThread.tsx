@@ -50,6 +50,7 @@ export function ChatThread({
   onRemoveAttachment,
   onModelChange,
   onModeChange,
+  onOpenTerminal,
 }: {
   chat: ChatMeta;
   blocks: Block[];
@@ -105,6 +106,7 @@ export function ChatThread({
   onRemoveAttachment: (id: string) => void;
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
+  onOpenTerminal: () => void;
 }) {
   return (
     <div class="codex-thread flex-1 h-full flex flex-col min-h-0 overflow-hidden bg-[#0b0d11]">
@@ -126,6 +128,7 @@ export function ChatThread({
         onCwdInput={header.onCwdInput}
         onCommitCwd={header.onCommitCwd}
         onCancelCwdEdit={header.onCancelCwdEdit}
+        onOpenTerminal={onOpenTerminal}
         onHamburger={onHamburger}
       />
 

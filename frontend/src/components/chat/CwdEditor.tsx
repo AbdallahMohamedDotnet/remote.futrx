@@ -5,26 +5,25 @@ const ideBaseUrl = "https://code.remote.futrx.dev/";
 
 export function CwdEditor({
   editing,
-  chatId,
   cwd,
   value,
   onStartEdit,
   onChange,
   onCommit,
   onCancel,
+  onOpenTerminal,
 }: {
   editing: boolean;
-  chatId: string;
   cwd: string;
   value: string;
   onStartEdit: () => void;
   onChange: (value: string) => void;
   onCommit: () => void;
   onCancel: () => void;
+  onOpenTerminal: () => void;
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = `${ideBaseUrl}?folder=${encodeURIComponent(workspacePath)}`;
-  const terminalUrl = `/?terminal=${encodeURIComponent(chatId)}`;
 
   if (editing) {
     return (
@@ -57,10 +56,9 @@ export function CwdEditor({
         <Code class="w-4 h-4 text-accent-blue flex-none" />
         <span class="text-[12.5px] font-medium">Open in IDE</span>
       </a>
-      <a
-        href={terminalUrl}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
+        onClick={onOpenTerminal}
         class="h-9 inline-flex items-center gap-2 px-3 rounded-md
                bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
         title={`Open terminal in container workspace: ${workspacePath}`}
@@ -68,7 +66,7 @@ export function CwdEditor({
       >
         <Terminal class="w-4 h-4 text-accent-blue flex-none" />
         <span class="text-[12.5px] font-medium">Open Terminal</span>
-      </a>
+      </button>
     </>
   );
 }

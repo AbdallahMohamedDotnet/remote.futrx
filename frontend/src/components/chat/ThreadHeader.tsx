@@ -24,6 +24,7 @@ export function ThreadHeader({
   onCwdInput,
   onCommitCwd,
   onCancelCwdEdit,
+  onOpenTerminal,
   onHamburger,
 }: {
   chat: ChatMeta;
@@ -43,6 +44,7 @@ export function ThreadHeader({
   onCwdInput: (value: string) => void;
   onCommitCwd: () => void;
   onCancelCwdEdit: () => void;
+  onOpenTerminal: () => void;
   onHamburger: () => void;
 }) {
   return (
@@ -92,13 +94,13 @@ export function ThreadHeader({
       <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
         <CwdEditor
           editing={editingCwd}
-          chatId={chat.id}
           cwd={chat.cwd || "~"}
           value={cwdInput}
           onStartEdit={onStartEditCwd}
           onChange={onCwdInput}
           onCommit={onCommitCwd}
           onCancel={onCancelCwdEdit}
+          onOpenTerminal={onOpenTerminal}
         />
         <UsagePill totals={usageTotals} tokenLabel={tokenLabel} costUsd={costUsd} />
       </div>
