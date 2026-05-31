@@ -94,15 +94,7 @@ func (m *Manager) EnsureClaude(ctx context.Context, containerName string) error 
 
 	installCtx, cancelI := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancelI()
-	script := `set -e
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y -qq curl ca-certificates gnupg
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
-apt-get install -y -qq nodejs
-npm install -g @anthropic-ai/claude-code --silent 2>&1 | tail -3
-which claude && claude --version`
-	out, err := m.lxc.Run(installCtx, "exec", containerName, "--", "bash", "-c", script)
+	out, err := m.lxc.Run(installCtx, "exec", containerName, "--", "bash", "-c", BaseImageInstallScript)
 	if err != nil {
 		waitCtx, cancelW := context.WithTimeout(ctx, 90*time.Second)
 		defer cancelW()
