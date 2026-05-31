@@ -6,25 +6,26 @@ export default {
   theme: {
     extend: {
       colors: {
-        // GitHub Dark palette, named so the components read clearly.
+        // Neutral Codex-style dark palette, named so components read clearly.
         ink: {
-          50:  "#f0f6fc",
-          100: "#c9d1d9",
-          200: "#8b949e",
-          300: "#6e7681",
-          400: "#484f58",
-          500: "#30363d",
-          600: "#21262d",
-          700: "#161b22",
-          800: "#0d1117",
-          900: "#010409",
+          50:  "#f4f4f5",
+          100: "#e4e4e7",
+          200: "#c7c7cc",
+          300: "#9b9ba3",
+          400: "#707078",
+          500: "#3f4047",
+          600: "#303137",
+          700: "#24252b",
+          800: "#18191e",
+          900: "#0f1014",
         },
         accent: {
-          blue:   "#58a6ff",
-          green:  "#3fb950",
-          red:    "#f85149",
-          yellow: "#d29922",
-          purple: "#bc8cff",
+          blue:   "#8ab4ff",
+          green:  "#7bd88f",
+          red:    "#ff7b72",
+          yellow: "#e2b86d",
+          orange: "#f0a45d",
+          purple: "#b8a8ff",
         },
       },
       fontFamily: {

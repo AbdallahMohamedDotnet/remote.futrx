@@ -11,12 +11,12 @@
   }
   html {
     color-scheme: dark;
-    background: #090b0f;
+    background: #0f1014;
   }
   body {
     margin: 0;
     overscroll-behavior: none;
-    background: #090b0f;
+    background: #0f1014;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     touch-action: manipulation;
@@ -72,15 +72,15 @@
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
 
-  .md-code { color: #c9d1d9; }
-  .md-code-comment { color: #8b949e; }
-  .md-code-keyword { color: #ff7b72; }
-  .md-code-string { color: #a5d6ff; }
+  .md-code { color: #e4e4e7; }
+  .md-code-comment { color: #9b9ba3; }
+  .md-code-keyword { color: #ff9b96; }
+  .md-code-string { color: #a7c7ff; }
   .md-code-number,
-  .md-code-literal { color: #79c0ff; }
-  .md-code-addition { color: #aff5b4; }
-  .md-code-deletion { color: #ffdcd7; }
-  .md-code-meta { color: #d2a8ff; }
+  .md-code-literal { color: #8ab4ff; }
+  .md-code-addition { color: #b7f7c2; }
+  .md-code-deletion { color: #ffc4bf; }
+  .md-code-meta { color: #c8bbff; }
 }
 
 @layer utilities {
@@ -98,20 +98,20 @@
 @media (max-width: 767px) {
   html,
   body {
-    background: #090b0f;
+    background: #0f1014;
   }
 
   .codex-app,
   .codex-main,
   .codex-thread {
-    background: #090b0f !important;
-    color: #c9d1d9 !important;
+    background: #0f1014 !important;
+    color: #e4e4e7 !important;
   }
 
   .codex-header {
-    background: rgba(16, 19, 24, 0.98) !important;
+    background: rgba(25, 26, 31, 0.98) !important;
     border-color: rgba(255, 255, 255, 0.1) !important;
-    color: #f0f6fc !important;
+    color: #f4f4f5 !important;
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
@@ -121,7 +121,7 @@
   .codex-header .text-ink-300,
   .codex-header .text-ink-400,
   .codex-header button {
-    color: #f0f6fc !important;
+    color: #f4f4f5 !important;
   }
 
   .codex-header .bg-white\/\[0\.06\],
@@ -131,50 +131,50 @@
   }
 
   .codex-message-scroll {
-    background: #0b0d11 !important;
+    background: #121317 !important;
   }
 
   .codex-message-scroll .text-ink-50,
   .codex-message-scroll .text-ink-100,
   .codex-message-scroll .text-ink-200 {
-    color: #c9d1d9 !important;
+    color: #e4e4e7 !important;
   }
 
   .codex-message-scroll .text-ink-300,
   .codex-message-scroll .text-ink-400 {
-    color: #6e7681 !important;
+    color: #9b9ba3 !important;
   }
 
   .codex-user-bubble {
-    background: rgba(88, 166, 255, 0.14) !important;
-    border-color: rgba(88, 166, 255, 0.3) !important;
-    color: #f0f6fc !important;
+    background: rgba(255, 255, 255, 0.065) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #f4f4f5 !important;
     box-shadow: none !important;
   }
 
   .codex-assistant-block {
-    color: #c9d1d9 !important;
+    color: #e4e4e7 !important;
   }
 
   .codex-tool-shell {
-    background: #101318 !important;
+    background: #191a1f !important;
     border-color: rgba(255, 255, 255, 0.1) !important;
-    color: #c9d1d9 !important;
+    color: #e4e4e7 !important;
     box-shadow: none !important;
   }
 
   .codex-tool-trigger {
     background: rgba(255, 255, 255, 0.03) !important;
-    color: #c9d1d9 !important;
+    color: #e4e4e7 !important;
   }
 
   .codex-composer-shell {
     display: flex;
     flex-direction: column;
     gap: 0;
-    background: linear-gradient(to top, #0b0d11 82%, rgba(11, 13, 17, 0.9)) !important;
+    background: linear-gradient(to top, #121317 82%, rgba(18, 19, 23, 0.9)) !important;
     border-color: rgba(255, 255, 255, 0.1) !important;
-    color: #c9d1d9 !important;
+    color: #e4e4e7 !important;
   }
 
   .codex-composer-form {
@@ -182,9 +182,9 @@
     align-items: flex-end;
     margin: 0 0.75rem;
     padding: 0.625rem 0.625rem max(0.625rem, env(safe-area-inset-bottom, 0px)) !important;
-    border: 1px solid #30363d;
+    border: 1px solid #3f4047;
     border-radius: 1.75rem;
-    background: #101318;
+    background: #191a1f;
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
@@ -198,13 +198,13 @@
     height: 2rem !important;
     border: 0 !important;
     border-radius: 1rem !important;
-    background: #21262d !important;
-    color: #c9d1d9 !important;
+    background: #303137 !important;
+    color: #e4e4e7 !important;
     padding-inline: 0.75rem !important;
   }
 
   .codex-mode-control select {
-    color: #c9d1d9 !important;
+    color: #e4e4e7 !important;
   }
 
   .codex-composer-textarea {
@@ -215,11 +215,11 @@
     border-radius: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
-    color: #f0f6fc !important;
+    color: #f4f4f5 !important;
   }
 
   .codex-composer-textarea::placeholder {
-    color: #6e7681 !important;
+    color: #9b9ba3 !important;
   }
 
   .codex-icon-button,
@@ -229,7 +229,7 @@
     border: 0 !important;
     border-radius: 9999px !important;
     background: transparent !important;
-    color: #c9d1d9 !important;
+    color: #e4e4e7 !important;
   }
 
   .codex-send-button {
@@ -241,9 +241,9 @@
   }
 
   .codex-sidebar {
-    background: #101318 !important;
+    background: #191a1f !important;
     border-color: rgba(255, 255, 255, 0.1) !important;
-    color: #c9d1d9 !important;
+    color: #e4e4e7 !important;
   }
 
   .codex-sidebar header,
@@ -259,11 +259,11 @@
   .codex-sidebar .text-ink-400,
   .codex-sidebar button,
   .codex-sidebar input {
-    color: #f0f6fc !important;
+    color: #f4f4f5 !important;
   }
 
   .codex-sidebar input::placeholder {
-    color: #6e7681 !important;
+    color: #9b9ba3 !important;
   }
 
   .codex-sidebar .bg-\[\#0b0d11\],
@@ -272,6 +272,95 @@
     background: rgba(255, 255, 255, 0.06) !important;
     border-color: rgba(255, 255, 255, 0.1) !important;
   }
+}
+
+html[data-theme="dark"],
+html[data-theme="dark"] body {
+  color-scheme: dark;
+  background: #0f1014;
+}
+
+html[data-theme="dark"] .codex-app {
+  background: #0f1014 !important;
+  color: #e4e4e7 !important;
+}
+
+html[data-theme="dark"] .codex-main,
+html[data-theme="dark"] .codex-thread,
+html[data-theme="dark"] .codex-message-scroll {
+  background: #121317 !important;
+  color: #e4e4e7 !important;
+}
+
+html[data-theme="dark"] .codex-header,
+html[data-theme="dark"] .codex-sidebar,
+html[data-theme="dark"] .codex-sidebar header,
+html[data-theme="dark"] .codex-sidebar footer,
+html[data-theme="dark"] section.bg-\[\#101318\],
+html[data-theme="dark"] .bg-\[\#101318\] {
+  background: #191a1f !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  color: #e4e4e7 !important;
+}
+
+html[data-theme="dark"] .bg-\[\#090b0f\] {
+  background-color: #0f1014 !important;
+}
+
+html[data-theme="dark"] .bg-\[\#0b0d11\] {
+  background-color: #121317 !important;
+}
+
+html[data-theme="dark"] .bg-\[\#151922\],
+html[data-theme="dark"] .bg-\[\#1b202b\] {
+  background-color: #202126 !important;
+}
+
+html[data-theme="dark"] .bg-\[\#0d1015\] {
+  background-color: #17181d !important;
+}
+
+html[data-theme="dark"] .codex-composer-shell {
+  background: linear-gradient(to top, #121317 82%, rgba(18, 19, 23, 0.92)) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+}
+
+html[data-theme="dark"] .codex-composer-form,
+html[data-theme="dark"] .codex-composer-textarea,
+html[data-theme="dark"] .codex-tool-shell {
+  background: #191a1f !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+}
+
+html[data-theme="dark"] .codex-tool-trigger {
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+html[data-theme="dark"] .codex-user-bubble {
+  background: rgba(255, 255, 255, 0.065) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f4f4f5 !important;
+}
+
+html[data-theme="dark"] .text-ink-50,
+html[data-theme="dark"] .text-ink-100,
+html[data-theme="dark"] .text-ink-200 {
+  color: #e4e4e7 !important;
+}
+
+html[data-theme="dark"] .text-ink-300,
+html[data-theme="dark"] .text-ink-400 {
+  color: #9b9ba3 !important;
+}
+
+html[data-theme="dark"] [class*="border-white"] {
+  border-color: rgba(255, 255, 255, 0.09) !important;
+}
+
+html[data-theme="dark"] [class*="bg-white/"],
+html[data-theme="dark"] .bg-white\/5,
+html[data-theme="dark"] .bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.055) !important;
 }
 
 html[data-theme="light"],
