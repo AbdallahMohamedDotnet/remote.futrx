@@ -72,6 +72,16 @@
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
 
+  .codex-tool-group-list > .codex-tool-shell {
+    margin-top: 0;
+    margin-bottom: 0;
+    box-shadow: none;
+  }
+
+  .codex-tool-group-list > .codex-tool-shell + .codex-tool-shell {
+    margin-top: 0.5rem;
+  }
+
   .md-code { color: #e4e4e7; }
   .md-code-comment { color: #9b9ba3; }
   .md-code-keyword { color: #ff9b96; }

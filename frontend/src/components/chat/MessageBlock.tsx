@@ -1,7 +1,17 @@
-import type { Block } from "../../state/chat/messageBlocks";
-import { AlertCircle, Loader, RotateCcw } from "../ui/icons";
+import type { ComponentChildren } from "preact";
+import type { AssistantPart, Block } from "../../state/chat/messageBlocks";
+import { AlertCircle, Loader, RotateCcw, TerminalIcon } from "../ui/icons";
 import { StreamingText } from "./StreamingText";
 import { ToolCall } from "./tool-calls/ToolCall";
+import { ToolShell } from "./tool-calls/ToolShell";
+
+type ToolPart = Extract<AssistantPart, { kind: "tool" }>;
+
+interface RenderContext {
+  streaming: boolean;
+  chatId?: string;
+  onAnswerQuestion?: (text: string) => void;
+}
 
 export function MessageBlock({
   block,
@@ -54,35 +64,7 @@ export function MessageBlock({
 
   return (
     <div class="codex-assistant-block space-y-2 max-w-full">
-      {block.parts.map((part, index) => {
-        if (part.kind === "text") {
-          return (
-            <div key={index} class="text-[15px] leading-7 text-ink-100">
-              <StreamingText text={part.text} streaming={streaming} />
-            </div>
-          );
-        }
-        if (part.kind === "thinking") {
-          return (
-            <div key={index} class="text-[13px] italic text-ink-300 border-l-2 border-accent-yellow/[0.45] pl-3 my-2">
-              {part.text}
-            </div>
-          );
-        }
-        return (
-          <ToolCall
-            key={part.id || index}
-            toolUseId={part.id}
-            chatId={chatId}
-            name={part.name}
-            input={part.input}
-            output={part.output}
-            isError={part.isError}
-            status={part.status}
-            onAnswerQuestion={onAnswerQuestion}
-          />
-        );
-      })}
+      {renderAssistantParts(block.parts, { streaming, chatId, onAnswerQuestion })}
       {streaming && !block.isComplete && (
         <div class="inline-flex items-center gap-2 text-ink-300 text-xs pt-1 rounded-full bg-white/5 px-2.5 py-1">
           <Loader class="w-3 h-3 animate-spin" />
@@ -90,5 +72,112 @@ export function MessageBlock({
         </div>
       )}
     </div>
+  );
+}
+
+function renderAssistantParts(parts: AssistantPart[], context: RenderContext): ComponentChildren[] {
+  const rendered: ComponentChildren[] = [];
+  let toolGroup: ToolPart[] = [];
+  let toolGroupStart = 0;
+
+  const flushToolGroup = () => {
+    if (!toolGroup.length) return;
+    rendered.push(
+      <ToolGroup
+        key={`tools-${toolGroupStart}`}
+        parts={toolGroup}
+        startIndex={toolGroupStart}
+        chatId={context.chatId}
+        onAnswerQuestion={context.onAnswerQuestion}
+      />
+    );
+    toolGroup = [];
+  };
+
+  parts.forEach((part, index) => {
+    if (part.kind === "tool" && isGroupableTool(part)) {
+      if (!toolGroup.length) toolGroupStart = index;
+      toolGroup.push(part);
+      return;
+    }
+
+    flushToolGroup();
+
+    if (part.kind === "text") {
+      rendered.push(
+        <div key={index} class="text-[15px] leading-7 text-ink-100">
+          <StreamingText text={part.text} streaming={context.streaming} />
+        </div>
+      );
+      return;
+    }
+
+    if (part.kind === "thinking") {
+      rendered.push(
+        <div key={index} class="text-[13px] italic text-ink-300 border-l-2 border-accent-yellow/[0.45] pl-3 my-2">
+          {part.text}
+        </div>
+      );
+      return;
+    }
+
+    if (part.kind === "tool") {
+      rendered.push(renderToolCall(part, part.id || index, context));
+    }
+  });
+
+  flushToolGroup();
+  return rendered;
+}
+
+function isGroupableTool(part: ToolPart): boolean {
+  return part.kind === "tool" && part.name !== "AskUserQuestion";
+}
+
+function ToolGroup({
+  parts,
+  startIndex,
+  chatId,
+  onAnswerQuestion,
+}: {
+  parts: ToolPart[];
+  startIndex: number;
+  chatId?: string;
+  onAnswerQuestion?: (text: string) => void;
+}) {
+  const status = parts.some((part) => part.status === "running") ? "running" : "done";
+  const isError = parts.some((part) => part.isError);
+  const count = parts.length;
+  const label = `${count} ${count === 1 ? "tool" : "tools"} used`;
+
+  return (
+    <ToolShell
+      icon={<TerminalIcon class="w-4 h-4" />}
+      label={<span class="font-medium">{label}</span>}
+      status={status}
+      isError={isError}
+    >
+      <div class="codex-tool-group-list p-2">
+        {parts.map((part, offset) =>
+          renderToolCall(part, part.id || `${startIndex}-${offset}`, { chatId, onAnswerQuestion, streaming: false })
+        )}
+      </div>
+    </ToolShell>
+  );
+}
+
+function renderToolCall(part: ToolPart, key: string | number, context: RenderContext) {
+  return (
+    <ToolCall
+      key={key}
+      toolUseId={part.id}
+      chatId={context.chatId}
+      name={part.name}
+      input={part.input}
+      output={part.output}
+      isError={part.isError}
+      status={part.status}
+      onAnswerQuestion={context.onAnswerQuestion}
+    />
   );
 }
