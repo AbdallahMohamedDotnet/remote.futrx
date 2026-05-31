@@ -124,6 +124,67 @@ func TestHubPublishesRunningTransitions(t *testing.T) {
 	}
 }
 
+func TestHubEmitAllowsAppendNotificationsToReadRunning(t *testing.T) {
+	running := make(chan bool, 1)
+	var hub *Hub
+	store := callbackStore{
+		append: func() {
+			running <- hub.IsRunning("abcd")
+		},
+	}
+	hub = New(store)
+
+	runID, ok := hub.StartRun("abcd", func() {})
+	if !ok {
+		t.Fatal("run should start")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		hub.Emit("abcd", servicechat.Event{T: 1, Type: "user", Text: "hi"})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("emit deadlocked while append notification read running state")
+	}
+	if isRunning := receiveRunning(t, running); !isRunning {
+		t.Fatal("expected append notification to observe running chat")
+	}
+
+	hub.FinishRun("abcd", runID)
+}
+
+type callbackStore struct {
+	append func()
+}
+
+func (s callbackStore) ReadEvents(ctx context.Context, chatID servicechat.ID) ([]servicechat.Event, error) {
+	return nil, nil
+}
+
+func (s callbackStore) ReadEventsAfter(
+	ctx context.Context,
+	chatID servicechat.ID,
+	afterSeq int64,
+) ([]servicechat.Event, error) {
+	return nil, nil
+}
+
+func (s callbackStore) AppendEvent(
+	ctx context.Context,
+	chatID servicechat.ID,
+	ev servicechat.Event,
+) (servicechat.Event, error) {
+	if s.append != nil {
+		s.append()
+	}
+	ev.Seq = 1
+	return ev, nil
+}
+
 func receiveEvent(t *testing.T, sub *Subscription) servicechat.Event {
 	t.Helper()
 	select {

@@ -151,10 +151,6 @@ func (s *Subscription) closeChannel() {
 }
 
 func (h *Hub) Emit(chatID servicechat.ID, ev servicechat.Event) {
-	r := h.room(chatID)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	stored := ev
 	if h.store != nil {
 		next, err := h.store.AppendEvent(context.Background(), chatID, ev)
@@ -164,6 +160,10 @@ func (h *Hub) Emit(chatID servicechat.ID, ev servicechat.Event) {
 			stored = next
 		}
 	}
+
+	r := h.room(chatID)
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.broadcastLocked(stored)
 }
 
