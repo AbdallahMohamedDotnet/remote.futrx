@@ -29,6 +29,7 @@ export function WorkspaceContainer() {
         <ChatContainer
           key={workspace.activeChat.id}
           chat={workspace.activeChat}
+          projects={workspace.projects}
           onHamburger={workspace.openSidebar}
           onMetaUpdate={workspace.refreshChats}
         />
