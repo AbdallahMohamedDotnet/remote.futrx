@@ -211,6 +211,7 @@ cat <<EOF
  ✓ Installed at:  $INSTALL_DIR
  ✓ Main UI:       https://$HOSTNAME
  ✓ Code editor:   https://code.$HOSTNAME
+ ✓ DB viewer:     https://db.$HOSTNAME
  ✓ Dev URLs:      https://<slug>--<port>.dev.$HOSTNAME
  ✓ Base image:    futrx-remote-dev-base (project containers launch from this)
 
