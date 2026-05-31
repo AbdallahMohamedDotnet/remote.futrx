@@ -1,17 +1,38 @@
 import type { Attachment } from "../../models/upload";
 import { formatBytes } from "../../lib/files";
-import { File as FileIcon, X } from "../ui/icons";
+import { AlertCircle, File as FileIcon, X } from "../ui/icons";
 
-export function AttachmentChip({ attachment, onRemove }: { attachment: Attachment; onRemove: () => void }) {
-  const pending = !attachment.serverPath;
+export function AttachmentChip({
+  attachment,
+  onRemove,
+}: {
+  attachment: Attachment;
+  onRemove: () => void;
+}) {
+  const failed = !!attachment.error;
+  const pending = !attachment.serverPath && !failed;
+  const pct =
+    attachment.progress != null
+      ? Math.max(0, Math.min(1, attachment.progress))
+      : 0;
+  const pctLabel = pending ? `${Math.round(pct * 100)}%` : null;
 
   if (attachment.isImage && attachment.objectUrl) {
     return (
       <div class="relative w-20 h-20 rounded-lg overflow-hidden bg-[#101318] border border-white/10 group">
-        <img src={attachment.objectUrl} class="w-full h-full object-cover" alt={attachment.name} />
+        <img
+          src={attachment.objectUrl}
+          class="w-full h-full object-cover"
+          alt={attachment.name}
+        />
         {pending && (
-          <div class="absolute inset-0 bg-black/40 grid place-items-center">
-            <div class="w-5 h-5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+          <div class="absolute inset-0 bg-black/55 grid place-items-center text-white text-[11px] font-medium">
+            {pctLabel}
+          </div>
+        )}
+        {failed && (
+          <div class="absolute inset-0 bg-accent-red/35 grid place-items-center">
+            <AlertCircle class="w-5 h-5 text-white" />
           </div>
         )}
         <button
@@ -22,6 +43,14 @@ export function AttachmentChip({ attachment, onRemove }: { attachment: Attachmen
         >
           <X class="w-3 h-3" />
         </button>
+        {pending && (
+          <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/40">
+            <div
+              class="h-full bg-accent-blue transition-[width] duration-100"
+              style={{ width: `${pct * 100}%` }}
+            />
+          </div>
+        )}
         <div class="absolute bottom-0 left-0 right-0 px-1.5 py-0.5 bg-gradient-to-t from-black/85 to-transparent text-white text-[9.5px] truncate">
           {attachment.name}
         </div>
@@ -30,14 +59,23 @@ export function AttachmentChip({ attachment, onRemove }: { attachment: Attachmen
   }
 
   return (
-    <div class="group flex items-center gap-1.5 bg-[#101318] border border-white/10 rounded-md px-2 py-1.5 text-xs min-h-10">
-      {pending ? (
+    <div
+      class={`group relative flex items-center gap-1.5 bg-[#101318] border rounded-md px-2 py-1.5 text-xs min-h-10 overflow-hidden ${
+        failed ? "border-accent-red/40" : "border-white/10"
+      }`}
+      title={failed ? attachment.error : attachment.name}
+    >
+      {failed ? (
+        <AlertCircle class="w-3.5 h-3.5 text-accent-red flex-none" />
+      ) : pending ? (
         <div class="w-3.5 h-3.5 border-2 border-ink-300 border-t-transparent rounded-full animate-spin flex-none" />
       ) : (
         <FileIcon class="w-3.5 h-3.5 text-accent-blue flex-none" />
       )}
-      <span class="truncate max-w-[180px] text-ink-100" title={attachment.name}>{attachment.name}</span>
-      <span class="text-ink-300 text-[10px] flex-none">{formatBytes(attachment.size)}</span>
+      <span class="truncate max-w-[180px] text-ink-100">{attachment.name}</span>
+      <span class="text-ink-300 text-[10px] flex-none">
+        {pending && pctLabel ? pctLabel : formatBytes(attachment.size)}
+      </span>
       <button
         type="button"
         onClick={onRemove}
@@ -46,6 +84,14 @@ export function AttachmentChip({ attachment, onRemove }: { attachment: Attachmen
       >
         <X class="w-3 h-3" />
       </button>
+      {pending && (
+        <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-white/[0.06]">
+          <div
+            class="h-full bg-accent-blue transition-[width] duration-100"
+            style={{ width: `${pct * 100}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
