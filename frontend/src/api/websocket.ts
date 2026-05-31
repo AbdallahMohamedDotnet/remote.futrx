@@ -11,3 +11,7 @@ export function chatWebSocketUrl(chatId: string, sinceSeq = 0): string {
 export function workspaceWebSocketUrl(): string {
   return `${wsBase()}/ws/workspace`;
 }
+
+export function terminalWebSocketUrl(chatId: string): string {
+  return `${wsBase()}/ws/terminal?chat=${encodeURIComponent(chatId)}`;
+}

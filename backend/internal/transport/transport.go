@@ -37,8 +37,9 @@ func NewHTTPHandler(deps Dependencies) http.Handler {
 			deps.Services.UserSettings,
 			deps.Services.Auth,
 		),
-		TmuxWS: wstransport.NewTmuxSocket(deps.TmuxClient),
-		ChatWS: wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt),
+		TmuxWS:     wstransport.NewTmuxSocket(deps.TmuxClient),
+		TerminalWS: wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects),
+		ChatWS:     wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt),
 		WorkspaceWS: wstransport.NewWorkspaceSocket(
 			deps.Services.Chats,
 			deps.Services.Projects,

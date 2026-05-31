@@ -1,10 +1,11 @@
-import { Code } from "../ui/icons";
+import { Code, Terminal } from "../ui/icons";
 
 const defaultWorkspacePath = "/opt/remote.futrx.dev";
 const ideBaseUrl = "https://code.remote.futrx.dev/";
 
 export function CwdEditor({
   editing,
+  chatId,
   cwd,
   value,
   onStartEdit,
@@ -13,6 +14,7 @@ export function CwdEditor({
   onCancel,
 }: {
   editing: boolean;
+  chatId: string;
   cwd: string;
   value: string;
   onStartEdit: () => void;
@@ -22,6 +24,7 @@ export function CwdEditor({
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = `${ideBaseUrl}?folder=${encodeURIComponent(workspacePath)}`;
+  const terminalUrl = `/?terminal=${encodeURIComponent(chatId)}`;
 
   if (editing) {
     return (
@@ -41,17 +44,31 @@ export function CwdEditor({
   }
 
   return (
-    <a
-      href={ideUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      class="h-9 max-w-[72vw] md:max-w-[520px] inline-flex items-center gap-2 px-3 rounded-md
-             bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200"
-      title={`Open workspace in IDE: ${workspacePath}`}
-      aria-label="Open workspace in IDE"
-    >
-      <Code class="w-4 h-4 text-accent-blue flex-none" />
-      <span class="text-[12.5px] font-medium">Open in IDE</span>
-    </a>
+    <>
+      <a
+        href={ideUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="h-9 max-w-[72vw] md:max-w-[520px] inline-flex items-center gap-2 px-3 rounded-md
+               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200"
+        title={`Open workspace in IDE: ${workspacePath}`}
+        aria-label="Open workspace in IDE"
+      >
+        <Code class="w-4 h-4 text-accent-blue flex-none" />
+        <span class="text-[12.5px] font-medium">Open in IDE</span>
+      </a>
+      <a
+        href={terminalUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="h-9 inline-flex items-center gap-2 px-3 rounded-md
+               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
+        title={`Open terminal in container workspace: ${workspacePath}`}
+        aria-label="Open terminal"
+      >
+        <Terminal class="w-4 h-4 text-accent-blue flex-none" />
+        <span class="text-[12.5px] font-medium">Open Terminal</span>
+      </a>
+    </>
   );
 }

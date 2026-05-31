@@ -92,6 +92,7 @@ export function ThreadHeader({
       <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
         <CwdEditor
           editing={editingCwd}
+          chatId={chat.id}
           cwd={chat.cwd || "~"}
           value={cwdInput}
           onStartEdit={onStartEditCwd}
