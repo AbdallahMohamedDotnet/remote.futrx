@@ -36,13 +36,21 @@ func (s *Service) SetSecret(ctx context.Context, id ID, key, value string) (Secr
 	if !ValidSecretKey(key) {
 		return Secret{}, ErrInvalidSecretKey
 	}
-	if _, err := s.repo.Get(ctx, id); err != nil {
+	m, err := s.repo.Get(ctx, id)
+	if err != nil {
 		return Secret{}, err
 	}
 	if s.secrets == nil {
 		return Secret{}, ErrSecretsUnavailable
 	}
-	return s.secrets.Set(ctx, id, key, value)
+	saved, err := s.secrets.Set(ctx, id, key, value)
+	if err != nil {
+		return Secret{}, err
+	}
+	if syncErr := s.syncEnvFile(ctx, id, m.Cwd); syncErr != nil {
+		log.Printf("projects: sync .env for %s after set %s: %v", id, key, syncErr)
+	}
+	return saved, nil
 }
 
 func (s *Service) DeleteSecret(ctx context.Context, id ID, key string) error {
@@ -52,13 +60,20 @@ func (s *Service) DeleteSecret(ctx context.Context, id ID, key string) error {
 	if !ValidSecretKey(key) {
 		return ErrInvalidSecretKey
 	}
-	if _, err := s.repo.Get(ctx, id); err != nil {
+	m, err := s.repo.Get(ctx, id)
+	if err != nil {
 		return err
 	}
 	if s.secrets == nil {
 		return ErrSecretsUnavailable
 	}
-	return s.secrets.Delete(ctx, id, key)
+	if err := s.secrets.Delete(ctx, id, key); err != nil {
+		return err
+	}
+	if syncErr := s.syncEnvFile(ctx, id, m.Cwd); syncErr != nil {
+		log.Printf("projects: sync .env for %s after delete %s: %v", id, key, syncErr)
+	}
+	return nil
 }
 
 func (s *Service) List(ctx context.Context) ([]Meta, error) {
