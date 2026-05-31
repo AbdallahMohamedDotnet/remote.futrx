@@ -8,6 +8,8 @@ export interface ChatMeta {
   cwd?: string;
   createdAt: number;
   lastMessageAt: number;
+  lastReadAt?: number;
+  running?: boolean;
   model?: string;
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;

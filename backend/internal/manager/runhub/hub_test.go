@@ -101,6 +101,29 @@ func TestHubAllowsOnlyOneRunPerChat(t *testing.T) {
 	}
 }
 
+func TestHubPublishesRunningTransitions(t *testing.T) {
+	hub := New(nil)
+	updates := make(chan bool, 2)
+	hub.SetRunningSubscriber(func(id servicechat.ID, running bool) {
+		if id == "abcd" {
+			updates <- running
+		}
+	})
+
+	runID, ok := hub.StartRun("abcd", func() {})
+	if !ok {
+		t.Fatal("run should start")
+	}
+	if running := receiveRunning(t, updates); !running {
+		t.Fatal("expected running=true update")
+	}
+
+	hub.FinishRun("abcd", runID)
+	if running := receiveRunning(t, updates); running {
+		t.Fatal("expected running=false update")
+	}
+}
+
 func receiveEvent(t *testing.T, sub *Subscription) servicechat.Event {
 	t.Helper()
 	select {
@@ -109,5 +132,16 @@ func receiveEvent(t *testing.T, sub *Subscription) servicechat.Event {
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for event")
 		return servicechat.Event{}
+	}
+}
+
+func receiveRunning(t *testing.T, updates <-chan bool) bool {
+	t.Helper()
+	select {
+	case running := <-updates:
+		return running
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for running update")
+		return false
 	}
 }

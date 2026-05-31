@@ -34,13 +34,14 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	codexLogin := codexauth.New()
 
 	return httptransport.NewHandler(httptransport.Handlers{
 		Sessions:   httphandlers.NewTmuxHandler(deps.TmuxClient),
 		Chats:      httphandlers.NewChatHandler(deps.Services.Chats),
 		Projects:   httphandlers.NewProjectHandler(deps.Services.Projects),
 		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
-		CodexAuth:  httphandlers.NewCodexAuthHandler(codexauth.New()),
+		CodexAuth:  httphandlers.NewCodexAuthHandler(codexLogin),
 		UserSettings: httphandlers.NewUserSettingsHandler(
 			deps.Services.UserSettings,
 			deps.Services.Auth,
@@ -54,8 +55,9 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Projects,
 			deps.Services.Workspace,
 		),
-		Auth:   auth,
-		Static: httptransport.NewStaticHandler(deps.Static),
+		CodexAuthWS: wstransport.NewCodexAuthSocket(codexLogin),
+		Auth:        auth,
+		Static:      httptransport.NewStaticHandler(deps.Static),
 	}), nil
 }
 

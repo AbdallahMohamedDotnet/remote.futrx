@@ -55,19 +55,22 @@ These endpoints drive the host's `codex login --device-auth` flow. That signs in
 
 | Method | Path | Frontend caller | Request | Response | When called |
 | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/codex/auth-status` | `codexAuthService.status()` | None | `{ "authenticated": boolean, "authMode"?: string, "usesApiKey"?: boolean, "deviceLogin"?: CodexDeviceLogin }`. | Settings page load / refresh and login polling. |
+| `GET` | `/api/codex/auth-status` | Not used by the current frontend. | None | `{ "authenticated": boolean, "authMode"?: string, "usesApiKey"?: boolean, "deviceLogin"?: CodexDeviceLogin }`. | Manual diagnostics only; the UI uses `/ws/codex/auth-status` to avoid polling. |
 | `POST` | `/api/codex/login/device` | `codexAuthService.startDeviceLogin()` | `{}` | `CodexDeviceLogin` with `verificationUri`, `userCode`, and `expiresAt` when `codex login --device-auth` starts. | Admin starts or resumes ChatGPT device-code login for Codex. |
+
+`/ws/codex/auth-status` streams Codex auth status snapshots. The server sends the current status on connect, then pushes updates when a device login starts, when the device code becomes available, and when the login completes.
 
 ### Chats
 
 | Method | Path | Frontend caller | Request | Response |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/chats` | `chatService.list()` | None | `ChatMeta[]`. Used for explicit refresh/fallback; normal workspace updates arrive over `/ws/workspace`. |
+| `GET` | `/api/chats` | Not used by the current sidebar flow. | None | `ChatMeta[]`. Available for diagnostics/fallback; normal workspace state arrives over `/ws/workspace`. |
 | `POST` | `/api/chats` | `chatService.create(body)` | `CreateChatInput` | `201` with `ChatMeta`. |
 | `GET` | `/api/chats/{id}` | `chatService.get(id)` | None | `ChatMeta`. Loaded before opening the chat WebSocket. |
 | `PATCH` | `/api/chats/{id}` | `chatService.update(id, body)` | `UpdateChatInput` | Updated `ChatMeta`. |
 | `DELETE` | `/api/chats/{id}` | `chatService.delete(id)` | None | `{ "ok": true }`. |
 | `GET` | `/api/chats/{id}/events` | `chatService.events(id, params)` | Optional query: `limit`, `before`. | `ChatEventPage`. Loads the newest page by default; `before` is an exclusive event sequence cursor for older pages. |
+| `POST` | `/api/chats/{id}/read` | `chatService.markRead(id)` | `{}` | Updated `ChatMeta`. Marks the chat read through its current `lastMessageAt`. |
 | `POST` | `/api/chats/{id}/rewind` | `chatService.rewind(id, beforeT)` | `{ "beforeT": number }` | `ChatEventPage` for the rewound chat. |
 | `POST` | `/api/chats/{id}/upload` | `uploadChatFiles(chatId, files)` | Multipart field `files`, max 200 MiB total. | `{ "cwd": string, "results": UploadResult[] }`. |
 
@@ -75,7 +78,7 @@ These endpoints drive the host's `codex login --device-auth` flow. That signs in
 
 | Method | Path | Frontend caller | Request | Response |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/projects` | `projectService.list()` | None | `ProjectMeta[]`. Used for explicit refresh/fallback; normal workspace updates arrive over `/ws/workspace`. |
+| `GET` | `/api/projects` | Not used by the current sidebar flow. | None | `ProjectMeta[]`. Available for diagnostics/fallback; normal workspace state arrives over `/ws/workspace`. |
 | `POST` | `/api/projects` | `projectService.create(name)` | `{ "name": string }` | `201` with `ProjectMeta`. |
 | `GET` | `/api/projects/{id}` | `projectService.get(id)` | None | `ProjectMeta`. |
 | `PATCH` | `/api/projects/{id}` | `projectService.update(id, body)` | `{ "name"?: string }` | Updated `ProjectMeta`. |
@@ -238,6 +241,8 @@ interface ChatMeta {
   cwd?: string;
   createdAt: number;
   lastMessageAt: number;
+  lastReadAt?: number;
+  running?: boolean;
   model?: string;
   mode?: "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
   reasoningEffort?: "" | "low" | "medium" | "high" | "xhigh";

@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { workspaceWebSocketUrl } from "../../api/websocket";
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
-import { chatService } from "../../services/chatService";
-import { projectService } from "../../services/projectService";
 
 type WorkspaceMessage =
   | { type: "workspace.snapshot"; chats: ChatMeta[]; projects: ProjectMeta[] }
@@ -17,27 +15,8 @@ export function useWorkspaceData(enabled: boolean) {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const refreshChats = useCallback(async () => {
-    if (!enabled) {
-      setChatsIfChanged([]);
-      return;
-    }
-    const next = await chatService.list();
-    setChatsIfChanged(next);
-  }, [enabled]);
-
-  const refreshProjects = useCallback(async () => {
-    if (!enabled) {
-      setProjectsIfChanged([]);
-      return;
-    }
-    const next = await projectService.list();
-    setProjectsIfChanged(next);
-  }, [enabled]);
-
-  const refreshAll = useCallback(async () => {
-    await Promise.all([refreshChats(), refreshProjects()]);
-  }, [refreshChats, refreshProjects]);
+  const refreshChats = useCallback(async () => {}, []);
+  const refreshProjects = useCallback(async () => {}, []);
 
   useEffect(() => {
     if (!enabled) {
@@ -49,8 +28,6 @@ export function useWorkspaceData(enabled: boolean) {
     let stopped = false;
     let attempt = 0;
     let socket: WebSocket | null = null;
-
-    void refreshAll();
 
     function scheduleReconnect() {
       if (stopped) return;
@@ -75,7 +52,6 @@ export function useWorkspaceData(enabled: boolean) {
 
       socket.onclose = () => {
         socket = null;
-        void refreshAll();
         scheduleReconnect();
       };
 
@@ -94,7 +70,7 @@ export function useWorkspaceData(enabled: boolean) {
       }
       try { socket?.close(); } catch {}
     };
-  }, [enabled, refreshAll]);
+  }, [enabled]);
 
   function applyWorkspaceMessage(message: WorkspaceMessage) {
     switch (message.type) {
@@ -130,7 +106,6 @@ export function useWorkspaceData(enabled: boolean) {
     projects,
     refreshChats,
     refreshProjects,
-    refreshAll,
   };
 }
 
@@ -167,6 +142,8 @@ function sameChats(a: ChatMeta[], b: ChatMeta[]): boolean {
       left.cwd !== right.cwd ||
       left.createdAt !== right.createdAt ||
       left.lastMessageAt !== right.lastMessageAt ||
+      left.lastReadAt !== right.lastReadAt ||
+      left.running !== right.running ||
       left.model !== right.model ||
       left.mode !== right.mode ||
       left.reasoningEffort !== right.reasoningEffort ||

@@ -16,6 +16,7 @@ type metaRecord struct {
 	Cwd             string `json:"cwd,omitempty"`
 	CreatedAt       int64  `json:"createdAt"`
 	LastMessageAt   int64  `json:"lastMessageAt"`
+	LastReadAt      int64  `json:"lastReadAt,omitempty"`
 	Model           string `json:"model,omitempty"`
 	Mode            string `json:"mode,omitempty"`
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
@@ -33,6 +34,7 @@ func metaRecordFromDomain(m servicechat.Meta) metaRecord {
 		Cwd:             m.Cwd,
 		CreatedAt:       m.CreatedAt,
 		LastMessageAt:   m.LastMessageAt,
+		LastReadAt:      m.LastReadAt,
 		Model:           m.Model,
 		Mode:            m.Mode,
 		ReasoningEffort: m.ReasoningEffort,
@@ -41,6 +43,10 @@ func metaRecordFromDomain(m servicechat.Meta) metaRecord {
 }
 
 func (r metaRecord) toDomain() servicechat.Meta {
+	lastReadAt := r.LastReadAt
+	if lastReadAt == 0 {
+		lastReadAt = r.LastMessageAt
+	}
 	return servicechat.Meta{
 		ID:              servicechat.ID(r.ID),
 		Title:           r.Title,
@@ -51,6 +57,7 @@ func (r metaRecord) toDomain() servicechat.Meta {
 		Cwd:             r.Cwd,
 		CreatedAt:       r.CreatedAt,
 		LastMessageAt:   r.LastMessageAt,
+		LastReadAt:      lastReadAt,
 		Model:           r.Model,
 		Mode:            r.Mode,
 		ReasoningEffort: servicechat.NormalizeReasoningEffort(r.ReasoningEffort),

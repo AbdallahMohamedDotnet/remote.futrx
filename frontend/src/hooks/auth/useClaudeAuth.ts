@@ -12,7 +12,7 @@ export interface ClaudeAuthState {
   refresh: () => Promise<void>;
 }
 
-// Polls /api/claude/auth-status. Used by App.tsx to gate the chat UI on the
+// Checks /api/claude/auth-status. Used by App.tsx to gate the chat UI on the
 // claude CLI being authenticated against Anthropic on the server.
 //
 // `enabled` MUST be false until Google auth is confirmed — /api/claude/* is

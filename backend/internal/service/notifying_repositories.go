@@ -11,12 +11,13 @@ import (
 type notifyingChatRepository struct {
 	servicechat.Repository
 	workspace *workspacehub.Hub
+	running   func(servicechat.ID) bool
 }
 
 func (r notifyingChatRepository) Create(ctx context.Context, meta servicechat.Meta) (servicechat.Meta, error) {
 	next, err := r.Repository.Create(ctx, meta)
 	if err == nil {
-		r.workspace.PublishChatUpsert(next)
+		r.workspace.PublishChatUpsert(r.withRunning(next))
 	}
 	return next, err
 }
@@ -28,7 +29,7 @@ func (r notifyingChatRepository) Update(
 ) (servicechat.Meta, error) {
 	next, err := r.Repository.Update(ctx, id, fn)
 	if err == nil {
-		r.workspace.PublishChatUpsert(next)
+		r.workspace.PublishChatUpsert(r.withRunning(next))
 	}
 	return next, err
 }
@@ -67,8 +68,15 @@ func (r notifyingChatRepository) TruncateEventsBefore(
 
 func (r notifyingChatRepository) publishChat(ctx context.Context, id servicechat.ID) {
 	if meta, err := r.Repository.Get(ctx, id); err == nil {
-		r.workspace.PublishChatUpsert(meta)
+		r.workspace.PublishChatUpsert(r.withRunning(meta))
 	}
+}
+
+func (r notifyingChatRepository) withRunning(meta servicechat.Meta) servicechat.Meta {
+	if r.running != nil {
+		meta.Running = r.running(meta.ID)
+	}
+	return meta
 }
 
 func eventUpdatesWorkspace(eventType string) bool {

@@ -78,6 +78,9 @@ func (s *Store) Create(ctx context.Context, meta servicechat.Meta) (servicechat.
 	if meta.LastMessageAt == 0 {
 		meta.LastMessageAt = now
 	}
+	if meta.LastReadAt == 0 {
+		meta.LastReadAt = meta.LastMessageAt
+	}
 	if meta.Title == "" {
 		meta.Title = "New chat"
 	}
