@@ -1,4 +1,7 @@
-import { Folder } from "../ui/icons";
+import { Code } from "../ui/icons";
+
+const defaultWorkspacePath = "/opt/remote.futrx.dev";
+const ideBaseUrl = "https://code.remote.futrx.dev/";
 
 export function CwdEditor({
   editing,
@@ -17,6 +20,9 @@ export function CwdEditor({
   onCommit: () => void;
   onCancel: () => void;
 }) {
+  const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
+  const ideUrl = `${ideBaseUrl}?folder=${encodeURIComponent(workspacePath)}`;
+
   if (editing) {
     return (
       <input
@@ -35,15 +41,17 @@ export function CwdEditor({
   }
 
   return (
-    <button
-      type="button"
+    <a
+      href={ideUrl}
+      target="_blank"
+      rel="noopener noreferrer"
       class="h-9 max-w-[72vw] md:max-w-[520px] inline-flex items-center gap-2 px-3 rounded-md
              bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200"
-      onClick={onStartEdit}
-      title="Change working directory"
+      title={`Open workspace in IDE: ${workspacePath}`}
+      aria-label="Open workspace in IDE"
     >
-      <Folder class="w-4 h-4 text-accent-blue flex-none" />
-      <span class="truncate font-mono text-[12.5px]">{cwd}</span>
-    </button>
+      <Code class="w-4 h-4 text-accent-blue flex-none" />
+      <span class="text-[12.5px] font-medium">Open in IDE</span>
+    </a>
   );
 }

@@ -1,7 +1,6 @@
 import type { RefObject } from "preact";
 import type { ChatMeta } from "../../models/chat";
 import type { UsageTotals } from "../../state/chat/usage";
-import { shortenPath } from "../../lib/format";
 import { Menu, MessageSquare } from "../ui/icons";
 import { CwdEditor } from "./CwdEditor";
 import { ModelPicker } from "./ModelPicker";
@@ -93,7 +92,7 @@ export function ThreadHeader({
       <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
         <CwdEditor
           editing={editingCwd}
-          cwd={shortenPath(chat.cwd || "~")}
+          cwd={chat.cwd || "~"}
           value={cwdInput}
           onStartEdit={onStartEditCwd}
           onChange={onCwdInput}
