@@ -1,12 +1,8 @@
-import { useEffect, useRef, useState } from "preact/hooks";
-import { FitAddon } from "@xterm/addon-fit";
-import { Terminal as XTerm } from "@xterm/xterm";
+import { useEffect, useState } from "preact/hooks";
 import "@xterm/xterm/css/xterm.css";
-import { terminalWebSocketUrl } from "../../api/websocket";
 import type { ChatMeta } from "../../models/chat";
+import { useTerminalSession } from "../../hooks/chat/useTerminalSession";
 import { Terminal as TerminalIcon, X } from "../ui/icons";
-
-type TerminalStatus = "connecting" | "connected" | "closed" | "error";
 
 export function TerminalOverlay({
   chat,
@@ -17,13 +13,21 @@ export function TerminalOverlay({
   open: boolean;
   onClose: () => void;
 }) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const terminalRef = useRef<XTerm | null>(null);
-  const fitRef = useRef<FitAddon | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
-  const [status, setStatus] = useState<TerminalStatus>("closed");
-  const [error, setError] = useState<string | null>(null);
+  const [openedChatId, setOpenedChatId] = useState<string | null>(() => open ? chat.id : null);
+  const terminal = useTerminalSession({
+    chatId: chat.id,
+    enabled: openedChatId === chat.id,
+    title: chat.title,
+  });
   const [entered, setEntered] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setOpenedChatId(chat.id);
+      return;
+    }
+    setOpenedChatId((current) => current === chat.id ? current : null);
+  }, [chat.id, open]);
 
   useEffect(() => {
     if (!open) {
@@ -35,124 +39,16 @@ export function TerminalOverlay({
   }, [open]);
 
   useEffect(() => {
-    if (!hostRef.current) return;
-
-    const terminal = new XTerm({
-      cursorBlink: true,
-      convertEol: true,
-      fontFamily: "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace",
-      fontSize: 13,
-      lineHeight: 1.18,
-      scrollback: 6000,
-      theme: {
-        background: "#0f1014",
-        foreground: "#e4e4e7",
-        cursor: "#f4f4f5",
-        selectionBackground: "#3f4047",
-        black: "#18191e",
-        red: "#ff7b72",
-        green: "#7bd88f",
-        yellow: "#e2b86d",
-        blue: "#8ab4ff",
-        magenta: "#b8a8ff",
-        cyan: "#7dd3fc",
-        white: "#e4e4e7",
-        brightBlack: "#707078",
-        brightRed: "#ff9b96",
-        brightGreen: "#b7f7c2",
-        brightYellow: "#f0d28a",
-        brightBlue: "#a7c7ff",
-        brightMagenta: "#c8bbff",
-        brightCyan: "#a5f3fc",
-        brightWhite: "#f4f4f5",
-      },
-    });
-    const fit = new FitAddon();
-    terminal.loadAddon(fit);
-    terminal.open(hostRef.current);
-    terminalRef.current = terminal;
-    fitRef.current = fit;
-
-    const socket = new WebSocket(terminalWebSocketUrl(chat.id));
-    socket.binaryType = "arraybuffer";
-    socketRef.current = socket;
-    setStatus("connecting");
-    setError(null);
-
-    const sendResize = () => {
-      try {
-        fit.fit();
-        socket.send(JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows }));
-      } catch {}
-    };
-
-    socket.onopen = () => {
-      setStatus("connected");
-      terminal.writeln(`Connected to ${chat.title || "workspace"} terminal`);
-      terminal.writeln("");
-      sendResize();
-    };
-    socket.onmessage = (event) => {
-      if (event.data instanceof ArrayBuffer) {
-        terminal.write(new Uint8Array(event.data));
-        return;
-      }
-      terminal.write(String(event.data));
-    };
-    socket.onerror = () => {
-      setError("Terminal connection failed.");
-      setStatus("error");
-    };
-    socket.onclose = () => {
-      setStatus((current) => current === "error" ? current : "closed");
-    };
-
-    const inputSub = terminal.onData((data) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "input", data }));
-      }
-    });
-
-    const resizeObserver = new ResizeObserver(() => {
-      if (socket.readyState === WebSocket.OPEN) sendResize();
-    });
-    resizeObserver.observe(hostRef.current);
-    window.setTimeout(sendResize, 0);
-
-    return () => {
-      resizeObserver.disconnect();
-      inputSub.dispose();
-      try { socket.close(); } catch {}
-      terminal.dispose();
-      socketRef.current = null;
-      terminalRef.current = null;
-      fitRef.current = null;
-    };
-  }, [chat.id, chat.title]);
-
-  useEffect(() => {
     if (!open) return;
-    const frame = requestAnimationFrame(() => {
-      const terminal = terminalRef.current;
-      const fit = fitRef.current;
-      const socket = socketRef.current;
-      if (!terminal || !fit) return;
-      terminal.focus();
-      try {
-        fit.fit();
-        if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows }));
-        }
-      } catch {}
-    });
+    const frame = requestAnimationFrame(terminal.focus);
     return () => cancelAnimationFrame(frame);
-  }, [open]);
+  }, [open, terminal.focus]);
 
   const workspacePath = chat.cwd || "/workspace";
   const statusLabel =
-    status === "connected" ? "Connected" :
-    status === "connecting" ? "Connecting" :
-    status === "error" ? "Error" :
+    terminal.status === "connected" ? "Connected" :
+    terminal.status === "connecting" ? "Connecting" :
+    terminal.status === "error" ? "Error" :
     "Closed";
 
   return (
@@ -187,7 +83,7 @@ export function TerminalOverlay({
               <h2 class="truncate text-[15px] md:text-base font-semibold text-ink-50">
                 Terminal
               </h2>
-              <span class={`h-2 w-2 rounded-full flex-none ${status === "connected" ? "bg-accent-green" : "bg-ink-400"}`} />
+              <span class={`h-2 w-2 rounded-full flex-none ${terminal.status === "connected" ? "bg-accent-green" : "bg-ink-400"}`} />
             </div>
             <div class="truncate text-[12px] text-ink-300">
               {statusLabel} - {workspacePath}
@@ -204,15 +100,15 @@ export function TerminalOverlay({
           </button>
         </header>
 
-        {error && (
+        {terminal.error && (
           <div class="mx-3 md:mx-4 mt-3 rounded-md border border-accent-red/30 bg-accent-red/10 px-3 py-2 text-sm text-accent-red">
-            {error}
+            {terminal.error}
           </div>
         )}
 
         <div class="flex-1 min-h-0 p-2 md:p-3">
           <div
-            ref={hostRef}
+            ref={terminal.hostRef}
             class="h-full w-full overflow-hidden rounded-md border border-white/10 bg-[#0f1014] p-2"
           />
         </div>
