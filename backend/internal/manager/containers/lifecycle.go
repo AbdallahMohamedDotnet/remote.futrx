@@ -53,10 +53,6 @@ func (m *Manager) Launch(ctx context.Context, p serviceproject.Meta) error {
 	// and will be retried on the next prompt.
 	_ = m.EnsureBootAutostart(ctx, p.ContainerName)
 	_ = m.EnsureRegisteredAuth(ctx, p.ContainerName)
-	// Seed global secrets (Cloudflare/GitHub/etc. tokens) so the container
-	// has them in environ from the first `lxc exec`. Best-effort; if the
-	// secrets source isn't wired yet this is a no-op.
-	_ = m.SyncContainerSecrets(ctx, p.ContainerName)
 
 	return nil
 }

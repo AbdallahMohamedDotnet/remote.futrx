@@ -1,52 +1,23 @@
-import type { AppearanceTheme, CredentialProvider, ProviderKey } from "../../models/settings";
-import { AlertCircle, ChevronLeft, Menu } from "../ui/icons";
+import type { AppearanceTheme } from "../../models/settings";
+import { ChevronLeft, Menu } from "../ui/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
-import { ProviderCard } from "./ProviderCard";
 
 export function SettingsPage({
-  providers,
   appearanceTheme,
   appearanceLoading,
   appearanceSaving,
   appearanceError,
-  values,
-  expandedHelp,
-  revealed,
-  savedAt,
-  stored,
-  saving,
-  errors,
-  propagation,
   onBack,
   onHamburger,
   onAppearanceThemeChange,
-  onValueChange,
-  onToggleHelp,
-  onToggleReveal,
-  onSave,
-  onClear,
 }: {
-  providers: CredentialProvider[];
   appearanceTheme: AppearanceTheme;
   appearanceLoading: boolean;
   appearanceSaving: boolean;
   appearanceError: string | null;
-  values: Record<ProviderKey, string>;
-  expandedHelp: Record<ProviderKey, boolean>;
-  revealed: Record<ProviderKey, boolean>;
-  savedAt: Record<ProviderKey, number | undefined>;
-  stored: Record<ProviderKey, boolean>;
-  saving: Record<ProviderKey, boolean>;
-  errors: Record<ProviderKey, string | undefined>;
-  propagation: Record<ProviderKey, { propagated: number; failures: number } | undefined>;
   onBack: () => void;
   onHamburger: () => void;
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
-  onValueChange: (key: ProviderKey, value: string) => void;
-  onToggleHelp: (key: ProviderKey) => void;
-  onToggleReveal: (key: ProviderKey) => void;
-  onSave: (key: ProviderKey) => void;
-  onClear: (key: ProviderKey) => void;
 }) {
   return (
     <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -84,44 +55,11 @@ export function SettingsPage({
           />
 
           <p class="text-[13px] leading-relaxed text-ink-300">
-            These credentials are <strong class="text-ink-100">host-wide</strong>. Paste once
-            and every project's container gets seeded so <code class="font-mono text-ink-100">gh</code>,{" "}
-            <code class="font-mono text-ink-100">wrangler</code>,{" "}
-            <code class="font-mono text-ink-100">hcloud</code>, and{" "}
-            <code class="font-mono text-ink-100">gcloud</code> work inside the sandbox.
-            Use long-lived tokens or service-account keys, not interactive logins.
+            Provider credentials (GitHub PAT, Cloudflare token, Hetzner token, GCP service-account JSON)
+            are now configured <strong class="text-ink-100">per project</strong> from each project's
+            Containers page. That keeps account boundaries clean — project A can target one Cloudflare
+            account, project B another, without conflating them.
           </p>
-
-          <div class="flex items-start gap-2.5 rounded-lg border border-accent-yellow/30 bg-accent-yellow/[0.08]
-                      text-ink-100 px-3 py-2.5 text-[13px] leading-relaxed">
-            <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-yellow" />
-            <div>
-              <div class="font-medium text-accent-yellow">Backend storage not wired yet</div>
-              <div class="text-ink-200 mt-0.5">
-                Credential values are not persisted or pushed to containers. This section is the UI stub.
-              </div>
-            </div>
-          </div>
-
-          {providers.map((provider) => (
-            <ProviderCard
-              key={provider.key}
-              provider={provider}
-              value={values[provider.key]}
-              helpOpen={!!expandedHelp[provider.key]}
-              revealed={!!revealed[provider.key]}
-              savedAt={savedAt[provider.key]}
-              stored={!!stored[provider.key]}
-              saving={!!saving[provider.key]}
-              error={errors[provider.key]}
-              propagation={propagation[provider.key]}
-              onChange={(value) => onValueChange(provider.key, value)}
-              onToggleHelp={() => onToggleHelp(provider.key)}
-              onToggleReveal={() => onToggleReveal(provider.key)}
-              onSave={() => onSave(provider.key)}
-              onClear={() => onClear(provider.key)}
-            />
-          ))}
         </div>
       </div>
     </div>

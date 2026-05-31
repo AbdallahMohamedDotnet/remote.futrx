@@ -50,6 +50,14 @@ func (s *Service) SetSecret(ctx context.Context, id ID, key, value string) (Secr
 	if syncErr := s.syncEnvFile(ctx, id, m.Cwd); syncErr != nil {
 		log.Printf("projects: sync .env for %s after set %s: %v", id, key, syncErr)
 	}
+	if s.containers != nil && m.ContainerName != "" {
+		if envErr := s.containers.ApplyContainerEnvDiff(
+			ctx, m.ContainerName,
+			map[string]string{key: value}, nil,
+		); envErr != nil {
+			log.Printf("projects: push env %s to %s: %v", key, m.ContainerName, envErr)
+		}
+	}
 	return saved, nil
 }
 
@@ -72,6 +80,13 @@ func (s *Service) DeleteSecret(ctx context.Context, id ID, key string) error {
 	}
 	if syncErr := s.syncEnvFile(ctx, id, m.Cwd); syncErr != nil {
 		log.Printf("projects: sync .env for %s after delete %s: %v", id, key, syncErr)
+	}
+	if s.containers != nil && m.ContainerName != "" {
+		if envErr := s.containers.ApplyContainerEnvDiff(
+			ctx, m.ContainerName, nil, []string{key},
+		); envErr != nil {
+			log.Printf("projects: unset env %s on %s: %v", key, m.ContainerName, envErr)
+		}
 	}
 	return nil
 }
@@ -121,6 +136,12 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		if err := s.containers.Launch(ctx, m); err != nil {
 			log.Printf("projects: launch %s failed: %v", m.ContainerName, err)
 			return s.repo.SetStatus(ctx, m.ID, StatusError, err.Error())
+		}
+		// Push any pre-existing project secrets into the freshly launched
+		// container's env. Empty on first create; matters on recreate
+		// (delete + relaunch with secrets already stored).
+		if syncErr := s.syncContainerEnv(ctx, m.ID, m.ContainerName); syncErr != nil {
+			log.Printf("projects: sync env to %s after launch: %v", m.ContainerName, syncErr)
 		}
 	}
 	return s.repo.SetStatus(ctx, m.ID, StatusRunning, "")
@@ -239,3 +260,27 @@ func statusForContainerState(state ContainerState) Status {
 		return StatusUnknown
 	}
 }
+
+// syncContainerEnv pushes every stored secret for the project into the
+// container's LXD environment.* config. Best-effort; logs failures.
+func (s *Service) syncContainerEnv(ctx context.Context, id ID, containerName string) error {
+	if s.containers == nil || containerName == "" {
+		return nil
+	}
+	if s.secrets == nil {
+		return nil
+	}
+	secs, err := s.secrets.List(ctx, id)
+	if err != nil {
+		return err
+	}
+	if len(secs) == 0 {
+		return nil
+	}
+	set := make(map[string]string, len(secs))
+	for _, sec := range secs {
+		set[sec.Key] = sec.Value
+	}
+	return s.containers.ApplyContainerEnvDiff(ctx, containerName, set, nil)
+}
+

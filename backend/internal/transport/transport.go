@@ -36,8 +36,6 @@ func NewHTTPHandler(deps Dependencies) http.Handler {
 		UserSettings: httphandlers.NewUserSettingsHandler(
 			deps.Services.UserSettings,
 			deps.Services.Auth,
-			deps.Services.Projects,
-			deps.Services.Containers,
 		),
 		TmuxWS:     wstransport.NewTmuxSocket(deps.TmuxClient),
 		TerminalWS: wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects),
