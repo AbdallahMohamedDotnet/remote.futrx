@@ -45,6 +45,23 @@ if (!function_exists('adminer_object')) {
     function adminer_object() {
         if (!class_exists('RemoteFutrxAdminer', false)) {
             class RemoteFutrxAdminer extends Adminer {
+                const PASSWORDLESS_SENTINEL = '__remote_futrx_passwordless__';
+
+                function credentials() {
+                    $credentials = parent::credentials();
+                    if ($credentials[2] === self::PASSWORDLESS_SENTINEL) {
+                        $credentials[2] = '';
+                    }
+                    return $credentials;
+                }
+
+                function loginFormField($name, $heading, $value) {
+                    if ($name === 'password') {
+                        return $heading . '<input type="password" name="auth[password]" value="' . self::PASSWORDLESS_SENTINEL . '" autocomplete="current-password">' . "\n";
+                    }
+                    return parent::loginFormField($name, $heading, $value);
+                }
+
                 function login($login, $password) {
                     return true;
                 }
