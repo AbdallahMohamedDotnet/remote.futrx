@@ -10,6 +10,7 @@ import { useDragUpload } from "../hooks/chat/useDragUpload";
 import { usePromptQueue } from "../hooks/chat/usePromptQueue";
 import { useThreadHeaderState } from "../hooks/chat/useThreadHeaderState";
 import { useThreadScroll } from "../hooks/chat/useThreadScroll";
+import { projectService } from "../services/projectService";
 import {
   estimateCost,
   formatTokens,
@@ -53,6 +54,7 @@ export function ChatContainer({
   const displayMode = displayMeta.mode || "code";
   const [text, setText] = useState("");
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [openingDatabase, setOpeningDatabase] = useState(false);
   const [TerminalOverlay, setTerminalOverlay] = useState<TerminalOverlayComponent | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { textareaRef, focusInput } = useAutosizeTextarea(text);
@@ -78,6 +80,7 @@ export function ChatContainer({
   useEffect(() => {
     setText("");
     setTerminalOpen(false);
+    setOpeningDatabase(false);
     scroll.unlockAutoScroll();
   }, [chat.id]);
 
@@ -172,6 +175,31 @@ export function ChatContainer({
     metaActions.applyMeta({ mode });
   }
 
+  async function openDatabaseViewer() {
+    if (!displayMeta.projectId) {
+      alert("This chat is not attached to a project container.");
+      return;
+    }
+    if (openingDatabase) return;
+
+    const popup = window.open("", "_blank");
+    setOpeningDatabase(true);
+    try {
+      const viewer = await projectService.openDBViewer(displayMeta.projectId);
+      if (popup) {
+        popup.opener = null;
+        popup.location.href = viewer.url;
+      } else {
+        window.open(viewer.url, "_blank", "noopener,noreferrer");
+      }
+    } catch (dbError) {
+      if (popup) popup.close();
+      alert("open db viewer failed: " + (dbError as Error).message);
+    } finally {
+      setOpeningDatabase(false);
+    }
+  }
+
   return (
     <>
       <ChatThread
@@ -231,6 +259,8 @@ export function ChatContainer({
         onModelChange={(model) => metaActions.applyMeta({ model })}
         onModeChange={changeMode}
         onOpenTerminal={() => setTerminalOpen(true)}
+        onOpenDatabase={openDatabaseViewer}
+        openingDatabase={openingDatabase}
       />
       {TerminalOverlay && (
         <TerminalOverlay

@@ -1,12 +1,11 @@
 # Caddyfile for remote.futrx.dev — managed by infra/install.sh.
 #
-# Four site blocks:
+# Three site blocks:
 #   1. ${HOSTNAME}            main chat UI + backend API
 #   2. code.${HOSTNAME}       code-server (VS Code in browser)
-#   3. db.${HOSTNAME}         Adminer database viewer
-#   4. *.dev.${HOSTNAME}      per-project dev URLs (<slug>--<port>.dev.<host>)
+#   3. *.dev.${HOSTNAME}      per-project dev URLs (<slug>--<port>.dev.<host>)
 #
-# All four live behind the same Google admin session — code, db, and dev URLs use
+# All three live behind the same Google admin session — code + dev URLs use
 # forward_auth, the main block hosts the OAuth endpoints themselves.
 
 {
@@ -43,25 +42,6 @@ code.${HOSTNAME} {
         copy_headers Cookie
     }
     reverse_proxy 127.0.0.1:${CODE_SERVER_PORT}
-}
-
-db.${HOSTNAME} {
-    encode zstd gzip
-    # Adminer is intentionally small: Caddy serves a single PHP entrypoint
-    # through PHP-FPM, protected by the same admin session as code-server.
-    root * /var/www/db.${HOSTNAME}
-    header {
-        X-Content-Type-Options "nosniff"
-        Referrer-Policy "same-origin"
-    }
-    route {
-        forward_auth 127.0.0.1:${SERVICE_PORT} {
-            uri /auth/verify
-            copy_headers Cookie
-        }
-        rewrite * /index.php
-        php_fastcgi unix//run/php/php-fpm.sock
-    }
 }
 
 # Per-project dev URLs. <slug>--<port>.dev.${HOSTNAME} proxies into the

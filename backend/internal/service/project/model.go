@@ -41,6 +41,14 @@ type UpdateInput struct {
 	Name *string `json:"name,omitempty"`
 }
 
+const DBViewerPort = 18080
+
+type DBViewer struct {
+	URL           string `json:"url"`
+	Port          int    `json:"port"`
+	ContainerName string `json:"containerName"`
+}
+
 func ValidID(id ID) bool {
 	if len(id) < 4 || len(id) > 32 {
 		return false
@@ -53,6 +61,7 @@ func ValidID(id ID) bool {
 	}
 	return true
 }
+
 // ContainerInspect is a debugging snapshot of a project's container as seen
 // by the container manager. Populated by Service.InspectContainer and
 // exposed at GET /api/projects/{id}/container. Fields are best-effort: a

@@ -104,6 +104,17 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 			httptransport.SendJSON(w, http.StatusOK, info)
+		case "db-viewer":
+			if r.Method != http.MethodPost {
+				httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+				return
+			}
+			viewer, err := h.projects.OpenDBViewer(r.Context(), id)
+			if err != nil {
+				sendProjectError(w, err)
+				return
+			}
+			httptransport.SendJSON(w, http.StatusOK, viewer)
 		default:
 			httptransport.SendErr(w, http.StatusNotFound, "unknown action")
 		}

@@ -51,6 +51,8 @@ export function ChatThread({
   onModelChange,
   onModeChange,
   onOpenTerminal,
+  onOpenDatabase,
+  openingDatabase,
 }: {
   chat: ChatMeta;
   blocks: Block[];
@@ -107,6 +109,8 @@ export function ChatThread({
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
   onOpenTerminal: () => void;
+  onOpenDatabase: () => void;
+  openingDatabase: boolean;
 }) {
   return (
     <div class="codex-thread flex-1 h-full flex flex-col min-h-0 overflow-hidden bg-[#0b0d11]">
@@ -129,6 +133,8 @@ export function ChatThread({
         onCommitCwd={header.onCommitCwd}
         onCancelCwdEdit={header.onCancelCwdEdit}
         onOpenTerminal={onOpenTerminal}
+        onOpenDatabase={onOpenDatabase}
+        openingDatabase={openingDatabase}
         onHamburger={onHamburger}
       />
 

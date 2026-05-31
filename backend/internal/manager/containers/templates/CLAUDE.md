@@ -23,6 +23,40 @@ processes, deleted files only affect you.
 - Background processes persist between prompts; they die on container
   stop/reboot.
 
+## Project services
+
+You may install and run databases, caches, queues, search engines, or
+other services inside this project container when the task calls for
+it.
+
+- Prefer keeping service data under `/workspace` when the service
+  supports it.
+- If a service must be reached from the browser or host-side tooling,
+  bind it to `0.0.0.0` or use the per-container viewer exposed by the
+  UI.
+- For databases/caches you create, record non-secret connection
+  details in `/workspace/.remote/resources.json`. Put secrets in
+  `.env` or project secrets, not in source code.
+
+Example `/workspace/.remote/resources.json`:
+
+```json
+{
+  "resources": [
+    {
+      "type": "postgres",
+      "name": "app",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "database": "app",
+      "userEnv": "POSTGRES_USER",
+      "passwordEnv": "POSTGRES_PASSWORD",
+      "urlEnv": "DATABASE_URL"
+    }
+  ]
+}
+```
+
 ## Dev servers - there is no localhost, there is a public URL
 
 Whenever the user asks for a dev server, **the URL they reach it at

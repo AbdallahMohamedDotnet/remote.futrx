@@ -195,8 +195,6 @@ fi
 . "$INFRA_DIR/steps/01-host-deps.sh"
 # shellcheck source=steps/02-code-server.sh
 . "$INFRA_DIR/steps/02-code-server.sh"
-# shellcheck source=steps/02-db-viewer.sh
-. "$INFRA_DIR/steps/02-db-viewer.sh"
 # shellcheck source=steps/03-app.sh
 . "$INFRA_DIR/steps/03-app.sh"
 # shellcheck source=steps/04-caddy.sh
@@ -213,8 +211,8 @@ cat <<EOF
  ✓ Installed at:  $INSTALL_DIR
  ✓ Main UI:       https://$HOSTNAME
  ✓ Code editor:   https://code.$HOSTNAME
- ✓ DB viewer:     https://db.$HOSTNAME
  ✓ Dev URLs:      https://<slug>--<port>.dev.$HOSTNAME
+ ✓ DB viewers:    lazy per project at https://<slug>--18080.dev.$HOSTNAME
  ✓ Base image:    futrx-remote-dev-base (project containers launch from this)
 
  ${AUTH_NOTE:-(no auth note)}
