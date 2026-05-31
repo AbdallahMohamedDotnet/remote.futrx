@@ -97,10 +97,15 @@ func (p *Provider) buildCmd(
 		"--cwd", "/workspace",
 		"--env", "IS_SANDBOX=1",
 		"--env", "HOME=/root",
-		project.ContainerName,
-		"--",
-		"claude",
 	}
+	if p.projects != nil {
+		if secrets, err := p.projects.ListSecrets(ctx, project.ID); err == nil {
+			for _, sec := range secrets {
+				lxcArgs = append(lxcArgs, "--env", sec.Key+"="+sec.Value)
+			}
+		}
+	}
+	lxcArgs = append(lxcArgs, project.ContainerName, "--", "claude")
 	lxcArgs = append(lxcArgs, args...)
 	cmd := exec.CommandContext(ctx, "lxc", lxcArgs...)
 	cmd.Stdin = strings.NewReader(req.Prompt)

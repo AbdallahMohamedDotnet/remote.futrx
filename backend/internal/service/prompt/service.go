@@ -26,6 +26,7 @@ type TmuxClient interface {
 type ProjectResolver interface {
 	Get(ctx context.Context, id serviceproject.ID) (serviceproject.Meta, error)
 	Start(ctx context.Context, id serviceproject.ID) (serviceproject.Meta, error)
+	ListSecrets(ctx context.Context, id serviceproject.ID) ([]serviceproject.Secret, error)
 }
 
 type ContainerPreparer interface {

@@ -30,14 +30,15 @@ type ContainerManager interface {
 }
 
 type Dependencies struct {
-	Chats         servicechat.Repository
-	Projects      serviceproject.Repository
-	Auth          AuthStore
-	UserSettings  serviceusersettings.Repository
-	AuthBaseURL   string
-	Containers    ContainerManager
-	TmuxClient    TmuxCwdClient
-	ValidTmuxName func(string) bool
+	Chats          servicechat.Repository
+	Projects       serviceproject.Repository
+	ProjectSecrets serviceproject.SecretsRepository
+	Auth           AuthStore
+	UserSettings   serviceusersettings.Repository
+	AuthBaseURL    string
+	Containers     ContainerManager
+	TmuxClient     TmuxCwdClient
+	ValidTmuxName  func(string) bool
 }
 
 type Services struct {
@@ -54,7 +55,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	workspace := workspacehub.New()
 	chats := notifyingChatRepository{Repository: deps.Chats, workspace: workspace}
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
-	projectService := serviceproject.New(projects, deps.Containers)
+	projectService := serviceproject.New(projects, deps.Containers, deps.ProjectSecrets)
 	runs := runhub.New(chats)
 
 	var tmuxResolver servicechat.TmuxResolver

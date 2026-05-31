@@ -116,3 +116,9 @@ export interface ProjectContainerInfo {
   claude: ClaudeContainerStatus;
   authBundles: AuthBundleStatus[];
 }
+
+export interface ProjectSecret {
+  key: string;
+  value: string;
+  updatedAt: number;
+}

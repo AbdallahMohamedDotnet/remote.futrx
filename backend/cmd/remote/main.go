@@ -37,14 +37,15 @@ func main() {
 	containerManager.RegisterAuthBundle(containers.ClaudeAuthBundle())
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
-		Chats:         storeSet.Chats,
-		Projects:      storeSet.Projects,
-		Auth:          storeSet.Auth,
+		Chats:          storeSet.Chats,
+		Projects:       storeSet.Projects,
+		ProjectSecrets: storeSet.ProjectSecrets,
+		Auth:           storeSet.Auth,
 		UserSettings:  storeSet.UserSettings,
-		AuthBaseURL:   cfg.BaseURL,
-		Containers:    containerManager,
-		TmuxClient:    tmuxClient,
-		ValidTmuxName: tmuxcli.ValidName,
+		AuthBaseURL:    cfg.BaseURL,
+		Containers:     containerManager,
+		TmuxClient:     tmuxClient,
+		ValidTmuxName:  tmuxcli.ValidName,
 	})
 	if err != nil {
 		log.Fatalf("init services: %v", err)

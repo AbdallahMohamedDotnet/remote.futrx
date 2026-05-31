@@ -5,5 +5,7 @@ import "errors"
 var (
 	ErrNameRequired = errors.New("name is required")
 	ErrInvalidID    = errors.New("invalid project id")
-	ErrNotFound     = errors.New("project not found")
+	ErrNotFound           = errors.New("project not found")
+	ErrInvalidSecretKey   = errors.New("invalid secret key (must match [A-Za-z_][A-Za-z0-9_]*)")
+	ErrSecretsUnavailable = errors.New("secrets store is not configured")
 )

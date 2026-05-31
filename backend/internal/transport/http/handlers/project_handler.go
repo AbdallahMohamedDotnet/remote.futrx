@@ -57,14 +57,19 @@ func (h *ProjectHandler) HandleCollection(w http.ResponseWriter, r *http.Request
 
 func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/projects/")
-	parts := strings.SplitN(rest, "/", 2)
+	parts := strings.SplitN(rest, "/", 3)
 	id := serviceproject.ID(parts[0])
 	if id == "" {
 		httptransport.SendErr(w, http.StatusBadRequest, "missing id")
 		return
 	}
 
-	if len(parts) == 2 && parts[1] != "" {
+	if len(parts) >= 2 && parts[1] == "secrets" {
+		h.handleSecrets(w, r, id, parts)
+		return
+	}
+
+	if len(parts) >= 2 && parts[1] != "" {
 		switch parts[1] {
 		case "start":
 			if r.Method != http.MethodPost {
@@ -169,11 +174,65 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (h *ProjectHandler) handleSecrets(w http.ResponseWriter, r *http.Request, id serviceproject.ID, parts []string) {
+	// /api/projects/{id}/secrets[/{key}]
+	if len(parts) == 2 {
+		if r.Method != http.MethodGet {
+			httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		secrets, err := h.projects.ListSecrets(r.Context(), id)
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		if secrets == nil {
+			secrets = []serviceproject.Secret{}
+		}
+		httptransport.SendJSON(w, http.StatusOK, secrets)
+		return
+	}
+
+	key := parts[2]
+	if key == "" {
+		httptransport.SendErr(w, http.StatusBadRequest, "missing secret key")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var body struct {
+			Value string `json:"value"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
+			httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
+			return
+		}
+		s, err := h.projects.SetSecret(r.Context(), id, key, body.Value)
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		httptransport.SendJSON(w, http.StatusOK, s)
+	case http.MethodDelete:
+		if err := h.projects.DeleteSecret(r.Context(), id, key); err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		httptransport.SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	default:
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
 func sendProjectError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, serviceproject.ErrNameRequired),
-		errors.Is(err, serviceproject.ErrInvalidID):
+		errors.Is(err, serviceproject.ErrInvalidID),
+		errors.Is(err, serviceproject.ErrInvalidSecretKey):
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, serviceproject.ErrSecretsUnavailable):
+		httptransport.SendErr(w, http.StatusServiceUnavailable, err.Error())
 	case errors.Is(err, serviceproject.ErrNotFound):
 		httptransport.SendErr(w, http.StatusNotFound, "project not found")
 	default:

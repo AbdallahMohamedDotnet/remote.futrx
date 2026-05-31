@@ -1,5 +1,5 @@
 import { json } from "../api/http";
-import type { ProjectContainerInfo, ProjectMeta } from "../models/project";
+import type { ProjectContainerInfo, ProjectMeta, ProjectSecret } from "../models/project";
 
 export const projectService = {
   list: () => json<ProjectMeta[]>("GET", "/api/projects"),
@@ -15,4 +15,17 @@ export const projectService = {
     json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/stop`, {}),
   containerInfo: (id: string) =>
     json<ProjectContainerInfo>("GET", `/api/projects/${encodeURIComponent(id)}/container`),
+  listSecrets: (id: string) =>
+    json<ProjectSecret[]>("GET", `/api/projects/${encodeURIComponent(id)}/secrets`),
+  setSecret: (id: string, key: string, value: string) =>
+    json<ProjectSecret>(
+      "PUT",
+      `/api/projects/${encodeURIComponent(id)}/secrets/${encodeURIComponent(key)}`,
+      { value }
+    ),
+  deleteSecret: (id: string, key: string) =>
+    json<{ ok: boolean }>(
+      "DELETE",
+      `/api/projects/${encodeURIComponent(id)}/secrets/${encodeURIComponent(key)}`
+    ),
 };

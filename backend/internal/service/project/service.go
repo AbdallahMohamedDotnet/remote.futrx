@@ -9,10 +9,56 @@ import (
 type Service struct {
 	repo       Repository
 	containers ContainerManager
+	secrets    SecretsRepository
 }
 
-func New(repo Repository, containers ContainerManager) *Service {
-	return &Service{repo: repo, containers: containers}
+func New(repo Repository, containers ContainerManager, secrets SecretsRepository) *Service {
+	return &Service{repo: repo, containers: containers, secrets: secrets}
+}
+
+func (s *Service) ListSecrets(ctx context.Context, id ID) ([]Secret, error) {
+	if !ValidID(id) {
+		return nil, ErrInvalidID
+	}
+	if _, err := s.repo.Get(ctx, id); err != nil {
+		return nil, err
+	}
+	if s.secrets == nil {
+		return nil, nil
+	}
+	return s.secrets.List(ctx, id)
+}
+
+func (s *Service) SetSecret(ctx context.Context, id ID, key, value string) (Secret, error) {
+	if !ValidID(id) {
+		return Secret{}, ErrInvalidID
+	}
+	if !ValidSecretKey(key) {
+		return Secret{}, ErrInvalidSecretKey
+	}
+	if _, err := s.repo.Get(ctx, id); err != nil {
+		return Secret{}, err
+	}
+	if s.secrets == nil {
+		return Secret{}, ErrSecretsUnavailable
+	}
+	return s.secrets.Set(ctx, id, key, value)
+}
+
+func (s *Service) DeleteSecret(ctx context.Context, id ID, key string) error {
+	if !ValidID(id) {
+		return ErrInvalidID
+	}
+	if !ValidSecretKey(key) {
+		return ErrInvalidSecretKey
+	}
+	if _, err := s.repo.Get(ctx, id); err != nil {
+		return err
+	}
+	if s.secrets == nil {
+		return ErrSecretsUnavailable
+	}
+	return s.secrets.Delete(ctx, id, key)
 }
 
 func (s *Service) List(ctx context.Context) ([]Meta, error) {
@@ -87,6 +133,11 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if s.containers != nil && m.ContainerName != "" {
 		if err := s.containers.Delete(ctx, m.ContainerName); err != nil {
 			log.Printf("projects: delete container %s: %v", m.ContainerName, err)
+		}
+	}
+	if s.secrets != nil {
+		if err := s.secrets.DeleteAll(ctx, id); err != nil {
+			log.Printf("projects: delete secrets %s: %v", id, err)
 		}
 	}
 	return s.repo.Delete(ctx, id)

@@ -1,4 +1,9 @@
-import type { ProjectContainerRecord } from "../../containers/ProjectContainersContainer";
+import { useState } from "preact/hooks";
+import type { JSX } from "preact";
+import type {
+  ProjectContainerRecord,
+  SecretsRecord,
+} from "../../containers/ProjectContainersContainer";
 import type {
   AuthBundleFileStatus,
   AuthBundleStatus,
@@ -8,25 +13,42 @@ import type {
   OSInfo,
   ProjectContainerInfo,
   ProjectMeta,
+  ProjectSecret,
   ResourceInfo,
   WorkspaceInfo,
 } from "../../models/project";
-import { AlertCircle, ChevronLeft, Loader, Menu, RotateCcw, Settings } from "../ui/icons";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Loader,
+  Menu,
+  RotateCcw,
+  Settings,
+  X,
+} from "../ui/icons";
 
 export function ProjectContainersPage({
   project,
-  record,
+  infoRecord,
+  secretsRecord,
   refreshing,
   onRefresh,
   onBack,
   onHamburger,
+  onSaveSecret,
+  onDeleteSecret,
 }: {
   project: ProjectMeta | null;
-  record: ProjectContainerRecord;
+  infoRecord: ProjectContainerRecord;
+  secretsRecord: SecretsRecord;
   refreshing: boolean;
   onRefresh: () => void;
   onBack: () => void;
   onHamburger: () => void;
+  onSaveSecret: (key: string, value: string) => Promise<void>;
+  onDeleteSecret: (key: string) => Promise<void>;
 }) {
   return (
     <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -59,7 +81,7 @@ export function ProjectContainersPage({
           disabled={refreshing}
           class="h-10 w-10 rounded-md text-ink-300 hover:text-ink-50 hover:bg-white/[0.08]
                  disabled:cursor-wait grid place-items-center"
-          aria-label="Refresh container info"
+          aria-label="Refresh"
           title="Refresh"
         >
           {refreshing ? <Loader class="w-4 h-4 animate-spin" /> : <RotateCcw class="w-4 h-4" />}
@@ -67,17 +89,27 @@ export function ProjectContainersPage({
       </header>
 
       <div class="flex-1 overflow-y-auto touch-scroll">
-        <div class="max-w-3xl mx-auto px-4 py-5 space-y-4">
+        <div class="max-w-3xl mx-auto px-4 py-5 space-y-3">
           {!project ? (
             <Empty text="Select a project from the sidebar." />
-          ) : record.loading && !record.data ? (
-            <Empty text="Loading container data…" />
-          ) : record.error ? (
-            <ErrorBanner project={project} message={record.error} />
-          ) : record.data ? (
-            <Detail project={project} info={record.data} refreshedAt={record.refreshedAt} />
           ) : (
-            <Empty text="No data." />
+            <>
+              <ProjectHeader project={project} info={infoRecord.data} refreshedAt={infoRecord.refreshedAt} />
+              <CollapsibleSection title="Info" defaultOpen={true} subtitle={infoSubtitle(infoRecord)}>
+                <InfoBody project={project} record={infoRecord} />
+              </CollapsibleSection>
+              <CollapsibleSection
+                title="Secrets"
+                defaultOpen={false}
+                subtitle={secretsSubtitle(secretsRecord)}
+              >
+                <SecretsBody
+                  record={secretsRecord}
+                  onSave={onSaveSecret}
+                  onDelete={onDeleteSecret}
+                />
+              </CollapsibleSection>
+            </>
           )}
         </div>
       </div>
@@ -85,18 +117,112 @@ export function ProjectContainersPage({
   );
 }
 
-function Detail({
+function infoSubtitle(r: ProjectContainerRecord): string {
+  if (r.loading && !r.data) return "loading…";
+  if (r.error) return "error";
+  if (r.data) return `${r.data.state.toLowerCase()}${r.data.image ? ` · ${truncate(r.data.image, 40)}` : ""}`;
+  return "";
+}
+
+function secretsSubtitle(r: SecretsRecord): string {
+  if (r.loading && !r.data) return "loading…";
+  if (r.error) return "error";
+  const n = r.data?.length ?? 0;
+  return `${n} secret${n === 1 ? "" : "s"}`;
+}
+
+function CollapsibleSection({
+  title,
+  subtitle,
+  defaultOpen,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  defaultOpen?: boolean;
+  children: JSX.Element | JSX.Element[];
+}) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <section class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        class="w-full px-4 py-3 flex items-center gap-2 hover:bg-white/[0.03] text-left"
+      >
+        {open ? (
+          <ChevronDown class="w-4 h-4 text-ink-300 flex-none" />
+        ) : (
+          <ChevronRight class="w-4 h-4 text-ink-300 flex-none" />
+        )}
+        <span class="text-[13px] font-semibold text-ink-50">{title}</span>
+        {subtitle && (
+          <span class="text-[11.5px] text-ink-400 truncate min-w-0">{subtitle}</span>
+        )}
+      </button>
+      {open && <div class="border-t border-white/[0.06] p-3 space-y-3">{children}</div>}
+    </section>
+  );
+}
+
+function ProjectHeader({
   project,
   info,
   refreshedAt,
 }: {
   project: ProjectMeta;
-  info: ProjectContainerInfo;
+  info?: ProjectContainerInfo;
   refreshedAt?: number;
 }) {
   return (
+    <section class="rounded-lg border border-white/10 bg-[#101318] px-4 py-3 flex items-start gap-3">
+      <div class="mt-0.5 w-9 h-9 rounded-md bg-white/[0.06] border border-white/10 grid place-items-center flex-none">
+        <Settings class="w-4 h-4 text-ink-200" />
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="text-[14.5px] font-semibold text-ink-50 truncate">{project.name}</span>
+          {info && <StateBadge state={info.state ?? "UNKNOWN"} />}
+        </div>
+        <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug font-mono truncate">
+          {project.containerName || project.slug}
+        </div>
+      </div>
+      {refreshedAt && (
+        <div class="text-[11px] text-ink-400 mt-1.5">refreshed {fmtRelative(refreshedAt)}</div>
+      )}
+    </section>
+  );
+}
+
+function InfoBody({
+  project,
+  record,
+}: {
+  project: ProjectMeta;
+  record: ProjectContainerRecord;
+}) {
+  if (record.error) {
+    return (
+      <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
+        <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
+        <div class="min-w-0">
+          <div class="font-medium text-accent-red">Container endpoint unavailable</div>
+          <div class="text-ink-200 mt-0.5 break-words">
+            GET /api/projects/{project.id}/container returned {record.error}.
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (record.loading && !record.data) {
+    return <Loading text="Loading container data…" />;
+  }
+  if (!record.data) return <Loading text="No data." />;
+
+  const info = record.data;
+  return (
     <>
-      <Header project={project} info={info} refreshedAt={refreshedAt} />
       <Panel title="Overview">
         <Grid>
           <Field label="Container" value={info.name} mono />
@@ -110,7 +236,6 @@ function Detail({
           <Field label="Last used" value={fmtDate(info.lastUsedAt)} mono />
         </Grid>
       </Panel>
-
       {info.os && <OSPanel os={info.os} />}
       {info.resources && <ResourcesPanel res={info.resources} />}
       {info.disks && info.disks.length > 0 && <DisksPanel disks={info.disks} />}
@@ -123,31 +248,234 @@ function Detail({
   );
 }
 
-function Header({
-  project,
-  info,
-  refreshedAt,
+function SecretsBody({
+  record,
+  onSave,
+  onDelete,
 }: {
-  project: ProjectMeta;
-  info: ProjectContainerInfo;
-  refreshedAt?: number;
+  record: SecretsRecord;
+  onSave: (key: string, value: string) => Promise<void>;
+  onDelete: (key: string) => Promise<void>;
 }) {
   return (
-    <section class="rounded-lg border border-white/10 bg-[#101318] px-4 py-3 flex items-start gap-3">
-      <div class="mt-0.5 w-9 h-9 rounded-md bg-white/[0.06] border border-white/10 grid place-items-center flex-none">
-        <Settings class="w-4 h-4 text-ink-200" />
-      </div>
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 min-w-0">
-          <span class="text-[14.5px] font-semibold text-ink-50 truncate">{project.name}</span>
-          <StateBadge state={info.state ?? "UNKNOWN"} />
+    <>
+      {record.error && (
+        <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
+          <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
+          <div class="text-accent-red break-words">{record.error}</div>
         </div>
-        <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug font-mono truncate">{info.name}</div>
-      </div>
-      {refreshedAt && (
-        <div class="text-[11px] text-ink-400 mt-1.5">refreshed {fmtRelative(refreshedAt)}</div>
       )}
-    </section>
+      <SecretEditor onSave={onSave} />
+      <SecretsList list={record.data ?? []} loading={record.loading && !record.data} onSave={onSave} onDelete={onDelete} />
+      <p class="text-[11.5px] text-ink-400 leading-relaxed">
+        Secrets are passed to <span class="font-mono">claude</span> as <span class="font-mono">--env KEY=VALUE</span> on every prompt run. They never land in the container's filesystem and are not synced back from it.
+      </p>
+    </>
+  );
+}
+
+function SecretEditor({
+  onSave,
+}: {
+  onSave: (key: string, value: string) => Promise<void>;
+}) {
+  const [key, setKey] = useState("");
+  const [value, setValue] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async (e: Event) => {
+    e.preventDefault();
+    const k = key.trim();
+    if (!k) {
+      setErr("Key is required.");
+      return;
+    }
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) {
+      setErr("Key must match [A-Za-z_][A-Za-z0-9_]*");
+      return;
+    }
+    setErr(null);
+    setSubmitting(true);
+    try {
+      await onSave(k, value);
+      setKey("");
+      setValue("");
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} class="rounded-md border border-white/10 bg-white/[0.03] p-2.5 space-y-2">
+      <div class="grid gap-2 sm:grid-cols-[1fr_2fr_auto] items-stretch">
+        <input
+          value={key}
+          onInput={(e) => setKey((e.target as HTMLInputElement).value)}
+          placeholder="KEY"
+          class="h-9 px-2.5 rounded border border-white/10 bg-black/30 text-[13px] font-mono text-ink-50 placeholder-ink-400 focus:outline-none focus:border-accent-blue/50"
+        />
+        <input
+          value={value}
+          onInput={(e) => setValue((e.target as HTMLInputElement).value)}
+          placeholder="value"
+          type="password"
+          autoComplete="off"
+          class="h-9 px-2.5 rounded border border-white/10 bg-black/30 text-[13px] font-mono text-ink-50 placeholder-ink-400 focus:outline-none focus:border-accent-blue/50"
+        />
+        <button
+          type="submit"
+          disabled={submitting}
+          class="h-9 px-3 rounded bg-accent-blue/80 hover:bg-accent-blue text-white text-[13px] font-medium disabled:opacity-50"
+        >
+          {submitting ? "Saving…" : "Add"}
+        </button>
+      </div>
+      {err && <div class="text-[11.5px] text-accent-red">{err}</div>}
+    </form>
+  );
+}
+
+function SecretsList({
+  list,
+  loading,
+  onSave,
+  onDelete,
+}: {
+  list: ProjectSecret[];
+  loading: boolean;
+  onSave: (key: string, value: string) => Promise<void>;
+  onDelete: (key: string) => Promise<void>;
+}) {
+  if (loading) return <Loading text="Loading secrets…" />;
+  if (list.length === 0) return <Empty text="No secrets yet." compact />;
+  return (
+    <div class="space-y-2">
+      {list.map((s) => (
+        <SecretRow key={s.key} secret={s} onSave={onSave} onDelete={onDelete} />
+      ))}
+    </div>
+  );
+}
+
+function SecretRow({
+  secret,
+  onSave,
+  onDelete,
+}: {
+  secret: ProjectSecret;
+  onSave: (key: string, value: string) => Promise<void>;
+  onDelete: (key: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const [draft, setDraft] = useState(secret.value);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await onSave(secret.key, draft);
+      setEditing(false);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!confirm(`Delete secret ${secret.key}?`)) return;
+    setBusy(true);
+    try {
+      await onDelete(secret.key);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div class="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 space-y-1">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="font-mono text-[12.5px] text-ink-50 truncate">{secret.key}</span>
+        <span class="text-[11px] text-ink-400 ml-auto whitespace-nowrap">
+          updated {fmtMtime(secret.updatedAt)}
+        </span>
+      </div>
+      {editing ? (
+        <div class="flex items-center gap-2">
+          <input
+            value={draft}
+            onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
+            type={revealed ? "text" : "password"}
+            class="flex-1 h-8 px-2 rounded border border-white/10 bg-black/30 text-[12.5px] font-mono text-ink-50 focus:outline-none focus:border-accent-blue/50"
+          />
+          <button
+            type="button"
+            onClick={() => setRevealed(!revealed)}
+            class="h-8 px-2 rounded text-[11px] text-ink-300 hover:text-ink-100 hover:bg-white/[0.08]"
+          >
+            {revealed ? "hide" : "show"}
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy}
+            class="h-8 px-2.5 rounded bg-accent-blue/80 hover:bg-accent-blue text-white text-[12px] font-medium disabled:opacity-50"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(false);
+              setDraft(secret.value);
+              setErr(null);
+            }}
+            class="h-8 px-2 rounded text-[12px] text-ink-300 hover:text-ink-100 hover:bg-white/[0.08]"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div class="flex items-center gap-2">
+          <code class="flex-1 text-[12.5px] font-mono text-ink-100 break-all min-w-0">
+            {revealed ? secret.value : "•".repeat(Math.min(20, secret.value.length || 6))}
+          </code>
+          <button
+            type="button"
+            onClick={() => setRevealed(!revealed)}
+            class="h-7 px-2 rounded text-[11px] text-ink-300 hover:text-ink-100 hover:bg-white/[0.08]"
+          >
+            {revealed ? "hide" : "show"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            class="h-7 px-2 rounded text-[11px] text-ink-300 hover:text-ink-100 hover:bg-white/[0.08]"
+          >
+            edit
+          </button>
+          <button
+            type="button"
+            onClick={remove}
+            disabled={busy}
+            class="h-7 w-7 rounded text-ink-300 hover:text-accent-red hover:bg-white/[0.08] grid place-items-center disabled:opacity-50"
+            aria-label="Delete"
+            title="Delete"
+          >
+            <X class="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+      {err && <div class="text-[11.5px] text-accent-red">{err}</div>}
+    </div>
   );
 }
 
@@ -356,38 +684,38 @@ function AuthFileRow({ f }: { f: AuthBundleFileStatus }) {
   );
 }
 
-function ErrorBanner({ project, message }: { project: ProjectMeta; message: string }) {
+function Loading({ text }: { text: string }) {
   return (
-    <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
-      <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
-      <div class="min-w-0">
-        <div class="font-medium text-accent-red">Container endpoint unavailable</div>
-        <div class="text-ink-200 mt-0.5 break-words">
-          GET /api/projects/{project.id}/container returned {message}.
-        </div>
-      </div>
+    <div class="rounded-md border border-white/10 bg-white/[0.03] px-3 py-4 text-center text-[12.5px] text-ink-300">
+      {text}
     </div>
   );
 }
 
-function Empty({ text }: { text: string }) {
+function Empty({ text, compact }: { text: string; compact?: boolean }) {
   return (
-    <div class="rounded-lg border border-white/10 bg-[#101318] px-4 py-5 text-sm text-ink-300">{text}</div>
+    <div
+      class={`rounded-lg border border-white/10 bg-[#101318] ${
+        compact ? "px-3 py-2.5" : "px-4 py-5"
+      } text-sm text-ink-300`}
+    >
+      {text}
+    </div>
   );
 }
 
-function Panel({ title, children }: { title: string; children: preact.ComponentChildren }) {
+function Panel({ title, children }: { title: string; children: JSX.Element | JSX.Element[] }) {
   return (
-    <section class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
-      <header class="px-4 py-2.5 border-b border-white/[0.06]">
-        <h2 class="text-[12px] font-semibold uppercase tracking-wide text-ink-300">{title}</h2>
+    <section class="rounded-md border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+      <header class="px-3 py-2 border-b border-white/[0.06]">
+        <h3 class="text-[11.5px] font-semibold uppercase tracking-wide text-ink-300">{title}</h3>
       </header>
-      <div class="p-3">{children}</div>
+      <div class="p-2.5">{children}</div>
     </section>
   );
 }
 
-function Grid({ children }: { children: preact.ComponentChildren }) {
+function Grid({ children }: { children: JSX.Element | JSX.Element[] }) {
   return <div class="grid gap-2 sm:grid-cols-2">{children}</div>;
 }
 
@@ -466,4 +794,8 @@ function fmtRelative(ts: number): string {
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   return `${Math.floor(s / 3600)}h ago`;
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n) + "…" : s;
 }
