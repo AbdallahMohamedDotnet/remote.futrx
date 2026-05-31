@@ -130,10 +130,9 @@ func ensureHostSubscriptionAuth() error {
 		return nil
 	}
 	mode, _ := raw["auth_mode"].(string)
-	if strings.EqualFold(strings.TrimSpace(mode), "apikey") {
-		return errors.New("Codex is logged in with an API key; run codex login with ChatGPT to use subscription limits")
-	}
-	if _, ok := raw["OPENAI_API_KEY"]; ok {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	_, hasAPIKey := raw["OPENAI_API_KEY"]
+	if mode == "apikey" || (mode == "" && hasAPIKey) {
 		return errors.New("Codex is logged in with an API key; run codex login with ChatGPT to use subscription limits")
 	}
 	return nil

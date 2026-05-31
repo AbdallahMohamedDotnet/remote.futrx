@@ -229,10 +229,12 @@ func codexAuthMode(authPath string) (string, bool) {
 	mode, _ := raw["auth_mode"].(string)
 	mode = strings.TrimSpace(strings.ToLower(mode))
 	if mode == "" {
-		mode = "chatgpt"
+		if _, hasAPIKey := raw["OPENAI_API_KEY"]; hasAPIKey {
+			return "apikey", true
+		}
+		return "unknown", false
 	}
-	_, hasAPIKey := raw["OPENAI_API_KEY"]
-	return mode, mode == "apikey" || hasAPIKey
+	return mode, mode == "apikey"
 }
 
 func codexHomeDir() string {

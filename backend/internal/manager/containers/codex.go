@@ -69,11 +69,12 @@ func codexAuthUsesAPIKey(path string) bool {
 		return false
 	}
 	mode, _ := raw["auth_mode"].(string)
-	if strings.EqualFold(strings.TrimSpace(mode), "apikey") {
-		return true
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	if mode == "" {
+		_, ok := raw["OPENAI_API_KEY"]
+		return ok
 	}
-	_, ok := raw["OPENAI_API_KEY"]
-	return ok
+	return mode == "apikey"
 }
 
 func (m *Manager) EnsureCodex(ctx context.Context, containerName string) error {
