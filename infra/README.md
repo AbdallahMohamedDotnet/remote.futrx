@@ -15,7 +15,8 @@ infra/
 │   ├── 02-code-server.sh           code-server install + systemd + config render
 │   ├── 03-app.sh                   repo clone/update + build + auth-secret seed
 │   ├── 04-caddy.sh                 Caddyfile render from template + reload
-│   └── 05-backend-svc.sh           backend systemd unit + start + health + firewall
+│   ├── 05-backend-svc.sh           backend systemd unit + start + health + firewall
+│   └── 06-base-image.sh            bake futrx-remote-dev-base LXD image (idempotent)
 └── templates/
     ├── Caddyfile.tmpl              edge config: main host, code subdomain, dev wildcard
     ├── remote.futrx.dev.service.tmpl   backend systemd unit

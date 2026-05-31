@@ -201,15 +201,18 @@ fi
 . "$INFRA_DIR/steps/04-caddy.sh"
 # shellcheck source=steps/05-backend-svc.sh
 . "$INFRA_DIR/steps/05-backend-svc.sh"
+# shellcheck source=steps/06-base-image.sh
+. "$INFRA_DIR/steps/06-base-image.sh"
 
 # ───────────────── summary ─────────────────
 cat <<EOF
 
 ═══════════════════════════════════════════════════════════════
- ✓ Installed at: $INSTALL_DIR
- ✓ Main UI:      https://$HOSTNAME
- ✓ Code editor:  https://code.$HOSTNAME
- ✓ Dev URLs:     https://<slug>--<port>.dev.$HOSTNAME
+ ✓ Installed at:  $INSTALL_DIR
+ ✓ Main UI:       https://$HOSTNAME
+ ✓ Code editor:   https://code.$HOSTNAME
+ ✓ Dev URLs:      https://<slug>--<port>.dev.$HOSTNAME
+ ✓ Base image:    futrx-remote-dev-base (project containers launch from this)
 
  ${AUTH_NOTE:-(no auth note)}
 
