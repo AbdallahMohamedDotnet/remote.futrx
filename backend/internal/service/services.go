@@ -53,10 +53,20 @@ type Services struct {
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
 	workspace := workspacehub.New()
-	chats := notifyingChatRepository{Repository: deps.Chats, workspace: workspace}
+	var runs *runhub.Hub
+	chats := notifyingChatRepository{
+		Repository: deps.Chats,
+		workspace:  workspace,
+		running: func(id servicechat.ID) bool {
+			return runs != nil && runs.IsRunning(id)
+		},
+	}
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
 	projectService := serviceproject.New(projects, deps.Containers, deps.ProjectSecrets)
-	runs := runhub.New(chats)
+	runs = runhub.New(chats)
+	runs.SetRunningSubscriber(func(id servicechat.ID, _ bool) {
+		chats.publishChat(context.Background(), id)
+	})
 
 	var tmuxResolver servicechat.TmuxResolver
 	if deps.TmuxClient != nil {

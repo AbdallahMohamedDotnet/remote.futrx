@@ -23,14 +23,25 @@ func New(repo Repository, projects ProjectResolver, tmux TmuxResolver, runs RunC
 }
 
 func (s *Service) List(ctx context.Context) ([]Meta, error) {
-	return s.repo.List(ctx)
+	metas, err := s.repo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range metas {
+		metas[i] = s.withRunning(metas[i])
+	}
+	return metas, nil
 }
 
 func (s *Service) Get(ctx context.Context, id ID) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
 	}
-	return s.repo.Get(ctx, id)
+	meta, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Meta{}, err
+	}
+	return s.withRunning(meta), nil
 }
 
 func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
@@ -63,7 +74,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		}
 	}
 
-	return s.repo.Create(ctx, Meta{
+	meta, err := s.repo.Create(ctx, Meta{
 		Title:           title,
 		Provider:        provider,
 		TmuxSession:     in.TmuxSession,
@@ -73,6 +84,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		ReasoningEffort: NormalizeReasoningEffort(in.ReasoningEffort),
 		ProjectID:       in.ProjectID,
 	})
+	if err != nil {
+		return Meta{}, err
+	}
+	return s.withRunning(meta), nil
 }
 
 func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, error) {
@@ -80,7 +95,7 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		return Meta{}, ErrInvalidID
 	}
 
-	return s.repo.Update(ctx, id, func(m *Meta) {
+	meta, err := s.repo.Update(ctx, id, func(m *Meta) {
 		if in.Title != nil {
 			m.Title = strings.TrimSpace(*in.Title)
 		}
@@ -100,6 +115,30 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 			m.ReasoningEffort = NormalizeReasoningEffort(*in.ReasoningEffort)
 		}
 	})
+	if err != nil {
+		return Meta{}, err
+	}
+	return s.withRunning(meta), nil
+}
+
+func (s *Service) MarkRead(ctx context.Context, id ID) (Meta, error) {
+	if !ValidID(id) {
+		return Meta{}, ErrInvalidID
+	}
+	meta, err := s.repo.Update(ctx, id, func(m *Meta) {
+		m.LastReadAt = m.LastMessageAt
+	})
+	if err != nil {
+		return Meta{}, err
+	}
+	return s.withRunning(meta), nil
+}
+
+func (s *Service) withRunning(meta Meta) Meta {
+	if s.runs != nil {
+		meta.Running = s.runs.IsRunning(meta.ID)
+	}
+	return meta
 }
 
 func (s *Service) Delete(ctx context.Context, id ID) error {

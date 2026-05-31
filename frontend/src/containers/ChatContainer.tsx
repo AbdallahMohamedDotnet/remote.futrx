@@ -12,6 +12,7 @@ import { useDragUpload } from "../hooks/chat/useDragUpload";
 import { usePromptQueue } from "../hooks/chat/usePromptQueue";
 import { useThreadHeaderState } from "../hooks/chat/useThreadHeaderState";
 import { useThreadScroll } from "../hooks/chat/useThreadScroll";
+import { chatService } from "../services/chatService";
 import { projectService } from "../services/projectService";
 import {
   estimateCost,
@@ -63,6 +64,7 @@ export function ChatContainer({
   const [browserPort, setBrowserPort] = useState(() => loadBrowserPort(chat.projectId || ""));
   const [openingDatabase, setOpeningDatabase] = useState(false);
   const [TerminalOverlay, setTerminalOverlay] = useState<TerminalOverlayComponent | null>(null);
+  const readMarkerRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { textareaRef, focusInput } = useAutosizeTextarea(text);
   const upload = useAttachmentUpload(chat.id, onMetaUpdate);
@@ -109,6 +111,14 @@ export function ChatContainer({
       cancelled = true;
     };
   }, [TerminalOverlay, terminalOpen]);
+
+  useEffect(() => {
+    if (status !== "ready") return;
+    const key = `${chat.id}:${eventCount}`;
+    if (readMarkerRef.current === key) return;
+    readMarkerRef.current = key;
+    void chatService.markRead(chat.id).then(onMetaUpdate).catch(() => {});
+  }, [chat.id, eventCount, onMetaUpdate, status]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {

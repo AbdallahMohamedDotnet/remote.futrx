@@ -35,6 +35,9 @@ func TestStoreListUsesCachedMetadata(t *testing.T) {
 	if len(list) != 1 || list[0].ID != "abcd" || list[0].Title != "Existing" {
 		t.Fatalf("loaded list = %#v", list)
 	}
+	if list[0].LastReadAt != 10 {
+		t.Fatalf("legacy chat should start read, got lastReadAt=%d", list[0].LastReadAt)
+	}
 
 	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "beef", Title: "New", CreatedAt: 2, LastMessageAt: 20}); err != nil {
 		t.Fatal(err)

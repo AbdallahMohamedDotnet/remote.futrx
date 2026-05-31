@@ -16,9 +16,10 @@ type EventStore interface {
 }
 
 type Hub struct {
-	store EventStore
-	mu    sync.Mutex
-	rooms map[servicechat.ID]*room
+	store             EventStore
+	mu                sync.Mutex
+	rooms             map[servicechat.ID]*room
+	runningSubscriber func(servicechat.ID, bool)
 }
 
 type room struct {
@@ -47,6 +48,12 @@ func New(store EventStore) *Hub {
 		store: store,
 		rooms: map[servicechat.ID]*room{},
 	}
+}
+
+func (h *Hub) SetRunningSubscriber(fn func(servicechat.ID, bool)) {
+	h.mu.Lock()
+	h.runningSubscriber = fn
+	h.mu.Unlock()
 }
 
 func (h *Hub) room(chatID servicechat.ID) *room {
@@ -180,8 +187,8 @@ func (r *room) broadcastLocked(ev servicechat.Event) {
 func (h *Hub) StartRun(chatID servicechat.ID, cancel context.CancelFunc) (uint64, bool) {
 	r := h.room(chatID)
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.running != nil {
+		r.mu.Unlock()
 		return 0, false
 	}
 	r.nextRun++
@@ -192,19 +199,26 @@ func (h *Hub) StartRun(chatID servicechat.ID, cancel context.CancelFunc) (uint64
 		Type:    "sync",
 		Running: true,
 	})
+	r.mu.Unlock()
+	h.publishRunning(chatID, true)
 	return id, true
 }
 
 func (h *Hub) FinishRun(chatID servicechat.ID, runID uint64) {
 	r := h.room(chatID)
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	changed := false
 	if r.running != nil && r.running.id == runID {
 		r.running = nil
 		r.broadcastLocked(servicechat.Event{
 			T:    time.Now().UnixMilli(),
 			Type: "sync",
 		})
+		changed = true
+	}
+	r.mu.Unlock()
+	if changed {
+		h.publishRunning(chatID, false)
 	}
 }
 
@@ -230,4 +244,13 @@ func (h *Hub) CancelRun(chatID servicechat.ID) bool {
 	}
 	running.cancel()
 	return true
+}
+
+func (h *Hub) publishRunning(chatID servicechat.ID, running bool) {
+	h.mu.Lock()
+	fn := h.runningSubscriber
+	h.mu.Unlock()
+	if fn != nil {
+		fn(chatID, running)
+	}
 }

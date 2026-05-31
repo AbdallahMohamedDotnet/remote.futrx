@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
-import type { CodexDeviceLogin } from "../../models/auth";
+import { codexAuthWebSocketUrl } from "../../api/websocket";
+import type { CodexAuthStatus, CodexDeviceLogin } from "../../models/auth";
 import { codexAuthService } from "../../services/codexAuthService";
 
 export interface CodexAuthState {
@@ -10,7 +11,6 @@ export interface CodexAuthState {
   deviceLogin?: CodexDeviceLogin;
   starting: boolean;
   error: string | null;
-  refresh: () => Promise<void>;
   startDeviceLogin: () => Promise<void>;
 }
 
@@ -23,22 +23,13 @@ export function useCodexAuth(enabled: boolean): CodexAuthState {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const r = await codexAuthService.status();
-      setAuthenticated(!!r.authenticated);
-      setUsesApiKey(!!r.usesApiKey);
-      setDeviceLogin(r.deviceLogin);
-      setError(null);
-    } catch (e) {
-      setError((e as Error).message);
-      setAuthenticated(false);
-      setUsesApiKey(false);
-    } finally {
-      setLoading(false);
-      setChecked(true);
-    }
+  function applyStatus(status: CodexAuthStatus) {
+    setAuthenticated(!!status.authenticated);
+    setUsesApiKey(!!status.usesApiKey);
+    setDeviceLogin(status.deviceLogin);
+    setError(null);
+    setLoading(false);
+    setChecked(true);
   }
 
   async function startDeviceLogin() {
@@ -47,7 +38,6 @@ export function useCodexAuth(enabled: boolean): CodexAuthState {
     try {
       const state = await codexAuthService.startDeviceLogin();
       setDeviceLogin(state);
-      await load();
     } catch (e) {
       setError((e as Error).message);
       throw e;
@@ -57,18 +47,62 @@ export function useCodexAuth(enabled: boolean): CodexAuthState {
   }
 
   useEffect(() => {
-    if (enabled) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+    if (!enabled) {
+      setLoading(false);
+      setChecked(false);
+      setAuthenticated(false);
+      setUsesApiKey(false);
+      setDeviceLogin(undefined);
+      setError(null);
+      return;
+    }
 
-  useEffect(() => {
-    if (!enabled || !deviceLogin?.active) return;
-    const timer = window.setInterval(() => {
-      void load();
-    }, 2000);
-    return () => window.clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, deviceLogin?.active]);
+    let stopped = false;
+    let attempt = 0;
+    let socket: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    setLoading(true);
+
+    function scheduleReconnect() {
+      if (stopped) return;
+      const delay = Math.min(5000, 400 * 2 ** attempt);
+      attempt++;
+      reconnectTimer = setTimeout(connect, delay);
+    }
+
+    function connect() {
+      if (stopped) return;
+      socket = new WebSocket(codexAuthWebSocketUrl());
+
+      socket.onopen = () => {
+        attempt = 0;
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          applyStatus(JSON.parse(event.data) as CodexAuthStatus);
+        } catch {}
+      };
+
+      socket.onclose = () => {
+        socket = null;
+        scheduleReconnect();
+      };
+
+      socket.onerror = () => {
+        try { socket?.close(); } catch {}
+      };
+    }
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      try { socket?.close(); } catch {}
+    };
+  }, [enabled]);
 
   return {
     loading,
@@ -78,7 +112,6 @@ export function useCodexAuth(enabled: boolean): CodexAuthState {
     deviceLogin,
     starting,
     error,
-    refresh: load,
     startDeviceLogin,
   };
 }

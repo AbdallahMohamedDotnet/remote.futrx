@@ -1,6 +1,6 @@
 import type { ChatMeta } from "../../models/chat";
 import { formatModelShortLabel, timeAgo } from "../../lib/format";
-import { Clock, MessageSquare, X } from "../ui/icons";
+import { Clock, Loader, MessageSquare, X } from "../ui/icons";
 
 export function ChatRow({
   chat,
@@ -13,6 +13,8 @@ export function ChatRow({
   onSelect: () => void;
   onDelete: (event: Event) => void;
 }) {
+  const unread = !active && !chat.running && (chat.lastMessageAt || 0) > (chat.lastReadAt || 0);
+
   return (
     <div
       class={`group flex items-stretch gap-0.5 rounded transition-colors
@@ -26,9 +28,17 @@ export function ChatRow({
         class="flex-1 min-w-0 text-left px-2.5 py-2"
       >
         <div class="flex items-start gap-2">
-          <MessageSquare
-            class={`mt-0.5 w-3.5 h-3.5 flex-none ${active ? "text-accent-blue" : "text-ink-400"}`}
-          />
+          {chat.running ? (
+            <Loader class="mt-0.5 w-3.5 h-3.5 flex-none text-accent-blue animate-spin" />
+          ) : unread ? (
+            <span class="mt-0.5 w-3.5 h-3.5 flex-none grid place-items-center" title="Unread">
+              <span class="w-2.5 h-2.5 rounded-full bg-accent-green shadow-[0_0_0_3px_rgba(43,213,118,0.12)]" />
+            </span>
+          ) : (
+            <MessageSquare
+              class={`mt-0.5 w-3.5 h-3.5 flex-none ${active ? "text-accent-blue" : "text-ink-400"}`}
+            />
+          )}
           <div class="flex-1 min-w-0">
             <div class={`text-[13px] leading-snug truncate ${active ? "text-ink-50 font-medium" : "text-ink-100"}`}>
               {chat.title || "Untitled"}

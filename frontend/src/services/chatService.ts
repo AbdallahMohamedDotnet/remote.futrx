@@ -7,6 +7,8 @@ export const chatService = {
   get: (id: string) => json<ChatMeta>("GET", `/api/chats/${encodeURIComponent(id)}`),
   update: (id: string, body: UpdateChatInput) =>
     json<ChatMeta>("PATCH", `/api/chats/${encodeURIComponent(id)}`, body),
+  markRead: (id: string) =>
+    json<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/read`, {}),
   delete: (id: string) =>
     json<{ ok: boolean }>("DELETE", `/api/chats/${encodeURIComponent(id)}`),
   events: (id: string, params: { limit?: number; before?: number } = {}) => {

@@ -64,35 +64,29 @@ export function WorkspaceProvider({
 
   async function createProject(name: string): Promise<ProjectMeta> {
     const project = await projectService.create(name);
-    await data.refreshProjects();
     return project;
   }
 
   async function createChat(projectId?: string): Promise<ChatMeta> {
     const chat = await chatService.create(projectId ? { projectId } : {});
-    await data.refreshChats();
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
   }
 
   async function deleteChat(chatId: string) {
     await chatService.delete(chatId);
-    await data.refreshChats();
   }
 
   async function deleteProject(projectId: string) {
     await projectService.delete(projectId);
-    await Promise.all([data.refreshProjects(), data.refreshChats()]);
   }
 
   async function startProject(projectId: string) {
     await projectService.start(projectId);
-    await data.refreshProjects();
   }
 
   async function stopProject(projectId: string) {
     await projectService.stop(projectId);
-    await data.refreshProjects();
   }
 
   return (

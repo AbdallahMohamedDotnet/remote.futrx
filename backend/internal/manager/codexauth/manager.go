@@ -51,10 +51,11 @@ type Manager struct {
 	mu     sync.Mutex
 	device DeviceLoginState
 	cancel context.CancelFunc
+	subs   map[chan Status]struct{}
 }
 
 func New() *Manager {
-	return &Manager{}
+	return &Manager{subs: map[chan Status]struct{}{}}
 }
 
 func (m *Manager) Authenticated() bool {
@@ -70,6 +71,28 @@ func (m *Manager) Status() Status {
 		UsesAPIKey:    usesAPIKey,
 		DeviceLogin:   m.deviceSnapshot(),
 	}
+}
+
+func (m *Manager) Subscribe() (<-chan Status, func()) {
+	ch := make(chan Status, 8)
+	m.mu.Lock()
+	if m.subs == nil {
+		m.subs = map[chan Status]struct{}{}
+	}
+	m.subs[ch] = struct{}{}
+	status := m.statusLocked()
+	m.mu.Unlock()
+	ch <- status
+
+	cancel := func() {
+		m.mu.Lock()
+		if _, ok := m.subs[ch]; ok {
+			delete(m.subs, ch)
+			close(ch)
+		}
+		m.mu.Unlock()
+	}
+	return ch, cancel
 }
 
 func (m *Manager) StartDeviceLogin(ctx context.Context) (DeviceLoginState, error) {
@@ -124,6 +147,7 @@ func (m *Manager) StartDeviceLogin(ctx context.Context) (DeviceLoginState, error
 		m.device = DeviceLoginState{Error: fmt.Sprintf("start codex login: %v", err)}
 		m.cancel = nil
 		state = m.device
+		m.broadcastLocked()
 		m.mu.Unlock()
 		return state, err
 	}
@@ -138,6 +162,7 @@ func (m *Manager) StartDeviceLogin(ctx context.Context) (DeviceLoginState, error
 	}()
 
 	m.mu.Unlock()
+	m.Broadcast()
 
 	select {
 	case <-ready:
@@ -161,17 +186,23 @@ func (m *Manager) consumeDeviceLoginOutput(reader io.Reader, markReady func()) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := ansiEscapeRE.ReplaceAllString(scanner.Text(), "")
+		changed := false
 		m.mu.Lock()
 		if url := deviceURLRE.FindString(line); url != "" {
+			changed = changed || m.device.VerificationURI != url
 			m.device.VerificationURI = url
 		}
 		if code := deviceCodeRE.FindString(line); code != "" {
+			changed = changed || m.device.UserCode != code
 			m.device.UserCode = code
 			if m.device.ExpiresAt == 0 {
 				m.device.ExpiresAt = time.Now().Add(deviceLoginTTL).Unix()
 			}
 		}
 		ready := m.device.VerificationURI != "" && m.device.UserCode != ""
+		if changed {
+			m.broadcastLocked()
+		}
 		m.mu.Unlock()
 		if ready {
 			markReady()
@@ -203,6 +234,35 @@ func (m *Manager) finishDeviceLogin(err error) {
 		state.Error = "Codex login ended before authentication completed."
 	}
 	m.device = state
+	m.broadcastLocked()
+}
+
+func (m *Manager) Broadcast() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.broadcastLocked()
+}
+
+func (m *Manager) statusLocked() Status {
+	authenticated, authMode, usesAPIKey := authenticated()
+	return Status{
+		Authenticated: authenticated,
+		AuthMode:      authMode,
+		UsesAPIKey:    usesAPIKey,
+		DeviceLogin:   m.device,
+	}
+}
+
+func (m *Manager) broadcastLocked() {
+	status := m.statusLocked()
+	for ch := range m.subs {
+		select {
+		case ch <- status:
+		default:
+			delete(m.subs, ch)
+			close(ch)
+		}
+	}
 }
 
 func authenticated() (bool, string, bool) {
