@@ -56,7 +56,6 @@ jobs:
 
           echo "==> git fetch + fast-forward to origin/main"
           git fetch --quiet --tags origin
-          git reset --hard origin/main
 
           echo "==> frontend build"
           ( cd frontend && npm install --silent --no-audit --no-fund 2>&1 | tail -3 && npm run build 2>&1 | tail -5 )
