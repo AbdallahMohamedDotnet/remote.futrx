@@ -161,6 +161,9 @@ func (rnr *Service) runPrompt(
 		Mode:           meta.Mode,
 		ResumeID:       resumeID,
 		ProjectID:      string(meta.ProjectID),
+		Config: map[string]any{
+			"reasoningEffort": meta.ReasoningEffort,
+		},
 	}, func(ev agent.Event) {
 		rnr.emitAgentEvent(ctx, id, ev, emit)
 	})

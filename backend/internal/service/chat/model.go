@@ -28,6 +28,7 @@ type Meta struct {
 	LastMessageAt   int64     `json:"lastMessageAt"`
 	Model           string    `json:"model,omitempty"`
 	Mode            string    `json:"mode,omitempty"`
+	ReasoningEffort string    `json:"reasoningEffort,omitempty"`
 	ProjectID       ProjectID `json:"projectId,omitempty"`
 }
 
@@ -66,21 +67,23 @@ type EventPage struct {
 }
 
 type CreateInput struct {
-	Title       string    `json:"title,omitempty"`
-	TmuxSession string    `json:"tmuxSession,omitempty"`
-	Cwd         string    `json:"cwd,omitempty"`
-	Provider    Provider  `json:"provider,omitempty"`
-	Model       string    `json:"model,omitempty"`
-	Mode        string    `json:"mode,omitempty"`
-	ProjectID   ProjectID `json:"projectId,omitempty"`
+	Title           string    `json:"title,omitempty"`
+	TmuxSession     string    `json:"tmuxSession,omitempty"`
+	Cwd             string    `json:"cwd,omitempty"`
+	Provider        Provider  `json:"provider,omitempty"`
+	Model           string    `json:"model,omitempty"`
+	Mode            string    `json:"mode,omitempty"`
+	ReasoningEffort string    `json:"reasoningEffort,omitempty"`
+	ProjectID       ProjectID `json:"projectId,omitempty"`
 }
 
 type UpdateInput struct {
-	Title    *string   `json:"title,omitempty"`
-	Cwd      *string   `json:"cwd,omitempty"`
-	Provider *Provider `json:"provider,omitempty"`
-	Model    *string   `json:"model,omitempty"`
-	Mode     *string   `json:"mode,omitempty"`
+	Title           *string   `json:"title,omitempty"`
+	Cwd             *string   `json:"cwd,omitempty"`
+	Provider        *Provider `json:"provider,omitempty"`
+	Model           *string   `json:"model,omitempty"`
+	Mode            *string   `json:"mode,omitempty"`
+	ReasoningEffort *string   `json:"reasoningEffort,omitempty"`
 }
 
 func NormalizeProvider(provider Provider) Provider {
@@ -89,6 +92,21 @@ func NormalizeProvider(provider Provider) Provider {
 		return ProviderCodex
 	default:
 		return ProviderClaude
+	}
+}
+
+func NormalizeReasoningEffort(effort string) string {
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "low":
+		return "low"
+	case "medium":
+		return "medium"
+	case "high":
+		return "high"
+	case "xhigh":
+		return "xhigh"
+	default:
+		return ""
 	}
 }
 

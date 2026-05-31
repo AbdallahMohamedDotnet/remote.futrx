@@ -18,6 +18,7 @@ type metaRecord struct {
 	LastMessageAt   int64  `json:"lastMessageAt"`
 	Model           string `json:"model,omitempty"`
 	Mode            string `json:"mode,omitempty"`
+	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 	ProjectID       string `json:"projectId,omitempty"`
 }
 
@@ -34,6 +35,7 @@ func metaRecordFromDomain(m servicechat.Meta) metaRecord {
 		LastMessageAt:   m.LastMessageAt,
 		Model:           m.Model,
 		Mode:            m.Mode,
+		ReasoningEffort: m.ReasoningEffort,
 		ProjectID:       string(m.ProjectID),
 	}
 }
@@ -51,6 +53,7 @@ func (r metaRecord) toDomain() servicechat.Meta {
 		LastMessageAt:   r.LastMessageAt,
 		Model:           r.Model,
 		Mode:            r.Mode,
+		ReasoningEffort: servicechat.NormalizeReasoningEffort(r.ReasoningEffort),
 		ProjectID:       servicechat.ProjectID(r.ProjectID),
 	}
 }

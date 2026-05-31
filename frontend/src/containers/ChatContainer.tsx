@@ -1,6 +1,6 @@
 import type { ComponentType } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { ChatMeta, ChatMode, ChatProvider } from "../models/chat";
+import type { ChatMeta, ChatMode, ChatProvider, ReasoningEffort } from "../models/chat";
 import { ChatThread } from "../components/chat/ChatThread";
 import { useChat } from "../hooks/chat/useChat";
 import { useAttachmentUpload } from "../hooks/chat/useAttachmentUpload";
@@ -174,11 +174,15 @@ export function ChatContainer({
 
   function changeProvider(provider: ChatProvider) {
     if (provider === displayProvider) return;
-    metaActions.applyMeta({ provider, model: "" });
+    metaActions.applyMeta({ provider, model: "", reasoningEffort: "" });
   }
 
   function changeMode(mode: ChatMode) {
     metaActions.applyMeta({ mode });
+  }
+
+  function changeReasoningEffort(reasoningEffort: ReasoningEffort) {
+    metaActions.applyMeta({ reasoningEffort });
   }
 
   async function openDatabaseViewer() {
@@ -265,6 +269,7 @@ export function ChatContainer({
         onProviderChange={changeProvider}
         onModelChange={(model) => metaActions.applyMeta({ model })}
         onModeChange={changeMode}
+        onReasoningEffortChange={changeReasoningEffort}
         onOpenTerminal={() => setTerminalOpen(true)}
         onOpenDatabase={openDatabaseViewer}
         openingDatabase={openingDatabase}

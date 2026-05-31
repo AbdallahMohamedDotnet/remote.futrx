@@ -82,6 +82,7 @@ func (s *Store) Create(ctx context.Context, meta servicechat.Meta) (servicechat.
 		meta.Title = "New chat"
 	}
 	meta.Provider = servicechat.NormalizeProvider(meta.Provider)
+	meta.ReasoningEffort = servicechat.NormalizeReasoningEffort(meta.ReasoningEffort)
 	if meta.Mode == "" {
 		meta.Mode = "code"
 	}
@@ -147,6 +148,7 @@ func (s *Store) Update(
 	}
 	fn(&meta)
 	meta.Provider = servicechat.NormalizeProvider(meta.Provider)
+	meta.ReasoningEffort = servicechat.NormalizeReasoningEffort(meta.ReasoningEffort)
 	if err := s.writeMeta(meta); err != nil {
 		return meta, err
 	}

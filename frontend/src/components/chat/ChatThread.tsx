@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt } from "../../models/chat";
+import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, ReasoningEffort } from "../../models/chat";
 import type { Attachment } from "../../models/upload";
 import type { Block } from "../../state/chat/messageBlocks";
 import type { UsageTotals } from "../../state/chat/usage";
@@ -51,6 +51,7 @@ export function ChatThread({
   onProviderChange,
   onModelChange,
   onModeChange,
+  onReasoningEffortChange,
   onOpenTerminal,
   onOpenDatabase,
   openingDatabase,
@@ -110,6 +111,7 @@ export function ChatThread({
   onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
+  onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
   onOpenTerminal: () => void;
   onOpenDatabase: () => void;
   openingDatabase: boolean;
@@ -167,6 +169,7 @@ export function ChatThread({
         model={chat.model || ""}
         provider={chat.provider || "claude"}
         mode={mode}
+        reasoningEffort={chat.reasoningEffort || ""}
         queuedPrompts={queuedPrompts}
         draftText={draftText}
         draftKey={draftKey}
@@ -186,6 +189,7 @@ export function ChatThread({
         onProviderChange={onProviderChange}
         onModelChange={onModelChange}
         onModeChange={onModeChange}
+        onReasoningEffortChange={onReasoningEffortChange}
       />
     </div>
   );

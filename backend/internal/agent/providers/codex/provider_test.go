@@ -43,6 +43,36 @@ func TestCodexEnvStripsOpenAIAPIKey(t *testing.T) {
 	}
 }
 
+func TestArgsIncludeReasoningEffort(t *testing.T) {
+	provider := New(nil, nil)
+	args := provider.args(agent.RunRequest{
+		Config: map[string]any{"reasoningEffort": "high"},
+	})
+
+	want := []string{
+		"exec",
+		"--json",
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"-c", "model_reasoning_effort=high",
+		"-",
+	}
+	if !slices.Equal(args, want) {
+		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}
+}
+
+func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
+	provider := New(nil, nil)
+	args := provider.args(agent.RunRequest{
+		Config: map[string]any{"reasoningEffort": "extreme"},
+	})
+
+	if slices.Contains(args, "-c") {
+		t.Fatalf("invalid reasoning effort should not add config args: %#v", args)
+	}
+}
+
 func TestEnsureHostSubscriptionAuthRejectsAPIKeyAuth(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))

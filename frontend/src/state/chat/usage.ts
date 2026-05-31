@@ -1,6 +1,7 @@
 import type { ChatEvent } from "../../models/chat";
 import type { ChatMode } from "../../models/chat";
 import type { ChatProvider } from "../../models/chat";
+import type { ReasoningEffort } from "../../models/chat";
 
 export const PROVIDER_OPTIONS: Array<{ value: ChatProvider; label: string }> = [
   { value: "claude", label: "Claude" },
@@ -39,6 +40,14 @@ export const MODE_OPTIONS: Array<{ value: ChatMode; label: string }> = [
   { value: "review", label: "Review" },
   { value: "debug", label: "Debug" },
   { value: "full-auto", label: "Full auto" },
+];
+
+export const REASONING_EFFORT_OPTIONS: Array<{ value: ReasoningEffort; label: string }> = [
+  { value: "", label: "Auto" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "XHigh" },
 ];
 
 export function providerDisplayLabel(provider?: ChatProvider): string {

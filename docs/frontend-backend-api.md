@@ -240,6 +240,7 @@ interface ChatMeta {
   lastMessageAt: number;
   model?: string;
   mode?: "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
+  reasoningEffort?: "" | "low" | "medium" | "high" | "xhigh";
   projectId?: string;
 }
 ```
@@ -265,8 +266,10 @@ interface CreateChatInput {
   tmuxSession?: string;
   cwd?: string;
   title?: string;
+  provider?: "claude" | "codex";
   model?: string;
   mode?: string;
+  reasoningEffort?: "" | "low" | "medium" | "high" | "xhigh";
   projectId?: string;
 }
 ```
@@ -277,8 +280,10 @@ interface CreateChatInput {
 interface UpdateChatInput {
   title?: string;
   cwd?: string;
+  provider?: "claude" | "codex";
   model?: string;
   mode?: string;
+  reasoningEffort?: "" | "low" | "medium" | "high" | "xhigh";
 }
 ```
 

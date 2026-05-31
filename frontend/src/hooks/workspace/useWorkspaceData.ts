@@ -160,13 +160,16 @@ function sameChats(a: ChatMeta[], b: ChatMeta[]): boolean {
     if (
       left.id !== right.id ||
       left.title !== right.title ||
+      left.provider !== right.provider ||
       left.claudeSessionId !== right.claudeSessionId ||
+      left.codexSessionId !== right.codexSessionId ||
       left.tmuxSession !== right.tmuxSession ||
       left.cwd !== right.cwd ||
       left.createdAt !== right.createdAt ||
       left.lastMessageAt !== right.lastMessageAt ||
       left.model !== right.model ||
       left.mode !== right.mode ||
+      left.reasoningEffort !== right.reasoningEffort ||
       left.projectId !== right.projectId
     ) {
       return false;

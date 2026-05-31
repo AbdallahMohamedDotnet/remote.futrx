@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import type { ChatMode, ChatProvider, QueuedPrompt } from "../../models/chat";
+import type { ChatMode, ChatProvider, QueuedPrompt, ReasoningEffort } from "../../models/chat";
 import type { Attachment } from "../../models/upload";
 import { Plus, Upload } from "../ui/icons";
 import { AttachmentTray } from "./AttachmentTray";
@@ -14,6 +14,7 @@ export function ChatComposer({
   model,
   provider,
   mode,
+  reasoningEffort,
   queuedPrompts,
   attachments,
   uploading,
@@ -31,6 +32,7 @@ export function ChatComposer({
   onProviderChange,
   onModelChange,
   onModeChange,
+  onReasoningEffortChange,
 }: {
   chatId: string;
   streaming: boolean;
@@ -38,6 +40,7 @@ export function ChatComposer({
   model: string;
   provider: ChatProvider;
   mode: ChatMode;
+  reasoningEffort: ReasoningEffort;
   queuedPrompts: QueuedPrompt[];
   draftText?: string;
   draftKey?: number;
@@ -57,6 +60,7 @@ export function ChatComposer({
   onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
+  onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
 }) {
   const disconnected = !canSendPrompt && !streaming;
   const hasContent = text.trim().length > 0 || attachments.some((attachment) => attachment.serverPath);
@@ -77,10 +81,12 @@ export function ChatComposer({
         model={model}
         provider={provider}
         mode={mode}
+        reasoningEffort={reasoningEffort}
         streaming={streaming}
         onProviderChange={onProviderChange}
         onModelChange={onModelChange}
         onModeChange={onModeChange}
+        onReasoningEffortChange={onReasoningEffortChange}
       />
 
       <QueuedPromptList queuedPrompts={queuedPrompts} onRemove={onRemoveQueued} />

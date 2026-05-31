@@ -64,13 +64,14 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 	}
 
 	return s.repo.Create(ctx, Meta{
-		Title:       title,
-		Provider:    provider,
-		TmuxSession: in.TmuxSession,
-		Cwd:         cwd,
-		Model:       in.Model,
-		Mode:        mode,
-		ProjectID:   in.ProjectID,
+		Title:           title,
+		Provider:        provider,
+		TmuxSession:     in.TmuxSession,
+		Cwd:             cwd,
+		Model:           in.Model,
+		Mode:            mode,
+		ReasoningEffort: NormalizeReasoningEffort(in.ReasoningEffort),
+		ProjectID:       in.ProjectID,
 	})
 }
 
@@ -94,6 +95,9 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		}
 		if in.Mode != nil {
 			m.Mode = *in.Mode
+		}
+		if in.ReasoningEffort != nil {
+			m.ReasoningEffort = NormalizeReasoningEffort(*in.ReasoningEffort)
 		}
 	})
 }

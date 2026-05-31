@@ -10,11 +10,13 @@ export interface ChatMeta {
   lastMessageAt: number;
   model?: string;
   mode?: ChatMode;
+  reasoningEffort?: ReasoningEffort;
   projectId?: string;
 }
 
 export type ChatProvider = "claude" | "codex";
 export type ChatMode = "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
+export type ReasoningEffort = "" | "low" | "medium" | "high" | "xhigh";
 
 type ChatEventBase = { seq?: number; t: number };
 
@@ -66,6 +68,7 @@ export interface CreateChatInput {
   provider?: ChatProvider;
   model?: string;
   mode?: ChatMode;
+  reasoningEffort?: ReasoningEffort;
   projectId?: string;
 }
 
@@ -75,4 +78,5 @@ export interface UpdateChatInput {
   provider?: ChatProvider;
   model?: string;
   mode?: ChatMode;
+  reasoningEffort?: ReasoningEffort;
 }

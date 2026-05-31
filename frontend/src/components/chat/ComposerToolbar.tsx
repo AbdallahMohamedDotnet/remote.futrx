@@ -1,23 +1,27 @@
-import type { ChatMode, ChatProvider } from "../../models/chat";
-import { composerModelOptionsForProvider, MODE_OPTIONS, PROVIDER_OPTIONS } from "../../state/chat/usage";
+import type { ChatMode, ChatProvider, ReasoningEffort } from "../../models/chat";
+import { composerModelOptionsForProvider, MODE_OPTIONS, PROVIDER_OPTIONS, REASONING_EFFORT_OPTIONS } from "../../state/chat/usage";
 import { Clock } from "../ui/icons";
 
 export function ComposerToolbar({
   model,
   provider,
   mode,
+  reasoningEffort,
   streaming,
   onProviderChange,
   onModelChange,
   onModeChange,
+  onReasoningEffortChange,
 }: {
   model: string;
   provider: ChatProvider;
   mode: ChatMode;
+  reasoningEffort: ReasoningEffort;
   streaming: boolean;
   onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
+  onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
 }) {
   const modelOptions = composerModelOptionsForProvider(provider);
   return (
@@ -55,6 +59,23 @@ export function ComposerToolbar({
             ))}
           </select>
         </label>
+
+        {provider === "codex" && (
+          <label class="codex-mode-control inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
+            <span class="hidden sm:inline text-ink-400">Thinking</span>
+            <select
+              value={reasoningEffort}
+              onChange={(event) => onReasoningEffortChange((event.currentTarget as HTMLSelectElement).value as ReasoningEffort)}
+              class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
+              title="Codex thinking"
+              disabled={streaming}
+            >
+              {REASONING_EFFORT_OPTIONS.map((option) => (
+                <option key={option.value || "auto"} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label class="codex-mode-control inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
           <span class="hidden sm:inline text-ink-400">Mode</span>

@@ -24,6 +24,9 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	if model := sanitizeModel(req.Model); model != "" {
 		common = append(common, "--model", model)
 	}
+	if effort := reasoningEffortFromConfig(req.Config); effort != "" {
+		common = append(common, "-c", "model_reasoning_effort="+effort)
+	}
 	if req.ResumeID != "" {
 		args := append([]string{"exec", "resume"}, common...)
 		args = append(args, req.ResumeID, "-")
@@ -40,6 +43,25 @@ func sanitizeModel(model string) string {
 		model = strings.TrimSpace(model[:idx])
 	}
 	return model
+}
+
+func reasoningEffortFromConfig(config map[string]any) string {
+	if len(config) == 0 {
+		return ""
+	}
+	effort, _ := config["reasoningEffort"].(string)
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "low":
+		return "low"
+	case "medium":
+		return "medium"
+	case "high":
+		return "high"
+	case "xhigh":
+		return "xhigh"
+	default:
+		return ""
+	}
 }
 
 func (p *Provider) buildCmd(
