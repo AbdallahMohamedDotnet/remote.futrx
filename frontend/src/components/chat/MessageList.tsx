@@ -75,7 +75,7 @@ export function MessageList({
       onScroll={onScroll}
       class="codex-message-scroll h-full overflow-y-auto touch-scroll scrollbar-thin px-3 sm:px-4 md:px-6 pt-3 md:pt-6 pb-5 md:pb-6"
     >
-      <div ref={contentRef} class="mx-auto max-w-[880px] space-y-4 md:space-y-5">
+      <div ref={contentRef} class="w-full space-y-4 md:space-y-5">
         {status === "loading" && (
           <div class="flex items-center gap-2 text-ink-300 text-sm rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
             <Loader class="w-4 h-4 animate-spin" /> Loading conversation

@@ -17,7 +17,7 @@ export function ComposerToolbar({
 }) {
   return (
     <div class="codex-composer-controls px-3 pt-2 pb-1.5">
-      <div class="mx-auto max-w-[980px] flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div class="w-full flex items-center gap-2 overflow-x-auto no-scrollbar">
         <label class="codex-model-control hidden sm:inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
           <span class="hidden sm:inline text-ink-400">Model</span>
           <select

@@ -12,7 +12,7 @@ export function QueuedPromptList({
 
   return (
     <div class="px-3 pb-2">
-      <div class="mx-auto max-w-[980px] rounded-lg border border-white/10 bg-white/[0.035] p-2">
+      <div class="w-full rounded-lg border border-white/10 bg-white/[0.035] p-2">
         <div class="flex items-center justify-between gap-3 px-1 pb-1.5">
           <div class="text-[12px] font-medium text-ink-200">Queue</div>
           <div class="text-[11px] text-ink-400">{queuedPrompts.length} waiting</div>
