@@ -1,7 +1,8 @@
-import { Code, Terminal } from "../ui/icons";
+import { Code, Database, Terminal } from "../ui/icons";
 
 const defaultWorkspacePath = "/opt/remote.futrx.dev";
 const ideBaseUrl = "https://code.remote.futrx.dev/";
+const dbViewerUrl = "https://db.remote.futrx.dev/";
 
 export function CwdEditor({
   editing,
@@ -67,6 +68,18 @@ export function CwdEditor({
         <Terminal class="w-4 h-4 text-accent-blue flex-none" />
         <span class="text-[12.5px] font-medium">Open Terminal</span>
       </button>
+      <a
+        href={dbViewerUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="h-9 inline-flex items-center gap-2 px-3 rounded-md
+               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
+        title="Open database viewer"
+        aria-label="Open database viewer"
+      >
+        <Database class="w-4 h-4 text-accent-blue flex-none" />
+        <span class="text-[12.5px] font-medium">Open DB</span>
+      </a>
     </>
   );
 }
