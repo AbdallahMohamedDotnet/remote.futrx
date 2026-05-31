@@ -33,7 +33,18 @@ if ! command -v php >/dev/null 2>&1 || [ ! -f /usr/share/adminer/adminer.php ]; 
 fi
 
 install -d -m 0755 "$root"
-ln -sfn /usr/share/adminer/adminer.php "$root/index.php"
+cat > "$root/index.php" <<'PHP'
+<?php
+function adminer_object() {
+    class RemoteFutrxAdminer extends Adminer {
+        function login($login, $password) {
+            return true;
+        }
+    }
+    return new RemoteFutrxAdminer();
+}
+require "/usr/share/adminer/adminer.php";
+PHP
 
 if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
   exit 0
