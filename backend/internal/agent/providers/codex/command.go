@@ -85,7 +85,7 @@ func (p *Provider) buildCmd(
 	if p.containers != nil {
 		emitSystem(req, emit, "container_preparing")
 		if err := p.containers.EnsureCodex(ctx, project.ContainerName); err != nil {
-			return nil, "", fmt.Errorf("install codex in container: %w", err)
+			return nil, "", fmt.Errorf("codex CLI unavailable in container: %w", err)
 		}
 		if err := p.containers.EnsureCodexAuth(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("seed codex auth in container: %w", err)

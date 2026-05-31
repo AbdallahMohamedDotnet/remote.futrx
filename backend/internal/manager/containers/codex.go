@@ -1,6 +1,6 @@
 package containers
 
-// Codex-specific provider glue: installing the OpenAI Codex CLI inside a
+// Codex-specific provider glue: requiring the OpenAI Codex CLI inside a
 // container and shipping the Codex auth file into each project rootfs.
 
 import (
@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 )
 
 const (
@@ -21,7 +20,10 @@ const (
 	containerCodexAuth = "/root/.codex/auth.json"
 )
 
-var ErrCodexAPIKeyAuth = errors.New("Codex is logged in with an API key; run codex login with ChatGPT to use subscription limits")
+var (
+	ErrCodexAPIKeyAuth = errors.New("Codex is logged in with an API key; run codex login with ChatGPT to use subscription limits")
+	ErrCodexMissing    = errors.New("Codex CLI is missing from the project container; recreate the container from futrx-remote-dev-base")
+)
 
 func CodexAuthBundle() AuthBundle {
 	return AuthBundle{
@@ -81,27 +83,7 @@ func (m *Manager) EnsureCodex(ctx context.Context, containerName string) error {
 	if m.codexInstalled(ctx, containerName) {
 		return nil
 	}
-	if m.codexInstallRunning(ctx, containerName) {
-		waitCtx, cancelW := context.WithTimeout(ctx, 2*time.Minute)
-		defer cancelW()
-		if err := m.waitForCodex(waitCtx, containerName); err == nil {
-			return nil
-		}
-	}
-
-	installCtx, cancelI := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancelI()
-	out, err := m.lxc.Run(installCtx, "exec", containerName, "--", "bash", "-c", BaseImageInstallScript)
-	if err != nil {
-		waitCtx, cancelW := context.WithTimeout(ctx, 90*time.Second)
-		defer cancelW()
-		if waitErr := m.waitForCodex(waitCtx, containerName); waitErr == nil {
-			return nil
-		}
-		return fmt.Errorf("install codex in %s: %w; output: %s",
-			containerName, err, truncateOut(out, 1000))
-	}
-	return nil
+	return fmt.Errorf("%w: %s", ErrCodexMissing, containerName)
 }
 
 func (m *Manager) codexInstalled(ctx context.Context, containerName string) bool {
@@ -109,27 +91,4 @@ func (m *Manager) codexInstalled(ctx context.Context, containerName string) bool
 	defer cancel()
 	_, err := m.lxc.Run(quickCtx, "exec", containerName, "--", "which", "codex")
 	return err == nil
-}
-
-func (m *Manager) codexInstallRunning(ctx context.Context, containerName string) bool {
-	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--",
-		"pgrep", "-f", "npm install.*@openai/codex")
-	return err == nil && strings.TrimSpace(out) != ""
-}
-
-func (m *Manager) waitForCodex(ctx context.Context, containerName string) error {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		if m.codexInstalled(ctx, containerName) {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-		}
-	}
 }

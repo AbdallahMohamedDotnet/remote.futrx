@@ -189,8 +189,21 @@ func (s *Service) Start(ctx context.Context, id ID) (Meta, error) {
 		return Meta{}, err
 	}
 	if s.containers != nil {
-		if err := s.containers.Start(ctx, m.ContainerName); err != nil {
+		state, err := s.containers.State(ctx, m.ContainerName)
+		if err != nil {
 			return s.repo.SetStatus(ctx, id, StatusError, err.Error())
+		}
+		if state == ContainerStateMissing {
+			if err := s.containers.Launch(ctx, m); err != nil {
+				return s.repo.SetStatus(ctx, id, StatusError, err.Error())
+			}
+			if syncErr := s.syncContainerEnv(ctx, id, m.ContainerName); syncErr != nil {
+				log.Printf("projects: sync env to %s after relaunch: %v", m.ContainerName, syncErr)
+			}
+		} else if state != ContainerStateRunning {
+			if err := s.containers.Start(ctx, m.ContainerName); err != nil {
+				return s.repo.SetStatus(ctx, id, StatusError, err.Error())
+			}
 		}
 	}
 	return s.repo.SetStatus(ctx, id, StatusRunning, "")

@@ -3,9 +3,10 @@ package containers
 // Base-image provisioning. The same install script is used in two places:
 //   1. As the recipe baked into the published futrx-remote-dev-base LXD image
 //      (run once by cmd/build-base-image on a fresh ubuntu:24.04 builder).
-//   2. As the fallback in EnsureClaude / EnsureCodex — runs inside an
-//      already-running container if either CLI is missing (covers older proj-* containers that
-//      pre-date the custom image).
+//   2. As the fallback in EnsureClaude — runs inside an already-running
+//      container if Claude is missing (covers older proj-* containers that
+//      pre-date the custom image). Codex is required from the base image so
+//      prompt runs do not trigger apt/npm installs.
 // Keeping it in one constant guarantees the two paths can never drift.
 
 import (
@@ -38,7 +39,7 @@ const (
 
 // BaseImageInstallScript is the shell recipe that turns a fresh
 // ubuntu:24.04 rootfs into the futrx-remote-dev-base image. It is also the
-// fallback EnsureClaude / EnsureCodex run inside an already-launched container.
+// fallback EnsureClaude run inside an already-launched container.
 const BaseImageInstallScript = `set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq

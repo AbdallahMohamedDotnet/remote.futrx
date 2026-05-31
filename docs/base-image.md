@@ -13,7 +13,7 @@ The exact recipe lives in one place in the codebase:
 
 - [`internal/manager/containers/baseimage.go`](../backend/internal/manager/containers/baseimage.go) — the `BaseImageInstallScript` constant.
 
-That same constant is what `EnsureClaude` / `EnsureCodex` run as a fallback inside any container that was launched from an older image and is missing either CLI. The two paths can't drift.
+Codex is expected to be present in the published image. Prompt runs only verify that `codex` exists; they do not run apt/npm installs inside project containers. If an older container is missing Codex, recreate that project container from the current image.
 
 ## Building / rebuilding the image
 
@@ -43,8 +43,8 @@ Rebuilding the image only affects **new** containers (launched from this point f
 | Path | Effect | Command |
 | --- | --- | --- |
 | **Lazy** | New projects get the new image; old containers keep their old versions. | Nothing — just rebuild and move on. |
-| **Force-recreate** | Wipe old containers; next prompt re-launches them from the new image. Workspace files are bind-mounted so they survive; anything custom in the rootfs is gone. | `lxc list -c n --format csv \| grep '^futrx-remote-dev-' \| xargs -I{} lxc delete --force {}` |
-| **In-place upgrade** | Run the install script inside every existing container. Slow but preserves rootfs state. | `for c in $(lxc list -c n --format csv \| grep '^futrx-remote-dev-'); do lxc exec $c -- bash -c "$(cat <<-SH ... SH)" ; done` |
+| **Force-recreate** | Wipe an old project container; the next project start re-launches it from the new image. Workspace files are bind-mounted so they survive; anything custom in the rootfs is gone. | `lxc delete --force <project-container>` |
+| **In-place upgrade** | Run a targeted CLI upgrade inside selected existing containers. Slow and manual; use only when preserving rootfs state matters. | `lxc exec <container> -- npm install -g @openai/codex` |
 
 ## Bootstrap on a fresh host
 
