@@ -22,7 +22,7 @@ const (
 	// write them.
 	hostMappedUID = 1000000
 
-	defaultImage = "ubuntu:24.04"
+	defaultImage = "futrx-remote-dev-base"
 	containerWS  = "/workspace"
 
 	launchTimeout = 90 * time.Second

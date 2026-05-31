@@ -102,7 +102,7 @@ func (s *Store) Create(ctx context.Context, m serviceproject.Meta) (serviceproje
 	m.ID = newProjectID()
 	m.Slug = slug
 	m.Cwd = s.WorkspaceDir(slug)
-	m.ContainerName = "proj-" + slug
+	m.ContainerName = "futrx-remote-dev-" + slug
 	if m.Status == "" {
 		m.Status = serviceproject.StatusProvisioning
 	}
