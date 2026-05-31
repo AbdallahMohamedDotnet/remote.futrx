@@ -13,6 +13,10 @@ export function SettingsPage({
   expandedHelp,
   revealed,
   savedAt,
+  stored,
+  saving,
+  errors,
+  propagation,
   onBack,
   onHamburger,
   onAppearanceThemeChange,
@@ -20,6 +24,7 @@ export function SettingsPage({
   onToggleHelp,
   onToggleReveal,
   onSave,
+  onClear,
 }: {
   providers: CredentialProvider[];
   appearanceTheme: AppearanceTheme;
@@ -30,6 +35,10 @@ export function SettingsPage({
   expandedHelp: Record<ProviderKey, boolean>;
   revealed: Record<ProviderKey, boolean>;
   savedAt: Record<ProviderKey, number | undefined>;
+  stored: Record<ProviderKey, boolean>;
+  saving: Record<ProviderKey, boolean>;
+  errors: Record<ProviderKey, string | undefined>;
+  propagation: Record<ProviderKey, { propagated: number; failures: number } | undefined>;
   onBack: () => void;
   onHamburger: () => void;
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
@@ -37,6 +46,7 @@ export function SettingsPage({
   onToggleHelp: (key: ProviderKey) => void;
   onToggleReveal: (key: ProviderKey) => void;
   onSave: (key: ProviderKey) => void;
+  onClear: (key: ProviderKey) => void;
 }) {
   return (
     <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -101,10 +111,15 @@ export function SettingsPage({
               helpOpen={!!expandedHelp[provider.key]}
               revealed={!!revealed[provider.key]}
               savedAt={savedAt[provider.key]}
+              stored={!!stored[provider.key]}
+              saving={!!saving[provider.key]}
+              error={errors[provider.key]}
+              propagation={propagation[provider.key]}
               onChange={(value) => onValueChange(provider.key, value)}
               onToggleHelp={() => onToggleHelp(provider.key)}
               onToggleReveal={() => onToggleReveal(provider.key)}
               onSave={() => onSave(provider.key)}
+              onClear={() => onClear(provider.key)}
             />
           ))}
         </div>

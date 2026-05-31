@@ -3,6 +3,7 @@ import type { CredentialProvider } from "../../models/settings";
 export const CREDENTIAL_PROVIDERS: CredentialProvider[] = [
   {
     key: "github",
+    envVar: "GITHUB_TOKEN",
     name: "GitHub",
     blurb: "Personal access token for the gh CLI. Used by git push, gh pr create, gh repo clone, etc.",
     shape: "token",
@@ -21,6 +22,7 @@ export const CREDENTIAL_PROVIDERS: CredentialProvider[] = [
   },
   {
     key: "cloudflare",
+    envVar: "CLOUDFLARE_API_TOKEN",
     name: "Cloudflare",
     blurb: "API token for wrangler. Lets containers deploy Workers, Pages, KV, R2, D1.",
     shape: "token",
@@ -38,6 +40,7 @@ export const CREDENTIAL_PROVIDERS: CredentialProvider[] = [
   },
   {
     key: "hetzner",
+    envVar: "HCLOUD_TOKEN",
     name: "Hetzner Cloud",
     blurb: "Per-project API token for hcloud. Project-scoped, so pick the Hetzner project the agent should act on.",
     shape: "token",
@@ -55,6 +58,7 @@ export const CREDENTIAL_PROVIDERS: CredentialProvider[] = [
   },
   {
     key: "gcloud",
+    envVar: "GOOGLE_APPLICATION_CREDENTIALS_JSON",
     name: "Google Cloud",
     blurb: "Service account JSON key. Avoids browser-based gcloud auth so containers do not need to re-login.",
     shape: "json",

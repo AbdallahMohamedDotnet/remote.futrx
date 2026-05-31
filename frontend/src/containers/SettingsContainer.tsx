@@ -24,6 +24,10 @@ export function SettingsContainer({
       expandedHelp={credentials.expandedHelp}
       revealed={credentials.revealed}
       savedAt={credentials.savedAt}
+      stored={credentials.stored}
+      saving={credentials.saving}
+      errors={credentials.errors}
+      propagation={credentials.propagation}
       onBack={onBack}
       onHamburger={onHamburger}
       onAppearanceThemeChange={(theme) => void userSettings.setTheme(theme)}
@@ -31,6 +35,7 @@ export function SettingsContainer({
       onToggleHelp={credentials.toggleHelp}
       onToggleReveal={credentials.toggleReveal}
       onSave={credentials.save}
+      onClear={credentials.clear}
     />
   );
 }

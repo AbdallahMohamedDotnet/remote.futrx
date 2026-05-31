@@ -1,5 +1,5 @@
 import type { CredentialProvider } from "../../models/settings";
-import { Check, ChevronDown, ChevronRight, ExternalLink, Key } from "../ui/icons";
+import { AlertCircle, Check, ChevronDown, ChevronRight, ExternalLink, Key } from "../ui/icons";
 import { CredentialInput } from "./CredentialInput";
 
 export function ProviderCard({
@@ -8,23 +8,33 @@ export function ProviderCard({
   helpOpen,
   revealed,
   savedAt,
+  stored,
+  saving,
+  error,
+  propagation,
   onChange,
   onToggleHelp,
   onToggleReveal,
   onSave,
+  onClear,
 }: {
   provider: CredentialProvider;
   value: string;
   helpOpen: boolean;
   revealed: boolean;
   savedAt: number | undefined;
+  stored: boolean;
+  saving: boolean;
+  error: string | undefined;
+  propagation: { propagated: number; failures: number } | undefined;
   onChange: (value: string) => void;
   onToggleHelp: () => void;
   onToggleReveal: () => void;
   onSave: () => void;
+  onClear: () => void;
 }) {
-  const fresh = savedAt && Date.now() - savedAt < 3000;
-  const hasValue = value.trim().length > 0;
+  const fresh = savedAt && Date.now() - savedAt < 4000;
+  const hasInput = value.trim().length > 0;
 
   return (
     <section class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
@@ -35,13 +45,19 @@ export function ProviderCard({
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
             <span class="text-[14.5px] font-semibold text-ink-50">{provider.name}</span>
-            {hasValue && (
-              <span class="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-accent-green/15 text-accent-green">
-                <Check class="w-3 h-3" /> set
+            {stored && (
+              <span
+                class="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-accent-green/15 text-accent-green"
+                title={`Exported as $${provider.envVar} in every container`}
+              >
+                <Check class="w-3 h-3" /> stored
               </span>
             )}
           </div>
           <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug">{provider.blurb}</div>
+          <div class="text-[11.5px] text-ink-400 mt-1 font-mono">
+            env: <span class="text-ink-200">${provider.envVar}</span>
+          </div>
         </div>
       </header>
 
@@ -83,20 +99,42 @@ export function ProviderCard({
           onToggleReveal={onToggleReveal}
         />
 
-        <div class="flex items-center gap-3 pt-1">
+        <div class="flex flex-wrap items-center gap-3 pt-1">
           <button
             type="button"
             onClick={onSave}
-            disabled={!hasValue}
+            disabled={!hasInput || saving}
             class="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-accent-blue
                    text-white text-sm font-medium hover:bg-accent-blue/90 active:scale-[0.99]
                    disabled:bg-ink-500 disabled:cursor-not-allowed transition"
           >
-            Save
+            {saving ? "Saving…" : stored ? "Replace" : "Save"}
           </button>
-          {fresh && (
+          {stored && (
+            <button
+              type="button"
+              onClick={onClear}
+              disabled={saving}
+              class="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-white/10
+                     text-ink-100 text-sm hover:bg-white/[0.05] active:scale-[0.99]
+                     disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Clear
+            </button>
+          )}
+          {fresh && propagation && (
             <span class="text-[12px] text-accent-green inline-flex items-center gap-1">
-              <Check class="w-3.5 h-3.5" /> Stored in memory (backend wiring pending)
+              <Check class="w-3.5 h-3.5" />
+              Saved · propagated to {propagation.propagated} container
+              {propagation.propagated === 1 ? "" : "s"}
+              {propagation.failures > 0
+                ? ` · ${propagation.failures} failed`
+                : ""}
+            </span>
+          )}
+          {error && (
+            <span class="text-[12px] text-accent-red inline-flex items-center gap-1">
+              <AlertCircle class="w-3.5 h-3.5" /> {error}
             </span>
           )}
         </div>
