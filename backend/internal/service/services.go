@@ -27,6 +27,9 @@ type TmuxCwdClient interface {
 type ContainerManager interface {
 	serviceproject.ContainerManager
 	prompt.ContainerPreparer
+	// ApplyContainerEnvDiff is used by the user-settings flow to push global
+	// secrets (Cloudflare/GitHub/etc. tokens) into a project container.
+	ApplyContainerEnvDiff(ctx context.Context, container string, set map[string]string, unset []string) error
 }
 
 type Dependencies struct {
@@ -49,6 +52,10 @@ type Services struct {
 	Workspace    *workspacehub.Hub
 	Auth         *serviceauth.Service
 	UserSettings *serviceusersettings.Service
+	// Containers is the underlying container manager surfaced here so HTTP
+	// handlers that need to push container-level state (e.g. global secrets
+	// from the user-settings flow) can reach it without a second wiring path.
+	Containers   ContainerManager
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -90,6 +97,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Workspace:    workspace,
 		Auth:         authService,
 		UserSettings: userSettingsService,
+		Containers:   deps.Containers,
 	}, nil
 }
 

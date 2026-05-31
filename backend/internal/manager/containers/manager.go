@@ -34,12 +34,18 @@ const (
 
 // Manager is the value passed to services that need to launch / drive
 // containers. Wire it up once in main and share the pointer.
+// SecretsSource produces the current snapshot of global secrets that should be
+// exported as env vars into every project container. The container manager
+// calls it from Launch and from any path that needs to re-seed a container.
+type SecretsSource func() map[string]string
+
 type Manager struct {
 	lxc   *lxc.Client
 	image string
 
-	mu      sync.RWMutex
-	bundles []AuthBundle
+	mu        sync.RWMutex
+	bundles   []AuthBundle
+	secretsFn SecretsSource
 }
 
 // New returns a Manager that delegates CLI calls to the supplied lxc.Client.
@@ -49,6 +55,27 @@ func New(client *lxc.Client) *Manager {
 
 // Available reports whether the underlying lxc binary is reachable.
 func (m *Manager) Available() bool { return m.lxc.Available() }
+
+// RegisterSecretsSource installs the callback the manager uses to read the
+// current global secrets. Call once from main during wiring; it's safe to
+// call again to swap sources.
+func (m *Manager) RegisterSecretsSource(fn SecretsSource) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.secretsFn = fn
+}
+
+// secretsSnapshot returns the current secrets map by invoking the registered
+// source. Returns nil if no source is registered.
+func (m *Manager) secretsSnapshot() map[string]string {
+	m.mu.RLock()
+	fn := m.secretsFn
+	m.mu.RUnlock()
+	if fn == nil {
+		return nil
+	}
+	return fn()
+}
 
 func truncateOut(s string, max int) string {
 	if len(s) <= max {
