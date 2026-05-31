@@ -1,4 +1,8 @@
-package lxc
+package containers
+
+// Container provisioning: ships a project's CLAUDE.md template into the
+// container. Claude-specific, but kept in its own file because of the
+// //go:embed directive.
 
 import (
 	"context"
@@ -8,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -34,7 +37,7 @@ func (m *Manager) EnsureClaudeMD(ctx context.Context, containerName string) erro
 
 	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
 	defer cancelQ()
-	got, err := lxcRun(qctx, "exec", containerName, "--", "cat", containerClaudeMDHash)
+	got, err := m.lxc.Run(qctx, "exec", containerName, "--", "cat", containerClaudeMDHash)
 	if err == nil && strings.TrimSpace(got) == want {
 		return nil
 	}
@@ -53,19 +56,17 @@ func (m *Manager) EnsureClaudeMD(ctx context.Context, containerName string) erro
 	}
 	tmp.Close()
 
-	if out, err := lxcRun(pctx, "file", "push", "--mode=644",
+	if out, err := m.lxc.Run(pctx, "file", "push", "--mode=644",
 		tmp.Name(), containerName+containerClaudeMD); err != nil {
 		return fmt.Errorf("push CLAUDE.md: %w; output: %s", err, out)
 	}
 
-	if out, err := lxcRun(pctx, "exec", containerName, "--",
-		"install", "-d", "-m", "700", "/root/.claude"); err != nil {
-		return fmt.Errorf("mkdir /root/.claude: %w; output: %s", err, out)
+	if out, err := m.lxc.Run(pctx, "exec", containerName, "--",
+		"install", "-d", "-m", "700", containerClaudeDir); err != nil {
+		return fmt.Errorf("mkdir %s: %w; output: %s", containerClaudeDir, err, out)
 	}
-	hashCmd := exec.CommandContext(pctx, "lxc", "exec", containerName, "--",
-		"tee", containerClaudeMDHash)
-	hashCmd.Stdin = strings.NewReader(want)
-	if out, err := hashCmd.CombinedOutput(); err != nil {
+	if out, err := m.lxc.RunStdin(pctx, strings.NewReader(want), "exec", containerName, "--",
+		"tee", containerClaudeMDHash); err != nil {
 		return fmt.Errorf("write hash marker: %w; output: %s", err, out)
 	}
 	return nil

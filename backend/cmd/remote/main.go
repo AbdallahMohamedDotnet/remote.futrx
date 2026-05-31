@@ -18,6 +18,7 @@ import (
 	remote "github.com/Kings-Of-The-Web/remote.futrx.dev"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/containers"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
@@ -32,7 +33,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("init stores: %v", err)
 	}
-	containerManager := lxc.New()
+	containerManager := containers.New(lxc.New())
+	containerManager.RegisterAuthBundle(containers.ClaudeAuthBundle())
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:         storeSet.Chats,
