@@ -1,19 +1,28 @@
-import type { ProjectContainerRecords } from "../../containers/ProjectContainersContainer";
-import type { ProjectMeta } from "../../models/project";
+import type { ProjectContainerRecord } from "../../containers/ProjectContainersContainer";
+import type {
+  AuthBundleFileStatus,
+  AuthBundleStatus,
+  ContainerLimits,
+  DiskUsage,
+  NetworkInterface,
+  OSInfo,
+  ProjectContainerInfo,
+  ProjectMeta,
+  ResourceInfo,
+  WorkspaceInfo,
+} from "../../models/project";
 import { AlertCircle, ChevronLeft, Loader, Menu, RotateCcw, Settings } from "../ui/icons";
 
 export function ProjectContainersPage({
-  projects,
-  selectedProjectId,
-  records,
+  project,
+  record,
   refreshing,
   onRefresh,
   onBack,
   onHamburger,
 }: {
-  projects: ProjectMeta[];
-  selectedProjectId: string | null;
-  records: ProjectContainerRecords;
+  project: ProjectMeta | null;
+  record: ProjectContainerRecord;
   refreshing: boolean;
   onRefresh: () => void;
   onBack: () => void;
@@ -40,7 +49,9 @@ export function ProjectContainersPage({
         </button>
         <div class="flex-1 min-w-0">
           <div class="text-[11px] text-ink-300">Projects</div>
-          <div class="text-[15px] font-semibold text-ink-50 truncate">Container info</div>
+          <div class="text-[15px] font-semibold text-ink-50 truncate">
+            {project ? `${project.name} — container` : "Container info"}
+          </div>
         </div>
         <button
           type="button"
@@ -57,19 +68,16 @@ export function ProjectContainersPage({
 
       <div class="flex-1 overflow-y-auto touch-scroll">
         <div class="max-w-3xl mx-auto px-4 py-5 space-y-4">
-          {projects.length === 0 ? (
-            <div class="rounded-lg border border-white/10 bg-[#101318] px-4 py-5 text-sm text-ink-300">
-              No projects yet.
-            </div>
+          {!project ? (
+            <Empty text="Select a project from the sidebar." />
+          ) : record.loading && !record.data ? (
+            <Empty text="Loading container data…" />
+          ) : record.error ? (
+            <ErrorBanner project={project} message={record.error} />
+          ) : record.data ? (
+            <Detail project={project} info={record.data} refreshedAt={record.refreshedAt} />
           ) : (
-            projects.map((project) => (
-              <ProjectContainerCard
-                key={project.id}
-                project={project}
-                selected={project.id === selectedProjectId}
-                record={records[project.id] ?? { loading: true }}
-              />
-            ))
+            <Empty text="No data." />
           )}
         </div>
       </div>
@@ -77,78 +85,385 @@ export function ProjectContainersPage({
   );
 }
 
-function ProjectContainerCard({
+function Detail({
   project,
-  selected,
-  record,
+  info,
+  refreshedAt,
 }: {
   project: ProjectMeta;
-  selected: boolean;
-  record: ProjectContainerRecords[string];
+  info: ProjectContainerInfo;
+  refreshedAt?: number;
 }) {
   return (
-    <section
-      class={`rounded-lg border bg-[#101318] overflow-hidden ${
-        selected ? "border-accent-blue/45" : "border-white/10"
-      }`}
-    >
-      <header class="px-4 py-3 flex items-start gap-3 border-b border-white/[0.06]">
-        <div class="mt-0.5 w-9 h-9 rounded-md bg-white/[0.06] border border-white/10 grid place-items-center flex-none">
-          <Settings class="w-4 h-4 text-ink-200" />
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="text-[14.5px] font-semibold text-ink-50 truncate">{project.name}</span>
-            <span class="inline-flex items-center h-5 px-1.5 rounded bg-white/[0.06] text-[11px] text-ink-300">
-              {project.status || "unknown"}
-            </span>
-          </div>
-          <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug font-mono truncate">
-            {project.containerName || project.slug}
-          </div>
-        </div>
-        {record.loading && <Loader class="w-4 h-4 mt-2 text-ink-300 animate-spin" />}
-      </header>
+    <>
+      <Header project={project} info={info} refreshedAt={refreshedAt} />
+      <Panel title="Overview">
+        <Grid>
+          <Field label="Container" value={info.name} mono />
+          <Field label="State" value={info.state ?? "UNKNOWN"} mono />
+          <Field label="PID" value={info.pid ? String(info.pid) : "—"} mono />
+          <Field label="Processes" value={info.resources?.processes ? String(info.resources.processes) : "—"} mono />
+          <Field label="Image" value={info.image || "—"} />
+          <Field label="Architecture" value={info.architecture || "—"} mono />
+          <Field label="Boot autostart" value={info.bootAutostart ? "yes" : "no"} mono />
+          <Field label="Created" value={fmtDate(info.createdAt)} mono />
+          <Field label="Last used" value={fmtDate(info.lastUsedAt)} mono />
+        </Grid>
+      </Panel>
 
-      <div class="p-4 space-y-4">
-        <div class="grid gap-2 sm:grid-cols-2">
-          <MetaRow label="Project" value={project.slug} />
-          <MetaRow label="Container" value={project.containerName || "-"} />
-          <MetaRow label="Status" value={project.status || "unknown"} />
-          <MetaRow label="Workspace" value={project.cwd || "-"} />
-        </div>
+      {info.os && <OSPanel os={info.os} />}
+      {info.resources && <ResourcesPanel res={info.resources} />}
+      {info.disks && info.disks.length > 0 && <DisksPanel disks={info.disks} />}
+      {info.network && info.network.length > 0 && <NetworkPanel ifaces={info.network} />}
+      {info.workspace && <WorkspacePanel ws={info.workspace} />}
+      {info.limits && <LimitsPanel limits={info.limits} />}
+      <ClaudePanel claude={info.claude} />
+      {info.authBundles && info.authBundles.length > 0 && <AuthBundlesPanel bundles={info.authBundles} />}
+    </>
+  );
+}
 
-        {record.error ? (
-          <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
-            <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
-            <div class="min-w-0">
-              <div class="font-medium text-accent-red">Container endpoint unavailable</div>
-              <div class="text-ink-200 mt-0.5 break-words">
-                GET /api/projects/{project.id}/container returned {record.error}.
-              </div>
-            </div>
-          </div>
-        ) : record.loading ? (
-          <div class="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-6 text-center text-sm text-ink-300">
-            Loading container data
-          </div>
-        ) : (
-          <pre class="max-h-[420px] overflow-auto scrollbar-thin rounded-lg border border-white/10 bg-[#090b0f] p-3 text-[12px] leading-relaxed text-ink-100">
-            {JSON.stringify(record.data ?? {}, null, 2)}
-          </pre>
-        )}
+function Header({
+  project,
+  info,
+  refreshedAt,
+}: {
+  project: ProjectMeta;
+  info: ProjectContainerInfo;
+  refreshedAt?: number;
+}) {
+  return (
+    <section class="rounded-lg border border-white/10 bg-[#101318] px-4 py-3 flex items-start gap-3">
+      <div class="mt-0.5 w-9 h-9 rounded-md bg-white/[0.06] border border-white/10 grid place-items-center flex-none">
+        <Settings class="w-4 h-4 text-ink-200" />
       </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="text-[14.5px] font-semibold text-ink-50 truncate">{project.name}</span>
+          <StateBadge state={info.state ?? "UNKNOWN"} />
+        </div>
+        <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug font-mono truncate">{info.name}</div>
+      </div>
+      {refreshedAt && (
+        <div class="text-[11px] text-ink-400 mt-1.5">refreshed {fmtRelative(refreshedAt)}</div>
+      )}
     </section>
   );
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
+function StateBadge({ state }: { state: string }) {
+  const tone =
+    state === "RUNNING"
+      ? "text-accent-green bg-accent-green/[0.12]"
+      : state === "STOPPED"
+      ? "text-ink-300 bg-white/[0.06]"
+      : state === "MISSING"
+      ? "text-accent-red bg-accent-red/[0.12]"
+      : "text-ink-300 bg-white/[0.06]";
+  return (
+    <span class={`inline-flex items-center h-5 px-1.5 rounded text-[11px] font-medium ${tone}`}>
+      {state.toLowerCase()}
+    </span>
+  );
+}
+
+function OSPanel({ os }: { os: OSInfo }) {
+  return (
+    <Panel title="OS">
+      <Grid>
+        <Field label="Distribution" value={os.prettyName || "—"} />
+        <Field label="Kernel" value={os.kernel || "—"} mono />
+        <Field label="Hostname" value={os.hostname || "—"} mono />
+        <Field label="CPU count" value={os.cpuCount ? String(os.cpuCount) : "—"} mono />
+        <Field label="Uptime" value={os.uptimeSec ? fmtDuration(os.uptimeSec) : "—"} mono />
+      </Grid>
+    </Panel>
+  );
+}
+
+function ResourcesPanel({ res }: { res: ResourceInfo }) {
+  return (
+    <Panel title="Resources">
+      <Grid>
+        <Field label="Memory used" value={`${fmtBytes(res.memoryCurrentBytes)} / ${fmtBytes(res.memoryTotalBytes)}`} mono />
+        <Field label="Memory peak" value={fmtBytes(res.memoryPeakBytes)} mono />
+        <Field label="Swap" value={fmtBytes(res.swapCurrentBytes)} mono />
+        <Field label="Disk (rootfs)" value={fmtBytes(res.diskUsageBytes)} mono />
+        <Field label="CPU time" value={res.cpuUsageSeconds ? `${res.cpuUsageSeconds.toLocaleString()} s` : "—"} mono />
+        <Field label="Processes" value={res.processes ? String(res.processes) : "—"} mono />
+      </Grid>
+    </Panel>
+  );
+}
+
+function DisksPanel({ disks }: { disks: DiskUsage[] }) {
+  return (
+    <Panel title="Disk usage (inside container)">
+      <div class="space-y-2">
+        {disks.map((d) => {
+          const pct = d.totalBytes && d.usedBytes != null ? Math.round((d.usedBytes / d.totalBytes) * 100) : null;
+          return (
+            <div
+              key={d.mountPath}
+              class="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2"
+            >
+              <div class="flex items-center justify-between gap-2 min-w-0">
+                <div class="font-mono text-[12.5px] text-ink-100 truncate">{d.mountPath}</div>
+                <div class="text-[11px] text-ink-300 font-mono whitespace-nowrap">
+                  {fmtBytes(d.usedBytes)} / {fmtBytes(d.totalBytes)}
+                  {pct != null && <span class="ml-1.5 text-ink-400">({pct}%)</span>}
+                </div>
+              </div>
+              {pct != null && (
+                <div class="mt-1.5 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div
+                    class={`h-full ${pct > 85 ? "bg-accent-red" : pct > 60 ? "bg-accent-orange" : "bg-accent-green"}`}
+                    style={{ width: `${Math.min(100, pct)}%` }}
+                  />
+                </div>
+              )}
+              <div class="mt-1 text-[11px] text-ink-400 font-mono truncate">
+                {d.filesystem} · avail {fmtBytes(d.availBytes)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
+
+function NetworkPanel({ ifaces }: { ifaces: NetworkInterface[] }) {
+  return (
+    <Panel title="Network">
+      <div class="space-y-2">
+        {ifaces.map((n) => (
+          <div
+            key={n.name}
+            class="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 space-y-1"
+          >
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="font-mono text-[12.5px] text-ink-100">{n.name}</span>
+              <span class="text-[11px] text-ink-400">{n.state ?? "—"}</span>
+              {n.macAddress && (
+                <span class="ml-auto font-mono text-[11px] text-ink-400">{n.macAddress}</span>
+              )}
+            </div>
+            {n.addresses && n.addresses.length > 0 && (
+              <div class="font-mono text-[12px] text-ink-200 break-all">
+                {n.addresses.join(", ")}
+              </div>
+            )}
+            <div class="text-[11px] text-ink-400 font-mono">
+              rx {fmtBytes(n.bytesReceived)} · tx {fmtBytes(n.bytesSent)}
+              {n.mtu ? ` · mtu ${n.mtu}` : ""}
+              {n.hostName ? ` · host ${n.hostName}` : ""}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function WorkspacePanel({ ws }: { ws: WorkspaceInfo }) {
+  return (
+    <Panel title="Workspace mount">
+      <Grid>
+        <Field label="Host source" value={ws.hostSource || "—"} mono />
+        <Field label="Container path" value={ws.containerPath || "—"} mono />
+      </Grid>
+    </Panel>
+  );
+}
+
+function LimitsPanel({ limits }: { limits: ContainerLimits }) {
+  return (
+    <Panel title="Resource limits">
+      <Grid>
+        <Field label="CPU" value={limits.cpu || "—"} mono />
+        <Field label="Memory" value={limits.memory || "—"} mono />
+        <Field label="Disk" value={limits.disk || "—"} mono />
+      </Grid>
+    </Panel>
+  );
+}
+
+function ClaudePanel({ claude }: { claude: ProjectContainerInfo["claude"] }) {
+  return (
+    <Panel title="Claude provisioning">
+      <Grid>
+        <Field label="CLI installed" value={claude.installed ? "yes" : "no"} mono />
+        <Field label="Version" value={claude.version || "—"} mono />
+        <Field label="CLAUDE.md" value={claude.claudeMdInstalled ? "installed" : "missing"} mono />
+        <Field
+          label="CLAUDE.md in sync"
+          value={claude.claudeMdInSync ? "yes" : "no"}
+          mono
+          tone={claude.claudeMdInstalled && !claude.claudeMdInSync ? "warn" : undefined}
+        />
+      </Grid>
+    </Panel>
+  );
+}
+
+function AuthBundlesPanel({ bundles }: { bundles: AuthBundleStatus[] }) {
+  return (
+    <Panel title="Auth bundles">
+      <div class="space-y-3">
+        {bundles.map((b) => (
+          <div key={b.name} class="rounded-md border border-white/[0.08] bg-white/[0.03] p-2.5 space-y-2">
+            <div class="text-[12.5px] font-semibold text-ink-100">{b.name}</div>
+            <div class="space-y-1.5">
+              {b.files.map((f) => (
+                <AuthFileRow key={f.containerPath} f={f} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function AuthFileRow({ f }: { f: AuthBundleFileStatus }) {
+  const tone = f.containerNewer
+    ? "text-accent-orange"
+    : f.hostNewer
+    ? "text-ink-300"
+    : f.hostExists && f.containerExists
+    ? "text-accent-green"
+    : "text-ink-400";
+  const label = f.containerNewer
+    ? "container rotated — pending pull"
+    : f.hostNewer
+    ? "host newer — will push next prompt"
+    : f.hostExists && f.containerExists
+    ? "in sync"
+    : !f.hostExists && !f.containerExists
+    ? "missing on both"
+    : f.hostExists
+    ? "host only"
+    : "container only";
+  return (
+    <div class="rounded border border-white/[0.06] bg-black/20 px-2.5 py-1.5">
+      <div class="font-mono text-[11.5px] text-ink-200 break-all">{f.containerPath}</div>
+      <div class={`text-[11px] mt-0.5 ${tone}`}>{label}</div>
+      <div class="text-[10.5px] font-mono text-ink-400 mt-0.5">
+        host {f.hostExists ? fmtMtime(f.hostMtime) : "—"} · container {f.containerExists ? fmtMtime(f.containerMtime) : "—"}
+      </div>
+    </div>
+  );
+}
+
+function ErrorBanner({ project, message }: { project: ProjectMeta; message: string }) {
+  return (
+    <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
+      <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
+      <div class="min-w-0">
+        <div class="font-medium text-accent-red">Container endpoint unavailable</div>
+        <div class="text-ink-200 mt-0.5 break-words">
+          GET /api/projects/{project.id}/container returned {message}.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div class="rounded-lg border border-white/10 bg-[#101318] px-4 py-5 text-sm text-ink-300">{text}</div>
+  );
+}
+
+function Panel({ title, children }: { title: string; children: preact.ComponentChildren }) {
+  return (
+    <section class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
+      <header class="px-4 py-2.5 border-b border-white/[0.06]">
+        <h2 class="text-[12px] font-semibold uppercase tracking-wide text-ink-300">{title}</h2>
+      </header>
+      <div class="p-3">{children}</div>
+    </section>
+  );
+}
+
+function Grid({ children }: { children: preact.ComponentChildren }) {
+  return <div class="grid gap-2 sm:grid-cols-2">{children}</div>;
+}
+
+function Field({
+  label,
+  value,
+  mono,
+  tone,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  tone?: "warn";
+}) {
   return (
     <div class="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 min-w-0">
       <div class="text-[11px] text-ink-400">{label}</div>
-      <div class="mt-0.5 text-[12.5px] text-ink-100 font-mono truncate" title={value}>
+      <div
+        class={`mt-0.5 text-[12.5px] truncate ${mono ? "font-mono" : ""} ${
+          tone === "warn" ? "text-accent-orange" : "text-ink-100"
+        }`}
+        title={value}
+      >
         {value}
       </div>
     </div>
   );
+}
+
+function fmtBytes(n?: number): string {
+  if (n == null || !isFinite(n)) return "—";
+  if (n < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB", "TB", "PB"];
+  let v = n / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(v < 10 ? 2 : v < 100 ? 1 : 0)} ${units[i]}`;
+}
+
+function fmtDate(iso?: string): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
+}
+
+function fmtMtime(unix?: number): string {
+  if (!unix) return "—";
+  try {
+    return new Date(unix * 1000).toLocaleString();
+  } catch {
+    return String(unix);
+  }
+}
+
+function fmtDuration(secs: number): string {
+  if (!secs || secs < 0) return "—";
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const parts: string[] = [];
+  if (d) parts.push(`${d}d`);
+  if (h) parts.push(`${h}h`);
+  if (m && !d) parts.push(`${m}m`);
+  if (parts.length === 0) parts.push(`${Math.floor(secs)}s`);
+  return parts.join(" ");
+}
+
+function fmtRelative(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
 }

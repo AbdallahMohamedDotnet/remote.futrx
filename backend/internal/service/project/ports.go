@@ -19,4 +19,5 @@ type ContainerManager interface {
 	Stop(ctx context.Context, containerName string) error
 	Delete(ctx context.Context, containerName string) error
 	State(ctx context.Context, containerName string) (ContainerState, error)
+	Inspect(ctx context.Context, containerName string) (ContainerInspect, error)
 }

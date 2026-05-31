@@ -124,6 +124,20 @@ func (s *Service) Stop(ctx context.Context, id ID) (Meta, error) {
 	return s.repo.SetStatus(ctx, id, StatusStopped, "")
 }
 
+func (s *Service) InspectContainer(ctx context.Context, id ID) (ContainerInspect, error) {
+	if !ValidID(id) {
+		return ContainerInspect{}, ErrInvalidID
+	}
+	m, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return ContainerInspect{}, err
+	}
+	if s.containers == nil || m.ContainerName == "" {
+		return ContainerInspect{Name: m.ContainerName}, nil
+	}
+	return s.containers.Inspect(ctx, m.ContainerName)
+}
+
 func (s *Service) Reconcile(ctx context.Context) error {
 	if s.containers == nil || !s.containers.Available() {
 		return nil

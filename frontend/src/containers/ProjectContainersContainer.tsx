@@ -10,8 +10,6 @@ export interface ProjectContainerRecord {
   refreshedAt?: number;
 }
 
-export type ProjectContainerRecords = Record<string, ProjectContainerRecord>;
-
 export function ProjectContainersContainer({
   projects,
   selectedProjectId,
@@ -23,46 +21,35 @@ export function ProjectContainersContainer({
   onBack: () => void;
   onHamburger: () => void;
 }) {
-  const [records, setRecords] = useState<ProjectContainerRecords>({});
+  const selectedProject = useMemo(
+    () => projects.find((p) => p.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId]
+  );
+
+  const [record, setRecord] = useState<ProjectContainerRecord>({ loading: false });
   const [refreshing, setRefreshing] = useState(false);
-  const projectIds = useMemo(() => projects.map((project) => project.id).join("|"), [projects]);
 
   async function load(signal?: { cancelled: boolean }) {
-    if (projects.length === 0) {
-      setRecords({});
+    if (!selectedProject) {
+      setRecord({ loading: false });
       return;
     }
-
     setRefreshing(true);
-    setRecords((current) => {
-      const next: ProjectContainerRecords = {};
-      for (const project of projects) {
-        next[project.id] = { ...current[project.id], loading: true, error: undefined };
-      }
-      return next;
-    });
-
-    const entries = await Promise.all(
-      projects.map(async (project): Promise<[string, ProjectContainerRecord]> => {
-        try {
-          const data = await projectService.containerInfo(project.id);
-          return [project.id, { loading: false, data, refreshedAt: Date.now() }];
-        } catch (error) {
-          return [
-            project.id,
-            {
-              loading: false,
-              error: (error as Error).message,
-              refreshedAt: Date.now(),
-            },
-          ];
-        }
-      })
-    );
-
-    if (signal?.cancelled) return;
-    setRecords(Object.fromEntries(entries));
-    setRefreshing(false);
+    setRecord((prev) => ({ ...prev, loading: true, error: undefined }));
+    try {
+      const data = await projectService.containerInfo(selectedProject.id);
+      if (signal?.cancelled) return;
+      setRecord({ loading: false, data, refreshedAt: Date.now() });
+    } catch (error) {
+      if (signal?.cancelled) return;
+      setRecord({
+        loading: false,
+        error: (error as Error).message,
+        refreshedAt: Date.now(),
+      });
+    } finally {
+      if (!signal?.cancelled) setRefreshing(false);
+    }
   }
 
   useEffect(() => {
@@ -71,22 +58,13 @@ export function ProjectContainersContainer({
     return () => {
       signal.cancelled = true;
     };
-    // Projects are loaded by workspace state; projectIds is the stable fetch boundary.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectIds]);
-
-  const orderedProjects = useMemo(() => {
-    if (!selectedProjectId) return projects;
-    const selected = projects.find((project) => project.id === selectedProjectId);
-    if (!selected) return projects;
-    return [selected, ...projects.filter((project) => project.id !== selectedProjectId)];
-  }, [projects, selectedProjectId]);
+  }, [selectedProject?.id]);
 
   return (
     <ProjectContainersPage
-      projects={orderedProjects}
-      selectedProjectId={selectedProjectId}
-      records={records}
+      project={selectedProject}
+      record={record}
       refreshing={refreshing}
       onRefresh={() => void load()}
       onBack={onBack}
