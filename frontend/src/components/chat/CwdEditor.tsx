@@ -1,4 +1,4 @@
-import { Code, Database, Terminal } from "../ui/icons";
+import { Code, Database, Monitor, Terminal } from "../ui/icons";
 
 const defaultWorkspacePath = "/opt/remote.futrx.dev";
 const ideBaseUrl = "https://code.remote.futrx.dev/";
@@ -13,6 +13,7 @@ export function CwdEditor({
   onCancel,
   onOpenTerminal,
   onOpenDatabase,
+  onOpenBrowser,
   openingDatabase,
 }: {
   editing: boolean;
@@ -24,6 +25,7 @@ export function CwdEditor({
   onCancel: () => void;
   onOpenTerminal: () => void;
   onOpenDatabase: () => void;
+  onOpenBrowser: () => void;
   openingDatabase: boolean;
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
@@ -70,6 +72,17 @@ export function CwdEditor({
       >
         <Terminal class="w-4 h-4 text-accent-blue flex-none" />
         <span class="text-[12.5px] font-medium">Open Terminal</span>
+      </button>
+      <button
+        type="button"
+        onClick={onOpenBrowser}
+        class="h-9 inline-flex items-center gap-2 px-3 rounded-md
+               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
+        title="Open browser preview"
+        aria-label="Open browser"
+      >
+        <Monitor class="w-4 h-4 text-accent-blue flex-none" />
+        <span class="text-[12.5px] font-medium">Open Browser</span>
       </button>
       <button
         type="button"

@@ -27,6 +27,7 @@ export function ThreadHeader({
   onCancelCwdEdit,
   onOpenTerminal,
   onOpenDatabase,
+  onOpenBrowser,
   openingDatabase,
   onHamburger,
 }: {
@@ -49,6 +50,7 @@ export function ThreadHeader({
   onCancelCwdEdit: () => void;
   onOpenTerminal: () => void;
   onOpenDatabase: () => void;
+  onOpenBrowser: () => void;
   openingDatabase: boolean;
   onHamburger: () => void;
 }) {
@@ -107,6 +109,7 @@ export function ThreadHeader({
           onCancel={onCancelCwdEdit}
           onOpenTerminal={onOpenTerminal}
           onOpenDatabase={onOpenDatabase}
+          onOpenBrowser={onOpenBrowser}
           openingDatabase={openingDatabase}
         />
         <UsagePill totals={usageTotals} tokenLabel={tokenLabel} costUsd={costUsd} />

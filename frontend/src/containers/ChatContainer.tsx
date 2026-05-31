@@ -1,6 +1,8 @@
 import type { ComponentType } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ChatMeta, ChatMode, ChatProvider, ReasoningEffort } from "../models/chat";
+import type { ProjectMeta } from "../models/project";
+import { BrowserDrawer } from "../components/chat/BrowserDrawer";
 import { ChatThread } from "../components/chat/ChatThread";
 import { useChat } from "../hooks/chat/useChat";
 import { useAttachmentUpload } from "../hooks/chat/useAttachmentUpload";
@@ -27,10 +29,12 @@ type TerminalOverlayComponent = ComponentType<{
 
 export function ChatContainer({
   chat,
+  projects,
   onHamburger,
   onMetaUpdate,
 }: {
   chat: ChatMeta;
+  projects: ProjectMeta[];
   onHamburger: () => void;
   onMetaUpdate: () => void;
 }) {
@@ -55,6 +59,8 @@ export function ChatContainer({
   const displayMode = displayMeta.mode || "code";
   const [text, setText] = useState("");
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browserPort, setBrowserPort] = useState(() => loadBrowserPort(chat.projectId || ""));
   const [openingDatabase, setOpeningDatabase] = useState(false);
   const [TerminalOverlay, setTerminalOverlay] = useState<TerminalOverlayComponent | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,11 +83,19 @@ export function ChatContainer({
   });
   const costUsd = displayProvider === "claude" ? estimateCost(usageTotals, displayMeta.model || "") : 0;
   const tokenLabel = formatTokens(tokenTotal(usageTotals));
+  const browserProject = displayMeta.projectId
+    ? projects.find((project) => project.id === displayMeta.projectId) ?? null
+    : null;
+  const browserUrl = browserProject && validBrowserPort(browserPort)
+    ? `https://${browserProject.slug}--${browserPort}.dev.remote.futrx.dev`
+    : "";
 
   useEffect(() => {
     setText("");
     setTerminalOpen(false);
+    setBrowserOpen(false);
     setOpeningDatabase(false);
+    setBrowserPort(loadBrowserPort(chat.projectId || ""));
     scroll.unlockAutoScroll();
   }, [chat.id]);
 
@@ -185,6 +199,22 @@ export function ChatContainer({
     metaActions.applyMeta({ reasoningEffort });
   }
 
+  function openBrowserDrawer() {
+    if (!displayMeta.projectId) {
+      alert("This chat is not attached to a project container.");
+      return;
+    }
+    setBrowserOpen(true);
+  }
+
+  function changeBrowserPort(value: string) {
+    const port = value.replace(/\D/g, "").slice(0, 5);
+    setBrowserPort(port);
+    if (displayMeta.projectId && validBrowserPort(port)) {
+      saveBrowserPort(displayMeta.projectId, port);
+    }
+  }
+
   async function openDatabaseViewer() {
     if (!displayMeta.projectId) {
       alert("This chat is not attached to a project container.");
@@ -211,7 +241,7 @@ export function ChatContainer({
   }
 
   return (
-    <>
+    <div class="relative flex-1 h-full min-h-0 overflow-hidden">
       <ChatThread
         chat={displayMeta}
         blocks={blocks}
@@ -271,8 +301,17 @@ export function ChatContainer({
         onModeChange={changeMode}
         onReasoningEffortChange={changeReasoningEffort}
         onOpenTerminal={() => setTerminalOpen(true)}
+        onOpenBrowser={openBrowserDrawer}
         onOpenDatabase={openDatabaseViewer}
         openingDatabase={openingDatabase}
+      />
+      <BrowserDrawer
+        open={browserOpen}
+        projectName={browserProject?.name || ""}
+        url={browserUrl}
+        port={browserPort}
+        onPortChange={changeBrowserPort}
+        onClose={() => setBrowserOpen(false)}
       />
       {TerminalOverlay && (
         <TerminalOverlay
@@ -281,10 +320,34 @@ export function ChatContainer({
           onClose={() => setTerminalOpen(false)}
         />
       )}
-    </>
+    </div>
   );
 }
 
 function statusAllowsQueue(status: string): boolean {
   return status === "streaming";
+}
+
+function browserPortKey(projectId: string): string {
+  return `remote-browser-port:${projectId}`;
+}
+
+function loadBrowserPort(projectId: string): string {
+  if (!projectId) return "3000";
+  try {
+    return localStorage.getItem(browserPortKey(projectId)) || "3000";
+  } catch {
+    return "3000";
+  }
+}
+
+function saveBrowserPort(projectId: string, port: string) {
+  try {
+    localStorage.setItem(browserPortKey(projectId), port);
+  } catch {}
+}
+
+function validBrowserPort(port: string): boolean {
+  const value = Number(port);
+  return Number.isInteger(value) && value >= 1024 && value <= 65535;
 }

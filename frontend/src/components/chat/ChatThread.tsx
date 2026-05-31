@@ -53,6 +53,7 @@ export function ChatThread({
   onModeChange,
   onReasoningEffortChange,
   onOpenTerminal,
+  onOpenBrowser,
   onOpenDatabase,
   openingDatabase,
 }: {
@@ -113,6 +114,7 @@ export function ChatThread({
   onModeChange: (mode: ChatMode) => void;
   onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
   onOpenTerminal: () => void;
+  onOpenBrowser: () => void;
   onOpenDatabase: () => void;
   openingDatabase: boolean;
 }) {
@@ -137,6 +139,7 @@ export function ChatThread({
         onCommitCwd={header.onCommitCwd}
         onCancelCwdEdit={header.onCancelCwdEdit}
         onOpenTerminal={onOpenTerminal}
+        onOpenBrowser={onOpenBrowser}
         onOpenDatabase={onOpenDatabase}
         openingDatabase={openingDatabase}
         onHamburger={onHamburger}
