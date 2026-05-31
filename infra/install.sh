@@ -219,7 +219,7 @@ cat <<EOF
 
  Next:
    1. claude login         # interactive — authenticate the Claude CLI
-   2. open Settings and save an OpenAI API key if you want Codex
+   2. open Settings and sign in to Codex with ChatGPT if you want Codex
    3. open https://$HOSTNAME (Caddy fetches the cert on first hit, ~10s)
 
  If you're on a cloud VPS with its own firewall, open 80/443 in the

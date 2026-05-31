@@ -51,12 +51,12 @@ These endpoints drive the host's interactive `claude auth login`. They are the *
 
 ### Codex CLI Auth
 
-These endpoints drive the host's `codex login --with-api-key` flow. The resulting `/root/.codex/auth.json` is pushed into project containers before Codex prompt runs and pulled back after successful runs.
+These endpoints drive the host's `codex login --device-auth` flow. That signs in with ChatGPT so Codex uses subscription limits instead of API-key billing. The resulting `/root/.codex/auth.json` is pushed into project containers before Codex prompt runs and pulled back after successful runs. API-key auth files are reported as unauthenticated and are not accepted for Codex prompt runs.
 
 | Method | Path | Frontend caller | Request | Response | When called |
 | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/codex/auth-status` | `codexAuthService.status()` | None | `{ "authenticated": boolean }` based on `/root/.codex/auth.json`. | Settings page load / refresh. |
-| `POST` | `/api/codex/login/api-key` | `codexAuthService.loginWithAPIKey(apiKey)` | `{ "apiKey": string }` | `{ "success": true }` when `codex login --with-api-key` writes auth. | Admin saves or replaces the Codex API key in Settings. |
+| `GET` | `/api/codex/auth-status` | `codexAuthService.status()` | None | `{ "authenticated": boolean, "authMode"?: string, "usesApiKey"?: boolean, "deviceLogin"?: CodexDeviceLogin }`. | Settings page load / refresh and login polling. |
+| `POST` | `/api/codex/login/device` | `codexAuthService.startDeviceLogin()` | `{}` | `CodexDeviceLogin` with `verificationUri`, `userCode`, and `expiresAt` when `codex login --device-auth` starts. | Admin starts or resumes ChatGPT device-code login for Codex. |
 
 ### Chats
 

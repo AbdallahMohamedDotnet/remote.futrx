@@ -5,8 +5,10 @@ package containers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -18,6 +20,8 @@ const (
 	containerCodexDir  = "/root/.codex"
 	containerCodexAuth = "/root/.codex/auth.json"
 )
+
+var ErrCodexAPIKeyAuth = errors.New("Codex is logged in with an API key; run codex login with ChatGPT to use subscription limits")
 
 func CodexAuthBundle() AuthBundle {
 	return AuthBundle{
@@ -37,11 +41,37 @@ func CodexAuthBundle() AuthBundle {
 }
 
 func (m *Manager) EnsureCodexAuth(ctx context.Context, containerName string) error {
+	if codexAuthUsesAPIKey(hostCodexAuth) {
+		return ErrCodexAPIKeyAuth
+	}
 	return m.EnsureAuthBundle(ctx, containerName, CodexAuthBundle())
 }
 
 func (m *Manager) SyncCodexAuthFromContainer(ctx context.Context, containerName string) error {
-	return m.SyncAuthBundleFromContainer(ctx, containerName, CodexAuthBundle())
+	if err := m.SyncAuthBundleFromContainer(ctx, containerName, CodexAuthBundle()); err != nil {
+		return err
+	}
+	if codexAuthUsesAPIKey(hostCodexAuth) {
+		return ErrCodexAPIKeyAuth
+	}
+	return nil
+}
+
+func codexAuthUsesAPIKey(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return false
+	}
+	mode, _ := raw["auth_mode"].(string)
+	if strings.EqualFold(strings.TrimSpace(mode), "apikey") {
+		return true
+	}
+	_, ok := raw["OPENAI_API_KEY"]
+	return ok
 }
 
 func (m *Manager) EnsureCodex(ctx context.Context, containerName string) error {

@@ -1,4 +1,5 @@
 import type { AppearanceTheme } from "../../models/settings";
+import type { CodexDeviceLogin } from "../../models/auth";
 import { ChevronLeft, Menu } from "../ui/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { CodexAuthSettings } from "./CodexAuthSettings";
@@ -9,26 +10,30 @@ export function SettingsPage({
   appearanceSaving,
   appearanceError,
   codexAuthenticated,
+  codexUsesApiKey,
+  codexDeviceLogin,
   codexLoading,
-  codexSaving,
+  codexStarting,
   codexError,
   onBack,
   onHamburger,
   onAppearanceThemeChange,
-  onSaveCodexAPIKey,
+  onStartCodexDeviceLogin,
 }: {
   appearanceTheme: AppearanceTheme;
   appearanceLoading: boolean;
   appearanceSaving: boolean;
   appearanceError: string | null;
   codexAuthenticated: boolean;
+  codexUsesApiKey: boolean;
+  codexDeviceLogin?: CodexDeviceLogin;
   codexLoading: boolean;
-  codexSaving: boolean;
+  codexStarting: boolean;
   codexError: string | null;
   onBack: () => void;
   onHamburger: () => void;
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
-  onSaveCodexAPIKey: (apiKey: string) => Promise<void>;
+  onStartCodexDeviceLogin: () => Promise<void>;
 }) {
   return (
     <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -67,10 +72,12 @@ export function SettingsPage({
 
           <CodexAuthSettings
             authenticated={codexAuthenticated}
+            usesApiKey={codexUsesApiKey}
+            deviceLogin={codexDeviceLogin}
             loading={codexLoading}
-            saving={codexSaving}
+            starting={codexStarting}
             error={codexError}
-            onSaveAPIKey={onSaveCodexAPIKey}
+            onStartDeviceLogin={onStartCodexDeviceLogin}
           />
 
           <p class="text-[13px] leading-relaxed text-ink-300">

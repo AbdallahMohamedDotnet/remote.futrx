@@ -18,6 +18,19 @@ export interface ClaudeLoginStart {
 
 export interface CodexAuthStatus {
   authenticated: boolean;
+  authMode?: string;
+  usesApiKey?: boolean;
+  deviceLogin?: CodexDeviceLogin;
+}
+
+export interface CodexDeviceLogin {
+  active: boolean;
+  verificationUri?: string;
+  userCode?: string;
+  startedAt?: number;
+  expiresAt?: number;
+  completed?: boolean;
+  error?: string;
 }
 
 export type ClaudeLoginPhase =

@@ -17,7 +17,7 @@ After it finishes:
 
 ```bash
 claude login     # writes /root/.claude*, inherited by Claude project runs
-# Optional: open Settings in the UI and save an OpenAI API key for Codex
+# Optional: open Settings and start Codex ChatGPT login for subscription limits
 ```
 
 Open `https://<HOSTNAME>`. Pass `--google-client-id=` / `--google-client-secret=` to the installer for Google OAuth; otherwise the site is open to anyone who can reach it.
@@ -41,7 +41,7 @@ backend/
 └── internal/
     ├── manager/containers/      LXD container lifecycle, auth bundles, image build
     ├── manager/claudelogin/     host-side `claude auth login` PTY driver
-    ├── manager/codexauth/       host-side `codex login --with-api-key` driver
+    ├── manager/codexauth/       host-side `codex login --device-auth` driver
     ├── integration/lxc/         thin wrapper around the `lxc` CLI
     ├── service/                 chat, project, prompt, auth
     └── transport/               http handlers + ws sockets

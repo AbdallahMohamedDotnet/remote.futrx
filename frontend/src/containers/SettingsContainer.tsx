@@ -19,13 +19,15 @@ export function SettingsContainer({
       appearanceSaving={userSettings.saving}
       appearanceError={userSettings.error}
       codexAuthenticated={codexAuth.authenticated}
+      codexUsesApiKey={codexAuth.usesApiKey}
+      codexDeviceLogin={codexAuth.deviceLogin}
       codexLoading={codexAuth.loading}
-      codexSaving={codexAuth.saving}
+      codexStarting={codexAuth.starting}
       codexError={codexAuth.error}
       onBack={onBack}
       onHamburger={onHamburger}
       onAppearanceThemeChange={(theme) => void userSettings.setTheme(theme)}
-      onSaveCodexAPIKey={codexAuth.loginWithAPIKey}
+      onStartCodexDeviceLogin={codexAuth.startDeviceLogin}
     />
   );
 }

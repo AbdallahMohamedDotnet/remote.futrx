@@ -2,9 +2,12 @@ package codex
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -54,6 +57,9 @@ func (p *Provider) buildCmd(
 	}
 
 	if req.ProjectID == "" || p.projects == nil {
+		if err := ensureHostSubscriptionAuth(); err != nil {
+			return nil, "", err
+		}
 		cmd := exec.CommandContext(ctx, "codex", args...)
 		cmd.Dir = cwd
 		cmd.Env = codexEnv(os.Environ())
@@ -98,10 +104,14 @@ func (p *Provider) buildCmd(
 	if p.projects != nil {
 		if secrets, err := p.projects.ListSecrets(ctx, project.ID); err == nil {
 			for _, sec := range secrets {
+				if sec.Key == "OPENAI_API_KEY" {
+					continue
+				}
 				lxcArgs = append(lxcArgs, "--env", sec.Key+"="+sec.Value)
 			}
 		}
 	}
+	lxcArgs = append(lxcArgs, "--env", "OPENAI_API_KEY=")
 	lxcArgs = append(lxcArgs, project.ContainerName, "--", "codex")
 	lxcArgs = append(lxcArgs, args...)
 	cmd := exec.CommandContext(ctx, "lxc", lxcArgs...)
@@ -109,16 +119,55 @@ func (p *Provider) buildCmd(
 	return cmd, project.ContainerName, nil
 }
 
+func ensureHostSubscriptionAuth() error {
+	path := filepath.Join(hostCodexHome(), "auth.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil
+	}
+	mode, _ := raw["auth_mode"].(string)
+	if strings.EqualFold(strings.TrimSpace(mode), "apikey") {
+		return errors.New("Codex is logged in with an API key; run codex login with ChatGPT to use subscription limits")
+	}
+	if _, ok := raw["OPENAI_API_KEY"]; ok {
+		return errors.New("Codex is logged in with an API key; run codex login with ChatGPT to use subscription limits")
+	}
+	return nil
+}
+
 func codexEnv(base []string) []string {
+	out := make([]string, 0, len(base)+1)
+	hasCodexHome := false
 	for _, env := range base {
-		if strings.HasPrefix(env, "CODEX_HOME=") {
-			return base
+		if strings.HasPrefix(env, "OPENAI_API_KEY=") {
+			continue
 		}
+		if strings.HasPrefix(env, "CODEX_HOME=") {
+			hasCodexHome = true
+		}
+		out = append(out, env)
+	}
+	if hasCodexHome {
+		return out
 	}
 	if home := os.Getenv("HOME"); home != "" {
-		return append(base, "CODEX_HOME="+home+"/.codex")
+		return append(out, "CODEX_HOME="+home+"/.codex")
 	}
-	return base
+	return out
+}
+
+func hostCodexHome() string {
+	if v := os.Getenv("CODEX_HOME"); v != "" {
+		return v
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		return filepath.Join(home, ".codex")
+	}
+	return "/root/.codex"
 }
 
 func emitSystem(req agent.RunRequest, emit func(agent.Event), subtype string) {
