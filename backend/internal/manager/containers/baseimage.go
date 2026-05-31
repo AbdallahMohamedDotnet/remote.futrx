@@ -42,11 +42,37 @@ const (
 const BaseImageInstallScript = `set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq curl ca-certificates gnupg
+
+# Core build / shell / network deps, plus git + ssh + jq for everyday agent
+# work. python3-pip pulls in python3 too. Skip wrangler/aws/gcloud/hcloud —
+# project-specific; agent installs them on demand and records in /workspace/setup.sh.
+apt-get install -y -qq \
+    curl ca-certificates gnupg \
+    git openssh-client \
+    jq build-essential python3-pip
+
+# Node 20 (provides node + npm + npx for the Claude CLI and any JS tooling).
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
 apt-get install -y -qq nodejs
+
+# Official GitHub CLI repo. Auth comes from $GITHUB_TOKEN at runtime,
+# pushed per-project from the Secrets UI.
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
+chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list
+apt-get update -qq
+apt-get install -y -qq gh
+
+# Anthropic Claude CLI.
 npm install -g @anthropic-ai/claude-code --silent 2>&1 | tail -3
-which claude && claude --version`
+
+# Sanity check the full toolchain.
+which claude git gh jq node npm python3 ssh
+claude --version
+node --version
+gh --version | head -1`
 
 // BuildBaseImage launches a fresh BaseImageSourceImage container, runs the
 // install script, publishes the result under alias, and removes the

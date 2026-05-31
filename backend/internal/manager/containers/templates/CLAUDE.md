@@ -19,45 +19,58 @@ processes, deleted files only affect you.
   maps to a low-privilege host user - no host escape.
 - `apt-get install` whatever you need.
 - Network is fully open.
-- Node 20 + npm are pre-installed.
 - Background processes persist between prompts; they die on container
   stop/reboot.
 
-## Project services
+## Pre-installed tools
 
-You may install and run databases, caches, queues, search engines, or
-other services inside this project container when the task calls for
-it.
+`git`, `gh`, `openssh-client`, `jq`, `build-essential`,
+`python3` + `pip`, `node 20` + `npm`, `claude`. Anything else:
+`apt-get install` or `npm i -g` freely.
 
-- Prefer keeping service data under `/workspace` when the service
-  supports it.
-- If a service must be reached from the browser or host-side tooling,
-  bind it to `0.0.0.0` or use the per-container viewer exposed by the
-  UI.
-- For databases/caches you create, record non-secret connection
-  details in `/workspace/.remote/resources.json`. Put secrets in
-  `.env` or project secrets, not in source code.
+**Persistence rule.** `/workspace/**` is a host bind-mount and survives
+container delete. Everything else (`/usr/local/`, `/root/`, packages you
+apt-install) is gone if the container is recreated. If you install a
+tool the project needs again later, append the install line to
+`/workspace/setup.sh` so a fresh container can rebootstrap with
+`bash /workspace/setup.sh`.
 
-Example `/workspace/.remote/resources.json`:
+## Secrets
 
-```json
-{
-  "resources": [
-    {
-      "type": "postgres",
-      "name": "app",
-      "host": "127.0.0.1",
-      "port": 5432,
-      "database": "app",
-      "userEnv": "POSTGRES_USER",
-      "passwordEnv": "POSTGRES_PASSWORD",
-      "urlEnv": "DATABASE_URL"
-    }
-  ]
-}
+Tokens are project-scoped. Ones the user has configured are exported as
+env vars *and* mirrored to `/workspace/.env`. CLIs that read env (`gh`,
+`wrangler`, `hcloud`, `aws`, …) pick them up automatically — no
+`source`, no `--token` flag, nothing.
+
+Discover what's currently set:
+
+```bash
+env | cut -d= -f1 | grep -E '_(TOKEN|KEY|SECRET|PASSWORD)$|^(GITHUB|CLOUDFLARE|HCLOUD|OPENAI|ANTHROPIC|AWS|GOOGLE)_' | sort
+# or, for the human-readable list:
+cat /workspace/.env 2>/dev/null
 ```
 
-## Dev servers - there is no localhost, there is a public URL
+If you need a token that isn't set, ask the user to add it via **this
+project's Containers → Secrets** in the web UI. Use the canonical
+env-var name the upstream CLI expects — never invent your own. Common
+ones:
+
+| Provider | Env var | Generate at |
+|---|---|---|
+| GitHub | `GITHUB_TOKEN` | https://github.com/settings/personal-access-tokens |
+| Cloudflare | `CLOUDFLARE_API_TOKEN` | https://dash.cloudflare.com/profile/api-tokens |
+| Hetzner Cloud | `HCLOUD_TOKEN` | console.hetzner.cloud → Security → API Tokens |
+| OpenAI | `OPENAI_API_KEY` | https://platform.openai.com/api-keys |
+| Anthropic | `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys |
+| AWS | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | IAM → Users → Security credentials |
+| Google Cloud | `GOOGLE_APPLICATION_CREDENTIALS_JSON` (service-account JSON, raw) | IAM → Service Accounts → Keys |
+| npm registry | `NPM_TOKEN` | https://www.npmjs.com/settings/~/tokens |
+
+New values are live on your *next* shell. Already-running processes
+(dev servers you started earlier, etc.) keep their old environ — kill
+and restart them to pick up new tokens.
+
+## Dev servers — there is no localhost, there is a public URL
 
 Whenever the user asks for a dev server, **the URL they reach it at
 is**:
