@@ -5,15 +5,11 @@ export function BrowserDrawer({
   open,
   projectName,
   url,
-  port,
-  onPortChange,
   onClose,
 }: {
   open: boolean;
   projectName: string;
   url: string;
-  port: string;
-  onPortChange: (port: string) => void;
   onClose: () => void;
 }) {
   const [reloadKey, setReloadKey] = useState(0);
@@ -43,21 +39,6 @@ export function BrowserDrawer({
             {canLoad ? url : projectName || "No project container"}
           </div>
         </div>
-
-        <label
-          class="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-md bg-white/5 border border-white/10 px-2 text-[12px] text-ink-300"
-          title="Preview port"
-        >
-          <span>Port</span>
-          <input
-            value={port}
-            inputMode="numeric"
-            pattern="[0-9]*"
-            onInput={(event) => onPortChange((event.currentTarget as HTMLInputElement).value)}
-            class="w-16 bg-transparent text-ink-100 font-mono text-[12.5px] focus:outline-none"
-            aria-label="Preview port"
-          />
-        </label>
 
         <button
           type="button"
@@ -104,20 +85,6 @@ export function BrowserDrawer({
         </button>
       </header>
 
-      <div class="sm:hidden flex-none border-b border-white/10 bg-[#151922] px-3 py-2">
-        <label class="flex h-9 items-center gap-2 rounded-md bg-black/30 border border-white/10 px-2 text-[12px] text-ink-300">
-          <span>Port</span>
-          <input
-            value={port}
-            inputMode="numeric"
-            pattern="[0-9]*"
-            onInput={(event) => onPortChange((event.currentTarget as HTMLInputElement).value)}
-            class="min-w-0 flex-1 bg-transparent text-ink-100 font-mono text-[12.5px] focus:outline-none"
-            aria-label="Preview port"
-          />
-        </label>
-      </div>
-
       <div class="flex-1 min-h-0 bg-white">
         {canLoad ? (
           <iframe
@@ -129,7 +96,7 @@ export function BrowserDrawer({
           />
         ) : (
           <div class="h-full w-full bg-[#0b0d11] grid place-items-center px-6 text-center text-sm text-ink-300">
-            Enter a container port between 1024 and 65535.
+            No public dev URL found in this chat yet.
           </div>
         )}
       </div>

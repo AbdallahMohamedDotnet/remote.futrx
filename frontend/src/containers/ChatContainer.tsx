@@ -21,6 +21,7 @@ import {
   modelDisplayLabel,
   tokenTotal,
 } from "../state/chat/usage";
+import type { Block } from "../state/chat/messageBlocks";
 
 type TerminalOverlayComponent = ComponentType<{
   chat: ChatMeta;
@@ -61,7 +62,6 @@ export function ChatContainer({
   const [text, setText] = useState("");
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
-  const [browserPort, setBrowserPort] = useState(() => loadBrowserPort(chat.projectId || ""));
   const [openingDatabase, setOpeningDatabase] = useState(false);
   const [TerminalOverlay, setTerminalOverlay] = useState<TerminalOverlayComponent | null>(null);
   const readMarkerRef = useRef("");
@@ -88,16 +88,13 @@ export function ChatContainer({
   const browserProject = displayMeta.projectId
     ? projects.find((project) => project.id === displayMeta.projectId) ?? null
     : null;
-  const browserUrl = browserProject && validBrowserPort(browserPort)
-    ? `https://${browserProject.slug}--${browserPort}.dev.remote.futrx.dev`
-    : "";
+  const browserUrl = browserProject ? latestPublicDevUrl(blocks, browserProject.slug) : "";
 
   useEffect(() => {
     setText("");
     setTerminalOpen(false);
     setBrowserOpen(false);
     setOpeningDatabase(false);
-    setBrowserPort(loadBrowserPort(chat.projectId || ""));
     scroll.unlockAutoScroll();
   }, [chat.id]);
 
@@ -217,14 +214,6 @@ export function ChatContainer({
     setBrowserOpen(true);
   }
 
-  function changeBrowserPort(value: string) {
-    const port = value.replace(/\D/g, "").slice(0, 5);
-    setBrowserPort(port);
-    if (displayMeta.projectId && validBrowserPort(port)) {
-      saveBrowserPort(displayMeta.projectId, port);
-    }
-  }
-
   async function openDatabaseViewer() {
     if (!displayMeta.projectId) {
       alert("This chat is not attached to a project container.");
@@ -319,8 +308,6 @@ export function ChatContainer({
         open={browserOpen}
         projectName={browserProject?.name || ""}
         url={browserUrl}
-        port={browserPort}
-        onPortChange={changeBrowserPort}
         onClose={() => setBrowserOpen(false)}
       />
       {TerminalOverlay && (
@@ -338,26 +325,49 @@ function statusAllowsQueue(status: string): boolean {
   return status === "streaming";
 }
 
-function browserPortKey(projectId: string): string {
-  return `remote-browser-port:${projectId}`;
+function latestPublicDevUrl(blocks: Block[], slug: string): string {
+  let latest = "";
+  for (const block of blocks) {
+    for (const text of blockTexts(block)) {
+      for (const candidate of publicDevUrls(text)) {
+        if (isProjectDevUrl(candidate, slug)) latest = candidate;
+      }
+    }
+  }
+  return latest;
 }
 
-function loadBrowserPort(projectId: string): string {
-  if (!projectId) return "3000";
+function blockTexts(block: Block): string[] {
+  if (block.type === "user") return [block.text];
+  if (block.type === "error") return [block.message];
+  return block.parts.flatMap((part) => {
+    if (part.kind === "text" || part.kind === "thinking") return [part.text];
+    return part.output ? [part.output] : [];
+  });
+}
+
+function publicDevUrls(text: string): string[] {
+  return [...text.matchAll(/https:\/\/[a-z0-9][a-z0-9-]*--\d{4,5}\.dev\.remote\.futrx\.dev[^\s<>)\]]*/g)]
+    .map((match) => match[0].replace(/[.,;:!?]+$/, ""));
+}
+
+function isProjectDevUrl(raw: string, slug: string): boolean {
   try {
-    return localStorage.getItem(browserPortKey(projectId)) || "3000";
+    const url = new URL(raw);
+    const suffix = ".dev.remote.futrx.dev";
+    const portStart = `${slug}--`;
+    return (
+      url.protocol === "https:" &&
+      url.hostname.startsWith(portStart) &&
+      url.hostname.endsWith(suffix) &&
+      validDevPort(url.hostname.slice(portStart.length, -suffix.length))
+    );
   } catch {
-    return "3000";
+    return false;
   }
 }
 
-function saveBrowserPort(projectId: string, port: string) {
-  try {
-    localStorage.setItem(browserPortKey(projectId), port);
-  } catch {}
-}
-
-function validBrowserPort(port: string): boolean {
+function validDevPort(port: string): boolean {
   const value = Number(port);
   return Number.isInteger(value) && value >= 1024 && value <= 65535;
 }
