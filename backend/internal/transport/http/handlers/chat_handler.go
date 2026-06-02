@@ -1,6 +1,7 @@
 package httphandlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -8,16 +9,24 @@ import (
 	"strconv"
 	"strings"
 
+	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type ChatHandler struct {
-	chats *servicechat.Service
+	chats    *servicechat.Service
+	projects *serviceproject.Service
+	auth     *serviceauth.Service
 }
 
-func NewChatHandler(chats *servicechat.Service) *ChatHandler {
-	return &ChatHandler{chats: chats}
+func NewChatHandler(
+	chats *servicechat.Service,
+	projects *serviceproject.Service,
+	auth *serviceauth.Service,
+) *ChatHandler {
+	return &ChatHandler{chats: chats, projects: projects, auth: auth}
 }
 
 func (h *ChatHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -26,6 +35,12 @@ func (h *ChatHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *ChatHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
+	email, isAdmin, err := h.caller(r)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		metas, err := h.chats.List(r.Context())
@@ -33,13 +48,28 @@ func (h *ChatHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
 			sendChatError(w, err)
 			return
 		}
-		httptransport.SendJSON(w, http.StatusOK, metas)
+		filtered := h.filterChats(r.Context(), metas, email, isAdmin)
+		if filtered == nil {
+			filtered = []servicechat.Meta{}
+		}
+		httptransport.SendJSON(w, http.StatusOK, filtered)
 
 	case http.MethodPost:
 		var in servicechat.CreateInput
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&in); err != nil && err != io.EOF {
 			httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 			return
+		}
+		if in.ProjectID != "" {
+			ok, err := h.canAccessProject(r.Context(), serviceproject.ID(in.ProjectID), email, isAdmin)
+			if err != nil {
+				sendChatError(w, err)
+				return
+			}
+			if !ok {
+				httptransport.SendErr(w, http.StatusForbidden, "not a member of this project")
+				return
+			}
 		}
 		meta, err := h.chats.Create(r.Context(), in)
 		if err != nil {
@@ -58,6 +88,32 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 	parts := strings.SplitN(rest, "/", 2)
 	id := servicechat.ID(parts[0])
 
+	email, isAdmin, err := h.caller(r)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Resolve the chat once so we can check project membership before any
+	// action (read or write). 404 if the chat doesn't exist; 403 if it
+	// belongs to a project the caller can't see.
+	meta, err := h.chats.Get(r.Context(), id)
+	if err != nil {
+		sendChatError(w, err)
+		return
+	}
+	if meta.ProjectID != "" {
+		ok, err := h.canAccessProject(r.Context(), serviceproject.ID(meta.ProjectID), email, isAdmin)
+		if err != nil {
+			sendChatError(w, err)
+			return
+		}
+		if !ok {
+			httptransport.SendErr(w, http.StatusForbidden, "not a member of this chat's project")
+			return
+		}
+	}
+
 	if len(parts) == 2 {
 		switch parts[1] {
 		case "events":
@@ -74,11 +130,6 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		meta, err := h.chats.Get(r.Context(), id)
-		if err != nil {
-			sendChatError(w, err)
-			return
-		}
 		httptransport.SendJSON(w, http.StatusOK, meta)
 
 	case http.MethodPatch:
@@ -87,12 +138,12 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 			return
 		}
-		meta, err := h.chats.Update(r.Context(), id, in)
+		updated, err := h.chats.Update(r.Context(), id, in)
 		if err != nil {
 			sendChatError(w, err)
 			return
 		}
-		httptransport.SendJSON(w, http.StatusOK, meta)
+		httptransport.SendJSON(w, http.StatusOK, updated)
 
 	case http.MethodDelete:
 		if err := h.chats.Delete(r.Context(), id); err != nil {
@@ -157,6 +208,46 @@ func (h *ChatHandler) handleMarkRead(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	httptransport.SendJSON(w, http.StatusOK, meta)
+}
+
+// canAccessProject returns true if the caller is an admin OR a member of
+// the project. Admins always pass. Members are looked up in the access list.
+func (h *ChatHandler) canAccessProject(ctx context.Context, id serviceproject.ID, email string, isAdmin bool) (bool, error) {
+	if isAdmin {
+		return true, nil
+	}
+	if h.projects == nil || email == "" {
+		return false, nil
+	}
+	return h.projects.HasAccess(ctx, id, email)
+}
+
+// filterChats removes chats that belong to projects the caller can't see.
+// Chats with no projectId are always visible (they predate per-project
+// access and don't have a container behind them).
+func (h *ChatHandler) filterChats(ctx context.Context, metas []servicechat.Meta, email string, isAdmin bool) []servicechat.Meta {
+	if isAdmin || h.projects == nil {
+		return metas
+	}
+	out := make([]servicechat.Meta, 0, len(metas))
+	for _, m := range metas {
+		if m.ProjectID == "" {
+			out = append(out, m)
+			continue
+		}
+		ok, err := h.projects.HasAccess(ctx, serviceproject.ID(m.ProjectID), email)
+		if err == nil && ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func (h *ChatHandler) caller(r *http.Request) (string, bool, error) {
+	if h.auth == nil {
+		return "", true, nil
+	}
+	return callerStateFromRequest(r.Context(), r, h.auth)
 }
 
 func intQuery(r *http.Request, key string, fallback int) int {

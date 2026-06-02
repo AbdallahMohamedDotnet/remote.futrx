@@ -43,12 +43,26 @@ type Status struct {
 	Email         string `json:"email,omitempty"`
 	Sub           string `json:"sub,omitempty"`
 	IsAdmin       bool   `json:"isAdmin,omitempty"`
+	IsRegistered  bool   `json:"isRegistered,omitempty"`
 }
 
+// ClaimedError is returned in the legacy single-admin path when a second
+// user tries to sign in before the users-store is wired up.
 type ClaimedError struct {
 	Email string
 }
 
 func (e ClaimedError) Error() string {
 	return "server is claimed by " + e.Email
+}
+
+// NotInvitedError is returned by Login when a Google OAuth flow succeeded
+// but the resulting email is not in the users store. Surfaced to the
+// frontend so the login screen can show a friendly "ask an admin" message.
+type NotInvitedError struct {
+	Email string
+}
+
+func (e NotInvitedError) Error() string {
+	return "not invited - ask an admin to add your email (" + e.Email + ")"
 }

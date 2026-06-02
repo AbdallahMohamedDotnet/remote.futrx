@@ -12,6 +12,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	"github.com/gorilla/websocket"
 )
 
@@ -24,14 +25,29 @@ type PromptRunner interface {
 	CancelPrompt(id servicechat.ID) bool
 }
 
+// ProjectAccessChecker is the subset of the auth gate the chat WS needs:
+// resolve the caller from the request and verify they can reach a project.
+// Implemented by a small adapter wired up in transport.go.
+type ProjectAccessChecker interface {
+	CallerAndAdmin(ctx context.Context, r *http.Request) (string, bool, error)
+	HasAccess(ctx context.Context, projectID serviceproject.ID, email string) (bool, error)
+}
+
 type ChatSocket struct {
 	chats  ChatLookup
 	hub    *runhub.Hub
 	runner PromptRunner
+	access ProjectAccessChecker
 }
 
 func NewChatSocket(chats ChatLookup, hub *runhub.Hub, runner PromptRunner) *ChatSocket {
 	return &ChatSocket{chats: chats, hub: hub, runner: runner}
+}
+
+// WithAccessChecker turns on per-chat project-membership gating.
+func (s *ChatSocket) WithAccessChecker(access ProjectAccessChecker) *ChatSocket {
+	s.access = access
+	return s
 }
 
 func (s *ChatSocket) Handle(upgrader websocket.Upgrader) http.HandlerFunc {
@@ -50,13 +66,32 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 		http.Error(w, "invalid chat id", http.StatusBadRequest)
 		return
 	}
-	if _, err := s.chats.Get(r.Context(), id); err != nil {
+	meta, err := s.chats.Get(r.Context(), id)
+	if err != nil {
 		if errors.Is(err, servicechat.ErrNotFound) || os.IsNotExist(err) {
 			http.Error(w, "chat not found", http.StatusNotFound)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
+	}
+	if s.access != nil && meta.ProjectID != "" {
+		email, isAdmin, err := s.access.CallerAndAdmin(r.Context(), r)
+		if err != nil || email == "" {
+			http.Error(w, "authentication required", http.StatusUnauthorized)
+			return
+		}
+		if !isAdmin {
+			ok, err := s.access.HasAccess(r.Context(), serviceproject.ID(meta.ProjectID), email)
+			if err != nil {
+				http.Error(w, "access check failed", http.StatusInternalServerError)
+				return
+			}
+			if !ok {
+				http.Error(w, "not a member of this project", http.StatusForbidden)
+				return
+			}
+		}
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)

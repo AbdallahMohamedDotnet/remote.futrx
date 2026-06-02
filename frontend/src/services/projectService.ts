@@ -35,4 +35,17 @@ export const projectService = {
       "DELETE",
       `/api/projects/${encodeURIComponent(id)}/secrets/${encodeURIComponent(key)}`
     ),
+  listAccess: (id: string) =>
+    json<string[]>("GET", `/api/projects/${encodeURIComponent(id)}/access`),
+  addAccess: (id: string, email: string) =>
+    json<{ email: string }>(
+      "POST",
+      `/api/projects/${encodeURIComponent(id)}/access`,
+      { email }
+    ),
+  removeAccess: (id: string, email: string) =>
+    json<{ ok: boolean }>(
+      "DELETE",
+      `/api/projects/${encodeURIComponent(id)}/access/${encodeURIComponent(email)}`
+    ),
 };

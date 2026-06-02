@@ -3,8 +3,12 @@ import type { CodexDeviceLogin } from "../../models/auth";
 import { ChevronLeft, Menu } from "../ui/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { CodexAuthSettings } from "./CodexAuthSettings";
+import { UsersPanel } from "../account/UsersPanel";
 
 export function SettingsPage({
+  currentEmail,
+  isAdmin,
+  noAuth,
   appearanceTheme,
   appearanceLoading,
   appearanceSaving,
@@ -20,6 +24,9 @@ export function SettingsPage({
   onAppearanceThemeChange,
   onStartCodexDeviceLogin,
 }: {
+  currentEmail: string;
+  isAdmin: boolean;
+  noAuth: boolean;
   appearanceTheme: AppearanceTheme;
   appearanceLoading: boolean;
   appearanceSaving: boolean;
@@ -79,6 +86,10 @@ export function SettingsPage({
             error={codexError}
             onStartDeviceLogin={onStartCodexDeviceLogin}
           />
+
+          {!noAuth && (
+            <UsersPanel currentEmail={currentEmail} isAdmin={isAdmin} />
+          )}
 
           <p class="text-[13px] leading-relaxed text-ink-300">
             Project credentials (GitHub PAT, Cloudflare token, Hetzner token, GCP service-account JSON)

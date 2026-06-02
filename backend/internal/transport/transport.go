@@ -1,12 +1,16 @@
 package transport
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/codexauth"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
+	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
 	wstransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/ws"
@@ -27,19 +31,43 @@ type Dependencies struct {
 func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	var auth httptransport.AuthRegistrar
 	if deps.Services.Auth != nil {
-		auth = httphandlers.NewAuthHandler(deps.Services.Auth)
+		auth = httphandlers.NewAuthHandler(deps.Services.Auth, deps.Services.Projects)
 	}
 
-	uploads, err := httptransport.NewUploadHandler(deps.Services.Chats, deps.DataDir)
+	gate := newAccessGate(deps.Services.Auth, deps.Services.Projects, deps.Services.Chats)
+
+	uploads, err := httptransport.NewUploadHandlerWithGate(deps.Services.Chats, deps.DataDir, gate)
 	if err != nil {
 		return nil, err
 	}
 	codexLogin := codexauth.New()
 
+	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
+	terminalSocket := wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects)
+	workspaceSocket := wstransport.NewWorkspaceSocket(
+		deps.Services.Chats,
+		deps.Services.Projects,
+		deps.Services.Workspace,
+	)
+	if deps.Services.Auth != nil {
+		chatSocket = chatSocket.WithAccessChecker(gate)
+		terminalSocket = terminalSocket.WithAccessChecker(gate)
+		workspaceSocket = workspaceSocket.WithVisibility(gate)
+	}
+
 	return httptransport.NewHandler(httptransport.Handlers{
-		Sessions:   httphandlers.NewTmuxHandler(deps.TmuxClient),
-		Chats:      httphandlers.NewChatHandler(deps.Services.Chats),
-		Projects:   httphandlers.NewProjectHandler(deps.Services.Projects),
+		Sessions: httphandlers.NewTmuxHandler(deps.TmuxClient),
+		Chats: httphandlers.NewChatHandler(
+			deps.Services.Chats,
+			deps.Services.Projects,
+			deps.Services.Auth,
+		),
+		Projects: httphandlers.NewProjectHandler(
+			deps.Services.Projects,
+			deps.Services.Users,
+			deps.Services.Auth,
+		),
+		Users:      httphandlers.NewUsersHandler(deps.Services.Users, deps.Services.Auth),
 		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
 		CodexAuth:  httphandlers.NewCodexAuthHandler(codexLogin),
 		UserSettings: httphandlers.NewUserSettingsHandler(
@@ -50,19 +78,83 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		BrowserInspector: httphandlers.NewBrowserInspectorHandler(),
 		Uploads:          uploads,
 		TmuxWS:           wstransport.NewTmuxSocket(deps.TmuxClient),
-		TerminalWS:       wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects),
-		ChatWS:           wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt),
-		WorkspaceWS: wstransport.NewWorkspaceSocket(
-			deps.Services.Chats,
-			deps.Services.Projects,
-			deps.Services.Workspace,
-		),
-		CodexAuthWS: wstransport.NewCodexAuthSocket(codexLogin),
-		Auth:        auth,
-		Static:      httptransport.NewStaticHandler(deps.Static),
+		TerminalWS:       terminalSocket,
+		ChatWS:           chatSocket,
+		WorkspaceWS:      workspaceSocket,
+		CodexAuthWS:      wstransport.NewCodexAuthSocket(codexLogin),
+		Auth:             auth,
+		Static:           httptransport.NewStaticHandler(deps.Static),
 	}), nil
 }
 
 func NewHTTPServer(addr string, handler http.Handler) *http.Server {
 	return httptransport.NewServer(addr, handler)
+}
+
+// accessGate is the small adapter that satisfies the per-WS / per-upload
+// gating interfaces. It centralizes "who is the caller?" and "can they
+// reach this project?" lookups so each socket / upload site doesn't have
+// to wire up the auth + project + chat services itself.
+type accessGate struct {
+	auth     *serviceauth.Service
+	projects *serviceproject.Service
+	chats    chatProjectFinder
+}
+
+type chatProjectFinder interface {
+	Get(ctx context.Context, id servicechat.ID) (servicechat.Meta, error)
+}
+
+func newAccessGate(auth *serviceauth.Service, projects *serviceproject.Service, chats chatProjectFinder) *accessGate {
+	if auth == nil {
+		return nil
+	}
+	return &accessGate{auth: auth, projects: projects, chats: chats}
+}
+
+func (g *accessGate) CallerAndAdmin(ctx context.Context, r *http.Request) (string, bool, error) {
+	if g == nil || g.auth == nil {
+		return "", true, nil
+	}
+	cookie, err := r.Cookie(serviceauth.SessionCookieName)
+	if err != nil {
+		return "", false, err
+	}
+	session, err := g.auth.CurrentSession(cookie.Value)
+	if err != nil || session == nil {
+		return "", false, err
+	}
+	isAdmin, _ := g.auth.IsAdmin(ctx, session.Email)
+	return session.Email, isAdmin, nil
+}
+
+func (g *accessGate) HasAccess(ctx context.Context, projectID serviceproject.ID, email string) (bool, error) {
+	if g == nil || g.projects == nil {
+		return false, nil
+	}
+	return g.projects.HasAccess(ctx, projectID, email)
+}
+
+func (g *accessGate) CanUploadToChat(ctx context.Context, r *http.Request, chatID servicechat.ID) (bool, error) {
+	if g == nil {
+		return true, nil
+	}
+	email, isAdmin, err := g.CallerAndAdmin(ctx, r)
+	if err != nil || email == "" {
+		return false, err
+	}
+	if isAdmin {
+		return true, nil
+	}
+	if g.chats == nil {
+		return false, nil
+	}
+	meta, err := g.chats.Get(ctx, chatID)
+	if err != nil {
+		return false, err
+	}
+	if meta.ProjectID == "" {
+		return true, nil
+	}
+	return g.HasAccess(ctx, serviceproject.ID(meta.ProjectID), email)
 }

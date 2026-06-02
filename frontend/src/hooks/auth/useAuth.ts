@@ -15,6 +15,7 @@ const initial: AuthState = {
   adminEmail: "",
   email: "",
   isAdmin: false,
+  isRegistered: false,
   refresh: async () => {},
 };
 

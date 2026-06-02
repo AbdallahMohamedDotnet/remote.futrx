@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"errors"
 	"log"
 	"strings"
 )
@@ -10,10 +11,16 @@ type Service struct {
 	repo       Repository
 	containers ContainerManager
 	secrets    SecretsRepository
+	access     AccessRepository
 }
 
-func New(repo Repository, containers ContainerManager, secrets SecretsRepository) *Service {
-	return &Service{repo: repo, containers: containers, secrets: secrets}
+func New(
+	repo Repository,
+	containers ContainerManager,
+	secrets SecretsRepository,
+	access AccessRepository,
+) *Service {
+	return &Service{repo: repo, containers: containers, secrets: secrets, access: access}
 }
 
 func (s *Service) ListSecrets(ctx context.Context, id ID) ([]Secret, error) {
@@ -91,8 +98,38 @@ func (s *Service) DeleteSecret(ctx context.Context, id ID, key string) error {
 	return nil
 }
 
+// List returns every project. Use ListVisible to apply per-caller filtering.
 func (s *Service) List(ctx context.Context) ([]Meta, error) {
 	return s.repo.List(ctx)
+}
+
+// ListVisible returns projects the caller can see. Admins see everything;
+// non-admins only see projects where they're a member. callerEmail is
+// already normalized when this is called from the handler.
+func (s *Service) ListVisible(ctx context.Context, callerEmail string, isAdmin bool) ([]Meta, error) {
+	all, err := s.repo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if isAdmin || s.access == nil {
+		return all, nil
+	}
+	callerEmail = strings.ToLower(strings.TrimSpace(callerEmail))
+	if callerEmail == "" {
+		return nil, nil
+	}
+	out := make([]Meta, 0, len(all))
+	for _, m := range all {
+		ok, err := s.access.Has(ctx, m.ID, callerEmail)
+		if err != nil {
+			log.Printf("projects: access check %s/%s: %v", m.ID, callerEmail, err)
+			continue
+		}
+		if ok {
+			out = append(out, m)
+		}
+	}
+	return out, nil
 }
 
 func (s *Service) Get(ctx context.Context, id ID) (Meta, error) {
@@ -117,7 +154,9 @@ func (s *Service) WorkspaceForProject(ctx context.Context, id ID) (string, error
 	return p.Cwd, nil
 }
 
-func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
+// Create provisions a new project. callerEmail (if non-empty) is added to
+// the project's access list so the creator immediately has access.
+func (s *Service) Create(ctx context.Context, in CreateInput, callerEmail string) (Meta, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return Meta{}, ErrNameRequired
@@ -130,6 +169,15 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 	})
 	if err != nil {
 		return Meta{}, err
+	}
+
+	if s.access != nil {
+		em := strings.ToLower(strings.TrimSpace(callerEmail))
+		if em != "" {
+			if addErr := s.access.Add(ctx, m.ID, em); addErr != nil {
+				log.Printf("projects: seed access for %s: %v", m.ID, addErr)
+			}
+		}
 	}
 
 	if s.containers != nil {
@@ -174,6 +222,11 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if s.secrets != nil {
 		if err := s.secrets.DeleteAll(ctx, id); err != nil {
 			log.Printf("projects: delete secrets %s: %v", id, err)
+		}
+	}
+	if s.access != nil {
+		if err := s.access.DeleteAll(ctx, id); err != nil {
+			log.Printf("projects: delete access %s: %v", id, err)
 		}
 	}
 	return s.repo.Delete(ctx, id)
@@ -273,6 +326,89 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// HasAccess returns true if email is in the project's membership list.
+// Empty / unknown email always returns false. Admin checks live in the
+// caller; this method only looks at the access list.
+func (s *Service) HasAccess(ctx context.Context, id ID, email string) (bool, error) {
+	if !ValidID(id) {
+		return false, ErrInvalidID
+	}
+	if s.access == nil {
+		return false, nil
+	}
+	em := strings.ToLower(strings.TrimSpace(email))
+	if em == "" {
+		return false, nil
+	}
+	return s.access.Has(ctx, id, em)
+}
+
+// ListAccess returns the sorted, normalized membership list for a project.
+func (s *Service) ListAccess(ctx context.Context, id ID) ([]string, error) {
+	if !ValidID(id) {
+		return nil, ErrInvalidID
+	}
+	if _, err := s.repo.Get(ctx, id); err != nil {
+		return nil, err
+	}
+	if s.access == nil {
+		return nil, nil
+	}
+	return s.access.List(ctx, id)
+}
+
+// AddAccess adds email to the project's membership list. Caller is
+// responsible for verifying the email belongs to a registered user.
+func (s *Service) AddAccess(ctx context.Context, id ID, email string) error {
+	if !ValidID(id) {
+		return ErrInvalidID
+	}
+	if _, err := s.repo.Get(ctx, id); err != nil {
+		return err
+	}
+	if s.access == nil {
+		return errors.New("access store unavailable")
+	}
+	em := strings.ToLower(strings.TrimSpace(email))
+	if em == "" {
+		return errors.New("empty email")
+	}
+	return s.access.Add(ctx, id, em)
+}
+
+// RemoveAccess deletes email from the project's membership list.
+func (s *Service) RemoveAccess(ctx context.Context, id ID, email string) error {
+	if !ValidID(id) {
+		return ErrInvalidID
+	}
+	if _, err := s.repo.Get(ctx, id); err != nil {
+		return err
+	}
+	if s.access == nil {
+		return nil
+	}
+	em := strings.ToLower(strings.TrimSpace(email))
+	if em == "" {
+		return nil
+	}
+	return s.access.Remove(ctx, id, em)
+}
+
+// CountAccess returns how many members the project has.
+func (s *Service) CountAccess(ctx context.Context, id ID) (int, error) {
+	if !ValidID(id) {
+		return 0, ErrInvalidID
+	}
+	if s.access == nil {
+		return 0, nil
+	}
+	list, err := s.access.List(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	return len(list), nil
 }
 
 func statusForContainerState(state ContainerState) Status {

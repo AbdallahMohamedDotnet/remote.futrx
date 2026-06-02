@@ -8,6 +8,7 @@ const unauthenticated: AuthSession = {
   adminEmail: "",
   email: "",
   isAdmin: false,
+  isRegistered: false,
 };
 
 export async function getAuthSession(): Promise<AuthSession> {
@@ -19,6 +20,7 @@ export async function getAuthSession(): Promise<AuthSession> {
         noAuth: true,
         authenticated: true,
         isAdmin: true,
+        isRegistered: true,
       };
     }
     if (!response.ok) return unauthenticated;
@@ -30,6 +32,7 @@ export async function getAuthSession(): Promise<AuthSession> {
       adminEmail: data.adminEmail ?? "",
       email: data.email ?? "",
       isAdmin: !!data.isAdmin,
+      isRegistered: !!data.isRegistered,
     };
   } catch {
     return unauthenticated;

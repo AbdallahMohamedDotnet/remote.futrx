@@ -15,7 +15,9 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ComponentChildren }) {
   const auth = useAuth();
-  const googleOk = auth.authenticated && (auth.isAdmin || auth.noAuth);
+  // Any registered user can use the workspace. Admins are still registered
+  // by definition; noAuth (oauth.json absent) opens the door for solo dev.
+  const googleOk = auth.authenticated && (auth.isRegistered || auth.isAdmin || auth.noAuth);
   const claudeAuth = useClaudeAuth(googleOk);
   const gateOpen = googleOk && claudeAuth.authenticated;
 

@@ -16,6 +16,12 @@ export interface SecretsRecord {
   error?: string;
 }
 
+export interface AccessRecord {
+  loading: boolean;
+  data?: string[];
+  error?: string;
+}
+
 export function ProjectContainersContainer({
   projects,
   selectedProjectId,
@@ -34,6 +40,7 @@ export function ProjectContainersContainer({
 
   const [infoRecord, setInfoRecord] = useState<ProjectContainerRecord>({ loading: false });
   const [secretsRecord, setSecretsRecord] = useState<SecretsRecord>({ loading: false });
+  const [accessRecord, setAccessRecord] = useState<AccessRecord>({ loading: false });
   const [refreshing, setRefreshing] = useState(false);
 
   const loadInfo = useCallback(
@@ -78,15 +85,34 @@ export function ProjectContainersContainer({
     [selectedProject]
   );
 
+  const loadAccess = useCallback(
+    async (signal?: { cancelled: boolean }) => {
+      if (!selectedProject) {
+        setAccessRecord({ loading: false });
+        return;
+      }
+      setAccessRecord((prev) => ({ ...prev, loading: true, error: undefined }));
+      try {
+        const data = await projectService.listAccess(selectedProject.id);
+        if (signal?.cancelled) return;
+        setAccessRecord({ loading: false, data });
+      } catch (error) {
+        if (signal?.cancelled) return;
+        setAccessRecord({ loading: false, error: (error as Error).message });
+      }
+    },
+    [selectedProject]
+  );
+
   const refresh = useCallback(async () => {
     if (!selectedProject) return;
     setRefreshing(true);
     try {
-      await Promise.all([loadInfo(), loadSecrets()]);
+      await Promise.all([loadInfo(), loadSecrets(), loadAccess()]);
     } finally {
       setRefreshing(false);
     }
-  }, [selectedProject, loadInfo, loadSecrets]);
+  }, [selectedProject, loadInfo, loadSecrets, loadAccess]);
 
   const onSaveSecret = useCallback(
     async (key: string, value: string) => {
@@ -116,26 +142,56 @@ export function ProjectContainersContainer({
     [selectedProject]
   );
 
+  const onAddMember = useCallback(
+    async (email: string) => {
+      if (!selectedProject) return;
+      const { email: added } = await projectService.addAccess(selectedProject.id, email);
+      setAccessRecord((prev) => {
+        const next = prev.data ? [...prev.data] : [];
+        if (!next.includes(added)) next.push(added);
+        next.sort();
+        return { loading: false, data: next };
+      });
+    },
+    [selectedProject]
+  );
+
+  const onRemoveMember = useCallback(
+    async (email: string) => {
+      if (!selectedProject) return;
+      await projectService.removeAccess(selectedProject.id, email);
+      setAccessRecord((prev) => ({
+        loading: false,
+        data: prev.data?.filter((m) => m !== email) ?? [],
+      }));
+    },
+    [selectedProject]
+  );
+
   useEffect(() => {
     const signal = { cancelled: false };
     void loadInfo(signal);
     void loadSecrets(signal);
+    void loadAccess(signal);
     return () => {
       signal.cancelled = true;
     };
-  }, [loadInfo, loadSecrets]);
+  }, [loadInfo, loadSecrets, loadAccess]);
 
   return (
     <ProjectContainersPage
       project={selectedProject}
       infoRecord={infoRecord}
       secretsRecord={secretsRecord}
+      accessRecord={accessRecord}
       refreshing={refreshing}
       onRefresh={() => void refresh()}
       onBack={onBack}
       onHamburger={onHamburger}
       onSaveSecret={onSaveSecret}
       onDeleteSecret={onDeleteSecret}
+      onAddMember={onAddMember}
+      onRemoveMember={onRemoveMember}
     />
   );
 }

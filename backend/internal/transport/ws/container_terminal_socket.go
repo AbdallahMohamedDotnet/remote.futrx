@@ -29,6 +29,7 @@ type TerminalProjectStarter interface {
 type ContainerTerminalSocket struct {
 	chats    TerminalChatGetter
 	projects TerminalProjectStarter
+	access   ProjectAccessChecker
 }
 
 func NewContainerTerminalSocket(
@@ -36,6 +37,11 @@ func NewContainerTerminalSocket(
 	projects TerminalProjectStarter,
 ) *ContainerTerminalSocket {
 	return &ContainerTerminalSocket{chats: chats, projects: projects}
+}
+
+func (s *ContainerTerminalSocket) WithAccessChecker(access ProjectAccessChecker) *ContainerTerminalSocket {
+	s.access = access
+	return s
 }
 
 func (s *ContainerTerminalSocket) RegisterRoutes(mux *http.ServeMux, upgrader websocket.Upgrader) {
@@ -67,6 +73,25 @@ func (s *ContainerTerminalSocket) handle(upgrader websocket.Upgrader, w http.Res
 	if meta.ProjectID == "" {
 		http.Error(w, "chat has no project container", http.StatusBadRequest)
 		return
+	}
+
+	if s.access != nil {
+		email, isAdmin, err := s.access.CallerAndAdmin(r.Context(), r)
+		if err != nil || email == "" {
+			http.Error(w, "authentication required", http.StatusUnauthorized)
+			return
+		}
+		if !isAdmin {
+			ok, err := s.access.HasAccess(r.Context(), serviceproject.ID(meta.ProjectID), email)
+			if err != nil {
+				http.Error(w, "access check failed", http.StatusInternalServerError)
+				return
+			}
+			if !ok {
+				http.Error(w, "not a member of this project", http.StatusForbidden)
+				return
+			}
+		}
 	}
 
 	project, err := s.projects.Get(r.Context(), serviceproject.ID(meta.ProjectID))

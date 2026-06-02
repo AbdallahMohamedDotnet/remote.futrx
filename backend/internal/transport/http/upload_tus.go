@@ -19,6 +19,7 @@ package httptransport
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,15 +51,32 @@ type ChatUploadResolver interface {
 	UploadTarget(ctx context.Context, id servicechat.ID) (string, error)
 }
 
+// UploadGate decides whether a request can initiate an upload tied to a
+// given chat. The handler resolves the chat to its project and asks. If nil
+// is passed, no gating is performed (single-user dev mode).
+type UploadGate interface {
+	// CanUploadToChat returns true if the bearer of r is allowed to upload
+	// to the chat with id `chatID`. Implementations should treat missing
+	// session as "no" — return false, nil.
+	CanUploadToChat(ctx context.Context, r *http.Request, chatID servicechat.ID) (bool, error)
+}
+
 // UploadHandler exposes the tus protocol at /api/uploads and consumes
 // completion events asynchronously.
 type UploadHandler struct {
 	tus     *tusd.UnroutedHandler
 	chats   ChatUploadResolver
 	tmpRoot string
+	gate    UploadGate
 }
 
 func NewUploadHandler(chats ChatUploadResolver, dataDir string) (*UploadHandler, error) {
+	return NewUploadHandlerWithGate(chats, dataDir, nil)
+}
+
+// NewUploadHandlerWithGate is the auth-aware constructor; pass nil to
+// preserve the old, ungated behavior.
+func NewUploadHandlerWithGate(chats ChatUploadResolver, dataDir string, gate UploadGate) (*UploadHandler, error) {
 	tmpRoot := filepath.Join(dataDir, "uploads", "tmp")
 	if err := os.MkdirAll(tmpRoot, 0o700); err != nil {
 		return nil, fmt.Errorf("create upload tmp: %w", err)
@@ -89,7 +107,7 @@ func NewUploadHandler(chats ChatUploadResolver, dataDir string) (*UploadHandler,
 		return nil, fmt.Errorf("tusd handler: %w", err)
 	}
 
-	uh := &UploadHandler{tus: h, chats: chats, tmpRoot: tmpRoot}
+	uh := &UploadHandler{tus: h, chats: chats, tmpRoot: tmpRoot, gate: gate}
 	go uh.drainCompletions(h.CompleteUploads)
 	go uh.drainTerminations(h.TerminatedUploads)
 	return uh, nil
@@ -107,7 +125,31 @@ func (u *UploadHandler) RegisterRoutes(mux *http.ServeMux) {
 // dispatch routes one tus request to the right method handler. The tus
 // middleware already filtered OPTIONS / version checks / CORS before we
 // got here.
+//
+// Auth gate: on POST (= creating a new upload) we parse the Upload-Metadata
+// header to find the target chatId, then ask the gate whether the caller
+// can upload to it. PATCH/HEAD/GET/DELETE are NOT re-gated — they require
+// the random upload ID which is only handed to the original POSTer. Project
+// membership changes won't retroactively kill in-flight uploads, but that's
+// acceptable for the chunk window (minutes, not hours).
 func (u *UploadHandler) dispatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost && u.gate != nil {
+		chatID := chatIDFromUploadMetadata(r.Header.Get("Upload-Metadata"))
+		if chatID == "" {
+			SendErr(w, http.StatusBadRequest, "upload missing chatId in Upload-Metadata")
+			return
+		}
+		ok, err := u.gate.CanUploadToChat(r.Context(), r, servicechat.ID(chatID))
+		if err != nil {
+			SendErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !ok {
+			SendErr(w, http.StatusForbidden, "not a member of this chat's project")
+			return
+		}
+	}
+
 	switch r.Method {
 	case http.MethodPost:
 		u.tus.PostFile(w, r)
@@ -122,6 +164,37 @@ func (u *UploadHandler) dispatch(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// chatIDFromUploadMetadata pulls the `chatId` field out of a tus
+// Upload-Metadata header (per https://tus.io/protocols/resumable-upload —
+// comma-separated `key b64value` pairs). Returns "" if missing/malformed.
+func chatIDFromUploadMetadata(header string) string {
+	for _, pair := range strings.Split(header, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		var k, v string
+		if i := strings.IndexByte(pair, ' '); i >= 0 {
+			k = strings.TrimSpace(pair[:i])
+			v = strings.TrimSpace(pair[i+1:])
+		} else {
+			k = pair
+		}
+		if k != "chatId" {
+			continue
+		}
+		if v == "" {
+			return ""
+		}
+		raw, err := base64.StdEncoding.DecodeString(v)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(raw))
+	}
+	return ""
 }
 
 func (u *UploadHandler) drainCompletions(events <-chan tusd.HookEvent) {

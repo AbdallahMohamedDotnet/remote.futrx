@@ -5,6 +5,7 @@ export interface AuthSession {
   adminEmail: string;
   email: string;
   isAdmin: boolean;
+  isRegistered: boolean;
 }
 
 export interface ClaudeAuthStatus {

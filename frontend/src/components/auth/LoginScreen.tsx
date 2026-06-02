@@ -7,7 +7,9 @@ export function LoginScreen({
   claimed: boolean;
   adminEmail: string;
 }) {
-  const error = new URLSearchParams(location.search).get("error");
+  const params = new URLSearchParams(location.search);
+  const error = params.get("error");
+  const errorEmail = params.get("email") ?? "";
 
   return (
     <div class="app-shell grid place-items-center bg-[#090b0f] text-ink-100 p-5">
@@ -40,10 +42,20 @@ export function LoginScreen({
         </a>
 
         {error && (
-          <div class="text-xs text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-left">
-            {error === "not-admin"
-              ? `This account isn't the admin (${adminEmail || "configured admin"}).`
-              : `Login error: ${error}`}
+          <div class="text-xs text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-left leading-relaxed">
+            {error === "not-invited" ? (
+              <>
+                <div class="font-medium text-sm">Not invited.</div>
+                <div class="mt-1">
+                  {errorEmail ? <span class="font-mono">{errorEmail}</span> : "That account"} isn't
+                  authorized on this server. Ask an admin to add your email, then sign in again.
+                </div>
+              </>
+            ) : error === "not-admin" ? (
+              `This account isn't the admin (${adminEmail || "configured admin"}).`
+            ) : (
+              `Login error: ${error}`
+            )}
           </div>
         )}
       </div>

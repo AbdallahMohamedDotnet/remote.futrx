@@ -1,24 +1,34 @@
 package httphandlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 
+	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	serviceuser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/user"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type ProjectHandler struct {
 	projects *serviceproject.Service
+	users    *serviceuser.Service
+	auth     *serviceauth.Service
 }
 
-func NewProjectHandler(projects *serviceproject.Service) *ProjectHandler {
-	return &ProjectHandler{projects: projects}
+func NewProjectHandler(
+	projects *serviceproject.Service,
+	users *serviceuser.Service,
+	auth *serviceauth.Service,
+) *ProjectHandler {
+	return &ProjectHandler{projects: projects, users: users, auth: auth}
 }
 
 func (h *ProjectHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -28,12 +38,23 @@ func (h *ProjectHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *ProjectHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
+	email, isAdmin, err := h.caller(r)
+	if err != nil {
+		// Auth middleware already gated /api/* — if we still fail here the
+		// session must have been torn down between checks. Treat as 401.
+		httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
-		metas, err := h.projects.List(r.Context())
+		metas, err := h.projects.ListVisible(r.Context(), email, isAdmin)
 		if err != nil {
 			sendProjectError(w, err)
 			return
+		}
+		if metas == nil {
+			metas = []serviceproject.Meta{}
 		}
 		httptransport.SendJSON(w, http.StatusOK, metas)
 
@@ -43,7 +64,7 @@ func (h *ProjectHandler) HandleCollection(w http.ResponseWriter, r *http.Request
 			httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 			return
 		}
-		m, err := h.projects.Create(r.Context(), body)
+		m, err := h.projects.Create(r.Context(), body, email)
 		if err != nil {
 			sendProjectError(w, err)
 			return
@@ -64,8 +85,31 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	email, isAdmin, err := h.caller(r)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Every /api/projects/{id}/... route requires either admin OR project
+	// membership. Resolve once and short-circuit.
+	allowed, err := h.allowed(r.Context(), id, email, isAdmin)
+	if err != nil {
+		sendProjectError(w, err)
+		return
+	}
+	if !allowed {
+		httptransport.SendErr(w, http.StatusForbidden, "not a member of this project")
+		return
+	}
+
 	if len(parts) >= 2 && parts[1] == "secrets" {
 		h.handleSecrets(w, r, id, parts)
+		return
+	}
+
+	if len(parts) >= 2 && parts[1] == "access" {
+		h.handleAccess(w, r, id, parts, email, isAdmin)
 		return
 	}
 
@@ -147,6 +191,10 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 		httptransport.SendJSON(w, http.StatusOK, m)
 
 	case http.MethodDelete:
+		if !isAdmin {
+			httptransport.SendErr(w, http.StatusForbidden, "admin only")
+			return
+		}
 		if err := h.projects.Delete(r.Context(), id); err != nil {
 			sendProjectError(w, err)
 			return
@@ -237,6 +285,132 @@ func (h *ProjectHandler) handleSecrets(w http.ResponseWriter, r *http.Request, i
 	default:
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+// handleAccess handles /api/projects/{id}/access[/{email}]. Any project
+// member (admin or not) may list and edit the access list, with a guardrail:
+// non-admins may not remove the last member of a project (which would
+// orphan it from everyone but admins).
+func (h *ProjectHandler) handleAccess(
+	w http.ResponseWriter,
+	r *http.Request,
+	id serviceproject.ID,
+	parts []string,
+	callerEmail string,
+	isAdmin bool,
+) {
+	// /api/projects/{id}/access
+	if len(parts) == 2 {
+		switch r.Method {
+		case http.MethodGet:
+			list, err := h.projects.ListAccess(r.Context(), id)
+			if err != nil {
+				sendProjectError(w, err)
+				return
+			}
+			if list == nil {
+				list = []string{}
+			}
+			httptransport.SendJSON(w, http.StatusOK, list)
+			return
+		case http.MethodPost:
+			var body struct {
+				Email string `json:"email"`
+			}
+			if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
+				httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
+				return
+			}
+			email := strings.ToLower(strings.TrimSpace(body.Email))
+			if email == "" {
+				httptransport.SendErr(w, http.StatusBadRequest, "missing email")
+				return
+			}
+			// Only registered users can be added to a project's access list.
+			if h.users != nil {
+				registered, err := h.users.IsRegistered(r.Context(), email)
+				if err != nil {
+					sendProjectError(w, err)
+					return
+				}
+				if !registered {
+					httptransport.SendErr(w, http.StatusNotFound, "user not registered - add them in the users panel first")
+					return
+				}
+			}
+			if err := h.projects.AddAccess(r.Context(), id, email); err != nil {
+				sendProjectError(w, err)
+				return
+			}
+			httptransport.SendJSON(w, http.StatusOK, map[string]string{"email": email})
+			return
+		default:
+			httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+	}
+
+	// /api/projects/{id}/access/{email}
+	if r.Method != http.MethodDelete {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	emailRaw := parts[2]
+	if emailRaw == "" {
+		httptransport.SendErr(w, http.StatusBadRequest, "missing email")
+		return
+	}
+	email, err := url.PathUnescape(emailRaw)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusBadRequest, "invalid email path")
+		return
+	}
+	email = strings.ToLower(strings.TrimSpace(email))
+
+	// Guardrail: non-admins can't remove the last member.
+	if !isAdmin {
+		members, err := h.projects.ListAccess(r.Context(), id)
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		if len(members) <= 1 {
+			httptransport.SendErr(w, http.StatusConflict, "cannot remove the last member - ask an admin")
+			return
+		}
+	}
+	if err := h.projects.RemoveAccess(r.Context(), id, email); err != nil {
+		sendProjectError(w, err)
+		return
+	}
+	_ = callerEmail // available for future audit logging
+	httptransport.SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// caller is a thin wrapper around callerStateFromRequest local to this
+// handler, since the auth field is required for every route here.
+func (h *ProjectHandler) caller(r *http.Request) (string, bool, error) {
+	if h.auth == nil {
+		return "", true, nil
+	}
+	return callerStateFromRequest(r.Context(), r, h.auth)
+}
+
+// allowed returns true if the caller can act on this project at all. Admins
+// are always allowed. Members are allowed when their email is in the
+// project's access list.
+func (h *ProjectHandler) allowed(ctx context.Context, id serviceproject.ID, email string, isAdmin bool) (bool, error) {
+	if isAdmin {
+		return true, nil
+	}
+	// Pre-flight: project must exist (so we return 404 vs 403 correctly).
+	if _, err := h.projects.Get(ctx, id); err != nil {
+		return false, err
+	}
+	if email == "" {
+		return false, nil
+	}
+	return h.projects.HasAccess(ctx, id, email)
 }
 
 func sendProjectError(w http.ResponseWriter, err error) {

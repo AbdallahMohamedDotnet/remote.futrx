@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
@@ -21,12 +23,26 @@ import (
 // but not so long that a stale value from a previous flow leaks.
 const returnToCookieName = "return_to"
 
-type AuthHandler struct {
-	auth *serviceauth.Service
+// projectVerifyHostPattern matches the per-project preview hostnames Caddy
+// proxies (`<slug>--<port>.dev.<base-host>`). HandleVerify consults this to
+// gate project subdomains on membership instead of just authentication.
+var projectVerifyHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.(.+)$`)
+
+// ProjectAccessGate is what AuthHandler needs from the project service to
+// gate per-project subdomains. Declared as a small interface so the handler
+// can be used in tests without standing up a full *project.Service.
+type ProjectAccessGate interface {
+	GetBySlug(ctx context.Context, slug string) (serviceproject.Meta, error)
+	HasAccess(ctx context.Context, id serviceproject.ID, email string) (bool, error)
 }
 
-func NewAuthHandler(auth *serviceauth.Service) *AuthHandler {
-	return &AuthHandler{auth: auth}
+type AuthHandler struct {
+	auth     *serviceauth.Service
+	projects ProjectAccessGate
+}
+
+func NewAuthHandler(auth *serviceauth.Service, projects ProjectAccessGate) *AuthHandler {
+	return &AuthHandler{auth: auth, projects: projects}
 }
 
 func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -87,6 +103,16 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	user, err := h.auth.Login(ctx, code)
 	if err != nil {
+		// Bounce uninvited users back to the login screen with a query
+		// param the LoginScreen can render verbatim. This keeps the OAuth
+		// flow from looking like a hard 403 in the browser.
+		var notInvited serviceauth.NotInvitedError
+		if errors.As(err, &notInvited) {
+			base := h.auth.BaseURL()
+			loginURL := base + "/?error=not-invited&email=" + url.QueryEscape(notInvited.Email)
+			http.Redirect(w, r, loginURL, http.StatusFound)
+			return
+		}
 		var claimed serviceauth.ClaimedError
 		if errors.As(err, &claimed) {
 			http.Error(w, fmt.Sprintf(
@@ -139,28 +165,80 @@ func (h *AuthHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
-	session, err := h.auth.CurrentSession(sessionCookieValue(r))
-	if err == nil {
-		if ok, _ := h.auth.IsAdmin(r.Context(), session.Email); ok {
-			w.WriteHeader(http.StatusOK)
-			return
+	session, sessionErr := h.auth.CurrentSession(sessionCookieValue(r))
+	authenticated := sessionErr == nil && session != nil
+
+	// Determine whether the request is for a per-project preview subdomain
+	// (`<slug>--<port>.dev.<base-host>`) so we can gate on project
+	// membership instead of plain authentication.
+	host := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Host")))
+	matchedSlug := ""
+	if m := projectVerifyHostPattern.FindStringSubmatch(host); m != nil {
+		// Compare the trailing base host against our configured baseURL host.
+		base := strings.ToLower(strings.TrimSpace(baseHost(h.auth.BaseURL())))
+		if base != "" && m[3] == base {
+			matchedSlug = m[1]
 		}
 	}
+
+	if matchedSlug != "" && h.projects != nil {
+		if !authenticated {
+			h.redirectToLogin(w, r)
+			return
+		}
+		proj, err := h.projects.GetBySlug(r.Context(), matchedSlug)
+		if err != nil {
+			// Unknown slug or DB error: treat as not-found to be safe.
+			http.Error(w, "no such project", http.StatusNotFound)
+			return
+		}
+		// Admins always pass; otherwise check membership.
+		isAdmin, _ := h.auth.IsAdmin(r.Context(), session.Email)
+		if !isAdmin {
+			ok, _ := h.projects.HasAccess(r.Context(), proj.ID, session.Email)
+			if !ok {
+				http.Error(w, "forbidden - not a member of this project", http.StatusForbidden)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Non-project request (main UI, code-server, etc.): any registered user
+	// passes. Unauthenticated → bounce to login.
+	if !authenticated {
+		h.redirectToLogin(w, r)
+		return
+	}
+	if ok, _ := h.auth.IsRegistered(r.Context(), session.Email); ok {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.Error(w, "account not authorized", http.StatusForbidden)
+}
+
+func (h *AuthHandler) redirectToLogin(w http.ResponseWriter, r *http.Request) {
 	base := h.auth.BaseURL()
 	if base == "" {
 		http.Error(w, "authentication required", http.StatusUnauthorized)
 		return
 	}
-
-	// Reconstruct the URL the user originally tried to reach so the OAuth
-	// callback can bounce them back there. Caddy's forward_auth sets these
-	// X-Forwarded-* headers on its subrequest to /auth/verify; reverse_proxy
-	// fills in X-Forwarded-Host from the original Host.
 	loginURL := base + "/auth/google/login"
 	if returnTo := reconstructOriginalURL(r); returnTo != "" && isSafeReturnTo(returnTo, base) {
 		loginURL += "?return_to=" + url.QueryEscape(returnTo)
 	}
 	http.Redirect(w, r, loginURL, http.StatusFound)
+}
+
+// baseHost returns the host portion of a base URL (without scheme, without
+// trailing port). Returns "" on parse failure.
+func baseHost(base string) string {
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
 }
 
 // reconstructOriginalURL builds the full URL the client was hitting before
@@ -215,8 +293,9 @@ func (h *AuthHandler) Middleware(next http.Handler) http.Handler {
 			http.Error(w, "authentication required", http.StatusUnauthorized)
 			return
 		}
-		if ok, _ := h.auth.IsAdmin(r.Context(), session.Email); !ok {
-			http.Error(w, "forbidden - not the admin", http.StatusForbidden)
+		ok, _ := h.auth.IsRegistered(r.Context(), session.Email)
+		if !ok {
+			http.Error(w, "account not authorized", http.StatusUnauthorized)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -230,3 +309,4 @@ func sessionCookieValue(r *http.Request) string {
 	}
 	return cookie.Value
 }
+
