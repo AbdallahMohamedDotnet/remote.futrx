@@ -97,3 +97,36 @@ Two rules to make it work:
 
 After you start a server, tell the user the public URL, not
 `http://localhost:<port>`.
+
+### Multi-line secrets (SSH keys, JSON service accounts, PEM certs)
+
+The Secrets value box accepts newlines — paste the whole PEM block, the
+whole JSON service account, the whole PKCS#1 blob. The value reaches
+this container as a single env var with the newlines intact, and lands
+in `/workspace/.env` with the newlines encoded as `\n` escape sequences
+(any dotenv library decodes them; raw `cat .env` shows the escapes).
+
+If you need the secret as a file (most ssh / gcloud / certbot use
+cases), write it yourself — don't try to source `.env` for those, the
+escape encoding will burn you:
+
+```bash
+# SSH private key
+mkdir -p /root/.ssh && chmod 700 /root/.ssh
+printf '%s\n' "$GITHUB_SSH_KEY" > /root/.ssh/id_ed25519
+chmod 600 /root/.ssh/id_ed25519
+ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null
+git clone git@github.com:org/repo.git    # works
+
+# GCP service account
+printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > /root/gcp-key.json
+export GOOGLE_APPLICATION_CREDENTIALS=/root/gcp-key.json
+```
+
+`printf '%s' "$VAR"` preserves the in-memory value byte-for-byte. Avoid
+`echo` for binary-ish content — some shells interpret backslash escapes.
+
+When you need a secret that isn't there yet, tell the user the exact
+canonical name (e.g. `GITHUB_SSH_KEY`, `GOOGLE_APPLICATION_CREDENTIALS_JSON`)
+and that they should paste the value — including newlines — into the
+project's **Containers → Secrets** UI.

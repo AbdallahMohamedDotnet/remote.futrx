@@ -311,20 +311,22 @@ function SecretEditor({
 
   return (
     <form onSubmit={submit} class="rounded-md border border-white/10 bg-white/[0.03] p-2.5 space-y-2">
-      <div class="grid gap-2 sm:grid-cols-[1fr_2fr_auto] items-stretch">
+      <div class="grid gap-2 sm:grid-cols-[1fr_2fr_auto] items-start">
         <input
           value={key}
           onInput={(e) => setKey((e.target as HTMLInputElement).value)}
           placeholder="KEY"
           class="h-9 px-2.5 rounded border border-white/10 bg-black/30 text-[13px] font-mono text-ink-50 placeholder-ink-400 focus:outline-none focus:border-accent-blue/50"
         />
-        <input
+        <textarea
           value={value}
-          onInput={(e) => setValue((e.target as HTMLInputElement).value)}
-          placeholder="value"
-          type="password"
+          onInput={(e) => setValue((e.target as HTMLTextAreaElement).value)}
+          placeholder="value (multi-line OK — paste PEM keys, JSON, etc.)"
+          rows={1}
+          spellcheck={false}
           autoComplete="off"
-          class="h-9 px-2.5 rounded border border-white/10 bg-black/30 text-[13px] font-mono text-ink-50 placeholder-ink-400 focus:outline-none focus:border-accent-blue/50"
+          class="min-h-9 max-h-48 px-2.5 py-1.5 rounded border border-white/10 bg-black/30 text-[13px] font-mono text-ink-50 placeholder-ink-400 focus:outline-none focus:border-accent-blue/50 resize-y leading-[1.45] overflow-y-auto"
+          style={{ fieldSizing: 'content' } as any}
         />
         <button
           type="submit"
@@ -410,12 +412,14 @@ function SecretRow({
         </span>
       </div>
       {editing ? (
-        <div class="flex items-center gap-2">
-          <input
+        <div class="flex items-start gap-2 flex-wrap">
+          <textarea
             value={draft}
-            onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
-            type={revealed ? "text" : "password"}
-            class="flex-1 h-8 px-2 rounded border border-white/10 bg-black/30 text-[12.5px] font-mono text-ink-50 focus:outline-none focus:border-accent-blue/50"
+            onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
+            rows={1}
+            spellcheck={false}
+            class="flex-1 min-h-8 max-h-48 px-2 py-1 rounded border border-white/10 bg-black/30 text-[12.5px] font-mono text-ink-50 focus:outline-none focus:border-accent-blue/50 resize-y leading-[1.45] overflow-y-auto"
+            style={{ fieldSizing: 'content' } as any}
           />
           <button
             type="button"
@@ -446,8 +450,12 @@ function SecretRow({
         </div>
       ) : (
         <div class="flex items-center gap-2">
-          <code class="flex-1 text-[12.5px] font-mono text-ink-100 break-all min-w-0">
-            {revealed ? secret.value : "•".repeat(Math.min(20, secret.value.length || 6))}
+          <code class="flex-1 text-[12.5px] font-mono text-ink-100 break-all min-w-0 whitespace-pre-wrap max-h-48 overflow-y-auto">
+            {revealed
+              ? secret.value
+              : hasNewlines(secret.value)
+                ? lineSummary(secret.value)
+                : "•".repeat(Math.min(20, secret.value.length || 6))}
           </code>
           <button
             type="button"
@@ -810,4 +818,16 @@ function fmtRelative(ts: number): string {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
+
+function hasNewlines(v: string): boolean {
+  for (let i = 0; i < v.length; i++) if (v.charCodeAt(i) === 10) return true;
+  return false;
+}
+
+function lineSummary(v: string): string {
+  let lines = 1;
+  for (let i = 0; i < v.length; i++) if (v.charCodeAt(i) === 10) lines++;
+  return '• ' + lines + ' lines •';
 }
