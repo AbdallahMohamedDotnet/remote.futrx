@@ -19,7 +19,7 @@ type ProjectResolver interface {
 type ContainerPreparer interface {
 	EnsureClaude(ctx context.Context, containerName string) error
 	EnsureClaudeAuth(ctx context.Context, containerName string) error
-	EnsureClaudeMD(ctx context.Context, containerName string) error
+	EnsureAgentInstructions(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error
 }

@@ -112,6 +112,9 @@ func (p *Provider) buildCmd(
 		if err := p.containers.EnsureCodexAuth(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("seed codex auth in container: %w", err)
 		}
+		if err := p.containers.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
+			return nil, "", fmt.Errorf("push agent instructions to container: %w", err)
+		}
 		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
 		}

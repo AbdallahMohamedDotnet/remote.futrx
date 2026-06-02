@@ -9,8 +9,10 @@ processes, deleted files only affect you.
 
 - `/workspace` - your project files. Persistent, survives container
   restarts and reprovisions.
-- `/root/.claude/CLAUDE.md` - this file. The host re-pushes it when
-  the template changes; don't edit it expecting changes to stick.
+- `/root/.claude/CLAUDE.md` AND `/root/.codex/AGENTS.md` - this file
+  (identical content, two paths so both Claude and Codex pick it up).
+  The host re-pushes both whenever the template changes; don't edit
+  them expecting changes to stick.
 - Everything else: ephemeral.
 
 ## Capabilities
@@ -25,7 +27,7 @@ processes, deleted files only affect you.
 ## Pre-installed tools
 
 `git`, `gh`, `openssh-client`, `jq`, `build-essential`,
-`python3` + `pip`, `node 20` + `npm`, `claude`. Anything else:
+`python3` + `pip`, `node 20` + `npm`, `claude`, `codex`. Anything else:
 `apt-get install` or `npm i -g` freely.
 
 **Persistence rule.** `/workspace/**` is a host bind-mount and survives
