@@ -6,18 +6,20 @@ import { ProjectGroup } from "./ProjectGroup";
 import { SidebarEmptyState, SidebarNoMatches } from "./SidebarEmptyState";
 import { WorkspaceSearch } from "./WorkspaceSearch";
 import { AccountFooter } from "./AccountFooter";
-import { Plus, X } from "../ui/icons";
+import { ChevronLeft, ChevronRight, Plus, Settings, X } from "../ui/icons";
 
 export function Sidebar({
   open,
   model,
   query,
   collapsed,
+  sidebarCollapsed,
   activeChatId,
   account,
   onClose,
   onQueryChange,
   onClearQuery,
+  onToggleSidebar,
   onNewProject,
   onNewChatInProject,
   onToggleProject,
@@ -33,11 +35,13 @@ export function Sidebar({
   model: WorkspaceSidebarModel;
   query: string;
   collapsed: Record<string, boolean>;
+  sidebarCollapsed: boolean;
   activeChatId: string | null;
   account?: { email: string; authenticated: boolean; noAuth: boolean };
   onClose: () => void;
   onQueryChange: (query: string) => void;
   onClearQuery: () => void;
+  onToggleSidebar: () => void;
   onNewProject: () => void;
   onNewChatInProject: (projectId?: string) => void;
   onToggleProject: (projectId: string) => void;
@@ -49,6 +53,9 @@ export function Sidebar({
   onOpenProjectContainers: (projectId: string) => void;
   onOpenSettings?: () => void;
 }) {
+  const sidebarWidth = sidebarCollapsed ? "md:w-[64px]" : "md:w-[300px]";
+  const expandedOnly = sidebarCollapsed ? "md:hidden" : "";
+
   return (
     <>
       <div
@@ -58,24 +65,35 @@ export function Sidebar({
       />
       <aside
         data-open={open ? "true" : "false"}
-        class={`codex-sidebar drawer-panel mobile-sheet safe-top fixed md:static z-40 inset-y-0 left-0 w-[min(92vw,380px)] md:w-[300px]
+        data-collapsed={sidebarCollapsed ? "true" : "false"}
+        class={`codex-sidebar drawer-panel mobile-sheet safe-top fixed md:static z-40 inset-y-0 left-0 w-[min(92vw,380px)] ${sidebarWidth}
                 ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0
-                bg-[#101318] border-r border-white/10 flex flex-col shadow-2xl md:shadow-none`}
+                bg-[#101318] border-r border-white/10 flex flex-col shadow-2xl md:shadow-none
+                transition-[width,transform] duration-200 ease-out`}
       >
-        <header class="px-3 pt-3 pb-2 border-b border-white/10">
-          <div class="flex items-center gap-2 min-h-11">
-            <div class="flex-1 min-w-0">
+        <header class={`px-3 pt-3 pb-2 border-b border-white/10 ${sidebarCollapsed ? "md:px-2" : ""}`}>
+          <div class={`flex items-center gap-2 min-h-11 ${sidebarCollapsed ? "md:justify-center" : ""}`}>
+            <div class={`flex-1 min-w-0 ${expandedOnly}`}>
               <div class="text-[11px] text-ink-300">Workspace</div>
               <div class="text-[15px] font-semibold text-ink-50 truncate">Projects</div>
             </div>
             <button
               type="button"
               onClick={onNewProject}
-              class="h-10 min-w-10 rounded-md bg-accent-blue text-white grid place-items-center hover:bg-accent-blue/90 active:scale-[0.98] transition"
+              class={`h-10 min-w-10 rounded-md bg-accent-blue text-white grid place-items-center hover:bg-accent-blue/90 active:scale-[0.98] transition ${expandedOnly}`}
               aria-label="New project"
               title="New project"
             >
               <Plus class="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              class="hidden md:grid h-10 w-10 rounded-md bg-white/5 text-ink-200 place-items-center hover:bg-white/[0.09] hover:text-ink-50 active:scale-[0.98] transition"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? <ChevronRight class="w-5 h-5" /> : <ChevronLeft class="w-5 h-5" />}
             </button>
             <button
               type="button"
@@ -88,10 +106,37 @@ export function Sidebar({
             </button>
           </div>
 
-          <WorkspaceSearch query={query} onQueryChange={onQueryChange} onClear={onClearQuery} />
+          <div class={expandedOnly}>
+            <WorkspaceSearch query={query} onQueryChange={onQueryChange} onClear={onClearQuery} />
+          </div>
         </header>
 
-        <div class="px-3 py-2 flex items-center justify-between gap-2 text-[12px] text-ink-300">
+        {sidebarCollapsed && (
+          <div class="hidden md:flex flex-col items-center gap-2 px-2 py-3 border-b border-white/10">
+            <button
+              type="button"
+              onClick={onNewProject}
+              class="h-10 w-10 rounded-md bg-accent-blue text-white grid place-items-center hover:bg-accent-blue/90 active:scale-[0.98] transition"
+              aria-label="New project"
+              title="New project"
+            >
+              <Plus class="w-5 h-5" />
+            </button>
+            {onOpenSettings && account && !account.noAuth && account.authenticated && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                class="h-10 w-10 rounded-md bg-white/5 text-ink-300 grid place-items-center hover:bg-white/[0.09] hover:text-ink-50 transition"
+                aria-label="Settings"
+                title="Settings"
+              >
+                <Settings class="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+
+        <div class={`px-3 py-2 flex items-center justify-between gap-2 text-[12px] text-ink-300 ${expandedOnly}`}>
           <span>
             {model.totalProjects} project{model.totalProjects === 1 ? "" : "s"}
             {" - "}
@@ -99,7 +144,7 @@ export function Sidebar({
           </span>
         </div>
 
-        <div class="flex-1 overflow-y-auto touch-scroll px-2 pb-3 space-y-2">
+        <div class={`flex-1 overflow-y-auto touch-scroll px-2 pb-3 space-y-2 ${expandedOnly}`}>
           {model.totalProjects === 0 && model.totalChats === 0 && (
             <SidebarEmptyState onNewProject={onNewProject} />
           )}
@@ -146,7 +191,9 @@ export function Sidebar({
         </div>
 
         {account && !account.noAuth && account.authenticated && (
-          <AccountFooter email={account.email} onOpenSettings={onOpenSettings} />
+          <div class={expandedOnly}>
+            <AccountFooter email={account.email} onOpenSettings={onOpenSettings} />
+          </div>
         )}
       </aside>
     </>

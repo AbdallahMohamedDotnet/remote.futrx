@@ -22,6 +22,7 @@ export function SidebarContainer() {
       model={model}
       query={sidebar.query}
       collapsed={sidebar.collapsed}
+      sidebarCollapsed={sidebar.sidebarCollapsed}
       activeChatId={workspace.ui.activeChatId}
       account={{
         email: auth.email,
@@ -31,6 +32,7 @@ export function SidebarContainer() {
       onClose={workspace.closeSidebar}
       onQueryChange={sidebar.setQuery}
       onClearQuery={() => sidebar.setQuery("")}
+      onToggleSidebar={sidebar.toggleSidebarCollapsed}
       onNewProject={commands.newProject}
       onNewChatInProject={commands.newChatInProject}
       onToggleProject={sidebar.toggleCollapsed}
