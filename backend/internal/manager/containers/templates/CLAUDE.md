@@ -50,14 +50,14 @@ env | cut -d= -f1 | grep -E '_(TOKEN|KEY|SECRET|PASSWORD)$|^(GITHUB|CLOUDFLARE|H
 cat /workspace/.env 2>/dev/null
 ```
 
-If you need a token that isn't set, ask the user to add it via **this
+If you need a credential that isn't set, ask the user to add it via **this
 project's Containers → Secrets** in the web UI. Use the canonical
 env-var name the upstream CLI expects — never invent your own. Common
 ones:
 
 | Provider | Env var | Generate at |
 |---|---|---|
-| GitHub | `GITHUB_TOKEN` | https://github.com/settings/personal-access-tokens |
+| GitHub (git clone / push) | `GITHUB_SSH_KEY` (paste the **private** key — full PEM, including BEGIN/END lines) | https://github.com/settings/keys → "New SSH key" (paste the matching public key) |
 | Cloudflare | `CLOUDFLARE_API_TOKEN` | https://dash.cloudflare.com/profile/api-tokens |
 | Hetzner Cloud | `HCLOUD_TOKEN` | console.hetzner.cloud → Security → API Tokens |
 | OpenAI | `OPENAI_API_KEY` | https://platform.openai.com/api-keys |
@@ -68,7 +68,7 @@ ones:
 
 New values are live on your *next* shell. Already-running processes
 (dev servers you started earlier, etc.) keep their old environ — kill
-and restart them to pick up new tokens.
+and restart them to pick up new credentials.
 
 ## Dev servers — there is no localhost, there is a public URL
 
