@@ -21,21 +21,22 @@ type AuthRegistrar interface {
 }
 
 type Handlers struct {
-	Sessions     RouteRegistrar
-	Chats        RouteRegistrar
-	Projects     RouteRegistrar
-	ClaudeAuth   RouteRegistrar
-	CodexAuth    RouteRegistrar
-	UserSettings RouteRegistrar
-	Skills       RouteRegistrar
-	Uploads      RouteRegistrar
-	TmuxWS       WebSocketRegistrar
-	TerminalWS   WebSocketRegistrar
-	ChatWS       WebSocketRegistrar
-	WorkspaceWS  WebSocketRegistrar
-	CodexAuthWS  WebSocketRegistrar
-	Auth         AuthRegistrar
-	Static       http.Handler
+	Sessions         RouteRegistrar
+	Chats            RouteRegistrar
+	Projects         RouteRegistrar
+	ClaudeAuth       RouteRegistrar
+	CodexAuth        RouteRegistrar
+	UserSettings     RouteRegistrar
+	Skills           RouteRegistrar
+	BrowserInspector RouteRegistrar
+	Uploads          RouteRegistrar
+	TmuxWS           WebSocketRegistrar
+	TerminalWS       WebSocketRegistrar
+	ChatWS           WebSocketRegistrar
+	WorkspaceWS      WebSocketRegistrar
+	CodexAuthWS      WebSocketRegistrar
+	Auth             AuthRegistrar
+	Static           http.Handler
 }
 
 func NewHandler(handlers Handlers) http.Handler {
@@ -54,6 +55,7 @@ func NewHandler(handlers Handlers) http.Handler {
 	register(handlers.CodexAuth)
 	register(handlers.UserSettings)
 	register(handlers.Skills)
+	register(handlers.BrowserInspector)
 	register(handlers.Uploads)
 
 	upgrader := NewUpgrader()

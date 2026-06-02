@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ContainerApp } from "../../models/project";
-import { ExternalLink, Loader, Monitor, RotateCcw, X } from "../ui/icons";
+import { Crosshair, ExternalLink, Loader, Monitor, RotateCcw, X } from "../ui/icons";
 
 const browserWidthKey = "remote.futrx.browserDrawerWidth";
 const defaultBrowserWidth = 720;
@@ -23,6 +23,31 @@ function buildUrl(slug: string, port: number | null): string {
   return `https://${slug}--${port}.dev.remote.futrx.dev`;
 }
 
+function buildInspectorUrl(url: string): string {
+  if (!url || typeof window === "undefined") return "";
+  const inspector = new URL("/__remote_inspector", url);
+  inspector.searchParams.set("target", "/");
+  inspector.searchParams.set("parent", window.location.origin);
+  return inspector.toString();
+}
+
+export interface BrowserElementCapture {
+  url: string;
+  title?: string;
+  selector: string;
+  tag: string;
+  id?: string;
+  classes?: string[];
+  role?: string;
+  ariaLabel?: string;
+  text?: string;
+  html?: string;
+  rect?: { x: number; y: number; width: number; height: number };
+  viewport?: { width: number; height: number };
+  styles?: Record<string, string>;
+  parents?: string[];
+}
+
 export function BrowserDrawer({
   open,
   projectName,
@@ -32,6 +57,7 @@ export function BrowserDrawer({
   selectedPort,
   onSelectPort,
   onRefreshApps,
+  onCaptureElement,
   onClose,
 }: {
   open: boolean;
@@ -42,19 +68,66 @@ export function BrowserDrawer({
   selectedPort: number | null;
   onSelectPort: (port: number | null) => void;
   onRefreshApps: () => void;
+  onCaptureElement: (capture: BrowserElementCapture) => void;
   onClose: () => void;
 }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [browserWidth, setBrowserWidth] = useState(readBrowserWidth);
   const [resizing, setResizing] = useState(false);
+  const [inspectMode, setInspectMode] = useState(false);
+  const [useInspectorFrame, setUseInspectorFrame] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const url = useMemo(() => buildUrl(projectSlug, selectedPort), [projectSlug, selectedPort]);
+  const inspectorUrl = useMemo(() => buildInspectorUrl(url), [url]);
+  const iframeUrl = useInspectorFrame && inspectorUrl ? inspectorUrl : url;
+  const frameOrigin = useMemo(() => {
+    if (!url) return "";
+    try {
+      return new URL(url).origin;
+    } catch {
+      return "";
+    }
+  }, [url]);
   const canLoad = !!url;
 
   useEffect(() => {
     window.localStorage.setItem(browserWidthKey, String(browserWidth));
   }, [browserWidth]);
+
+  useEffect(() => {
+    if (!open || !canLoad) {
+      setInspectMode(false);
+      setUseInspectorFrame(false);
+    }
+  }, [canLoad, open]);
+
+  useEffect(() => {
+    setInspectMode(false);
+    setUseInspectorFrame(false);
+  }, [url]);
+
+  useEffect(() => {
+    if (!inspectMode || !frameOrigin) return;
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== frameOrigin) return;
+      const data = event.data as { type?: string; payload?: BrowserElementCapture };
+      if (!data || typeof data.type !== "string") return;
+      if (data.type === "remote-inspector:ready") {
+        postInspectState(inspectMode);
+      } else if (data.type === "remote-inspector:element-selected" && data.payload) {
+        onCaptureElement(data.payload);
+        setInspectMode(false);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [frameOrigin, inspectMode, onCaptureElement]);
+
+  useEffect(() => {
+    postInspectState(inspectMode);
+  }, [inspectMode, iframeUrl]);
 
   useEffect(() => {
     if (!open) return;
@@ -102,6 +175,22 @@ export function BrowserDrawer({
     window.addEventListener("pointermove", resize, { passive: false });
     window.addEventListener("pointerup", finishResize);
     window.addEventListener("pointercancel", finishResize);
+  }
+
+  function postInspectState(enabled: boolean) {
+    if (!frameOrigin) return;
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "remote-inspector:set-enabled", enabled },
+      frameOrigin
+    );
+  }
+
+  function toggleInspectMode() {
+    setInspectMode((enabled) => {
+      const next = !enabled;
+      if (next) setUseInspectorFrame(true);
+      return next;
+    });
   }
 
   function appLabel(app: ContainerApp): string {
@@ -189,6 +278,21 @@ export function BrowserDrawer({
 
           <button
             type="button"
+            onClick={toggleInspectMode}
+            disabled={!canLoad}
+            class={`h-9 w-9 rounded-md border grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed
+                    ${inspectMode
+                      ? "bg-accent-blue/[0.18] border-accent-blue/35 text-accent-blue"
+                      : "bg-white/5 hover:bg-white/[0.09] border-white/10 text-ink-200"}`}
+            title="Inspect element"
+            aria-label="Inspect element"
+            aria-pressed={inspectMode}
+          >
+            <Crosshair class="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
             onClick={() => setReloadKey((value) => value + 1)}
             disabled={!canLoad}
             class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed"
@@ -235,9 +339,11 @@ export function BrowserDrawer({
         <div class="flex-1 min-h-0 bg-white">
           {canLoad ? (
             <iframe
-              key={`${url}:${reloadKey}`}
-              src={url}
+              ref={iframeRef}
+              key={`${iframeUrl}:${reloadKey}`}
+              src={iframeUrl}
               title={`Browser preview for ${projectName || "container"}`}
+              onLoad={() => postInspectState(inspectMode)}
               class={`h-full w-full border-0 bg-white ${resizing ? "pointer-events-none" : ""}`}
               allow="clipboard-read; clipboard-write"
             />

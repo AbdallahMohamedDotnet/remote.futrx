@@ -58,6 +58,12 @@ code.${HOSTNAME} {
     handle @internal {
         respond 403
     }
+    # The Browser drawer's inspect mode serves a wrapper from the same dev
+    # subdomain as the previewed app, so it can inspect iframe DOM and post
+    # selected element metadata back to the main chat UI.
+    handle /__remote_inspector {
+        reverse_proxy 127.0.0.1:${SERVICE_PORT}
+    }
     @valid {
         header_regexp host Host ^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.${HOSTNAME_RE}$
     }

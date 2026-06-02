@@ -2,7 +2,7 @@ import type { ComponentType } from "preact";
 import { useEffect, useRef, useState, useCallback } from "preact/hooks";
 import type { ChatMeta, ChatMode, ChatProvider, ReasoningEffort } from "../models/chat";
 import type { ContainerApp, ProjectMeta } from "../models/project";
-import { BrowserDrawer } from "../components/chat/BrowserDrawer";
+import { BrowserDrawer, type BrowserElementCapture } from "../components/chat/BrowserDrawer";
 import { ChatThread } from "../components/chat/ChatThread";
 import { projectService } from "../services/projectService";
 import { useChat } from "../hooks/chat/useChat";
@@ -245,6 +245,20 @@ export function ChatContainer({
     void loadContainerApps();
   }
 
+  function insertBrowserElementContext(capture: BrowserElementCapture) {
+    const insertion = `\n\n${formatBrowserElementCapture(capture)}\n\n`;
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? text.length;
+    const end = textarea?.selectionEnd ?? start;
+    const next = `${text.slice(0, start)}${insertion}${text.slice(end)}`;
+    setText(next);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      const pos = start + insertion.length;
+      textareaRef.current?.setSelectionRange(pos, pos);
+    }, 0);
+  }
+
   return (
     <div class="relative flex-1 h-full min-h-0 overflow-hidden">
       <div class="flex h-full min-h-0 w-full overflow-hidden">
@@ -320,6 +334,7 @@ export function ChatContainer({
           selectedPort={selectedAppPort}
           onSelectPort={setSelectedAppPort}
           onRefreshApps={() => void loadContainerApps()}
+          onCaptureElement={insertBrowserElementContext}
           onClose={() => setBrowserOpen(false)}
         />
       </div>
@@ -383,6 +398,39 @@ function isProjectDevUrl(raw: string, slug: string): boolean {
 function validDevPort(port: string): boolean {
   const value = Number(port);
   return Number.isInteger(value) && value >= 1024 && value <= 65535;
+}
+
+function formatBrowserElementCapture(capture: BrowserElementCapture): string {
+  const lines = [
+    "[Browser element]",
+    `URL: ${capture.url || ""}`,
+  ];
+  if (capture.title) lines.push(`Title: ${capture.title}`);
+  lines.push(`Selector: ${capture.selector || ""}`);
+  lines.push(`Tag: ${capture.tag || ""}`);
+  if (capture.id) lines.push(`ID: ${capture.id}`);
+  if (capture.classes?.length) lines.push(`Classes: ${capture.classes.join(" ")}`);
+  if (capture.role) lines.push(`Role: ${capture.role}`);
+  if (capture.ariaLabel) lines.push(`ARIA label: ${capture.ariaLabel}`);
+  if (capture.rect) {
+    lines.push(`Box: x=${capture.rect.x} y=${capture.rect.y} w=${capture.rect.width} h=${capture.rect.height}`);
+  }
+  if (capture.viewport) {
+    lines.push(`Viewport: ${capture.viewport.width}x${capture.viewport.height}`);
+  }
+  if (capture.parents?.length) {
+    lines.push(`Parents: ${capture.parents.join(" > ")}`);
+  }
+  if (capture.styles && Object.keys(capture.styles).length) {
+    lines.push("Styles:");
+    for (const [key, value] of Object.entries(capture.styles)) {
+      if (value) lines.push(`- ${key}: ${value}`);
+    }
+  }
+  if (capture.text) lines.push(`Text: ${capture.text}`);
+  if (capture.html) lines.push(`HTML: ${capture.html}`);
+  lines.push("[/Browser element]");
+  return lines.join("\n");
 }
 
 function portFromChatUrl(url: string): number | null {
