@@ -1,5 +1,21 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { ExternalLink, Monitor, RotateCcw, X } from "../ui/icons";
+
+const browserWidthKey = "remote.futrx.browserDrawerWidth";
+const defaultBrowserWidth = 720;
+const minBrowserWidth = 360;
+const maxBrowserWidth = 1100;
+const minChatWidth = 360;
+
+function clampWidth(width: number, maxWidth = maxBrowserWidth): number {
+  return Math.min(Math.max(width, minBrowserWidth), Math.max(minBrowserWidth, maxWidth));
+}
+
+function readBrowserWidth(): number {
+  if (typeof window === "undefined") return defaultBrowserWidth;
+  const stored = Number(window.localStorage.getItem(browserWidthKey));
+  return Number.isFinite(stored) ? clampWidth(stored) : defaultBrowserWidth;
+}
 
 export function BrowserDrawer({
   open,
@@ -13,16 +29,73 @@ export function BrowserDrawer({
   onClose: () => void;
 }) {
   const [reloadKey, setReloadKey] = useState(0);
+  const [browserWidth, setBrowserWidth] = useState(readBrowserWidth);
+  const [resizing, setResizing] = useState(false);
+  const asideRef = useRef<HTMLElement>(null);
   const canLoad = !!url;
+
+  useEffect(() => {
+    window.localStorage.setItem(browserWidthKey, String(browserWidth));
+  }, [browserWidth]);
+
+  function handleResizeStart(event: PointerEvent) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    setResizing(true);
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function finishResize() {
+      setResizing(false);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", finishResize);
+      window.removeEventListener("pointercancel", finishResize);
+    }
+
+    function resize(moveEvent: PointerEvent) {
+      const container = asideRef.current?.parentElement;
+      const bounds = container?.getBoundingClientRect();
+      if (!bounds) return;
+
+      const availableWidth = Math.max(minBrowserWidth, bounds.width - minChatWidth);
+      const nextWidth = bounds.right - moveEvent.clientX;
+      setBrowserWidth(clampWidth(nextWidth, Math.min(maxBrowserWidth, availableWidth)));
+    }
+
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", finishResize);
+    window.addEventListener("pointercancel", finishResize);
+  }
 
   return (
     <aside
+      ref={asideRef}
       class={`relative z-20 h-full flex-none overflow-hidden bg-[#0f1014]
-              border-l border-white/10 shadow-2xl transition-[width,opacity] duration-200 ease-out
-              ${open ? "w-full sm:w-[min(58vw,980px)] lg:w-[min(48vw,980px)] opacity-100" : "w-0 opacity-0 border-l-0 pointer-events-none"}`}
+              border-l border-white/10 shadow-2xl
+              ${resizing ? "transition-none" : "transition-[width,opacity] duration-200 ease-out"}
+              ${open ? "opacity-100" : "opacity-0 border-l-0 pointer-events-none"}`}
+      style={{
+        width: open ? `${browserWidth}px` : "0px",
+        maxWidth: "100vw",
+      }}
       aria-hidden={!open}
       aria-label="Browser preview"
     >
+      <button
+        type="button"
+        onPointerDown={handleResizeStart}
+        class={`hidden sm:block absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize touch-none
+                ${resizing ? "bg-accent-blue/35" : "bg-transparent hover:bg-accent-blue/25"}`}
+        title="Resize browser preview"
+        aria-label="Resize browser preview"
+      >
+        <span class="absolute left-1/2 top-1/2 h-12 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/30" />
+      </button>
       <div
         class={`h-full min-h-0 w-full flex flex-col transition-transform duration-200 ease-out
                 ${open ? "translate-x-0" : "translate-x-full"}`}
@@ -94,7 +167,7 @@ export function BrowserDrawer({
               key={`${url}:${reloadKey}`}
               src={url}
               title={`Browser preview for ${projectName || "container"}`}
-              class="h-full w-full border-0 bg-white"
+              class={`h-full w-full border-0 bg-white ${resizing ? "pointer-events-none" : ""}`}
               allow="clipboard-read; clipboard-write"
             />
           ) : (
