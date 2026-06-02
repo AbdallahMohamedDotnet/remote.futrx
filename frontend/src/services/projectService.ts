@@ -1,5 +1,6 @@
 import { json } from "../api/http";
 import type {
+  ContainerApp,
   ProjectContainerInfo,
   ProjectMeta,
   ProjectSecret,
@@ -19,6 +20,8 @@ export const projectService = {
     json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/stop`, {}),
   containerInfo: (id: string) =>
     json<ProjectContainerInfo>("GET", `/api/projects/${encodeURIComponent(id)}/container`),
+  listApps: (id: string) =>
+    json<ContainerApp[]>("GET", `/api/projects/${encodeURIComponent(id)}/apps`),
   listSecrets: (id: string) =>
     json<ProjectSecret[]>("GET", `/api/projects/${encodeURIComponent(id)}/secrets`),
   setSecret: (id: string, key: string, value: string) =>

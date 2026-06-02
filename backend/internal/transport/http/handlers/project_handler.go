@@ -104,6 +104,20 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 			httptransport.SendJSON(w, http.StatusOK, info)
+		case "apps":
+			if r.Method != http.MethodGet {
+				httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+				return
+			}
+			apps, err := h.projects.ListContainerApps(r.Context(), id)
+			if err != nil {
+				sendProjectError(w, err)
+				return
+			}
+			if apps == nil {
+				apps = []serviceproject.ContainerApp{}
+			}
+			httptransport.SendJSON(w, http.StatusOK, apps)
 		default:
 			httptransport.SendErr(w, http.StatusNotFound, "unknown action")
 		}

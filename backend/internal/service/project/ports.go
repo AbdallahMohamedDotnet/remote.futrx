@@ -20,6 +20,7 @@ type ContainerManager interface {
 	Delete(ctx context.Context, containerName string) error
 	State(ctx context.Context, containerName string) (ContainerState, error)
 	Inspect(ctx context.Context, containerName string) (ContainerInspect, error)
+	ListListeners(ctx context.Context, containerName string) ([]ContainerApp, error)
 	// ApplyContainerEnvDiff sets / unsets LXD environment.<KEY> entries on the
 	// container so subsequent `lxc exec` sessions inherit the vars. Used by
 	// the project-secrets flow to ship per-project tokens (Cloudflare, GitHub,

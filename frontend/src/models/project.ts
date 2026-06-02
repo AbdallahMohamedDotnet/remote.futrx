@@ -128,3 +128,10 @@ export interface ProjectSecret {
   value: string;
   updatedAt: number;
 }
+
+export interface ContainerApp {
+  port: number;
+  address?: string;
+  process?: string;
+  pid?: number;
+}

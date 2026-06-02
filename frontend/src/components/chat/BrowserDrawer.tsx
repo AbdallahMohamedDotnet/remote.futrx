@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "preact/hooks";
-import { ExternalLink, Monitor, RotateCcw, X } from "../ui/icons";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import type { ContainerApp } from "../../models/project";
+import { ExternalLink, Loader, Monitor, RotateCcw, X } from "../ui/icons";
 
 const browserWidthKey = "remote.futrx.browserDrawerWidth";
 const defaultBrowserWidth = 720;
@@ -17,21 +18,38 @@ function readBrowserWidth(): number {
   return Number.isFinite(stored) ? clampWidth(stored) : defaultBrowserWidth;
 }
 
+function buildUrl(slug: string, port: number | null): string {
+  if (!slug || !port) return "";
+  return `https://${slug}--${port}.dev.remote.futrx.dev`;
+}
+
 export function BrowserDrawer({
   open,
   projectName,
-  url,
+  projectSlug,
+  apps,
+  appsLoading,
+  selectedPort,
+  onSelectPort,
+  onRefreshApps,
   onClose,
 }: {
   open: boolean;
   projectName: string;
-  url: string;
+  projectSlug: string;
+  apps: ContainerApp[];
+  appsLoading: boolean;
+  selectedPort: number | null;
+  onSelectPort: (port: number | null) => void;
+  onRefreshApps: () => void;
   onClose: () => void;
 }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [browserWidth, setBrowserWidth] = useState(readBrowserWidth);
   const [resizing, setResizing] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
+
+  const url = useMemo(() => buildUrl(projectSlug, selectedPort), [projectSlug, selectedPort]);
   const canLoad = !!url;
 
   useEffect(() => {
@@ -58,33 +76,34 @@ export function BrowserDrawer({
     }
 
     function resize(moveEvent: PointerEvent) {
-      const container = asideRef.current?.parentElement;
-      const bounds = container?.getBoundingClientRect();
-      if (!bounds) return;
-
-      const availableWidth = Math.max(minBrowserWidth, bounds.width - minChatWidth);
-      const nextWidth = bounds.right - moveEvent.clientX;
-      setBrowserWidth(clampWidth(nextWidth, Math.min(maxBrowserWidth, availableWidth)));
+      const aside = asideRef.current;
+      if (!aside) return;
+      const right = aside.getBoundingClientRect().right;
+      const next = right - moveEvent.clientX;
+      const maxByViewport = Math.max(minBrowserWidth, window.innerWidth - minChatWidth);
+      setBrowserWidth(clampWidth(next, maxByViewport));
     }
 
-    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointermove", resize, { passive: false });
     window.addEventListener("pointerup", finishResize);
     window.addEventListener("pointercancel", finishResize);
+  }
+
+  function appLabel(app: ContainerApp): string {
+    const name = app.process?.trim() || "process";
+    return `${name} · :${app.port}`;
   }
 
   return (
     <aside
       ref={asideRef}
-      class={`relative z-20 h-full flex-none overflow-hidden bg-[#0f1014]
-              border-l border-white/10 shadow-2xl
-              ${resizing ? "transition-none" : "transition-[width,opacity] duration-200 ease-out"}
-              ${open ? "opacity-100" : "opacity-0 border-l-0 pointer-events-none"}`}
+      class={`fixed inset-y-0 right-0 z-30 bg-[#101318] border-l border-white/10
+              ${open ? "shadow-2xl" : "shadow-none pointer-events-none"}`}
       style={{
-        width: open ? `${browserWidth}px` : "0px",
+        width: `min(${browserWidth}px, calc(100vw - ${minChatWidth}px))`,
         maxWidth: "100vw",
       }}
       aria-hidden={!open}
-      aria-label="Browser preview"
     >
       <button
         type="button"
@@ -109,20 +128,55 @@ export function BrowserDrawer({
               <h2 class="truncate text-[15px] md:text-base font-semibold text-ink-50">
                 Browser
               </h2>
-              <span class={`h-2 w-2 rounded-full flex-none ${canLoad ? "bg-accent-green" : "bg-ink-400"}`} />
+              <span
+                class={`h-2 w-2 rounded-full flex-none ${canLoad ? "bg-accent-green" : "bg-ink-400"}`}
+              />
             </div>
-            <div class="truncate text-[12px] text-ink-300">
-              {canLoad ? url : projectName || "No project container"}
-            </div>
+            {apps.length > 0 ? (
+              <select
+                value={selectedPort ?? ""}
+                onChange={(e) => {
+                  const v = (e.target as HTMLSelectElement).value;
+                  onSelectPort(v ? Number(v) : null);
+                }}
+                class="mt-0.5 max-w-full truncate bg-transparent text-[12px] text-ink-300 hover:text-ink-100 focus:outline-none focus:text-ink-100 cursor-pointer"
+                title={url || "Pick a running app"}
+              >
+                {apps.map((app) => (
+                  <option key={app.port} value={app.port} class="bg-[#191a1f] text-ink-100">
+                    {appLabel(app)}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div class="truncate text-[12px] text-ink-300">
+                {appsLoading
+                  ? "Looking for running apps…"
+                  : projectName
+                    ? `No apps listening in ${projectName}`
+                    : "No project container"}
+              </div>
+            )}
           </div>
+
+          <button
+            type="button"
+            onClick={onRefreshApps}
+            disabled={appsLoading}
+            class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:cursor-wait"
+            title="Refresh running apps"
+            aria-label="Refresh running apps"
+          >
+            {appsLoading ? <Loader class="w-4 h-4 animate-spin" /> : <RotateCcw class="w-4 h-4" />}
+          </button>
 
           <button
             type="button"
             onClick={() => setReloadKey((value) => value + 1)}
             disabled={!canLoad}
             class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Reload"
-            aria-label="Reload browser"
+            title="Reload iframe"
+            aria-label="Reload iframe"
           >
             <RotateCcw class="w-4 h-4" />
           </button>
@@ -172,7 +226,14 @@ export function BrowserDrawer({
             />
           ) : (
             <div class="h-full w-full bg-[#0b0d11] grid place-items-center px-6 text-center text-sm text-ink-300">
-              No public dev URL found in this chat yet.
+              <div class="max-w-sm space-y-2">
+                <div class="text-ink-200 font-medium">No running apps</div>
+                <div class="text-[12.5px] leading-relaxed">
+                  Tell the agent to start a dev server (it&apos;ll bind to{" "}
+                  <code class="font-mono text-ink-100">0.0.0.0</code> on any port).
+                  Click the refresh icon and pick it from the dropdown.
+                </div>
+              </div>
             </div>
           )}
         </div>

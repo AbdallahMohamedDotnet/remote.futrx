@@ -155,3 +155,13 @@ type AuthBundleFileStatus struct {
 	HostNewer       bool   `json:"hostNewer"`
 	ContainerNewer  bool   `json:"containerNewer"`
 }
+
+// ContainerApp describes one externally-reachable TCP listener inside the
+// project's container. Surfaced by Service.ListContainerApps and used by
+// the frontend's Browser drawer to populate a pick list of running apps.
+type ContainerApp struct {
+	Port    int    `json:"port"`
+	Address string `json:"address,omitempty"`
+	Process string `json:"process,omitempty"`
+	PID     int    `json:"pid,omitempty"`
+}

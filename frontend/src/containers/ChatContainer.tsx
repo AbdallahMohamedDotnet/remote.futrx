@@ -1,9 +1,10 @@
 import type { ComponentType } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState, useCallback } from "preact/hooks";
 import type { ChatMeta, ChatMode, ChatProvider, ReasoningEffort } from "../models/chat";
-import type { ProjectMeta } from "../models/project";
+import type { ContainerApp, ProjectMeta } from "../models/project";
 import { BrowserDrawer } from "../components/chat/BrowserDrawer";
 import { ChatThread } from "../components/chat/ChatThread";
+import { projectService } from "../services/projectService";
 import { useChat } from "../hooks/chat/useChat";
 import { useAttachmentUpload } from "../hooks/chat/useAttachmentUpload";
 import { useAutosizeTextarea } from "../hooks/chat/useAutosizeTextarea";
@@ -61,6 +62,9 @@ export function ChatContainer({
   const [text, setText] = useState("");
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [containerApps, setContainerApps] = useState<ContainerApp[]>([]);
+  const [appsLoading, setAppsLoading] = useState(false);
+  const [selectedAppPort, setSelectedAppPort] = useState<number | null>(null);
   const [TerminalOverlay, setTerminalOverlay] = useState<TerminalOverlayComponent | null>(null);
   const readMarkerRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -203,12 +207,42 @@ export function ChatContainer({
     metaActions.applyMeta({ reasoningEffort });
   }
 
+  const loadContainerApps = useCallback(async () => {
+    if (!displayMeta.projectId) {
+      setContainerApps([]);
+      setSelectedAppPort(null);
+      return;
+    }
+    setAppsLoading(true);
+    try {
+      const apps = await projectService.listApps(displayMeta.projectId);
+      setContainerApps(apps);
+      setSelectedAppPort((prev) => {
+        if (apps.length === 0) return null;
+        // Prefer keeping the current selection if it's still listening.
+        if (prev != null && apps.some((app) => app.port === prev)) return prev;
+        // Else fall back to a port the agent recently mentioned in chat.
+        const hinted = portFromChatUrl(browserUrl);
+        if (hinted != null && apps.some((app) => app.port === hinted)) return hinted;
+        // Else pick the highest-numbered port — usually the user-bound app
+        // rather than a system service (ssh, systemd-resolved, etc.).
+        return apps[apps.length - 1].port;
+      });
+    } catch {
+      setContainerApps([]);
+      setSelectedAppPort(null);
+    } finally {
+      setAppsLoading(false);
+    }
+  }, [displayMeta.projectId, browserUrl]);
+
   function openBrowserDrawer() {
     if (!displayMeta.projectId) {
       alert("This chat is not attached to a project container.");
       return;
     }
     setBrowserOpen(true);
+    void loadContainerApps();
   }
 
   return (
@@ -280,7 +314,12 @@ export function ChatContainer({
         <BrowserDrawer
           open={browserOpen}
           projectName={browserProject?.name || ""}
-          url={browserUrl}
+          projectSlug={browserProject?.slug || ""}
+          apps={containerApps}
+          appsLoading={appsLoading}
+          selectedPort={selectedAppPort}
+          onSelectPort={setSelectedAppPort}
+          onRefreshApps={() => void loadContainerApps()}
           onClose={() => setBrowserOpen(false)}
         />
       </div>
@@ -344,4 +383,9 @@ function isProjectDevUrl(raw: string, slug: string): boolean {
 function validDevPort(port: string): boolean {
   const value = Number(port);
   return Number.isInteger(value) && value >= 1024 && value <= 65535;
+}
+
+function portFromChatUrl(url: string): number | null {
+  const m = /--(\d{4,5})\./.exec(url);
+  return m ? Number(m[1]) : null;
 }
