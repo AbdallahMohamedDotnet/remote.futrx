@@ -1,7 +1,6 @@
 import { json } from "../api/http";
 import type {
   ProjectContainerInfo,
-  ProjectDBViewer,
   ProjectMeta,
   ProjectSecret,
 } from "../models/project";
@@ -20,8 +19,6 @@ export const projectService = {
     json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/stop`, {}),
   containerInfo: (id: string) =>
     json<ProjectContainerInfo>("GET", `/api/projects/${encodeURIComponent(id)}/container`),
-  openDBViewer: (id: string) =>
-    json<ProjectDBViewer>("POST", `/api/projects/${encodeURIComponent(id)}/db-viewer`, {}),
   listSecrets: (id: string) =>
     json<ProjectSecret[]>("GET", `/api/projects/${encodeURIComponent(id)}/secrets`),
   setSecret: (id: string, key: string, value: string) =>

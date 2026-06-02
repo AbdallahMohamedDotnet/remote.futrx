@@ -26,9 +26,7 @@ export function ThreadHeader({
   onCommitCwd,
   onCancelCwdEdit,
   onOpenTerminal,
-  onOpenDatabase,
   onOpenBrowser,
-  openingDatabase,
   onHamburger,
 }: {
   chat: ChatMeta;
@@ -49,9 +47,7 @@ export function ThreadHeader({
   onCommitCwd: () => void;
   onCancelCwdEdit: () => void;
   onOpenTerminal: () => void;
-  onOpenDatabase: () => void;
   onOpenBrowser: () => void;
-  openingDatabase: boolean;
   onHamburger: () => void;
 }) {
   return (
@@ -108,9 +104,7 @@ export function ThreadHeader({
           onCommit={onCommitCwd}
           onCancel={onCancelCwdEdit}
           onOpenTerminal={onOpenTerminal}
-          onOpenDatabase={onOpenDatabase}
           onOpenBrowser={onOpenBrowser}
-          openingDatabase={openingDatabase}
         />
         <UsagePill totals={usageTotals} tokenLabel={tokenLabel} costUsd={costUsd} />
       </div>

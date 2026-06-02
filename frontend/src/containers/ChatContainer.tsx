@@ -13,7 +13,6 @@ import { usePromptQueue } from "../hooks/chat/usePromptQueue";
 import { useThreadHeaderState } from "../hooks/chat/useThreadHeaderState";
 import { useThreadScroll } from "../hooks/chat/useThreadScroll";
 import { chatService } from "../services/chatService";
-import { projectService } from "../services/projectService";
 import {
   estimateCost,
   formatTokens,
@@ -62,7 +61,6 @@ export function ChatContainer({
   const [text, setText] = useState("");
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
-  const [openingDatabase, setOpeningDatabase] = useState(false);
   const [TerminalOverlay, setTerminalOverlay] = useState<TerminalOverlayComponent | null>(null);
   const readMarkerRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,7 +92,6 @@ export function ChatContainer({
     setText("");
     setTerminalOpen(false);
     setBrowserOpen(false);
-    setOpeningDatabase(false);
     scroll.unlockAutoScroll();
   }, [chat.id]);
 
@@ -214,102 +211,79 @@ export function ChatContainer({
     setBrowserOpen(true);
   }
 
-  async function openDatabaseViewer() {
-    if (!displayMeta.projectId) {
-      alert("This chat is not attached to a project container.");
-      return;
-    }
-    if (openingDatabase) return;
-
-    const popup = window.open("", "_blank");
-    setOpeningDatabase(true);
-    try {
-      const viewer = await projectService.openDBViewer(displayMeta.projectId);
-      if (popup) {
-        popup.opener = null;
-        popup.location.href = viewer.url;
-      } else {
-        window.open(viewer.url, "_blank", "noopener,noreferrer");
-      }
-    } catch (dbError) {
-      if (popup) popup.close();
-      alert("open db viewer failed: " + (dbError as Error).message);
-    } finally {
-      setOpeningDatabase(false);
-    }
-  }
-
   return (
     <div class="relative flex-1 h-full min-h-0 overflow-hidden">
-      <ChatThread
-        chat={displayMeta}
-        blocks={blocks}
-        hasOlder={hasOlder}
-        loadingOlder={loadingOlder}
-        status={status}
-        error={error}
-        canSendPrompt={canSendPrompt}
-        streaming={status === "streaming"}
-        mode={displayMode}
-        queuedPrompts={queue.queuedPrompts}
-        attachments={upload.attachments}
-        uploading={upload.uploading}
-        dragging={drag.dragging}
-        text={text}
-        textareaRef={textareaRef}
-        fileInputRef={fileInputRef}
-        showJump={scroll.showJump}
-        scrollRef={scroll.scrollRef}
-        contentRef={scroll.contentRef}
-        bottomRef={scroll.bottomRef}
-        header={{
-          modelRef: header.modelRef,
-          modelOpen: header.modelOpen,
-          modelOptions: modelOptionsForProvider(displayProvider),
-          modelDisplayLabel: (model) => modelDisplayLabel(model, displayProvider),
-          editingCwd: header.editingCwd,
-          cwdInput: header.cwdInput,
-          onToggleModel: () => header.setModelOpen(!header.modelOpen),
-          onPickModel: pickModel,
-          onStartEditCwd: () => header.setEditingCwd(true),
-          onCwdInput: header.setCwdInput,
-          onCommitCwd: header.commitCwd,
-          onCancelCwdEdit: header.cancelCwdEdit,
-        }}
-        usageTotals={usageTotals}
-        tokenLabel={tokenLabel}
-        costUsd={costUsd}
-        onHamburger={onHamburger}
-        onScroll={scroll.onScroll}
-        onJumpToBottom={scroll.jumpToBottom}
-        onAnswerQuestion={(answer) => {
-          const sent = sendPrompt(answer);
-          if (sent) scroll.unlockAutoScroll();
-        }}
-        onLoadOlder={loadOlder}
-        onRewind={handleRewind}
-        onTextChange={setText}
-        onFilesSelected={upload.doUpload}
-        onPaste={handlePaste}
-        onSend={handleSend}
-        onCancel={cancel}
-        onRemoveQueued={queue.removeQueuedPrompt}
-        onRemoveAttachment={upload.removeAttachment}
-        onProviderChange={changeProvider}
-        onModelChange={(model) => metaActions.applyMeta({ model })}
-        onModeChange={changeMode}
-        onReasoningEffortChange={changeReasoningEffort}
-        onOpenTerminal={() => setTerminalOpen(true)}
-        onOpenBrowser={openBrowserDrawer}
-        onOpenDatabase={openDatabaseViewer}
-        openingDatabase={openingDatabase}
-      />
-      <BrowserDrawer
-        open={browserOpen}
-        projectName={browserProject?.name || ""}
-        url={browserUrl}
-        onClose={() => setBrowserOpen(false)}
-      />
+      <div class="flex h-full min-h-0 w-full overflow-hidden">
+        <div class="min-w-0 flex-1 h-full">
+          <ChatThread
+            chat={displayMeta}
+            blocks={blocks}
+            hasOlder={hasOlder}
+            loadingOlder={loadingOlder}
+            status={status}
+            error={error}
+            canSendPrompt={canSendPrompt}
+            streaming={status === "streaming"}
+            mode={displayMode}
+            queuedPrompts={queue.queuedPrompts}
+            attachments={upload.attachments}
+            uploading={upload.uploading}
+            dragging={drag.dragging}
+            text={text}
+            textareaRef={textareaRef}
+            fileInputRef={fileInputRef}
+            showJump={scroll.showJump}
+            scrollRef={scroll.scrollRef}
+            contentRef={scroll.contentRef}
+            bottomRef={scroll.bottomRef}
+            header={{
+              modelRef: header.modelRef,
+              modelOpen: header.modelOpen,
+              modelOptions: modelOptionsForProvider(displayProvider),
+              modelDisplayLabel: (model) => modelDisplayLabel(model, displayProvider),
+              editingCwd: header.editingCwd,
+              cwdInput: header.cwdInput,
+              onToggleModel: () => header.setModelOpen(!header.modelOpen),
+              onPickModel: pickModel,
+              onStartEditCwd: () => header.setEditingCwd(true),
+              onCwdInput: header.setCwdInput,
+              onCommitCwd: header.commitCwd,
+              onCancelCwdEdit: header.cancelCwdEdit,
+            }}
+            usageTotals={usageTotals}
+            tokenLabel={tokenLabel}
+            costUsd={costUsd}
+            onHamburger={onHamburger}
+            onScroll={scroll.onScroll}
+            onJumpToBottom={scroll.jumpToBottom}
+            onAnswerQuestion={(answer) => {
+              const sent = sendPrompt(answer);
+              if (sent) scroll.unlockAutoScroll();
+            }}
+            onLoadOlder={loadOlder}
+            onRewind={handleRewind}
+            onTextChange={setText}
+            onFilesSelected={upload.doUpload}
+            onPaste={handlePaste}
+            onSend={handleSend}
+            onCancel={cancel}
+            onRemoveQueued={queue.removeQueuedPrompt}
+            onRemoveAttachment={upload.removeAttachment}
+            onProviderChange={changeProvider}
+            onModelChange={(model) => metaActions.applyMeta({ model })}
+            onModeChange={changeMode}
+            onReasoningEffortChange={changeReasoningEffort}
+            onOpenTerminal={() => setTerminalOpen(true)}
+            onOpenBrowser={openBrowserDrawer}
+          />
+        </div>
+        <BrowserDrawer
+          open={browserOpen}
+          projectName={browserProject?.name || ""}
+          url={browserUrl}
+          onClose={() => setBrowserOpen(false)}
+        />
+      </div>
       {TerminalOverlay && (
         <TerminalOverlay
           chat={displayMeta}

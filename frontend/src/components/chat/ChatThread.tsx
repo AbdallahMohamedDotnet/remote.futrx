@@ -54,8 +54,6 @@ export function ChatThread({
   onReasoningEffortChange,
   onOpenTerminal,
   onOpenBrowser,
-  onOpenDatabase,
-  openingDatabase,
 }: {
   chat: ChatMeta;
   blocks: Block[];
@@ -115,8 +113,6 @@ export function ChatThread({
   onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
-  onOpenDatabase: () => void;
-  openingDatabase: boolean;
 }) {
   return (
     <div class="codex-thread flex-1 h-full flex flex-col min-h-0 overflow-hidden bg-[#0b0d11]">
@@ -140,8 +136,6 @@ export function ChatThread({
         onCancelCwdEdit={header.onCancelCwdEdit}
         onOpenTerminal={onOpenTerminal}
         onOpenBrowser={onOpenBrowser}
-        onOpenDatabase={onOpenDatabase}
-        openingDatabase={openingDatabase}
         onHamburger={onHamburger}
       />
 

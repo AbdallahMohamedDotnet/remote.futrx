@@ -2,7 +2,6 @@ package project
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strings"
 )
@@ -237,32 +236,6 @@ func (s *Service) InspectContainer(ctx context.Context, id ID) (ContainerInspect
 		return ContainerInspect{Name: m.ContainerName}, nil
 	}
 	return s.containers.Inspect(ctx, m.ContainerName)
-}
-
-func (s *Service) OpenDBViewer(ctx context.Context, id ID) (DBViewer, error) {
-	if !ValidID(id) {
-		return DBViewer{}, ErrInvalidID
-	}
-	m, err := s.repo.Get(ctx, id)
-	if err != nil {
-		return DBViewer{}, err
-	}
-	if s.containers == nil || m.ContainerName == "" {
-		return DBViewer{}, fmt.Errorf("project has no container")
-	}
-	if m.Status != StatusRunning {
-		if _, err := s.Start(ctx, id); err != nil {
-			return DBViewer{}, err
-		}
-	}
-	if err := s.containers.EnsureDBViewer(ctx, m.ContainerName); err != nil {
-		return DBViewer{}, err
-	}
-	return DBViewer{
-		URL:           fmt.Sprintf("https://%s--%d.dev.remote.futrx.dev", m.Slug, DBViewerPort),
-		Port:          DBViewerPort,
-		ContainerName: m.ContainerName,
-	}, nil
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {

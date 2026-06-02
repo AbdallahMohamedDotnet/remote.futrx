@@ -41,14 +41,6 @@ type UpdateInput struct {
 	Name *string `json:"name,omitempty"`
 }
 
-const DBViewerPort = 18080
-
-type DBViewer struct {
-	URL           string `json:"url"`
-	Port          int    `json:"port"`
-	ContainerName string `json:"containerName"`
-}
-
 func ValidID(id ID) bool {
 	if len(id) < 4 || len(id) > 32 {
 		return false

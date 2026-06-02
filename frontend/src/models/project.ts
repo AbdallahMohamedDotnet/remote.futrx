@@ -128,9 +128,3 @@ export interface ProjectSecret {
   value: string;
   updatedAt: number;
 }
-
-export interface ProjectDBViewer {
-  url: string;
-  port: number;
-  containerName: string;
-}
