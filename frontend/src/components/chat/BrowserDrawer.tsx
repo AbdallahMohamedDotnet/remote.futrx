@@ -56,6 +56,20 @@ export function BrowserDrawer({
     window.localStorage.setItem(browserWidthKey, String(browserWidth));
   }, [browserWidth]);
 
+  useEffect(() => {
+    if (!open) return;
+    function clampToContainer() {
+      const container = asideRef.current?.parentElement;
+      const bounds = container?.getBoundingClientRect();
+      if (!bounds) return;
+      const availableWidth = Math.min(maxBrowserWidth, Math.max(minBrowserWidth, bounds.width - minChatWidth));
+      setBrowserWidth((width) => clampWidth(width, availableWidth));
+    }
+    clampToContainer();
+    window.addEventListener("resize", clampToContainer);
+    return () => window.removeEventListener("resize", clampToContainer);
+  }, [open]);
+
   function handleResizeStart(event: PointerEvent) {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -76,12 +90,13 @@ export function BrowserDrawer({
     }
 
     function resize(moveEvent: PointerEvent) {
-      const aside = asideRef.current;
-      if (!aside) return;
-      const right = aside.getBoundingClientRect().right;
-      const next = right - moveEvent.clientX;
-      const maxByViewport = Math.max(minBrowserWidth, window.innerWidth - minChatWidth);
-      setBrowserWidth(clampWidth(next, maxByViewport));
+      const container = asideRef.current?.parentElement;
+      const bounds = container?.getBoundingClientRect();
+      if (!bounds) return;
+
+      const availableWidth = Math.min(maxBrowserWidth, Math.max(minBrowserWidth, bounds.width - minChatWidth));
+      const next = bounds.right - moveEvent.clientX;
+      setBrowserWidth(clampWidth(next, availableWidth));
     }
 
     window.addEventListener("pointermove", resize, { passive: false });
@@ -97,13 +112,15 @@ export function BrowserDrawer({
   return (
     <aside
       ref={asideRef}
-      class={`fixed inset-y-0 right-0 z-30 bg-[#101318] border-l border-white/10
-              ${open ? "shadow-2xl" : "shadow-none pointer-events-none"}`}
+      class={`relative z-20 h-full flex-none overflow-hidden bg-[#101318] border-l border-white/10
+              ${resizing ? "transition-none" : "transition-[width,opacity] duration-200 ease-out"}
+              ${open ? "opacity-100 shadow-2xl" : "opacity-0 border-l-0 shadow-none pointer-events-none"}`}
       style={{
-        width: `min(${browserWidth}px, calc(100vw - ${minChatWidth}px))`,
-        maxWidth: "100vw",
+        width: open ? `${browserWidth}px` : "0px",
+        maxWidth: open ? `max(${minBrowserWidth}px, calc(100% - ${minChatWidth}px))` : "0px",
       }}
       aria-hidden={!open}
+      aria-label="Browser preview"
     >
       <button
         type="button"
