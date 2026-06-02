@@ -11,6 +11,7 @@ import (
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
+	serviceskills "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/skills"
 	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
 )
 
@@ -49,6 +50,7 @@ type Services struct {
 	Workspace    *workspacehub.Hub
 	Auth         *serviceauth.Service
 	UserSettings *serviceusersettings.Service
+	Skills       *serviceskills.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -91,6 +93,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		return Services{}, err
 	}
 	userSettingsService := serviceusersettings.New(deps.UserSettings)
+	skillService := serviceskills.New()
 
 	return Services{
 		Chats:        chatService,
@@ -100,6 +103,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Workspace:    workspace,
 		Auth:         authService,
 		UserSettings: userSettingsService,
+		Skills:       skillService,
 	}, nil
 }
 

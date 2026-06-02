@@ -1,0 +1,214 @@
+package skills
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+const skillFileName = "SKILL.md"
+
+type Service struct {
+	claudeHome string
+	codexHome  string
+}
+
+type rootSpec struct {
+	path   string
+	source string
+}
+
+func New() *Service {
+	return NewWithHomes(defaultClaudeHome(), defaultCodexHome())
+}
+
+func NewWithHomes(claudeHome, codexHome string) *Service {
+	return &Service{
+		claudeHome: claudeHome,
+		codexHome:  codexHome,
+	}
+}
+
+func (s *Service) List(ctx context.Context, provider Provider) ([]Skill, error) {
+	switch provider {
+	case ProviderClaude, ProviderCodex:
+	default:
+		return nil, ErrInvalidProvider
+	}
+
+	var skills []Skill
+	for _, root := range s.roots(provider) {
+		if err := collectSkills(ctx, provider, root, &skills); err != nil {
+			return nil, err
+		}
+	}
+	if skills == nil {
+		skills = []Skill{}
+	}
+
+	sort.Slice(skills, func(i, j int) bool {
+		left := strings.ToLower(skills[i].Name)
+		right := strings.ToLower(skills[j].Name)
+		if left == right {
+			return skills[i].Source < skills[j].Source
+		}
+		return left < right
+	})
+	return skills, nil
+}
+
+func (s *Service) roots(provider Provider) []rootSpec {
+	switch provider {
+	case ProviderClaude:
+		return []rootSpec{
+			{path: filepath.Join(s.claudeHome, "skills"), source: "user"},
+			{path: filepath.Join(s.claudeHome, "plugins", "cache"), source: "plugin"},
+		}
+	case ProviderCodex:
+		return []rootSpec{
+			{path: filepath.Join(s.codexHome, "skills"), source: "user"},
+			{path: filepath.Join(s.codexHome, "plugins", "cache"), source: "plugin"},
+		}
+	default:
+		return nil
+	}
+}
+
+func collectSkills(ctx context.Context, provider Provider, root rootSpec, out *[]Skill) error {
+	if root.path == "" {
+		return nil
+	}
+	if _, err := os.Stat(root.path); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("stat skills root %s: %w", root.path, err)
+	}
+
+	return filepath.WalkDir(root.path, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if d.IsDir() || d.Name() != skillFileName {
+			return nil
+		}
+
+		skill, err := readSkillFile(path)
+		if err != nil {
+			return nil
+		}
+		if skill.Name == "" {
+			skill.Name = filepath.Base(filepath.Dir(path))
+		}
+		skill.Name = strings.TrimSpace(skill.Name)
+		if skill.Name == "" {
+			return nil
+		}
+		skill.Provider = provider
+		skill.Source = sourceForPath(root, path)
+		*out = append(*out, skill)
+		return nil
+	})
+}
+
+func readSkillFile(path string) (Skill, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Skill{}, err
+	}
+	if len(data) > 64*1024 {
+		data = data[:64*1024]
+	}
+	return parseSkillMetadata(data), nil
+}
+
+func parseSkillMetadata(data []byte) Skill {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(make([]byte, 0, 4096), 64*1024)
+
+	var skill Skill
+	inFrontMatter := false
+	sawFrontMatter := false
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "---" {
+			if !sawFrontMatter {
+				sawFrontMatter = true
+				inFrontMatter = true
+				continue
+			}
+			break
+		}
+		if !inFrontMatter {
+			if strings.HasPrefix(line, "# ") && skill.Name == "" {
+				skill.Name = strings.TrimSpace(strings.TrimPrefix(line, "# "))
+			}
+			continue
+		}
+
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		value = cleanYAMLScalar(value)
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "name":
+			skill.Name = value
+		case "description":
+			skill.Description = value
+		}
+	}
+	return skill
+}
+
+func cleanYAMLScalar(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) >= 2 {
+		first := value[0]
+		last := value[len(value)-1]
+		if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+			value = value[1 : len(value)-1]
+		}
+	}
+	return strings.TrimSpace(value)
+}
+
+func sourceForPath(root rootSpec, path string) string {
+	rel, err := filepath.Rel(root.path, path)
+	if err != nil {
+		return root.source
+	}
+	if strings.HasPrefix(rel, ".system"+string(filepath.Separator)) {
+		return "system"
+	}
+	return root.source
+}
+
+func defaultClaudeHome() string {
+	if value := os.Getenv("CLAUDE_CONFIG_DIR"); value != "" {
+		return value
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		return filepath.Join(home, ".claude")
+	}
+	return "/root/.claude"
+}
+
+func defaultCodexHome() string {
+	if value := os.Getenv("CODEX_HOME"); value != "" {
+		return value
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		return filepath.Join(home, ".codex")
+	}
+	return "/root/.codex"
+}

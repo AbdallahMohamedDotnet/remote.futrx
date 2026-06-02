@@ -1,6 +1,7 @@
 import type { ChatMode, ChatProvider, ReasoningEffort } from "../../models/chat";
 import { composerModelOptionsForProvider, MODE_OPTIONS, PROVIDER_OPTIONS, REASONING_EFFORT_OPTIONS } from "../../state/chat/usage";
 import { Clock } from "../ui/icons";
+import { SkillPicker } from "./SkillPicker";
 
 export function ComposerToolbar({
   model,
@@ -8,6 +9,7 @@ export function ComposerToolbar({
   mode,
   reasoningEffort,
   streaming,
+  onInsertSkill,
   onProviderChange,
   onModelChange,
   onModeChange,
@@ -18,6 +20,7 @@ export function ComposerToolbar({
   mode: ChatMode;
   reasoningEffort: ReasoningEffort;
   streaming: boolean;
+  onInsertSkill: (skillName: string) => void;
   onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
@@ -26,7 +29,12 @@ export function ComposerToolbar({
   const modelOptions = composerModelOptionsForProvider(provider);
   return (
     <div class="codex-composer-controls px-3 pt-2 pb-1.5">
-      <div class="w-full flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div class="w-full flex items-center gap-2 flex-wrap">
+        <SkillPicker
+          provider={provider}
+          onSelect={(skill) => onInsertSkill(skill.name)}
+        />
+
         <label class="codex-model-control inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
           <span class="hidden sm:inline text-ink-400">Provider</span>
           <select

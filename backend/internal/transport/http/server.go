@@ -27,6 +27,7 @@ type Handlers struct {
 	ClaudeAuth   RouteRegistrar
 	CodexAuth    RouteRegistrar
 	UserSettings RouteRegistrar
+	Skills       RouteRegistrar
 	Uploads      RouteRegistrar
 	TmuxWS       WebSocketRegistrar
 	TerminalWS   WebSocketRegistrar
@@ -52,6 +53,7 @@ func NewHandler(handlers Handlers) http.Handler {
 	register(handlers.ClaudeAuth)
 	register(handlers.CodexAuth)
 	register(handlers.UserSettings)
+	register(handlers.Skills)
 	register(handlers.Uploads)
 
 	upgrader := NewUpgrader()

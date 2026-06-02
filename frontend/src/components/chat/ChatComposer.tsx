@@ -66,6 +66,19 @@ export function ChatComposer({
   const hasContent = text.trim().length > 0 || attachments.some((attachment) => attachment.serverPath);
   const canSend = !uploading && !disconnected && hasContent;
 
+  function insertSkill(skillName: string) {
+    const mention = `$${skillName} `;
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? text.length;
+    const end = textarea?.selectionEnd ?? start;
+    const next = `${text.slice(0, start)}${mention}${text.slice(end)}`;
+    onTextChange(next);
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(start + mention.length, start + mention.length);
+    }, 0);
+  }
+
   return (
     <div class="codex-composer-shell flex-none z-20 relative bg-[#0b0d11] border-t border-white/10">
       {dragging && (
@@ -83,6 +96,7 @@ export function ChatComposer({
         mode={mode}
         reasoningEffort={reasoningEffort}
         streaming={streaming}
+        onInsertSkill={insertSkill}
         onProviderChange={onProviderChange}
         onModelChange={onModelChange}
         onModeChange={onModeChange}
