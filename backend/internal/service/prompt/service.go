@@ -146,6 +146,7 @@ func (rnr *Service) runPrompt(
 	if resumeID == "" {
 		effectivePrompt = promptWithVisibleHistory(priorEvents, effectivePrompt)
 	}
+	effectivePrompt = promptWithSelectedSkills(providerID, meta.SelectedSkills, effectivePrompt)
 
 	provider := rnr.agents[providerID]
 	if provider == nil {
@@ -221,6 +222,58 @@ func promptWithVisibleHistory(events []ChatEvent, prompt string) string {
 		transcript +
 		"\n\nCurrent user request:\n" +
 		prompt
+}
+
+func promptWithSelectedSkills(provider agent.ProviderID, skills []servicechat.SkillRef, prompt string) string {
+	if len(skills) == 0 {
+		return prompt
+	}
+
+	triggers := make([]string, 0, len(skills))
+	for _, skill := range skills {
+		if providerIDFromChatProvider(skill.Provider) != provider {
+			continue
+		}
+		name := skillTriggerName(skill.Command)
+		if name == "" {
+			name = skillTriggerName(skill.Name)
+		}
+		if name == "" {
+			continue
+		}
+
+		switch provider {
+		case agent.ProviderClaude:
+			triggers = append(triggers, "/"+name)
+		case agent.ProviderCodex:
+			triggers = append(triggers, "$"+name)
+		}
+	}
+	if len(triggers) == 0 {
+		return prompt
+	}
+
+	switch provider {
+	case agent.ProviderClaude:
+		return strings.Join(triggers, "\n") + "\n\n" + prompt
+	case agent.ProviderCodex:
+		return "Use these Codex skills for this request: " + strings.Join(triggers, " ") + "\n\n" + prompt
+	default:
+		return prompt
+	}
+}
+
+func skillTriggerName(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.TrimLeft(value, "/$")
+	if value == "" {
+		return ""
+	}
+	parts := strings.Fields(value)
+	if len(parts) <= 1 {
+		return value
+	}
+	return strings.Join(parts, "-")
 }
 
 func visibleTranscript(events []ChatEvent) string {

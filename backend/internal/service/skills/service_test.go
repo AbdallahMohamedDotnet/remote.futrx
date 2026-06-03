@@ -32,8 +32,8 @@ description: Triage GitHub work.
 	if len(got) != 1 {
 		t.Fatalf("expected only the user-authored skill, got %#v", got)
 	}
-	if got[0].Name != "Custom Skill" || got[0].Source != "user" {
-		t.Fatalf("unexpected skill: %#v", got[0])
+	if got[0].Name != "Custom Skill" || got[0].Command != "custom" || got[0].Source != "user" {
+		t.Fatalf("unexpected skill metadata: %#v", got[0])
 	}
 }
 

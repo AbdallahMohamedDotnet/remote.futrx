@@ -1,4 +1,5 @@
-import type { ChatProvider } from "../../../models/chat";
+import type { ChatProvider, SelectedSkill } from "../../../models/chat";
+import type { RegisteredSkill } from "../../../models/skill";
 import { modelOptionsForProvider } from "../../../state/chat/usage";
 import { ComposerModelPicker } from "./ComposerModelPicker";
 import { ProviderToggle } from "./ProviderToggle";
@@ -9,7 +10,8 @@ export function ComposerToolbar({
   model,
   provider,
   streaming,
-  onInsertSkill,
+  selectedSkills,
+  onSelectSkill,
   onProviderChange,
   onModelChange,
 }: {
@@ -17,11 +19,13 @@ export function ComposerToolbar({
   model: string;
   provider: ChatProvider;
   streaming: boolean;
-  onInsertSkill: (skillName: string) => void;
+  selectedSkills: SelectedSkill[];
+  onSelectSkill: (skill: RegisteredSkill) => void;
   onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
 }) {
   const modelOptions = modelOptionsForProvider(provider);
+  const selectedCount = selectedSkills.length;
   return (
     <div class="codex-composer-primary-controls px-3 pt-2 pb-1">
       <div class="flex w-full min-w-0 flex-wrap items-center gap-1.5">
@@ -42,7 +46,8 @@ export function ComposerToolbar({
         <SkillPicker
           provider={provider}
           projectId={projectId}
-          onSelect={(skill) => onInsertSkill(skill.name)}
+          selectedCount={selectedCount}
+          onSelect={(skill) => onSelectSkill(skill)}
         />
       </div>
     </div>

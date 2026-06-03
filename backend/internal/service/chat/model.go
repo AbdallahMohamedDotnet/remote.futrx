@@ -17,21 +17,29 @@ const (
 )
 
 type Meta struct {
-	ID              ID        `json:"id"`
-	Title           string    `json:"title"`
-	Provider        Provider  `json:"provider,omitempty"`
-	ClaudeSessionID string    `json:"claudeSessionId,omitempty"`
-	CodexSessionID  string    `json:"codexSessionId,omitempty"`
-	TmuxSession     string    `json:"tmuxSession,omitempty"`
-	Cwd             string    `json:"cwd,omitempty"`
-	CreatedAt       int64     `json:"createdAt"`
-	LastMessageAt   int64     `json:"lastMessageAt"`
-	LastReadAt      int64     `json:"lastReadAt,omitempty"`
-	Running         bool      `json:"running,omitempty"`
-	Model           string    `json:"model,omitempty"`
-	Mode            string    `json:"mode,omitempty"`
-	ReasoningEffort string    `json:"reasoningEffort,omitempty"`
-	ProjectID       ProjectID `json:"projectId,omitempty"`
+	ID              ID         `json:"id"`
+	Title           string     `json:"title"`
+	Provider        Provider   `json:"provider,omitempty"`
+	ClaudeSessionID string     `json:"claudeSessionId,omitempty"`
+	CodexSessionID  string     `json:"codexSessionId,omitempty"`
+	TmuxSession     string     `json:"tmuxSession,omitempty"`
+	Cwd             string     `json:"cwd,omitempty"`
+	CreatedAt       int64      `json:"createdAt"`
+	LastMessageAt   int64      `json:"lastMessageAt"`
+	LastReadAt      int64      `json:"lastReadAt,omitempty"`
+	Running         bool       `json:"running,omitempty"`
+	Model           string     `json:"model,omitempty"`
+	Mode            string     `json:"mode,omitempty"`
+	ReasoningEffort string     `json:"reasoningEffort,omitempty"`
+	ProjectID       ProjectID  `json:"projectId,omitempty"`
+	SelectedSkills  []SkillRef `json:"selectedSkills,omitempty"`
+}
+
+type SkillRef struct {
+	Name     string   `json:"name"`
+	Command  string   `json:"command,omitempty"`
+	Provider Provider `json:"provider,omitempty"`
+	Source   string   `json:"source,omitempty"`
 }
 
 type Event struct {
@@ -69,23 +77,25 @@ type EventPage struct {
 }
 
 type CreateInput struct {
-	Title           string    `json:"title,omitempty"`
-	TmuxSession     string    `json:"tmuxSession,omitempty"`
-	Cwd             string    `json:"cwd,omitempty"`
-	Provider        Provider  `json:"provider,omitempty"`
-	Model           string    `json:"model,omitempty"`
-	Mode            string    `json:"mode,omitempty"`
-	ReasoningEffort string    `json:"reasoningEffort,omitempty"`
-	ProjectID       ProjectID `json:"projectId,omitempty"`
+	Title           string     `json:"title,omitempty"`
+	TmuxSession     string     `json:"tmuxSession,omitempty"`
+	Cwd             string     `json:"cwd,omitempty"`
+	Provider        Provider   `json:"provider,omitempty"`
+	Model           string     `json:"model,omitempty"`
+	Mode            string     `json:"mode,omitempty"`
+	ReasoningEffort string     `json:"reasoningEffort,omitempty"`
+	ProjectID       ProjectID  `json:"projectId,omitempty"`
+	SelectedSkills  []SkillRef `json:"selectedSkills,omitempty"`
 }
 
 type UpdateInput struct {
-	Title           *string   `json:"title,omitempty"`
-	Cwd             *string   `json:"cwd,omitempty"`
-	Provider        *Provider `json:"provider,omitempty"`
-	Model           *string   `json:"model,omitempty"`
-	Mode            *string   `json:"mode,omitempty"`
-	ReasoningEffort *string   `json:"reasoningEffort,omitempty"`
+	Title           *string     `json:"title,omitempty"`
+	Cwd             *string     `json:"cwd,omitempty"`
+	Provider        *Provider   `json:"provider,omitempty"`
+	Model           *string     `json:"model,omitempty"`
+	Mode            *string     `json:"mode,omitempty"`
+	ReasoningEffort *string     `json:"reasoningEffort,omitempty"`
+	SelectedSkills  *[]SkillRef `json:"selectedSkills,omitempty"`
 }
 
 func NormalizeProvider(provider Provider) Provider {
@@ -110,6 +120,48 @@ func NormalizeReasoningEffort(effort string) string {
 	default:
 		return ""
 	}
+}
+
+func NormalizeSelectedSkills(skills []SkillRef, fallbackProvider Provider) []SkillRef {
+	fallbackProvider = NormalizeProvider(fallbackProvider)
+	seen := map[string]bool{}
+	normalized := make([]SkillRef, 0, len(skills))
+	for _, skill := range skills {
+		name := strings.TrimSpace(skill.Name)
+		command := strings.TrimSpace(skill.Command)
+		source := strings.TrimSpace(skill.Source)
+		if command == "" {
+			command = name
+		}
+		if name == "" {
+			name = command
+		}
+		if name == "" || command == "" {
+			continue
+		}
+
+		provider := skill.Provider
+		if provider == "" {
+			provider = fallbackProvider
+		} else {
+			provider = NormalizeProvider(provider)
+		}
+		key := strings.ToLower(string(provider)) + "\x00" + strings.ToLower(source) + "\x00" + strings.ToLower(command)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		normalized = append(normalized, SkillRef{
+			Name:     name,
+			Command:  command,
+			Provider: provider,
+			Source:   source,
+		})
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }
 
 func ValidID(id ID) bool {

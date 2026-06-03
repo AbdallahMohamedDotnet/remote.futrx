@@ -7,20 +7,28 @@ import (
 )
 
 type metaRecord struct {
-	ID              string `json:"id"`
-	Title           string `json:"title"`
-	Provider        string `json:"provider,omitempty"`
-	ClaudeSessionID string `json:"claudeSessionId,omitempty"`
-	CodexSessionID  string `json:"codexSessionId,omitempty"`
-	TmuxSession     string `json:"tmuxSession,omitempty"`
-	Cwd             string `json:"cwd,omitempty"`
-	CreatedAt       int64  `json:"createdAt"`
-	LastMessageAt   int64  `json:"lastMessageAt"`
-	LastReadAt      int64  `json:"lastReadAt,omitempty"`
-	Model           string `json:"model,omitempty"`
-	Mode            string `json:"mode,omitempty"`
-	ReasoningEffort string `json:"reasoningEffort,omitempty"`
-	ProjectID       string `json:"projectId,omitempty"`
+	ID              string           `json:"id"`
+	Title           string           `json:"title"`
+	Provider        string           `json:"provider,omitempty"`
+	ClaudeSessionID string           `json:"claudeSessionId,omitempty"`
+	CodexSessionID  string           `json:"codexSessionId,omitempty"`
+	TmuxSession     string           `json:"tmuxSession,omitempty"`
+	Cwd             string           `json:"cwd,omitempty"`
+	CreatedAt       int64            `json:"createdAt"`
+	LastMessageAt   int64            `json:"lastMessageAt"`
+	LastReadAt      int64            `json:"lastReadAt,omitempty"`
+	Model           string           `json:"model,omitempty"`
+	Mode            string           `json:"mode,omitempty"`
+	ReasoningEffort string           `json:"reasoningEffort,omitempty"`
+	ProjectID       string           `json:"projectId,omitempty"`
+	SelectedSkills  []skillRefRecord `json:"selectedSkills,omitempty"`
+}
+
+type skillRefRecord struct {
+	Name     string `json:"name"`
+	Command  string `json:"command,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	Source   string `json:"source,omitempty"`
 }
 
 func metaRecordFromDomain(m servicechat.Meta) metaRecord {
@@ -39,6 +47,7 @@ func metaRecordFromDomain(m servicechat.Meta) metaRecord {
 		Mode:            m.Mode,
 		ReasoningEffort: m.ReasoningEffort,
 		ProjectID:       string(m.ProjectID),
+		SelectedSkills:  skillRefRecordsFromDomain(m.SelectedSkills),
 	}
 }
 
@@ -47,10 +56,11 @@ func (r metaRecord) toDomain() servicechat.Meta {
 	if lastReadAt == 0 {
 		lastReadAt = r.LastMessageAt
 	}
+	provider := servicechat.NormalizeProvider(servicechat.Provider(r.Provider))
 	return servicechat.Meta{
 		ID:              servicechat.ID(r.ID),
 		Title:           r.Title,
-		Provider:        servicechat.NormalizeProvider(servicechat.Provider(r.Provider)),
+		Provider:        provider,
 		ClaudeSessionID: r.ClaudeSessionID,
 		CodexSessionID:  r.CodexSessionID,
 		TmuxSession:     r.TmuxSession,
@@ -62,7 +72,40 @@ func (r metaRecord) toDomain() servicechat.Meta {
 		Mode:            r.Mode,
 		ReasoningEffort: servicechat.NormalizeReasoningEffort(r.ReasoningEffort),
 		ProjectID:       servicechat.ProjectID(r.ProjectID),
+		SelectedSkills:  servicechat.NormalizeSelectedSkills(skillRefRecordsToDomain(r.SelectedSkills), provider),
 	}
+}
+
+func skillRefRecordsFromDomain(skills []servicechat.SkillRef) []skillRefRecord {
+	if len(skills) == 0 {
+		return nil
+	}
+	records := make([]skillRefRecord, 0, len(skills))
+	for _, skill := range skills {
+		records = append(records, skillRefRecord{
+			Name:     skill.Name,
+			Command:  skill.Command,
+			Provider: string(skill.Provider),
+			Source:   skill.Source,
+		})
+	}
+	return records
+}
+
+func skillRefRecordsToDomain(records []skillRefRecord) []servicechat.SkillRef {
+	if len(records) == 0 {
+		return nil
+	}
+	skills := make([]servicechat.SkillRef, 0, len(records))
+	for _, record := range records {
+		skills = append(skills, servicechat.SkillRef{
+			Name:     record.Name,
+			Command:  record.Command,
+			Provider: servicechat.Provider(record.Provider),
+			Source:   record.Source,
+		})
+	}
+	return skills
 }
 
 type eventRecord struct {

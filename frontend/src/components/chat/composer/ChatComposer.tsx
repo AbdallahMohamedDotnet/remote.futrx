@@ -1,5 +1,6 @@
 import type { RefObject } from "preact";
-import type { ChatMode, ChatProvider, QueuedPrompt, ReasoningEffort } from "../../../models/chat";
+import type { ChatMode, ChatProvider, QueuedPrompt, ReasoningEffort, SelectedSkill } from "../../../models/chat";
+import type { RegisteredSkill } from "../../../models/skill";
 import type { Attachment } from "../../../models/upload";
 import { AttachmentTray } from "./AttachmentTray";
 import { AttachButton } from "./AttachButton";
@@ -8,6 +9,7 @@ import { ComposerOptionsRow } from "./ComposerOptionsRow";
 import { ComposerToolbar } from "./ComposerToolbar";
 import { PromptTextarea } from "./PromptTextarea";
 import { QueuedPromptList } from "./QueuedPromptList";
+import { SelectedSkillChips } from "./SelectedSkillChips";
 import { SendControls } from "./SendControls";
 
 export function ChatComposer({
@@ -19,6 +21,7 @@ export function ChatComposer({
   mode,
   reasoningEffort,
   queuedPrompts,
+  selectedSkills,
   attachments,
   uploading,
   dragging,
@@ -35,6 +38,8 @@ export function ChatComposer({
   onProviderChange,
   onModelChange,
   onModeChange,
+  onSelectSkill,
+  onRemoveSelectedSkill,
   onReasoningEffortChange,
 }: {
   chatId: string;
@@ -46,6 +51,7 @@ export function ChatComposer({
   mode: ChatMode;
   reasoningEffort: ReasoningEffort;
   queuedPrompts: QueuedPrompt[];
+  selectedSkills: SelectedSkill[];
   draftText?: string;
   draftKey?: number;
   attachments: Attachment[];
@@ -64,24 +70,13 @@ export function ChatComposer({
   onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
+  onSelectSkill: (skill: RegisteredSkill) => void;
+  onRemoveSelectedSkill: (skill: SelectedSkill) => void;
   onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
 }) {
   const disconnected = !canSendPrompt && !streaming;
   const hasContent = text.trim().length > 0 || attachments.some((attachment) => attachment.serverPath);
   const canSend = !uploading && !disconnected && hasContent;
-
-  function insertSkill(skillName: string) {
-    const mention = `$${skillName} `;
-    const textarea = textareaRef.current;
-    const start = textarea?.selectionStart ?? text.length;
-    const end = textarea?.selectionEnd ?? start;
-    const next = `${text.slice(0, start)}${mention}${text.slice(end)}`;
-    onTextChange(next);
-    window.setTimeout(() => {
-      textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(start + mention.length, start + mention.length);
-    }, 0);
-  }
 
   return (
     <div class="codex-composer-shell flex-none z-20 relative bg-[#0b0d11] border-t border-white/10">
@@ -92,11 +87,13 @@ export function ChatComposer({
         model={model}
         provider={provider}
         streaming={streaming}
-        onInsertSkill={insertSkill}
+        selectedSkills={selectedSkills}
+        onSelectSkill={onSelectSkill}
         onProviderChange={onProviderChange}
         onModelChange={onModelChange}
       />
 
+      <SelectedSkillChips skills={selectedSkills} onRemove={onRemoveSelectedSkill} />
       <QueuedPromptList queuedPrompts={queuedPrompts} onRemove={onRemoveQueued} />
       <AttachmentTray attachments={attachments} onRemove={onRemoveAttachment} />
 

@@ -7,10 +7,12 @@ import { ChevronDown, Code, Search } from "../../ui/icons";
 export function SkillPicker({
   provider,
   projectId,
+  selectedCount,
   onSelect,
 }: {
   provider: ChatProvider;
   projectId?: string;
+  selectedCount: number;
   onSelect: (skill: RegisteredSkill) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -95,7 +97,7 @@ export function SkillPicker({
         </span>
         <span class="inline-flex flex-none items-center gap-2">
           <span class="rounded bg-white/10 px-1.5 py-0.5 text-[11px] leading-none text-ink-300">
-            {loading ? "..." : skills.length}
+            {selectedCount > 0 ? selectedCount : loading ? "..." : skills.length}
           </span>
           <ChevronDown class="h-3.5 w-3.5 flex-none" />
         </span>

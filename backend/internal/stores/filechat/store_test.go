@@ -132,3 +132,59 @@ func TestStoreReadsEventPages(t *testing.T) {
 		t.Fatalf("after = %#v", after)
 	}
 }
+
+func TestStorePersistsSelectedSkills(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := store.Create(context.Background(), servicechat.Meta{
+		ID:       "abcd",
+		Provider: servicechat.ProviderCodex,
+		SelectedSkills: []servicechat.SkillRef{
+			{Name: "Custom Skill", Command: "custom", Source: "user"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(created.SelectedSkills) != 1 || created.SelectedSkills[0].Provider != servicechat.ProviderCodex {
+		t.Fatalf("created skills = %#v", created.SelectedSkills)
+	}
+
+	loaded, err := store.Get(context.Background(), "abcd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.SelectedSkills) != 1 || loaded.SelectedSkills[0].Command != "custom" {
+		t.Fatalf("loaded skills = %#v", loaded.SelectedSkills)
+	}
+
+	updated, err := store.Update(context.Background(), "abcd", func(m *servicechat.Meta) {
+		m.SelectedSkills = append(m.SelectedSkills, servicechat.SkillRef{
+			Name:     "Review",
+			Command:  "review",
+			Provider: servicechat.ProviderCodex,
+			Source:   "project",
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated.SelectedSkills) != 2 || updated.SelectedSkills[1].Source != "project" {
+		t.Fatalf("updated skills = %#v", updated.SelectedSkills)
+	}
+
+	reopened, err := New(store.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err = reopened.Get(context.Background(), "abcd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.SelectedSkills) != 2 || loaded.SelectedSkills[0].Provider != servicechat.ProviderCodex {
+		t.Fatalf("reloaded skills = %#v", loaded.SelectedSkills)
+	}
+}

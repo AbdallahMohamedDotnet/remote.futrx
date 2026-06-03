@@ -124,8 +124,9 @@ func collectSkills(ctx context.Context, provider Provider, root rootSpec, out *[
 		if err != nil {
 			return nil
 		}
+		skill.Command = strings.TrimSpace(filepath.Base(filepath.Dir(path)))
 		if skill.Name == "" {
-			skill.Name = filepath.Base(filepath.Dir(path))
+			skill.Name = skill.Command
 		}
 		skill.Name = strings.TrimSpace(skill.Name)
 		if skill.Name == "" {

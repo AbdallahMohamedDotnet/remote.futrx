@@ -83,6 +83,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		Mode:            mode,
 		ReasoningEffort: NormalizeReasoningEffort(in.ReasoningEffort),
 		ProjectID:       in.ProjectID,
+		SelectedSkills:  NormalizeSelectedSkills(in.SelectedSkills, provider),
 	})
 	if err != nil {
 		return Meta{}, err
@@ -103,7 +104,11 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 			m.Cwd = *in.Cwd
 		}
 		if in.Provider != nil {
-			m.Provider = NormalizeProvider(*in.Provider)
+			nextProvider := NormalizeProvider(*in.Provider)
+			if nextProvider != m.Provider {
+				m.SelectedSkills = nil
+			}
+			m.Provider = nextProvider
 		}
 		if in.Model != nil {
 			m.Model = *in.Model
@@ -113,6 +118,9 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		}
 		if in.ReasoningEffort != nil {
 			m.ReasoningEffort = NormalizeReasoningEffort(*in.ReasoningEffort)
+		}
+		if in.SelectedSkills != nil {
+			m.SelectedSkills = NormalizeSelectedSkills(*in.SelectedSkills, m.Provider)
 		}
 	})
 	if err != nil {

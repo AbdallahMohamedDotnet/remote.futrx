@@ -1,6 +1,7 @@
 import type { RefObject } from "preact";
-import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, ReasoningEffort } from "../../models/chat";
+import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, ReasoningEffort, SelectedSkill } from "../../models/chat";
 import type { Attachment } from "../../models/upload";
+import type { RegisteredSkill } from "../../models/skill";
 import type { Block } from "../../state/chat/messageBlocks";
 import { ChatComposer } from "./composer/ChatComposer";
 import { JumpToLatestButton } from "./messages/JumpToLatestButton";
@@ -18,6 +19,7 @@ export function ChatThread({
   streaming,
   mode,
   queuedPrompts,
+  selectedSkills,
   draftText,
   draftKey,
   attachments,
@@ -48,6 +50,8 @@ export function ChatThread({
   onModelChange,
   onModeChange,
   onReasoningEffortChange,
+  onSelectSkill,
+  onRemoveSelectedSkill,
   onOpenTerminal,
   onOpenBrowser,
 }: {
@@ -61,6 +65,7 @@ export function ChatThread({
   streaming: boolean;
   mode: ChatMode;
   queuedPrompts: QueuedPrompt[];
+  selectedSkills: SelectedSkill[];
   draftText?: string;
   draftKey?: number;
   attachments: Attachment[];
@@ -98,6 +103,8 @@ export function ChatThread({
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
   onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
+  onSelectSkill: (skill: RegisteredSkill) => void;
+  onRemoveSelectedSkill: (skill: SelectedSkill) => void;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
 }) {
@@ -147,6 +154,7 @@ export function ChatThread({
         mode={mode}
         reasoningEffort={chat.reasoningEffort || ""}
         queuedPrompts={queuedPrompts}
+        selectedSkills={selectedSkills}
         draftText={draftText}
         draftKey={draftKey}
         attachments={attachments}
@@ -166,6 +174,8 @@ export function ChatThread({
         onModelChange={onModelChange}
         onModeChange={onModeChange}
         onReasoningEffortChange={onReasoningEffortChange}
+        onSelectSkill={onSelectSkill}
+        onRemoveSelectedSkill={onRemoveSelectedSkill}
       />
     </div>
   );

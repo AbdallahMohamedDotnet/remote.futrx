@@ -14,11 +14,19 @@ export interface ChatMeta {
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;
   projectId?: string;
+  selectedSkills?: SelectedSkill[];
 }
 
 export type ChatProvider = "claude" | "codex";
 export type ChatMode = "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
 export type ReasoningEffort = "" | "low" | "medium" | "high" | "xhigh";
+
+export interface SelectedSkill {
+  name: string;
+  command?: string;
+  provider?: ChatProvider;
+  source?: string;
+}
 
 type ChatEventBase = { seq?: number; t: number };
 
@@ -72,6 +80,7 @@ export interface CreateChatInput {
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;
   projectId?: string;
+  selectedSkills?: SelectedSkill[];
 }
 
 export interface UpdateChatInput {
@@ -81,4 +90,5 @@ export interface UpdateChatInput {
   model?: string;
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;
+  selectedSkills?: SelectedSkill[];
 }

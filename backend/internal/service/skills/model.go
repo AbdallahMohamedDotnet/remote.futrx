@@ -13,6 +13,7 @@ const (
 
 type Skill struct {
 	Name        string   `json:"name"`
+	Command     string   `json:"command,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Provider    Provider `json:"provider"`
 	Source      string   `json:"source,omitempty"`

@@ -1,6 +1,7 @@
 import { useEffect } from "preact/hooks";
-import type { ChatMeta, ChatMode, ChatProvider, ReasoningEffort } from "../models/chat";
+import type { ChatMeta, ChatMode, ChatProvider, ReasoningEffort, SelectedSkill } from "../models/chat";
 import type { ProjectMeta } from "../models/project";
+import type { RegisteredSkill } from "../models/skill";
 import { BrowserDrawer } from "../components/chat/browser/BrowserDrawer";
 import { ChatThread } from "../components/chat/ChatThread";
 import { useChat } from "../hooks/chat/useChat";
@@ -41,6 +42,7 @@ export function ChatContainer({
   const displayMeta = meta ?? chat;
   const displayProvider = displayMeta.provider || "claude";
   const displayMode = displayMeta.mode || "code";
+  const selectedSkills = displayMeta.selectedSkills || [];
   const metaActions = useChatMetaActions({
     chatId: chat.id,
     refreshMeta,
@@ -77,7 +79,30 @@ export function ChatContainer({
 
   function changeProvider(provider: ChatProvider) {
     if (provider === displayProvider) return;
-    metaActions.applyMeta({ provider, model: "", reasoningEffort: "" });
+    metaActions.applyMeta({ provider, model: "", reasoningEffort: "", selectedSkills: [] });
+  }
+
+  function selectedSkillKey(skill: SelectedSkill | RegisteredSkill) {
+    const provider = skill.provider || displayProvider;
+    const source = skill.source || "";
+    const command = (skill.command || skill.name).trim().toLowerCase();
+    return `${provider}:${source.toLowerCase()}:${command}`;
+  }
+
+  function selectSkill(skill: RegisteredSkill) {
+    const next: SelectedSkill = {
+      name: skill.name,
+      command: skill.command || skill.name,
+      provider: skill.provider || displayProvider,
+      source: skill.source,
+    };
+    if (selectedSkills.some((selected) => selectedSkillKey(selected) === selectedSkillKey(next))) return;
+    metaActions.applyMeta({ selectedSkills: [...selectedSkills, next] });
+  }
+
+  function removeSelectedSkill(skill: SelectedSkill) {
+    const key = selectedSkillKey(skill);
+    metaActions.applyMeta({ selectedSkills: selectedSkills.filter((selected) => selectedSkillKey(selected) !== key) });
   }
 
   function changeMode(mode: ChatMode) {
@@ -103,6 +128,7 @@ export function ChatContainer({
             streaming={status === "streaming"}
             mode={displayMode}
             queuedPrompts={composer.queue.queuedPrompts}
+            selectedSkills={selectedSkills}
             attachments={composer.upload.attachments}
             uploading={composer.upload.uploading}
             dragging={composer.drag.dragging}
@@ -141,6 +167,8 @@ export function ChatContainer({
             onModelChange={(model) => metaActions.applyMeta({ model })}
             onModeChange={changeMode}
             onReasoningEffortChange={changeReasoningEffort}
+            onSelectSkill={selectSkill}
+            onRemoveSelectedSkill={removeSelectedSkill}
             onOpenTerminal={terminal.openTerminal}
             onOpenBrowser={browser.openBrowserDrawer}
           />
