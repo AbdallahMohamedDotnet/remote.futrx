@@ -98,7 +98,7 @@ func (s *LoginSessionSocket) handle(upgrader websocket.Upgrader, w http.Response
 	defer cancel()
 	defer conn.Close()
 
-	cdp, err := loginsessions.DialCDP(ctx, sess.DevToolsAddr())
+	cdp, err := loginsessions.DialCDP(ctx, sess.DevToolsAddr(), sess.HostHeader())
 	if err != nil {
 		_ = writeJSON(map[string]any{"type": "error", "message": err.Error()})
 		return

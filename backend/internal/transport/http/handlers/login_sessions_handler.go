@@ -181,8 +181,54 @@ func (h *LoginSessionHandler) handleResource(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// handleCapture is implemented in milestone 3; stub returns 501 for now so
-// the route shape is locked in.
+type captureResponse struct {
+	SecretName  string `json:"secretName"`
+	SizeBytes   int    `json:"sizeBytes"`
+	CookieCount int    `json:"cookieCount"`
+	OriginCount int    `json:"originCount"`
+}
+
+// handleCapture snapshots cookies + per-origin localStorage from the
+// running Chromium session, writes the result as the project secret
+// STORAGE_STATE_<NAME>, and stops the session.
 func (h *LoginSessionHandler) handleCapture(w http.ResponseWriter, r *http.Request, id serviceproject.ID, sid string) {
-	httptransport.SendErr(w, http.StatusNotImplemented, "capture not yet implemented")
+	if r.Method != http.MethodPost {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	sess, ok := h.manager.Get(sid)
+	if !ok {
+		httptransport.SendErr(w, http.StatusNotFound, "session not found")
+		return
+	}
+	if sess.ProjectID != string(id) {
+		httptransport.SendErr(w, http.StatusNotFound, "session not found")
+		return
+	}
+
+	result, err := h.manager.Capture(r.Context(), sid)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusInternalServerError, "capture: "+err.Error())
+		return
+	}
+
+	if _, err := h.projects.SetSecret(r.Context(), id, result.SecretName, result.JSON); err != nil {
+		httptransport.SendErr(w, http.StatusInternalServerError, "save secret: "+err.Error())
+		return
+	}
+
+	// Best-effort stop; don't fail the request if cleanup fails (the
+	// secret is already saved, the session will expire anyway).
+	if stopErr := h.manager.Stop(r.Context(), sid); stopErr != nil {
+		// We log via the response side-channel — there's no logger here
+		// and a non-fatal stop failure shouldn't 500 the request.
+		_ = stopErr
+	}
+
+	httptransport.SendJSON(w, http.StatusOK, captureResponse{
+		SecretName:  result.SecretName,
+		SizeBytes:   result.SizeBytes,
+		CookieCount: result.CookieCount,
+		OriginCount: result.OriginCount,
+	})
 }

@@ -47,18 +47,25 @@ type ProjectMeta struct {
 }
 
 // Session is one in-flight Chromium login session.
+//
+// We allocate TWO ports per session: ChromePort is what Chromium binds to
+// inside the container (always 127.0.0.1 because newer Chromium ignores
+// --remote-debugging-address as a security measure), and Port is the
+// outward-facing forwarder (socat) port bound on 0.0.0.0 that the host
+// backend actually connects to via <slug>.lxd:Port.
 type Session struct {
-	ID            string      `json:"id"`
-	ProjectID     string      `json:"projectId"`
-	ContainerName string      `json:"containerName"`
-	Slug          string      `json:"slug"`
-	URL           string      `json:"url"`
-	Name          string      `json:"name"`
-	SecretName    string      `json:"secretName"`
-	Port          int         `json:"port"`
-	UserDataDir   string      `json:"userDataDir"`
-	StartedAt     time.Time   `json:"startedAt"`
-	ExpiresAt     time.Time   `json:"expiresAt"`
+	ID            string    `json:"id"`
+	ProjectID     string    `json:"projectId"`
+	ContainerName string    `json:"containerName"`
+	Slug          string    `json:"slug"`
+	URL           string    `json:"url"`
+	Name          string    `json:"name"`
+	SecretName    string    `json:"secretName"`
+	Port          int       `json:"port"`
+	ChromePort    int       `json:"chromePort"`
+	UserDataDir   string    `json:"userDataDir"`
+	StartedAt     time.Time `json:"startedAt"`
+	ExpiresAt     time.Time `json:"expiresAt"`
 }
 
 // Manager owns the in-memory map of sessions.
@@ -127,8 +134,13 @@ func (m *Manager) Start(ctx context.Context, project ProjectMeta, url, name stri
 	}
 
 	id := randomID(8)
-	port, err := m.allocatePort(project.ContainerName)
+	chromePort, err := m.allocatePort(project.ContainerName)
 	if err != nil {
+		return nil, err
+	}
+	proxyPort, err := m.allocatePort(project.ContainerName)
+	if err != nil {
+		m.releasePort(project.ContainerName, chromePort)
 		return nil, err
 	}
 	userDataDir := fmt.Sprintf("/tmp/login-%s", id)
@@ -136,27 +148,35 @@ func (m *Manager) Start(ctx context.Context, project ProjectMeta, url, name stri
 	// Build a one-liner that:
 	//  1. Lazy-installs Chromium via Playwright's bundled binary if needed.
 	//  2. Apt-installs Chromium's system deps (best-effort - quiet on success).
-	//  3. Spawns Chromium with --remote-debugging-* and goes to the URL.
+	//  3. Spawns Chromium with --remote-debugging-port (bound to 127.0.0.1).
+	//  4. Spawns socat to forward 0.0.0.0:proxyPort → 127.0.0.1:chromePort,
+	//     because Chromium silently ignores --remote-debugging-address as
+	//     a security measure.
 	script := buildLaunchScript(launchScriptArgs{
-		Port:        port,
+		ChromePort:  chromePort,
+		ProxyPort:   proxyPort,
 		UserDataDir: userDataDir,
 		URL:         url,
 	})
 
-	if _, err := m.runner.Run(ctx, "exec", project.ContainerName, "--", "bash", "-lc", script); err != nil {
-		m.releasePort(project.ContainerName, port)
-		return nil, fmt.Errorf("launch chromium: %w", err)
+	if out, err := m.runner.Run(ctx, "exec", project.ContainerName, "--", "bash", "-lc", script); err != nil {
+		m.releasePort(project.ContainerName, chromePort)
+		m.releasePort(project.ContainerName, proxyPort)
+		return nil, fmt.Errorf("launch chromium: %w (output: %s)", err, truncate(out, 500))
 	}
 
-	// Wait until DevTools endpoint is up.
-	target := fmt.Sprintf("%s.lxd:%d", project.Slug, port)
-	if err := waitForDevTools(ctx, target, startTimeout); err != nil {
+	// Wait until DevTools endpoint is up (via the socat proxy).
+	target := fmt.Sprintf("%s.lxd:%d", project.Slug, proxyPort)
+	hostHeader := fmt.Sprintf("localhost:%d", chromePort)
+	if err := waitForDevTools(ctx, target, hostHeader, startTimeout); err != nil {
 		// best-effort cleanup
 		killCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
 		defer cancel()
 		_, _ = m.runner.Run(killCtx, "exec", project.ContainerName, "--", "bash", "-lc",
-			fmt.Sprintf("pkill -f 'remote-debugging-port=%d' || true; rm -rf %s", port, shellQuote(userDataDir)))
-		m.releasePort(project.ContainerName, port)
+			fmt.Sprintf("pkill -f 'remote-debugging-port=%d' || true; pkill -f 'TCP-LISTEN:%d,' || true; rm -rf %s",
+				chromePort, proxyPort, shellQuote(userDataDir)))
+		m.releasePort(project.ContainerName, chromePort)
+		m.releasePort(project.ContainerName, proxyPort)
 		return nil, fmt.Errorf("chromium devtools not reachable at %s: %w", target, err)
 	}
 
@@ -169,7 +189,8 @@ func (m *Manager) Start(ctx context.Context, project ProjectMeta, url, name stri
 		URL:           url,
 		Name:          name,
 		SecretName:    secretName,
-		Port:          port,
+		Port:          proxyPort,
+		ChromePort:    chromePort,
 		UserDataDir:   userDataDir,
 		StartedAt:     now,
 		ExpiresAt:     now.Add(expireAfter),
@@ -210,10 +231,26 @@ func (m *Manager) Stop(ctx context.Context, id string) error {
 	m.mu.Unlock()
 
 	m.releasePort(sess.ContainerName, sess.Port)
-	script := fmt.Sprintf("pkill -f 'remote-debugging-port=%d' || true; rm -rf %s",
-		sess.Port, shellQuote(sess.UserDataDir))
+	m.releasePort(sess.ContainerName, sess.ChromePort)
+	script := fmt.Sprintf("pkill -f 'remote-debugging-port=%d' || true; pkill -f 'TCP-LISTEN:%d,' || true; rm -rf %s",
+		sess.ChromePort, sess.Port, shellQuote(sess.UserDataDir))
 	_, err := m.runner.Run(ctx, "exec", sess.ContainerName, "--", "bash", "-lc", script)
 	return err
+}
+
+// HostHeader is the Host: header value we send to DevTools so it accepts
+// our requests (Chromium refuses non-localhost Host values as a security
+// measure).
+func (s *Session) HostHeader() string {
+	return fmt.Sprintf("localhost:%d", s.ChromePort)
+}
+
+// truncate trims a long string for inclusion in error messages.
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
 }
 
 // DevToolsAddr returns the host:port the host backend can reach the
@@ -271,8 +308,10 @@ func (m *Manager) expireAfter(sess *Session) {
 }
 
 // waitForDevTools polls <target>/json/version until it returns 200 or the
-// deadline expires.
-func waitForDevTools(ctx context.Context, target string, total time.Duration) error {
+// deadline expires. hostHeader is set to "localhost:<chromePort>" so the
+// DevTools endpoint accepts the request (it refuses non-localhost Host
+// values as a defense against DNS-rebinding attacks).
+func waitForDevTools(ctx context.Context, target, hostHeader string, total time.Duration) error {
 	deadline := time.Now().Add(total)
 	client := &http.Client{Timeout: probeTimeout}
 	url := "http://" + target + "/json/version"
@@ -285,6 +324,9 @@ func waitForDevTools(ctx context.Context, target string, total time.Duration) er
 		default:
 		}
 		req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if hostHeader != "" {
+			req.Host = hostHeader
+		}
 		resp, err := client.Do(req)
 		if err == nil {
 			_, _ = io.Copy(io.Discard, resp.Body)
@@ -305,10 +347,14 @@ func waitForDevTools(ctx context.Context, target string, total time.Duration) er
 }
 
 // FetchVersion fetches the /json/version response (used to discover the
-// browser WS endpoint).
-func FetchVersion(ctx context.Context, target string) (map[string]any, error) {
+// browser WS endpoint). hostHeader gets stamped on the Host: header so
+// Chromium's DevTools accepts the request — pass session.HostHeader().
+func FetchVersion(ctx context.Context, target, hostHeader string) (map[string]any, error) {
 	client := &http.Client{Timeout: probeTimeout}
 	req, _ := http.NewRequestWithContext(ctx, "GET", "http://"+target+"/json/version", nil)
+	if hostHeader != "" {
+		req.Host = hostHeader
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

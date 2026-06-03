@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"sync"
@@ -63,10 +64,18 @@ func (e *cdpError) Error() string {
 // sessionID may be empty for browser-level events.
 type EventHandler func(method, sessionID string, params json.RawMessage)
 
-// DialCDP opens a websocket to the chromium DevTools endpoint at
-// http://target/json/version, reads webSocketDebuggerUrl, and dials it.
-func DialCDP(ctx context.Context, target string) (*CDPClient, error) {
-	version, err := FetchVersion(ctx, target)
+// DialCDP opens a websocket to the chromium DevTools endpoint reachable
+// at <target> (host:port). The hostHeader value must match what Chromium
+// considers "local" (e.g. "localhost:<chromePort>"); DevTools refuses
+// non-localhost Host values as a DNS-rebinding defense.
+//
+// We trick gorilla/websocket into sending the right Host by rewriting
+// URL.Host to the hostHeader value and using a custom NetDial that
+// connects to the actual reachable target. This way the HTTP upgrade
+// carries `Host: localhost:<chromePort>` (which DevTools accepts) while
+// the TCP socket is opened to <slug>.lxd:<proxyPort>.
+func DialCDP(ctx context.Context, target, hostHeader string) (*CDPClient, error) {
+	version, err := FetchVersion(ctx, target, hostHeader)
 	if err != nil {
 		return nil, fmt.Errorf("fetch /json/version: %w", err)
 	}
@@ -75,19 +84,26 @@ func DialCDP(ctx context.Context, target string) (*CDPClient, error) {
 		return nil, errors.New("missing webSocketDebuggerUrl in /json/version")
 	}
 
-	// Chromium reports the URL using its self-reported hostname (often
-	// "localhost"). We need to rewrite it to point at the container's
-	// outward-facing host:port so we actually reach it from the host.
 	u, err := url.Parse(wsURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse ws url: %w", err)
 	}
-	u.Host = target
+	// Chromium reports webSocketDebuggerUrl with host "localhost:<chromePort>";
+	// keep it so the Host header is preserved, but override the dial target.
+	if hostHeader != "" {
+		u.Host = hostHeader
+	}
 
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
+	netDial := &net.Dialer{Timeout: 10 * time.Second}
+	dialer := websocket.Dialer{
+		HandshakeTimeout: 10 * time.Second,
+		NetDialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return netDial.DialContext(ctx, network, target)
+		},
+	}
 	conn, _, err := dialer.DialContext(ctx, u.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("dial cdp ws %s: %w", u.String(), err)
+		return nil, fmt.Errorf("dial cdp ws %s (via %s): %w", u.String(), target, err)
 	}
 
 	c := &CDPClient{

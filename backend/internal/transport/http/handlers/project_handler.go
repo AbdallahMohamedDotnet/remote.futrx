@@ -133,7 +133,11 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 			httptransport.SendErr(w, http.StatusNotFound, "login-sessions disabled")
 			return
 		}
-		h.loginSessions.HandleSubresource(w, r, id, parts)
+		// We split rest with SplitN(_, 3) above so parts[2] may still
+		// contain "<sid>/capture". Re-split the full sub-path so the
+		// login handler sees [id, "login-sessions", sid, "capture"].
+		loginParts := strings.Split(rest, "/")
+		h.loginSessions.HandleSubresource(w, r, id, loginParts)
 		return
 	}
 
