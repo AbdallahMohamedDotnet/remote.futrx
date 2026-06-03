@@ -40,14 +40,15 @@ func (m *Manager) EnsureWorkspaceClaudeMirror(ctx context.Context, containerName
 	//      different host path (which doesn't happen today, but cheap
 	//      insurance).
 	script := `set -eu
-src=/workspace/.claude
-dst=/workspace/.codex
-[ -d "$src" ] || exit 0
-mkdir -p "$dst"
-for entry in "$src"/*; do
+# Always present, so any agent has a known landing site for project skills.
+mkdir -p /workspace/.claude/skills
+mkdir -p /workspace/.codex
+chmod 755 /workspace/.claude /workspace/.claude/skills /workspace/.codex
+# Mirror each top-level child of .claude into .codex (one-way, additive).
+for entry in /workspace/.claude/*; do
   [ -e "$entry" ] || continue
   name=$(basename "$entry")
-  target="$dst/$name"
+  target="/workspace/.codex/$name"
   if [ ! -e "$target" ] && [ ! -L "$target" ]; then
     ln -s "../.claude/$name" "$target"
   fi

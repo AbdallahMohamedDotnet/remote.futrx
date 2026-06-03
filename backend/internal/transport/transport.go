@@ -74,7 +74,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.UserSettings,
 			deps.Services.Auth,
 		),
-		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills),
+		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills, deps.Services.Projects, deps.Services.Auth),
 		BrowserInspector: httphandlers.NewBrowserInspectorHandler(),
 		Uploads:          uploads,
 		TmuxWS:           wstransport.NewTmuxSocket(deps.TmuxClient),

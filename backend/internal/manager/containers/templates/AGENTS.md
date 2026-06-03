@@ -135,7 +135,9 @@ project's **Containers → Secrets** UI.
 
 ## Project skills (and other agent-shared content)
 
-Drop project-scoped skills at `/workspace/.claude/skills/<name>/SKILL.md`.
+Drop project-scoped skills at `/workspace/.claude/skills/<name>/SKILL.md`. The directory
+is always present on every fresh container — the host provisions it at launch and
+re-creates it before each prompt, so you can just `cd` in and start writing files.
 Both Claude and Codex pick them up automatically:
 
 - Claude reads `./.claude/skills/<name>/SKILL.md` directly from cwd.

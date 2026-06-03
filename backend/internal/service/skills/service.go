@@ -35,7 +35,7 @@ func NewWithHomes(claudeHome, codexHome string) *Service {
 	}
 }
 
-func (s *Service) List(ctx context.Context, provider Provider) ([]Skill, error) {
+func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace string) ([]Skill, error) {
 	switch provider {
 	case ProviderClaude, ProviderCodex:
 	default:
@@ -44,6 +44,16 @@ func (s *Service) List(ctx context.Context, provider Provider) ([]Skill, error) 
 
 	var skills []Skill
 	for _, root := range s.roots(provider) {
+		if err := collectSkills(ctx, provider, root, &skills); err != nil {
+			return nil, err
+		}
+	}
+	// Project-scoped skills live in the workspace under .claude/skills/.
+	// Codex sees the same files via the .codex/skills -> .claude/skills
+	// symlink set up by EnsureWorkspaceClaudeMirror, so we walk the
+	// .claude side for both providers and tag the source as "project".
+	if projectWorkspace != "" {
+		root := rootSpec{path: filepath.Join(projectWorkspace, ".claude", "skills"), source: "project"}
 		if err := collectSkills(ctx, provider, root, &skills); err != nil {
 			return nil, err
 		}

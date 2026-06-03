@@ -25,7 +25,7 @@ description: Triage GitHub work.
 `)
 
 	service := NewWithHomes(t.TempDir(), home)
-	got, err := service.List(context.Background(), ProviderCodex)
+	got, err := service.List(context.Background(), ProviderCodex, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ description: Triage GitHub work.
 
 func TestListMissingRootsReturnsEmptyList(t *testing.T) {
 	service := NewWithHomes(filepath.Join(t.TempDir(), "missing-claude"), filepath.Join(t.TempDir(), "missing-codex"))
-	got, err := service.List(context.Background(), ProviderClaude)
+	got, err := service.List(context.Background(), ProviderClaude, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestListMissingRootsReturnsEmptyList(t *testing.T) {
 
 func TestListRejectsInvalidProvider(t *testing.T) {
 	service := NewWithHomes(t.TempDir(), t.TempDir())
-	_, err := service.List(context.Background(), Provider("other"))
+	_, err := service.List(context.Background(), Provider("other"), "")
 	if !errors.Is(err, ErrInvalidProvider) {
 		t.Fatalf("expected invalid provider error, got %v", err)
 	}
