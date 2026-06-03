@@ -1,7 +1,7 @@
 import type { ChatMode, ChatProvider, ReasoningEffort } from "../../../models/chat";
 import { MODE_OPTIONS, REASONING_EFFORT_OPTIONS } from "../../../state/chat/usage";
-import { Clock } from "../../ui/icons";
-import { SegmentedOptionGroup } from "./SegmentedOptionGroup";
+import { Activity, Clock, MessageSquare } from "../../ui/icons";
+import { ComposerOptionDropdown } from "./ComposerOptionDropdown";
 
 export function ComposerOptionsRow({
   provider,
@@ -22,19 +22,21 @@ export function ComposerOptionsRow({
     <div class="codex-composer-secondary-controls px-3 pt-1.5 pb-2">
       <div class="flex w-full min-w-0 flex-wrap items-center gap-2">
         {provider === "codex" && (
-          <SegmentedOptionGroup
+          <ComposerOptionDropdown
             label="Thinking"
             value={reasoningEffort}
             options={REASONING_EFFORT_OPTIONS}
             disabled={streaming}
+            Icon={Activity}
             onChange={(value) => onReasoningEffortChange(value as ReasoningEffort)}
           />
         )}
 
-        <SegmentedOptionGroup
+        <ComposerOptionDropdown
           label="Mode"
           value={mode}
           options={MODE_OPTIONS}
+          Icon={MessageSquare}
           onChange={(value) => onModeChange(value as ChatMode)}
         />
 
