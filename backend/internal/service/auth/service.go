@@ -21,15 +21,20 @@ const sessionDuration = 30 * 24 * time.Hour
 type UserDirectory interface {
 	IsAdmin(ctx context.Context, email string) (bool, error)
 	IsRegistered(ctx context.Context, email string) (bool, error)
-	// AddBootstrapAdmin adds email as an admin and is invoked only the very
-	// first time someone signs in (the box has never been claimed).
+	// AddBootstrapAdmin promotes email to the first admin. Called only when
+	// users.json is empty (no admins exist yet); subsequent sign-ins go
+	// through IsRegistered.
 	AddBootstrapAdmin(ctx context.Context, email string) error
 	Count(ctx context.Context) (int, error)
 	FirstAdmin(ctx context.Context) (*UserDirectoryEntry, error)
 }
 
-// UserDirectoryEntry is the minimal projection of a user the auth service
-// surfaces to /auth/me (Claimed / AdminEmail).
+// UserDirectoryEntry is the minimal projection of a single admin the auth
+// service exposes via /auth/me. Status.Claimed is set when one exists,
+// Status.AdminEmail is its Email. Currently filled from FirstAdmin (the
+// oldest user with role=admin) so the login screen can show "server
+// administered by …" without leaking the full directory to anonymous
+// callers.
 type UserDirectoryEntry struct {
 	Email string
 }
@@ -113,9 +118,15 @@ func (s *Service) Login(ctx context.Context, code string) (User, error) {
 	return user, nil
 }
 
-// claimOrAuthorize is the core gate: first-signer claims the box and is
-// added to the users table as the bootstrap admin. Every subsequent login
-// must be in the users table.
+// claimOrAuthorize is the post-OAuth membership gate. Three branches:
+//   1. users.json empty       — promote the caller to the first admin.
+//   2. caller is registered   — allow the sign-in.
+//   3. caller not registered  — return NotInvitedError; the handler
+//                                redirects them to the "ask an admin to
+//                                add your email" screen.
+//
+// Mutex-serialized so concurrent first-time sign-ins can't both seed
+// themselves as the bootstrap admin.
 func (s *Service) claimOrAuthorize(ctx context.Context, u User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
