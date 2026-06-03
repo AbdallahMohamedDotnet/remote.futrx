@@ -7,6 +7,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/codexauth"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/loginsessions"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -21,9 +22,17 @@ type TmuxClient interface {
 	wstransport.TmuxSessionClient
 }
 
+// LXCRunner is satisfied by *lxc.Client; threaded through here so the
+// loginsessions manager can shell out to `lxc exec` without taking a
+// dependency on the lxc package directly.
+type LXCRunner interface {
+	Run(ctx context.Context, args ...string) (string, error)
+}
+
 type Dependencies struct {
 	Services   service.Services
 	TmuxClient TmuxClient
+	LXC        LXCRunner
 	Static     fs.FS
 	DataDir    string
 }
@@ -41,6 +50,17 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		return nil, err
 	}
 	codexLogin := codexauth.New()
+
+	var loginManager *loginsessions.Manager
+	var loginHandler *httphandlers.LoginSessionHandler
+	if deps.LXC != nil {
+		loginManager = loginsessions.New(deps.LXC)
+		loginHandler = httphandlers.NewLoginSessionHandler(
+			loginManager,
+			deps.Services.Projects,
+			deps.Services.Auth,
+		)
+	}
 
 	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
 	terminalSocket := wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects)
@@ -62,11 +82,17 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Projects,
 			deps.Services.Auth,
 		),
-		Projects: httphandlers.NewProjectHandler(
-			deps.Services.Projects,
-			deps.Services.Users,
-			deps.Services.Auth,
-		),
+		Projects: func() httptransport.RouteRegistrar {
+			ph := httphandlers.NewProjectHandler(
+				deps.Services.Projects,
+				deps.Services.Users,
+				deps.Services.Auth,
+			)
+			if loginHandler != nil {
+				ph = ph.WithLoginSessions(loginHandler)
+			}
+			return ph
+		}(),
 		Users:      httphandlers.NewUsersHandler(deps.Services.Users, deps.Services.Auth),
 		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
 		CodexAuth:  httphandlers.NewCodexAuthHandler(codexLogin, deps.Services.Auth),

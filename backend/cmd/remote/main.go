@@ -33,7 +33,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("init stores: %v", err)
 	}
-	containerManager := containers.New(lxc.New())
+	lxcClient := lxc.New()
+	containerManager := containers.New(lxcClient)
 	containerManager.RegisterAuthBundle(containers.ClaudeAuthBundle())
 	containerManager.RegisterAuthBundle(containers.CodexAuthBundle())
 	tmuxClient := tmuxcli.New()
@@ -70,6 +71,7 @@ func main() {
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:   serviceSet,
 		TmuxClient: tmuxClient,
+		LXC:        lxcClient,
 		Static:     static,
 		DataDir:    cfg.DataDir,
 	})

@@ -18,9 +18,17 @@ import (
 )
 
 type ProjectHandler struct {
-	projects *serviceproject.Service
-	users    *serviceuser.Service
-	auth     *serviceauth.Service
+	projects      *serviceproject.Service
+	users         *serviceuser.Service
+	auth          *serviceauth.Service
+	loginSessions LoginSessionSubrouter
+}
+
+// LoginSessionSubrouter handles `/api/projects/{id}/login-sessions[/...]`.
+// Wired in via WithLoginSessions so the manager + handler are an optional
+// add-on rather than a hard dependency of ProjectHandler.
+type LoginSessionSubrouter interface {
+	HandleSubresource(w http.ResponseWriter, r *http.Request, id serviceproject.ID, parts []string)
 }
 
 func NewProjectHandler(
@@ -29,6 +37,13 @@ func NewProjectHandler(
 	auth *serviceauth.Service,
 ) *ProjectHandler {
 	return &ProjectHandler{projects: projects, users: users, auth: auth}
+}
+
+// WithLoginSessions returns the same handler with a login-sessions
+// sub-router attached. Returning a pointer lets callers chain when wiring.
+func (h *ProjectHandler) WithLoginSessions(sub LoginSessionSubrouter) *ProjectHandler {
+	h.loginSessions = sub
+	return h
 }
 
 func (h *ProjectHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -110,6 +125,15 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 
 	if len(parts) >= 2 && parts[1] == "access" {
 		h.handleAccess(w, r, id, parts, email, isAdmin)
+		return
+	}
+
+	if len(parts) >= 2 && parts[1] == "login-sessions" {
+		if h.loginSessions == nil {
+			httptransport.SendErr(w, http.StatusNotFound, "login-sessions disabled")
+			return
+		}
+		h.loginSessions.HandleSubresource(w, r, id, parts)
 		return
 	}
 
