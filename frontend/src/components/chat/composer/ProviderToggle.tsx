@@ -11,9 +11,7 @@ export function ProviderToggle({
   onChange: (provider: ChatProvider) => void;
 }) {
   return (
-    <div class="flex min-w-[210px] items-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-2 py-1.5">
-      <span class="flex-none text-[11px] font-medium text-ink-400">Provider</span>
-      <div class="inline-flex min-w-0 flex-1 rounded-md bg-[#0b0d11] p-0.5">
+    <div class="inline-flex h-8 min-w-[164px] flex-none rounded-md bg-white/[0.045] p-0.5" aria-label="Provider">
         {PROVIDER_OPTIONS.map((option) => {
           const active = option.value === provider;
           return (
@@ -21,7 +19,7 @@ export function ProviderToggle({
               key={option.value}
               type="button"
               onClick={() => onChange(option.value)}
-              class={`h-7 flex-1 rounded px-2.5 text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-60
+              class={`h-7 flex-1 rounded px-2 text-[12px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-60
                       ${active ? "bg-accent-blue text-white shadow-sm" : "text-ink-300 hover:bg-white/[0.07] hover:text-ink-100"}`}
               disabled={streaming}
               aria-pressed={active}
@@ -31,7 +29,6 @@ export function ProviderToggle({
             </button>
           );
         })}
-      </div>
     </div>
   );
 }

@@ -21,7 +21,7 @@ export function SegmentedOptionGroup({
   return (
     <div class={`flex min-w-0 max-w-full items-center gap-1.5 ${className}`}>
       <span class="flex-none text-[11px] font-medium text-ink-400">{label}</span>
-      <div class="flex min-w-0 max-w-full overflow-x-auto rounded-md border border-white/10 bg-white/[0.05] p-0.5">
+      <div class="flex min-w-0 max-w-full overflow-x-auto rounded-md bg-white/[0.045] p-0.5">
         {options.map((option) => {
           const active = value === option.value;
           return (

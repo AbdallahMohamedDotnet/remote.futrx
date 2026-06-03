@@ -76,32 +76,28 @@ export function SkillPicker({
   const providerLabel = provider === "codex" ? "Codex" : "Claude";
 
   return (
-    <div ref={rootRef} class="relative w-full flex-none sm:w-[300px] lg:w-[320px]">
+    <div ref={rootRef} class="relative w-full flex-none sm:w-[260px] lg:w-[300px]">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        class={`codex-skill-control flex h-[58px] w-full items-center justify-between gap-3 rounded-md border px-3 text-left transition
-                ${open ? "bg-accent-blue/[0.14] border-accent-blue/30 text-accent-blue" : "bg-white/[0.05] border-white/10 text-ink-200 hover:bg-white/[0.08]"}`}
+        class={`codex-skill-control flex h-8 w-full items-center justify-between gap-2 rounded-md px-2.5 text-left transition
+                ${open ? "bg-accent-blue/[0.14] text-accent-blue" : "bg-accent-blue/[0.08] text-ink-100 hover:bg-accent-blue/[0.12]"}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={`${providerLabel} skills`}
       >
-        <span class="flex min-w-0 items-center gap-2.5">
-          <span class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-md bg-white/[0.08] text-ink-100">
-            <Code class="h-4 w-4" />
-          </span>
-          <span class="min-w-0">
-            <span class="block truncate text-[13px] font-semibold text-ink-100">Skill set</span>
-            <span class="block truncate text-[11px] text-ink-400">
-              {loading ? "Loading skills" : `${skills.length} ${providerLabel} available`}
-            </span>
+        <span class="flex min-w-0 items-center gap-2">
+          <Code class="h-3.5 w-3.5 flex-none" />
+          <span class="truncate text-[13px] font-semibold">Skill set</span>
+          <span class="hidden truncate text-[11px] text-ink-400 sm:inline">
+            {loading ? "Loading" : providerLabel}
           </span>
         </span>
         <span class="inline-flex flex-none items-center gap-2">
           <span class="rounded bg-white/10 px-1.5 py-0.5 text-[11px] leading-none text-ink-300">
             {loading ? "..." : skills.length}
           </span>
-          <ChevronDown class="h-3.5 w-3.5" />
+          <ChevronDown class="h-3.5 w-3.5 flex-none" />
         </span>
       </button>
 

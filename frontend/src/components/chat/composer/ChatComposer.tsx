@@ -4,6 +4,7 @@ import type { Attachment } from "../../../models/upload";
 import { AttachmentTray } from "./AttachmentTray";
 import { AttachButton } from "./AttachButton";
 import { ComposerDropOverlay } from "./ComposerDropOverlay";
+import { ComposerOptionsRow } from "./ComposerOptionsRow";
 import { ComposerToolbar } from "./ComposerToolbar";
 import { PromptTextarea } from "./PromptTextarea";
 import { QueuedPromptList } from "./QueuedPromptList";
@@ -90,14 +91,10 @@ export function ChatComposer({
         projectId={projectId}
         model={model}
         provider={provider}
-        mode={mode}
-        reasoningEffort={reasoningEffort}
         streaming={streaming}
         onInsertSkill={insertSkill}
         onProviderChange={onProviderChange}
         onModelChange={onModelChange}
-        onModeChange={onModeChange}
-        onReasoningEffortChange={onReasoningEffortChange}
       />
 
       <QueuedPromptList queuedPrompts={queuedPrompts} onRemove={onRemoveQueued} />
@@ -133,6 +130,15 @@ export function ChatComposer({
           onCancel={onCancel}
         />
       </form>
+
+      <ComposerOptionsRow
+        provider={provider}
+        mode={mode}
+        reasoningEffort={reasoningEffort}
+        streaming={streaming}
+        onModeChange={onModeChange}
+        onReasoningEffortChange={onReasoningEffortChange}
+      />
     </div>
   );
 }
