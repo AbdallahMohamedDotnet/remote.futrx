@@ -77,15 +77,17 @@ export function SettingsPage({
             onThemeChange={onAppearanceThemeChange}
           />
 
-          <CodexAuthSettings
-            authenticated={codexAuthenticated}
-            usesApiKey={codexUsesApiKey}
-            deviceLogin={codexDeviceLogin}
-            loading={codexLoading}
-            starting={codexStarting}
-            error={codexError}
-            onStartDeviceLogin={onStartCodexDeviceLogin}
-          />
+          {isAdmin && (
+            <CodexAuthSettings
+              authenticated={codexAuthenticated}
+              usesApiKey={codexUsesApiKey}
+              deviceLogin={codexDeviceLogin}
+              loading={codexLoading}
+              starting={codexStarting}
+              error={codexError}
+              onStartDeviceLogin={onStartCodexDeviceLogin}
+            />
+          )}
 
           {!noAuth && (
             <UsersPanel currentEmail={currentEmail} isAdmin={isAdmin} />

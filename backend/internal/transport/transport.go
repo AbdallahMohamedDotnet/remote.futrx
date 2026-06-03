@@ -69,7 +69,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		),
 		Users:      httphandlers.NewUsersHandler(deps.Services.Users, deps.Services.Auth),
 		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
-		CodexAuth:  httphandlers.NewCodexAuthHandler(codexLogin),
+		CodexAuth:  httphandlers.NewCodexAuthHandler(codexLogin, deps.Services.Auth),
 		UserSettings: httphandlers.NewUserSettingsHandler(
 			deps.Services.UserSettings,
 			deps.Services.Auth,
