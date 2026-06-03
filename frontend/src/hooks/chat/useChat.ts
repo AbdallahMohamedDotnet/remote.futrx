@@ -108,8 +108,13 @@ function latestSeq(events: ChatEvent[]): number {
   return events.reduce((max, event) => Math.max(max, event.seq || 0), 0);
 }
 
-function statusAfterEvent(event: ChatEvent): ChatStatus {
-  return event.type === "complete" || event.type === "error" ? "ready" : "streaming";
+function statusAfterEvent(event: ChatEvent, current: ChatStatus): ChatStatus {
+  if (event.type === "complete" || event.type === "error") {
+    // The backend clears the run lock in a later sync event. Keep streaming
+    // until sync running=false so queued prompts are not sent into a locked run.
+    return current === "streaming" ? "streaming" : "ready";
+  }
+  return "streaming";
 }
 
 /**
@@ -144,7 +149,7 @@ export function useChat(chatId: string): UseChatResult {
     pendingEventsRef.current = [];
     lastSeqRef.current = Math.max(lastSeqRef.current, latestSeq(events));
     setRenderState((current) => appendChatEvents(current, events));
-    setStatus(statusAfterEvent(events[events.length - 1]));
+    setStatus((current) => statusAfterEvent(events[events.length - 1], current));
   }
 
   function enqueueEvent(event: ChatEvent) {

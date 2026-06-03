@@ -1,6 +1,6 @@
 import type { ChatMode, ChatProvider, ReasoningEffort } from "../../../models/chat";
 import { MODE_OPTIONS, REASONING_EFFORT_OPTIONS } from "../../../state/chat/usage";
-import { Activity, Clock, MessageSquare } from "../../ui/icons";
+import { Activity, MessageSquare } from "../../ui/icons";
 import { ComposerOptionDropdown } from "./ComposerOptionDropdown";
 
 export function ComposerOptionsRow({
@@ -39,14 +39,6 @@ export function ComposerOptionsRow({
           Icon={MessageSquare}
           onChange={(value) => onModeChange(value as ChatMode)}
         />
-
-        {streaming && (
-          <div class="inline-flex h-8 flex-none items-center gap-1.5 rounded-md bg-accent-blue/[0.1] px-2.5 text-[12px] text-accent-blue">
-            <Clock class="h-3.5 w-3.5" />
-            <span class="hidden sm:inline">Next send queues</span>
-            <span class="sm:hidden">Queues</span>
-          </div>
-        )}
       </div>
     </div>
   );

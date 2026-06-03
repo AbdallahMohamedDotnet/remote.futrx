@@ -18,9 +18,7 @@ export function ComposerModelPicker({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const selected = options.find((option) => option.value === (model || ""));
   const label = modelDisplayLabel(model, provider);
-  const detail = selected?.sub || (model ? "custom model" : "server default");
 
   useEffect(() => {
     setOpen(false);
@@ -42,7 +40,7 @@ export function ComposerModelPicker({
   }
 
   return (
-    <div ref={rootRef} class="relative min-w-[180px] flex-1 sm:min-w-[220px]">
+    <div ref={rootRef} class="relative w-[150px] flex-none sm:w-[180px] md:w-[210px]">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -56,7 +54,6 @@ export function ComposerModelPicker({
         <span class="flex min-w-0 items-center gap-2">
           <span class="flex-none text-[11px] font-medium text-ink-400">Model</span>
           <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-100">{label}</span>
-          <span class="hidden max-w-[120px] truncate text-[11px] text-ink-400 md:block">{detail}</span>
           <ChevronDown class="h-3.5 w-3.5 flex-none text-ink-300" />
         </span>
       </button>
