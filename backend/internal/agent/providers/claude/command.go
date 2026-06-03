@@ -87,6 +87,11 @@ func (p *Provider) buildCmd(
 		if err := p.containers.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("push agent instructions to container: %w", err)
 		}
+		if err := p.containers.EnsureWorkspaceClaudeMirror(ctx, project.ContainerName); err != nil {
+			// Symlink shim is best-effort: a stale /workspace/.codex shouldn't
+			// block a claude run that doesn't depend on it.
+			_ = err
+		}
 		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
 		}

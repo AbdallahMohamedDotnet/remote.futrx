@@ -132,3 +132,18 @@ When you need a secret that isn't there yet, tell the user the exact
 canonical name (e.g. `GITHUB_SSH_KEY`, `GOOGLE_APPLICATION_CREDENTIALS_JSON`)
 and that they should paste the value — including newlines — into the
 project's **Containers → Secrets** UI.
+
+## Project skills (and other agent-shared content)
+
+Drop project-scoped skills at `/workspace/.claude/skills/<name>/SKILL.md`.
+Both Claude and Codex pick them up automatically:
+
+- Claude reads `./.claude/skills/<name>/SKILL.md` directly from cwd.
+- Codex reads `./.codex/skills/<name>/SKILL.md` — the host mirrors
+  every top-level child of `/workspace/.claude/` as a relative symlink
+  under `/workspace/.codex/` before each prompt, so a single source
+  of truth lives in `.claude/`.
+
+When suggesting that the user create a new project skill, use the
+`/workspace/.claude/skills/` location and tell them it's visible to
+both agents. Never duplicate the same skill into `.codex/`.
