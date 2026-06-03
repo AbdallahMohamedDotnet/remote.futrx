@@ -133,19 +133,19 @@ canonical name (e.g. `GITHUB_SSH_KEY`, `GOOGLE_APPLICATION_CREDENTIALS_JSON`)
 and that they should paste the value — including newlines — into the
 project's **Containers → Secrets** UI.
 
-## Project skills (and other agent-shared content)
+## Project skills
 
-Drop project-scoped skills at `/workspace/.claude/skills/<name>/SKILL.md`. The directory
-is always present on every fresh container — the host provisions it at launch and
-re-creates it before each prompt, so you can just `cd` in and start writing files.
-Both Claude and Codex pick them up automatically:
+Project-scoped skills have one source of truth:
 
-- Claude reads `./.claude/skills/<name>/SKILL.md` directly from cwd.
-- Codex reads `./.codex/skills/<name>/SKILL.md` — the host mirrors
-  every top-level child of `/workspace/.claude/` as a relative symlink
-  under `/workspace/.codex/` before each prompt, so a single source
-  of truth lives in `.claude/`.
+- `/workspace/.agents/skills/<name>/SKILL.md`
+
+The host provisions that directory at launch and before each prompt. It also
+keeps compatibility symlinks so Claude and legacy Codex paths resolve to the
+same files:
+
+- `/workspace/.claude/skills -> ../.agents/skills`
+- `/workspace/.codex/skills -> ../.agents/skills`
 
 When suggesting that the user create a new project skill, use the
-`/workspace/.claude/skills/` location and tell them it's visible to
-both agents. Never duplicate the same skill into `.codex/`.
+`/workspace/.agents/skills/` location. Never duplicate the same skill into
+`.claude/` or `.codex/`.

@@ -20,7 +20,7 @@ type ContainerPreparer interface {
 	EnsureCodex(ctx context.Context, containerName string) error
 	EnsureCodexAuth(ctx context.Context, containerName string) error
 	EnsureAgentInstructions(ctx context.Context, containerName string) error
-	EnsureWorkspaceClaudeMirror(ctx context.Context, containerName string) error
+	EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	SyncCodexAuthFromContainer(ctx context.Context, containerName string) error
 }

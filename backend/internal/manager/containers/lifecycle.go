@@ -53,7 +53,7 @@ func (m *Manager) Launch(ctx context.Context, p serviceproject.Meta) error {
 	// and will be retried on the next prompt.
 	_ = m.EnsureBootAutostart(ctx, p.ContainerName)
 	_ = m.EnsureRegisteredAuth(ctx, p.ContainerName)
-	_ = m.EnsureWorkspaceClaudeMirror(ctx, p.ContainerName)
+	_ = m.EnsureWorkspaceSkillLinks(ctx, p.ContainerName)
 
 	return nil
 }

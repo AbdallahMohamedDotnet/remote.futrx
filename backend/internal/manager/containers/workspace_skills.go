@@ -1,15 +1,7 @@
 package containers
 
-// Project skills (and any other agent-shared dotdir contents) live in
-// /workspace/.claude/<thing>/... by convention. This file mirrors each
-// top-level child of /workspace/.claude into /workspace/.codex as a
-// relative symlink, so a skill the user dropped under .claude is
-// automatically discoverable by Codex too — without having to maintain
-// two copies of the file.
-//
-// One-way only: .claude -> .codex. Codex-only content (if any) stays in
-// .codex untouched; we only add symlinks for entries that don't already
-// exist on the codex side.
+// Project skills live in /workspace/.agents/skills. Claude and legacy Codex
+// locations are compatibility links so users only edit one source of truth.
 
 import (
 	"context"
@@ -19,40 +11,59 @@ import (
 
 const ensureWorkspaceSymlinksTimeout = 10 * time.Second
 
-// EnsureWorkspaceClaudeMirror creates symlinks under /workspace/.codex/
-// for every top-level entry inside /workspace/.claude/ that doesn't
-// already exist on the codex side. Cheap, idempotent, safe to call on
-// every prompt: it short-circuits when /workspace/.claude is missing,
-// and only adds links — never replaces existing files.
-func (m *Manager) EnsureWorkspaceClaudeMirror(ctx context.Context, containerName string) error {
+// EnsureWorkspaceSkillLinks creates the canonical .agents skills directory,
+// migrates legacy .claude/.codex skill children when possible, and points both
+// compatibility paths at .agents/skills. Cheap and idempotent, so providers can
+// call it before every prompt.
+func (m *Manager) EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
 	qctx, cancel := context.WithTimeout(ctx, ensureWorkspaceSymlinksTimeout)
 	defer cancel()
 
-	// Shell script runs inside the container as container-root. Workflow:
-	//   1. Bail out if /workspace/.claude doesn't exist (nothing to mirror).
-	//   2. Create /workspace/.codex if missing.
-	//   3. For each top-level child of /workspace/.claude, if the same
-	//      name doesn't already exist under /workspace/.codex, create a
-	//      relative symlink. Relative so it survives a remount at a
-	//      different host path (which doesn't happen today, but cheap
-	//      insurance).
 	script := `set -eu
-# Always present, so any agent has a known landing site for project skills.
-mkdir -p /workspace/.claude/skills
-mkdir -p /workspace/.codex
-chmod 755 /workspace/.claude /workspace/.claude/skills /workspace/.codex
-# Mirror each top-level child of .claude into .codex (one-way, additive).
-for entry in /workspace/.claude/*; do
-  [ -e "$entry" ] || continue
-  name=$(basename "$entry")
-  target="/workspace/.codex/$name"
-  if [ ! -e "$target" ] && [ ! -L "$target" ]; then
-    ln -s "../.claude/$name" "$target"
+canonical=/workspace/.agents/skills
+mkdir -p /workspace/.agents "$canonical" /workspace/.claude /workspace/.codex
+chmod 755 /workspace/.agents "$canonical" /workspace/.claude /workspace/.codex
+
+migrate_skills_dir() {
+  src="$1"
+  [ -e "$src" ] || return 0
+  [ ! -L "$src" ] || return 0
+  [ -d "$src" ] || return 0
+
+  for entry in "$src"/* "$src"/.[!.]* "$src"/..?*; do
+    [ -e "$entry" ] || continue
+    name=$(basename "$entry")
+    [ "$name" != "." ] && [ "$name" != ".." ] || continue
+    target="$canonical/$name"
+    if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+      mv "$entry" "$target"
+    fi
+  done
+  rmdir "$src" 2>/dev/null || true
+}
+
+link_skills_dir() {
+  base="$1"
+  link="$base/skills"
+  target="../.agents/skills"
+  if [ -L "$link" ]; then
+    current=$(readlink "$link")
+    if [ "$current" != "$target" ]; then
+      rm "$link"
+      ln -s "$target" "$link"
+    fi
+  elif [ ! -e "$link" ]; then
+    ln -s "$target" "$link"
   fi
-done
+}
+
+migrate_skills_dir /workspace/.claude/skills
+migrate_skills_dir /workspace/.codex/skills
+link_skills_dir /workspace/.claude
+link_skills_dir /workspace/.codex
 `
 	if _, err := m.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
 		return err

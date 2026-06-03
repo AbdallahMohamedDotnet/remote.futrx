@@ -115,8 +115,8 @@ func (p *Provider) buildCmd(
 		if err := p.containers.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("push agent instructions to container: %w", err)
 		}
-		if err := p.containers.EnsureWorkspaceClaudeMirror(ctx, project.ContainerName); err != nil {
-			return nil, "", fmt.Errorf("mirror /workspace/.claude into /workspace/.codex: %w", err)
+		if err := p.containers.EnsureWorkspaceSkillLinks(ctx, project.ContainerName); err != nil {
+			return nil, "", fmt.Errorf("prepare workspace skill links: %w", err)
 		}
 		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)

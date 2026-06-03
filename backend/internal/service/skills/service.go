@@ -15,6 +15,7 @@ import (
 const skillFileName = "SKILL.md"
 
 type Service struct {
+	agentsHome string
 	claudeHome string
 	codexHome  string
 }
@@ -25,11 +26,16 @@ type rootSpec struct {
 }
 
 func New() *Service {
-	return NewWithHomes(defaultClaudeHome(), defaultCodexHome())
+	return NewWithSkillHomes(defaultAgentsHome(), defaultClaudeHome(), defaultCodexHome())
 }
 
 func NewWithHomes(claudeHome, codexHome string) *Service {
+	return NewWithSkillHomes("", claudeHome, codexHome)
+}
+
+func NewWithSkillHomes(agentsHome, claudeHome, codexHome string) *Service {
 	return &Service{
+		agentsHome: agentsHome,
 		claudeHome: claudeHome,
 		codexHome:  codexHome,
 	}
@@ -48,20 +54,20 @@ func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace 
 			return nil, err
 		}
 	}
-	// Project-scoped skills live in the workspace under .claude/skills/.
-	// Codex sees the same files via the .codex/skills -> .claude/skills
-	// symlink set up by EnsureWorkspaceClaudeMirror, so we walk the
-	// .claude side for both providers and tag the source as "project".
+	// .agents/skills is the project source of truth. The provider-specific
+	// paths are legacy compatibility fallbacks and are deduped below.
 	if projectWorkspace != "" {
-		root := rootSpec{path: filepath.Join(projectWorkspace, ".claude", "skills"), source: "project"}
-		if err := collectSkills(ctx, provider, root, &skills); err != nil {
-			return nil, err
+		for _, root := range projectRoots(projectWorkspace) {
+			if err := collectSkills(ctx, provider, root, &skills); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if skills == nil {
 		skills = []Skill{}
 	}
 
+	skills = dedupeSkills(skills)
 	sort.Slice(skills, func(i, j int) bool {
 		left := strings.ToLower(skills[i].Name)
 		right := strings.ToLower(skills[j].Name)
@@ -77,18 +83,47 @@ func (s *Service) roots(provider Provider) []rootSpec {
 	// We deliberately do NOT walk plugins/cache or the .system subtree —
 	// those hold CLI-bundled skills the user didn't author and asked us to
 	// keep out of the picker (see collectSkills for the dotdir skip).
+	var roots []rootSpec
+	if s.agentsHome != "" {
+		roots = append(roots, rootSpec{path: filepath.Join(s.agentsHome, "skills"), source: "user"})
+	}
 	switch provider {
 	case ProviderClaude:
-		return []rootSpec{
-			{path: filepath.Join(s.claudeHome, "skills"), source: "user"},
-		}
+		return append(roots, rootSpec{path: filepath.Join(s.claudeHome, "skills"), source: "user"})
 	case ProviderCodex:
-		return []rootSpec{
-			{path: filepath.Join(s.codexHome, "skills"), source: "user"},
-		}
+		return append(roots, rootSpec{path: filepath.Join(s.codexHome, "skills"), source: "user"})
 	default:
 		return nil
 	}
+}
+
+func projectRoots(projectWorkspace string) []rootSpec {
+	return []rootSpec{
+		{path: filepath.Join(projectWorkspace, ".agents", "skills"), source: "project"},
+		{path: filepath.Join(projectWorkspace, ".claude", "skills"), source: "project"},
+		{path: filepath.Join(projectWorkspace, ".codex", "skills"), source: "project"},
+	}
+}
+
+func dedupeSkills(skills []Skill) []Skill {
+	if len(skills) <= 1 {
+		return skills
+	}
+	seen := map[string]bool{}
+	out := make([]Skill, 0, len(skills))
+	for _, skill := range skills {
+		command := strings.TrimSpace(skill.Command)
+		if command == "" {
+			command = strings.TrimSpace(skill.Name)
+		}
+		key := strings.ToLower(string(skill.Provider)) + "\x00" + strings.ToLower(skill.Source) + "\x00" + strings.ToLower(command)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, skill)
+	}
+	return out
 }
 
 func collectSkills(ctx context.Context, provider Provider, root rootSpec, out *[]Skill) error {
@@ -111,8 +146,8 @@ func collectSkills(ctx context.Context, provider Provider, root rootSpec, out *[
 		}
 		// Skip hidden directories below the root (e.g. .system, .cache) —
 		// those are CLI-bundled, not user-authored. The root itself starts
-		// with a dot in some cases (project workspaces walk into
-		// .claude/skills) so we only filter children, not the root.
+		// with a dot in project workspaces, so we only filter children, not
+		// the root.
 		if d.IsDir() && path != root.path && strings.HasPrefix(d.Name(), ".") {
 			return filepath.SkipDir
 		}
@@ -210,6 +245,16 @@ func sourceForPath(root rootSpec, path string) string {
 		return "system"
 	}
 	return root.source
+}
+
+func defaultAgentsHome() string {
+	if value := os.Getenv("AGENTS_HOME"); value != "" {
+		return value
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		return filepath.Join(home, ".agents")
+	}
+	return "/root/.agents"
 }
 
 func defaultClaudeHome() string {
