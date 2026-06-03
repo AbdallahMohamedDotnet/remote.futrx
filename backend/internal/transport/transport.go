@@ -53,6 +53,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 
 	var loginManager *loginsessions.Manager
 	var loginHandler *httphandlers.LoginSessionHandler
+	var loginSocket *wstransport.LoginSessionSocket
 	if deps.LXC != nil {
 		loginManager = loginsessions.New(deps.LXC)
 		loginHandler = httphandlers.NewLoginSessionHandler(
@@ -60,6 +61,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Projects,
 			deps.Services.Auth,
 		)
+		loginSocket = wstransport.NewLoginSessionSocket(loginManager)
 	}
 
 	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
@@ -73,6 +75,9 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		chatSocket = chatSocket.WithAccessChecker(gate)
 		terminalSocket = terminalSocket.WithAccessChecker(gate)
 		workspaceSocket = workspaceSocket.WithVisibility(gate)
+		if loginSocket != nil {
+			loginSocket = loginSocket.WithAccessChecker(gate)
+		}
 	}
 
 	return httptransport.NewHandler(httptransport.Handlers{
@@ -108,6 +113,12 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		ChatWS:           chatSocket,
 		WorkspaceWS:      workspaceSocket,
 		CodexAuthWS:      wstransport.NewCodexAuthSocket(codexLogin),
+		LoginSessionWS: func() httptransport.WebSocketRegistrar {
+			if loginSocket == nil {
+				return nil
+			}
+			return loginSocket
+		}(),
 		Auth:             auth,
 		Static:           httptransport.NewStaticHandler(deps.Static),
 	}), nil
