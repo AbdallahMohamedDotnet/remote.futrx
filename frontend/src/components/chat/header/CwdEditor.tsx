@@ -73,7 +73,7 @@ export function CwdEditor({
         type="button"
         onClick={onOpenBrowser}
         class="h-9 inline-flex items-center gap-2 px-3 rounded-md
-               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
+               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none ml-auto"
         title="Open browser preview"
         aria-label="Open browser"
       >

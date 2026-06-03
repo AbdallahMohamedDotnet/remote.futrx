@@ -2,7 +2,6 @@ import type { RefObject } from "preact";
 import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, ReasoningEffort } from "../../models/chat";
 import type { Attachment } from "../../models/upload";
 import type { Block } from "../../state/chat/messageBlocks";
-import type { UsageTotals } from "../../state/chat/usage";
 import { ChatComposer } from "./composer/ChatComposer";
 import { JumpToLatestButton } from "./messages/JumpToLatestButton";
 import { MessageList } from "./messages/MessageList";
@@ -32,9 +31,6 @@ export function ChatThread({
   contentRef,
   bottomRef,
   header,
-  usageTotals,
-  tokenLabel,
-  costUsd,
   onHamburger,
   onScroll,
   onJumpToBottom,
@@ -78,22 +74,13 @@ export function ChatThread({
   contentRef: RefObject<HTMLDivElement>;
   bottomRef: RefObject<HTMLDivElement>;
   header: {
-    modelRef: RefObject<HTMLDivElement>;
-    modelOpen: boolean;
-    modelOptions: Array<{ value: string; label: string; sub: string }>;
-    modelDisplayLabel: (model?: string) => string;
     editingCwd: boolean;
     cwdInput: string;
-    onToggleModel: () => void;
-    onPickModel: (model: string) => void;
     onStartEditCwd: () => void;
     onCwdInput: (value: string) => void;
     onCommitCwd: () => void;
     onCancelCwdEdit: () => void;
   };
-  usageTotals: UsageTotals;
-  tokenLabel: string;
-  costUsd: number;
   onHamburger: () => void;
   onScroll: () => void;
   onJumpToBottom: () => void;
@@ -119,17 +106,8 @@ export function ChatThread({
       <ThreadHeader
         chat={chat}
         streaming={streaming}
-        modelRef={header.modelRef}
-        modelOpen={header.modelOpen}
-        modelOptions={header.modelOptions}
-        modelDisplayLabel={header.modelDisplayLabel}
         editingCwd={header.editingCwd}
         cwdInput={header.cwdInput}
-        usageTotals={usageTotals}
-        tokenLabel={tokenLabel}
-        costUsd={costUsd}
-        onToggleModel={header.onToggleModel}
-        onPickModel={header.onPickModel}
         onStartEditCwd={header.onStartEditCwd}
         onCwdInput={header.onCwdInput}
         onCommitCwd={header.onCommitCwd}

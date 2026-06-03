@@ -1,26 +1,13 @@
-import type { RefObject } from "preact";
 import type { ChatMeta } from "../../../models/chat";
-import type { UsageTotals } from "../../../state/chat/usage";
 import { providerDisplayLabel } from "../../../state/chat/usage";
 import { Menu, MessageSquare } from "../../ui/icons";
 import { CwdEditor } from "./CwdEditor";
-import { ModelPicker } from "./ModelPicker";
-import { UsagePill } from "./UsagePill";
 
 export function ThreadHeader({
   chat,
   streaming,
-  modelRef,
-  modelOpen,
-  modelOptions,
-  modelDisplayLabel,
   editingCwd,
   cwdInput,
-  usageTotals,
-  tokenLabel,
-  costUsd,
-  onToggleModel,
-  onPickModel,
   onStartEditCwd,
   onCwdInput,
   onCommitCwd,
@@ -31,17 +18,8 @@ export function ThreadHeader({
 }: {
   chat: ChatMeta;
   streaming: boolean;
-  modelRef: RefObject<HTMLDivElement>;
-  modelOpen: boolean;
-  modelOptions: Array<{ value: string; label: string; sub: string }>;
-  modelDisplayLabel: (model?: string) => string;
   editingCwd: boolean;
   cwdInput: string;
-  usageTotals: UsageTotals;
-  tokenLabel: string;
-  costUsd: number;
-  onToggleModel: () => void;
-  onPickModel: (model: string) => void;
   onStartEditCwd: () => void;
   onCwdInput: (value: string) => void;
   onCommitCwd: () => void;
@@ -81,20 +59,9 @@ export function ThreadHeader({
             {providerDisplayLabel(chat.provider)} · {streaming ? "Working" : "Ready"}
           </div>
         </div>
-
-        <ModelPicker
-          modelRef={modelRef}
-          open={modelOpen}
-          model={chat.model}
-          streaming={streaming}
-          options={modelOptions}
-          displayLabel={modelDisplayLabel}
-          onToggle={onToggleModel}
-          onPick={onPickModel}
-        />
       </div>
 
-      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
+      <div class="flex w-full items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
         <CwdEditor
           editing={editingCwd}
           cwd={chat.cwd || "~"}
@@ -106,7 +73,6 @@ export function ThreadHeader({
           onOpenTerminal={onOpenTerminal}
           onOpenBrowser={onOpenBrowser}
         />
-        <UsagePill totals={usageTotals} tokenLabel={tokenLabel} costUsd={costUsd} />
       </div>
     </header>
   );

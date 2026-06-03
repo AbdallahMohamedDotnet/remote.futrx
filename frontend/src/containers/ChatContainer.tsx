@@ -11,13 +11,6 @@ import { useChatMetaActions } from "../hooks/chat/useChatMetaActions";
 import { useChatReadMarker } from "../hooks/chat/useChatReadMarker";
 import { useTerminalOverlayController } from "../hooks/chat/useTerminalOverlayController";
 import { useThreadHeaderState } from "../hooks/chat/useThreadHeaderState";
-import {
-  estimateCost,
-  formatTokens,
-  modelOptionsForProvider,
-  modelDisplayLabel,
-  tokenTotal,
-} from "../state/chat/usage";
 
 export function ChatContainer({
   chat,
@@ -33,7 +26,6 @@ export function ChatContainer({
   const {
     meta,
     blocks,
-    usageTotals,
     eventCount,
     hasOlder,
     loadingOlder,
@@ -75,8 +67,6 @@ export function ChatContainer({
     textareaRef: composer.textareaRef,
   });
   const terminal = useTerminalOverlayController();
-  const costUsd = displayProvider === "claude" ? estimateCost(usageTotals, displayMeta.model || "") : 0;
-  const tokenLabel = formatTokens(tokenTotal(usageTotals));
 
   useEffect(() => {
     terminal.resetTerminal();
@@ -84,11 +74,6 @@ export function ChatContainer({
 
   useChatReadMarker({ chatId: chat.id, eventCount, status, onMetaUpdate });
   useChatKeyboardShortcuts({ status, onCancel: cancel });
-
-  function pickModel(model: string) {
-    header.setModelOpen(false);
-    if (model !== displayMeta.model) metaActions.applyMeta({ model });
-  }
 
   function changeProvider(provider: ChatProvider) {
     if (provider === displayProvider) return;
@@ -129,22 +114,13 @@ export function ChatContainer({
             contentRef={composer.scroll.contentRef}
             bottomRef={composer.scroll.bottomRef}
             header={{
-              modelRef: header.modelRef,
-              modelOpen: header.modelOpen,
-              modelOptions: modelOptionsForProvider(displayProvider),
-              modelDisplayLabel: (model) => modelDisplayLabel(model, displayProvider),
               editingCwd: header.editingCwd,
               cwdInput: header.cwdInput,
-              onToggleModel: () => header.setModelOpen(!header.modelOpen),
-              onPickModel: pickModel,
               onStartEditCwd: () => header.setEditingCwd(true),
               onCwdInput: header.setCwdInput,
               onCommitCwd: header.commitCwd,
               onCancelCwdEdit: header.cancelCwdEdit,
             }}
-            usageTotals={usageTotals}
-            tokenLabel={tokenLabel}
-            costUsd={costUsd}
             onHamburger={onHamburger}
             onScroll={composer.scroll.onScroll}
             onJumpToBottom={composer.scroll.jumpToBottom}
