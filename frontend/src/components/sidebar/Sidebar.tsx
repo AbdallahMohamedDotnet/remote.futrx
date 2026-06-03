@@ -144,7 +144,7 @@ export function Sidebar({
           </span>
         </div>
 
-        <div class={`flex-1 overflow-y-auto touch-scroll px-2 pb-3 space-y-2 ${expandedOnly}`}>
+        <div class={`flex-1 min-h-0 overflow-y-auto touch-scroll px-2 pb-3 space-y-2 ${expandedOnly}`}>
           {model.totalProjects === 0 && model.totalChats === 0 && (
             <SidebarEmptyState onNewProject={onNewProject} />
           )}

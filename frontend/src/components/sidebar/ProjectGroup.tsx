@@ -37,7 +37,7 @@ export function ProjectGroup({
   const stopped = project.status === "stopped";
 
   return (
-    <div class="rounded-lg">
+    <div class="min-h-0 rounded-lg">
       <div class="group flex items-stretch gap-0.5 rounded-md hover:bg-white/[0.04]">
         <button
           type="button"
@@ -121,7 +121,7 @@ export function ProjectGroup({
       )}
 
       {!collapsed && (
-        <div class="ml-5 pl-2 mt-1 space-y-0.5 border-l border-white/[0.08]">
+        <div class="sidebar-project-chat-list ml-5 pl-2 pr-1 mt-1 space-y-0.5 border-l border-white/[0.08] overflow-y-auto touch-scroll scrollbar-thin">
           {visibleChats.length === 0 ? (
             <button
               type="button"

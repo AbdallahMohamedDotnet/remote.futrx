@@ -72,6 +72,11 @@
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
 
+  .sidebar-project-chat-list {
+    max-height: min(48dvh, 28rem);
+    overscroll-behavior: contain;
+  }
+
   .codex-tool-group-list > .codex-tool-shell {
     margin-top: 0;
     margin-bottom: 0;
