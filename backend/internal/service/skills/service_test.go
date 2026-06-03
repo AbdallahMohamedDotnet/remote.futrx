@@ -8,14 +8,14 @@ import (
 	"testing"
 )
 
-func TestListCodexSkillsFromUserSystemAndPlugins(t *testing.T) {
+func TestListSkillsFiltersBundled(t *testing.T) {
+	// CLI-bundled skills live under .system and plugins/cache; the
+	// picker should ignore both and only surface user-authored skills.
 	home := t.TempDir()
 	writeSkill(t, filepath.Join(home, "skills", ".system", "openai-docs", "SKILL.md"), `---
 name: "openai-docs"
 description: "Use official OpenAI docs."
 ---
-
-# OpenAI Docs
 `)
 	writeSkill(t, filepath.Join(home, "skills", "custom", "SKILL.md"), `# Custom Skill`)
 	writeSkill(t, filepath.Join(home, "plugins", "cache", "plugin-a", "skills", "github", "SKILL.md"), `---
@@ -29,17 +29,11 @@ description: Triage GitHub work.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 3 {
-		t.Fatalf("expected 3 skills, got %#v", got)
+	if len(got) != 1 {
+		t.Fatalf("expected only the user-authored skill, got %#v", got)
 	}
 	if got[0].Name != "Custom Skill" || got[0].Source != "user" {
-		t.Fatalf("unexpected first skill: %#v", got[0])
-	}
-	if got[1].Name != "github" || got[1].Source != "plugin" {
-		t.Fatalf("unexpected plugin skill: %#v", got[1])
-	}
-	if got[2].Name != "openai-docs" || got[2].Description != "Use official OpenAI docs." || got[2].Source != "system" {
-		t.Fatalf("unexpected system skill: %#v", got[2])
+		t.Fatalf("unexpected skill: %#v", got[0])
 	}
 }
 

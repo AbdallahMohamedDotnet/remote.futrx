@@ -74,16 +74,17 @@ func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace 
 }
 
 func (s *Service) roots(provider Provider) []rootSpec {
+	// We deliberately do NOT walk plugins/cache or the .system subtree —
+	// those hold CLI-bundled skills the user didn't author and asked us to
+	// keep out of the picker (see collectSkills for the dotdir skip).
 	switch provider {
 	case ProviderClaude:
 		return []rootSpec{
 			{path: filepath.Join(s.claudeHome, "skills"), source: "user"},
-			{path: filepath.Join(s.claudeHome, "plugins", "cache"), source: "plugin"},
 		}
 	case ProviderCodex:
 		return []rootSpec{
 			{path: filepath.Join(s.codexHome, "skills"), source: "user"},
-			{path: filepath.Join(s.codexHome, "plugins", "cache"), source: "plugin"},
 		}
 	default:
 		return nil
@@ -107,6 +108,13 @@ func collectSkills(ctx context.Context, provider Provider, root rootSpec, out *[
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
+		}
+		// Skip hidden directories below the root (e.g. .system, .cache) —
+		// those are CLI-bundled, not user-authored. The root itself starts
+		// with a dot in some cases (project workspaces walk into
+		// .claude/skills) so we only filter children, not the root.
+		if d.IsDir() && path != root.path && strings.HasPrefix(d.Name(), ".") {
+			return filepath.SkipDir
 		}
 		if d.IsDir() || d.Name() != skillFileName {
 			return nil
