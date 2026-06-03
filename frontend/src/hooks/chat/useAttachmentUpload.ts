@@ -3,10 +3,15 @@ import type { Attachment } from "../../models/upload";
 import { startChatUpload, type UploadHandle } from "../../services/uploadService";
 import { randomId } from "../../lib/ids";
 
-export function useAttachmentUpload(chatId: string, onAfterUpload?: () => void) {
+export function useAttachmentUpload(
+  chatId: string,
+  attachmentBasePath: string,
+  onAfterUpload?: () => void
+) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  const attachmentBasePathRef = useRef(attachmentBasePath);
   // Outstanding tus handles, keyed by attachment id. Lets us abort on remove.
   const handlesRef = useRef<Map<string, UploadHandle>>(new Map());
 
@@ -21,6 +26,10 @@ export function useAttachmentUpload(chatId: string, onAfterUpload?: () => void) 
     },
     []
   );
+
+  useEffect(() => {
+    attachmentBasePathRef.current = attachmentBasePath;
+  }, [attachmentBasePath]);
 
   const doUpload = useCallback(
     async (files: File[]) => {
@@ -57,7 +66,12 @@ export function useAttachmentUpload(chatId: string, onAfterUpload?: () => void) 
               setAttachments((prev) =>
                 prev.map((a) =>
                   a.id === att.id
-                    ? { ...a, progress: 1, serverPath: file.name, error: undefined }
+                    ? {
+                        ...a,
+                        progress: 1,
+                        serverPath: absoluteUploadPath(attachmentBasePathRef.current, file.name),
+                        error: undefined,
+                      }
                     : a
                 )
               );
@@ -118,4 +132,14 @@ export function useAttachmentUpload(chatId: string, onAfterUpload?: () => void) 
 
 function revokeAttachment(attachment: Attachment) {
   if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
+}
+
+function absoluteUploadPath(basePath: string, fileName: string) {
+  const safeName = fileName.split(/[\\/]/).pop()?.trim() || fileName.trim();
+  if (!safeName) return "";
+  if (safeName.startsWith("/")) return safeName;
+
+  const base = basePath.trim().replace(/\/+$/, "");
+  if (!base) return safeName;
+  return `${base}/${safeName}`;
 }

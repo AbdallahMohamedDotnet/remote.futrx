@@ -15,6 +15,7 @@ export function useChatComposerController({
   sendPrompt,
   rewind,
   refreshMeta,
+  attachmentBasePath,
   onMetaUpdate,
 }: {
   chatId: string;
@@ -25,12 +26,13 @@ export function useChatComposerController({
   sendPrompt: (text: string) => boolean;
   rewind: (beforeT: number) => Promise<unknown>;
   refreshMeta: () => Promise<void>;
+  attachmentBasePath: string;
   onMetaUpdate: () => void;
 }) {
   const [text, setText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { textareaRef, focusInput } = useAutosizeTextarea(text);
-  const upload = useAttachmentUpload(chatId, onMetaUpdate);
+  const upload = useAttachmentUpload(chatId, attachmentBasePath, onMetaUpdate);
   const drag = useDragUpload(upload.doUpload);
   const scroll = useThreadScroll(chatId, `${eventCount}:${blockCount}`);
   const queue = usePromptQueue({
@@ -93,7 +95,7 @@ export function useChatComposerController({
       .map((attachment) => attachment.serverPath);
     if (!userText && paths.length === 0) return;
     const finalText = paths.length
-      ? (userText ? `${userText}\n\n${paths.join(" ")}` : paths.join(" "))
+      ? appendAttachmentPaths(userText, paths)
       : userText;
 
     if (status === "streaming") {
@@ -126,4 +128,9 @@ export function useChatComposerController({
 
 function statusAllowsQueue(status: ChatStatus): boolean {
   return status === "streaming";
+}
+
+function appendAttachmentPaths(userText: string, paths: string[]) {
+  const attachmentText = `Attached files:\n${paths.map((path) => `- ${path}`).join("\n")}`;
+  return userText ? `${userText}\n\n${attachmentText}` : attachmentText;
 }

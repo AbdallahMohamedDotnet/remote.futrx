@@ -43,6 +43,7 @@ export function ChatContainer({
   const displayProvider = displayMeta.provider || "claude";
   const displayMode = displayMeta.mode || "code";
   const selectedSkills = displayMeta.selectedSkills || [];
+  const attachmentBasePath = attachmentBasePathForChat(displayMeta, projects);
   const metaActions = useChatMetaActions({
     chatId: chat.id,
     refreshMeta,
@@ -58,6 +59,7 @@ export function ChatContainer({
     sendPrompt,
     rewind,
     refreshMeta,
+    attachmentBasePath,
     onMetaUpdate,
   });
   const browser = useChatBrowserController({
@@ -195,4 +197,28 @@ export function ChatContainer({
       )}
     </div>
   );
+}
+
+function attachmentBasePathForChat(chat: ChatMeta, projects: ProjectMeta[]) {
+  const cwd = normalizePath(chat.cwd || "");
+  const project = chat.projectId ? projects.find((item) => item.id === chat.projectId) : undefined;
+  if (!project) return cwd;
+
+  const projectCwd = normalizePath(project.cwd || "");
+  const chatCwd = normalizePath(cwd || project.cwd || "");
+  if (!projectCwd || !chatCwd) return "/workspace";
+
+  if (chatCwd === projectCwd) return "/workspace";
+  if (chatCwd.startsWith(`${projectCwd}/`)) {
+    const rel = chatCwd.slice(projectCwd.length).replace(/^\/+/, "");
+    return rel ? `/workspace/${rel}` : "/workspace";
+  }
+
+  return chatCwd;
+}
+
+function normalizePath(path: string) {
+  const trimmed = path.trim();
+  if (!trimmed) return "";
+  return trimmed.replace(/\/+$/, "") || "/";
 }

@@ -16,10 +16,14 @@ export function AttachmentChip({
       ? Math.max(0, Math.min(1, attachment.progress))
       : 0;
   const pctLabel = pending ? `${Math.round(pct * 100)}%` : null;
+  const title = failed ? attachment.error : attachment.serverPath || attachment.name;
 
   if (attachment.isImage && attachment.objectUrl) {
     return (
-      <div class="relative w-20 h-20 rounded-lg overflow-hidden bg-[#101318] border border-white/10 group">
+      <div
+        class="relative w-20 h-20 rounded-lg overflow-hidden bg-[#101318] border border-white/10 group"
+        title={title}
+      >
         <img
           src={attachment.objectUrl}
           class="w-full h-full object-cover"
@@ -63,7 +67,7 @@ export function AttachmentChip({
       class={`group relative flex items-center gap-1.5 bg-[#101318] border rounded-md px-2 py-1.5 text-xs min-h-10 overflow-hidden ${
         failed ? "border-accent-red/40" : "border-white/10"
       }`}
-      title={failed ? attachment.error : attachment.name}
+      title={title}
     >
       {failed ? (
         <AlertCircle class="w-3.5 h-3.5 text-accent-red flex-none" />
