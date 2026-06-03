@@ -158,7 +158,7 @@ export function Sidebar({
               chats={node.chats}
               visibleChats={node.filteredChats}
               activeChatId={activeChatId}
-              collapsed={collapsed[node.project.id] === true}
+              collapsed={!model.query && collapsed[node.project.id] === true}
               onToggle={() => onToggleProject(node.project.id)}
               onNewChat={() => onNewChatInProject(node.project.id)}
               onStart={(event) => onStartProject(node.project, event)}

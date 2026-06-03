@@ -9,7 +9,12 @@ import { buildWorkspaceSidebarModel } from "../state/workspace/selectors";
 export function SidebarContainer() {
   const { auth } = useAuthContext();
   const workspace = useWorkspaceContext();
-  const sidebar = useSidebarState(workspace.ui.sidebarOpen, workspace.closeSidebar);
+  const sidebar = useSidebarState(
+    workspace.ui.sidebarOpen,
+    workspace.closeSidebar,
+    workspace.projects,
+    workspace.chats
+  );
   const commands = useWorkspaceCommands();
   const model = useMemo(
     () => buildWorkspaceSidebarModel(workspace.chats, workspace.projects, sidebar.query),

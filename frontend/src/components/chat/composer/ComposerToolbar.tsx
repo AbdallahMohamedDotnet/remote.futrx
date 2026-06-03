@@ -1,6 +1,9 @@
 import type { ChatMode, ChatProvider, ReasoningEffort } from "../../../models/chat";
-import { composerModelOptionsForProvider, MODE_OPTIONS, PROVIDER_OPTIONS, REASONING_EFFORT_OPTIONS } from "../../../state/chat/usage";
+import { MODE_OPTIONS, modelOptionsForProvider, REASONING_EFFORT_OPTIONS } from "../../../state/chat/usage";
 import { Clock } from "../../ui/icons";
+import { ComposerModelPicker } from "./ComposerModelPicker";
+import { ProviderToggle } from "./ProviderToggle";
+import { SegmentedOptionGroup } from "./SegmentedOptionGroup";
 import { SkillPicker } from "./SkillPicker";
 
 export function ComposerToolbar({
@@ -28,79 +31,52 @@ export function ComposerToolbar({
   onModeChange: (mode: ChatMode) => void;
   onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
 }) {
-  const modelOptions = composerModelOptionsForProvider(provider);
+  const modelOptions = modelOptionsForProvider(provider);
   return (
     <div class="codex-composer-controls px-3 pt-2 pb-1.5">
-      <div class="w-full flex items-center gap-2 flex-wrap">
+      <div class="flex w-full flex-col gap-2 lg:flex-row lg:items-start">
+        <div class="min-w-0 flex-1 rounded-md border border-white/10 bg-white/[0.035] p-2">
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <ProviderToggle
+              provider={provider}
+              streaming={streaming}
+              onChange={onProviderChange}
+            />
+
+            <ComposerModelPicker
+              provider={provider}
+              model={model}
+              streaming={streaming}
+              options={modelOptions}
+              onChange={onModelChange}
+            />
+          </div>
+        </div>
+
         <SkillPicker
           provider={provider}
           projectId={projectId}
           onSelect={(skill) => onInsertSkill(skill.name)}
         />
+      </div>
 
-        <label class="codex-model-control inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
-          <span class="hidden sm:inline text-ink-400">Provider</span>
-          <select
-            value={provider}
-            onChange={(event) => onProviderChange((event.currentTarget as HTMLSelectElement).value as ChatProvider)}
-            class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
-            title="Provider"
-            disabled={streaming}
-          >
-            {PROVIDER_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
-
-        <label class="codex-model-control hidden sm:inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
-          <span class="hidden sm:inline text-ink-400">Model</span>
-          <select
-            value={model}
-            onChange={(event) => onModelChange((event.currentTarget as HTMLSelectElement).value)}
-            class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
-            title="Model"
-            disabled={streaming}
-          >
-            {model && !modelOptions.some((option) => option.value === model) && (
-              <option value={model}>{model}</option>
-            )}
-            {modelOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
-
+      <div class="mt-2 flex w-full min-w-0 flex-wrap items-center gap-2">
         {provider === "codex" && (
-          <label class="codex-mode-control inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
-            <span class="hidden sm:inline text-ink-400">Thinking</span>
-            <select
-              value={reasoningEffort}
-              onChange={(event) => onReasoningEffortChange((event.currentTarget as HTMLSelectElement).value as ReasoningEffort)}
-              class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
-              title="Codex thinking"
-              disabled={streaming}
-            >
-              {REASONING_EFFORT_OPTIONS.map((option) => (
-                <option key={option.value || "auto"} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
+          <SegmentedOptionGroup
+            label="Thinking"
+            value={reasoningEffort}
+            options={REASONING_EFFORT_OPTIONS}
+            disabled={streaming}
+            onChange={(value) => onReasoningEffortChange(value as ReasoningEffort)}
+          />
         )}
 
-        <label class="codex-mode-control inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[12px] text-ink-300 flex-none">
-          <span class="hidden sm:inline text-ink-400">Mode</span>
-          <select
-            value={mode}
-            onChange={(event) => onModeChange((event.currentTarget as HTMLSelectElement).value as ChatMode)}
-            class="bg-transparent text-ink-100 text-[13px] font-medium focus:outline-none"
-            title="Mode"
-          >
-            {MODE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
+        <SegmentedOptionGroup
+          label="Mode"
+          value={mode}
+          options={MODE_OPTIONS}
+          onChange={(value) => onModeChange(value as ChatMode)}
+        />
 
         {streaming && (
           <div class="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md bg-accent-blue/[0.12] border border-accent-blue/25 text-[12px] text-accent-blue flex-none">
