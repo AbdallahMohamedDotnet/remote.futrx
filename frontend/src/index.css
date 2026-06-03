@@ -73,8 +73,13 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
 
   .sidebar-project-chat-list {
-    max-height: min(48dvh, 28rem);
+    --sidebar-chat-row-height: 3.5rem;
+    max-height: calc((var(--sidebar-chat-row-height) * 3) + 0.25rem);
     overscroll-behavior: contain;
+  }
+
+  .sidebar-project-chat-list > .group {
+    min-height: var(--sidebar-chat-row-height);
   }
 
   .codex-tool-group-list > .codex-tool-shell {
