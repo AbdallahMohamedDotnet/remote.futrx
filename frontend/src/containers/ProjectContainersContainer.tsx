@@ -192,6 +192,7 @@ export function ProjectContainersContainer({
       onDeleteSecret={onDeleteSecret}
       onAddMember={onAddMember}
       onRemoveMember={onRemoveMember}
+      onRefreshSecrets={() => void loadSecrets()}
     />
   );
 }
