@@ -25,6 +25,13 @@ type UserDirectory interface {
 	// first time someone signs in (the box has never been claimed).
 	AddBootstrapAdmin(ctx context.Context, email string) error
 	Count(ctx context.Context) (int, error)
+	FirstAdmin(ctx context.Context) (*UserDirectoryEntry, error)
+}
+
+// UserDirectoryEntry is the minimal projection of a user the auth service
+// surfaces to /auth/me (Claimed / AdminEmail).
+type UserDirectoryEntry struct {
+	Email string
 }
 
 type Service struct {
@@ -108,58 +115,28 @@ func (s *Service) Login(ctx context.Context, code string) (User, error) {
 
 // claimOrAuthorize is the core gate: first-signer claims the box and is
 // added to the users table as the bootstrap admin. Every subsequent login
-// must be in the users table. The legacy admin.json is also written on
-// first-claim for backward compatibility with the old single-admin code
-// path (other components still read it via Store.Admin).
+// must be in the users table.
 func (s *Service) claimOrAuthorize(ctx context.Context, u User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.users != nil {
-		count, err := s.users.Count(ctx)
-		if err != nil {
-			return err
-		}
-		if count == 0 {
-			// First signer: claim the box. Both stores stay consistent.
-			if err := s.users.AddBootstrapAdmin(ctx, u.Email); err != nil {
-				return err
-			}
-			return s.store.SaveAdmin(ctx, Admin{
-				Email:     u.Email,
-				Sub:       u.Sub,
-				Name:      u.Name,
-				Picture:   u.Picture,
-				ClaimedAt: time.Now().UnixMilli(),
-			})
-		}
-		ok, err := s.users.IsRegistered(ctx, u.Email)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return NotInvitedError{Email: u.Email}
-		}
-		return nil
+	if s.users == nil {
+		return errors.New("users directory is not configured")
 	}
 
-	// Fallback to the legacy single-admin path when no users directory is
-	// wired up. Kept so the package remains usable in isolation (tests).
-	admin, err := s.store.Admin(ctx)
+	count, err := s.users.Count(ctx)
 	if err != nil {
 		return err
 	}
-	if admin == nil {
-		return s.store.SaveAdmin(ctx, Admin{
-			Email:     u.Email,
-			Sub:       u.Sub,
-			Name:      u.Name,
-			Picture:   u.Picture,
-			ClaimedAt: time.Now().UnixMilli(),
-		})
+	if count == 0 {
+		return s.users.AddBootstrapAdmin(ctx, u.Email)
 	}
-	if !strings.EqualFold(admin.Email, u.Email) {
-		return ClaimedError{Email: admin.Email}
+	ok, err := s.users.IsRegistered(ctx, u.Email)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return NotInvitedError{Email: u.Email}
 	}
 	return nil
 }
@@ -182,32 +159,28 @@ func (s *Service) CurrentSession(cookieValue string) (*Session, error) {
 }
 
 func (s *Service) IsAdmin(ctx context.Context, email string) (bool, error) {
-	if s.users != nil {
-		return s.users.IsAdmin(ctx, email)
+	if s.users == nil {
+		return false, nil
 	}
-	admin, err := s.store.Admin(ctx)
-	if err != nil {
-		return false, err
-	}
-	return admin != nil && strings.EqualFold(admin.Email, email), nil
+	return s.users.IsAdmin(ctx, email)
 }
 
 // IsRegistered returns true if email has a row in the users store. Used by
 // the API middleware so members (not just admins) can reach /api/*.
 func (s *Service) IsRegistered(ctx context.Context, email string) (bool, error) {
-	if s.users != nil {
-		return s.users.IsRegistered(ctx, email)
+	if s.users == nil {
+		return false, nil
 	}
-	// No directory: fall back to "is this the legacy admin?" so we don't
-	// lock everyone out before users.json exists.
-	return s.IsAdmin(ctx, email)
+	return s.users.IsRegistered(ctx, email)
 }
 
 func (s *Service) Status(ctx context.Context, cookieValue string) Status {
-	admin, _ := s.store.Admin(ctx)
-	status := Status{Claimed: admin != nil}
-	if admin != nil {
-		status.AdminEmail = admin.Email
+	status := Status{}
+	if s.users != nil {
+		if first, _ := s.users.FirstAdmin(ctx); first != nil {
+			status.Claimed = true
+			status.AdminEmail = first.Email
+		}
 	}
 
 	session, err := s.CurrentSession(cookieValue)

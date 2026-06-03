@@ -93,9 +93,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		runs,
 	)
 	userService := serviceuser.New(deps.Users)
-	if err := migrateLegacyAdmin(ctx, deps.Auth, userService); err != nil {
-		return Services{}, err
-	}
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
 	if err != nil {
 		return Services{}, err
@@ -152,32 +149,25 @@ func (a userDirectoryAdapter) AddBootstrapAdmin(ctx context.Context, email strin
 	return err
 }
 
-// migrateLegacyAdmin promotes a pre-multi-user admin.json into the new
-// users.json store. Runs once on first boot after this feature lands: the
-// box was already claimed by one admin, so we mirror that into users.json
-// with role=admin. Subsequent boots are no-ops because the user is already
-// in the store.
-func migrateLegacyAdmin(ctx context.Context, store AuthStore, users *serviceuser.Service) error {
-	if store == nil || users == nil {
-		return nil
-	}
-	count, err := users.Count(ctx)
+func (a userDirectoryAdapter) FirstAdmin(ctx context.Context) (*serviceauth.UserDirectoryEntry, error) {
+	list, err := a.users.List(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if count > 0 {
-		return nil
+	var oldest *serviceuser.User
+	for i := range list {
+		u := &list[i]
+		if u.Role != serviceuser.RoleAdmin {
+			continue
+		}
+		if oldest == nil || u.AddedAt < oldest.AddedAt {
+			oldest = u
+		}
 	}
-	admin, err := store.Admin(ctx)
-	if err != nil || admin == nil {
-		return nil
+	if oldest == nil {
+		return nil, nil
 	}
-	if _, err := users.Add(ctx, admin.Email, serviceuser.RoleAdmin, ""); err != nil {
-		// Tolerate any user-level error (e.g. invalid email format). The
-		// bootstrap path in auth.claimOrAuthorize will reseed on next sign-in.
-		return nil
-	}
-	return nil
+	return &serviceauth.UserDirectoryEntry{Email: oldest.Email}, nil
 }
 
 func newAuth(

@@ -3,8 +3,7 @@ package auth
 import "context"
 
 type Store interface {
-	Admin(ctx context.Context) (*Admin, error)
-	SaveAdmin(ctx context.Context, admin Admin) error
+	// reserved for future per-server admin metadata
 }
 
 type OAuthProvider interface {

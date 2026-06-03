@@ -5,7 +5,7 @@ import (
 	crand "crypto/rand"
 	"encoding/base64"
 	"errors"
-	"fmt"
+
 	"net/http"
 	"net/url"
 	"regexp"
@@ -111,14 +111,6 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 			base := h.auth.BaseURL()
 			loginURL := base + "/?error=not-invited&email=" + url.QueryEscape(notInvited.Email)
 			http.Redirect(w, r, loginURL, http.StatusFound)
-			return
-		}
-		var claimed serviceauth.ClaimedError
-		if errors.As(err, &claimed) {
-			http.Error(w, fmt.Sprintf(
-				"This server is claimed by %s. If you should have access, ask them to add you - or SSH in and remove data/admin.json to reset.",
-				claimed.Email,
-			), http.StatusForbidden)
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)

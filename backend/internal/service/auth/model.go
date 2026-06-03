@@ -14,14 +14,6 @@ type OAuthConfig struct {
 	GoogleClientSecret string `json:"googleClientSecret"`
 }
 
-type Admin struct {
-	Email     string `json:"email"`
-	Sub       string `json:"sub"`
-	Name      string `json:"name,omitempty"`
-	Picture   string `json:"picture,omitempty"`
-	ClaimedAt int64  `json:"claimedAt"`
-}
-
 type User struct {
 	Email   string
 	Sub     string
@@ -48,13 +40,6 @@ type Status struct {
 
 // ClaimedError is returned in the legacy single-admin path when a second
 // user tries to sign in before the users-store is wired up.
-type ClaimedError struct {
-	Email string
-}
-
-func (e ClaimedError) Error() string {
-	return "server is claimed by " + e.Email
-}
 
 // NotInvitedError is returned by Login when a Google OAuth flow succeeded
 // but the resulting email is not in the users store. Surfaced to the
