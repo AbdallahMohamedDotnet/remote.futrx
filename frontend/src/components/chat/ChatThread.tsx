@@ -3,10 +3,10 @@ import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, Reason
 import type { Attachment } from "../../models/upload";
 import type { Block } from "../../state/chat/messageBlocks";
 import type { UsageTotals } from "../../state/chat/usage";
-import { ChatComposer } from "./ChatComposer";
-import { JumpToLatestButton } from "./JumpToLatestButton";
-import { MessageList } from "./MessageList";
-import { ThreadHeader } from "./ThreadHeader";
+import { ChatComposer } from "./composer/ChatComposer";
+import { JumpToLatestButton } from "./messages/JumpToLatestButton";
+import { MessageList } from "./messages/MessageList";
+import { ThreadHeader } from "./header/ThreadHeader";
 
 export function ChatThread({
   chat,
@@ -161,6 +161,7 @@ export function ChatThread({
 
       <ChatComposer
         chatId={chat.id}
+        projectId={chat.projectId}
         streaming={streaming}
         canSendPrompt={canSendPrompt}
         model={chat.model || ""}

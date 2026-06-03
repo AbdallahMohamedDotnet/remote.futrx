@@ -1,4 +1,4 @@
-import { AskUserQuestion } from "./AskUserQuestion";
+import { AskUserQuestion } from "./ask-user-question/AskUserQuestion";
 import type { AskInput, ToolCallProps } from "./ToolCallTypes";
 import { BashCall } from "./renderers/BashCall";
 import { EditCall } from "./renderers/EditCall";
