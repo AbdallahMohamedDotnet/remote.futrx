@@ -129,6 +129,18 @@ func (s *LoginSessionSocket) handle(upgrader websocket.Upgrader, w http.Response
 		return
 	}
 
+	// Force the viewport to a known size. Headless Chromium defaults
+	// to 800x600, which makes the frontend's click translation (which
+	// scales DOM coordinates against a 1280x720 native canvas) land
+	// outside the rendered page entirely. Aligning the viewport to
+	// match the frontend's NATIVE_* constants makes clicks hit.
+	_, _ = cdp.SendOn(ctx, pageSession, "Emulation.setDeviceMetricsOverride", map[string]any{
+		"width":             1280,
+		"height":            720,
+		"deviceScaleFactor": 1,
+		"mobile":            false,
+	})
+
 	// Page.frameNavigated -> emit a "url" message so the URL bar updates.
 	cdp.On(func(method, sessionID string, params json.RawMessage) {
 		if sessionID != pageSession || method != "Page.frameNavigated" {
