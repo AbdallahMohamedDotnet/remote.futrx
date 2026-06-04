@@ -30,14 +30,18 @@
 //     fallback)
 //
 // MISSING-COOKIE BEHAVIOUR
-//   For screenshot/record: if the URL's host isn't in the config, or the
-//   named secret isn't set in the environment, the script exits with a
-//   clear instruction telling the agent which entry to add and which
-//   secret to ask the user to paste. No silent retries.
+//   For screenshot/record:
+//     - URL host has an entry, AND its named secret is set  → cookies attached.
+//     - URL host has an entry, AND its named secret is unset → fail loud
+//       (we don't silently take a logged-out shot of an app the user
+//       expected us to be authenticated to). The error tells the agent
+//       which secret to ask the user for.
+//     - URL host has NO entry → assume public, proceed with no cookies.
+//       Stdout prints the screenshot/video path normally.
 //
 //   For run: every cookie from every entry whose secret IS set gets
 //   attached up-front, so recipes that visit multiple sites just work.
-//   Cookies whose secret env var is missing are silently skipped — if the
+//   Entries whose secret env var is unset are silently skipped — if the
 //   recipe hits a logged-out page that's a recipe-level concern.
 //
 // RECIPE SHAPE (for `run`)
@@ -196,54 +200,29 @@ function cookieFromEntry(c, fallbackHost) {
 
 let cookies = [];
 if (cmd === 'screenshot' || cmd === 'record') {
-  // URL-driven: pick the entry for this host, fail loudly on missing config
-  // or unset secret so the agent gets a clear next step.
+  // URL-driven: if this host has an entry, every cookie's secret must be
+  // set (fail loud — agent should not silently take a logged-out shot of
+  // an app that's supposed to be authenticated). If the host has no
+  // entry, assume public and proceed with no cookies; the agent can tell
+  // from the AUTH line in the output that nothing was attached.
   const entry = pickEntry(url.host);
-  if (!entry) {
-    die(6, [
-      `no auth registered for host ${url.host}.`,
-      '',
-      `Add an entry to ${CONFIG_PATH}:`,
-      '',
-      JSON.stringify(
-        {
-          ...config,
-          [url.host]: {
-            cookies: [
-              {
-                name: '<the-cookie-name>',
-                domain: url.host,
-                secret: `${url.host.replace(/[^A-Z0-9]/gi, '_').toUpperCase()}_COOKIE`,
-                path: '/',
-                httpOnly: true,
-                secure: true,
-                sameSite: 'None',
-              },
-            ],
-          },
-        },
-        null,
-        2,
-      ),
-      '',
-      'Then ask the user to paste the cookie value into Containers → Secrets',
-      'under the secret name you chose.',
-    ].join('\n'));
+  if (entry) {
+    cookies = (entry.cookies || []).map((c) => {
+      if (!c.secret) {
+        die(7, `${CONFIG_PATH}: cookie for ${url.host} is missing "secret" (the env-var name holding the cookie value)`);
+      }
+      if (!process.env[c.secret]) {
+        die(8, [
+          `secret ${c.secret} is not set in the environment.`,
+          '',
+          `Ask the user to add it via the project Containers → Secrets UI.`,
+          `Tell them which cookie to copy: ${c.name} from ${c.domain}.`,
+        ].join('\n'));
+      }
+      return cookieFromEntry(c, url.host);
+    });
   }
-  cookies = (entry.cookies || []).map((c) => {
-    if (!c.secret) {
-      die(7, `${CONFIG_PATH}: cookie for ${url.host} is missing "secret" (the env-var name holding the cookie value)`);
-    }
-    if (!process.env[c.secret]) {
-      die(8, [
-        `secret ${c.secret} is not set in the environment.`,
-        '',
-        `Ask the user to add it via the project Containers → Secrets UI.`,
-        `Tell them which cookie to copy: ${c.name} from ${c.domain}.`,
-      ].join('\n'));
-    }
-    return cookieFromEntry(c, url.host);
-  });
+  // No entry → public site / not-configured-yet; proceed with cookies = [].
 } else if (cmd === 'run') {
   // Recipe-driven: we don't know up-front which sites the recipe will
   // visit, so attach every cookie whose secret is set. Skip the rest
