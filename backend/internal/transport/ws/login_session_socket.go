@@ -8,6 +8,7 @@ package wstransport
 // this socket only consumes it.
 
 import (
+	"time"
 	"context"
 	"encoding/json"
 	"errors"
@@ -128,64 +129,60 @@ func (s *LoginSessionSocket) handle(upgrader websocket.Upgrader, w http.Response
 		return
 	}
 
-	// Wire screencast frame events from CDP -> WS, with ack back to CDP.
+	// Page.frameNavigated -> emit a "url" message so the URL bar updates.
 	cdp.On(func(method, sessionID string, params json.RawMessage) {
-		if sessionID != pageSession {
+		if sessionID != pageSession || method != "Page.frameNavigated" {
 			return
 		}
-		switch method {
-		case "Page.screencastFrame":
-			var frame struct {
-				Data     string `json:"data"`
-				Metadata struct {
-					DeviceWidth  float64 `json:"deviceWidth"`
-					DeviceHeight float64 `json:"deviceHeight"`
-				} `json:"metadata"`
-				SessionID int64 `json:"sessionId"`
-			}
-			if err := json.Unmarshal(params, &frame); err != nil {
-				return
-			}
-			// Ack back to CDP so the next frame is generated.
-			ackCtx, ackCancel := context.WithCancel(ctx)
-			_, _ = cdp.SendOn(ackCtx, pageSession, "Page.screencastFrameAck", map[string]any{
-				"sessionId": frame.SessionID,
-			})
-			ackCancel()
-			_ = writeJSON(map[string]any{
-				"type":   "frame",
-				"data":   frame.Data,
-				"width":  frame.Metadata.DeviceWidth,
-				"height": frame.Metadata.DeviceHeight,
-			})
-		case "Page.frameNavigated":
-			var p struct {
-				Frame struct {
-					URL    string `json:"url"`
-					Parent string `json:"parentId"`
-				} `json:"frame"`
-			}
-			if err := json.Unmarshal(params, &p); err == nil && p.Frame.Parent == "" {
-				_ = writeJSON(map[string]any{"type": "url", "url": p.Frame.URL})
-			}
+		var p struct {
+			Frame struct {
+				URL    string `json:"url"`
+				Parent string `json:"parentId"`
+			} `json:"frame"`
+		}
+		if err := json.Unmarshal(params, &p); err == nil && p.Frame.Parent == "" {
+			_ = writeJSON(map[string]any{"type": "url", "url": p.Frame.URL})
 		}
 	})
 
-	// Kick off the screencast.
-	if _, err := cdp.SendOn(ctx, pageSession, "Page.startScreencast", map[string]any{
-		"format":        "jpeg",
-		"quality":       60,
-		"maxWidth":      1280,
-		"maxHeight":     720,
-		"everyNthFrame": 2,
-	}); err != nil {
-		_ = writeJSON(map[string]any{"type": "error", "message": "startScreencast: " + err.Error()})
-		return
-	}
-	defer func() {
-		stopCtx, stopCancel := context.WithCancel(context.Background())
-		_, _ = cdp.SendOn(stopCtx, pageSession, "Page.stopScreencast", nil)
-		stopCancel()
+	// Live view: poll Page.captureScreenshot at ~7 FPS and push each
+	// JPEG to the client. Page.startScreencast does not reliably fire
+	// frames for static pages in headless Chromium; captureScreenshot
+	// always returns a fresh raster of the current state.
+	go func() {
+		t := time.NewTicker(150 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+			shotCtx, shotCancel := context.WithTimeout(ctx, 3*time.Second)
+			raw, err := cdp.SendOn(shotCtx, pageSession, "Page.captureScreenshot", map[string]any{
+				"format":      "jpeg",
+				"quality":     60,
+				"captureBeyondViewport": false,
+			})
+			shotCancel()
+			if err != nil {
+				continue
+			}
+			var resp struct {
+				Data string `json:"data"`
+			}
+			if err := json.Unmarshal(raw, &resp); err != nil || resp.Data == "" {
+				continue
+			}
+			if err := writeJSON(map[string]any{
+				"type":   "frame",
+				"data":   resp.Data,
+				"width":  1280,
+				"height": 720,
+			}); err != nil {
+				return
+			}
+		}
 	}()
 
 	// Tell the client we're live + provide some initial state.

@@ -74,7 +74,7 @@ func buildLaunchScript(args launchScriptArgs) string {
 		"(nohup \"$CHROME_BIN\" " +
 			fmt.Sprintf("--remote-debugging-port=%d ", chromePort) +
 			"--remote-allow-origins=* " +
-			"--headless=new " +
+			"--headless " +
 			fmt.Sprintf("--user-data-dir=%s ", dir) +
 			"--no-first-run " +
 			"--no-default-browser-check " +
