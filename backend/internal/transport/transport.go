@@ -7,7 +7,6 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/codexauth"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/loginsessions"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -22,17 +21,9 @@ type TmuxClient interface {
 	wstransport.TmuxSessionClient
 }
 
-// LXCRunner is satisfied by *lxc.Client; threaded through here so the
-// loginsessions manager can shell out to `lxc exec` without taking a
-// dependency on the lxc package directly.
-type LXCRunner interface {
-	Run(ctx context.Context, args ...string) (string, error)
-}
-
 type Dependencies struct {
 	Services   service.Services
 	TmuxClient TmuxClient
-	LXC        LXCRunner
 	Static     fs.FS
 	DataDir    string
 }
@@ -51,19 +42,6 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	}
 	codexLogin := codexauth.New()
 
-	var loginManager *loginsessions.Manager
-	var loginHandler *httphandlers.LoginSessionHandler
-	var loginSocket *wstransport.LoginSessionSocket
-	if deps.LXC != nil {
-		loginManager = loginsessions.New(deps.LXC)
-		loginHandler = httphandlers.NewLoginSessionHandler(
-			loginManager,
-			deps.Services.Projects,
-			deps.Services.Auth,
-		)
-		loginSocket = wstransport.NewLoginSessionSocket(loginManager)
-	}
-
 	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
 	terminalSocket := wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects)
 	workspaceSocket := wstransport.NewWorkspaceSocket(
@@ -75,9 +53,6 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		chatSocket = chatSocket.WithAccessChecker(gate)
 		terminalSocket = terminalSocket.WithAccessChecker(gate)
 		workspaceSocket = workspaceSocket.WithVisibility(gate)
-		if loginSocket != nil {
-			loginSocket = loginSocket.WithAccessChecker(gate)
-		}
 	}
 
 	return httptransport.NewHandler(httptransport.Handlers{
@@ -87,17 +62,11 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Projects,
 			deps.Services.Auth,
 		),
-		Projects: func() httptransport.RouteRegistrar {
-			ph := httphandlers.NewProjectHandler(
-				deps.Services.Projects,
-				deps.Services.Users,
-				deps.Services.Auth,
-			)
-			if loginHandler != nil {
-				ph = ph.WithLoginSessions(loginHandler)
-			}
-			return ph
-		}(),
+		Projects: httphandlers.NewProjectHandler(
+			deps.Services.Projects,
+			deps.Services.Users,
+			deps.Services.Auth,
+		),
 		Users:      httphandlers.NewUsersHandler(deps.Services.Users, deps.Services.Auth),
 		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
 		CodexAuth:  httphandlers.NewCodexAuthHandler(codexLogin, deps.Services.Auth),
@@ -113,12 +82,6 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		ChatWS:           chatSocket,
 		WorkspaceWS:      workspaceSocket,
 		CodexAuthWS:      wstransport.NewCodexAuthSocket(codexLogin),
-		LoginSessionWS: func() httptransport.WebSocketRegistrar {
-			if loginSocket == nil {
-				return nil
-			}
-			return loginSocket
-		}(),
 		Auth:             auth,
 		Static:           httptransport.NewStaticHandler(deps.Static),
 	}), nil

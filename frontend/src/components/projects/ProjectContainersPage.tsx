@@ -29,7 +29,6 @@ import {
   Settings,
   X,
 } from "../ui/icons";
-import { LoginsPanel } from "./LoginsPanel";
 
 export function ProjectContainersPage({
   project,
@@ -130,20 +129,6 @@ export function ProjectContainersPage({
                   onRemove={onRemoveMember}
                 />
               </CollapsibleSection>
-              <CollapsibleSection
-                title="Logins"
-                defaultOpen={false}
-                subtitle={loginsSubtitle(secretsRecord)}
-              >
-                <LoginsPanel
-                  projectId={project.id}
-                  secrets={secretsRecord.data}
-                  loading={secretsRecord.loading}
-                  error={secretsRecord.error}
-                  onDelete={onDeleteSecret}
-                  onSecretsChanged={onRefreshSecrets}
-                />
-              </CollapsibleSection>
             </>
           )}
         </div>
@@ -164,13 +149,6 @@ function secretsSubtitle(r: SecretsRecord): string {
   if (r.error) return "error";
   const n = r.data?.length ?? 0;
   return `${n} secret${n === 1 ? "" : "s"}`;
-}
-
-function loginsSubtitle(r: SecretsRecord): string {
-  if (r.loading && !r.data) return "loading…";
-  if (r.error) return "error";
-  const n = (r.data ?? []).filter((s) => s.key.startsWith("STORAGE_STATE_")).length;
-  return `${n} login${n === 1 ? "" : "s"}`;
 }
 
 function accessSubtitle(r: AccessRecord): string {

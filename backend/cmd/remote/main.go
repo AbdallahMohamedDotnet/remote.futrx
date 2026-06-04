@@ -71,7 +71,6 @@ func main() {
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:   serviceSet,
 		TmuxClient: tmuxClient,
-		LXC:        lxcClient,
 		Static:     static,
 		DataDir:    cfg.DataDir,
 	})

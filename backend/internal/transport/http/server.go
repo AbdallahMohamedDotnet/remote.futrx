@@ -36,7 +36,6 @@ type Handlers struct {
 	ChatWS           WebSocketRegistrar
 	WorkspaceWS      WebSocketRegistrar
 	CodexAuthWS      WebSocketRegistrar
-	LoginSessionWS   WebSocketRegistrar
 	Auth             AuthRegistrar
 	Static           http.Handler
 }
@@ -76,9 +75,6 @@ func NewHandler(handlers Handlers) http.Handler {
 	}
 	if handlers.CodexAuthWS != nil {
 		handlers.CodexAuthWS.RegisterRoutes(mux, upgrader)
-	}
-	if handlers.LoginSessionWS != nil {
-		handlers.LoginSessionWS.RegisterRoutes(mux, upgrader)
 	}
 	if handlers.Auth != nil {
 		handlers.Auth.RegisterRoutes(mux)
