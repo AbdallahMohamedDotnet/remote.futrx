@@ -133,6 +133,80 @@ canonical name (e.g. `GITHUB_SSH_KEY`, `GOOGLE_APPLICATION_CREDENTIALS_JSON`)
 and that they should paste the value — including newlines — into the
 project's **Containers → Secrets** UI.
 
+## Authenticated browser actions on third-party sites
+
+If the user asks you to "screenshot the dashboard", "record what happens
+when I click X on app.example.com", or "scrape my account page" — anything
+that requires you to be **signed in** to a site we don't own — you can't
+just `curl` it and you can't run the login flow yourself (sites like Google
+detect server-side browsers and refuse). The recipe:
+
+1. **The user logs in once in their real browser**, then opens DevTools →
+   Application → Cookies → the site's auth domain. They copy the session
+   or refresh cookie's value.
+2. **They paste it into Containers → Secrets** under a clear env-var name
+   (e.g. `LINEAR_SESSION`, `NOTION_TOKEN`, `<SITE>_RT`).
+3. **You** load the cookie into a Playwright context and drive the site as
+   that logged-in user — screenshots, recordings, scripted actions, all
+   normal Playwright.
+
+When the user asks about a new site and the cookie isn't set, **stop and
+tell them the exact env-var name and which cookie to copy.** Don't try to
+log in yourself.
+
+### Skeleton script
+
+Drop this into the project at `scripts/browser.mjs` (or wherever fits the
+project layout) and substitute the cookie name, value source, and domain:
+
+```js
+// scripts/browser.mjs
+import { chromium } from 'playwright';
+import { mkdir } from 'node:fs/promises';
+
+const COOKIE = {
+  name: '<cookie-name>',      // e.g. '__Host-<app>_rt' or 'session_id'
+  value: process.env.<SECRET>,// e.g. process.env.GRAPHIXY_RT
+  domain: '<auth.host>',      // the domain the cookie is scoped to
+  path: '/', httpOnly: true, secure: true, sameSite: 'None',
+};
+const OUT = process.env.BROWSER_OUT_DIR || '/workspace/.browser';
+if (!COOKIE.value) {
+  console.error('secret not set — ask the user to paste it');
+  process.exit(3);
+}
+await mkdir(OUT, { recursive: true });
+
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext({
+  viewport: { width: 1280, height: 720 },
+  // recordVideo: { dir: OUT, size: { width: 1280, height: 720 } },
+});
+await context.addCookies([COOKIE]);
+const page = await context.newPage();
+await page.goto(process.argv[2], { waitUntil: 'networkidle' });
+
+// page.click(), page.fill(), page.screenshot(), page.evaluate(), ...
+
+await context.close();
+await browser.close();
+```
+
+Playwright is usually already in `node_modules` if the project has a web
+front-end; if not, `npm install --save-dev playwright && npx playwright
+install chromium`. Output (PNGs, WebMs) goes to `/workspace/.browser/` so
+the user can find it via the workspace file panel and you can `Read` it.
+
+**The cookie rotates.** If the script suddenly hits a logged-out view
+instead of the logged-in UI, tell the user to re-paste a fresh cookie
+value — don't silently retry.
+
+When in doubt about whether the site is one of the "Google blocks
+automation" class: if the auth domain is `accounts.google.com` or the user
+mentions clicking "Sign in with Google", **the cookie approach is the only
+option** — don't attempt to drive Google's sign-in page from headless
+Chromium, it will fail.
+
 ## Project skills
 
 Project-scoped skills have one source of truth:
