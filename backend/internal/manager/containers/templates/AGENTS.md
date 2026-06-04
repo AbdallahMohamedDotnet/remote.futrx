@@ -176,20 +176,49 @@ path is the only option for those sites.
 **If a script suddenly returns a logged-out page**, the cookie has
 rotated. Tell the user to re-paste a fresh value — don't silently retry.
 
-For richer flows (multi-step clicks, form fills), write your own
-`.mjs` and reuse the same config — drop in a few lines:
+### Recording agent-driven flows (clicking, filling, multi-step)
+
+When the user asks you to record a click sequence, fill out a form, or
+demonstrate a multi-step interaction, write a recipe and let the generic
+script drive it:
 
 ```js
-import { chromium } from 'playwright';
-import { readFile } from 'node:fs/promises';
-const config = JSON.parse(await readFile('/workspace/.agents/browser-auth.json', 'utf8'));
-const entry = config['app.example.com'];
-const cookies = entry.cookies.map(c => ({ ...c, value: process.env[c.secret] }));
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-await context.addCookies(cookies);
-// page = await context.newPage(); ...
+// /workspace/.browser/recipes/<scenario>.mjs
+export default async function (page, context) {
+  await page.goto('https://app.example.com/dashboard');
+  await page.waitForLoadState('networkidle');
+  await page.click('text=Analytics');
+  await page.waitForTimeout(1500);
+  await page.click('text=Reports');
+  await page.waitForTimeout(1500);
+  // optional: return a value, it'll print as JSON on stdout
+  // return { title: await page.title() };
+};
 ```
+
+Then invoke it via the **`run`** subcommand:
+
+```bash
+node /workspace/scripts/browser.mjs run /workspace/.browser/recipes/dashboard-tour.mjs --record
+```
+
+The generic script handles the cookie setup, viewport, video recording,
+cleanup, and path-printing. **Every cookie from every entry in
+`browser-auth.json` whose secret is set gets attached up-front**, so the
+recipe can navigate to any registered site without you having to specify
+which.
+
+Flags:
+- `--record`        record a `.webm` of the run (omit for headless action only)
+- `--out <path>`    where to write the video (default: `/workspace/.browser/<auto>.webm`)
+- `--timeout <ms>`  abort the recipe if it runs longer (default 300000 = 5 min)
+
+Recipes are throwaway — put them in `/workspace/.browser/recipes/` and
+delete them when you're done with the scenario. **Don't reach for a
+recipe for a single screenshot** — that's what the `screenshot` and
+`record` subcommands are for.
+
+### Playwright install
 
 If Playwright isn't installed yet, `scripts/browser.mjs` will print the
 one-time install command — run it, then retry.

@@ -1,14 +1,17 @@
 // /workspace/scripts/browser.mjs — generic authenticated-browser CLI for
 // every futrx project. Reads /workspace/.agents/browser-auth.json to figure
-// out which cookie to attach for the requested URL, then drives Playwright.
+// out which cookies to attach, then drives Playwright.
 //
 // USAGE
 //   node /workspace/scripts/browser.mjs screenshot <url> [--out <path>] [--full]
 //   node /workspace/scripts/browser.mjs record     <url> [--duration <ms>] [--out <path>]
+//   node /workspace/scripts/browser.mjs run        <recipe.mjs> [--record] [--out <path>] [--timeout <ms>]
 //
 //   --out         override the output file path (default /workspace/.browser/<ts>.<ext>)
 //   --full        full-page screenshot (default: viewport only)
 //   --duration    record duration in ms (default 5000)
+//   --record      (run) record a video of the recipe execution
+//   --timeout     (run) abort the recipe after this many ms (default 300000)
 //
 // CONFIG (/workspace/.agents/browser-auth.json)
 //   {
@@ -27,18 +30,37 @@
 //     fallback)
 //
 // MISSING-COOKIE BEHAVIOUR
-//   If the URL's host isn't in the config, or the named secret isn't set in
-//   the environment, the script exits with a clear instruction telling the
-//   agent which entry to add and which secret to ask the user to paste.
-//   No silent retries, no logged-out fallback.
+//   For screenshot/record: if the URL's host isn't in the config, or the
+//   named secret isn't set in the environment, the script exits with a
+//   clear instruction telling the agent which entry to add and which
+//   secret to ask the user to paste. No silent retries.
+//
+//   For run: every cookie from every entry whose secret IS set gets
+//   attached up-front, so recipes that visit multiple sites just work.
+//   Cookies whose secret env var is missing are silently skipped — if the
+//   recipe hits a logged-out page that's a recipe-level concern.
+//
+// RECIPE SHAPE (for `run`)
+//   // /workspace/.browser/recipes/<name>.mjs
+//   export default async function (page, context) {
+//     await page.goto('https://app.example.com/dashboard');
+//     await page.click('text=Reports');
+//     await page.waitForTimeout(1500);
+//     // ...
+//   };
+//
+//   The recipe gets a clean Playwright `page` and `context` with cookies
+//   already attached. Anything it returns is printed as JSON; thrown
+//   errors abort the run but the video (if any) is still flushed.
 //
 // OUTPUT — written to /workspace/.browser/ (override with $BROWSER_OUT_DIR).
-//   Path is printed on stdout so callers can `Read` the file.
+//   Output path is printed on stdout so callers can `Read` the file.
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const CONFIG_PATH = process.env.BROWSER_AUTH_CONFIG || '/workspace/.agents/browser-auth.json';
 const OUT_DIR = process.env.BROWSER_OUT_DIR || '/workspace/.browser';
@@ -62,6 +84,7 @@ function usage() {
     'usage:',
     '  node /workspace/scripts/browser.mjs screenshot <url> [--out <path>] [--full]',
     '  node /workspace/scripts/browser.mjs record     <url> [--duration <ms>] [--out <path>]',
+    '  node /workspace/scripts/browser.mjs run        <recipe.mjs> [--record] [--out <path>] [--timeout <ms>]',
     '',
     `config: ${CONFIG_PATH}`,
     `output: ${OUT_DIR} (override with $BROWSER_OUT_DIR)`,
@@ -69,15 +92,17 @@ function usage() {
 }
 
 const args = process.argv.slice(2);
-const [cmd, urlArg, ...rest] = args;
-if (!cmd || !urlArg) usage();
-if (!['screenshot', 'record'].includes(cmd)) usage();
+const [cmd, posArg, ...rest] = args;
+if (!cmd || !posArg) usage();
+if (!['screenshot', 'record', 'run'].includes(cmd)) usage();
 
 let url;
-try {
-  url = new URL(urlArg);
-} catch {
-  die(2, `not a valid URL: ${urlArg}`);
+if (cmd === 'screenshot' || cmd === 'record') {
+  try {
+    url = new URL(posArg);
+  } catch {
+    die(2, `not a valid URL: ${posArg}`);
+  }
 }
 
 // --- Load Playwright -----------------------------------------------------
@@ -156,71 +181,109 @@ function pickEntry(host) {
   return config.default;
 }
 
-const entry = pickEntry(url.host);
-if (!entry) {
-  die(6, [
-    `no auth registered for host ${url.host}.`,
-    '',
-    `Add an entry to ${CONFIG_PATH}:`,
-    '',
-    JSON.stringify(
-      {
-        ...config,
-        [url.host]: {
-          cookies: [
-            {
-              name: '<the-cookie-name>',
-              domain: url.host,
-              secret: `${url.host.replace(/[^A-Z0-9]/gi, '_').toUpperCase()}_COOKIE`,
-              path: '/',
-              httpOnly: true,
-              secure: true,
-              sameSite: 'None',
-            },
-          ],
-        },
-      },
-      null,
-      2,
-    ),
-    '',
-    'Then ask the user to paste the cookie value into Containers → Secrets',
-    'under the secret name you chose.',
-  ].join('\n'));
-}
-
-const cookies = (entry.cookies || []).map((c) => {
-  if (!c.secret) {
-    die(7, `${CONFIG_PATH}: cookie for ${url.host} is missing "secret" (the env-var name holding the cookie value)`);
-  }
-  const value = process.env[c.secret];
-  if (!value) {
-    die(8, [
-      `secret ${c.secret} is not set in the environment.`,
-      '',
-      `Ask the user to add it via the project Containers → Secrets UI.`,
-      `Tell them which cookie to copy: ${c.name} from ${c.domain}.`,
-    ].join('\n'));
-  }
+function cookieFromEntry(c, fallbackHost) {
   return {
     name: c.name,
-    value,
-    domain: c.domain || url.host,
+    value: process.env[c.secret],
+    domain: c.domain || fallbackHost,
     path: c.path || '/',
     httpOnly: c.httpOnly !== false,
     secure: c.secure !== false,
     sameSite: c.sameSite || 'None',
     ...(c.expires != null ? { expires: c.expires } : {}),
   };
-});
+}
+
+let cookies = [];
+if (cmd === 'screenshot' || cmd === 'record') {
+  // URL-driven: pick the entry for this host, fail loudly on missing config
+  // or unset secret so the agent gets a clear next step.
+  const entry = pickEntry(url.host);
+  if (!entry) {
+    die(6, [
+      `no auth registered for host ${url.host}.`,
+      '',
+      `Add an entry to ${CONFIG_PATH}:`,
+      '',
+      JSON.stringify(
+        {
+          ...config,
+          [url.host]: {
+            cookies: [
+              {
+                name: '<the-cookie-name>',
+                domain: url.host,
+                secret: `${url.host.replace(/[^A-Z0-9]/gi, '_').toUpperCase()}_COOKIE`,
+                path: '/',
+                httpOnly: true,
+                secure: true,
+                sameSite: 'None',
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+      '',
+      'Then ask the user to paste the cookie value into Containers → Secrets',
+      'under the secret name you chose.',
+    ].join('\n'));
+  }
+  cookies = (entry.cookies || []).map((c) => {
+    if (!c.secret) {
+      die(7, `${CONFIG_PATH}: cookie for ${url.host} is missing "secret" (the env-var name holding the cookie value)`);
+    }
+    if (!process.env[c.secret]) {
+      die(8, [
+        `secret ${c.secret} is not set in the environment.`,
+        '',
+        `Ask the user to add it via the project Containers → Secrets UI.`,
+        `Tell them which cookie to copy: ${c.name} from ${c.domain}.`,
+      ].join('\n'));
+    }
+    return cookieFromEntry(c, url.host);
+  });
+} else if (cmd === 'run') {
+  // Recipe-driven: we don't know up-front which sites the recipe will
+  // visit, so attach every cookie whose secret is set. Skip the rest
+  // silently — if the recipe needs them, it'll hit a logged-out page and
+  // can surface its own error.
+  for (const host of Object.keys(config)) {
+    const entry = config[host];
+    if (!entry?.cookies) continue;
+    for (const c of entry.cookies) {
+      if (!c.secret || !process.env[c.secret]) continue;
+      cookies.push(cookieFromEntry(c, host.startsWith('*.') ? host.slice(2) : host));
+    }
+  }
+}
 
 // --- Launch + drive Playwright ------------------------------------------
 await mkdir(OUT_DIR, { recursive: true });
 
+const recordingEnabled = cmd === 'record' || (cmd === 'run' && hasFlag(rest, 'record'));
+
 const launchOpts = { headless: true };
 const contextOpts = { viewport: VIEWPORT };
-if (cmd === 'record') {
+if (recordingEnabled) {
   contextOpts.recordVideo = { dir: OUT_DIR, size: VIEWPORT };
+}
+
+// For `run`, resolve the recipe up-front so we fail fast on bad path
+// before launching Chromium.
+let recipeModule;
+if (cmd === 'run') {
+  const recipePath = resolve(posArg);
+  if (!existsSync(recipePath)) die(2, `recipe not found: ${recipePath}`);
+  try {
+    recipeModule = await import(pathToFileURL(recipePath).href);
+  } catch (err) {
+    die(9, `failed to load recipe ${recipePath}: ${err.message}`);
+  }
+  if (typeof recipeModule.default !== 'function') {
+    die(9, `recipe ${recipePath} must export a default async function (page, context)`);
+  }
 }
 
 const browser = await chromium.launch(launchOpts);
@@ -242,16 +305,36 @@ try {
     await page.goto(url.toString(), { timeout: 30_000 });
     await page.waitForTimeout(duration);
     recordOverride = flag(rest, 'out');
+  } else if (cmd === 'run') {
+    const timeoutMs = parseInt(flag(rest, 'timeout') || '300000', 10);
+    recordOverride = flag(rest, 'out');
+    const result = await Promise.race([
+      recipeModule.default(page, context),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`recipe exceeded --timeout ${timeoutMs}ms`)), timeoutMs),
+      ),
+    ]);
+    if (result !== undefined) {
+      // Recipes can return data (e.g. scraped text). Print as JSON so
+      // callers can parse stdout. Video path (if any) prints separately
+      // in the finally block.
+      try {
+        process.stdout.write(JSON.stringify(result) + '\n');
+      } catch {
+        process.stdout.write(String(result) + '\n');
+      }
+    }
   }
 } catch (err) {
   process.stderr.write(`error: ${err.message}\n`);
+  if (err.stack) process.stderr.write(err.stack + '\n');
   exitCode = 1;
 } finally {
-  const video = cmd === 'record' ? page.video() : null;
+  const video = recordingEnabled ? page.video() : null;
   await page.close();
   await context.close();
   await browser.close();
-  if (cmd === 'record' && video) {
+  if (video) {
     const defaultPath = await video.path();
     if (recordOverride) {
       const target = resolve(recordOverride);
