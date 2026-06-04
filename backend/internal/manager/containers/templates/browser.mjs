@@ -37,6 +37,7 @@
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 
 const CONFIG_PATH = process.env.BROWSER_AUTH_CONFIG || '/workspace/.agents/browser-auth.json';
@@ -80,18 +81,53 @@ try {
 }
 
 // --- Load Playwright -----------------------------------------------------
-let chromium;
-try {
-  ({ chromium } = await import('playwright'));
-} catch {
+// Playwright may live in any of:
+//   - /workspace/node_modules/playwright            (workspace-level install)
+//   - /workspace/<project>/node_modules/playwright  (project-level install,
+//     common when the project itself uses Playwright for E2E)
+//   - global node_modules                            (cli-installed)
+//
+// We try direct ESM import first (works when cwd's node_modules has it or
+// it's globally installed); on failure, walk /workspace/*/ and use
+// createRequire to leverage Node's full CJS resolution + package.json
+// "main"/"exports" handling (the package's ESM entry exposes `chromium`
+// directly; the CJS entry exposes it via `.default.chromium`).
+async function loadChromium() {
+  try {
+    return (await import('playwright')).chromium;
+  } catch {}
+  const { readdir } = await import('node:fs/promises');
+  let entries = [];
+  try {
+    entries = await readdir('/workspace', { withFileTypes: true });
+  } catch {}
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    const pkgJson = `/workspace/${e.name}/node_modules/playwright/package.json`;
+    if (!existsSync(pkgJson)) continue;
+    try {
+      const requireFrom = createRequire(`/workspace/${e.name}/package.json`);
+      const mod = requireFrom('playwright');
+      return mod.chromium || mod.default?.chromium;
+    } catch {}
+  }
+  return null;
+}
+
+const chromium = await loadChromium();
+if (!chromium) {
   die(4, [
     'playwright is not installed in this workspace.',
     '',
-    'Install once (downloads ~200MB the first time, cached afterwards):',
+    'Either install at workspace level (recommended, available to every',
+    'project script):',
     '  cd /workspace && npm init -y >/dev/null && npm install --save-dev playwright',
     '  npx playwright install chromium',
     '',
-    'Future invocations of this script will work without setup.',
+    'Or install inside one of your project subdirs and re-run; this script',
+    'discovers /workspace/*/node_modules/playwright automatically.',
+    '',
+    'First install downloads ~200MB of Chromium; cached for subsequent runs.',
   ].join('\n'));
 }
 
