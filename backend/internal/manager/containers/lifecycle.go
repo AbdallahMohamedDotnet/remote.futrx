@@ -54,6 +54,7 @@ func (m *Manager) Launch(ctx context.Context, p serviceproject.Meta) error {
 	_ = m.EnsureBootAutostart(ctx, p.ContainerName)
 	_ = m.EnsureRegisteredAuth(ctx, p.ContainerName)
 	_ = m.EnsureWorkspaceSkillLinks(ctx, p.ContainerName)
+	_ = m.EnsureBrowserScript(ctx, p.ContainerName)
 
 	return nil
 }

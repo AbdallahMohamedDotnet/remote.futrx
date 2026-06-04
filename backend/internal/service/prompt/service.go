@@ -35,6 +35,7 @@ type ContainerPreparer interface {
 	EnsureClaudeAuth(ctx context.Context, containerName string) error
 	EnsureAgentInstructions(ctx context.Context, containerName string) error
 	EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error
+	EnsureBrowserScript(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error
 	EnsureCodex(ctx context.Context, containerName string) error

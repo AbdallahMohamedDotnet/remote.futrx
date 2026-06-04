@@ -118,6 +118,11 @@ func (p *Provider) buildCmd(
 		if err := p.containers.EnsureWorkspaceSkillLinks(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("prepare workspace skill links: %w", err)
 		}
+		if err := p.containers.EnsureBrowserScript(ctx, project.ContainerName); err != nil {
+			// Browser script provisioning is best-effort: its absence only
+			// matters when the agent tries to run scripts/browser.mjs.
+			_ = err
+		}
 		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
 		}

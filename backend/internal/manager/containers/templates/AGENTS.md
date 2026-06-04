@@ -133,79 +133,66 @@ canonical name (e.g. `GITHUB_SSH_KEY`, `GOOGLE_APPLICATION_CREDENTIALS_JSON`)
 and that they should paste the value — including newlines — into the
 project's **Containers → Secrets** UI.
 
-## Authenticated browser actions on third-party sites
+## Authenticated browser actions
 
-If the user asks you to "screenshot the dashboard", "record what happens
-when I click X on app.example.com", or "scrape my account page" — anything
-that requires you to be **signed in** to a site we don't own — you can't
-just `curl` it and you can't run the login flow yourself (sites like Google
-detect server-side browsers and refuse). The recipe:
+The platform ships a generic Playwright wrapper at
+**`/workspace/scripts/browser.mjs`**. Use it to screenshot, record, or
+drive any site the project has authenticated to:
 
-1. **The user logs in once in their real browser**, then opens DevTools →
-   Application → Cookies → the site's auth domain. They copy the session
-   or refresh cookie's value.
-2. **They paste it into Containers → Secrets** under a clear env-var name
-   (e.g. `LINEAR_SESSION`, `NOTION_TOKEN`, `<SITE>_RT`).
-3. **You** load the cookie into a Playwright context and drive the site as
-   that logged-in user — screenshots, recordings, scripted actions, all
-   normal Playwright.
-
-When the user asks about a new site and the cookie isn't set, **stop and
-tell them the exact env-var name and which cookie to copy.** Don't try to
-log in yourself.
-
-### Skeleton script
-
-Drop this into the project at `scripts/browser.mjs` (or wherever fits the
-project layout) and substitute the cookie name, value source, and domain:
-
-```js
-// scripts/browser.mjs
-import { chromium } from 'playwright';
-import { mkdir } from 'node:fs/promises';
-
-const COOKIE = {
-  name: '<cookie-name>',      // e.g. '__Host-<app>_rt' or 'session_id'
-  value: process.env.<SECRET>,// e.g. process.env.GRAPHIXY_RT
-  domain: '<auth.host>',      // the domain the cookie is scoped to
-  path: '/', httpOnly: true, secure: true, sameSite: 'None',
-};
-const OUT = process.env.BROWSER_OUT_DIR || '/workspace/.browser';
-if (!COOKIE.value) {
-  console.error('secret not set — ask the user to paste it');
-  process.exit(3);
-}
-await mkdir(OUT, { recursive: true });
-
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({
-  viewport: { width: 1280, height: 720 },
-  // recordVideo: { dir: OUT, size: { width: 1280, height: 720 } },
-});
-await context.addCookies([COOKIE]);
-const page = await context.newPage();
-await page.goto(process.argv[2], { waitUntil: 'networkidle' });
-
-// page.click(), page.fill(), page.screenshot(), page.evaluate(), ...
-
-await context.close();
-await browser.close();
+```bash
+node /workspace/scripts/browser.mjs screenshot https://app.example.com/dashboard
+node /workspace/scripts/browser.mjs record     https://app.example.com/flow --duration 8000
 ```
 
-Playwright is usually already in `node_modules` if the project has a web
-front-end; if not, `npm install --save-dev playwright && npx playwright
-install chromium`. Output (PNGs, WebMs) goes to `/workspace/.browser/` so
-the user can find it via the workspace file panel and you can `Read` it.
+Output paths print on stdout; files land in `/workspace/.browser/`. Use
+your `Read` tool on PNGs; videos are `.webm`.
 
-**The cookie rotates.** If the script suddenly hits a logged-out view
-instead of the logged-in UI, tell the user to re-paste a fresh cookie
-value — don't silently retry.
+The script reads **`/workspace/.agents/browser-auth.json`** to know which
+cookie to attach for each host. To add a new site:
 
-When in doubt about whether the site is one of the "Google blocks
-automation" class: if the auth domain is `accounts.google.com` or the user
-mentions clicking "Sign in with Google", **the cookie approach is the only
-option** — don't attempt to drive Google's sign-in page from headless
-Chromium, it will fail.
+1. Add one entry to the JSON yourself (the file is empty by default):
+   ```json
+   {
+     "app.example.com": {
+       "cookies": [
+         { "name": "<cookie-name>", "domain": "<cookie-domain>",
+           "secret": "<ENV_VAR>", "path": "/",
+           "httpOnly": true, "secure": true, "sameSite": "None" }
+       ]
+     }
+   }
+   ```
+   `secret` is the **name** of an env-var (e.g. `LINEAR_SESSION`) — never
+   put the cookie value into this file.
+2. Ask the user to paste the cookie value into **Containers → Secrets**
+   under the env-var name you chose. Tell them which cookie to copy:
+   *DevTools → Application → Cookies → `<cookie-domain>` →
+   `<cookie-name>` → copy the Value column.*
+
+**Never try to log into Google / Apple / "Sign in with Google" flows
+yourself** — server-side browsers are detected and refused. The cookie
+path is the only option for those sites.
+
+**If a script suddenly returns a logged-out page**, the cookie has
+rotated. Tell the user to re-paste a fresh value — don't silently retry.
+
+For richer flows (multi-step clicks, form fills), write your own
+`.mjs` and reuse the same config — drop in a few lines:
+
+```js
+import { chromium } from 'playwright';
+import { readFile } from 'node:fs/promises';
+const config = JSON.parse(await readFile('/workspace/.agents/browser-auth.json', 'utf8'));
+const entry = config['app.example.com'];
+const cookies = entry.cookies.map(c => ({ ...c, value: process.env[c.secret] }));
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+await context.addCookies(cookies);
+// page = await context.newPage(); ...
+```
+
+If Playwright isn't installed yet, `scripts/browser.mjs` will print the
+one-time install command — run it, then retry.
 
 ## Project skills
 
