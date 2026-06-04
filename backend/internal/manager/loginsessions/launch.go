@@ -53,17 +53,17 @@ func buildLaunchScript(args launchScriptArgs) string {
 		"mkdir -p /root/.npm-global",
 		// Always make sure socat is installed; it's not part of the base
 		// image. Chromium deps + playwright only on cold install.
-		"if ! command -v socat >/dev/null 2>&1 || ! ls /root/.cache/ms-playwright/chromium-*/chrome-linux/chrome >/dev/null 2>&1; then " +
+		"if ! command -v socat >/dev/null 2>&1 || ! ls /root/.cache/ms-playwright/chromium-*/chrome-linux*/chrome >/dev/null 2>&1; then " +
 			"DEBIAN_FRONTEND=noninteractive apt-get -qq update >/tmp/login-apt.log 2>&1 || true; " +
 			"DEBIAN_FRONTEND=noninteractive apt-get -qq install -y --no-install-recommends " +
 			strings.Join(aptPkgs, " ") + " >>/tmp/login-apt.log 2>&1 || true; " +
 			"fi",
-		"if ! ls /root/.cache/ms-playwright/chromium-*/chrome-linux/chrome >/dev/null 2>&1; then " +
+		"if ! ls /root/.cache/ms-playwright/chromium-*/chrome-linux*/chrome >/dev/null 2>&1; then " +
 			"npm install -g playwright >>/tmp/login-apt.log 2>&1 || true; " +
 			"npx --yes playwright install chromium >>/tmp/login-apt.log 2>&1; " +
 			"fi",
 		// Discover the chromium binary path that playwright unpacked.
-		"CHROME_BIN=$(ls /root/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | head -n1)",
+		"CHROME_BIN=$(ls /root/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | head -n1)",
 		"if [ -z \"$CHROME_BIN\" ]; then echo 'chromium not installed'; cat /tmp/login-apt.log 2>/dev/null | tail -40; exit 1; fi",
 		"if ! command -v socat >/dev/null 2>&1; then echo 'socat not installed'; exit 1; fi",
 		fmt.Sprintf("mkdir -p %s", dir),
