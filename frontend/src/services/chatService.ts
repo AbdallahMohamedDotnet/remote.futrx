@@ -1,5 +1,6 @@
-import { json } from "../api/http";
+import { json, request } from "../api/http";
 import type { ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
+import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
 
 export const chatService = {
   list: () => json<ChatMeta[]>("GET", "/api/chats"),
@@ -23,4 +24,42 @@ export const chatService = {
   },
   rewind: (id: string, beforeT: number) =>
     json<ChatEventPage>("POST", `/api/chats/${encodeURIComponent(id)}/rewind`, { beforeT }),
+  historyRepos: (id: string) =>
+    json<GitHistoryReposResponse>("GET", `/api/chats/${encodeURIComponent(id)}/history/repos`),
+  historyCommits: (id: string, repo: string, limit = 100) => {
+    const search = new URLSearchParams({ repo, limit: String(limit) });
+    return json<GitHistoryCommitsResponse>(
+      "GET",
+      `/api/chats/${encodeURIComponent(id)}/history/commits?${search.toString()}`
+    );
+  },
+  historyDiff: (id: string, repo: string, sha: string) => {
+    const search = new URLSearchParams({ repo, sha });
+    return json<GitHistoryDiffResponse>(
+      "GET",
+      `/api/chats/${encodeURIComponent(id)}/history/diff?${search.toString()}`
+    );
+  },
+  historyCheckout: async (id: string, repo: string, sha: string, checkpointMessage = "") => {
+    const response = await request("POST", `/api/chats/${encodeURIComponent(id)}/history/checkout`, {
+      repo,
+      sha,
+      checkpointMessage,
+    });
+    if (response.status === 401) {
+      location.reload();
+      return new Promise<GitHistoryCheckoutResponse>(() => {});
+    }
+    if (!response.ok) {
+      let body: { error?: string; dirty?: boolean; dirtyFiles?: string[] } = {};
+      try {
+        body = await response.json();
+      } catch {}
+      if (response.status === 409 && body.dirty) {
+        throw new DirtyWorkingTreeError(body.error || "dirty working tree", body.dirtyFiles || []);
+      }
+      throw new Error(body.error || String(response.status));
+    }
+    return response.json() as Promise<GitHistoryCheckoutResponse>;
+  },
 };

@@ -7,12 +7,14 @@ export function MessageBlock({
   block,
   streaming,
   chatId,
+  cwd,
   onAnswerQuestion,
   onRewind,
 }: {
   block: Block;
   streaming: boolean;
   chatId?: string;
+  cwd?: string;
   onAnswerQuestion?: (text: string) => void;
   onRewind?: (t: number, text: string) => void;
 }) {
@@ -29,6 +31,7 @@ export function MessageBlock({
       block={block}
       streaming={streaming}
       chatId={chatId}
+      cwd={cwd}
       onAnswerQuestion={onAnswerQuestion}
     />
   );

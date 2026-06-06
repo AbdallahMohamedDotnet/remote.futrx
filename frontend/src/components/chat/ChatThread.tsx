@@ -54,6 +54,7 @@ export function ChatThread({
   onRemoveSelectedSkill,
   onOpenTerminal,
   onOpenBrowser,
+  onOpenHistory,
 }: {
   chat: ChatMeta;
   blocks: Block[];
@@ -107,6 +108,7 @@ export function ChatThread({
   onRemoveSelectedSkill: (skill: SelectedSkill) => void;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
+  onOpenHistory: () => void;
 }) {
   return (
     <div class="codex-thread flex-1 h-full flex flex-col min-h-0 overflow-hidden bg-[#0b0d11]">
@@ -121,6 +123,7 @@ export function ChatThread({
         onCancelCwdEdit={header.onCancelCwdEdit}
         onOpenTerminal={onOpenTerminal}
         onOpenBrowser={onOpenBrowser}
+        onOpenHistory={onOpenHistory}
         onHamburger={onHamburger}
       />
 
@@ -150,7 +153,7 @@ export function ChatThread({
         streaming={streaming}
         canSendPrompt={canSendPrompt}
         model={chat.model || ""}
-        provider={chat.provider || "claude"}
+        provider={chat.provider || "codex"}
         mode={mode}
         reasoningEffort={chat.reasoningEffort || ""}
         queuedPrompts={queuedPrompts}

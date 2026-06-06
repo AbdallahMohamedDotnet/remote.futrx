@@ -4,16 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/url"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
+
+const ideBaseURL = "https://code.remote.futrx.dev/"
 
 type ChatHandler struct {
 	chats    *servicechat.Service
@@ -122,6 +130,16 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			h.handleRewind(w, r, id)
 		case "read":
 			h.handleMarkRead(w, r, id)
+		case "ide-open":
+			h.handleIDEOpen(w, r, meta)
+		case "history/repos":
+			h.handleHistoryRepos(w, r, meta)
+		case "history/commits":
+			h.handleHistoryCommits(w, r, meta)
+		case "history/diff":
+			h.handleHistoryDiff(w, r, meta)
+		case "history/checkout":
+			h.handleHistoryCheckout(w, r, meta)
 		default:
 			httptransport.SendErr(w, http.StatusNotFound, "not found")
 		}
@@ -208,6 +226,113 @@ func (h *ChatHandler) handleMarkRead(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	httptransport.SendJSON(w, http.StatusOK, meta)
+}
+
+func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
+	if r.Method != http.MethodGet {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	filePath, workspaceRoot, err := resolveIDEOpenPath(r.URL.Query().Get("path"), meta.Cwd)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	openIDEFileSoon(filePath)
+	http.Redirect(w, r, ideFolderURL(workspaceRoot), http.StatusFound)
+}
+
+func resolveIDEOpenPath(rawPath, cwd string) (string, string, error) {
+	workspaceRoot := workspaceRootFromPath(cwd)
+	if workspaceRoot == "" {
+		return "", "", errors.New("chat workspace is unavailable")
+	}
+
+	rawPath = strings.TrimSpace(rawPath)
+	if rawPath == "" {
+		return "", "", errors.New("path is required")
+	}
+
+	cleaned := filepath.Clean(rawPath)
+	if isContainerWorkspacePath(cleaned) {
+		rel := strings.TrimPrefix(cleaned, "/workspace")
+		filePath := filepath.Join(workspaceRoot, strings.TrimPrefix(rel, "/"))
+		if !pathInside(filePath, workspaceRoot) {
+			return "", "", errors.New("path escapes workspace")
+		}
+		return filePath, workspaceRoot, nil
+	}
+
+	if !filepath.IsAbs(cleaned) {
+		return "", "", errors.New("path must be absolute")
+	}
+	if !pathInside(cleaned, workspaceRoot) {
+		return "", "", errors.New("path is outside this chat workspace")
+	}
+	return cleaned, workspaceRoot, nil
+}
+
+func openIDEFileSoon(filePath string) {
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		deadline := time.Now().Add(20 * time.Second)
+		var lastErr error
+		for time.Now().Before(deadline) {
+			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+			output, err := exec.CommandContext(ctx, "code-server", "--reuse-window", filePath).CombinedOutput()
+			cancel()
+			if err == nil {
+				return
+			}
+			lastErr = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+			time.Sleep(750 * time.Millisecond)
+		}
+		log.Printf("ide open %s: %v", filePath, lastErr)
+	}()
+}
+
+func ideFolderURL(workspaceRoot string) string {
+	u, err := url.Parse(ideBaseURL)
+	if err != nil {
+		return ideBaseURL
+	}
+	q := u.Query()
+	q.Set("folder", workspaceRoot)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func workspaceRootFromPath(path string) string {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if !filepath.IsAbs(path) {
+		return ""
+	}
+	if path == "/workspace" {
+		return path
+	}
+	marker := string(filepath.Separator) + "workspace"
+	if strings.HasSuffix(path, marker) {
+		return path
+	}
+	needle := marker + string(filepath.Separator)
+	if idx := strings.Index(path, needle); idx >= 0 {
+		return path[:idx+len(marker)]
+	}
+	return path
+}
+
+func isContainerWorkspacePath(path string) bool {
+	return path == "/workspace" || strings.HasPrefix(path, "/workspace/")
+}
+
+func pathInside(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 // canAccessProject returns true if the caller is an admin OR a member of

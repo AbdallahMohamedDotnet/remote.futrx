@@ -4,8 +4,8 @@ import type { ChatProvider } from "../../models/chat";
 import type { ReasoningEffort } from "../../models/chat";
 
 export const PROVIDER_OPTIONS: Array<{ value: ChatProvider; label: string }> = [
-  { value: "claude", label: "Claude" },
   { value: "codex", label: "Codex" },
+  { value: "claude", label: "Claude" },
 ];
 
 export const CLAUDE_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [

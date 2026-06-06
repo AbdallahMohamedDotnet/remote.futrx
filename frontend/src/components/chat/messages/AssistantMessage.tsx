@@ -6,11 +6,13 @@ export function AssistantMessage({
   block,
   streaming,
   chatId,
+  cwd,
   onAnswerQuestion,
 }: {
   block: AssistantBlock;
   streaming: boolean;
   chatId?: string;
+  cwd?: string;
   onAnswerQuestion?: (text: string) => void;
 }) {
   return (
@@ -19,6 +21,7 @@ export function AssistantMessage({
         parts={block.parts}
         streaming={streaming}
         chatId={chatId}
+        cwd={cwd}
         onAnswerQuestion={onAnswerQuestion}
       />
       {streaming && !block.isComplete && <ThinkingIndicator />}

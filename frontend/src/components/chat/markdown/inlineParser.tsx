@@ -1,8 +1,9 @@
 import type { ComponentChildren } from "preact";
+import { internalPathIdeUrl } from "../ideLinks";
 
 const urlPattern = /^https?:\/\/[^\s<]+/;
 
-export function renderInline(text: string, keyPrefix: string): ComponentChildren[] {
+export function renderInline(text: string, keyPrefix: string, context: InlineRenderContext = {}): ComponentChildren[] {
   const nodes: ComponentChildren[] = [];
   let plain = "";
   let index = 0;
@@ -17,7 +18,7 @@ export function renderInline(text: string, keyPrefix: string): ComponentChildren
   const addWrapped = (tag: "strong" | "em" | "del", content: string, markerLength: number, end: number) => {
     flush();
     const key = `${keyPrefix}-${nodes.length}`;
-    const children = renderInline(content, key);
+    const children = renderInline(content, key, context);
     if (tag === "strong") nodes.push(<strong key={key}>{children}</strong>);
     if (tag === "em") nodes.push(<em key={key}>{children}</em>);
     if (tag === "del") nodes.push(<del key={key}>{children}</del>);
@@ -69,13 +70,13 @@ export function renderInline(text: string, keyPrefix: string): ComponentChildren
       if (hrefStart >= 0 && text[hrefStart] === "(") {
         const hrefEnd = text.indexOf(")", hrefStart + 1);
         if (hrefEnd > hrefStart + 1) {
-          const href = safeHref(text.slice(hrefStart + 1, hrefEnd));
+          const href = safeHref(text.slice(hrefStart + 1, hrefEnd), context);
           if (href) {
             flush();
             const key = `${keyPrefix}-${nodes.length}`;
             nodes.push(
               <a key={key} href={href} target="_blank" rel="noopener noreferrer" class="text-accent-blue hover:underline">
-                {renderInline(text.slice(index + 1, labelEnd), key)}
+                {renderInline(text.slice(index + 1, labelEnd), key, context)}
               </a>
             );
             index = hrefEnd + 1;
@@ -106,8 +107,15 @@ export function renderInline(text: string, keyPrefix: string): ComponentChildren
   return nodes;
 }
 
-function safeHref(raw: string): string | null {
+interface InlineRenderContext {
+  chatId?: string;
+  cwd?: string;
+}
+
+function safeHref(raw: string, context: InlineRenderContext): string | null {
   const href = raw.trim();
+  const ideHref = internalPathIdeUrl(href, context);
+  if (ideHref) return ideHref;
   if (
     href.startsWith("https://") ||
     href.startsWith("http://") ||

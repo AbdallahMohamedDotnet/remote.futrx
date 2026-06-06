@@ -5,6 +5,7 @@ import { useAuthContext } from "./AuthContext";
 import {
   DEFAULT_USER_SETTINGS,
   type AppearanceTheme,
+  type ChatSettings,
   type UserSettings,
 } from "../models/settings";
 import { settingsService } from "../services/settingsService";
@@ -16,6 +17,7 @@ interface UserSettingsContextValue {
   error: string | null;
   refresh: () => Promise<void>;
   setTheme: (theme: AppearanceTheme) => Promise<void>;
+  setChatSettings: (chat: Partial<ChatSettings>) => Promise<void>;
 }
 
 const UserSettingsContext = createContext<UserSettingsContextValue | null>(null);
@@ -76,6 +78,21 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
     }
   }, [settings]);
 
+  const setChatSettings = useCallback(async (chat: Partial<ChatSettings>) => {
+    const previous = settings;
+    setSettings({ ...settings, chat: { ...settings.chat, ...chat } });
+    setSaving(true);
+    try {
+      setSettings(await settingsService.update({ chat }));
+      setError(null);
+    } catch (e) {
+      setSettings(previous);
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }, [settings]);
+
   const value = useMemo<UserSettingsContextValue>(() => ({
     settings,
     loading,
@@ -83,7 +100,8 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
     error,
     refresh,
     setTheme,
-  }), [settings, loading, saving, error, refresh, setTheme]);
+    setChatSettings,
+  }), [settings, loading, saving, error, refresh, setTheme, setChatSettings]);
 
   return (
     <UserSettingsContext.Provider value={value}>

@@ -1,7 +1,5 @@
-import { Code, Monitor, Terminal } from "../../ui/icons";
-
-const defaultWorkspacePath = "/opt/remote.futrx.dev";
-const ideBaseUrl = "https://code.remote.futrx.dev/";
+import { Clock, Code, Monitor, Terminal } from "../../ui/icons";
+import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
 
 export function CwdEditor({
   editing,
@@ -13,6 +11,7 @@ export function CwdEditor({
   onCancel,
   onOpenTerminal,
   onOpenBrowser,
+  onOpenHistory,
 }: {
   editing: boolean;
   cwd: string;
@@ -23,9 +22,10 @@ export function CwdEditor({
   onCancel: () => void;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
+  onOpenHistory: () => void;
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
-  const ideUrl = `${ideBaseUrl}?folder=${encodeURIComponent(workspacePath)}`;
+  const ideUrl = buildIdeUrl(workspacePath);
 
   if (editing) {
     return (
@@ -71,9 +71,20 @@ export function CwdEditor({
       </button>
       <button
         type="button"
-        onClick={onOpenBrowser}
+        onClick={onOpenHistory}
         class="h-9 inline-flex items-center gap-2 px-3 rounded-md
                bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none ml-auto"
+        title="Review git history"
+        aria-label="Review history"
+      >
+        <Clock class="w-4 h-4 text-accent-blue flex-none" />
+        <span class="text-[12.5px] font-medium">History</span>
+      </button>
+      <button
+        type="button"
+        onClick={onOpenBrowser}
+        class="h-9 inline-flex items-center gap-2 px-3 rounded-md
+               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
         title="Open browser preview"
         aria-label="Open browser"
       >

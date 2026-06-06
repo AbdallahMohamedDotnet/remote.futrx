@@ -100,10 +100,10 @@ type UpdateInput struct {
 
 func NormalizeProvider(provider Provider) Provider {
 	switch provider {
-	case ProviderCodex:
-		return ProviderCodex
-	default:
+	case ProviderClaude:
 		return ProviderClaude
+	default:
+		return ProviderCodex
 	}
 }
 

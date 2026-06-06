@@ -1,9 +1,10 @@
-import { useEffect } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { ChatMeta, ChatMode, ChatProvider, ReasoningEffort, SelectedSkill } from "../models/chat";
 import type { ProjectMeta } from "../models/project";
 import type { RegisteredSkill } from "../models/skill";
 import { BrowserDrawer } from "../components/chat/browser/BrowserDrawer";
 import { ChatThread } from "../components/chat/ChatThread";
+import { HistoryDrawer } from "../components/chat/history/HistoryDrawer";
 import { useChat } from "../hooks/chat/useChat";
 import { useChatBrowserController } from "../hooks/chat/useChatBrowserController";
 import { useChatComposerController } from "../hooks/chat/useChatComposerController";
@@ -12,6 +13,7 @@ import { useChatMetaActions } from "../hooks/chat/useChatMetaActions";
 import { useChatReadMarker } from "../hooks/chat/useChatReadMarker";
 import { useTerminalOverlayController } from "../hooks/chat/useTerminalOverlayController";
 import { useThreadHeaderState } from "../hooks/chat/useThreadHeaderState";
+import { useUserSettingsContext } from "../context/UserSettingsContext";
 
 export function ChatContainer({
   chat,
@@ -39,9 +41,17 @@ export function ChatContainer({
     loadOlder,
     refreshMeta,
   } = useChat(chat.id);
-  const displayMeta = meta ?? chat;
-  const displayProvider = displayMeta.provider || "claude";
-  const displayMode = displayMeta.mode || "code";
+  const { settings, setChatSettings } = useUserSettingsContext();
+  const baseMeta = meta ?? chat;
+  const displayProvider = baseMeta.provider || settings.chat.provider;
+  const displayMode = baseMeta.mode || settings.chat.mode;
+  const displayMeta: ChatMeta = {
+    ...baseMeta,
+    provider: displayProvider,
+    model: baseMeta.model ?? settings.chat.model,
+    mode: displayMode,
+    reasoningEffort: baseMeta.reasoningEffort ?? settings.chat.reasoningEffort,
+  };
   const selectedSkills = displayMeta.selectedSkills || [];
   const attachmentBasePath = attachmentBasePathForChat(displayMeta, projects);
   const metaActions = useChatMetaActions({
@@ -71,9 +81,11 @@ export function ChatContainer({
     textareaRef: composer.textareaRef,
   });
   const terminal = useTerminalOverlayController();
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     terminal.resetTerminal();
+    setHistoryOpen(false);
   }, [chat.id]);
 
   useChatReadMarker({ chatId: chat.id, eventCount, status, onMetaUpdate });
@@ -82,6 +94,7 @@ export function ChatContainer({
   function changeProvider(provider: ChatProvider) {
     if (provider === displayProvider) return;
     metaActions.applyMeta({ provider, model: "", reasoningEffort: "", selectedSkills: [] });
+    void setChatSettings({ provider, model: "", reasoningEffort: "" });
   }
 
   function selectedSkillKey(skill: SelectedSkill | RegisteredSkill) {
@@ -107,12 +120,29 @@ export function ChatContainer({
     metaActions.applyMeta({ selectedSkills: selectedSkills.filter((selected) => selectedSkillKey(selected) !== key) });
   }
 
+  function changeModel(model: string) {
+    metaActions.applyMeta({ model });
+    void setChatSettings({ model });
+  }
+
   function changeMode(mode: ChatMode) {
     metaActions.applyMeta({ mode });
+    void setChatSettings({ mode });
   }
 
   function changeReasoningEffort(reasoningEffort: ReasoningEffort) {
     metaActions.applyMeta({ reasoningEffort });
+    void setChatSettings({ reasoningEffort });
+  }
+
+  function openBrowserDrawer() {
+    setHistoryOpen(false);
+    browser.openBrowserDrawer();
+  }
+
+  function openHistoryDrawer() {
+    browser.closeBrowserDrawer();
+    setHistoryOpen(true);
   }
 
   return (
@@ -166,15 +196,21 @@ export function ChatContainer({
             onRemoveQueued={composer.queue.removeQueuedPrompt}
             onRemoveAttachment={composer.upload.removeAttachment}
             onProviderChange={changeProvider}
-            onModelChange={(model) => metaActions.applyMeta({ model })}
+            onModelChange={changeModel}
             onModeChange={changeMode}
             onReasoningEffortChange={changeReasoningEffort}
             onSelectSkill={selectSkill}
             onRemoveSelectedSkill={removeSelectedSkill}
             onOpenTerminal={terminal.openTerminal}
-            onOpenBrowser={browser.openBrowserDrawer}
+            onOpenBrowser={openBrowserDrawer}
+            onOpenHistory={openHistoryDrawer}
           />
         </div>
+        <HistoryDrawer
+          chatId={chat.id}
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+        />
         <BrowserDrawer
           open={browser.browserOpen}
           projectName={browser.browserProject?.name || ""}

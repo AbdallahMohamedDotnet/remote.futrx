@@ -109,6 +109,7 @@ export function MessageList({
               block={block}
               streaming={status === "streaming" && blockIndex === blocks.length - 1}
               chatId={chatId}
+              cwd={cwd}
               onAnswerQuestion={onAnswerQuestion}
               onRewind={onRewind}
             />

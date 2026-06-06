@@ -1,11 +1,12 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
 import { useContext, useEffect, useReducer } from "preact/hooks";
-import type { ChatMeta } from "../models/chat";
+import type { ChatMeta, CreateChatInput } from "../models/chat";
 import type { ProjectMeta } from "../models/project";
 import { chatService } from "../services/chatService";
 import { projectService } from "../services/projectService";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
+import { useUserSettingsContext } from "./UserSettingsContext";
 import {
   initialWorkspaceUiState,
   workspaceUiReducer,
@@ -48,6 +49,7 @@ export function WorkspaceProvider({
   children: ComponentChildren;
 }) {
   const data = useWorkspaceData(enabled);
+  const { settings } = useUserSettingsContext();
   const [ui, dispatch] = useReducer(workspaceUiReducer, initialWorkspaceUiState);
   const activeChat = selectActiveChat(data.chats, ui.activeChatId);
 
@@ -68,7 +70,14 @@ export function WorkspaceProvider({
   }
 
   async function createChat(projectId?: string): Promise<ChatMeta> {
-    const chat = await chatService.create(projectId ? { projectId } : {});
+    const input: CreateChatInput = {
+      provider: settings.chat.provider,
+      model: settings.chat.model,
+      mode: settings.chat.mode,
+      reasoningEffort: settings.chat.reasoningEffort,
+      ...(projectId ? { projectId } : {}),
+    };
+    const chat = await chatService.create(input);
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
   }

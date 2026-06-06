@@ -4,6 +4,8 @@ import { Markdown } from "../markdown/Markdown";
 interface Props {
   text: string;
   streaming: boolean;
+  chatId?: string;
+  cwd?: string;
 }
 
 // Typewriter-style renderer: buffers incoming text and reveals it at a steady
@@ -14,7 +16,7 @@ interface Props {
 //   2KB chunk doesn't take 25 seconds to animate.
 // • When `streaming` flips false, snap to the full text immediately.
 // • For history replay (mounted with streaming=false), render instantly.
-export function StreamingText({ text, streaming }: Props) {
+export function StreamingText({ text, streaming, chatId, cwd }: Props) {
   const [displayed, setDisplayed] = useState<string>(() => (streaming ? "" : text));
   const targetRef = useRef(text);
   targetRef.current = text;
@@ -55,7 +57,7 @@ export function StreamingText({ text, streaming }: Props) {
       {streaming ? (
         <div class="whitespace-pre-wrap break-words">{displayed}</div>
       ) : (
-        <Markdown>{displayed}</Markdown>
+        <Markdown chatId={chatId} cwd={cwd}>{displayed}</Markdown>
       )}
       {showCaret && (
         <span

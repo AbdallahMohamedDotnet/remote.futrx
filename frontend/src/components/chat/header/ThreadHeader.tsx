@@ -14,6 +14,7 @@ export function ThreadHeader({
   onCancelCwdEdit,
   onOpenTerminal,
   onOpenBrowser,
+  onOpenHistory,
   onHamburger,
 }: {
   chat: ChatMeta;
@@ -26,6 +27,7 @@ export function ThreadHeader({
   onCancelCwdEdit: () => void;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
+  onOpenHistory: () => void;
   onHamburger: () => void;
 }) {
   return (
@@ -72,6 +74,7 @@ export function ThreadHeader({
           onCancel={onCancelCwdEdit}
           onOpenTerminal={onOpenTerminal}
           onOpenBrowser={onOpenBrowser}
+          onOpenHistory={onOpenHistory}
         />
       </div>
     </header>

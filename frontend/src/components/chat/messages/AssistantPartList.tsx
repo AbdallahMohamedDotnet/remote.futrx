@@ -10,19 +10,21 @@ export function AssistantPartList({
   parts,
   streaming,
   chatId,
+  cwd,
   onAnswerQuestion,
 }: {
   parts: AssistantPart[];
   streaming: boolean;
   chatId?: string;
+  cwd?: string;
   onAnswerQuestion?: (text: string) => void;
 }) {
-  return <>{renderAssistantParts(parts, { streaming, chatId, onAnswerQuestion })}</>;
+  return <>{renderAssistantParts(parts, { streaming, chatId, cwd, onAnswerQuestion })}</>;
 }
 
 function renderAssistantParts(
   parts: AssistantPart[],
-  context: { streaming: boolean; chatId?: string; onAnswerQuestion?: (text: string) => void }
+  context: { streaming: boolean; chatId?: string; cwd?: string; onAnswerQuestion?: (text: string) => void }
 ): ComponentChildren[] {
   const rendered: ComponentChildren[] = [];
   let toolGroup: ToolPart[] = [];
@@ -54,7 +56,7 @@ function renderAssistantParts(
     if (part.kind === "text") {
       rendered.push(
         <div key={index} class="text-[15px] leading-7 text-ink-100">
-          <StreamingText text={part.text} streaming={context.streaming} />
+          <StreamingText text={part.text} streaming={context.streaming} chatId={context.chatId} cwd={context.cwd} />
         </div>
       );
       return;
