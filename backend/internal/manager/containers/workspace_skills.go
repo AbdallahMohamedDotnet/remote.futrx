@@ -64,6 +64,28 @@ migrate_skills_dir /workspace/.claude/skills
 migrate_skills_dir /workspace/.codex/skills
 link_skills_dir /workspace/.claude
 link_skills_dir /workspace/.codex
+
+# Codex (unlike Claude) loads skills from its HOME registry ($CODEX_HOME/skills
+# = /root/.codex/skills), not from the cwd-relative workspace link above. So we
+# also mirror each project skill into the Codex home as a per-skill symlink,
+# leaving Codex's bundled ".system" skills and any real installed dirs intact,
+# and pruning stale/dangling project links from a previous layout.
+codex_home_skills=/root/.codex/skills
+if [ -d /root/.codex ]; then
+  mkdir -p "$codex_home_skills"
+  for entry in "$codex_home_skills"/* ; do
+    [ -e "$entry" ] && continue            # resolves fine (real dir or live link) → keep
+    [ -L "$entry" ] && rm -f "$entry"      # dangling symlink → prune
+  done
+  if [ -d "$canonical" ]; then
+    for d in "$canonical"/*/ ; do
+      [ -d "$d" ] || continue
+      name=$(basename "$d")
+      [ "$name" = ".system" ] && continue
+      ln -sfn "$canonical/$name" "$codex_home_skills/$name"
+    done
+  fi
+fi
 `
 	if _, err := m.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
 		return err
