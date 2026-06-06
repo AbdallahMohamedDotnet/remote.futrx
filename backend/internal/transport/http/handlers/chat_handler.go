@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -132,6 +134,8 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			h.handleMarkRead(w, r, id)
 		case "ide-open":
 			h.handleIDEOpen(w, r, meta)
+		case "media-open":
+			h.handleMediaOpen(w, r, meta)
 		case "history/repos":
 			h.handleHistoryRepos(w, r, meta)
 		case "history/commits":
@@ -244,6 +248,36 @@ func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta
 	http.Redirect(w, r, ideFolderURL(workspaceRoot), http.StatusFound)
 }
 
+func (h *ChatHandler) handleMediaOpen(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
+	if r.Method != http.MethodGet {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	filePath, _, err := resolveIDEOpenPath(r.URL.Query().Get("path"), meta.Cwd)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !isBrowserMediaFile(filePath) {
+		httptransport.SendErr(w, http.StatusUnsupportedMediaType, "file type cannot be opened in browser")
+		return
+	}
+	info, err := os.Stat(filePath)
+	if err != nil || info.IsDir() {
+		httptransport.SendErr(w, http.StatusNotFound, "file not found")
+		return
+	}
+
+	if contentType := mediaContentType(filePath); contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	}
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": filepath.Base(filePath)}))
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self' data: blob:; media-src 'self' data: blob:; style-src 'unsafe-inline'")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeFile(w, r, filePath)
+}
+
 func resolveIDEOpenPath(rawPath, cwd string) (string, string, error) {
 	workspaceRoot := workspaceRootFromPath(cwd)
 	if workspaceRoot == "" {
@@ -302,6 +336,47 @@ func ideFolderURL(workspaceRoot string) string {
 	q.Set("folder", workspaceRoot)
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+func isBrowserMediaFile(path string) bool {
+	_, ok := browserMediaExtensions[strings.ToLower(filepath.Ext(path))]
+	return ok
+}
+
+func mediaContentType(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	if contentType, ok := browserMediaExtensions[ext]; ok {
+		return contentType
+	}
+	return mime.TypeByExtension(ext)
+}
+
+var browserMediaExtensions = map[string]string{
+	".aac":  "audio/aac",
+	".avif": "image/avif",
+	".bmp":  "image/bmp",
+	".flac": "audio/flac",
+	".gif":  "image/gif",
+	".ico":  "image/x-icon",
+	".jpeg": "image/jpeg",
+	".jpg":  "image/jpeg",
+	".m4a":  "audio/mp4",
+	".m4v":  "video/mp4",
+	".mov":  "video/quicktime",
+	".mp3":  "audio/mpeg",
+	".mp4":  "video/mp4",
+	".oga":  "audio/ogg",
+	".ogg":  "audio/ogg",
+	".ogv":  "video/ogg",
+	".opus": "audio/opus",
+	".pdf":  "application/pdf",
+	".png":  "image/png",
+	".svg":  "image/svg+xml",
+	".tif":  "image/tiff",
+	".tiff": "image/tiff",
+	".wav":  "audio/wav",
+	".webm": "video/webm",
+	".webp": "image/webp",
 }
 
 func workspaceRootFromPath(path string) string {

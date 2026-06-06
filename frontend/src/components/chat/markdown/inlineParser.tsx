@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { internalPathIdeUrl } from "../ideLinks";
+import { internalPathOpenUrl } from "../ideLinks";
 
 const urlPattern = /^https?:\/\/[^\s<]+/;
 
@@ -114,8 +114,8 @@ interface InlineRenderContext {
 
 function safeHref(raw: string, context: InlineRenderContext): string | null {
   const href = raw.trim();
-  const ideHref = internalPathIdeUrl(href, context);
-  if (ideHref) return ideHref;
+  const internalHref = internalPathOpenUrl(href, context);
+  if (internalHref) return internalHref;
   if (
     href.startsWith("https://") ||
     href.startsWith("http://") ||

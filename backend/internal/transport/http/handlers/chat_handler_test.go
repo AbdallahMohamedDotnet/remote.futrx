@@ -66,3 +66,22 @@ func TestResolveIDEOpenPathRejectsUnsafePaths(t *testing.T) {
 		})
 	}
 }
+
+func TestIsBrowserMediaFile(t *testing.T) {
+	tests := map[string]bool{
+		"/workspace/screenshot.PNG": true,
+		"/workspace/demo.mp4":       true,
+		"/workspace/audio.m4a":      true,
+		"/workspace/report.pdf":     true,
+		"/workspace/app.tsx":        false,
+		"/workspace/archive.zip":    false,
+	}
+
+	for path, want := range tests {
+		t.Run(path, func(t *testing.T) {
+			if got := isBrowserMediaFile(path); got != want {
+				t.Fatalf("isBrowserMediaFile() = %v, want %v", got, want)
+			}
+		})
+	}
+}

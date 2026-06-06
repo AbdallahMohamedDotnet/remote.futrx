@@ -11,14 +11,15 @@ export function buildIdeUrl(folderPath: string, filePath?: string): string {
   return url.toString();
 }
 
-export function internalPathIdeUrl(href: string, context: IdeLinkContext = {}): string | null {
+export function internalPathOpenUrl(href: string, context: IdeLinkContext = {}): string | null {
   const path = normalizeAbsolutePath(stripPathSuffix(href));
   if (!path) return null;
   if (!isContainerWorkspacePath(path) && !isHostWorkspacePath(path)) return null;
 
   if (context.chatId) {
     const params = new URLSearchParams({ path });
-    return `/api/chats/${encodeURIComponent(context.chatId)}/ide-open?${params.toString()}`;
+    const action = isBrowserMediaPath(path) ? "media-open" : "ide-open";
+    return `/api/chats/${encodeURIComponent(context.chatId)}/${action}?${params.toString()}`;
   }
 
   const workspaceRoot = workspaceRootFromCwd(context.cwd);
@@ -33,9 +34,49 @@ export function internalPathIdeUrl(href: string, context: IdeLinkContext = {}): 
   return buildIdeUrl(folder, path === folder ? undefined : path);
 }
 
+export function internalPathIdeUrl(href: string, context: IdeLinkContext = {}): string | null {
+  return internalPathOpenUrl(href, context);
+}
+
 export interface IdeLinkContext {
   chatId?: string;
   cwd?: string;
+}
+
+const browserMediaExtensions = new Set([
+  ".aac",
+  ".avif",
+  ".bmp",
+  ".flac",
+  ".gif",
+  ".ico",
+  ".jpeg",
+  ".jpg",
+  ".m4a",
+  ".m4v",
+  ".mov",
+  ".mp3",
+  ".mp4",
+  ".oga",
+  ".ogg",
+  ".ogv",
+  ".opus",
+  ".pdf",
+  ".png",
+  ".svg",
+  ".tif",
+  ".tiff",
+  ".wav",
+  ".webm",
+  ".webp",
+]);
+
+function isBrowserMediaPath(path: string): boolean {
+  const lower = path.toLowerCase();
+  for (const extension of browserMediaExtensions) {
+    if (lower.endsWith(extension)) return true;
+  }
+  return false;
 }
 
 function workspaceRootFromCwd(cwd?: string): string {
