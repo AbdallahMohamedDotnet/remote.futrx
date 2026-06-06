@@ -19,7 +19,11 @@
 //       "cookies": [
 //         { "name": "<cookie-name>", "domain": "<cookie-domain>", "secret": "<ENV_VAR>",
 //           "path": "/", "httpOnly": true, "secure": true, "sameSite": "None" }
-//       ]
+//       ],
+//       "basicAuth": "<ENV_VAR>"   // optional; env value is "user:pass".
+//                                  // For sites behind HTTP Basic auth (e.g. a
+//                                  // pre-launch gate). Applied via Playwright
+//                                  // httpCredentials.
 //     }
 //   }
 //
@@ -198,7 +202,20 @@ function cookieFromEntry(c, fallbackHost) {
   };
 }
 
+// HTTP Basic auth: an entry may carry `"basicAuth": "<ENV_VAR>"` whose value
+// is "user:pass". Used for pre-launch sites behind a Cloudflare/edge gate.
+// Playwright applies this at the context level via httpCredentials.
+function basicAuthFromEntry(entry, origin) {
+  if (!entry?.basicAuth) return undefined;
+  const raw = process.env[entry.basicAuth];
+  if (!raw) return undefined;
+  const i = raw.indexOf(':');
+  if (i < 0) return undefined;
+  return { username: raw.slice(0, i), password: raw.slice(i + 1), origin };
+}
+
 let cookies = [];
+let httpCredentials;
 if (cmd === 'screenshot' || cmd === 'record') {
   // URL-driven: if this host has an entry, every cookie's secret must be
   // set (fail loud — agent should not silently take a logged-out shot of
@@ -221,6 +238,7 @@ if (cmd === 'screenshot' || cmd === 'record') {
       }
       return cookieFromEntry(c, url.host);
     });
+    httpCredentials = basicAuthFromEntry(entry, url.origin);
   }
   // No entry → public site / not-configured-yet; proceed with cookies = [].
 } else if (cmd === 'run') {
@@ -230,10 +248,16 @@ if (cmd === 'screenshot' || cmd === 'record') {
   // can surface its own error.
   for (const host of Object.keys(config)) {
     const entry = config[host];
-    if (!entry?.cookies) continue;
-    for (const c of entry.cookies) {
-      if (!c.secret || !process.env[c.secret]) continue;
-      cookies.push(cookieFromEntry(c, host.startsWith('*.') ? host.slice(2) : host));
+    if (entry?.cookies) {
+      for (const c of entry.cookies) {
+        if (!c.secret || !process.env[c.secret]) continue;
+        cookies.push(cookieFromEntry(c, host.startsWith('*.') ? host.slice(2) : host));
+      }
+    }
+    // First entry with a usable basicAuth wins (context-level, no origin so it
+    // satisfies whichever gated host the recipe visits).
+    if (!httpCredentials && entry?.basicAuth && process.env[entry.basicAuth]) {
+      httpCredentials = basicAuthFromEntry(entry, undefined);
     }
   }
 }
@@ -247,6 +271,9 @@ const launchOpts = { headless: true };
 const contextOpts = { viewport: VIEWPORT };
 if (recordingEnabled) {
   contextOpts.recordVideo = { dir: OUT_DIR, size: VIEWPORT };
+}
+if (httpCredentials) {
+  contextOpts.httpCredentials = httpCredentials;
 }
 
 // For `run`, resolve the recipe up-front so we fail fast on bad path
