@@ -1,19 +1,22 @@
 import type { ChatMeta } from "../../models/chat";
 import { formatModelShortLabel, timeAgo } from "../../lib/format";
-import { Clock, Loader, MessageSquare, X } from "../ui/icons";
+import { Clock, Eye, EyeOff, Loader, MessageSquare, X } from "../ui/icons";
 
 export function ChatRow({
   chat,
   active,
   onSelect,
   onDelete,
+  onToggleUnread,
 }: {
   chat: ChatMeta;
   active: boolean;
   onSelect: () => void;
   onDelete: (event: Event) => void;
+  onToggleUnread: (event: Event) => void;
 }) {
-  const unread = !active && !chat.running && (chat.lastMessageAt || 0) > (chat.lastReadAt || 0);
+  const rawUnread = (chat.lastMessageAt || 0) > (chat.lastReadAt || 0);
+  const unread = !active && !chat.running && rawUnread;
 
   return (
     <div
@@ -52,6 +55,16 @@ export function ChatRow({
             </div>
           </div>
         </div>
+      </button>
+      <button
+        type="button"
+        onClick={onToggleUnread}
+        class="w-8 grid place-items-center text-ink-300 hover:text-ink-50 hover:bg-white/[0.08]
+               opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+        aria-label={rawUnread ? `Mark ${chat.title || "chat"} read` : `Mark ${chat.title || "chat"} unread`}
+        title={rawUnread ? "Mark read" : "Mark unread"}
+      >
+        {rawUnread ? <Eye class="w-3.5 h-3.5" /> : <EyeOff class="w-3.5 h-3.5" />}
       </button>
       <button
         type="button"

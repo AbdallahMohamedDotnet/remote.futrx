@@ -1,6 +1,7 @@
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { useWorkspaceContext } from "../../context/WorkspaceContext";
+import { chatService } from "../../services/chatService";
 
 export function useWorkspaceCommands() {
   const workspace = useWorkspaceContext();
@@ -30,6 +31,25 @@ export function useWorkspaceCommands() {
       await workspace.deleteChat(chat.id);
     } catch (error) {
       alert("delete failed: " + (error as Error).message);
+    }
+  }
+
+  async function toggleChatUnread(chat: ChatMeta, event: Event) {
+    event.stopPropagation();
+    const unread = (chat.lastMessageAt || 0) > (chat.lastReadAt || 0);
+    try {
+      if (unread) await chatService.markRead(chat.id);
+      else await chatService.markUnread(chat.id);
+    } catch (error) {
+      alert("read state update failed: " + (error as Error).message);
+    }
+  }
+
+  async function reorderProjects(projectIds: string[]) {
+    try {
+      await workspace.reorderProjects(projectIds);
+    } catch (error) {
+      alert("reorder failed: " + (error as Error).message);
     }
   }
 
@@ -69,6 +89,8 @@ export function useWorkspaceCommands() {
     newProject,
     newChatInProject,
     deleteChat,
+    toggleChatUnread,
+    reorderProjects,
     deleteProject,
     startProject,
     stopProject,

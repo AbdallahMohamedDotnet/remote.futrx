@@ -20,6 +20,7 @@ export interface ProjectMeta {
   cwd: string;
   containerName: string;
   status: ProjectStatus;
+  order?: number;
   errorMsg?: string;
   createdAt: number;
   updatedAt: number;

@@ -35,6 +35,7 @@ interface WorkspaceContextValue {
   createChat: (projectId?: string) => Promise<ChatMeta>;
   deleteChat: (chatId: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
+  reorderProjects: (projectIds: string[]) => Promise<void>;
   startProject: (projectId: string) => Promise<void>;
   stopProject: (projectId: string) => Promise<void>;
 }
@@ -90,6 +91,10 @@ export function WorkspaceProvider({
     await projectService.delete(projectId);
   }
 
+  async function reorderProjects(projectIds: string[]) {
+    await projectService.reorder(projectIds);
+  }
+
   async function startProject(projectId: string) {
     await projectService.start(projectId);
   }
@@ -118,6 +123,7 @@ export function WorkspaceProvider({
         createChat,
         deleteChat,
         deleteProject,
+        reorderProjects,
         startProject,
         stopProject,
       }}

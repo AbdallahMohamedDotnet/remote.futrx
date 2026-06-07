@@ -110,6 +110,9 @@ func (s *Store) Create(ctx context.Context, m serviceproject.Meta) (serviceproje
 		m.CreatedAt = now
 	}
 	m.UpdatedAt = now
+	if m.Order == 0 {
+		m.Order = now
+	}
 
 	if err := s.writeMeta(m); err != nil {
 		return serviceproject.Meta{}, err
@@ -148,8 +151,22 @@ func (s *Store) List(ctx context.Context) ([]serviceproject.Meta, error) {
 		}
 		out = append(out, m)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
+	sort.Slice(out, func(i, j int) bool {
+		left := projectOrder(out[i])
+		right := projectOrder(out[j])
+		if left == right {
+			return out[i].CreatedAt > out[j].CreatedAt
+		}
+		return left > right
+	})
 	return out, nil
+}
+
+func projectOrder(m serviceproject.Meta) int64 {
+	if m.Order != 0 {
+		return m.Order
+	}
+	return m.CreatedAt
 }
 
 func (s *Store) Update(

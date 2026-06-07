@@ -123,8 +123,19 @@ function nextChats(next: ChatMeta[], current?: ChatMeta[]): ChatMeta[] {
 }
 
 function nextProjects(next: ProjectMeta[], current?: ProjectMeta[]): ProjectMeta[] {
-  const sorted = next.slice().sort((a, b) => b.createdAt - a.createdAt);
+  const sorted = next.slice().sort(compareProjects);
   return current && sameProjects(current, sorted) ? current : sorted;
+}
+
+function compareProjects(a: ProjectMeta, b: ProjectMeta): number {
+  const left = projectOrder(a);
+  const right = projectOrder(b);
+  if (left !== right) return right - left;
+  return b.createdAt - a.createdAt;
+}
+
+function projectOrder(project: ProjectMeta): number {
+  return project.order || project.createdAt || 0;
 }
 
 function sameChats(a: ChatMeta[], b: ChatMeta[]): boolean {
@@ -167,6 +178,7 @@ function sameProjects(a: ProjectMeta[], b: ProjectMeta[]): boolean {
       left.cwd !== right.cwd ||
       left.containerName !== right.containerName ||
       left.status !== right.status ||
+      left.order !== right.order ||
       left.errorMsg !== right.errorMsg ||
       left.createdAt !== right.createdAt ||
       left.updatedAt !== right.updatedAt

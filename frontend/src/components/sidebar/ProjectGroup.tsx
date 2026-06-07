@@ -1,8 +1,7 @@
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
-import { ChevronDown, ChevronRight, Loader, Plus, Settings, X } from "../ui/icons";
+import { ChevronDown, ChevronRight, Loader, Plus, Settings } from "../ui/icons";
 import { ChatRow } from "./ChatRow";
-import { ProjectStatusDot } from "./ProjectStatusDot";
 
 export function ProjectGroup({
   project,
@@ -12,12 +11,17 @@ export function ProjectGroup({
   collapsed,
   onToggle,
   onNewChat,
-  onStart,
-  onStop,
-  onDelete,
   onOpenContainer,
   onSelectChat,
   onDeleteChat,
+  onToggleChatUnread,
+  draggable,
+  dragging,
+  dragOver,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }: {
   project: ProjectMeta;
   chats: ChatMeta[];
@@ -26,18 +30,30 @@ export function ProjectGroup({
   collapsed: boolean;
   onToggle: () => void;
   onNewChat: () => void;
-  onStart: (event: Event) => void;
-  onStop: (event: Event) => void;
-  onDelete: (event: Event) => void;
   onOpenContainer: () => void;
   onSelectChat: (chatId: string) => void;
   onDeleteChat: (chat: ChatMeta, event: Event) => void;
+  onToggleChatUnread: (chat: ChatMeta, event: Event) => void;
+  draggable?: boolean;
+  dragging?: boolean;
+  dragOver?: boolean;
+  onDragStart?: (event: DragEvent) => void;
+  onDragOver?: (event: DragEvent) => void;
+  onDrop?: (event: DragEvent) => void;
+  onDragEnd?: (event: DragEvent) => void;
 }) {
   const provisioning = project.status === "provisioning";
-  const stopped = project.status === "stopped";
+  const hasUnread = chats.some((chat) => (chat.lastMessageAt || 0) > (chat.lastReadAt || 0));
 
   return (
-    <div class="min-h-0 rounded-lg">
+    <div
+      class={`min-h-0 rounded-lg transition ${dragging ? "opacity-55" : ""} ${dragOver ? "ring-1 ring-accent-blue/60 bg-accent-blue/[0.08]" : ""}`}
+      draggable={draggable}
+      onDragStart={onDragStart as any}
+      onDragOver={onDragOver as any}
+      onDrop={onDrop as any}
+      onDragEnd={onDragEnd as any}
+    >
       <div class="group flex items-stretch gap-0.5 rounded-md hover:bg-white/[0.04]">
         <button
           type="button"
@@ -49,7 +65,9 @@ export function ProjectGroup({
           {collapsed ? <ChevronRight class="w-4 h-4" /> : <ChevronDown class="w-4 h-4" />}
         </button>
         <div class="flex-1 min-w-0 py-2 pr-1 flex items-center gap-2">
-          <ProjectStatusDot status={project.status} />
+          {hasUnread && (
+            <span class="flex-none w-2 h-2 rounded-full bg-accent-green animate-pulse shadow-[0_0_0_3px_rgba(43,213,118,0.12)]" title="Unread chats" />
+          )}
           <button
             type="button"
             onClick={(event) => {
@@ -90,28 +108,6 @@ export function ProjectGroup({
         >
           {provisioning ? <Loader class="w-3.5 h-3.5 animate-spin" /> : <Plus class="w-4 h-4" />}
         </button>
-        <button
-          type="button"
-          onClick={stopped ? onStart : onStop}
-          disabled={provisioning || project.status === "" || project.status === "missing"}
-          class="hidden md:grid w-9 place-items-center text-[10px] uppercase tracking-wide
-                 text-ink-300 hover:text-ink-50 hover:bg-white/[0.08] rounded
-                 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0"
-          aria-label={stopped ? "Start project" : "Stop project"}
-          title={stopped ? "Start container" : "Stop container"}
-        >
-          {stopped ? "Start" : "Stop"}
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          class="w-9 grid place-items-center text-ink-300 hover:text-accent-red hover:bg-accent-red/10
-                 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-          aria-label={`Delete ${project.name}`}
-          title="Delete project"
-        >
-          <X class="w-4 h-4" />
-        </button>
       </div>
 
       {project.errorMsg && (
@@ -141,6 +137,7 @@ export function ProjectGroup({
                 active={chat.id === activeChatId}
                 onSelect={() => onSelectChat(chat.id)}
                 onDelete={(event) => onDeleteChat(chat, event)}
+                onToggleUnread={(event) => onToggleChatUnread(chat, event)}
               />
             ))
           )}

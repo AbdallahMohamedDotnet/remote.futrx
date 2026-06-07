@@ -95,10 +95,10 @@ func TestHubAllowsOnlyOneRunPerChat(t *testing.T) {
 		t.Fatal("cancel was not called")
 	}
 
-	hub.FinishRun("abcd", runID)
 	if _, ok := hub.StartRun("abcd", func() {}); !ok {
-		t.Fatal("new run should start after finish")
+		t.Fatal("new run should start after cancel")
 	}
+	hub.FinishRun("abcd", runID)
 }
 
 func TestHubPublishesRunningTransitions(t *testing.T) {

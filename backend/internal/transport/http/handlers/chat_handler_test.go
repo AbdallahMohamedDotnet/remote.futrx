@@ -5,11 +5,13 @@ import "testing"
 func TestResolveIDEOpenPath(t *testing.T) {
 	workspaceRoot := "/var/lib/remote/projects/graphixy-ai/workspace"
 	tests := []struct {
-		name     string
-		rawPath  string
-		cwd      string
-		wantFile string
-		wantRoot string
+		name       string
+		rawPath    string
+		cwd        string
+		wantFile   string
+		wantRoot   string
+		wantLine   int
+		wantColumn int
 	}{
 		{
 			name:     "container workspace file",
@@ -24,6 +26,24 @@ func TestResolveIDEOpenPath(t *testing.T) {
 			cwd:      workspaceRoot + "/src/components",
 			wantFile: workspaceRoot + "/src/App.tsx",
 			wantRoot: workspaceRoot,
+		},
+		{
+			name:       "container workspace file with line",
+			rawPath:    "/workspace/src/App.tsx:87",
+			cwd:        workspaceRoot,
+			wantFile:   workspaceRoot + "/src/App.tsx",
+			wantRoot:   workspaceRoot,
+			wantLine:   87,
+			wantColumn: 0,
+		},
+		{
+			name:       "container workspace file with line and column",
+			rawPath:    "/workspace/src/App.tsx:87:5",
+			cwd:        workspaceRoot,
+			wantFile:   workspaceRoot + "/src/App.tsx",
+			wantRoot:   workspaceRoot,
+			wantLine:   87,
+			wantColumn: 5,
 		},
 		{
 			name:     "host workspace file",
@@ -43,12 +63,12 @@ func TestResolveIDEOpenPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotFile, gotRoot, err := resolveIDEOpenPath(tt.rawPath, tt.cwd)
+			got, err := resolveIDEOpenPath(tt.rawPath, tt.cwd)
 			if err != nil {
 				t.Fatalf("resolveIDEOpenPath() error = %v", err)
 			}
-			if gotFile != tt.wantFile || gotRoot != tt.wantRoot {
-				t.Fatalf("resolveIDEOpenPath() = (%q, %q), want (%q, %q)", gotFile, gotRoot, tt.wantFile, tt.wantRoot)
+			if got.FilePath != tt.wantFile || got.WorkspaceRoot != tt.wantRoot || got.Line != tt.wantLine || got.Column != tt.wantColumn {
+				t.Fatalf("resolveIDEOpenPath() = %#v, want file=%q root=%q line=%d column=%d", got, tt.wantFile, tt.wantRoot, tt.wantLine, tt.wantColumn)
 			}
 		})
 	}
@@ -60,8 +80,8 @@ func TestResolveIDEOpenPathRejectsUnsafePaths(t *testing.T) {
 
 	for _, rawPath := range tests {
 		t.Run(rawPath, func(t *testing.T) {
-			if gotFile, gotRoot, err := resolveIDEOpenPath(rawPath, workspaceRoot); err == nil {
-				t.Fatalf("resolveIDEOpenPath() = (%q, %q, nil), want error", gotFile, gotRoot)
+			if got, err := resolveIDEOpenPath(rawPath, workspaceRoot); err == nil {
+				t.Fatalf("resolveIDEOpenPath() = (%#v, nil), want error", got)
 			}
 		})
 	}

@@ -27,7 +27,7 @@ export function useSidebarState(
     setCollapsed((current) => {
       const next: Record<string, boolean> = {};
       for (const project of projects) {
-        next[project.id] = !projectHasUnreadOrRunningChat(project.id, chats);
+        next[project.id] = !projectHasUnreadChat(project.id, chats);
       }
       return sameCollapsedState(current, next) ? current : next;
     });
@@ -57,10 +57,8 @@ export function useSidebarState(
   };
 }
 
-function projectHasUnreadOrRunningChat(projectId: string, chats: ChatMeta[]): boolean {
-  return chats.some((chat) =>
-    chat.projectId === projectId && (chat.running || isUnread(chat))
-  );
+function projectHasUnreadChat(projectId: string, chats: ChatMeta[]): boolean {
+  return chats.some((chat) => chat.projectId === projectId && isUnread(chat));
 }
 
 function isUnread(chat: ChatMeta): boolean {

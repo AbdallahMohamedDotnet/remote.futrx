@@ -7,6 +7,7 @@ import { SidebarEmptyState, SidebarNoMatches } from "./SidebarEmptyState";
 import { WorkspaceSearch } from "./WorkspaceSearch";
 import { AccountFooter } from "./AccountFooter";
 import { ChevronLeft, ChevronRight, Plus, Settings, X } from "../ui/icons";
+import { useState } from "preact/hooks";
 
 export function Sidebar({
   open,
@@ -25,9 +26,8 @@ export function Sidebar({
   onToggleProject,
   onSelectChat,
   onDeleteChat,
-  onStartProject,
-  onStopProject,
-  onDeleteProject,
+  onToggleChatUnread,
+  onReorderProjects,
   onOpenProjectContainers,
   onOpenSettings,
 }: {
@@ -47,14 +47,28 @@ export function Sidebar({
   onToggleProject: (projectId: string) => void;
   onSelectChat: (chatId: string) => void;
   onDeleteChat: (chat: ChatMeta, event: Event) => void;
-  onStartProject: (project: ProjectMeta, event: Event) => void;
-  onStopProject: (project: ProjectMeta, event: Event) => void;
-  onDeleteProject: (project: ProjectMeta, event: Event) => void;
+  onToggleChatUnread: (chat: ChatMeta, event: Event) => void;
+  onReorderProjects: (projectIds: string[]) => void;
   onOpenProjectContainers: (projectId: string) => void;
   onOpenSettings?: () => void;
 }) {
   const sidebarWidth = sidebarCollapsed ? "md:w-[64px]" : "md:w-[300px]";
   const expandedOnly = sidebarCollapsed ? "md:hidden" : "";
+  const [dragProjectId, setDragProjectId] = useState<string | null>(null);
+  const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null);
+  const canReorderProjects = !model.query && model.visibleProjects.length > 1;
+
+  function reorderProjectList(sourceId: string, targetId: string) {
+    if (sourceId === targetId) return;
+    const ids = model.visibleProjects.map((node) => node.project.id);
+    const sourceIndex = ids.indexOf(sourceId);
+    const targetIndex = ids.indexOf(targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const next = ids.slice();
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    onReorderProjects(next);
+  }
 
   return (
     <>
@@ -161,12 +175,36 @@ export function Sidebar({
               collapsed={!model.query && collapsed[node.project.id] === true}
               onToggle={() => onToggleProject(node.project.id)}
               onNewChat={() => onNewChatInProject(node.project.id)}
-              onStart={(event) => onStartProject(node.project, event)}
-              onStop={(event) => onStopProject(node.project, event)}
-              onDelete={(event) => onDeleteProject(node.project, event)}
               onOpenContainer={() => onOpenProjectContainers(node.project.id)}
               onSelectChat={onSelectChat}
               onDeleteChat={onDeleteChat}
+              onToggleChatUnread={onToggleChatUnread}
+              draggable={canReorderProjects}
+              dragging={dragProjectId === node.project.id}
+              dragOver={dragOverProjectId === node.project.id && dragProjectId !== node.project.id}
+              onDragStart={(event) => {
+                if (!canReorderProjects) return;
+                setDragProjectId(node.project.id);
+                event.dataTransfer?.setData("text/plain", node.project.id);
+                if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(event) => {
+                if (!canReorderProjects || !dragProjectId) return;
+                event.preventDefault();
+                setDragOverProjectId(node.project.id);
+              }}
+              onDrop={(event) => {
+                if (!canReorderProjects) return;
+                event.preventDefault();
+                const sourceId = dragProjectId || event.dataTransfer?.getData("text/plain") || "";
+                reorderProjectList(sourceId, node.project.id);
+                setDragProjectId(null);
+                setDragOverProjectId(null);
+              }}
+              onDragEnd={() => {
+                setDragProjectId(null);
+                setDragOverProjectId(null);
+              }}
             />
           ))}
 
@@ -183,6 +221,7 @@ export function Sidebar({
                     active={chat.id === activeChatId}
                     onSelect={() => onSelectChat(chat.id)}
                     onDelete={(event) => onDeleteChat(chat, event)}
+                    onToggleUnread={(event) => onToggleChatUnread(chat, event)}
                   />
                 ))}
               </div>

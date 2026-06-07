@@ -33,6 +33,7 @@ func NewProjectHandler(
 
 func (h *ProjectHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/projects", h.HandleCollection)
+	mux.HandleFunc("/api/projects/reorder", h.HandleReorder)
 	mux.HandleFunc("/api/projects/", h.HandleResource)
 	mux.HandleFunc("/internal/tls-ask", h.HandleTLSAsk)
 }
@@ -74,6 +75,52 @@ func (h *ProjectHandler) HandleCollection(w http.ResponseWriter, r *http.Request
 	default:
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (h *ProjectHandler) HandleReorder(w http.ResponseWriter, r *http.Request) {
+	email, isAdmin, err := h.caller(r)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if r.Method != http.MethodPost {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
+		httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	ids := make([]serviceproject.ID, 0, len(body.IDs))
+	for _, rawID := range body.IDs {
+		id := serviceproject.ID(strings.TrimSpace(rawID))
+		if !serviceproject.ValidID(id) {
+			httptransport.SendErr(w, http.StatusBadRequest, "invalid project id")
+			return
+		}
+		allowed, err := h.allowed(r.Context(), id, email, isAdmin)
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		if !allowed {
+			httptransport.SendErr(w, http.StatusForbidden, "not a member of this project")
+			return
+		}
+		ids = append(ids, id)
+	}
+	metas, err := h.projects.Reorder(r.Context(), ids)
+	if err != nil {
+		sendProjectError(w, err)
+		return
+	}
+	if metas == nil {
+		metas = []serviceproject.Meta{}
+	}
+	httptransport.SendJSON(w, http.StatusOK, metas)
 }
 
 func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) {

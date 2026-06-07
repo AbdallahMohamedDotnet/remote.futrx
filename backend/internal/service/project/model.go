@@ -28,6 +28,7 @@ type Meta struct {
 	Cwd           string `json:"cwd"`
 	ContainerName string `json:"containerName"`
 	Status        Status `json:"status"`
+	Order         int64  `json:"order,omitempty"`
 	ErrorMsg      string `json:"errorMsg,omitempty"`
 	CreatedAt     int64  `json:"createdAt"`
 	UpdatedAt     int64  `json:"updatedAt"`

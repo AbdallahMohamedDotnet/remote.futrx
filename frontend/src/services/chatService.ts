@@ -10,6 +10,8 @@ export const chatService = {
     json<ChatMeta>("PATCH", `/api/chats/${encodeURIComponent(id)}`, body),
   markRead: (id: string) =>
     json<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/read`, {}),
+  markUnread: (id: string) =>
+    json<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/unread`, {}),
   delete: (id: string) =>
     json<{ ok: boolean }>("DELETE", `/api/chats/${encodeURIComponent(id)}`),
   events: (id: string, params: { limit?: number; before?: number } = {}) => {

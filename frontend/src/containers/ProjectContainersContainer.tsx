@@ -168,6 +168,24 @@ export function ProjectContainersContainer({
     [selectedProject]
   );
 
+  const onStartProject = useCallback(async () => {
+    if (!selectedProject) return;
+    await projectService.start(selectedProject.id);
+    await loadInfo();
+  }, [selectedProject, loadInfo]);
+
+  const onStopProject = useCallback(async () => {
+    if (!selectedProject) return;
+    await projectService.stop(selectedProject.id);
+    await loadInfo();
+  }, [selectedProject, loadInfo]);
+
+  const onDeleteProject = useCallback(async () => {
+    if (!selectedProject) return;
+    await projectService.delete(selectedProject.id);
+    onBack();
+  }, [selectedProject, onBack]);
+
   useEffect(() => {
     const signal = { cancelled: false };
     void loadInfo(signal);
@@ -193,6 +211,9 @@ export function ProjectContainersContainer({
       onAddMember={onAddMember}
       onRemoveMember={onRemoveMember}
       onRefreshSecrets={() => void loadSecrets()}
+      onStartProject={onStartProject}
+      onStopProject={onStopProject}
+      onDeleteProject={onDeleteProject}
     />
   );
 }

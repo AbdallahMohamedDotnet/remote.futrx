@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"time"
 )
 
 type Service struct {
@@ -204,6 +205,34 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 			m.Name = strings.TrimSpace(*in.Name)
 		}
 	})
+}
+
+func (s *Service) Reorder(ctx context.Context, ids []ID) ([]Meta, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	base := time.Now().UnixMilli()
+	seen := map[ID]bool{}
+	out := make([]Meta, 0, len(ids))
+	for i, id := range ids {
+		if !ValidID(id) {
+			return nil, ErrInvalidID
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		order := base - int64(i)
+		m, err := s.repo.Update(ctx, id, func(m *Meta) {
+			m.Order = order
+		})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, nil
 }
 
 func (s *Service) Delete(ctx context.Context, id ID) error {

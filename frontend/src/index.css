@@ -480,6 +480,38 @@ html[data-theme="light"] .codex-tool-trigger {
   color: #24292f !important;
 }
 
+html[data-theme="light"] .md-code {
+  color: #24292f !important;
+}
+
+html[data-theme="light"] .md-code-comment {
+  color: #57606a !important;
+}
+
+html[data-theme="light"] .md-code-keyword,
+html[data-theme="light"] .md-code-deletion {
+  color: #cf222e !important;
+}
+
+html[data-theme="light"] .md-code-string,
+html[data-theme="light"] .md-code-addition {
+  color: #116329 !important;
+}
+
+html[data-theme="light"] .md-code-number,
+html[data-theme="light"] .md-code-literal {
+  color: #0550ae !important;
+}
+
+html[data-theme="light"] .md-code-meta {
+  color: #8250df !important;
+}
+
+html[data-theme="light"] .codex-assistant-block pre,
+html[data-theme="light"] .codex-assistant-block code {
+  color: #24292f !important;
+}
+
 html[data-theme="light"] .scrollbar-thin {
   scrollbar-color: #afb8c1 transparent;
 }

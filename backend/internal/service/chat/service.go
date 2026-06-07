@@ -142,6 +142,23 @@ func (s *Service) MarkRead(ctx context.Context, id ID) (Meta, error) {
 	return s.withRunning(meta), nil
 }
 
+func (s *Service) MarkUnread(ctx context.Context, id ID) (Meta, error) {
+	if !ValidID(id) {
+		return Meta{}, ErrInvalidID
+	}
+	meta, err := s.repo.Update(ctx, id, func(m *Meta) {
+		if m.LastMessageAt > 0 {
+			m.LastReadAt = m.LastMessageAt - 1
+		} else {
+			m.LastReadAt = 0
+		}
+	})
+	if err != nil {
+		return Meta{}, err
+	}
+	return s.withRunning(meta), nil
+}
+
 func (s *Service) withRunning(meta Meta) Meta {
 	if s.runs != nil {
 		meta.Running = s.runs.IsRunning(meta.ID)

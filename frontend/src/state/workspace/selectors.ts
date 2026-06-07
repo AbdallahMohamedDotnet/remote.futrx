@@ -45,7 +45,7 @@ export function buildWorkspaceSidebarModel(
 ): WorkspaceSidebarModel {
   const query = rawQuery.trim().toLowerCase();
   const buckets = bucketChatsByProject(chats);
-  const sortedProjects = [...projects].sort((a, b) => b.updatedAt - a.updatedAt);
+  const sortedProjects = [...projects].sort(compareProjects);
 
   const visibleProjects = sortedProjects
     .map((project) => {
@@ -110,4 +110,11 @@ function matchesChat(chat: ChatMeta, query: string): boolean {
 function matchesProject(project: ProjectMeta, query: string): boolean {
   if (!query) return true;
   return `${project.name} ${project.slug}`.toLowerCase().includes(query);
+}
+
+function compareProjects(a: ProjectMeta, b: ProjectMeta): number {
+  const left = a.order || a.createdAt || 0;
+  const right = b.order || b.createdAt || 0;
+  if (left !== right) return right - left;
+  return b.updatedAt - a.updatedAt;
 }

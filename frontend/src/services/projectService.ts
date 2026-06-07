@@ -12,6 +12,8 @@ export const projectService = {
   get: (id: string) => json<ProjectMeta>("GET", `/api/projects/${encodeURIComponent(id)}`),
   update: (id: string, body: { name?: string }) =>
     json<ProjectMeta>("PATCH", `/api/projects/${encodeURIComponent(id)}`, body),
+  reorder: (ids: string[]) =>
+    json<ProjectMeta[]>("POST", "/api/projects/reorder", { ids }),
   delete: (id: string) =>
     json<{ ok: boolean }>("DELETE", `/api/projects/${encodeURIComponent(id)}`),
   start: (id: string) =>

@@ -132,6 +132,8 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			h.handleRewind(w, r, id)
 		case "read":
 			h.handleMarkRead(w, r, id)
+		case "unread":
+			h.handleMarkUnread(w, r, id)
 		case "ide-open":
 			h.handleIDEOpen(w, r, meta)
 		case "media-open":
@@ -232,20 +234,33 @@ func (h *ChatHandler) handleMarkRead(w http.ResponseWriter, r *http.Request, id 
 	httptransport.SendJSON(w, http.StatusOK, meta)
 }
 
+func (h *ChatHandler) handleMarkUnread(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
+	if r.Method != http.MethodPost {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	meta, err := h.chats.MarkUnread(r.Context(), id)
+	if err != nil {
+		sendChatError(w, err)
+		return
+	}
+	httptransport.SendJSON(w, http.StatusOK, meta)
+}
+
 func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
 	if r.Method != http.MethodGet {
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	filePath, workspaceRoot, err := resolveIDEOpenPath(r.URL.Query().Get("path"), meta.Cwd)
+	target, err := resolveIDEOpenPath(r.URL.Query().Get("path"), meta.Cwd)
 	if err != nil {
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	openIDEFileSoon(filePath)
-	http.Redirect(w, r, ideFolderURL(workspaceRoot), http.StatusFound)
+	openIDEFileSoon(target)
+	http.Redirect(w, r, ideFolderURL(target.WorkspaceRoot), http.StatusFound)
 }
 
 func (h *ChatHandler) handleMediaOpen(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
@@ -254,11 +269,12 @@ func (h *ChatHandler) handleMediaOpen(w http.ResponseWriter, r *http.Request, me
 		return
 	}
 
-	filePath, _, err := resolveIDEOpenPath(r.URL.Query().Get("path"), meta.Cwd)
+	target, err := resolveIDEOpenPath(r.URL.Query().Get("path"), meta.Cwd)
 	if err != nil {
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	filePath := target.FilePath
 	if !isBrowserMediaFile(filePath) {
 		httptransport.SendErr(w, http.StatusUnsupportedMediaType, "file type cannot be opened in browser")
 		return
@@ -278,15 +294,22 @@ func (h *ChatHandler) handleMediaOpen(w http.ResponseWriter, r *http.Request, me
 	http.ServeFile(w, r, filePath)
 }
 
-func resolveIDEOpenPath(rawPath, cwd string) (string, string, error) {
+type ideOpenTarget struct {
+	FilePath      string
+	WorkspaceRoot string
+	Line          int
+	Column        int
+}
+
+func resolveIDEOpenPath(rawPath, cwd string) (ideOpenTarget, error) {
 	workspaceRoot := workspaceRootFromPath(cwd)
 	if workspaceRoot == "" {
-		return "", "", errors.New("chat workspace is unavailable")
+		return ideOpenTarget{}, errors.New("chat workspace is unavailable")
 	}
 
-	rawPath = strings.TrimSpace(rawPath)
+	rawPath, line, column := parsePathLineReference(rawPath)
 	if rawPath == "" {
-		return "", "", errors.New("path is required")
+		return ideOpenTarget{}, errors.New("path is required")
 	}
 
 	cleaned := filepath.Clean(rawPath)
@@ -294,28 +317,100 @@ func resolveIDEOpenPath(rawPath, cwd string) (string, string, error) {
 		rel := strings.TrimPrefix(cleaned, "/workspace")
 		filePath := filepath.Join(workspaceRoot, strings.TrimPrefix(rel, "/"))
 		if !pathInside(filePath, workspaceRoot) {
-			return "", "", errors.New("path escapes workspace")
+			return ideOpenTarget{}, errors.New("path escapes workspace")
 		}
-		return filePath, workspaceRoot, nil
+		return ideOpenTarget{FilePath: filePath, WorkspaceRoot: workspaceRoot, Line: line, Column: column}, nil
 	}
 
 	if !filepath.IsAbs(cleaned) {
-		return "", "", errors.New("path must be absolute")
+		return ideOpenTarget{}, errors.New("path must be absolute")
 	}
 	if !pathInside(cleaned, workspaceRoot) {
-		return "", "", errors.New("path is outside this chat workspace")
+		return ideOpenTarget{}, errors.New("path is outside this chat workspace")
 	}
-	return cleaned, workspaceRoot, nil
+	return ideOpenTarget{FilePath: cleaned, WorkspaceRoot: workspaceRoot, Line: line, Column: column}, nil
 }
 
-func openIDEFileSoon(filePath string) {
+func parsePathLineReference(rawPath string) (string, int, int) {
+	rawPath = strings.TrimSpace(rawPath)
+	if rawPath == "" {
+		return "", 0, 0
+	}
+
+	if hashIndex := strings.Index(rawPath, "#"); hashIndex >= 0 {
+		fragment := rawPath[hashIndex+1:]
+		rawPath = rawPath[:hashIndex]
+		if queryIndex := strings.Index(rawPath, "?"); queryIndex >= 0 {
+			rawPath = rawPath[:queryIndex]
+		}
+		if line, column := parseLineFragment(fragment); line > 0 {
+			return strings.TrimSpace(rawPath), line, column
+		}
+	}
+	if queryIndex := strings.Index(rawPath, "?"); queryIndex >= 0 {
+		rawPath = rawPath[:queryIndex]
+	}
+
+	rawPath, line, column := splitPathLineSuffix(rawPath)
+	return strings.TrimSpace(rawPath), line, column
+}
+
+func parseLineFragment(fragment string) (int, int) {
+	fragment = strings.TrimSpace(strings.TrimPrefix(strings.ToLower(fragment), "l"))
+	if fragment == "" {
+		return 0, 0
+	}
+	parts := strings.SplitN(fragment, ":", 2)
+	line, err := strconv.Atoi(parts[0])
+	if err != nil || line <= 0 {
+		return 0, 0
+	}
+	if len(parts) == 2 {
+		column, err := strconv.Atoi(parts[1])
+		if err == nil && column > 0 {
+			return line, column
+		}
+	}
+	return line, 0
+}
+
+func splitPathLineSuffix(rawPath string) (string, int, int) {
+	rawPath = strings.TrimSpace(rawPath)
+	lastColon := strings.LastIndex(rawPath, ":")
+	if lastColon < 0 {
+		return rawPath, 0, 0
+	}
+	lastPart := rawPath[lastColon+1:]
+	lastNumber, err := strconv.Atoi(lastPart)
+	if err != nil || lastNumber <= 0 {
+		return rawPath, 0, 0
+	}
+
+	beforeLast := rawPath[:lastColon]
+	secondColon := strings.LastIndex(beforeLast, ":")
+	if secondColon >= 0 {
+		maybeLine, err := strconv.Atoi(beforeLast[secondColon+1:])
+		if err == nil && maybeLine > 0 {
+			return beforeLast[:secondColon], maybeLine, lastNumber
+		}
+	}
+	return beforeLast, lastNumber, 0
+}
+
+func openIDEFileSoon(target ideOpenTarget) {
 	go func() {
 		time.Sleep(1500 * time.Millisecond)
 		deadline := time.Now().Add(20 * time.Second)
 		var lastErr error
 		for time.Now().Before(deadline) {
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-			output, err := exec.CommandContext(ctx, "code-server", "--reuse-window", filePath).CombinedOutput()
+			args := []string{"--reuse-window"}
+			if target.Line > 0 {
+				args = append(args, "--goto", ideGotoTarget(target))
+			} else {
+				args = append(args, target.FilePath)
+			}
+			output, err := exec.CommandContext(ctx, "code-server", args...).CombinedOutput()
 			cancel()
 			if err == nil {
 				return
@@ -323,8 +418,18 @@ func openIDEFileSoon(filePath string) {
 			lastErr = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 			time.Sleep(750 * time.Millisecond)
 		}
-		log.Printf("ide open %s: %v", filePath, lastErr)
+		log.Printf("ide open %s: %v", ideGotoTarget(target), lastErr)
 	}()
+}
+
+func ideGotoTarget(target ideOpenTarget) string {
+	if target.Line <= 0 {
+		return target.FilePath
+	}
+	if target.Column > 0 {
+		return fmt.Sprintf("%s:%d:%d", target.FilePath, target.Line, target.Column)
+	}
+	return fmt.Sprintf("%s:%d", target.FilePath, target.Line)
 }
 
 func ideFolderURL(workspaceRoot string) string {

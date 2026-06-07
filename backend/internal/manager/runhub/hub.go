@@ -238,11 +238,19 @@ func (h *Hub) CancelRun(chatID servicechat.ID) bool {
 	r := h.room(chatID)
 	r.mu.Lock()
 	running := r.running
-	r.mu.Unlock()
 	if running == nil {
+		r.mu.Unlock()
 		return false
 	}
+	r.running = nil
+	r.broadcastLocked(servicechat.Event{
+		T:    time.Now().UnixMilli(),
+		Type: "sync",
+	})
+	r.mu.Unlock()
+
 	running.cancel()
+	h.publishRunning(chatID, false)
 	return true
 }
 

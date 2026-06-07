@@ -12,12 +12,13 @@ export function buildIdeUrl(folderPath: string, filePath?: string): string {
 }
 
 export function internalPathOpenUrl(href: string, context: IdeLinkContext = {}): string | null {
-  const path = normalizeAbsolutePath(stripPathSuffix(href));
+  const ref = splitLineReference(stripPathSuffix(href));
+  const path = normalizeAbsolutePath(ref.path);
   if (!path) return null;
   if (!isContainerWorkspacePath(path) && !isHostWorkspacePath(path)) return null;
 
   if (context.chatId) {
-    const params = new URLSearchParams({ path });
+    const params = new URLSearchParams({ path: refToString(path, ref) });
     const action = isBrowserMediaPath(path) ? "media-open" : "ide-open";
     return `/api/chats/${encodeURIComponent(context.chatId)}/${action}?${params.toString()}`;
   }
@@ -36,6 +37,37 @@ export function internalPathOpenUrl(href: string, context: IdeLinkContext = {}):
 
 export function internalPathIdeUrl(href: string, context: IdeLinkContext = {}): string | null {
   return internalPathOpenUrl(href, context);
+}
+
+interface PathLineReference {
+  path: string;
+  line?: number;
+  column?: number;
+}
+
+function refToString(path: string, ref: PathLineReference): string {
+  if (!ref.line) return path;
+  if (ref.column) return `${path}:${ref.line}:${ref.column}`;
+  return `${path}:${ref.line}`;
+}
+
+function splitLineReference(raw: string): PathLineReference {
+  const trimmed = raw.trim();
+  const lastColon = trimmed.lastIndexOf(":");
+  if (lastColon < 0) return { path: trimmed };
+  const lastPart = trimmed.slice(lastColon + 1);
+  const lastNumber = Number(lastPart);
+  if (!Number.isInteger(lastNumber) || lastNumber <= 0) return { path: trimmed };
+
+  const beforeLast = trimmed.slice(0, lastColon);
+  const secondColon = beforeLast.lastIndexOf(":");
+  if (secondColon >= 0) {
+    const maybeLine = Number(beforeLast.slice(secondColon + 1));
+    if (Number.isInteger(maybeLine) && maybeLine > 0) {
+      return { path: beforeLast.slice(0, secondColon), line: maybeLine, column: lastNumber };
+    }
+  }
+  return { path: beforeLast, line: lastNumber };
 }
 
 export interface IdeLinkContext {
