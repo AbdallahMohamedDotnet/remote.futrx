@@ -399,23 +399,53 @@ func splitPathLineSuffix(rawPath string) (string, int, int) {
 
 func openIDEFileSoon(target ideOpenTarget) {
 	go func() {
-		time.Sleep(1500 * time.Millisecond)
-		deadline := time.Now().Add(20 * time.Second)
-		var lastErr error
 		openTarget := ideOpenCommandTarget(target)
-		for time.Now().Before(deadline) {
-			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-			args := []string{"--reuse-window", openTarget}
-			output, err := exec.CommandContext(ctx, "code-server", args...).CombinedOutput()
-			cancel()
-			if err == nil {
-				return
+		var lastErr error
+
+		// Give the clicked code-server tab time to load and register its workspace
+		// socket. If another IDE tab is already open, code-server can otherwise
+		// report success after sending the open request to that older tab.
+		time.Sleep(1500 * time.Millisecond)
+
+		workspaceDeadline := time.Now().Add(8 * time.Second)
+		for time.Now().Before(workspaceDeadline) {
+			if err := runCodeServerReuse(target.WorkspaceRoot); err == nil {
+				break
+			} else {
+				lastErr = err
 			}
-			lastErr = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 			time.Sleep(750 * time.Millisecond)
 		}
-		log.Printf("ide open %s: %v", openTarget, lastErr)
+
+		fileStart := time.Now()
+		fileDeadline := fileStart.Add(20 * time.Second)
+		opened := false
+		for time.Now().Before(fileDeadline) {
+			if err := runCodeServerReuse(openTarget); err == nil {
+				opened = true
+			} else {
+				lastErr = err
+			}
+
+			if opened && time.Since(fileStart) >= 7*time.Second {
+				return
+			}
+			time.Sleep(1 * time.Second)
+		}
+		if !opened {
+			log.Printf("ide open %s: %v", openTarget, lastErr)
+		}
 	}()
+}
+
+func runCodeServerReuse(target string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "code-server", "--reuse-window", target).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 func ideOpenCommandTarget(target ideOpenTarget) string {
