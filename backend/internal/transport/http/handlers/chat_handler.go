@@ -273,7 +273,7 @@ func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta
 	}
 
 	openIDEFileSoon(target)
-	http.Redirect(w, r, ideOpenURL(target), http.StatusFound)
+	http.Redirect(w, r, ideFolderURL(target.WorkspaceRoot), http.StatusFound)
 }
 
 func (h *ChatHandler) handleMediaOpen(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
