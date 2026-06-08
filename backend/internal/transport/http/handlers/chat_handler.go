@@ -1,6 +1,7 @@
 package httphandlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,7 +25,10 @@ import (
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
-const ideBaseURL = "https://code.remote.futrx.dev/"
+const (
+	ideBaseURL                  = "https://code.remote.futrx.dev/"
+	codeServerSessionSocketPath = "/root/.local/share/code-server/code-server-ipc.sock"
+)
 
 type ChatHandler struct {
 	chats    *servicechat.Service
@@ -259,6 +264,13 @@ func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta
 		return
 	}
 
+	if opened, err := openIDEFileInExistingWindow(r.Context(), target); opened {
+		sendIDEOpenExistingResponse(w, target)
+		return
+	} else if err != nil {
+		log.Printf("ide existing window open %s: %v", ideOpenCommandTarget(target), err)
+	}
+
 	openIDEFileSoon(target)
 	http.Redirect(w, r, ideFolderURL(target.WorkspaceRoot), http.StatusFound)
 }
@@ -396,6 +408,115 @@ func splitPathLineSuffix(rawPath string) (string, int, int) {
 	}
 	return beforeLast, lastNumber, 0
 }
+
+type codeServerSessionResponse struct {
+	SocketPath string `json:"socketPath"`
+}
+
+type codeServerOpenRequest struct {
+	Type             string   `json:"type"`
+	FolderURIs       []string `json:"folderURIs"`
+	FileURIs         []string `json:"fileURIs"`
+	GotoLineMode     bool     `json:"gotoLineMode"`
+	ForceReuseWindow bool     `json:"forceReuseWindow"`
+	ForceNewWindow   bool     `json:"forceNewWindow"`
+}
+
+func openIDEFileInExistingWindow(ctx context.Context, target ideOpenTarget) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	socketPath, err := codeServerMatchingSocket(ctx, target.FilePath)
+	if err != nil || socketPath == "" {
+		return false, err
+	}
+	if err := postCodeServerOpen(ctx, socketPath, target); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func codeServerMatchingSocket(ctx context.Context, filePath string) (string, error) {
+	var out codeServerSessionResponse
+	path := "/session?filePath=" + url.QueryEscape(filePath)
+	if err := codeServerUnixJSON(ctx, codeServerSessionSocketPath, http.MethodGet, path, nil, &out); err != nil {
+		return "", err
+	}
+	return out.SocketPath, nil
+}
+
+func postCodeServerOpen(ctx context.Context, socketPath string, target ideOpenTarget) error {
+	payload := codeServerOpenRequest{
+		Type:             "open",
+		FolderURIs:       []string{},
+		FileURIs:         []string{ideOpenFileURI(target)},
+		GotoLineMode:     target.Line > 0,
+		ForceReuseWindow: true,
+		ForceNewWindow:   false,
+	}
+	return codeServerUnixJSON(ctx, socketPath, http.MethodPost, "/", payload, nil)
+}
+
+func codeServerUnixJSON(ctx context.Context, socketPath, method, path string, payload any, out any) error {
+	var body io.Reader
+	if payload != nil {
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(encoded)
+	}
+
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var dialer net.Dialer
+			return dialer.DialContext(ctx, "unix", socketPath)
+		},
+	}
+	defer transport.CloseIdleConnections()
+
+	req, err := http.NewRequestWithContext(ctx, method, "http://code-server"+path, body)
+	if err != nil {
+		return err
+	}
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := (&http.Client{Transport: transport}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		message, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("code-server ipc %s %s: %s", method, path, strings.TrimSpace(string(message)))
+	}
+	if out != nil {
+		return json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(out)
+	}
+	return nil
+}
+
+func ideOpenFileURI(target ideOpenTarget) string {
+	return (&url.URL{Scheme: "file", Path: ideOpenCommandTarget(target)}).String()
+}
+
+func sendIDEOpenExistingResponse(w http.ResponseWriter, target ideOpenTarget) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'")
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><title>Opened in IDE</title><script>window.close()</script><style>body{font:14px system-ui,sans-serif;margin:24px;color:#20242a}code{background:#f3f4f6;padding:2px 4px;border-radius:4px}</style></head><body>Opened <code>%s</code> in the existing IDE window.</body></html>`, htmlEscaper.Replace(filepath.Base(target.FilePath)))
+}
+
+var htmlEscaper = strings.NewReplacer(
+	"&", "&amp;",
+	"<", "&lt;",
+	">", "&gt;",
+	"\"", "&quot;",
+	"'", "&#39;",
+)
 
 func openIDEFileSoon(target ideOpenTarget) {
 	go func() {

@@ -119,6 +119,18 @@ func TestIDEOpenCommandTarget(t *testing.T) {
 	}
 }
 
+func TestIDEOpenFileURI(t *testing.T) {
+	target := ideOpenTarget{
+		FilePath: "/var/lib/remote/projects/graphixy-ai/workspace/src/App.tsx",
+		Line:     87,
+		Column:   5,
+	}
+	want := "file:///var/lib/remote/projects/graphixy-ai/workspace/src/App.tsx:87:5"
+	if got := ideOpenFileURI(target); got != want {
+		t.Fatalf("ideOpenFileURI() = %q, want %q", got, want)
+	}
+}
+
 func TestIsBrowserMediaFile(t *testing.T) {
 	tests := map[string]bool{
 		"/workspace/screenshot.PNG": true,
