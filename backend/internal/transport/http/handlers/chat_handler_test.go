@@ -87,6 +87,38 @@ func TestResolveIDEOpenPathRejectsUnsafePaths(t *testing.T) {
 	}
 }
 
+func TestIDEOpenCommandTarget(t *testing.T) {
+	tests := []struct {
+		name   string
+		target ideOpenTarget
+		want   string
+	}{
+		{
+			name:   "file only",
+			target: ideOpenTarget{FilePath: "/var/lib/remote/projects/graphixy-ai/workspace/src/App.tsx"},
+			want:   "/var/lib/remote/projects/graphixy-ai/workspace/src/App.tsx",
+		},
+		{
+			name:   "file and line",
+			target: ideOpenTarget{FilePath: "/var/lib/remote/projects/graphixy-ai/workspace/src/App.tsx", Line: 87},
+			want:   "/var/lib/remote/projects/graphixy-ai/workspace/src/App.tsx:87",
+		},
+		{
+			name:   "file line and column",
+			target: ideOpenTarget{FilePath: "/var/lib/remote/projects/graphixy-ai/workspace/src/App.tsx", Line: 87, Column: 5},
+			want:   "/var/lib/remote/projects/graphixy-ai/workspace/src/App.tsx:87:5",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ideOpenCommandTarget(tt.target); got != tt.want {
+				t.Fatalf("ideOpenCommandTarget() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIsBrowserMediaFile(t *testing.T) {
 	tests := map[string]bool{
 		"/workspace/screenshot.PNG": true,

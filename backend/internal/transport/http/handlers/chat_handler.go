@@ -402,14 +402,10 @@ func openIDEFileSoon(target ideOpenTarget) {
 		time.Sleep(1500 * time.Millisecond)
 		deadline := time.Now().Add(20 * time.Second)
 		var lastErr error
+		openTarget := ideOpenCommandTarget(target)
 		for time.Now().Before(deadline) {
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-			args := []string{"--reuse-window"}
-			if target.Line > 0 {
-				args = append(args, "--goto", ideGotoTarget(target))
-			} else {
-				args = append(args, target.FilePath)
-			}
+			args := []string{"--reuse-window", openTarget}
 			output, err := exec.CommandContext(ctx, "code-server", args...).CombinedOutput()
 			cancel()
 			if err == nil {
@@ -418,11 +414,11 @@ func openIDEFileSoon(target ideOpenTarget) {
 			lastErr = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 			time.Sleep(750 * time.Millisecond)
 		}
-		log.Printf("ide open %s: %v", ideGotoTarget(target), lastErr)
+		log.Printf("ide open %s: %v", openTarget, lastErr)
 	}()
 }
 
-func ideGotoTarget(target ideOpenTarget) string {
+func ideOpenCommandTarget(target ideOpenTarget) string {
 	if target.Line <= 0 {
 		return target.FilePath
 	}
