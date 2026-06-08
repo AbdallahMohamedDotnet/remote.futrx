@@ -263,6 +263,7 @@ func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	target.WorkspaceName = h.ideWorkspaceName(r.Context(), meta, target.WorkspaceRoot)
 
 	if opened, err := openIDEFileInExistingWindow(r.Context(), target); opened {
 		sendIDEOpenExistingResponse(w, target)
@@ -272,7 +273,7 @@ func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta
 	}
 
 	openIDEFileSoon(target)
-	http.Redirect(w, r, ideFolderURL(target.WorkspaceRoot), http.StatusFound)
+	http.Redirect(w, r, ideOpenURL(target), http.StatusFound)
 }
 
 func (h *ChatHandler) handleMediaOpen(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
@@ -309,6 +310,7 @@ func (h *ChatHandler) handleMediaOpen(w http.ResponseWriter, r *http.Request, me
 type ideOpenTarget struct {
 	FilePath      string
 	WorkspaceRoot string
+	WorkspaceName string
 	Line          int
 	Column        int
 }
@@ -434,6 +436,25 @@ func openIDEFileInExistingWindow(ctx context.Context, target ideOpenTarget) (boo
 		return false, err
 	}
 	return true, nil
+}
+
+func (h *ChatHandler) ideWorkspaceName(ctx context.Context, meta servicechat.Meta, workspaceRoot string) string {
+	if h.projects != nil && meta.ProjectID != "" {
+		projectMeta, err := h.projects.Get(ctx, serviceproject.ID(meta.ProjectID))
+		if err == nil && strings.TrimSpace(projectMeta.Name) != "" {
+			return strings.TrimSpace(projectMeta.Name)
+		}
+	}
+	return workspaceNameFromRoot(workspaceRoot)
+}
+
+func workspaceNameFromRoot(workspaceRoot string) string {
+	parent := filepath.Base(filepath.Dir(filepath.Clean(workspaceRoot)))
+	name := strings.TrimSpace(strings.ReplaceAll(parent, "-", " "))
+	if name == "" || name == "." || name == string(filepath.Separator) {
+		return "Workspace"
+	}
+	return name
 }
 
 func codeServerMatchingSocket(ctx context.Context, filePath string) (string, error) {
@@ -577,6 +598,97 @@ func ideOpenCommandTarget(target ideOpenTarget) string {
 		return fmt.Sprintf("%s:%d:%d", target.FilePath, target.Line, target.Column)
 	}
 	return fmt.Sprintf("%s:%d", target.FilePath, target.Line)
+}
+
+type codeWorkspaceFile struct {
+	Folders  []codeWorkspaceFolder `json:"folders"`
+	Settings map[string]string     `json:"settings,omitempty"`
+}
+
+type codeWorkspaceFolder struct {
+	Name string `json:"name,omitempty"`
+	Path string `json:"path"`
+}
+
+func ideOpenURL(target ideOpenTarget) string {
+	workspacePath, err := writeIDEWorkspaceFile(target)
+	if err != nil {
+		log.Printf("ide workspace file %s: %v", target.WorkspaceRoot, err)
+		return ideFolderURL(target.WorkspaceRoot)
+	}
+	return ideWorkspaceURL(workspacePath)
+}
+
+func writeIDEWorkspaceFile(target ideOpenTarget) (string, error) {
+	workspaceRoot := filepath.Clean(target.WorkspaceRoot)
+	if workspaceRoot == "" || workspaceRoot == "." || !filepath.IsAbs(workspaceRoot) {
+		return "", errors.New("workspace root is unavailable")
+	}
+	name := strings.TrimSpace(target.WorkspaceName)
+	if name == "" {
+		name = workspaceNameFromRoot(workspaceRoot)
+	}
+
+	dir := filepath.Join(filepath.Dir(workspaceRoot), ".futrx", "code-server")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	workspacePath := filepath.Join(dir, safeWorkspaceFilename(name)+".code-workspace")
+	doc := codeWorkspaceFile{
+		Folders: []codeWorkspaceFolder{{Name: name, Path: workspaceRoot}},
+		Settings: map[string]string{
+			"window.title": "${activeEditorShort} - ${rootName}",
+		},
+	}
+	contents, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	contents = append(contents, byte(10))
+	if err := os.WriteFile(workspacePath, contents, 0o644); err != nil {
+		return "", err
+	}
+	return workspacePath, nil
+}
+
+func safeWorkspaceFilename(name string) string {
+	name = strings.TrimSpace(name)
+	var b strings.Builder
+	lastSpace := false
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastSpace = false
+		case r == '-' || r == '_' || r == '.':
+			b.WriteRune(r)
+			lastSpace = false
+		case r == ' ' || r == 9 || r == 10 || r == 13:
+			if !lastSpace && b.Len() > 0 {
+				b.WriteByte(' ')
+				lastSpace = true
+			}
+		}
+		if b.Len() >= 80 {
+			break
+		}
+	}
+	out := strings.Trim(strings.TrimSpace(b.String()), ".")
+	if out == "" {
+		return "Workspace"
+	}
+	return out
+}
+
+func ideWorkspaceURL(workspacePath string) string {
+	u, err := url.Parse(ideBaseURL)
+	if err != nil {
+		return ideBaseURL
+	}
+	q := u.Query()
+	q.Set("workspace", workspacePath)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func ideFolderURL(workspaceRoot string) string {

@@ -1,6 +1,11 @@
 package httphandlers
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestResolveIDEOpenPath(t *testing.T) {
 	workspaceRoot := "/var/lib/remote/projects/graphixy-ai/workspace"
@@ -128,6 +133,56 @@ func TestIDEOpenFileURI(t *testing.T) {
 	want := "file:///var/lib/remote/projects/graphixy-ai/workspace/src/App.tsx:87:5"
 	if got := ideOpenFileURI(target); got != want {
 		t.Fatalf("ideOpenFileURI() = %q, want %q", got, want)
+	}
+}
+
+func TestWriteIDEWorkspaceFile(t *testing.T) {
+	projectDir := filepath.Join(t.TempDir(), "app-graphixy-ai")
+	workspaceRoot := filepath.Join(projectDir, "workspace")
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	workspacePath, err := writeIDEWorkspaceFile(ideOpenTarget{
+		WorkspaceRoot: workspaceRoot,
+		WorkspaceName: "Graphixy AI",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPath := filepath.Join(projectDir, ".futrx", "code-server", "Graphixy AI.code-workspace")
+	if workspacePath != wantPath {
+		t.Fatalf("writeIDEWorkspaceFile() path = %q, want %q", workspacePath, wantPath)
+	}
+
+	contents, err := os.ReadFile(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(contents)
+	for _, want := range []string{
+		`"name": "Graphixy AI"`,
+		`"path": "` + workspaceRoot + `"`,
+		`"window.title": "${activeEditorShort} - ${rootName}"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("workspace file missing %q in:\n%s", want, text)
+		}
+	}
+}
+
+func TestSafeWorkspaceFilename(t *testing.T) {
+	tests := map[string]string{
+		"Graphixy AI":       "Graphixy AI",
+		"../":               "Workspace",
+		" bad/name:* test ": "badname test",
+	}
+	for input, want := range tests {
+		t.Run(input, func(t *testing.T) {
+			if got := safeWorkspaceFilename(input); got != want {
+				t.Fatalf("safeWorkspaceFilename() = %q, want %q", got, want)
+			}
+		})
 	}
 }
 
