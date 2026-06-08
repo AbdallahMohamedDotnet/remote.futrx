@@ -363,6 +363,7 @@ func (s *Store) TruncateEventsBefore(ctx context.Context, id servicechat.ID, bef
 			lastT = meta.CreatedAt
 		}
 		meta.ClaudeSessionID = ""
+		meta.CodexSessionID = ""
 		meta.LastMessageAt = lastT
 		if err := s.writeMeta(meta); err == nil {
 			s.setCachedMeta(meta)

@@ -133,6 +133,71 @@ func TestStoreReadsEventPages(t *testing.T) {
 	}
 }
 
+func TestStoreRewindClearsProviderSessionIDs(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(context.Background(), servicechat.Meta{
+		ID:              "abcd",
+		CreatedAt:       10,
+		LastMessageAt:   10,
+		ClaudeSessionID: "claude-session",
+		CodexSessionID:  "codex-session",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{
+		T:    20,
+		Type: "user",
+		Text: "keep",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{
+		T:    30,
+		Type: "user",
+		Text: "rewind from here",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{
+		T:    40,
+		Type: "assistant_text",
+		Text: "remove",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	kept, err := store.TruncateEventsBefore(context.Background(), "abcd", 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(kept) != 1 || kept[0].Text != "keep" {
+		t.Fatalf("kept events = %#v", kept)
+	}
+
+	events, err := store.ReadEvents(context.Background(), "abcd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].Text != "keep" {
+		t.Fatalf("persisted events = %#v", events)
+	}
+
+	meta, err := store.Get(context.Background(), "abcd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.ClaudeSessionID != "" || meta.CodexSessionID != "" {
+		t.Fatalf("session ids were not cleared: %#v", meta)
+	}
+	if meta.LastMessageAt != 20 {
+		t.Fatalf("LastMessageAt = %d, want 20", meta.LastMessageAt)
+	}
+}
+
 func TestStorePersistsSelectedSkills(t *testing.T) {
 	store, err := New(t.TempDir())
 	if err != nil {
