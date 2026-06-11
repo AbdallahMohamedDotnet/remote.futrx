@@ -203,6 +203,8 @@ fi
 . "$INFRA_DIR/steps/05-backend-svc.sh"
 # shellcheck source=steps/06-base-image.sh
 . "$INFRA_DIR/steps/06-base-image.sh"
+# shellcheck source=steps/07-ssh-hardening.sh
+. "$INFRA_DIR/steps/07-ssh-hardening.sh"
 
 # ───────────────── summary ─────────────────
 cat <<EOF
