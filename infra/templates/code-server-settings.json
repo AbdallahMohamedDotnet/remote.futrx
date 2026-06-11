@@ -1,0 +1,109 @@
+// Managed code-server user settings — the baseline merged into
+// /root/.local/share/code-server/User/settings.json by infra/steps/02-code-server.sh.
+//
+// Merge semantics: every key in this file always wins (edit HERE, not the
+// code-server UI, or the next installer run reverts you). Keys NOT listed
+// here — dbcode.connections, dbcode.tunnels, and anything else extensions
+// write at runtime — are preserved on the box and must never be added here:
+// they contain host-specific paths and credential references.
+//
+// This file is JSONC (comments + trailing commas OK); the merge strips them.
+{
+  "window.title": "${rootPath}",
+
+  "workbench.iconTheme": "material-icon-theme",
+
+  // ── No AI / chat ──
+  "chat.disableAIFeatures": true,
+  "chat.commandCenter.enabled": false,
+
+  // ── File watching: stops thousands of inotify watches ──
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.next/**": true,
+    "**/.nuxt/**": true,
+    "**/.cache/**": true,
+    "**/.turbo/**": true,
+    "**/vendor/**": true,
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
+    "**/target/**": true
+  },
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/.git": true,
+    "**/.DS_Store": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.next": true,
+    "**/vendor": true,
+    "**/.cache": true,
+    "**/.turbo": true,
+    "**/package-lock.json": true,
+    "**/yarn.lock": true,
+    "**/pnpm-lock.yaml": true
+  },
+
+  // ── TypeScript ──
+  "typescript.tsserver.maxTsServerMemory": 3072,
+  "typescript.disableAutomaticTypeAcquisition": true,
+
+  // ── Disable animations: low-latency feel over network ──
+  "editor.smoothScrolling": false,
+  "editor.cursorSmoothCaretAnimation": "off",
+  "editor.cursorBlinking": "solid",
+  "workbench.list.smoothScrolling": false,
+  "workbench.reduceMotion": "on",
+  "terminal.integrated.smoothScrolling": false,
+
+  // ── Editor rendering: fewer DOM ops per keystroke ──
+  "editor.minimap.enabled": false,
+  "editor.renderWhitespace": "none",
+  "editor.guides.indentation": false,
+  "editor.guides.bracketPairs": false,
+  "editor.bracketPairColorization.enabled": true,
+  "editor.occurrencesHighlight": "off",
+  "editor.selectionHighlight": false,
+  "editor.codeLens": false,
+  "breadcrumbs.enabled": false,
+  "editor.linkedEditing": false,
+  "editor.stickyScroll.enabled": false,
+  "editor.experimentalGpuAcceleration": "on",
+  "editor.fontLigatures": false,
+
+  // ── Terminal ──
+  "terminal.integrated.gpuAcceleration": "auto",
+
+  // ── Background work ──
+  "telemetry.telemetryLevel": "off",
+  "update.mode": "none",
+  "extensions.autoUpdate": false,
+  "extensions.autoCheckUpdates": false,
+  "workbench.enableExperiments": false,
+  "workbench.settings.enableNaturalLanguageSearch": false,
+  "git.autorefresh": false,
+  "git.decorations.enabled": true,
+  "scm.diffDecorations": "gutter",
+
+  // ── Files / saves ──
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1500,
+
+  // ── Workspace tabs ──
+  "workbench.editor.enablePreview": false,
+  "workbench.editor.limit.enabled": true,
+  "workbench.editor.limit.value": 10,
+  "workbench.colorTheme": "JetBrains Darcula Theme",
+
+  // ── Mermaid preview ──
+  "mermaidLivePreview.previewAppearance": "light",
+  "mermaidLivePreview.useVSCodeTheme": false,
+  "mermaidLivePreview.theme": "default"
+}
