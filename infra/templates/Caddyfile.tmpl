@@ -68,7 +68,16 @@ code.${HOSTNAME} {
         header_regexp host Host ^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.${HOSTNAME_RE}$
     }
     handle @valid {
-        reverse_proxy {re.host.1}.lxd:{re.host.2}
+        reverse_proxy {re.host.1}.lxd:{re.host.2} {
+            # Strip remote.futrx.dev's own auth cookies before the request
+            # enters the project container. forward_auth (above) already
+            # validated the session against the main backend on loopback, so
+            # the gate is unaffected; this stops any code running inside a
+            # dev server from harvesting the admin session token (which would
+            # otherwise be replayable against code.${HOSTNAME} for host root).
+            # The app's own cookies pass through untouched.
+            header_up Cookie `(?:^|;\s*)(?:remote_session|remote_oauth_state|return_to)=[^;]*` ""
+        }
     }
     respond "Use <slug>--<port>.dev.${HOSTNAME} (e.g. myproj--3000.dev.${HOSTNAME})" 400
 }
