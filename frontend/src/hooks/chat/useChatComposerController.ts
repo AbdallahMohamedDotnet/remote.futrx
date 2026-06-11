@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ChatStatus } from "../../models/chat";
+import { getDraft, setDraft } from "../../state/chat/drafts";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
 import { useDragUpload } from "./useDragUpload";
@@ -29,7 +30,20 @@ export function useChatComposerController({
   attachmentBasePath: string;
   onMetaUpdate: () => void;
 }) {
-  const [text, setText] = useState("");
+  // Initialise from the per-chat draft store and mirror every change back to it.
+  // ChatContainer remounts on chat switch (it is keyed by chatId), so this is
+  // what makes a half-typed message survive leaving and returning to a chat.
+  const [text, setTextState] = useState(() => getDraft(chatId));
+  const setText = useCallback(
+    (value: string | ((prev: string) => string)) => {
+      setTextState((prev) => {
+        const next = typeof value === "function" ? (value as (prev: string) => string)(prev) : value;
+        setDraft(chatId, next);
+        return next;
+      });
+    },
+    [chatId],
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { textareaRef, focusInput } = useAutosizeTextarea(text);
   const upload = useAttachmentUpload(chatId, attachmentBasePath, onMetaUpdate);
@@ -44,7 +58,6 @@ export function useChatComposerController({
   });
 
   useEffect(() => {
-    setText("");
     scroll.unlockAutoScroll();
   }, [chatId]);
 
