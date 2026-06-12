@@ -27,6 +27,7 @@ export function Sidebar({
   onSelectChat,
   onDeleteChat,
   onToggleChatUnread,
+  onForkChat,
   onReorderProjects,
   onOpenProjectContainers,
   onOpenSettings,
@@ -48,6 +49,7 @@ export function Sidebar({
   onSelectChat: (chatId: string) => void;
   onDeleteChat: (chat: ChatMeta, event: Event) => void;
   onToggleChatUnread: (chat: ChatMeta, event: Event) => void;
+  onForkChat: (chat: ChatMeta, event: Event) => void;
   onReorderProjects: (projectIds: string[]) => void;
   onOpenProjectContainers: (projectId: string) => void;
   onOpenSettings?: () => void;
@@ -179,6 +181,7 @@ export function Sidebar({
               onSelectChat={onSelectChat}
               onDeleteChat={onDeleteChat}
               onToggleChatUnread={onToggleChatUnread}
+              onForkChat={onForkChat}
               draggable={canReorderProjects}
               dragging={dragProjectId === node.project.id}
               dragOver={dragOverProjectId === node.project.id && dragProjectId !== node.project.id}
@@ -222,6 +225,7 @@ export function Sidebar({
                     onSelect={() => onSelectChat(chat.id)}
                     onDelete={(event) => onDeleteChat(chat, event)}
                     onToggleUnread={(event) => onToggleChatUnread(chat, event)}
+                    onFork={(event) => onForkChat(chat, event)}
                   />
                 ))}
               </div>

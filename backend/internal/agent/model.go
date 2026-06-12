@@ -51,6 +51,7 @@ type RunRequest struct {
 	Mode           string
 	ResumeID       string
 	ProjectID      string
+	Fork           bool
 	Config         map[string]any
 }
 

@@ -34,6 +34,7 @@ interface WorkspaceContextValue {
   createProject: (name: string) => Promise<ProjectMeta>;
   createChat: (projectId?: string) => Promise<ChatMeta>;
   deleteChat: (chatId: string) => Promise<void>;
+  forkChat: (chatId: string) => Promise<ChatMeta>;
   deleteProject: (projectId: string) => Promise<void>;
   reorderProjects: (projectIds: string[]) => Promise<void>;
   startProject: (projectId: string) => Promise<void>;
@@ -87,6 +88,13 @@ export function WorkspaceProvider({
     await chatService.delete(chatId);
   }
 
+  async function forkChat(chatId: string): Promise<ChatMeta> {
+    const chat = await chatService.fork(chatId);
+    data.refreshChats();
+    dispatch({ type: "select-chat", chatId: chat.id });
+    return chat;
+  }
+
   async function deleteProject(projectId: string) {
     await projectService.delete(projectId);
   }
@@ -122,6 +130,7 @@ export function WorkspaceProvider({
         createProject,
         createChat,
         deleteChat,
+        forkChat,
         deleteProject,
         reorderProjects,
         startProject,

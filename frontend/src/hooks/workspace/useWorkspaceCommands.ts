@@ -45,6 +45,15 @@ export function useWorkspaceCommands() {
     }
   }
 
+  async function forkChat(chat: ChatMeta, event: Event) {
+    event.stopPropagation();
+    try {
+      await workspace.forkChat(chat.id);
+    } catch (error) {
+      alert("fork failed: " + (error as Error).message);
+    }
+  }
+
   async function reorderProjects(projectIds: string[]) {
     try {
       await workspace.reorderProjects(projectIds);
@@ -90,6 +99,7 @@ export function useWorkspaceCommands() {
     newChatInProject,
     deleteChat,
     toggleChatUnread,
+    forkChat,
     reorderProjects,
     deleteProject,
     startProject,

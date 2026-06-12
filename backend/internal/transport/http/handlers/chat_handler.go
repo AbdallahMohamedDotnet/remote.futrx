@@ -135,6 +135,8 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			h.handleEvents(w, r, id)
 		case "rewind":
 			h.handleRewind(w, r, id)
+		case "fork":
+			h.handleFork(w, r, id)
 		case "read":
 			h.handleMarkRead(w, r, id)
 		case "unread":
@@ -224,6 +226,19 @@ func (h *ChatHandler) handleRewind(w http.ResponseWriter, r *http.Request, id se
 		return
 	}
 	httptransport.SendJSON(w, http.StatusOK, page)
+}
+
+func (h *ChatHandler) handleFork(w http.ResponseWriter, r *http.Request, id servicechat.ID) {
+	if r.Method != http.MethodPost {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	forked, err := h.chats.Fork(r.Context(), id)
+	if err != nil {
+		sendChatError(w, err)
+		return
+	}
+	httptransport.SendJSON(w, http.StatusCreated, forked)
 }
 
 func (h *ChatHandler) handleMarkRead(w http.ResponseWriter, r *http.Request, id servicechat.ID) {

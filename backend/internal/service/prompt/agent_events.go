@@ -22,6 +22,7 @@ func (rnr *Service) emitAgentEvent(
 			default:
 				m.ClaudeSessionID = ev.SessionID
 			}
+			m.ForkPending = false
 			if m.Model == "" && ev.Model != "" {
 				m.Model = ev.Model
 			}

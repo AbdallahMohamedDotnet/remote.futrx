@@ -14,6 +14,8 @@ export const chatService = {
     json<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/unread`, {}),
   delete: (id: string) =>
     json<{ ok: boolean }>("DELETE", `/api/chats/${encodeURIComponent(id)}`),
+  fork: (id: string) =>
+    json<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/fork`, {}),
   events: (id: string, params: { limit?: number; before?: number } = {}) => {
     const search = new URLSearchParams();
     if (params.limit) search.set("limit", String(params.limit));

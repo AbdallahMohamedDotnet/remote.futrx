@@ -15,6 +15,7 @@ export function ProjectGroup({
   onSelectChat,
   onDeleteChat,
   onToggleChatUnread,
+  onForkChat,
   draggable,
   dragging,
   dragOver,
@@ -34,6 +35,7 @@ export function ProjectGroup({
   onSelectChat: (chatId: string) => void;
   onDeleteChat: (chat: ChatMeta, event: Event) => void;
   onToggleChatUnread: (chat: ChatMeta, event: Event) => void;
+  onForkChat: (chat: ChatMeta, event: Event) => void;
   draggable?: boolean;
   dragging?: boolean;
   dragOver?: boolean;
@@ -138,6 +140,7 @@ export function ProjectGroup({
                 onSelect={() => onSelectChat(chat.id)}
                 onDelete={(event) => onDeleteChat(chat, event)}
                 onToggleUnread={(event) => onToggleChatUnread(chat, event)}
+                onFork={(event) => onForkChat(chat, event)}
               />
             ))
           )}

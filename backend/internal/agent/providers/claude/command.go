@@ -25,6 +25,9 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	}
 	if req.ResumeID != "" {
 		args = append(args, "--resume", req.ResumeID)
+		if req.Fork {
+			args = append(args, "--fork-session")
+		}
 	}
 	return args
 }

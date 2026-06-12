@@ -2,7 +2,11 @@ package codex
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
 	"log"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
@@ -51,6 +55,23 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 		req.Provider = agent.ProviderCodex
 	}
 
+	if req.Fork && req.ResumeID != "" {
+		if newID, ferr := p.forkCodexSession(ctx, req); ferr != nil {
+			log.Printf("codex[%s] fork session: %v — starting fresh", req.ConversationID, ferr)
+			req.ResumeID = ""
+		} else {
+			req.ResumeID = newID
+			emit(agent.Event{
+				T:              time.Now().UnixMilli(),
+				Type:           agent.EventSessionUpdated,
+				Provider:       agent.ProviderCodex,
+				ConversationID: req.ConversationID,
+				SessionID:      newID,
+			})
+		}
+	}
+	req.Fork = false
+
 	cmd, containerName, err := p.buildCmd(ctx, req, p.args(req), emit)
 	if err != nil {
 		return err
@@ -69,4 +90,50 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 		}
 	}
 	return err
+}
+
+// forkCodexSession duplicates the parent rollout under a fresh session id so a
+// forked chat continues from the same history without mutating the parent's
+// transcript. Codex's headless `exec` has no fork primitive, so we copy the
+// rollout file: the parent's uuid (unique) is rewritten everywhere in the file
+// and in its name, yielding a session codex can resume by id.
+func (p *Provider) forkCodexSession(ctx context.Context, req agent.RunRequest) (string, error) {
+	newID, err := newUUID()
+	if err != nil {
+		return "", err
+	}
+	parent := req.ResumeID
+	script := fmt.Sprintf(`set -e
+src=$(find /root/.codex/sessions -name '*-%[1]s.jsonl' 2>/dev/null | head -1)
+[ -n "$src" ] || { echo NOTFOUND >&2; exit 3; }
+dest="$(dirname "$src")/$(basename "$src" | sed 's/%[1]s/%[2]s/')"
+sed 's/%[1]s/%[2]s/g' "$src" > "$dest"`, parent, newID)
+
+	var cmd *exec.Cmd
+	if req.ProjectID != "" && p.projects != nil {
+		project, perr := p.projects.Get(ctx, serviceproject.ID(req.ProjectID))
+		if perr != nil {
+			return "", perr
+		}
+		if project.ContainerName == "" {
+			return "", fmt.Errorf("project %s has no container", project.ID)
+		}
+		cmd = exec.CommandContext(ctx, "lxc", "exec", project.ContainerName, "--", "sh", "-c", script)
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-c", script)
+	}
+	if out, cerr := cmd.CombinedOutput(); cerr != nil {
+		return "", fmt.Errorf("copy rollout: %w: %s", cerr, strings.TrimSpace(string(out)))
+	}
+	return newID, nil
+}
+
+func newUUID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }

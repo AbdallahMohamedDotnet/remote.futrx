@@ -1,6 +1,6 @@
 import type { ChatMeta } from "../../models/chat";
 import { formatModelShortLabel, timeAgo } from "../../lib/format";
-import { Clock, Eye, EyeOff, Loader, MessageSquare, X } from "../ui/icons";
+import { Clock, Eye, EyeOff, GitFork, Loader, MessageSquare, X } from "../ui/icons";
 
 export function ChatRow({
   chat,
@@ -8,12 +8,14 @@ export function ChatRow({
   onSelect,
   onDelete,
   onToggleUnread,
+  onFork,
 }: {
   chat: ChatMeta;
   active: boolean;
   onSelect: () => void;
   onDelete: (event: Event) => void;
   onToggleUnread: (event: Event) => void;
+  onFork: (event: Event) => void;
 }) {
   const rawUnread = (chat.lastMessageAt || 0) > (chat.lastReadAt || 0);
   const unread = !active && !chat.running && rawUnread;
@@ -65,6 +67,16 @@ export function ChatRow({
         title={rawUnread ? "Mark read" : "Mark unread"}
       >
         {rawUnread ? <Eye class="w-3.5 h-3.5" /> : <EyeOff class="w-3.5 h-3.5" />}
+      </button>
+      <button
+        type="button"
+        onClick={onFork}
+        class="w-8 grid place-items-center text-ink-300 hover:text-accent-blue hover:bg-white/[0.08]
+               opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+        aria-label={`Fork ${chat.title || "chat"}`}
+        title="Fork from last message"
+      >
+        <GitFork class="w-3.5 h-3.5" />
       </button>
       <button
         type="button"

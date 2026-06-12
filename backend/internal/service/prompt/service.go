@@ -164,6 +164,7 @@ func (rnr *Service) runPrompt(
 		Mode:           meta.Mode,
 		ResumeID:       resumeID,
 		ProjectID:      string(meta.ProjectID),
+		Fork:           meta.ForkPending,
 		Config: map[string]any{
 			"reasoningEffort": meta.ReasoningEffort,
 		},

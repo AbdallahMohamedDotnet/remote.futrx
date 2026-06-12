@@ -44,6 +44,7 @@ export function SidebarContainer() {
       onSelectChat={workspace.selectChat}
       onDeleteChat={commands.deleteChat}
       onToggleChatUnread={commands.toggleChatUnread}
+      onForkChat={commands.forkChat}
       onReorderProjects={commands.reorderProjects}
       onOpenProjectContainers={workspace.showProjectContainers}
       onOpenSettings={workspace.showSettings}
