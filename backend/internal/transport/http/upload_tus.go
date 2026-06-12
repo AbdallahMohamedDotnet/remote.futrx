@@ -214,7 +214,7 @@ func (u *UploadHandler) drainTerminations(events <-chan tusd.HookEvent) {
 }
 
 // finalize moves the chunked file out of the tus tmpRoot and into the chat's
-// host cwd. Chowns to the container-mapped uid + restrictive mode.
+// .uploads dir under the workspace root. Chowns to the container-mapped uid.
 func (u *UploadHandler) finalize(ev tusd.HookEvent) error {
 	meta := ev.Upload.MetaData
 	chatID := strings.TrimSpace(meta["chatId"])
@@ -230,16 +230,20 @@ func (u *UploadHandler) finalize(ev tusd.HookEvent) error {
 		return fmt.Errorf("invalid filename: %q", filename)
 	}
 
-	cwd, err := u.chats.UploadTarget(context.Background(), servicechat.ID(chatID))
+	target, err := u.chats.UploadTarget(context.Background(), servicechat.ID(chatID))
 	if err != nil {
-		return fmt.Errorf("resolve chat %s cwd: %w", chatID, err)
+		return fmt.Errorf("resolve chat %s upload dir: %w", chatID, err)
 	}
-	if info, err := os.Stat(cwd); err != nil || !info.IsDir() {
-		return fmt.Errorf("chat cwd not a directory: %s", cwd)
+	// Create the .uploads dir on demand, owned by container-root, with a
+	// self-ignoring .gitignore so attachments never pollute the workspace repo.
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		return fmt.Errorf("create uploads dir %s: %w", target, err)
 	}
+	_ = os.Chown(target, containerRootHostUID, containerRootHostUID)
+	ensureUploadsGitignore(target)
 
 	src := filepath.Join(u.tmpRoot, ev.Upload.ID)
-	dest := filepath.Join(cwd, base)
+	dest := filepath.Join(target, base)
 
 	// Refuse to overwrite. The browser side disables the upload button when
 	// the same name is already in the workspace, but races are possible.
@@ -270,6 +274,21 @@ func (u *UploadHandler) finalize(ev tusd.HookEvent) error {
 
 	log.Printf("upload[%s] %d B -> %s", ev.Upload.ID, ev.Upload.Size, dest)
 	return nil
+}
+
+// ensureUploadsGitignore drops a self-ignoring .gitignore into the uploads
+// dir so its contents never show up in the workspace repo's status.
+func ensureUploadsGitignore(dir string) {
+	p := filepath.Join(dir, ".gitignore")
+	if _, err := os.Stat(p); err == nil {
+		return
+	}
+	// "*" ignores every file here, including the .gitignore itself.
+	if err := os.WriteFile(p, []byte("*\n"), 0o644); err != nil {
+		log.Printf("uploads gitignore %s: %v", p, err)
+		return
+	}
+	_ = os.Chown(p, containerRootHostUID, containerRootHostUID)
 }
 
 func copyAndRemove(src, dest string) error {

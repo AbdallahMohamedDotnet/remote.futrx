@@ -236,21 +236,15 @@ export function ChatContainer({
 }
 
 function attachmentBasePathForChat(chat: ChatMeta, projects: ProjectMeta[]) {
-  const cwd = normalizePath(chat.cwd || "");
+  // Uploads are stored in a fixed .uploads/ directory at the workspace root,
+  // matching the server (chat.UploadTarget). Anchoring at the root rather than
+  // the chat's cwd keeps the path stable and exactly predictable here, so the
+  // prompt path always matches where the server actually wrote the file.
   const project = chat.projectId ? projects.find((item) => item.id === chat.projectId) : undefined;
-  if (!project) return cwd;
+  if (project) return "/workspace/.uploads";
 
-  const projectCwd = normalizePath(project.cwd || "");
-  const chatCwd = normalizePath(cwd || project.cwd || "");
-  if (!projectCwd || !chatCwd) return "/workspace";
-
-  if (chatCwd === projectCwd) return "/workspace";
-  if (chatCwd.startsWith(`${projectCwd}/`)) {
-    const rel = chatCwd.slice(projectCwd.length).replace(/^\/+/, "");
-    return rel ? `/workspace/${rel}` : "/workspace";
-  }
-
-  return chatCwd;
+  const cwd = normalizePath(chat.cwd || "");
+  return cwd ? `${cwd}/.uploads` : "/.uploads";
 }
 
 function normalizePath(path: string) {

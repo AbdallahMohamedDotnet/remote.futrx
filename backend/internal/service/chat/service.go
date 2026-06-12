@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -216,18 +217,22 @@ func (s *Service) UploadTarget(ctx context.Context, id ID) (string, error) {
 		return "", err
 	}
 
-	cwd := meta.Cwd
-	if meta.TmuxSession != "" && s.tmux != nil {
-		if tmuxCwd, err := s.tmux.Cwd(ctx, meta.TmuxSession); err == nil && tmuxCwd != "" {
-			cwd = tmuxCwd
+	// Anchor uploads at the project's stable workspace root, not the chat's
+	// (possibly tmux-driven) live cwd: a fixed root keeps the stored path
+	// constant so the frontend can predict it exactly, and the .uploads/
+	// subdir isolates attachments from the source tree.
+	root := meta.Cwd
+	if meta.ProjectID != "" && s.projects != nil {
+		if ws, err := s.projects.WorkspaceForProject(ctx, meta.ProjectID); err == nil && ws != "" {
+			root = ws
 		}
 	}
 
-	if cwd == "" {
-		cwd = os.Getenv("HOME")
-		if cwd == "" {
-			cwd = "/root"
+	if root == "" {
+		root = os.Getenv("HOME")
+		if root == "" {
+			root = "/root"
 		}
 	}
-	return cwd, nil
+	return filepath.Join(root, ".uploads"), nil
 }
