@@ -34,14 +34,33 @@ export function useAttachmentUpload(
   const doUpload = useCallback(
     async (files: File[]) => {
       if (!files.length) return;
-      const queued: Attachment[] = files.map((file) => ({
-        id: randomId(),
-        name: file.name,
-        size: file.size,
+      // Pasted screenshots all arrive named "image.png", and the server stores
+      // by filename — so a second paste would overwrite the first on disk and
+      // both would resolve to the same prompt path. Give every upload a unique
+      // storage name derived from its attachment id (which also disambiguates
+      // the tus resume fingerprint), while keeping the original name as the
+      // friendly label shown in the composer chip.
+      const items = files.map((file) => {
+        const id = randomId();
+        const uploadName = uniqueUploadName(file.name, id);
+        const uploadFile =
+          uploadName === file.name
+            ? file
+            : new File([file], uploadName, {
+                type: file.type,
+                lastModified: file.lastModified,
+              });
+        return { id, displayName: file.name, uploadFile };
+      });
+
+      const queued: Attachment[] = items.map(({ id, displayName, uploadFile }) => ({
+        id,
+        name: displayName,
+        size: uploadFile.size,
         serverPath: "",
-        isImage: file.type.startsWith("image/"),
-        objectUrl: file.type.startsWith("image/")
-          ? URL.createObjectURL(file)
+        isImage: uploadFile.type.startsWith("image/"),
+        objectUrl: uploadFile.type.startsWith("image/")
+          ? URL.createObjectURL(uploadFile)
           : undefined,
         progress: 0,
       }));
@@ -50,11 +69,11 @@ export function useAttachmentUpload(
       setUploading(true);
 
       const finishedFlags: Promise<void>[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (let i = 0; i < items.length; i++) {
+        const { uploadFile } = items[i];
         const att = queued[i];
         const done = new Promise<void>((resolve) => {
-          const handle = startChatUpload(chatId, file, {
+          const handle = startChatUpload(chatId, uploadFile, {
             onProgress(loaded, total) {
               const ratio = total > 0 ? loaded / total : 0;
               setAttachments((prev) =>
@@ -69,7 +88,10 @@ export function useAttachmentUpload(
                     ? {
                         ...a,
                         progress: 1,
-                        serverPath: absoluteUploadPath(attachmentBasePathRef.current, file.name),
+                        serverPath: absoluteUploadPath(
+                          attachmentBasePathRef.current,
+                          uploadFile.name
+                        ),
                         error: undefined,
                       }
                     : a
@@ -132,6 +154,18 @@ export function useAttachmentUpload(
 
 function revokeAttachment(attachment: Attachment) {
   if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
+}
+
+// Insert a unique token before the extension so concurrent or repeated uploads
+// of identically-named files (e.g. pasted "image.png" screenshots) never
+// collide on disk. Strips any path the browser left on the name first.
+function uniqueUploadName(name: string, token: string): string {
+  const cleaned = name.split(/[\\/]/).pop()?.trim() || name.trim();
+  if (!cleaned) return `file-${token}`;
+  const dot = cleaned.lastIndexOf(".");
+  // dot <= 0 covers "no extension" and dotfiles like ".env".
+  if (dot <= 0) return `${cleaned}-${token}`;
+  return `${cleaned.slice(0, dot)}-${token}${cleaned.slice(dot)}`;
 }
 
 function absoluteUploadPath(basePath: string, fileName: string) {
