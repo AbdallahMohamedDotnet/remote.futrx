@@ -5,6 +5,7 @@ import type { RegisteredSkill } from "../models/skill";
 import { BrowserDrawer } from "../components/chat/browser/BrowserDrawer";
 import { ChatThread } from "../components/chat/ChatThread";
 import { HistoryDrawer } from "../components/chat/history/HistoryDrawer";
+import { FileManagerDrawer } from "../components/chat/files/FileManagerDrawer";
 import { useChat } from "../hooks/chat/useChat";
 import { useChatBrowserController } from "../hooks/chat/useChatBrowserController";
 import { useChatComposerController } from "../hooks/chat/useChatComposerController";
@@ -82,10 +83,12 @@ export function ChatContainer({
   });
   const terminal = useTerminalOverlayController();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
 
   useEffect(() => {
     terminal.resetTerminal();
     setHistoryOpen(false);
+    setFilesOpen(false);
   }, [chat.id]);
 
   useChatReadMarker({ chatId: chat.id, eventCount, status, onMetaUpdate });
@@ -137,12 +140,20 @@ export function ChatContainer({
 
   function openBrowserDrawer() {
     setHistoryOpen(false);
+    setFilesOpen(false);
     browser.openBrowserDrawer();
   }
 
   function openHistoryDrawer() {
     browser.closeBrowserDrawer();
+    setFilesOpen(false);
     setHistoryOpen(true);
+  }
+
+  function openFileManager() {
+    browser.closeBrowserDrawer();
+    setHistoryOpen(false);
+    setFilesOpen(true);
   }
 
   return (
@@ -204,12 +215,18 @@ export function ChatContainer({
             onOpenTerminal={terminal.openTerminal}
             onOpenBrowser={openBrowserDrawer}
             onOpenHistory={openHistoryDrawer}
+            onOpenFiles={openFileManager}
           />
         </div>
         <HistoryDrawer
           chatId={chat.id}
           open={historyOpen}
           onClose={() => setHistoryOpen(false)}
+        />
+        <FileManagerDrawer
+          chatId={chat.id}
+          open={filesOpen}
+          onClose={() => setFilesOpen(false)}
         />
         <BrowserDrawer
           open={browser.browserOpen}

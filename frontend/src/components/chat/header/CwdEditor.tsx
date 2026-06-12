@@ -1,4 +1,4 @@
-import { Clock, Code, Monitor, Terminal } from "../../ui/icons";
+import { Clock, Code, Folder, Monitor, Terminal } from "../../ui/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
 
 export function CwdEditor({
@@ -12,6 +12,7 @@ export function CwdEditor({
   onOpenTerminal,
   onOpenBrowser,
   onOpenHistory,
+  onOpenFiles,
 }: {
   editing: boolean;
   cwd: string;
@@ -23,6 +24,7 @@ export function CwdEditor({
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
   onOpenHistory: () => void;
+  onOpenFiles: () => void;
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = buildIdeUrl(workspacePath);
@@ -79,6 +81,17 @@ export function CwdEditor({
       >
         <Clock class="w-4 h-4 text-accent-blue flex-none" />
         <span class="text-[12.5px] font-medium">History</span>
+      </button>
+      <button
+        type="button"
+        onClick={onOpenFiles}
+        class="h-9 inline-flex items-center gap-2 px-3 rounded-md
+               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
+        title="Browse uploads and media files"
+        aria-label="Open file manager"
+      >
+        <Folder class="w-4 h-4 text-accent-blue flex-none" />
+        <span class="text-[12.5px] font-medium">Files</span>
       </button>
       <button
         type="button"
