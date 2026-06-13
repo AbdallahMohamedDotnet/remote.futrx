@@ -1,13 +1,11 @@
-import { useEffect, useState } from "preact/hooks";
-import type { WorkspaceDirListing } from "../../../models/files";
+import { useEffect, useMemo, useState } from "preact/hooks";
+import type { FileTree } from "../../../models/files";
 import { chatService } from "../../../services/chatService";
-import { timeAgo } from "../../../lib/format";
-import { Download, Folder, Loader, RotateCcw, X } from "../../ui/icons";
+import { ChevronsDownUp, ChevronsUpDown, Download, Folder, Loader, RotateCcw, Search, X } from "../../ui/icons";
+import { FileTreeNodes } from "./FileTree";
+import { collectFolderKeys, filterTree, formatBytes, nodeKey, treeStats } from "./fileMeta";
 
-const DIR_LABELS: Record<string, string> = {
-  ".uploads": "Uploads",
-  ".media": "Media",
-};
+const DIR_LABELS: Record<string, string> = { ".uploads": "Uploads", ".media": "Media" };
 
 export function FileManagerDrawer({
   chatId,
@@ -18,9 +16,12 @@ export function FileManagerDrawer({
   open: boolean;
   onClose: () => void;
 }) {
-  const [dirs, setDirs] = useState<WorkspaceDirListing[]>([]);
+  const [trees, setTrees] = useState<FileTree[]>([]);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +34,17 @@ export function FileManagerDrawer({
     setError(null);
     try {
       const response = await chatService.files(chatId);
-      setDirs(response.dirs || []);
+      const nextTrees = response.trees || [];
+      setTrees(nextTrees);
+      setTruncated(response.truncated);
+      // Auto-expand the first level of each dir so structure is visible at a glance.
+      const initial = new Set<string>();
+      for (const tree of nextTrees) {
+        for (const node of tree.children) {
+          if (node.isDir) initial.add(nodeKey(tree.dir, node.path));
+        }
+      }
+      setExpanded(initial);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -41,13 +52,51 @@ export function FileManagerDrawer({
     }
   }
 
-  const totalFiles = dirs.reduce((n, d) => n + d.files.length, 0);
+  function toggle(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function expandAll() {
+    const all = new Set<string>();
+    for (const tree of trees) collectFolderKeys(tree.dir, tree.children, all);
+    setExpanded(all);
+  }
+
+  const stats = useMemo(() => {
+    let files = 0;
+    let size = 0;
+    for (const tree of trees) {
+      const s = treeStats(tree.children);
+      files += s.files;
+      size += s.size;
+    }
+    return { files, size };
+  }, [trees]);
+
+  // While searching, prune the trees and force-open every matching branch.
+  const view = useMemo(() => {
+    if (!query.trim()) return { trees, forced: null as Set<string> | null };
+    const forced = new Set<string>();
+    const filtered = trees.map((tree) => ({
+      ...tree,
+      children: filterTree(tree.dir, tree.children, query, forced),
+    }));
+    return { trees: filtered, forced };
+  }, [trees, query]);
+
+  const effectiveExpanded = view.forced ? new Set([...expanded, ...view.forced]) : expanded;
+  const allExpanded = isFullyExpanded(trees, expanded);
 
   return (
     <aside
       class={`relative z-20 h-full flex-none overflow-hidden bg-[#101318] border-l border-white/10 shadow-2xl
               transition-[width,opacity] duration-200 ease-out ${open ? "opacity-100" : "opacity-0 border-l-0 pointer-events-none"}`}
-      style={{ width: open ? "min(520px, calc(100vw - 360px))" : "0px" }}
+      style={{ width: open ? "min(560px, calc(100vw - 320px))" : "0px" }}
       aria-hidden={!open}
       aria-label="Files"
     >
@@ -63,9 +112,18 @@ export function FileManagerDrawer({
             <div class="truncate text-[12px] text-ink-300">
               {loading
                 ? "Loading..."
-                : `${totalFiles} file${totalFiles === 1 ? "" : "s"} in .uploads and .media`}
+                : `${stats.files} file${stats.files === 1 ? "" : "s"} · ${formatBytes(stats.size)}`}
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => (allExpanded ? setExpanded(new Set()) : expandAll())}
+            class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center"
+            title={allExpanded ? "Collapse all" : "Expand all"}
+            aria-label={allExpanded ? "Collapse all" : "Expand all"}
+          >
+            {allExpanded ? <ChevronsDownUp class="w-4 h-4" /> : <ChevronsUpDown class="w-4 h-4" />}
+          </button>
           <button
             type="button"
             onClick={() => void load()}
@@ -87,47 +145,77 @@ export function FileManagerDrawer({
           </button>
         </header>
 
-        <div class="flex-1 min-h-0 overflow-y-auto px-3 md:px-4 py-3 space-y-4">
+        <div class="flex-none px-3 md:px-4 py-2 border-b border-white/[0.06]">
+          <div class="relative">
+            <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-400 pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
+              placeholder="Search files..."
+              class="h-8 w-full bg-[#0b0d11] border border-white/10 rounded-md pl-8 pr-8 text-[13px] text-ink-100
+                     placeholder:text-ink-500 focus:outline-none focus:border-accent-blue/60"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                class="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 grid place-items-center rounded text-ink-400 hover:text-ink-100"
+                aria-label="Clear search"
+              >
+                <X class="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div class="flex-1 min-h-0 overflow-y-auto px-2 md:px-3 py-3 space-y-4">
           {error && (
             <div class="text-[13px] text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2">
               {error}
             </div>
           )}
-          {dirs.map((listing) => (
-            <section key={listing.dir}>
-              <div class="flex items-center gap-2 px-1 pb-1.5 text-[11px] uppercase tracking-wider text-ink-400 font-semibold">
-                <span>{DIR_LABELS[listing.dir] || listing.dir}</span>
-                <span class="font-mono lowercase tracking-normal text-ink-500">{listing.dir}/</span>
+          {truncated && (
+            <div class="text-[12px] text-amber-300/90 bg-amber-400/10 border border-amber-400/25 rounded-md px-3 py-2">
+              This listing is large and was truncated. Download a folder to get everything.
+            </div>
+          )}
+          {view.trees.map((tree) => (
+            <section key={tree.dir}>
+              <div class="flex items-center gap-2 px-1.5 pb-1">
+                <span class="text-[11px] uppercase tracking-wider text-ink-400 font-semibold">
+                  {DIR_LABELS[tree.dir] || tree.dir}
+                </span>
+                <span class="font-mono text-[11px] text-ink-500">{tree.dir}/</span>
+                <span class="flex-1" />
+                {tree.exists && tree.children.length > 0 && (
+                  <a
+                    href={chatService.folderDownloadUrl(chatId, tree.dir)}
+                    class="inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] text-ink-300 hover:text-accent-blue hover:bg-white/[0.06]"
+                    title={`Download all of ${tree.dir} as zip`}
+                  >
+                    <Download class="w-3.5 h-3.5" />
+                    <span>zip</span>
+                  </a>
+                )}
               </div>
-              {listing.files.length === 0 ? (
-                <div class="text-[13px] text-ink-400 px-1 py-2">
-                  {listing.exists ? "No files yet." : "Folder not created yet."}
+              {tree.children.length === 0 ? (
+                <div class="text-[13px] text-ink-400 px-2 py-2">
+                  {tree.exists
+                    ? query.trim()
+                      ? "No matches."
+                      : "No files yet."
+                    : "Folder not created yet."}
                 </div>
               ) : (
-                <ul class="space-y-0.5">
-                  {listing.files.map((file) => (
-                    <li
-                      key={file.name}
-                      class="group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/[0.04] border border-transparent"
-                    >
-                      <div class="flex-1 min-w-0">
-                        <div class="text-[13px] text-ink-100 truncate">{file.name}</div>
-                        <div class="text-[11px] text-ink-400">
-                          {formatBytes(file.size)} · {timeAgo(file.modTime)}
-                        </div>
-                      </div>
-                      <a
-                        href={chatService.fileDownloadUrl(chatId, listing.dir, file.name)}
-                        download={file.name}
-                        class="h-8 w-8 grid place-items-center rounded-md text-ink-300 hover:text-accent-blue hover:bg-white/[0.08] flex-none"
-                        title={`Download ${file.name}`}
-                        aria-label={`Download ${file.name}`}
-                      >
-                        <Download class="w-4 h-4" />
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+                <FileTreeNodes
+                  chatId={chatId}
+                  dir={tree.dir}
+                  nodes={tree.children}
+                  depth={0}
+                  expanded={effectiveExpanded}
+                  onToggle={toggle}
+                />
               )}
             </section>
           ))}
@@ -137,14 +225,13 @@ export function FileManagerDrawer({
   );
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i++;
+/** True when every folder across all trees is currently expanded. */
+function isFullyExpanded(trees: FileTree[], expanded: Set<string>): boolean {
+  const all = new Set<string>();
+  for (const tree of trees) collectFolderKeys(tree.dir, tree.children, all);
+  if (all.size === 0) return false;
+  for (const key of all) {
+    if (!expanded.has(key)) return false;
   }
-  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[i]}`;
+  return true;
 }

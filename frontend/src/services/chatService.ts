@@ -1,5 +1,5 @@
 import { json, request } from "../api/http";
-import type { WorkspaceFilesResponse } from "../models/files";
+import type { FileTreeResponse } from "../models/files";
 import type { ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
 
@@ -18,9 +18,11 @@ export const chatService = {
   fork: (id: string) =>
     json<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/fork`, {}),
   files: (id: string) =>
-    json<WorkspaceFilesResponse>("GET", `/api/chats/${encodeURIComponent(id)}/files`),
-  fileDownloadUrl: (id: string, dir: string, name: string) =>
-    `/api/chats/${encodeURIComponent(id)}/files/download?dir=${encodeURIComponent(dir)}&name=${encodeURIComponent(name)}`,
+    json<FileTreeResponse>("GET", `/api/chats/${encodeURIComponent(id)}/files`),
+  fileDownloadUrl: (id: string, dir: string, path: string) =>
+    `/api/chats/${encodeURIComponent(id)}/files/download?dir=${encodeURIComponent(dir)}&path=${encodeURIComponent(path)}`,
+  folderDownloadUrl: (id: string, dir: string, path = "") =>
+    `/api/chats/${encodeURIComponent(id)}/files/download-folder?dir=${encodeURIComponent(dir)}${path ? `&path=${encodeURIComponent(path)}` : ""}`,
   events: (id: string, params: { limit?: number; before?: number } = {}) => {
     const search = new URLSearchParams();
     if (params.limit) search.set("limit", String(params.limit));

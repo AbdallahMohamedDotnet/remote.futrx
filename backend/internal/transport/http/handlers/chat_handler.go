@@ -149,6 +149,8 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			h.handleFilesList(w, r, meta)
 		case "files/download":
 			h.handleFilesDownload(w, r, meta)
+		case "files/download-folder":
+			h.handleFilesDownloadFolder(w, r, meta)
 		case "history/repos":
 			h.handleHistoryRepos(w, r, meta)
 		case "history/commits":
@@ -293,108 +295,6 @@ func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta
 
 	openIDEFileSoon(target)
 	http.Redirect(w, r, ideFolderURL(target.WorkspaceRoot), http.StatusFound)
-}
-
-// fileManagerDirs is the whitelist of workspace directories the file manager
-// exposes: user uploads and agent-generated media at the workspace root.
-var fileManagerDirs = []string{".uploads", ".media"}
-
-func isFileManagerDir(dir string) bool {
-	for _, d := range fileManagerDirs {
-		if dir == d {
-			return true
-		}
-	}
-	return false
-}
-
-// handleFilesList returns the files in each whitelisted workspace dir so the
-// frontend file manager can show .uploads and .media. Read-only; subdirs and
-// dotfiles (e.g. the self-ignoring .gitignore) are skipped.
-func (h *ChatHandler) handleFilesList(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
-	if r.Method != http.MethodGet {
-		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	root := workspaceRootFromPath(meta.Cwd)
-	if root == "" {
-		httptransport.SendErr(w, http.StatusBadRequest, "chat workspace is unavailable")
-		return
-	}
-
-	type fileEntry struct {
-		Name    string `json:"name"`
-		Size    int64  `json:"size"`
-		ModTime int64  `json:"modTime"`
-	}
-	type dirListing struct {
-		Dir    string      `json:"dir"`
-		Exists bool        `json:"exists"`
-		Files  []fileEntry `json:"files"`
-	}
-
-	dirs := make([]dirListing, 0, len(fileManagerDirs))
-	for _, dir := range fileManagerDirs {
-		listing := dirListing{Dir: dir, Files: []fileEntry{}}
-		entries, err := os.ReadDir(filepath.Join(root, dir))
-		if err == nil {
-			listing.Exists = true
-			for _, e := range entries {
-				if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
-					continue
-				}
-				info, ierr := e.Info()
-				if ierr != nil {
-					continue
-				}
-				listing.Files = append(listing.Files, fileEntry{
-					Name:    e.Name(),
-					Size:    info.Size(),
-					ModTime: info.ModTime().UnixMilli(),
-				})
-			}
-		}
-		dirs = append(dirs, listing)
-	}
-	httptransport.SendJSON(w, http.StatusOK, map[string]any{"dirs": dirs})
-}
-
-// handleFilesDownload streams one file from a whitelisted workspace dir as an
-// attachment so the browser saves it to the user's computer.
-func (h *ChatHandler) handleFilesDownload(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
-	if r.Method != http.MethodGet {
-		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	dir := r.URL.Query().Get("dir")
-	if !isFileManagerDir(dir) {
-		httptransport.SendErr(w, http.StatusBadRequest, "invalid dir")
-		return
-	}
-	name := r.URL.Query().Get("name")
-	if name == "" || name != filepath.Base(name) || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
-		httptransport.SendErr(w, http.StatusBadRequest, "invalid file name")
-		return
-	}
-	root := workspaceRootFromPath(meta.Cwd)
-	if root == "" {
-		httptransport.SendErr(w, http.StatusBadRequest, "chat workspace is unavailable")
-		return
-	}
-	dirPath := filepath.Join(root, dir)
-	filePath := filepath.Join(dirPath, name)
-	if !pathInside(filePath, dirPath) {
-		httptransport.SendErr(w, http.StatusBadRequest, "path escapes directory")
-		return
-	}
-	info, err := os.Stat(filePath)
-	if err != nil || info.IsDir() {
-		httptransport.SendErr(w, http.StatusNotFound, "file not found")
-		return
-	}
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	http.ServeFile(w, r, filePath)
 }
 
 func (h *ChatHandler) handleMediaOpen(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {

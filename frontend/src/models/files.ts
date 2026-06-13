@@ -1,15 +1,22 @@
-export interface WorkspaceFile {
+export interface FileNode {
   name: string;
-  size: number;
-  modTime: number;
+  /** Path relative to the dir root, forward slashes (used by download URLs). */
+  path: string;
+  isDir: boolean;
+  size?: number;
+  modTime?: number;
+  children?: FileNode[];
 }
 
-export interface WorkspaceDirListing {
+export interface FileTree {
+  /** ".uploads" or ".media" */
   dir: string;
   exists: boolean;
-  files: WorkspaceFile[];
+  children: FileNode[];
 }
 
-export interface WorkspaceFilesResponse {
-  dirs: WorkspaceDirListing[];
+export interface FileTreeResponse {
+  trees: FileTree[];
+  /** True when the listing hit the node/depth cap and is partial. */
+  truncated: boolean;
 }
