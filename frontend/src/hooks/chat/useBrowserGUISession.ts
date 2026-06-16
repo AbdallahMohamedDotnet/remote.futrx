@@ -50,10 +50,17 @@ export function useBrowserGUISession({ chatId, enabled }: { chatId: string; enab
         case "starting":
           setStatus("starting");
           break;
-        case "ready":
-          setGuiUrl(buildGuiUrl(msg.slug ?? "", msg.port ?? 0));
+        case "ready": {
+          const next = buildGuiUrl(msg.slug ?? "", msg.port ?? 0);
+          if (!next) {
+            setError("Agent browser started but returned an incomplete address.");
+            setStatus("error");
+            break;
+          }
+          setGuiUrl(next);
           setStatus("ready");
           break;
+        }
         case "stopped":
           setGuiUrl("");
           setStatus("stopped");
