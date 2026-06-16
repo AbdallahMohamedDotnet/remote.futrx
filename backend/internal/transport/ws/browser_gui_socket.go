@@ -37,12 +37,12 @@ type BrowserGUIProjects interface {
 }
 
 type BrowserGUISocket struct {
-	chats    TerminalChatGetter
+	chats    ChatLookup
 	projects BrowserGUIProjects
 	access   ProjectAccessChecker
 }
 
-func NewBrowserGUISocket(chats TerminalChatGetter, projects BrowserGUIProjects) *BrowserGUISocket {
+func NewBrowserGUISocket(chats ChatLookup, projects BrowserGUIProjects) *BrowserGUISocket {
 	return &BrowserGUISocket{chats: chats, projects: projects}
 }
 
@@ -124,7 +124,10 @@ func (s *BrowserGUISocket) handle(upgrader websocket.Upgrader, w http.ResponseWr
 	}
 	defer conn.Close()
 
-	_ = conn.WriteJSON(browserGUIServerMsg{Type: "starting"})
+	// If the client is already gone, skip the expensive container work.
+	if err := conn.WriteJSON(browserGUIServerMsg{Type: "starting"}); err != nil {
+		return
+	}
 
 	project, err := s.projects.StartBrowserGUI(r.Context(), projectID)
 	if err != nil {
