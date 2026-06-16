@@ -279,7 +279,7 @@ func (m *Manager) inspectClaude(ctx context.Context, containerName string) servi
 		cs.ClaudeMDInstalled = true
 	}
 	if got, err := m.runQuick(ctx, "exec", containerName, "--", "cat", containerAgentInstrMDHash); err == nil {
-		cs.ClaudeMDInSync = strings.TrimSpace(got) == agentInstructionsHash()
+		cs.ClaudeMDInSync = strings.TrimSpace(got) == templateHash(agentInstructionsTemplate)
 	}
 	return cs
 }

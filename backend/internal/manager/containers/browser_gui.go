@@ -101,7 +101,7 @@ func (m *Manager) pushGUIScript(ctx context.Context, containerName string) error
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerGUIDir, err, out)
 	}
-	return m.pushTemplatedFile(ctx, containerName, guiUpScript, containerGUIScript, containerGUIScriptHash)
+	return m.pushTemplatedFile(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript)
 }
 
 // StopBrowserGUI tears down the GUI stack (browser, VNC, display) but leaves

@@ -32,14 +32,21 @@ const (
 	containerBrowserScriptHash = "/workspace/.agents/.browser-mjs.sha256"
 )
 
-// pushTemplatedFile pushes content to destPath inside the container (mode
-// 0755), gated by a sha256 marker at hashPath — re-pushing only when the
-// content has changed. Shared by every Ensure* step that ships an embedded
-// template into the workspace, so the temp-file / push / marker dance lives
-// in one place.
-func (m *Manager) pushTemplatedFile(ctx context.Context, containerName string, content []byte, destPath, hashPath string) error {
+// templateHash is the canonical content hash used for the sha256 markers that
+// gate template (re)pushes, and to check whether a pushed template is in sync.
+func templateHash(content []byte) string {
 	sum := sha256.Sum256(content)
-	want := hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:])
+}
+
+// pushTemplatedFile pushes content to each destPath inside the container with
+// the given fileMode (e.g. "755"), gated by a single sha256 marker at
+// hashPath — re-pushing only when the content has changed. Shared by every
+// Ensure* step that ships an embedded template into the workspace, so the
+// temp-file / push / marker dance lives in one place. Callers are responsible
+// for creating any parent directories the destinations need.
+func (m *Manager) pushTemplatedFile(ctx context.Context, containerName string, content []byte, hashPath, fileMode string, destPaths ...string) error {
+	want := templateHash(content)
 
 	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
 	got, err := m.lxc.Run(qctx, "exec", containerName, "--", "cat", hashPath)
@@ -62,11 +69,13 @@ func (m *Manager) pushTemplatedFile(ctx context.Context, containerName string, c
 	}
 	tmp.Close()
 
-	if out, err := m.lxc.Run(pctx, "file", "push", "--mode=755", tmp.Name(), containerName+destPath); err != nil {
-		return fmt.Errorf("push %s: %w; output: %s", destPath, err, out)
+	for _, destPath := range destPaths {
+		if out, err := m.lxc.Run(pctx, "file", "push", "--mode="+fileMode, tmp.Name(), containerName+destPath); err != nil {
+			return fmt.Errorf("push %s: %w; output: %s", destPath, err, out)
+		}
 	}
 	if out, err := m.lxc.RunStdin(pctx, strings.NewReader(want), "exec", containerName, "--", "tee", hashPath); err != nil {
-		return fmt.Errorf("write %s hash marker: %w; output: %s", destPath, err, out)
+		return fmt.Errorf("write %s hash marker: %w; output: %s", hashPath, err, out)
 	}
 	return nil
 }
@@ -96,5 +105,5 @@ fi`)
 		return fmt.Errorf("seed browser dirs: %w", err)
 	}
 
-	return m.pushTemplatedFile(ctx, containerName, browserScriptTemplate, containerBrowserScript, containerBrowserScriptHash)
+	return m.pushTemplatedFile(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
 }
