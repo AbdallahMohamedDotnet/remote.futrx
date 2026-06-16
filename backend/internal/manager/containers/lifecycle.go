@@ -55,6 +55,7 @@ func (m *Manager) Launch(ctx context.Context, p serviceproject.Meta) error {
 	_ = m.EnsureRegisteredAuth(ctx, p.ContainerName)
 	_ = m.EnsureWorkspaceSkillLinks(ctx, p.ContainerName)
 	_ = m.EnsureBrowserScript(ctx, p.ContainerName)
+	_ = m.EnsureBrowserSkill(ctx, p.ContainerName)
 	_ = m.EnsureBrowserGUILimits(ctx, p.ContainerName)
 
 	return nil

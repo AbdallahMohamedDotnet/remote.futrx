@@ -53,6 +53,9 @@ type RunRequest struct {
 	ProjectID      string
 	Fork           bool
 	Config         map[string]any
+	// EnableBrowser wires the @playwright/mcp browser tools into the agent
+	// launch. Set when the `browser` skill is selected for the prompt.
+	EnableBrowser bool
 }
 
 // Event is the normalized backend event shape emitted by headless agent

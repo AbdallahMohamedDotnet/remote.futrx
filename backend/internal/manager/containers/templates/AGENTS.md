@@ -178,39 +178,15 @@ above stays available for sites where the user can copy a session cookie.
 **If a script suddenly returns a logged-out page**, the cookie has
 rotated. Tell the user to re-paste a fresh value — don't silently retry.
 
-### Agent Browser — act in a session the user logged into
+### Agent Browser — driving a live browser the user logs into
 
-For sites with no usable API and no copyable cookie (most social logins),
-the platform can run a **real, visible browser inside this container** that
-the user logs into by hand, after which you drive the *same* session:
-
-1. Ask the user to open **Browser → Agent browser** in the chat UI and log
-   into the target site there (they see a live view and handle the password
-   and any 2FA). Their login persists across container restarts.
-2. Drive that live, already-authenticated session with the **`connect`**
-   subcommand — it attaches over CDP and shares the user's cookies, so you
-   never handle credentials:
-
-   ```bash
-   # report what's open in the live session
-   node /workspace/scripts/browser.mjs connect
-   # run a recipe against the logged-in session
-   node /workspace/scripts/browser.mjs connect /workspace/.browser/recipes/<scenario>.mjs
-   ```
-
-   The recipe shape is identical to `run` (default async function
-   `(page, context)`), but it acts in the live profile — no
-   `browser-auth.json` cookies are attached.
-
-**Write policy:** reading (timelines, messages, search) is fine on your
-own. Before any **public or irreversible write** — posting, replying,
-DMing, following, purchasing, changing settings — **say what you're about
-to do and get the user's confirmation first.** They can also watch and stop
-you through the live view.
-
-**Egress note:** this browser exits via the datacenter IP, so strict
-providers (Google, X) may show extra "verify it's you" challenges at login;
-the user clears those in the live view. Respect each site's terms of service.
+For tasks that need a **real browser the user logs into** (social media,
+dashboards, any authenticated site), use the **`browser` skill**: it gives
+you `browser_*` tools wired to a live Chromium the user can watch and log
+into, and carries the full playbook (reading via snapshots, the login
+handoff, the write-approval policy). The user selects it for the request.
+The headless `scripts/browser.mjs` above stays for one-off screenshots or
+recordings of public / cookie-authenticated URLs.
 
 ### Recording agent-driven flows (clicking, filling, multi-step)
 
