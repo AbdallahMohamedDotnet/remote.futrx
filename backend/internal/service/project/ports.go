@@ -26,4 +26,9 @@ type ContainerManager interface {
 	// the project-secrets flow to ship per-project tokens (Cloudflare, GitHub,
 	// etc.) into the project's container.
 	ApplyContainerEnvDiff(ctx context.Context, containerName string, set map[string]string, unset []string) error
+	// EnsureBrowserGUI / StopBrowserGUI bring the Agent Browser stack up and
+	// down inside the container (headed Chrome on a virtual display, shared
+	// over noVNC and driven by the agent over CDP).
+	EnsureBrowserGUI(ctx context.Context, containerName string) error
+	StopBrowserGUI(ctx context.Context, containerName string) error
 }
