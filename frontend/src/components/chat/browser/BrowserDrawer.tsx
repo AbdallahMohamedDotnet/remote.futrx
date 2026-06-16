@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ContainerApp } from "../../../models/project";
+import { useBrowserGUISession } from "../../../hooks/chat/useBrowserGUISession";
 import { BrowserDrawerHeader } from "./BrowserDrawerHeader";
 import { BrowserFrame } from "./BrowserFrame";
+import { BrowserGuiView } from "./BrowserGuiView";
 import { BrowserResizeHandle } from "./BrowserResizeHandle";
 import { buildBrowserUrl, buildInspectorUrl } from "./browserUrls";
 import type { BrowserElementCapture } from "./types";
@@ -26,6 +28,7 @@ function readBrowserWidth(): number {
 
 export function BrowserDrawer({
   open,
+  chatId,
   projectName,
   projectSlug,
   apps,
@@ -37,6 +40,7 @@ export function BrowserDrawer({
   onClose,
 }: {
   open: boolean;
+  chatId: string;
   projectName: string;
   projectSlug: string;
   apps: ContainerApp[];
@@ -52,8 +56,12 @@ export function BrowserDrawer({
   const [resizing, setResizing] = useState(false);
   const [inspectMode, setInspectMode] = useState(false);
   const [useInspectorFrame, setUseInspectorFrame] = useState(false);
+  const [guiMode, setGuiMode] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const guiIframeRef = useRef<HTMLIFrameElement>(null);
+
+  const gui = useBrowserGUISession({ chatId, enabled: open && guiMode });
 
   const url = useMemo(() => buildBrowserUrl(projectSlug, selectedPort), [projectSlug, selectedPort]);
   const inspectorUrl = useMemo(() => buildInspectorUrl(url), [url]);
@@ -72,12 +80,25 @@ export function BrowserDrawer({
     window.localStorage.setItem(browserWidthKey, String(browserWidth));
   }, [browserWidth]);
 
+  // Drawer closing or switching chats resets transient view modes.
   useEffect(() => {
-    if (!open || !canLoad) {
+    if (!open) {
+      setInspectMode(false);
+      setUseInspectorFrame(false);
+      setGuiMode(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    setGuiMode(false);
+  }, [chatId]);
+
+  useEffect(() => {
+    if (!canLoad) {
       setInspectMode(false);
       setUseInspectorFrame(false);
     }
-  }, [canLoad, open]);
+  }, [canLoad]);
 
   useEffect(() => {
     setInspectMode(false);
@@ -169,6 +190,18 @@ export function BrowserDrawer({
     });
   }
 
+  // Agent Browser is mutually exclusive with the app preview's inspect mode.
+  function toggleGuiMode() {
+    setGuiMode((on) => {
+      const next = !on;
+      if (next) {
+        setInspectMode(false);
+        setUseInspectorFrame(false);
+      }
+      return next;
+    });
+  }
+
   return (
     <aside
       ref={asideRef}
@@ -195,22 +228,38 @@ export function BrowserDrawer({
           url={url}
           canLoad={canLoad}
           inspectMode={inspectMode}
+          guiMode={guiMode}
+          guiStatus={gui.status}
           onSelectPort={onSelectPort}
           onRefreshApps={onRefreshApps}
           onToggleInspectMode={toggleInspectMode}
+          onToggleGuiMode={toggleGuiMode}
+          onStopGui={gui.stop}
           onReload={() => setReloadKey((value) => value + 1)}
           onClose={onClose}
         />
-        <BrowserFrame
-          canLoad={canLoad}
-          iframeRef={iframeRef}
-          iframeUrl={iframeUrl}
-          reloadKey={reloadKey}
-          projectName={projectName}
-          resizing={resizing}
-          inspectMode={inspectMode}
-          onFrameLoad={postInspectState}
-        />
+        {guiMode ? (
+          <BrowserGuiView
+            status={gui.status}
+            url={gui.guiUrl}
+            error={gui.error}
+            reloadKey={reloadKey}
+            projectName={projectName}
+            resizing={resizing}
+            iframeRef={guiIframeRef}
+          />
+        ) : (
+          <BrowserFrame
+            canLoad={canLoad}
+            iframeRef={iframeRef}
+            iframeUrl={iframeUrl}
+            reloadKey={reloadKey}
+            projectName={projectName}
+            resizing={resizing}
+            inspectMode={inspectMode}
+            onFrameLoad={postInspectState}
+          />
+        )}
       </div>
     </aside>
   );

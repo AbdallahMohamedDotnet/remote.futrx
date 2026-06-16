@@ -10,3 +10,10 @@ export function buildInspectorUrl(url: string): string {
   inspector.searchParams.set("parent", window.location.origin);
   return inspector.toString();
 }
+
+// buildGuiUrl points at the in-container noVNC view (Agent Browser),
+// served on a fixed port through the same dev-URL proxy as app previews.
+export function buildGuiUrl(slug: string, port: number): string {
+  if (!slug || !port) return "";
+  return `https://${slug}--${port}.dev.remote.futrx.dev/vnc.html?autoconnect=1&resize=scale&reconnect=1`;
+}
