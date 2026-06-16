@@ -86,31 +86,30 @@ gh --version | head -1`
 //     pre-date the GUI stack being baked into the image.
 const BrowserGUIInstallScript = `set -e
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
+# Wait for the apt/dpkg lock rather than failing if apt-daily / unattended-
+# upgrades is mid-run — a common race shortly after a container boots.
+APT="apt-get -o DPkg::Lock::Timeout=300"
+$APT update -qq
 
 # Virtual display + VNC bridge (x11vnc -> websockify/noVNC over HTTP/WS), a
 # lightweight window manager (openbox) so the browser window keeps stable
 # input focus, and xdotool to activate that window. Font packages cover
 # common web / CJK / emoji glyphs so real pages render legibly.
-apt-get install -y -qq \
+$APT install -y -qq \
     xvfb x11vnc novnc websockify openbox xdotool \
     libgtk-3-0t64 libgbm1 libasound2t64 libnss3 libxshmfence1 \
     dbus-x11 fonts-liberation fonts-noto-core fonts-noto-color-emoji
 
-# Real Google Chrome stable (NOT Chrome-for-Testing): it auto-updates and
-# lacks the "for automated testing" banner and build signature that make a
-# browser easier to flag as automation. amd64-only, matching the base image.
-curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
-    | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
-chmod go+r /usr/share/keyrings/google-chrome.gpg
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
-    > /etc/apt/sources.list.d/google-chrome.list
-apt-get update -qq
-apt-get install -y -qq google-chrome-stable
+# Browser: Playwright's Chromium (Chrome for Testing), NOT google-chrome-stable.
+# In an unprivileged LXC container google-chrome-stable's network service
+# cannot open the remote-debugging socket (CreatePlatformSocket: EPERM), so the
+# agent could never attach over CDP; the Chromium build can. It installs into
+# /root/.cache/ms-playwright, where gui-up.sh and browser.mjs both find it.
+npx --yes playwright@1.60.0 install chromium 2>&1 | tail -3
 
-# Sanity check the GUI toolchain.
-which Xvfb x11vnc websockify openbox google-chrome
-google-chrome --version`
+# Sanity check the GUI toolchain (the chromium glob fails the build if absent).
+which Xvfb x11vnc websockify openbox
+ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`
 
 // BuildBaseImage launches a fresh BaseImageSourceImage container, runs the
 // install script, publishes the result under alias, and removes the

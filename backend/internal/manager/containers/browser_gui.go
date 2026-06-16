@@ -69,9 +69,9 @@ func (m *Manager) EnsureBrowserGUI(ctx context.Context, containerName string) er
 	}
 
 	cctx, cancelC := context.WithTimeout(ctx, queryTimeout)
-	_, chromeErr := m.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "command -v google-chrome >/dev/null 2>&1")
+	_, stackErr := m.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1")
 	cancelC()
-	if chromeErr != nil {
+	if stackErr != nil {
 		ictx, cancelI := context.WithTimeout(ctx, browserGUIInstallTimeout)
 		out, err := m.lxc.Run(ictx, "exec", containerName, "--", "bash", "-c", BrowserGUIInstallScript)
 		cancelI()

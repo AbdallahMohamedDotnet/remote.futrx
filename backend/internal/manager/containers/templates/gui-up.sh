@@ -19,7 +19,11 @@ CDP_PORT=9222
 SCREEN=1366x768x24
 export DISPLAY=":$DISPLAY_NUM"
 
-CHROME="$(command -v google-chrome 2>/dev/null || echo /usr/bin/google-chrome)"
+# Prefer Playwright's Chromium (Chrome for Testing): in an unprivileged LXC
+# its network service can open the CDP socket, whereas google-chrome-stable
+# cannot (CreatePlatformSocket EPERM). Fall back to system Chrome if absent.
+CHROME="$(ls -1 /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome 2>/dev/null | sort -V | tail -1)"
+[ -n "$CHROME" ] || CHROME="$(command -v google-chrome 2>/dev/null || echo /usr/bin/google-chrome)"
 
 log() { echo "[gui-up] $*"; }
 
