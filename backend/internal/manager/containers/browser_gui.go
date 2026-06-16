@@ -15,12 +15,9 @@ package containers
 
 import (
 	"context"
-	"crypto/sha256"
 	_ "embed"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 )
@@ -56,11 +53,6 @@ const (
 // BrowserGUIPort returns the in-container noVNC port the GUI stack listens
 // on — the single source of truth for callers that build the dev-URL.
 func (m *Manager) BrowserGUIPort() int { return BrowserGUIVNCPort }
-
-func guiUpScriptHash() string {
-	sum := sha256.Sum256(guiUpScript)
-	return hex.EncodeToString(sum[:])
-}
 
 // EnsureBrowserGUI provisions and starts the Agent Browser stack inside the
 // container (Xvfb -> openbox -> Google Chrome -> x11vnc -> websockify/noVNC),
@@ -100,46 +92,16 @@ func (m *Manager) EnsureBrowserGUI(ctx context.Context, containerName string) er
 	return nil
 }
 
-// pushGUIScript installs the launcher dir and (re)pushes gui-up.sh when its
-// embedded content has changed. sha256-gated, mirroring EnsureBrowserScript.
+// pushGUIScript ensures the launcher dir exists, then (re)pushes gui-up.sh
+// when its embedded content has changed.
 func (m *Manager) pushGUIScript(ctx context.Context, containerName string) error {
-	want := guiUpScriptHash()
-
-	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
-	got, err := m.lxc.Run(qctx, "exec", containerName, "--", "cat", containerGUIScriptHash)
-	cancelQ()
-	scriptCurrent := err == nil && strings.TrimSpace(got) == want
-
-	pctx, cancelP := context.WithTimeout(ctx, 30*time.Second)
-	defer cancelP()
-
-	if out, err := m.lxc.Run(pctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir); err != nil {
+	dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
+	out, err := m.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
+	cancelD()
+	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerGUIDir, err, out)
 	}
-	if scriptCurrent {
-		return nil
-	}
-
-	tmp, err := os.CreateTemp("", "gui-up-*.sh")
-	if err != nil {
-		return fmt.Errorf("temp file: %w", err)
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(guiUpScript); err != nil {
-		tmp.Close()
-		return fmt.Errorf("write template: %w", err)
-	}
-	tmp.Close()
-
-	if out, err := m.lxc.Run(pctx, "file", "push", "--mode=755",
-		tmp.Name(), containerName+containerGUIScript); err != nil {
-		return fmt.Errorf("push gui-up.sh: %w; output: %s", err, out)
-	}
-	if out, err := m.lxc.RunStdin(pctx, strings.NewReader(want), "exec", containerName, "--",
-		"tee", containerGUIScriptHash); err != nil {
-		return fmt.Errorf("write gui-up.sh hash marker: %w; output: %s", err, out)
-	}
-	return nil
+	return m.pushTemplatedFile(ctx, containerName, guiUpScript, containerGUIScript, containerGUIScriptHash)
 }
 
 // StopBrowserGUI tears down the GUI stack (browser, VNC, display) but leaves
