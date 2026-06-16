@@ -334,6 +334,40 @@ func (s *Service) ListContainerApps(ctx context.Context, id ID) ([]ContainerApp,
 	return s.containers.ListListeners(ctx, m.ContainerName)
 }
 
+// StartBrowserGUI ensures the project's container is running and brings up
+// the Agent Browser stack inside it. Returns the project meta (whose slug
+// the caller maps to the noVNC dev-URL) and the noVNC port. Idempotent.
+func (s *Service) StartBrowserGUI(ctx context.Context, id ID) (Meta, int, error) {
+	m, err := s.Start(ctx, id)
+	if err != nil {
+		return Meta{}, 0, err
+	}
+	if s.containers == nil || m.ContainerName == "" {
+		return Meta{}, 0, errors.New("project has no container to run the browser in")
+	}
+	if err := s.containers.EnsureBrowserGUI(ctx, m.ContainerName); err != nil {
+		return Meta{}, 0, err
+	}
+	return m, s.containers.BrowserGUIPort(), nil
+}
+
+// StopBrowserGUI tears down the Agent Browser stack in the project's
+// container, leaving the container running and the persistent browser
+// profile on disk so logins survive.
+func (s *Service) StopBrowserGUI(ctx context.Context, id ID) error {
+	if !ValidID(id) {
+		return ErrInvalidID
+	}
+	m, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if s.containers == nil || m.ContainerName == "" {
+		return nil
+	}
+	return s.containers.StopBrowserGUI(ctx, m.ContainerName)
+}
+
 func (s *Service) Reconcile(ctx context.Context) error {
 	if s.containers == nil || !s.containers.Available() {
 		return nil

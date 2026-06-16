@@ -32,9 +32,52 @@ const (
 	containerBrowserScriptHash = "/workspace/.agents/.browser-mjs.sha256"
 )
 
-func browserScriptHash() string {
-	sum := sha256.Sum256(browserScriptTemplate)
+// templateHash is the canonical content hash used for the sha256 markers that
+// gate template (re)pushes, and to check whether a pushed template is in sync.
+func templateHash(content []byte) string {
+	sum := sha256.Sum256(content)
 	return hex.EncodeToString(sum[:])
+}
+
+// pushTemplatedFile pushes content to each destPath inside the container with
+// the given fileMode (e.g. "755"), gated by a single sha256 marker at
+// hashPath — re-pushing only when the content has changed. Shared by every
+// Ensure* step that ships an embedded template into the workspace, so the
+// temp-file / push / marker dance lives in one place. Callers are responsible
+// for creating any parent directories the destinations need.
+func (m *Manager) pushTemplatedFile(ctx context.Context, containerName string, content []byte, hashPath, fileMode string, destPaths ...string) error {
+	want := templateHash(content)
+
+	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
+	got, err := m.lxc.Run(qctx, "exec", containerName, "--", "cat", hashPath)
+	cancelQ()
+	if err == nil && strings.TrimSpace(got) == want {
+		return nil
+	}
+
+	pctx, cancelP := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelP()
+
+	tmp, err := os.CreateTemp("", "futrx-template-*")
+	if err != nil {
+		return fmt.Errorf("temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(content); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write template: %w", err)
+	}
+	tmp.Close()
+
+	for _, destPath := range destPaths {
+		if out, err := m.lxc.Run(pctx, "file", "push", "--mode="+fileMode, tmp.Name(), containerName+destPath); err != nil {
+			return fmt.Errorf("push %s: %w; output: %s", destPath, err, out)
+		}
+	}
+	if out, err := m.lxc.RunStdin(pctx, strings.NewReader(want), "exec", containerName, "--", "tee", hashPath); err != nil {
+		return fmt.Errorf("write %s hash marker: %w; output: %s", hashPath, err, out)
+	}
+	return nil
 }
 
 // EnsureBrowserScript pushes the generic Playwright wrapper into the
@@ -45,51 +88,22 @@ func (m *Manager) EnsureBrowserScript(ctx context.Context, containerName string)
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
-	want := browserScriptHash()
-
-	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
-	defer cancelQ()
-	got, err := m.lxc.Run(qctx, "exec", containerName, "--", "cat", containerBrowserScriptHash)
-	scriptCurrent := err == nil && strings.TrimSpace(got) == want
-
-	pctx, cancelP := context.WithTimeout(ctx, 30*time.Second)
-	defer cancelP()
 
 	// Always ensure the directories + config file exist (cheap, idempotent).
 	// We chmod 755 on dirs so the unprivileged container-root user can
 	// traverse them; the host bind-mount preserves the uid 1000000 owner.
-	if _, err := m.lxc.Run(pctx, "exec", containerName, "--", "sh", "-c", `set -eu
+	dctx, cancelD := context.WithTimeout(ctx, 30*time.Second)
+	_, err := m.lxc.Run(dctx, "exec", containerName, "--", "sh", "-c", `set -eu
 mkdir -p /workspace/scripts /workspace/.agents /workspace/.browser
 chmod 755 /workspace/scripts /workspace/.agents /workspace/.browser
 if [ ! -f /workspace/.agents/browser-auth.json ]; then
   printf '{}\n' > /workspace/.agents/browser-auth.json
   chmod 644 /workspace/.agents/browser-auth.json
-fi`); err != nil {
+fi`)
+	cancelD()
+	if err != nil {
 		return fmt.Errorf("seed browser dirs: %w", err)
 	}
 
-	if scriptCurrent {
-		return nil
-	}
-
-	tmp, err := os.CreateTemp("", "browser-mjs-*.mjs")
-	if err != nil {
-		return fmt.Errorf("temp file: %w", err)
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(browserScriptTemplate); err != nil {
-		tmp.Close()
-		return fmt.Errorf("write template: %w", err)
-	}
-	tmp.Close()
-
-	if out, err := m.lxc.Run(pctx, "file", "push", "--mode=755",
-		tmp.Name(), containerName+containerBrowserScript); err != nil {
-		return fmt.Errorf("push browser.mjs: %w; output: %s", err, out)
-	}
-	if out, err := m.lxc.RunStdin(pctx, strings.NewReader(want), "exec", containerName, "--",
-		"tee", containerBrowserScriptHash); err != nil {
-		return fmt.Errorf("write browser.mjs hash marker: %w; output: %s", err, out)
-	}
-	return nil
+	return m.pushTemplatedFile(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
 }

@@ -6,6 +6,7 @@
 //   node /workspace/scripts/browser.mjs screenshot <url> [--out <path>] [--full]
 //   node /workspace/scripts/browser.mjs record     <url> [--duration <ms>] [--out <path>]
 //   node /workspace/scripts/browser.mjs run        <recipe.mjs> [--record] [--out <path>] [--timeout <ms>]
+//   node /workspace/scripts/browser.mjs connect    [recipe.mjs] [--timeout <ms>]
 //
 //   --out         override the output file path (default /workspace/.browser/<ts>.<ext>)
 //   --full        full-page screenshot (default: viewport only)
@@ -93,6 +94,7 @@ function usage() {
     '  node /workspace/scripts/browser.mjs screenshot <url> [--out <path>] [--full]',
     '  node /workspace/scripts/browser.mjs record     <url> [--duration <ms>] [--out <path>]',
     '  node /workspace/scripts/browser.mjs run        <recipe.mjs> [--record] [--out <path>] [--timeout <ms>]',
+    '  node /workspace/scripts/browser.mjs connect    [recipe.mjs] [--timeout <ms>]',
     '',
     `config: ${CONFIG_PATH}`,
     `output: ${OUT_DIR} (override with $BROWSER_OUT_DIR)`,
@@ -101,8 +103,11 @@ function usage() {
 
 const args = process.argv.slice(2);
 const [cmd, posArg, ...rest] = args;
-if (!cmd || !posArg) usage();
-if (!['screenshot', 'record', 'run'].includes(cmd)) usage();
+if (!cmd) usage();
+if (!['screenshot', 'record', 'run', 'connect'].includes(cmd)) usage();
+// connect's recipe arg is optional (no recipe = report open tabs); the
+// other commands all require their positional arg.
+if (cmd !== 'connect' && !posArg) usage();
 
 let url;
 if (cmd === 'screenshot' || cmd === 'record') {
@@ -162,6 +167,77 @@ if (!chromium) {
     '',
     'First install downloads ~200MB of Chromium; cached for subsequent runs.',
   ].join('\n'));
+}
+
+// --- connect: drive the live GUI browser the user logged into ------------
+// Attaches to the persistent headed Chrome over CDP (the same session the
+// user logged into through the noVNC view) and runs an agent recipe against
+// it, or — with no recipe — reports the open tabs so the agent can see the
+// session state. Unlike the headless commands it does NOT attach cookies
+// from browser-auth.json: the live profile is already authenticated.
+// Disconnecting leaves the browser running for the human.
+//
+// Write policy (v1): before any public or irreversible action (post, reply,
+// DM, follow, purchase, settings change) the agent must confirm with the
+// user first. The human can also watch and intervene through the noVNC view.
+if (cmd === 'connect') {
+  const cdpURL = process.env.BROWSER_CDP_URL || 'http://127.0.0.1:9222';
+  let browser;
+  try {
+    browser = await chromium.connectOverCDP(cdpURL);
+  } catch {
+    die(6, [
+      `could not connect to the GUI browser at ${cdpURL}.`,
+      '',
+      'Ask the user to open the Browser pane (that starts the session) and,',
+      'for authenticated sites, log in first; then retry.',
+    ].join('\n'));
+  }
+  const context = browser.contexts()[0] || (await browser.newContext());
+  let exitCode = 0;
+  try {
+    if (posArg) {
+      const recipePath = resolve(posArg);
+      if (!existsSync(recipePath)) die(2, `recipe not found: ${recipePath}`);
+      let mod;
+      try {
+        mod = await import(pathToFileURL(recipePath).href);
+      } catch (err) {
+        die(9, `failed to load recipe ${recipePath}: ${err.message}`);
+      }
+      if (typeof mod.default !== 'function') {
+        die(9, `recipe ${recipePath} must export a default async function (page, context)`);
+      }
+      const page = context.pages()[0] || (await context.newPage());
+      const timeoutMs = parseInt(flag(rest, 'timeout') || '300000', 10);
+      const result = await Promise.race([
+        mod.default(page, context),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`recipe exceeded --timeout ${timeoutMs}ms`)), timeoutMs),
+        ),
+      ]);
+      if (result !== undefined) {
+        try {
+          process.stdout.write(JSON.stringify(result) + '\n');
+        } catch {
+          process.stdout.write(String(result) + '\n');
+        }
+      }
+    } else {
+      const tabs = [];
+      for (const pg of context.pages()) {
+        tabs.push({ url: pg.url(), title: await pg.title().catch(() => '') });
+      }
+      process.stdout.write(JSON.stringify({ cdp: cdpURL, tabs }) + '\n');
+    }
+  } catch (err) {
+    process.stderr.write(`error: ${err.message}\n`);
+    if (err.stack) process.stderr.write(err.stack + '\n');
+    exitCode = 1;
+  } finally {
+    await browser.close(); // disconnects CDP; leaves the GUI browser running
+  }
+  process.exit(exitCode);
 }
 
 // --- Load + match config -------------------------------------------------

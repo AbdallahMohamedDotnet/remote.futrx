@@ -76,6 +76,42 @@ codex --version
 node --version
 gh --version | head -1`
 
+// BrowserGUIInstallScript installs the headed-browser GUI stack used by the
+// Agent Browser feature: a real Google Chrome rendered on a virtual display
+// (Xvfb), shared with the user over noVNC and driven by the agent over CDP.
+// Like BaseImageInstallScript it runs in two places so the two paths cannot
+// drift:
+//  1. Layered onto the published base image by BuildBaseImage.
+//  2. As the on-demand fallback in EnsureBrowserGUI, for containers that
+//     pre-date the GUI stack being baked into the image.
+const BrowserGUIInstallScript = `set -e
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+
+# Virtual display + VNC bridge (x11vnc -> websockify/noVNC over HTTP/WS), a
+# lightweight window manager (openbox) so the browser window keeps stable
+# input focus, and xdotool to activate that window. Font packages cover
+# common web / CJK / emoji glyphs so real pages render legibly.
+apt-get install -y -qq \
+    xvfb x11vnc novnc websockify openbox xdotool \
+    libgtk-3-0t64 libgbm1 libasound2t64 libnss3 libxshmfence1 \
+    dbus-x11 fonts-liberation fonts-noto-core fonts-noto-color-emoji
+
+# Real Google Chrome stable (NOT Chrome-for-Testing): it auto-updates and
+# lacks the "for automated testing" banner and build signature that make a
+# browser easier to flag as automation. amd64-only, matching the base image.
+curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+    | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+chmod go+r /usr/share/keyrings/google-chrome.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+    > /etc/apt/sources.list.d/google-chrome.list
+apt-get update -qq
+apt-get install -y -qq google-chrome-stable
+
+# Sanity check the GUI toolchain.
+which Xvfb x11vnc websockify openbox google-chrome
+google-chrome --version`
+
 // BuildBaseImage launches a fresh BaseImageSourceImage container, runs the
 // install script, publishes the result under alias, and removes the
 // builder. If alias is empty, BaseImageAlias is used.
@@ -123,6 +159,11 @@ func (m *Manager) BuildBaseImage(ctx context.Context, alias string) error {
 
 	if out, err := m.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", BaseImageInstallScript); err != nil {
 		return fmt.Errorf("install script: %w; output: %s", err, truncateOut(out, 2000))
+	}
+
+	// Layer the headed-browser GUI stack on top (Agent Browser feature).
+	if out, err := m.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", BrowserGUIInstallScript); err != nil {
+		return fmt.Errorf("browser GUI install script: %w; output: %s", err, truncateOut(out, 2000))
 	}
 
 	if out, err := m.lxc.Run(bctx, "stop", baseImageBuilderName); err != nil {

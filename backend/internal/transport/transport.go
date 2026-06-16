@@ -9,8 +9,8 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/codexauth"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
 	wstransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/ws"
@@ -44,6 +44,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 
 	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
 	terminalSocket := wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects)
+	browserGUISocket := wstransport.NewBrowserGUISocket(deps.Services.Chats, deps.Services.Projects)
 	workspaceSocket := wstransport.NewWorkspaceSocket(
 		deps.Services.Chats,
 		deps.Services.Projects,
@@ -52,6 +53,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Services.Auth != nil {
 		chatSocket = chatSocket.WithAccessChecker(gate)
 		terminalSocket = terminalSocket.WithAccessChecker(gate)
+		browserGUISocket = browserGUISocket.WithAccessChecker(gate)
 		workspaceSocket = workspaceSocket.WithVisibility(gate)
 	}
 
@@ -82,6 +84,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		ChatWS:           chatSocket,
 		WorkspaceWS:      workspaceSocket,
 		CodexAuthWS:      wstransport.NewCodexAuthSocket(codexLogin),
+		BrowserGUIWS:     browserGUISocket,
 		Auth:             auth,
 		Static:           httptransport.NewStaticHandler(deps.Static),
 	}), nil

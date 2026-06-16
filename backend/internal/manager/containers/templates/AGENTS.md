@@ -169,12 +169,48 @@ cookie to attach for each host. To add a new site:
    *DevTools → Application → Cookies → `<cookie-domain>` →
    `<cookie-name>` → copy the Value column.*
 
-**Never try to log into Google / Apple / "Sign in with Google" flows
-yourself** — server-side browsers are detected and refused. The cookie
-path is the only option for those sites.
+**Don't type passwords or complete "Sign in with Google / Apple" flows
+headlessly** — automated browsers are detected and refused. For sites that
+need a real login, use the **Agent Browser** below: the user logs in by
+hand once, then you drive that same authenticated session. The cookie path
+above stays available for sites where the user can copy a session cookie.
 
 **If a script suddenly returns a logged-out page**, the cookie has
 rotated. Tell the user to re-paste a fresh value — don't silently retry.
+
+### Agent Browser — act in a session the user logged into
+
+For sites with no usable API and no copyable cookie (most social logins),
+the platform can run a **real, visible browser inside this container** that
+the user logs into by hand, after which you drive the *same* session:
+
+1. Ask the user to open **Browser → Agent browser** in the chat UI and log
+   into the target site there (they see a live view and handle the password
+   and any 2FA). Their login persists across container restarts.
+2. Drive that live, already-authenticated session with the **`connect`**
+   subcommand — it attaches over CDP and shares the user's cookies, so you
+   never handle credentials:
+
+   ```bash
+   # report what's open in the live session
+   node /workspace/scripts/browser.mjs connect
+   # run a recipe against the logged-in session
+   node /workspace/scripts/browser.mjs connect /workspace/.browser/recipes/<scenario>.mjs
+   ```
+
+   The recipe shape is identical to `run` (default async function
+   `(page, context)`), but it acts in the live profile — no
+   `browser-auth.json` cookies are attached.
+
+**Write policy:** reading (timelines, messages, search) is fine on your
+own. Before any **public or irreversible write** — posting, replying,
+DMing, following, purchasing, changing settings — **say what you're about
+to do and get the user's confirmation first.** They can also watch and stop
+you through the live view.
+
+**Egress note:** this browser exits via the datacenter IP, so strict
+providers (Google, X) may show extra "verify it's you" challenges at login;
+the user clears those in the live view. Respect each site's terms of service.
 
 ### Recording agent-driven flows (clicking, filling, multi-step)
 
