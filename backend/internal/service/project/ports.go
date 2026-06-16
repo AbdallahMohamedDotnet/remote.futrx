@@ -31,4 +31,6 @@ type ContainerManager interface {
 	// over noVNC and driven by the agent over CDP).
 	EnsureBrowserGUI(ctx context.Context, containerName string) error
 	StopBrowserGUI(ctx context.Context, containerName string) error
+	// BrowserGUIPort is the in-container noVNC port the GUI stack listens on.
+	BrowserGUIPort() int
 }

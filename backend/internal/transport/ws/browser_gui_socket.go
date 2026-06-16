@@ -24,15 +24,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// browserGUINoVNCPort is the in-container noVNC port the ready message reports
-// to the client, which builds the dev-URL from it. Must match
-// templates/gui-up.sh and containers.BrowserGUIVNCPort.
-const browserGUINoVNCPort = 6080
-
 // BrowserGUIProjects is the subset of the project service this socket needs.
 type BrowserGUIProjects interface {
 	Get(ctx context.Context, id serviceproject.ID) (serviceproject.Meta, error)
-	StartBrowserGUI(ctx context.Context, id serviceproject.ID) (serviceproject.Meta, error)
+	StartBrowserGUI(ctx context.Context, id serviceproject.ID) (serviceproject.Meta, int, error)
 	StopBrowserGUI(ctx context.Context, id serviceproject.ID) error
 }
 
@@ -129,12 +124,12 @@ func (s *BrowserGUISocket) handle(upgrader websocket.Upgrader, w http.ResponseWr
 		return
 	}
 
-	project, err := s.projects.StartBrowserGUI(r.Context(), projectID)
+	project, port, err := s.projects.StartBrowserGUI(r.Context(), projectID)
 	if err != nil {
 		_ = conn.WriteJSON(browserGUIServerMsg{Type: "error", Message: err.Error()})
 		return
 	}
-	_ = conn.WriteJSON(browserGUIServerMsg{Type: "ready", Slug: project.Slug, Port: browserGUINoVNCPort})
+	_ = conn.WriteJSON(browserGUIServerMsg{Type: "ready", Slug: project.Slug, Port: port})
 
 	// Hold the connection open for lifecycle control. We only act on an
 	// explicit stop; a plain disconnect leaves the GUI running (see note

@@ -53,6 +53,10 @@ const (
 	browserGUIInstallTimeout = 8 * time.Minute
 )
 
+// BrowserGUIPort returns the in-container noVNC port the GUI stack listens
+// on — the single source of truth for callers that build the dev-URL.
+func (m *Manager) BrowserGUIPort() int { return BrowserGUIVNCPort }
+
 func guiUpScriptHash() string {
 	sum := sha256.Sum256(guiUpScript)
 	return hex.EncodeToString(sum[:])
