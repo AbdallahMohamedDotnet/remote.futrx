@@ -101,7 +101,7 @@ apt-get install -y -qq \
 # lacks the "for automated testing" banner and build signature that make a
 # browser easier to flag as automation. amd64-only, matching the base image.
 curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
-    | dd of=/usr/share/keyrings/google-chrome.gpg 2>/dev/null
+    | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
 chmod go+r /usr/share/keyrings/google-chrome.gpg
 echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
     > /etc/apt/sources.list.d/google-chrome.list
