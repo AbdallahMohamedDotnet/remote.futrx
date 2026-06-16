@@ -81,9 +81,9 @@ gh --version | head -1`
 // (Xvfb), shared with the user over noVNC and driven by the agent over CDP.
 // Like BaseImageInstallScript it runs in two places so the two paths cannot
 // drift:
-//   1. Layered onto the published base image by BuildBaseImage.
-//   2. As the on-demand fallback in EnsureBrowserGUI, for containers that
-//      pre-date the GUI stack being baked into the image.
+//  1. Layered onto the published base image by BuildBaseImage.
+//  2. As the on-demand fallback in EnsureBrowserGUI, for containers that
+//     pre-date the GUI stack being baked into the image.
 const BrowserGUIInstallScript = `set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
