@@ -36,6 +36,7 @@ type ContainerPreparer interface {
 	EnsureAgentInstructions(ctx context.Context, containerName string) error
 	EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error
 	EnsureBrowserScript(ctx context.Context, containerName string) error
+	EnsureBrowserMCP(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error
 	EnsureCodex(ctx context.Context, containerName string) error
@@ -168,6 +169,7 @@ func (rnr *Service) runPrompt(
 		Config: map[string]any{
 			"reasoningEffort": meta.ReasoningEffort,
 		},
+		EnableBrowser: hasBrowserSkill(meta.SelectedSkills),
 	}, func(ev agent.Event) {
 		rnr.emitAgentEvent(ctx, id, ev, emit)
 	})
@@ -224,6 +226,19 @@ func promptWithVisibleHistory(events []ChatEvent, prompt string) string {
 		transcript +
 		"\n\nCurrent user request:\n" +
 		prompt
+}
+
+const browserSkillName = "browser"
+
+// hasBrowserSkill reports whether the user selected the `browser` skill for
+// this prompt — the signal to wire the @playwright/mcp browser tools.
+func hasBrowserSkill(skills []servicechat.SkillRef) bool {
+	for _, s := range skills {
+		if skillTriggerName(s.Command) == browserSkillName || skillTriggerName(s.Name) == browserSkillName {
+			return true
+		}
+	}
+	return false
 }
 
 func promptWithSelectedSkills(provider agent.ProviderID, skills []servicechat.SkillRef, prompt string) string {

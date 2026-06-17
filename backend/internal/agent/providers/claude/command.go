@@ -12,6 +12,10 @@ import (
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
+// browserMCPConfigPath is the --mcp-config file claude loads when the
+// browser skill is active. Must match containers.ContainerMCPClaudeConfig.
+const browserMCPConfigPath = "/workspace/.browser-gui/mcp-claude.json"
+
 func (p *Provider) args(req agent.RunRequest) []string {
 	args := []string{
 		"-p",
@@ -28,6 +32,9 @@ func (p *Provider) args(req agent.RunRequest) []string {
 		if req.Fork {
 			args = append(args, "--fork-session")
 		}
+	}
+	if req.EnableBrowser {
+		args = append(args, "--mcp-config", browserMCPConfigPath)
 	}
 	return args
 }
@@ -99,6 +106,11 @@ func (p *Provider) buildCmd(
 			// Browser script + config are best-effort: their absence only matters
 			// when the agent tries to drive Playwright. Don't fail the run.
 			_ = err
+		}
+		if req.EnableBrowser {
+			if err := p.containers.EnsureBrowserMCP(ctx, project.ContainerName); err != nil {
+				return nil, "", fmt.Errorf("provision browser MCP: %w", err)
+			}
 		}
 		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
