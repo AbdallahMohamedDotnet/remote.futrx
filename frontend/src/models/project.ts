@@ -136,3 +136,12 @@ export interface ContainerApp {
   process?: string;
   pid?: number;
 }
+
+export type AgentBrowserStatus = "idle" | "starting" | "ready" | "error" | "stopped";
+
+export interface AgentBrowserInfo {
+  status: Exclude<AgentBrowserStatus, "idle" | "starting" | "error">;
+  url: string;
+  slug: string;
+  port: number;
+}

@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
 func TestArgsUseCodexExecJSONMode(t *testing.T) {
@@ -106,3 +108,87 @@ func TestArgsResumeThread(t *testing.T) {
 		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
 	}
 }
+
+func TestArgsIncludeBrowserMCPConfig(t *testing.T) {
+	provider := New(nil, nil)
+	args := provider.args(agent.RunRequest{EnableBrowser: true})
+
+	wantPairs := []string{
+		`mcp_servers.browser.command="npx"`,
+		`mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222"]`,
+	}
+	for _, want := range wantPairs {
+		if !slices.Contains(args, want) {
+			t.Fatalf("missing %q in args: %#v", want, args)
+		}
+	}
+}
+
+func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
+	project := serviceproject.Meta{
+		ID:            serviceproject.ID("abcd"),
+		Slug:          "browser-project",
+		ContainerName: "browser-project",
+		Status:        serviceproject.StatusRunning,
+	}
+	projects := fakeCodexProjects{project: project}
+
+	withoutBrowser := &fakeCodexContainers{}
+	provider := New(projects, withoutBrowser)
+	req := agent.RunRequest{ProjectID: string(project.ID)}
+	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if withoutBrowser.agentBrowserMCPCalls != 0 {
+		t.Fatalf("browser MCP provisioned without browser skill: %d", withoutBrowser.agentBrowserMCPCalls)
+	}
+
+	withBrowser := &fakeCodexContainers{}
+	provider = New(projects, withBrowser)
+	req.EnableBrowser = true
+	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if withBrowser.agentBrowserMCPCalls != 1 {
+		t.Fatalf("browser MCP calls = %d, want 1", withBrowser.agentBrowserMCPCalls)
+	}
+}
+
+type fakeCodexProjects struct {
+	project serviceproject.Meta
+}
+
+func (f fakeCodexProjects) Get(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
+	return f.project, nil
+}
+
+func (f fakeCodexProjects) Start(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
+	return f.project, nil
+}
+
+func (f fakeCodexProjects) ListSecrets(context.Context, serviceproject.ID) ([]serviceproject.Secret, error) {
+	return nil, nil
+}
+
+type fakeCodexContainers struct {
+	agentBrowserMCPCalls int
+}
+
+func (f *fakeCodexContainers) EnsureCodex(context.Context, string) error { return nil }
+
+func (f *fakeCodexContainers) EnsureCodexAuth(context.Context, string) error { return nil }
+
+func (f *fakeCodexContainers) EnsureAgentInstructions(context.Context, string) error { return nil }
+
+func (f *fakeCodexContainers) EnsureWorkspaceSkillLinks(context.Context, string) error { return nil }
+
+func (f *fakeCodexContainers) EnsureBrowserScript(context.Context, string) error { return nil }
+
+func (f *fakeCodexContainers) EnsureAgentBrowserMCP(context.Context, string) error {
+	f.agentBrowserMCPCalls++
+	return nil
+}
+
+func (f *fakeCodexContainers) EnsureBootAutostart(context.Context, string) error { return nil }
+
+func (f *fakeCodexContainers) SyncCodexAuthFromContainer(context.Context, string) error { return nil }

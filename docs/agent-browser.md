@@ -23,7 +23,7 @@ flowchart TB
 
     subgraph container["Project's unprivileged LXD container"]
         direction TB
-        Agent["Claude agent<br/>(--mcp-config)"]
+        Agent["Claude / Codex agent<br/>(browser MCP config)"]
         MCP["@playwright/mcp<br/>browser_* tools"]
         Chrome["Headed Chromium<br/>(Playwright / CfT)<br/>profile in /workspace"]
         Xvfb["Xvfb :99 + openbox"]
@@ -34,7 +34,7 @@ flowchart TB
     %% ---- USER SIDE (watch + log in) ----
     UI -- "1. open Browser pane" --> Caddy
     Caddy --> Backend
-    Backend -- "2. /ws/browser-gui -><br/>StartBrowserGUI / EnsureBrowserGUI" --> Xvfb
+    Backend -- "2. REST start -><br/>StartAgentBrowser / EnsureAgentBrowser" --> Xvfb
     Xvfb --> Chrome
     Chrome --> Xvfb
     Xvfb --> VNC
@@ -43,7 +43,7 @@ flowchart TB
 
     %% ---- AGENT SIDE (drive) ----
     UI -- "4. enable 'browser' skill<br/>-> EnableBrowser" --> Backend
-    Backend -- "5. EnsureBrowserMCP<br/>(install + mcp-claude.json)" --> Agent
+    Backend -- "5. EnsureAgentBrowserMCP<br/>(install + provider config)" --> Agent
     Agent --> MCP
     MCP -- "6. navigate / snapshot /<br/>click / type" --> CDP
     CDP --> Chrome
@@ -61,13 +61,15 @@ flowchart TB
 
 ## Reading it
 
-- **Steps 1-3 (user side):** opening the Browser pane drives the backend to
+- **Steps 1-3 (user side):** opening the Browser pane calls the project
+  Agent Browser REST endpoint, which drives the backend to
   spin up the in-container GUI stack (`Xvfb -> openbox -> Chromium -> x11vnc ->
   websockify/noVNC`), which streams back through Caddy so the user can **watch
   and log in by hand**. The agent never types credentials.
 - **Steps 4-6 (agent side):** selecting the `browser` skill flips
-  `EnableBrowser`, which wires `@playwright/mcp` into the Claude launch via
-  `--mcp-config`; the agent then drives over the **loopback CDP port**.
+  `EnableBrowser`, which wires `@playwright/mcp` into Claude via
+  `--mcp-config` or Codex via inline MCP config; the agent then drives over
+  the **loopback CDP port**.
 - **The shared Chrome** (highlighted) is what both paths attach to, so the
   agent inherits the user's logged-in cookies.
 
@@ -94,10 +96,10 @@ flowchart TB
 | Concern | File |
 |---|---|
 | GUI launcher (Xvfb -> Chromium -> noVNC) | `backend/internal/manager/containers/templates/gui-up.sh` |
-| Provision/start/stop the GUI stack | `backend/internal/manager/containers/browser_gui.go` |
-| Install `@playwright/mcp` + push config | `backend/internal/manager/containers/browser_mcp.go` |
+| Provision/start/stop the Agent Browser stack | `backend/internal/manager/containers/agent_browser.go` |
+| Install `@playwright/mcp` + push provider config | `backend/internal/manager/containers/agent_browser_mcp.go` |
 | The `browser` skill playbook | `backend/internal/manager/containers/templates/skills/browser/SKILL.md` |
 | Ship the skill into the workspace | `backend/internal/manager/containers/browser_skill.go` |
-| Lifecycle control channel | `backend/internal/transport/ws/browser_gui_socket.go` |
-| Skill -> EnableBrowser -> MCP wiring | `backend/internal/service/prompt/service.go`, `backend/internal/agent/providers/claude/command.go` |
-| Project-service orchestration | `backend/internal/service/project/service.go` (`StartBrowserGUI`) |
+| Lifecycle REST routes | `backend/internal/transport/http/handlers/project_handler.go` (`/api/projects/{id}/agent-browser`) |
+| Skill -> EnableBrowser -> MCP wiring | `backend/internal/service/prompt/service.go`, provider `command.go` files |
+| Project-service orchestration | `backend/internal/service/project/service.go` (`StartAgentBrowser`) |

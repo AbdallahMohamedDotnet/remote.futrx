@@ -3,6 +3,7 @@ package project
 type ID string
 type Status string
 type ContainerState string
+type AgentBrowserStatus string
 
 const (
 	StatusUnknown      Status = ""
@@ -19,6 +20,11 @@ const (
 	ContainerStateFrozen  ContainerState = "FROZEN"
 	ContainerStateMissing ContainerState = "MISSING"
 	ContainerStateUnknown ContainerState = "UNKNOWN"
+)
+
+const (
+	AgentBrowserStatusReady   AgentBrowserStatus = "ready"
+	AgentBrowserStatusStopped AgentBrowserStatus = "stopped"
 )
 
 type Meta struct {
@@ -40,6 +46,12 @@ type CreateInput struct {
 
 type UpdateInput struct {
 	Name *string `json:"name,omitempty"`
+}
+
+type AgentBrowserInfo struct {
+	Status AgentBrowserStatus `json:"status"`
+	Slug   string             `json:"slug"`
+	Port   int                `json:"port"`
 }
 
 func ValidID(id ID) bool {

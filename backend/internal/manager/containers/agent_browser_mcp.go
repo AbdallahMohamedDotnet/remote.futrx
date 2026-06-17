@@ -1,7 +1,7 @@
 package containers
 
-// Browser MCP provisioning: makes the @playwright/mcp browser tools available
-// to the in-container agent, attached over CDP to the live GUI Chrome (the
+// Agent Browser MCP provisioning: makes the @playwright/mcp browser tools
+// available to the in-container agent, attached over CDP to the live Chrome (the
 // SAME session the user logs into). This is the tool layer behind the
 // `browser` skill — the agent calls browser_navigate / browser_snapshot /
 // browser_click / browser_type etc. instead of hand-writing Playwright recipes.
@@ -30,11 +30,11 @@ const (
 	browserMCPInstallTimeout = 5 * time.Minute
 )
 
-// EnsureBrowserMCP installs @playwright/mcp (idempotently) and pushes the
-// claude MCP config. Cheap once installed: the npm-presence check short-
-// circuits, and the config is only re-pushed when its embedded content
-// changes.
-func (m *Manager) EnsureBrowserMCP(ctx context.Context, containerName string) error {
+// EnsureAgentBrowserMCP installs @playwright/mcp (idempotently) and pushes the
+// Claude MCP config. Codex uses equivalent inline config flags, but shares this
+// package install step. Cheap once installed: the npm-presence check short-
+// circuits, and the config is only re-pushed when its embedded content changes.
+func (m *Manager) EnsureAgentBrowserMCP(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}

@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import type { BrowserGUIStatus } from "../../../hooks/chat/useBrowserGUISession";
+import type { AgentBrowserStatus } from "../../../hooks/chat/useAgentBrowserSession";
 
 // BrowserGuiView renders the Agent Browser pane: a status placeholder while the
 // in-container session starts, then the live noVNC view as an iframe. The view
@@ -14,7 +14,7 @@ export function BrowserGuiView({
   resizing,
   iframeRef,
 }: {
-  status: BrowserGUIStatus;
+  status: AgentBrowserStatus;
   url: string;
   error: string | null;
   reloadKey: number;

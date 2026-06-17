@@ -76,15 +76,15 @@ codex --version
 node --version
 gh --version | head -1`
 
-// BrowserGUIInstallScript installs the headed-browser GUI stack used by the
+// AgentBrowserInstallScript installs the headed-browser stack used by the
 // Agent Browser feature: a real Google Chrome rendered on a virtual display
 // (Xvfb), shared with the user over noVNC and driven by the agent over CDP.
 // Like BaseImageInstallScript it runs in two places so the two paths cannot
 // drift:
 //  1. Layered onto the published base image by BuildBaseImage.
-//  2. As the on-demand fallback in EnsureBrowserGUI, for containers that
+//  2. As the on-demand fallback in EnsureAgentBrowser, for containers that
 //     pre-date the GUI stack being baked into the image.
-const BrowserGUIInstallScript = `set -e
+const AgentBrowserInstallScript = `set -e
 export DEBIAN_FRONTEND=noninteractive
 # Wait for the apt/dpkg lock rather than failing if apt-daily / unattended-
 # upgrades is mid-run — a common race shortly after a container boots.
@@ -161,8 +161,8 @@ func (m *Manager) BuildBaseImage(ctx context.Context, alias string) error {
 	}
 
 	// Layer the headed-browser GUI stack on top (Agent Browser feature).
-	if out, err := m.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", BrowserGUIInstallScript); err != nil {
-		return fmt.Errorf("browser GUI install script: %w; output: %s", err, truncateOut(out, 2000))
+	if out, err := m.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", AgentBrowserInstallScript); err != nil {
+		return fmt.Errorf("agent browser install script: %w; output: %s", err, truncateOut(out, 2000))
 	}
 
 	if out, err := m.lxc.Run(bctx, "stop", baseImageBuilderName); err != nil {

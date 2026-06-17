@@ -27,6 +27,12 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	if effort := reasoningEffortFromConfig(req.Config); effort != "" {
 		common = append(common, "-c", "model_reasoning_effort="+effort)
 	}
+	if req.EnableBrowser {
+		common = append(common,
+			"-c", `mcp_servers.browser.command="npx"`,
+			"-c", `mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222"]`,
+		)
+	}
 	if req.ResumeID != "" {
 		args := append([]string{"exec", "resume"}, common...)
 		args = append(args, req.ResumeID, "-")
@@ -122,6 +128,11 @@ func (p *Provider) buildCmd(
 			// Browser script provisioning is best-effort: its absence only
 			// matters when the agent tries to run scripts/browser.mjs.
 			_ = err
+		}
+		if req.EnableBrowser {
+			if err := p.containers.EnsureAgentBrowserMCP(ctx, project.ContainerName); err != nil {
+				return nil, "", fmt.Errorf("provision browser MCP: %w", err)
+			}
 		}
 		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)

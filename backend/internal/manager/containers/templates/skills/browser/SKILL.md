@@ -10,6 +10,10 @@ can watch and log into. With this skill active you have `browser_*` MCP tools
 attached over CDP to that **live, shared session** — the same browser the user
 sees in the Browser pane — so you inherit its cookies and logins.
 
+This skill is for the **Live Agent Browser** only. For one-off public
+screenshots, recordings, or cookie-authenticated headless recipes, use
+`/workspace/scripts/browser.mjs` instead.
+
 ## How to work
 Go **step by step**, never blind:
 1. `browser_navigate` to a URL.

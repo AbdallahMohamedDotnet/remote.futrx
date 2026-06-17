@@ -19,7 +19,3 @@ export function codexAuthWebSocketUrl(): string {
 export function terminalWebSocketUrl(chatId: string): string {
   return `${wsBase()}/ws/terminal?chat=${encodeURIComponent(chatId)}`;
 }
-
-export function browserGUIWebSocketUrl(chatId: string): string {
-  return `${wsBase()}/ws/browser-gui?chat=${encodeURIComponent(chatId)}`;
-}

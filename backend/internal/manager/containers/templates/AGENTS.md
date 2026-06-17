@@ -133,11 +133,21 @@ canonical name (e.g. `GITHUB_SSH_KEY`, `GOOGLE_APPLICATION_CREDENTIALS_JSON`)
 and that they should paste the value — including newlines — into the
 project's **Containers → Secrets** UI.
 
-## Authenticated browser actions
+## Browser automation
+
+There are two browser modes:
+
+- **Live Agent Browser**: use the `browser` skill for sites where the user
+  logs in through the Browser pane and the agent drives that same Chromium
+  session through MCP/CDP.
+- **Headless utility browser**: use `/workspace/scripts/browser.mjs` for
+  public URLs or sites authenticated by copied cookies.
+
+### Headless utility browser
 
 The platform ships a generic Playwright wrapper at
-**`/workspace/scripts/browser.mjs`**. Use it to screenshot, record, or
-drive any site the project has authenticated to:
+**`/workspace/scripts/browser.mjs`**. Use it to screenshot or record public /
+cookie-authenticated pages:
 
 ```bash
 node /workspace/scripts/browser.mjs screenshot https://app.example.com/dashboard
@@ -171,24 +181,23 @@ cookie to attach for each host. To add a new site:
 
 **Don't type passwords or complete "Sign in with Google / Apple" flows
 headlessly** — automated browsers are detected and refused. For sites that
-need a real login, use the **Agent Browser** below: the user logs in by
-hand once, then you drive that same authenticated session. The cookie path
-above stays available for sites where the user can copy a session cookie.
+need a real login, use the **Live Agent Browser** below: the user logs in by
+hand once, then you drive that same authenticated session.
 
 **If a script suddenly returns a logged-out page**, the cookie has
 rotated. Tell the user to re-paste a fresh value — don't silently retry.
 
-### Agent Browser — driving a live browser the user logs into
+### Live Agent Browser — driving the browser the user logs into
 
 For tasks that need a **real browser the user logs into** (social media,
 dashboards, any authenticated site), use the **`browser` skill**: it gives
 you `browser_*` tools wired to a live Chromium the user can watch and log
 into, and carries the full playbook (reading via snapshots, the login
 handoff, the write-approval policy). The user selects it for the request.
-The headless `scripts/browser.mjs` above stays for one-off screenshots or
-recordings of public / cookie-authenticated URLs.
+This is the only path for login flows that need passwords, 2FA, or provider
+OAuth pages.
 
-### Recording agent-driven flows (clicking, filling, multi-step)
+### Recording headless flows (clicking, filling, multi-step)
 
 When the user asks you to record a click sequence, fill out a form, or
 demonstrate a multi-step interaction, write a recipe and let the generic

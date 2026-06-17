@@ -1,5 +1,6 @@
 import { json } from "../api/http";
 import type {
+  AgentBrowserInfo,
   ContainerApp,
   ProjectContainerInfo,
   ProjectMeta,
@@ -24,6 +25,12 @@ export const projectService = {
     json<ProjectContainerInfo>("GET", `/api/projects/${encodeURIComponent(id)}/container`),
   listApps: (id: string) =>
     json<ContainerApp[]>("GET", `/api/projects/${encodeURIComponent(id)}/apps`),
+  agentBrowserStatus: (id: string) =>
+    json<AgentBrowserInfo>("GET", `/api/projects/${encodeURIComponent(id)}/agent-browser`),
+  startAgentBrowser: (id: string) =>
+    json<AgentBrowserInfo>("POST", `/api/projects/${encodeURIComponent(id)}/agent-browser/start`, {}),
+  stopAgentBrowser: (id: string) =>
+    json<{ status: "stopped" }>("DELETE", `/api/projects/${encodeURIComponent(id)}/agent-browser`),
   listSecrets: (id: string) =>
     json<ProjectSecret[]>("GET", `/api/projects/${encodeURIComponent(id)}/secrets`),
   setSecret: (id: string, key: string, value: string) =>

@@ -52,3 +52,12 @@ func TestSkillTriggerNameFallsBackToSingleToken(t *testing.T) {
 		t.Fatalf("prompt = %q", got)
 	}
 }
+
+func TestHasBrowserSkill(t *testing.T) {
+	if !hasBrowserSkill([]servicechat.SkillRef{{Name: "Browser", Command: "browser"}}) {
+		t.Fatal("expected browser skill command to enable browser tools")
+	}
+	if hasBrowserSkill([]servicechat.SkillRef{{Name: "Review", Command: "review"}}) {
+		t.Fatal("non-browser skill should not enable browser tools")
+	}
+}

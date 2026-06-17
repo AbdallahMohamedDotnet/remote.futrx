@@ -334,27 +334,60 @@ func (s *Service) ListContainerApps(ctx context.Context, id ID) ([]ContainerApp,
 	return s.containers.ListListeners(ctx, m.ContainerName)
 }
 
-// StartBrowserGUI ensures the project's container is running and brings up
-// the Agent Browser stack inside it. Returns the project meta (whose slug
-// the caller maps to the noVNC dev-URL) and the noVNC port. Idempotent.
-func (s *Service) StartBrowserGUI(ctx context.Context, id ID) (Meta, int, error) {
+// StartAgentBrowser ensures the project's container is running and brings up
+// the Agent Browser stack inside it. Idempotent.
+func (s *Service) StartAgentBrowser(ctx context.Context, id ID) (AgentBrowserInfo, error) {
 	m, err := s.Start(ctx, id)
 	if err != nil {
-		return Meta{}, 0, err
+		return AgentBrowserInfo{}, err
 	}
 	if s.containers == nil || m.ContainerName == "" {
-		return Meta{}, 0, errors.New("project has no container to run the browser in")
+		return AgentBrowserInfo{}, errors.New("project has no container to run the browser in")
 	}
-	if err := s.containers.EnsureBrowserGUI(ctx, m.ContainerName); err != nil {
-		return Meta{}, 0, err
+	if err := s.containers.EnsureAgentBrowser(ctx, m.ContainerName); err != nil {
+		return AgentBrowserInfo{}, err
 	}
-	return m, s.containers.BrowserGUIPort(), nil
+	return AgentBrowserInfo{
+		Status: AgentBrowserStatusReady,
+		Slug:   m.Slug,
+		Port:   s.containers.AgentBrowserPort(),
+	}, nil
 }
 
-// StopBrowserGUI tears down the Agent Browser stack in the project's
+// AgentBrowserStatus reports whether the Agent Browser stack is ready for a
+// project. Missing or unprovisioned browser scripts report stopped.
+func (s *Service) AgentBrowserStatus(ctx context.Context, id ID) (AgentBrowserInfo, error) {
+	if !ValidID(id) {
+		return AgentBrowserInfo{}, ErrInvalidID
+	}
+	m, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return AgentBrowserInfo{}, err
+	}
+	info := AgentBrowserInfo{
+		Status: AgentBrowserStatusStopped,
+		Slug:   m.Slug,
+	}
+	if s.containers != nil {
+		info.Port = s.containers.AgentBrowserPort()
+	}
+	if s.containers == nil || m.ContainerName == "" {
+		return info, nil
+	}
+	running, err := s.containers.AgentBrowserRunning(ctx, m.ContainerName)
+	if err != nil {
+		return AgentBrowserInfo{}, err
+	}
+	if running {
+		info.Status = AgentBrowserStatusReady
+	}
+	return info, nil
+}
+
+// StopAgentBrowser tears down the Agent Browser stack in the project's
 // container, leaving the container running and the persistent browser
 // profile on disk so logins survive.
-func (s *Service) StopBrowserGUI(ctx context.Context, id ID) error {
+func (s *Service) StopAgentBrowser(ctx context.Context, id ID) error {
 	if !ValidID(id) {
 		return ErrInvalidID
 	}
@@ -365,7 +398,7 @@ func (s *Service) StopBrowserGUI(ctx context.Context, id ID) error {
 	if s.containers == nil || m.ContainerName == "" {
 		return nil
 	}
-	return s.containers.StopBrowserGUI(ctx, m.ContainerName)
+	return s.containers.StopAgentBrowser(ctx, m.ContainerName)
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {

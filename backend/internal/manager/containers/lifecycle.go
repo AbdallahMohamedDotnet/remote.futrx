@@ -56,7 +56,7 @@ func (m *Manager) Launch(ctx context.Context, p serviceproject.Meta) error {
 	_ = m.EnsureWorkspaceSkillLinks(ctx, p.ContainerName)
 	_ = m.EnsureBrowserScript(ctx, p.ContainerName)
 	_ = m.EnsureBrowserSkill(ctx, p.ContainerName)
-	_ = m.EnsureBrowserGUILimits(ctx, p.ContainerName)
+	_ = m.EnsureAgentBrowserLimits(ctx, p.ContainerName)
 
 	return nil
 }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -160,6 +162,11 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if len(parts) >= 2 && parts[1] == "agent-browser" {
+		h.handleAgentBrowser(w, r, id, parts)
+		return
+	}
+
 	if len(parts) >= 2 && parts[1] != "" {
 		switch parts[1] {
 		case "start":
@@ -251,6 +258,87 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 	default:
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+type agentBrowserResponse struct {
+	Status serviceproject.AgentBrowserStatus `json:"status"`
+	URL    string                            `json:"url"`
+	Slug   string                            `json:"slug"`
+	Port   int                               `json:"port"`
+}
+
+func (h *ProjectHandler) handleAgentBrowser(w http.ResponseWriter, r *http.Request, id serviceproject.ID, parts []string) {
+	action := ""
+	if len(parts) >= 3 {
+		action = strings.Trim(parts[2], "/")
+	}
+
+	switch {
+	case r.Method == http.MethodGet && action == "":
+		info, err := h.projects.AgentBrowserStatus(r.Context(), id)
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		h.sendAgentBrowserInfo(w, r, info)
+
+	case r.Method == http.MethodPost && action == "start":
+		info, err := h.projects.StartAgentBrowser(r.Context(), id)
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		h.sendAgentBrowserInfo(w, r, info)
+
+	case r.Method == http.MethodDelete && action == "":
+		if err := h.projects.StopAgentBrowser(r.Context(), id); err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		httptransport.SendJSON(w, http.StatusOK, map[string]serviceproject.AgentBrowserStatus{
+			"status": serviceproject.AgentBrowserStatusStopped,
+		})
+
+	case action == "":
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+
+	default:
+		httptransport.SendErr(w, http.StatusNotFound, "unknown action")
+	}
+}
+
+func (h *ProjectHandler) sendAgentBrowserInfo(w http.ResponseWriter, r *http.Request, info serviceproject.AgentBrowserInfo) {
+	resp := agentBrowserResponse{
+		Status: info.Status,
+		Slug:   info.Slug,
+		Port:   info.Port,
+	}
+	if info.Status == serviceproject.AgentBrowserStatusReady && info.Slug != "" && info.Port != 0 {
+		resp.URL = buildAgentBrowserURL(r, info.Slug, info.Port)
+	}
+	httptransport.SendJSON(w, http.StatusOK, resp)
+}
+
+func buildAgentBrowserURL(r *http.Request, slug string, port int) string {
+	host := strings.TrimSpace(r.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = r.Host
+	}
+	if splitHost, _, err := net.SplitHostPort(host); err == nil {
+		host = splitHost
+	}
+	host = strings.TrimPrefix(host, "code.")
+	scheme := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
+	if scheme == "" {
+		if r.TLS != nil {
+			scheme = "https"
+		} else if strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") {
+			scheme = "http"
+		} else {
+			scheme = "https"
+		}
+	}
+	return fmt.Sprintf("%s://%s--%d.dev.%s/vnc.html?autoconnect=1&resize=scale&reconnect=1", scheme, slug, port, host)
 }
 
 var projectHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.remote\.futrx\.dev$`)
