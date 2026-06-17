@@ -23,8 +23,10 @@ const (
 )
 
 const (
-	AgentBrowserStatusReady   AgentBrowserStatus = "ready"
-	AgentBrowserStatusStopped AgentBrowserStatus = "stopped"
+	AgentBrowserStatusStarting AgentBrowserStatus = "starting"
+	AgentBrowserStatusReady    AgentBrowserStatus = "ready"
+	AgentBrowserStatusError    AgentBrowserStatus = "error"
+	AgentBrowserStatusStopped  AgentBrowserStatus = "stopped"
 )
 
 type Meta struct {
@@ -52,6 +54,7 @@ type AgentBrowserInfo struct {
 	Status AgentBrowserStatus `json:"status"`
 	Slug   string             `json:"slug"`
 	Port   int                `json:"port"`
+	Error  string             `json:"error,omitempty"`
 }
 
 func ValidID(id ID) bool {

@@ -265,6 +265,7 @@ type agentBrowserResponse struct {
 	URL    string                            `json:"url"`
 	Slug   string                            `json:"slug"`
 	Port   int                               `json:"port"`
+	Error  string                            `json:"error,omitempty"`
 }
 
 func (h *ProjectHandler) handleAgentBrowser(w http.ResponseWriter, r *http.Request, id serviceproject.ID, parts []string) {
@@ -312,6 +313,7 @@ func (h *ProjectHandler) sendAgentBrowserInfo(w http.ResponseWriter, r *http.Req
 		Status: info.Status,
 		Slug:   info.Slug,
 		Port:   info.Port,
+		Error:  info.Error,
 	}
 	if info.Status == serviceproject.AgentBrowserStatusReady && info.Slug != "" && info.Port != 0 {
 		resp.URL = buildAgentBrowserURL(r, info.Slug, info.Port)

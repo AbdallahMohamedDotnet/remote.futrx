@@ -138,10 +138,12 @@ export interface ContainerApp {
 }
 
 export type AgentBrowserStatus = "idle" | "starting" | "ready" | "error" | "stopped";
+export type AgentBrowserServerStatus = Exclude<AgentBrowserStatus, "idle">;
 
 export interface AgentBrowserInfo {
-  status: Exclude<AgentBrowserStatus, "idle" | "starting" | "error">;
+  status: AgentBrowserServerStatus;
   url: string;
   slug: string;
   port: number;
+  error?: string;
 }

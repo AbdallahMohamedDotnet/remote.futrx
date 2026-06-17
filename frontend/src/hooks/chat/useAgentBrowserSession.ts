@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
-import type { AgentBrowserStatus } from "../../models/project";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import type { AgentBrowserInfo, AgentBrowserStatus } from "../../models/project";
 import { projectService } from "../../services/projectService";
 
 export type { AgentBrowserStatus };
@@ -14,8 +14,43 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
   const [status, setStatus] = useState<AgentBrowserStatus>("idle");
   const [guiUrl, setGuiUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef(0);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      requestRef.current++;
+    };
+  }, []);
+
+  const applyInfo = useCallback((info: AgentBrowserInfo): boolean => {
+    if (info.status === "ready") {
+      if (!info.url) {
+        setGuiUrl("");
+        setError("Agent browser started but returned an incomplete address.");
+        setStatus("error");
+        return false;
+      }
+      setError(null);
+      setGuiUrl(info.url);
+      setStatus("ready");
+      return false;
+    }
+    if (info.status === "error") {
+      setGuiUrl("");
+      setError(info.error || "Failed to start the agent browser.");
+      setStatus("error");
+      return false;
+    }
+    setError(null);
+    setGuiUrl("");
+    setStatus(info.status);
+    return info.status === "starting";
+  }, []);
+
+  useEffect(() => {
+    const requestId = ++requestRef.current;
     if (!enabled || !projectId) {
       setStatus("idle");
       setGuiUrl("");
@@ -29,25 +64,15 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
     setGuiUrl("");
     setError(null);
 
+    const isCurrent = () => mountedRef.current && !disposed && requestRef.current === requestId;
+
     async function pollStatus() {
       try {
         const info = await projectService.agentBrowserStatus(projectId);
-        if (disposed) return;
-        if (info.status === "ready") {
-          if (!info.url) {
-            setError("Agent browser started but returned an incomplete address.");
-            setStatus("error");
-            return;
-          }
-          setGuiUrl(info.url);
-          setStatus("ready");
-          return;
-        }
-        setGuiUrl("");
-        setStatus((current) => (current === "starting" ? "starting" : "stopped"));
-        pollTimer = window.setTimeout(pollStatus, pollIntervalMs);
+        if (!isCurrent()) return;
+        if (applyInfo(info)) pollTimer = window.setTimeout(pollStatus, pollIntervalMs);
       } catch (err) {
-        if (disposed) return;
+        if (!isCurrent()) return;
         setError((err as Error).message || "Failed to check the agent browser.");
         setStatus("error");
       }
@@ -55,57 +80,40 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
 
     projectService.startAgentBrowser(projectId)
       .then((info) => {
-        if (disposed) return;
-        if (info.status === "ready" && info.url) {
-          setGuiUrl(info.url);
-          setStatus("ready");
-          return;
-        }
-        pollTimer = window.setTimeout(pollStatus, pollIntervalMs);
+        if (!isCurrent()) return;
+        if (applyInfo(info)) pollTimer = window.setTimeout(pollStatus, pollIntervalMs);
       })
       .catch((err) => {
-        if (disposed) return;
+        if (!isCurrent()) return;
         setError((err as Error).message || "Failed to start the agent browser.");
         setStatus("error");
       });
 
     return () => {
       disposed = true;
+      requestRef.current++;
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
     };
-  }, [projectId, enabled]);
+  }, [projectId, enabled, applyInfo]);
 
   const stop = useCallback(() => {
     if (!projectId) return;
+    const requestId = ++requestRef.current;
     setStatus("starting");
+    setGuiUrl("");
+    setError(null);
     projectService.stopAgentBrowser(projectId)
       .then(() => {
+        if (!mountedRef.current || requestRef.current !== requestId) return;
         setGuiUrl("");
         setStatus("stopped");
       })
       .catch((err) => {
+        if (!mountedRef.current || requestRef.current !== requestId) return;
         setError((err as Error).message || "Failed to stop the agent browser.");
         setStatus("error");
       });
   }, [projectId]);
 
-  const refresh = useCallback(() => {
-    if (!projectId) return;
-    projectService.agentBrowserStatus(projectId)
-      .then((info) => {
-        if (info.status === "ready" && info.url) {
-          setGuiUrl(info.url);
-          setStatus("ready");
-        } else {
-          setGuiUrl("");
-          setStatus(info.status);
-        }
-      })
-      .catch((err) => {
-        setError((err as Error).message || "Failed to check the agent browser.");
-        setStatus("error");
-      });
-  }, [projectId]);
-
-  return { status, guiUrl, error, stop, refresh };
+  return { status, guiUrl, error, stop };
 }

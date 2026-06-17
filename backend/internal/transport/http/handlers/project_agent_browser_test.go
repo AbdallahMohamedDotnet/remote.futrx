@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
@@ -38,16 +40,34 @@ func TestProjectAgentBrowserRoutes(t *testing.T) {
 	if startRec.Code != http.StatusOK {
 		t.Fatalf("POST start = %d body=%s", startRec.Code, startRec.Body.String())
 	}
-	if !containers.agentBrowserStarted {
-		t.Fatal("expected container Agent Browser start")
-	}
 	var started agentBrowserResponse
 	if err := json.NewDecoder(startRec.Body).Decode(&started); err != nil {
 		t.Fatal(err)
 	}
 	wantURL := "https://" + project.Slug + "--6080.dev.remote.futrx.dev/vnc.html?autoconnect=1&resize=scale&reconnect=1"
-	if started.Status != serviceproject.AgentBrowserStatusReady || started.URL != wantURL || started.Slug != project.Slug || started.Port != 6080 {
-		t.Fatalf("POST response = %#v, want url %q", started, wantURL)
+	if started.Status != serviceproject.AgentBrowserStatusStarting || started.URL != "" || started.Slug != project.Slug || started.Port != 6080 {
+		t.Fatalf("POST response = %#v", started)
+	}
+	containers.waitForAgentBrowserStart(t)
+
+	statusReq = httptest.NewRequest(http.MethodGet, "/api/projects/"+string(project.ID)+"/agent-browser", nil)
+	statusReq.Host = "remote.futrx.dev"
+	statusRec = httptest.NewRecorder()
+	handler.HandleResource(statusRec, statusReq)
+	if statusRec.Code != http.StatusOK {
+		t.Fatalf("GET starting status = %d body=%s", statusRec.Code, statusRec.Body.String())
+	}
+	if err := json.NewDecoder(statusRec.Body).Decode(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status.Status != serviceproject.AgentBrowserStatusStarting || status.URL != "" {
+		t.Fatalf("GET starting response = %#v", status)
+	}
+
+	containers.completeAgentBrowserStart()
+	status = waitForAgentBrowserReady(t, handler, project)
+	if status.Status != serviceproject.AgentBrowserStatusReady || status.URL != wantURL || status.Slug != project.Slug || status.Port != 6080 {
+		t.Fatalf("GET ready response = %#v, want url %q", status, wantURL)
 	}
 
 	stopReq := httptest.NewRequest(http.MethodDelete, "/api/projects/"+string(project.ID)+"/agent-browser", nil)
@@ -56,7 +76,7 @@ func TestProjectAgentBrowserRoutes(t *testing.T) {
 	if stopRec.Code != http.StatusOK {
 		t.Fatalf("DELETE stop = %d body=%s", stopRec.Code, stopRec.Body.String())
 	}
-	if !containers.agentBrowserStopped {
+	if !containers.agentBrowserStopped() {
 		t.Fatal("expected container Agent Browser stop")
 	}
 	var stopped map[string]serviceproject.AgentBrowserStatus
@@ -92,7 +112,7 @@ func newAgentBrowserProjectHandler(t *testing.T) (*ProjectHandler, *fakeProjectC
 	if err != nil {
 		t.Fatal(err)
 	}
-	containers := &fakeProjectContainers{}
+	containers := newFakeProjectContainers()
 	projects := serviceproject.New(repo, containers, nil, nil)
 	project, err := projects.Create(context.Background(), serviceproject.CreateInput{Name: "Browser Project"}, "user@example.com")
 	if err != nil {
@@ -102,9 +122,21 @@ func newAgentBrowserProjectHandler(t *testing.T) (*ProjectHandler, *fakeProjectC
 }
 
 type fakeProjectContainers struct {
-	agentBrowserRunning bool
-	agentBrowserStarted bool
-	agentBrowserStopped bool
+	mu                      sync.Mutex
+	agentBrowserRunning     bool
+	agentBrowserStarted     bool
+	agentBrowserStoppedFlag bool
+	agentBrowserStartedOnce sync.Once
+	agentBrowserAllowOnce   sync.Once
+	agentBrowserStartedCh   chan struct{}
+	agentBrowserAllowCh     chan struct{}
+}
+
+func newFakeProjectContainers() *fakeProjectContainers {
+	return &fakeProjectContainers{
+		agentBrowserStartedCh: make(chan struct{}),
+		agentBrowserAllowCh:   make(chan struct{}),
+	}
 }
 
 func (f *fakeProjectContainers) Available() bool { return true }
@@ -133,20 +165,83 @@ func (f *fakeProjectContainers) ApplyContainerEnvDiff(context.Context, string, m
 	return nil
 }
 
-func (f *fakeProjectContainers) EnsureAgentBrowser(context.Context, string) error {
+func (f *fakeProjectContainers) EnsureAgentBrowser(ctx context.Context, _ string) error {
+	f.agentBrowserStartedOnce.Do(func() {
+		f.mu.Lock()
+		f.agentBrowserStarted = true
+		f.mu.Unlock()
+		close(f.agentBrowserStartedCh)
+	})
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-f.agentBrowserAllowCh:
+	}
+	f.mu.Lock()
 	f.agentBrowserRunning = true
-	f.agentBrowserStarted = true
+	f.mu.Unlock()
 	return nil
 }
 
 func (f *fakeProjectContainers) StopAgentBrowser(context.Context, string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.agentBrowserRunning = false
-	f.agentBrowserStopped = true
+	f.agentBrowserStoppedFlag = true
 	return nil
 }
 
 func (f *fakeProjectContainers) AgentBrowserRunning(context.Context, string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.agentBrowserRunning, nil
 }
 
 func (f *fakeProjectContainers) AgentBrowserPort() int { return 6080 }
+
+func (f *fakeProjectContainers) waitForAgentBrowserStart(t *testing.T) {
+	t.Helper()
+	select {
+	case <-f.agentBrowserStartedCh:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for container Agent Browser start")
+	}
+}
+
+func (f *fakeProjectContainers) completeAgentBrowserStart() {
+	f.agentBrowserAllowOnce.Do(func() {
+		close(f.agentBrowserAllowCh)
+	})
+}
+
+func (f *fakeProjectContainers) agentBrowserStopped() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.agentBrowserStoppedFlag
+}
+
+func waitForAgentBrowserReady(t *testing.T, handler *ProjectHandler, project serviceproject.Meta) agentBrowserResponse {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		req := httptest.NewRequest(http.MethodGet, "/api/projects/"+string(project.ID)+"/agent-browser", nil)
+		req.Host = "remote.futrx.dev"
+		req.Header.Set("X-Forwarded-Proto", "https")
+		rec := httptest.NewRecorder()
+		handler.HandleResource(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET ready status = %d body=%s", rec.Code, rec.Body.String())
+		}
+		var status agentBrowserResponse
+		if err := json.NewDecoder(rec.Body).Decode(&status); err != nil {
+			t.Fatal(err)
+		}
+		if status.Status == serviceproject.AgentBrowserStatusReady {
+			return status
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for ready status, last response = %#v", status)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -13,6 +14,10 @@ type Service struct {
 	containers ContainerManager
 	secrets    SecretsRepository
 	access     AccessRepository
+
+	agentBrowserMu    sync.Mutex
+	agentBrowserInfo  map[ID]AgentBrowserInfo
+	agentBrowserStart map[ID]int64
 }
 
 func New(
@@ -21,7 +26,14 @@ func New(
 	secrets SecretsRepository,
 	access AccessRepository,
 ) *Service {
-	return &Service{repo: repo, containers: containers, secrets: secrets, access: access}
+	return &Service{
+		repo:              repo,
+		containers:        containers,
+		secrets:           secrets,
+		access:            access,
+		agentBrowserInfo:  make(map[ID]AgentBrowserInfo),
+		agentBrowserStart: make(map[ID]int64),
+	}
 }
 
 func (s *Service) ListSecrets(ctx context.Context, id ID) ([]Secret, error) {
@@ -243,6 +255,7 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if err != nil {
 		return err
 	}
+	s.clearAgentBrowserState(id)
 	if s.containers != nil && m.ContainerName != "" {
 		if err := s.containers.Delete(ctx, m.ContainerName); err != nil {
 			log.Printf("projects: delete container %s: %v", m.ContainerName, err)
@@ -334,8 +347,9 @@ func (s *Service) ListContainerApps(ctx context.Context, id ID) ([]ContainerApp,
 	return s.containers.ListListeners(ctx, m.ContainerName)
 }
 
-// StartAgentBrowser ensures the project's container is running and brings up
-// the Agent Browser stack inside it. Idempotent.
+// StartAgentBrowser ensures the project's container is running, records the
+// Agent Browser as starting, and provisions the stack in the background.
+// Idempotent while a start is already in flight.
 func (s *Service) StartAgentBrowser(ctx context.Context, id ID) (AgentBrowserInfo, error) {
 	m, err := s.Start(ctx, id)
 	if err != nil {
@@ -344,14 +358,22 @@ func (s *Service) StartAgentBrowser(ctx context.Context, id ID) (AgentBrowserInf
 	if s.containers == nil || m.ContainerName == "" {
 		return AgentBrowserInfo{}, errors.New("project has no container to run the browser in")
 	}
-	if err := s.containers.EnsureAgentBrowser(ctx, m.ContainerName); err != nil {
+	if info, ok := s.agentBrowserState(id); ok && info.Status == AgentBrowserStatusStarting {
+		return info, nil
+	}
+	running, err := s.containers.AgentBrowserRunning(ctx, m.ContainerName)
+	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
-	return AgentBrowserInfo{
-		Status: AgentBrowserStatusReady,
-		Slug:   m.Slug,
-		Port:   s.containers.AgentBrowserPort(),
-	}, nil
+	if running {
+		info := s.agentBrowserInfoFor(m, AgentBrowserStatusReady, "")
+		s.setAgentBrowserState(id, info)
+		return info, nil
+	}
+
+	info, startID := s.beginAgentBrowserStart(id, m)
+	go s.ensureAgentBrowserStarted(id, startID, m)
+	return info, nil
 }
 
 // AgentBrowserStatus reports whether the Agent Browser stack is ready for a
@@ -364,22 +386,27 @@ func (s *Service) AgentBrowserStatus(ctx context.Context, id ID) (AgentBrowserIn
 	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
-	info := AgentBrowserInfo{
-		Status: AgentBrowserStatusStopped,
-		Slug:   m.Slug,
-	}
-	if s.containers != nil {
-		info.Port = s.containers.AgentBrowserPort()
-	}
+	info := s.agentBrowserInfoFor(m, AgentBrowserStatusStopped, "")
 	if s.containers == nil || m.ContainerName == "" {
 		return info, nil
 	}
+	stored, hasStored := s.agentBrowserState(id)
 	running, err := s.containers.AgentBrowserRunning(ctx, m.ContainerName)
 	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
 	if running {
-		info.Status = AgentBrowserStatusReady
+		info = s.agentBrowserInfoFor(m, AgentBrowserStatusReady, "")
+		s.setAgentBrowserState(id, info)
+		return info, nil
+	}
+	if hasStored {
+		switch stored.Status {
+		case AgentBrowserStatusStarting, AgentBrowserStatusError:
+			return stored, nil
+		case AgentBrowserStatusReady:
+			s.clearAgentBrowserState(id)
+		}
 	}
 	return info, nil
 }
@@ -396,9 +423,84 @@ func (s *Service) StopAgentBrowser(ctx context.Context, id ID) error {
 		return err
 	}
 	if s.containers == nil || m.ContainerName == "" {
+		s.clearAgentBrowserState(id)
 		return nil
 	}
+	s.clearAgentBrowserState(id)
 	return s.containers.StopAgentBrowser(ctx, m.ContainerName)
+}
+
+func (s *Service) ensureAgentBrowserStarted(id ID, startID int64, m Meta) {
+	if err := s.containers.EnsureAgentBrowser(context.Background(), m.ContainerName); err != nil {
+		log.Printf("projects: start agent browser for %s: %v", id, err)
+		s.finishAgentBrowserStart(id, startID, s.agentBrowserInfoFor(m, AgentBrowserStatusError, err.Error()))
+		return
+	}
+	s.finishAgentBrowserStart(id, startID, s.agentBrowserInfoFor(m, AgentBrowserStatusReady, ""))
+}
+
+func (s *Service) agentBrowserInfoFor(m Meta, status AgentBrowserStatus, errMsg string) AgentBrowserInfo {
+	info := AgentBrowserInfo{
+		Status: status,
+		Slug:   m.Slug,
+		Error:  errMsg,
+	}
+	if s.containers != nil {
+		info.Port = s.containers.AgentBrowserPort()
+	}
+	return info
+}
+
+func (s *Service) agentBrowserState(id ID) (AgentBrowserInfo, bool) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	info, ok := s.agentBrowserInfo[id]
+	return info, ok
+}
+
+func (s *Service) setAgentBrowserState(id ID, info AgentBrowserInfo) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	s.ensureAgentBrowserStateLocked()
+	s.agentBrowserInfo[id] = info
+}
+
+func (s *Service) beginAgentBrowserStart(id ID, m Meta) (AgentBrowserInfo, int64) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	s.ensureAgentBrowserStateLocked()
+	s.agentBrowserStart[id]++
+	startID := s.agentBrowserStart[id]
+	info := s.agentBrowserInfoFor(m, AgentBrowserStatusStarting, "")
+	s.agentBrowserInfo[id] = info
+	return info, startID
+}
+
+func (s *Service) finishAgentBrowserStart(id ID, startID int64, info AgentBrowserInfo) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	s.ensureAgentBrowserStateLocked()
+	if s.agentBrowserStart[id] != startID {
+		return
+	}
+	s.agentBrowserInfo[id] = info
+}
+
+func (s *Service) clearAgentBrowserState(id ID) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	s.ensureAgentBrowserStateLocked()
+	s.agentBrowserStart[id]++
+	delete(s.agentBrowserInfo, id)
+}
+
+func (s *Service) ensureAgentBrowserStateLocked() {
+	if s.agentBrowserInfo == nil {
+		s.agentBrowserInfo = make(map[ID]AgentBrowserInfo)
+	}
+	if s.agentBrowserStart == nil {
+		s.agentBrowserStart = make(map[ID]int64)
+	}
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {
