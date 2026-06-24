@@ -7,6 +7,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/codexauth"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/kimiauth"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
@@ -41,6 +42,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		return nil, err
 	}
 	codexLogin := codexauth.New()
+	kimiLogin := kimiauth.New()
 
 	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
 	terminalSocket := wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects)
@@ -72,6 +74,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		Users:      httphandlers.NewUsersHandler(deps.Services.Users, deps.Services.Auth),
 		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
 		CodexAuth:  httphandlers.NewCodexAuthHandler(codexLogin, deps.Services.Auth),
+		KimiAuth:   httphandlers.NewKimiAuthHandler(kimiLogin, deps.Services.Auth),
 		UserSettings: httphandlers.NewUserSettingsHandler(
 			deps.Services.UserSettings,
 			deps.Services.Auth,
@@ -84,6 +87,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		ChatWS:           chatSocket,
 		WorkspaceWS:      workspaceSocket,
 		CodexAuthWS:      wstransport.NewCodexAuthSocket(codexLogin),
+		KimiAuthWS:       wstransport.NewKimiAuthSocket(kimiLogin),
 		BrowserGUIWS:     browserGUISocket,
 		Auth:             auth,
 		Static:           httptransport.NewStaticHandler(deps.Static),

@@ -27,6 +27,7 @@ type Handlers struct {
 	Users            RouteRegistrar
 	ClaudeAuth       RouteRegistrar
 	CodexAuth        RouteRegistrar
+	KimiAuth         RouteRegistrar
 	UserSettings     RouteRegistrar
 	Skills           RouteRegistrar
 	BrowserInspector RouteRegistrar
@@ -36,6 +37,7 @@ type Handlers struct {
 	ChatWS           WebSocketRegistrar
 	WorkspaceWS      WebSocketRegistrar
 	CodexAuthWS      WebSocketRegistrar
+	KimiAuthWS       WebSocketRegistrar
 	BrowserGUIWS     WebSocketRegistrar
 	Auth             AuthRegistrar
 	Static           http.Handler
@@ -56,6 +58,7 @@ func NewHandler(handlers Handlers) http.Handler {
 	register(handlers.Users)
 	register(handlers.ClaudeAuth)
 	register(handlers.CodexAuth)
+	register(handlers.KimiAuth)
 	register(handlers.UserSettings)
 	register(handlers.Skills)
 	register(handlers.BrowserInspector)
@@ -76,6 +79,9 @@ func NewHandler(handlers Handlers) http.Handler {
 	}
 	if handlers.CodexAuthWS != nil {
 		handlers.CodexAuthWS.RegisterRoutes(mux, upgrader)
+	}
+	if handlers.KimiAuthWS != nil {
+		handlers.KimiAuthWS.RegisterRoutes(mux, upgrader)
 	}
 	if handlers.BrowserGUIWS != nil {
 		handlers.BrowserGUIWS.RegisterRoutes(mux, upgrader)

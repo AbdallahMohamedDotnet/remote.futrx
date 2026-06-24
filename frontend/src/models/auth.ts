@@ -34,6 +34,21 @@ export interface CodexDeviceLogin {
   error?: string;
 }
 
+export interface KimiAuthStatus {
+  authenticated: boolean;
+  deviceLogin?: KimiDeviceLogin;
+}
+
+export interface KimiDeviceLogin {
+  active: boolean;
+  verificationUri?: string;
+  userCode?: string;
+  startedAt?: number;
+  expiresAt?: number;
+  completed?: boolean;
+  error?: string;
+}
+
 export type ClaudeLoginPhase =
   | "idle"
   | "starting"

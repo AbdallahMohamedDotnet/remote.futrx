@@ -2,6 +2,7 @@ import { SettingsPage } from "../components/settings/SettingsPage";
 import { useAuthContext } from "../context/AuthContext";
 import { useUserSettingsContext } from "../context/UserSettingsContext";
 import { useCodexAuth } from "../hooks/auth/useCodexAuth";
+import { useKimiAuth } from "../hooks/auth/useKimiAuth";
 
 export function SettingsContainer({
   onBack,
@@ -13,6 +14,7 @@ export function SettingsContainer({
   const { auth } = useAuthContext();
   const userSettings = useUserSettingsContext();
   const codexAuth = useCodexAuth(true);
+  const kimiAuth = useKimiAuth(true);
 
   return (
     <SettingsPage
@@ -33,6 +35,12 @@ export function SettingsContainer({
       onHamburger={onHamburger}
       onAppearanceThemeChange={(theme) => void userSettings.setTheme(theme)}
       onStartCodexDeviceLogin={codexAuth.startDeviceLogin}
+      kimiAuthenticated={kimiAuth.authenticated}
+      kimiDeviceLogin={kimiAuth.deviceLogin}
+      kimiLoading={kimiAuth.loading}
+      kimiStarting={kimiAuth.starting}
+      kimiError={kimiAuth.error}
+      onStartKimiDeviceLogin={kimiAuth.startDeviceLogin}
     />
   );
 }

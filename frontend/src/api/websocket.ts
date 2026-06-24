@@ -16,6 +16,10 @@ export function codexAuthWebSocketUrl(): string {
   return `${wsBase()}/ws/codex/auth-status`;
 }
 
+export function kimiAuthWebSocketUrl(): string {
+  return `${wsBase()}/ws/kimi/auth-status`;
+}
+
 export function terminalWebSocketUrl(chatId: string): string {
   return `${wsBase()}/ws/terminal?chat=${encodeURIComponent(chatId)}`;
 }

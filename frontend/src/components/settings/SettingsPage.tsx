@@ -1,8 +1,9 @@
 import type { AppearanceTheme } from "../../models/settings";
-import type { CodexDeviceLogin } from "../../models/auth";
+import type { CodexDeviceLogin, KimiDeviceLogin } from "../../models/auth";
 import { ChevronLeft, Menu } from "../ui/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { CodexAuthSettings } from "./CodexAuthSettings";
+import { KimiAuthSettings } from "./KimiAuthSettings";
 import { UsersPanel } from "../account/UsersPanel";
 
 export function SettingsPage({
@@ -19,10 +20,16 @@ export function SettingsPage({
   codexLoading,
   codexStarting,
   codexError,
+  kimiAuthenticated,
+  kimiDeviceLogin,
+  kimiLoading,
+  kimiStarting,
+  kimiError,
   onBack,
   onHamburger,
   onAppearanceThemeChange,
   onStartCodexDeviceLogin,
+  onStartKimiDeviceLogin,
 }: {
   currentEmail: string;
   isAdmin: boolean;
@@ -37,10 +44,16 @@ export function SettingsPage({
   codexLoading: boolean;
   codexStarting: boolean;
   codexError: string | null;
+  kimiAuthenticated: boolean;
+  kimiDeviceLogin?: KimiDeviceLogin;
+  kimiLoading: boolean;
+  kimiStarting: boolean;
+  kimiError: string | null;
   onBack: () => void;
   onHamburger: () => void;
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
   onStartCodexDeviceLogin: () => Promise<void>;
+  onStartKimiDeviceLogin: () => Promise<void>;
 }) {
   return (
     <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -86,6 +99,17 @@ export function SettingsPage({
               starting={codexStarting}
               error={codexError}
               onStartDeviceLogin={onStartCodexDeviceLogin}
+            />
+          )}
+
+          {isAdmin && (
+            <KimiAuthSettings
+              authenticated={kimiAuthenticated}
+              deviceLogin={kimiDeviceLogin}
+              loading={kimiLoading}
+              starting={kimiStarting}
+              error={kimiError}
+              onStartDeviceLogin={onStartKimiDeviceLogin}
             />
           )}
 
