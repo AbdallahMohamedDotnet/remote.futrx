@@ -38,6 +38,7 @@ type ChatProvider string
 const (
 	ChatProviderClaude ChatProvider = "claude"
 	ChatProviderCodex  ChatProvider = "codex"
+	ChatProviderKimi   ChatProvider = "kimi"
 )
 
 type ChatMode string
@@ -107,7 +108,7 @@ func ValidTheme(theme Theme) bool {
 
 func ValidChatProvider(provider ChatProvider) bool {
 	switch provider {
-	case ChatProviderClaude, ChatProviderCodex:
+	case ChatProviderClaude, ChatProviderCodex, ChatProviderKimi:
 		return true
 	default:
 		return false

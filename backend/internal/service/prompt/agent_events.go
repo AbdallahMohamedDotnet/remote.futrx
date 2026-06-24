@@ -19,6 +19,8 @@ func (rnr *Service) emitAgentEvent(
 			switch ev.Provider {
 			case agent.ProviderCodex:
 				m.CodexSessionID = ev.SessionID
+			case agent.ProviderKimi:
+				m.KimiSessionID = ev.SessionID
 			default:
 				m.ClaudeSessionID = ev.SessionID
 			}
@@ -49,6 +51,8 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		switch ev.Provider {
 		case agent.ProviderCodex:
 			out.CodexSessionID = ev.SessionID
+		case agent.ProviderKimi:
+			out.KimiSessionID = ev.SessionID
 		default:
 			out.ClaudeSessionID = ev.SessionID
 		}
@@ -88,6 +92,8 @@ func chatProviderFromAgentProvider(provider agent.ProviderID) servicechat.Provid
 	switch provider {
 	case agent.ProviderCodex:
 		return servicechat.ProviderCodex
+	case agent.ProviderKimi:
+		return servicechat.ProviderKimi
 	default:
 		return servicechat.ProviderClaude
 	}

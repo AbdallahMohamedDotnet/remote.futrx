@@ -9,6 +9,7 @@ type Provider string
 const (
 	ProviderClaude Provider = "claude"
 	ProviderCodex  Provider = "codex"
+	ProviderKimi   Provider = "kimi"
 )
 
 type Skill struct {

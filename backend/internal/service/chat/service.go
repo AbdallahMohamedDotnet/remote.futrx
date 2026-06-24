@@ -117,13 +117,14 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 	// Only pend a fork if there is a session to fork from; otherwise the copy
 	// just starts fresh on first prompt. TmuxSession is intentionally not
 	// copied — a fork must not hijack the parent's terminal.
-	forkPending := src.ClaudeSessionID != "" || src.CodexSessionID != ""
+	forkPending := src.ClaudeSessionID != "" || src.CodexSessionID != "" || src.KimiSessionID != ""
 
 	forked, err := s.repo.Create(ctx, Meta{
 		Title:           title + " (fork)",
 		Provider:        src.Provider,
 		ClaudeSessionID: src.ClaudeSessionID,
 		CodexSessionID:  src.CodexSessionID,
+		KimiSessionID:   src.KimiSessionID,
 		Cwd:             src.Cwd,
 		Model:           src.Model,
 		Mode:            src.Mode,

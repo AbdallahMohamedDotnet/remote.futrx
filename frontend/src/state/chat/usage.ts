@@ -6,6 +6,7 @@ import type { ReasoningEffort } from "../../models/chat";
 export const PROVIDER_OPTIONS: Array<{ value: ChatProvider; label: string }> = [
   { value: "codex", label: "Codex" },
   { value: "claude", label: "Claude" },
+  { value: "kimi", label: "Kimi" },
 ];
 
 export const CLAUDE_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
@@ -23,10 +24,16 @@ export const CODEX_MODEL_OPTIONS: Array<{ value: string; label: string; sub: str
   { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", sub: "coding optimized" },
 ];
 
+export const KIMI_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
+  { value: "", label: "Auto", sub: "kimi default" },
+];
+
 export const MODEL_OPTIONS = CLAUDE_MODEL_OPTIONS;
 
 export function modelOptionsForProvider(provider?: ChatProvider) {
-  return provider === "codex" ? CODEX_MODEL_OPTIONS : CLAUDE_MODEL_OPTIONS;
+  if (provider === "codex") return CODEX_MODEL_OPTIONS;
+  if (provider === "kimi") return KIMI_MODEL_OPTIONS;
+  return CLAUDE_MODEL_OPTIONS;
 }
 
 export function composerModelOptionsForProvider(provider?: ChatProvider) {
@@ -51,7 +58,9 @@ export const REASONING_EFFORT_OPTIONS: Array<{ value: ReasoningEffort; label: st
 ];
 
 export function providerDisplayLabel(provider?: ChatProvider): string {
-  return provider === "codex" ? "Codex" : "Claude";
+  if (provider === "codex") return "Codex";
+  if (provider === "kimi") return "Kimi";
+  return "Claude";
 }
 
 export function modelDisplayLabel(model?: string, provider?: ChatProvider): string {

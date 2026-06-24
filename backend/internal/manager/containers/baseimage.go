@@ -25,7 +25,7 @@ const (
 	BaseImageSourceImage = "ubuntu:24.04"
 
 	// BaseImageDescription is attached to the published image.
-	BaseImageDescription = "futrx remote dev base: ubuntu 24.04 + node 20 + claude-code + codex"
+	BaseImageDescription = "futrx remote dev base: ubuntu 24.04 + node 22 + claude-code + codex + kimi-code"
 
 	// baseImageBuilderName is the name used for the throwaway builder
 	// container. Kept stable so a retry can clean up a leftover builder
@@ -52,8 +52,8 @@ apt-get install -y -qq \
     git openssh-client \
     jq build-essential python3-pip
 
-# Node 20 (provides node + npm + npx for the Claude CLI and any JS tooling).
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
+# Node 22 (provides node + npm + npx for the Claude CLI and any JS tooling).
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null 2>&1
 apt-get install -y -qq nodejs
 
 # Official GitHub CLI repo. Auth comes from $GITHUB_TOKEN at runtime,
@@ -67,12 +67,13 @@ apt-get update -qq
 apt-get install -y -qq gh
 
 # Agent CLIs.
-npm install -g @anthropic-ai/claude-code @openai/codex --silent 2>&1 | tail -8
+npm install -g @anthropic-ai/claude-code @openai/codex @moonshot-ai/kimi-code@0.19.2 --silent 2>&1 | tail -8
 
 # Sanity check the full toolchain.
-which claude codex git gh jq node npm python3 ssh
+which claude codex kimi git gh jq node npm python3 ssh
 claude --version
 codex --version
+kimi --version
 node --version
 gh --version | head -1`
 

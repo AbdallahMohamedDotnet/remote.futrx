@@ -4,6 +4,7 @@ export interface ChatMeta {
   provider?: ChatProvider;
   claudeSessionId?: string;
   codexSessionId?: string;
+  kimiSessionId?: string;
   tmuxSession?: string;
   cwd?: string;
   createdAt: number;
@@ -17,7 +18,7 @@ export interface ChatMeta {
   selectedSkills?: SelectedSkill[];
 }
 
-export type ChatProvider = "claude" | "codex";
+export type ChatProvider = "claude" | "codex" | "kimi";
 export type ChatMode = "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
 export type ReasoningEffort = "" | "low" | "medium" | "high" | "xhigh";
 
@@ -38,7 +39,7 @@ export type ChatEvent = ChatEventBase & (
   | { type: "tool_use_end"; id: string; output?: string; isError?: boolean }
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
   | { type: "system"; subtype: string; data?: Record<string, unknown> }
-  | { type: "session"; provider?: ChatProvider; claudeSessionId?: string; codexSessionId?: string }
+  | { type: "session"; provider?: ChatProvider; claudeSessionId?: string; codexSessionId?: string; kimiSessionId?: string }
   | {
       type: "complete";
       usage?: {

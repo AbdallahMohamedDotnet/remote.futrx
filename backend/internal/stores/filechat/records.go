@@ -12,6 +12,7 @@ type metaRecord struct {
 	Provider        string           `json:"provider,omitempty"`
 	ClaudeSessionID string           `json:"claudeSessionId,omitempty"`
 	CodexSessionID  string           `json:"codexSessionId,omitempty"`
+	KimiSessionID   string           `json:"kimiSessionId,omitempty"`
 	TmuxSession     string           `json:"tmuxSession,omitempty"`
 	Cwd             string           `json:"cwd,omitempty"`
 	CreatedAt       int64            `json:"createdAt"`
@@ -39,6 +40,7 @@ func metaRecordFromDomain(m servicechat.Meta) metaRecord {
 		Provider:        string(m.Provider),
 		ClaudeSessionID: m.ClaudeSessionID,
 		CodexSessionID:  m.CodexSessionID,
+		KimiSessionID:   m.KimiSessionID,
 		TmuxSession:     m.TmuxSession,
 		Cwd:             m.Cwd,
 		CreatedAt:       m.CreatedAt,
@@ -65,6 +67,7 @@ func (r metaRecord) toDomain() servicechat.Meta {
 		Provider:        provider,
 		ClaudeSessionID: r.ClaudeSessionID,
 		CodexSessionID:  r.CodexSessionID,
+		KimiSessionID:   r.KimiSessionID,
 		TmuxSession:     r.TmuxSession,
 		Cwd:             r.Cwd,
 		CreatedAt:       r.CreatedAt,
@@ -127,6 +130,7 @@ type eventRecord struct {
 	Data            json.RawMessage `json:"data,omitempty"`
 	ClaudeSessionID string          `json:"claudeSessionId,omitempty"`
 	CodexSessionID  string          `json:"codexSessionId,omitempty"`
+	KimiSessionID   string          `json:"kimiSessionId,omitempty"`
 	Provider        string          `json:"provider,omitempty"`
 	Usage           json.RawMessage `json:"usage,omitempty"`
 	Message         string          `json:"message,omitempty"`
@@ -150,6 +154,7 @@ func eventRecordFromDomain(ev servicechat.Event) eventRecord {
 		Data:            ev.Data,
 		ClaudeSessionID: ev.ClaudeSessionID,
 		CodexSessionID:  ev.CodexSessionID,
+		KimiSessionID:   ev.KimiSessionID,
 		Provider:        string(ev.Provider),
 		Usage:           ev.Usage,
 		Message:         ev.Message,
@@ -174,6 +179,7 @@ func (r eventRecord) toDomain() servicechat.Event {
 		Data:            r.Data,
 		ClaudeSessionID: r.ClaudeSessionID,
 		CodexSessionID:  r.CodexSessionID,
+		KimiSessionID:   r.KimiSessionID,
 		Provider:        servicechat.Provider(r.Provider),
 		Usage:           r.Usage,
 		Message:         r.Message,

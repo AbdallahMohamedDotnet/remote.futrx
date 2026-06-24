@@ -10,6 +10,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
 	claudeprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/claude"
 	codexprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/codex"
+	kimiprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/kimi"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -42,6 +43,9 @@ type ContainerPreparer interface {
 	EnsureCodex(ctx context.Context, containerName string) error
 	EnsureCodexAuth(ctx context.Context, containerName string) error
 	SyncCodexAuthFromContainer(ctx context.Context, containerName string) error
+	EnsureKimi(ctx context.Context, containerName string) error
+	EnsureKimiAuth(ctx context.Context, containerName string) error
+	SyncKimiAuthFromContainer(ctx context.Context, containerName string) error
 }
 
 type Service struct {
@@ -68,6 +72,7 @@ func New(
 		agents: map[agent.ProviderID]agent.Provider{
 			agent.ProviderClaude: claudeprovider.New(projects, containers),
 			agent.ProviderCodex:  codexprovider.New(projects, containers),
+			agent.ProviderKimi:   kimiprovider.New(projects, containers),
 		},
 	}
 }
@@ -182,6 +187,8 @@ func providerIDFromChatProvider(provider servicechat.Provider) agent.ProviderID 
 	switch servicechat.NormalizeProvider(provider) {
 	case servicechat.ProviderCodex:
 		return agent.ProviderCodex
+	case servicechat.ProviderKimi:
+		return agent.ProviderKimi
 	default:
 		return agent.ProviderClaude
 	}
@@ -191,6 +198,8 @@ func sessionIDForProvider(meta ChatMeta, provider agent.ProviderID) string {
 	switch provider {
 	case agent.ProviderCodex:
 		return meta.CodexSessionID
+	case agent.ProviderKimi:
+		return meta.KimiSessionID
 	default:
 		return meta.ClaudeSessionID
 	}

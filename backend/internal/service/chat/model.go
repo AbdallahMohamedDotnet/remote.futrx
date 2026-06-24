@@ -14,6 +14,7 @@ type Provider string
 const (
 	ProviderClaude Provider = "claude"
 	ProviderCodex  Provider = "codex"
+	ProviderKimi   Provider = "kimi"
 )
 
 type Meta struct {
@@ -22,6 +23,7 @@ type Meta struct {
 	Provider        Provider   `json:"provider,omitempty"`
 	ClaudeSessionID string     `json:"claudeSessionId,omitempty"`
 	CodexSessionID  string     `json:"codexSessionId,omitempty"`
+	KimiSessionID   string     `json:"kimiSessionId,omitempty"`
 	TmuxSession     string     `json:"tmuxSession,omitempty"`
 	Cwd             string     `json:"cwd,omitempty"`
 	CreatedAt       int64      `json:"createdAt"`
@@ -59,6 +61,7 @@ type Event struct {
 	Data            json.RawMessage `json:"data,omitempty"`
 	ClaudeSessionID string          `json:"claudeSessionId,omitempty"`
 	CodexSessionID  string          `json:"codexSessionId,omitempty"`
+	KimiSessionID   string          `json:"kimiSessionId,omitempty"`
 	Provider        Provider        `json:"provider,omitempty"`
 	Usage           json.RawMessage `json:"usage,omitempty"`
 	Message         string          `json:"message,omitempty"`
@@ -103,6 +106,8 @@ func NormalizeProvider(provider Provider) Provider {
 	switch provider {
 	case ProviderClaude:
 		return ProviderClaude
+	case ProviderKimi:
+		return ProviderKimi
 	default:
 		return ProviderCodex
 	}
