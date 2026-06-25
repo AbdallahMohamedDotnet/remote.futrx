@@ -166,6 +166,11 @@ func (m *Manager) BuildBaseImage(ctx context.Context, alias string) error {
 		return fmt.Errorf("browser GUI install script: %w; output: %s", err, truncateOut(out, 2000))
 	}
 
+	// Layer the on-demand code-server IDE on top (per-container VS Code).
+	if out, err := m.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
+		return fmt.Errorf("code-server install script: %w; output: %s", err, truncateOut(out, 2000))
+	}
+
 	if out, err := m.lxc.Run(bctx, "stop", baseImageBuilderName); err != nil {
 		return fmt.Errorf("stop builder: %w; output: %s", err, out)
 	}
