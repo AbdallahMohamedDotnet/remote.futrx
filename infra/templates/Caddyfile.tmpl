@@ -34,13 +34,21 @@ ${HOSTNAME} {
 
 code.${HOSTNAME} {
     encode zstd gzip
-    # Gate every request through ${HOSTNAME}'s admin session check.
-    # Caddy makes a localhost call to /auth/verify; 2xx → pass through,
-    # 302 → forwarded to the browser so the user lands on the main login.
+    # Admin-session gate (same check as the rest of the platform).
     forward_auth 127.0.0.1:${SERVICE_PORT} {
         uri /auth/verify
     }
-    reverse_proxy 127.0.0.1:${CODE_SERVER_PORT}
+    # Futrx IDE launcher: a static PWA listing projects; each opens that
+    # project's per-container IDE (<slug>.code.${HOSTNAME}) in a new window.
+    # /api/* proxies to the backend with the session cookie intact so the
+    # launcher can list projects same-origin. (Replaces the old host code-server.)
+    handle /api/* {
+        reverse_proxy 127.0.0.1:${SERVICE_PORT}
+    }
+    handle {
+        root * ${INSTALL_DIR}/infra/launcher
+        file_server
+    }
 }
 
 # Per-project IDE. <slug>.code.${HOSTNAME} proxies into the project's LXD
