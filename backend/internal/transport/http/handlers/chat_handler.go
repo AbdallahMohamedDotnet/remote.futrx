@@ -286,12 +286,11 @@ func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta
 	}
 	target.WorkspaceName = h.ideWorkspaceName(r.Context(), meta, target.WorkspaceRoot)
 
-	// Per-container IDE: open in the project's own code-server (runs as the
-	// container user, so git ownership stays consistent). We deliberately do not
-	// probe the host code-server IPC socket here -- that would open the file in
-	// the host IDE instead of the project container.
-	openIDEFileSoon(target)
-	http.Redirect(w, r, ideFolderURL(target.WorkspaceRoot), http.StatusFound)
+	// Per-container IDE: redirect into the project's own code-server (runs as the
+	// container user, so git ownership stays consistent). The folder+file query
+	// makes code-server open the workspace and the file directly -- no host IDE
+	// IPC, which would otherwise open the file in the wrong place.
+	http.Redirect(w, r, ideOpenRedirectURL(target), http.StatusFound)
 }
 
 func (h *ChatHandler) handleMediaOpen(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
@@ -778,6 +777,34 @@ func ideFolderURL(workspaceRoot string) string {
 	}
 	q := u.Query()
 	q.Set("folder", folder)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+// ideOpenRedirectURL builds the per-container IDE URL that opens the workspace
+// folder and (when known) focuses the file -- container paths under
+// <slug>.code.remote.futrx.dev. Falls back to the host code-server for paths
+// not under a project workspace.
+func ideOpenRedirectURL(target ideOpenTarget) string {
+	base := ideBaseURL
+	folder := target.WorkspaceRoot
+	file := target.FilePath
+	if slug, containerRoot, ok := containerSlugAndPath(target.WorkspaceRoot); ok {
+		base = "https://" + slug + ".code.remote.futrx.dev/"
+		folder = containerRoot
+		if _, containerFile, okFile := containerSlugAndPath(target.FilePath); okFile {
+			file = containerFile
+		}
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return base
+	}
+	q := u.Query()
+	q.Set("folder", folder)
+	if file != "" && file != folder {
+		q.Set("file", file)
+	}
 	u.RawQuery = q.Encode()
 	return u.String()
 }
