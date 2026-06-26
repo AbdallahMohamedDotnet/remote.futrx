@@ -4,9 +4,44 @@ const ideBaseUrl = "https://code.remote.futrx.dev/";
 const containerWorkspacePath = "/workspace";
 const workspaceSegment = "/workspace";
 
+const projectsPrefix = "/var/lib/remote/projects/";
+
+// Maps a host path under a project workspace
+// (/var/lib/remote/projects/<slug>/workspace[/rel]) to the project slug and the
+// equivalent in-container path (/workspace[/rel]). Returns null for non-project
+// paths (e.g. the platform's own repo).
+function projectSlugAndContainerPath(
+  hostPath: string,
+): { slug: string; containerPath: string } | null {
+  const norm = normalizeAbsolutePath(hostPath);
+  if (!norm.startsWith(projectsPrefix)) return null;
+  const rest = norm.slice(projectsPrefix.length);
+  const slash = rest.indexOf("/");
+  if (slash <= 0) return null;
+  const slug = rest.slice(0, slash);
+  const after = rest.slice(slash + 1);
+  if (after === "workspace") return { slug, containerPath: "/workspace" };
+  if (after.startsWith("workspace/"))
+    return { slug, containerPath: "/workspace/" + after.slice("workspace/".length) };
+  return null;
+}
+
 export function buildIdeUrl(folderPath: string, filePath?: string): string {
+  const folder = normalizeAbsolutePath(folderPath) || defaultWorkspacePath;
+  const proj = projectSlugAndContainerPath(folder);
+  if (proj) {
+    // Per-container IDE: <slug>.code.remote.futrx.dev with in-container paths.
+    const url = new URL(`https://${proj.slug}.code.remote.futrx.dev/`);
+    url.searchParams.set("folder", proj.containerPath);
+    if (filePath) {
+      const f = projectSlugAndContainerPath(normalizeAbsolutePath(filePath));
+      if (f && f.slug === proj.slug) url.searchParams.set("file", f.containerPath);
+    }
+    return url.toString();
+  }
+  // Fallback: non-project paths -> host code-server.
   const url = new URL(ideBaseUrl);
-  url.searchParams.set("folder", normalizeAbsolutePath(folderPath) || defaultWorkspacePath);
+  url.searchParams.set("folder", folder);
   if (filePath) url.searchParams.set("file", normalizeAbsolutePath(filePath));
   return url.toString();
 }

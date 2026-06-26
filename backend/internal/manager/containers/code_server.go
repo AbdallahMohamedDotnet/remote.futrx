@@ -4,7 +4,7 @@ package containers
 // socket-activated and idle-stopped (see templates/code-server-up.sh). New
 // containers get it baked into the base image; EnsureCodeServer is the
 // migration path for containers created before that image. Reached from the
-// host edge at <slug>.code.<host> -> <slug>.lxd:8080, behind the same Google
+// host edge at <slug>.code.<host> -> <slug>.lxd:8842, behind the same Google
 // admin gate as the dev-URL proxy.
 
 import (
