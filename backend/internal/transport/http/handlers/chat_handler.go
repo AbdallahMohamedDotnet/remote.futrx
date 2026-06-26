@@ -286,13 +286,10 @@ func (h *ChatHandler) handleIDEOpen(w http.ResponseWriter, r *http.Request, meta
 	}
 	target.WorkspaceName = h.ideWorkspaceName(r.Context(), meta, target.WorkspaceRoot)
 
-	if opened, err := openIDEFileInExistingWindow(r.Context(), target); opened {
-		sendIDEOpenExistingResponse(w, target)
-		return
-	} else if err != nil {
-		log.Printf("ide existing window open %s: %v", ideOpenCommandTarget(target), err)
-	}
-
+	// Per-container IDE: open in the project's own code-server (runs as the
+	// container user, so git ownership stays consistent). We deliberately do not
+	// probe the host code-server IPC socket here -- that would open the file in
+	// the host IDE instead of the project container.
 	openIDEFileSoon(target)
 	http.Redirect(w, r, ideFolderURL(target.WorkspaceRoot), http.StatusFound)
 }
@@ -561,18 +558,30 @@ var htmlEscaper = strings.NewReplacer(
 )
 
 func openIDEFileSoon(target ideOpenTarget) {
+	// Map host paths -> project container + in-container paths. Non-project paths
+	// keep host paths and reuseSlug "" (host code-server fallback).
+	reuseSlug, workspaceTarget, _ := containerSlugAndPath(target.WorkspaceRoot)
+	if workspaceTarget == "" {
+		workspaceTarget = target.WorkspaceRoot
+	}
+	fileSlug, containerFile, okFile := containerSlugAndPath(target.FilePath)
+	var fileTarget string
+	if okFile {
+		reuseSlug = fileSlug
+		fileTarget = containerOpenCommandTarget(containerFile, target.Line, target.Column)
+	} else {
+		fileTarget = ideOpenCommandTarget(target)
+	}
+
 	go func() {
-		openTarget := ideOpenCommandTarget(target)
 		var lastErr error
 
-		// Give the clicked code-server tab time to load and register its workspace
-		// socket. If another IDE tab is already open, code-server can otherwise
-		// report success after sending the open request to that older tab.
+		// Give the clicked code-server tab time to load and register its workspace.
 		time.Sleep(1500 * time.Millisecond)
 
 		workspaceDeadline := time.Now().Add(8 * time.Second)
 		for time.Now().Before(workspaceDeadline) {
-			if err := runCodeServerReuse(target.WorkspaceRoot); err == nil {
+			if err := runCodeServerReuse(reuseSlug, workspaceTarget); err == nil {
 				break
 			} else {
 				lastErr = err
@@ -584,7 +593,7 @@ func openIDEFileSoon(target ideOpenTarget) {
 		fileDeadline := fileStart.Add(20 * time.Second)
 		opened := false
 		for time.Now().Before(fileDeadline) {
-			if err := runCodeServerReuse(openTarget); err == nil {
+			if err := runCodeServerReuse(reuseSlug, fileTarget); err == nil {
 				opened = true
 			} else {
 				lastErr = err
@@ -596,19 +605,63 @@ func openIDEFileSoon(target ideOpenTarget) {
 			time.Sleep(1 * time.Second)
 		}
 		if !opened {
-			log.Printf("ide open %s: %v", openTarget, lastErr)
+			log.Printf("ide open %s: %v", fileTarget, lastErr)
 		}
 	}()
 }
 
-func runCodeServerReuse(target string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+// runCodeServerReuse focuses/opens target in an already-running code-server,
+// reusing its window. For a project (slug != "") it runs inside that project's
+// container so the file opens in the per-container IDE; otherwise it falls back
+// to the host code-server (e.g. platform-repo chats).
+func runCodeServerReuse(slug, target string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
-	output, err := exec.CommandContext(ctx, "code-server", "--reuse-window", target).CombinedOutput()
+	var cmd *exec.Cmd
+	if slug == "" {
+		cmd = exec.CommandContext(ctx, "code-server", "--reuse-window", target)
+	} else {
+		cmd = exec.CommandContext(ctx, "lxc", "exec", slug, "--", "code-server", "--reuse-window", target)
+	}
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+// containerSlugAndPath maps a host path under a project workspace
+// (/var/lib/remote/projects/<slug>/workspace[/rel]) to the project slug and the
+// equivalent in-container path (/workspace[/rel]). ok is false for paths not
+// under a project workspace (e.g. the platform's own /opt repo).
+func containerSlugAndPath(hostPath string) (slug, containerPath string, ok bool) {
+	const prefix = "/var/lib/remote/projects/"
+	rest, found := strings.CutPrefix(filepath.Clean(hostPath), prefix)
+	if !found {
+		return "", "", false
+	}
+	slug, after, found := strings.Cut(rest, "/")
+	if !found || slug == "" {
+		return "", "", false
+	}
+	if after == "workspace" {
+		return slug, "/workspace", true
+	}
+	rel, found := strings.CutPrefix(after, "workspace/")
+	if !found {
+		return "", "", false
+	}
+	return slug, "/workspace/" + rel, true
+}
+
+func containerOpenCommandTarget(containerFile string, line, column int) string {
+	if line <= 0 {
+		return containerFile
+	}
+	if column > 0 {
+		return fmt.Sprintf("%s:%d:%d", containerFile, line, column)
+	}
+	return fmt.Sprintf("%s:%d", containerFile, line)
 }
 
 func ideOpenCommandTarget(target ideOpenTarget) string {
@@ -713,12 +766,18 @@ func ideWorkspaceURL(workspacePath string) string {
 }
 
 func ideFolderURL(workspaceRoot string) string {
-	u, err := url.Parse(ideBaseURL)
+	base := ideBaseURL
+	folder := workspaceRoot
+	if slug, containerRoot, ok := containerSlugAndPath(workspaceRoot); ok {
+		base = "https://" + slug + ".code.remote.futrx.dev/"
+		folder = containerRoot
+	}
+	u, err := url.Parse(base)
 	if err != nil {
-		return ideBaseURL
+		return base
 	}
 	q := u.Query()
-	q.Set("folder", workspaceRoot)
+	q.Set("folder", folder)
 	u.RawQuery = q.Encode()
 	return u.String()
 }
