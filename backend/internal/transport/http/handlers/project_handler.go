@@ -255,6 +255,11 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 
 var projectHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.remote\.futrx\.dev$`)
 
+// codeHostPattern matches the per-project IDE host <slug>.code.remote.futrx.dev
+// (no port segment). Used by HandleTLSAsk so Caddy's on-demand TLS will issue
+// certs for code subdomains of real projects only.
+var codeHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)\.code\.remote\.futrx\.dev$`)
+
 func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -265,17 +270,21 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing domain", http.StatusBadRequest)
 		return
 	}
-	m := projectHostPattern.FindStringSubmatch(domain)
-	if m == nil {
-		http.Error(w, "host does not match <slug>--<port>.dev.remote.futrx.dev", http.StatusNotFound)
+	var slug string
+	if mm := projectHostPattern.FindStringSubmatch(domain); mm != nil {
+		slug = mm[1]
+		port, err := strconv.Atoi(mm[2])
+		if err != nil || port < 1024 || port > 65535 {
+			http.Error(w, "port out of range", http.StatusNotFound)
+			return
+		}
+	} else if mm := codeHostPattern.FindStringSubmatch(domain); mm != nil {
+		slug = mm[1]
+	} else {
+		http.Error(w, "host not a recognized project domain", http.StatusNotFound)
 		return
 	}
-	slug := m[1]
-	port, err := strconv.Atoi(m[2])
-	if err != nil || port < 1024 || port > 65535 {
-		http.Error(w, "port out of range", http.StatusNotFound)
-		return
-	}
+
 	if _, err := h.projects.GetBySlug(r.Context(), slug); err != nil {
 		http.Error(w, "no such project", http.StatusNotFound)
 		return
