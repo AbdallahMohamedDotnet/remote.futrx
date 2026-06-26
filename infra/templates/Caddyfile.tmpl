@@ -44,7 +44,7 @@ code.${HOSTNAME} {
 }
 
 # Per-project IDE. <slug>.code.${HOSTNAME} proxies into the project's LXD
-# container at <slug>.lxd:${CODE_SERVER_PORT}, where an on-demand, idle-stopped
+# container at <slug>.lxd:8842, where an on-demand, idle-stopped
 # code-server lives (systemd socket activation inside the container). Same
 # Google admin gate as code.${HOSTNAME}; on-demand TLS is gated by the
 # backend's /internal/tls-ask, which now also allows <slug>.code.${HOSTNAME}.
@@ -60,7 +60,7 @@ code.${HOSTNAME} {
         header_regexp host Host ^([a-z0-9][a-z0-9-]*)\.code\.${HOSTNAME_RE}$
     }
     handle @valid {
-        reverse_proxy {re.host.1}.lxd:${CODE_SERVER_PORT} {
+        reverse_proxy {re.host.1}.lxd:8842 {
             # On-demand backend: don't pool idle upstream connections, so the
             # in-container systemd-socket-proxyd sees zero open connections soon
             # after the tab closes and can reach its --exit-idle-time to stop

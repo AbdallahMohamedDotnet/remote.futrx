@@ -1,10 +1,10 @@
 set -e
 # Managed by containers/code_server.go. Installs an on-demand, idle-stopped
 # code-server inside a project container. Reached from the host edge at
-# <slug>.code.<host> -> <slug>.lxd:8080.
+# <slug>.code.<host> -> <slug>.lxd:8842.
 #
 # Lifecycle (systemd socket activation -> full scale-to-zero):
-#   code-server.socket         listens on 0.0.0.0:8080 (cheap; always armed)
+#   code-server.socket         listens on 0.0.0.0:8842 (cheap; always armed)
 #   code-server-proxy.service  systemd-socket-proxyd --exit-idle-time=10min,
 #                              forwards to 127.0.0.1:8081, Requires= the real
 #                              service so a first connection pulls it up
@@ -23,7 +23,7 @@ fi
 
 install -d -m 0700 /root/.config/code-server
 cat > /root/.config/code-server/config.yaml <<'YAML'
-# code-server listens on loopback only; the socket-activation proxy on :8080
+# code-server listens on loopback only; the socket-activation proxy on :8842
 # is the sole reachable port and Caddy's forward_auth gates it, so auth=none
 # is safe here (same rationale as the host config).
 bind-addr: 127.0.0.1:8081
@@ -60,7 +60,7 @@ cat > /etc/systemd/system/code-server.socket <<'UNIT'
 Description=code-server socket (on-demand activation)
 
 [Socket]
-ListenStream=0.0.0.0:8080
+ListenStream=0.0.0.0:8842
 Service=code-server-proxy.service
 
 [Install]
