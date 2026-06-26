@@ -5,7 +5,7 @@ set -e
 #
 # Lifecycle (systemd socket activation -> full scale-to-zero):
 #   code-server.socket         listens on 0.0.0.0:8080 (cheap; always armed)
-#   code-server-proxy.service  systemd-socket-proxyd --exit-idle-time=20min,
+#   code-server-proxy.service  systemd-socket-proxyd --exit-idle-time=10min,
 #                              forwards to 127.0.0.1:8081, Requires= the real
 #                              service so a first connection pulls it up
 #   code-server.service        code-server itself, StopWhenUnneeded=yes so it
@@ -52,7 +52,7 @@ Requires=code-server.service
 After=code-server.service
 
 [Service]
-ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=20min 127.0.0.1:8081
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=10min 127.0.0.1:8081
 UNIT
 
 cat > /etc/systemd/system/code-server.socket <<'UNIT'

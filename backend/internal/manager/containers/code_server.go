@@ -19,20 +19,34 @@ var codeServerUpScript []byte
 
 // EnsureCodeServer installs and enables the on-demand code-server stack inside
 // an existing project container. Idempotent and best-effort, mirroring
-// EnsureBrowserGUI: a no-op once the socket unit is present.
+// EnsureBrowserGUI. It returns early only when the socket is actually active;
+// if the unit file exists but is disabled/stopped (e.g. a base-image bake that
+// didn't enable it, or a unit that was turned off later) it still (re-)enables
+// it, so a present-but-inert socket can't leave IDE routing silently broken.
 func (m *Manager) EnsureCodeServer(ctx context.Context, containerName string) error {
+	// Fast path: socket already armed and listening -> nothing to do.
 	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	if _, err := m.lxc.Run(cctx, "exec", containerName, "--", "test", "-f", "/etc/systemd/system/code-server.socket"); err == nil {
+	if _, err := m.lxc.Run(cctx, "exec", containerName, "--", "systemctl", "is-active", "--quiet", "code-server.socket"); err == nil {
 		return nil
 	}
 
-	ictx, icancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer icancel()
-	if out, err := m.lxc.Run(ictx, "exec", containerName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
-		return fmt.Errorf("install code-server: %w; output: %s", err, truncateOut(out, 2000))
+	// Install the units only when they're not present yet. The base image may
+	// already ship them; re-running the install script is harmless but slow,
+	// so skip it when the unit file exists and just (re-)enable below.
+	tctx, tcancel := context.WithTimeout(ctx, 10*time.Second)
+	defer tcancel()
+	if _, err := m.lxc.Run(tctx, "exec", containerName, "--", "test", "-f", "/etc/systemd/system/code-server.socket"); err != nil {
+		ictx, icancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer icancel()
+		if out, err := m.lxc.Run(ictx, "exec", containerName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
+			return fmt.Errorf("install code-server: %w; output: %s", err, truncateOut(out, 2000))
+		}
 	}
 
+	// Always enable --now: arms a freshly-installed socket, and recovers a
+	// baked-but-disabled/stopped one -- the case the old file-exists check
+	// reported as complete while routing was actually dead.
 	ectx, ecancel := context.WithTimeout(ctx, 20*time.Second)
 	defer ecancel()
 	if out, err := m.lxc.Run(ectx, "exec", containerName, "--", "systemctl", "enable", "--now", "code-server.socket"); err != nil {
