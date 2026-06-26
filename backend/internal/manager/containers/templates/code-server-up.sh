@@ -173,5 +173,10 @@ for ext in \
     code-server --install-extension "$ext" >/dev/null 2>&1 || true
 done
 
+# Per-workspace window title so each PWA/dock window is identifiable. The
+# backend passes CODE_SERVER_WS_NAME=<project name>; fall back to the slug.
+export CODE_SERVER_WS_NAME="${CODE_SERVER_WS_NAME:-$(hostname)}"
+node -e 'const fs=require("fs");const p="/root/.local/share/code-server/User/settings.json";const s=JSON.parse(fs.readFileSync(p,"utf8"));s["window.title"]=process.env.CODE_SERVER_WS_NAME;fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n")' 2>/dev/null || true
+
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable code-server.socket >/dev/null 2>&1 || true

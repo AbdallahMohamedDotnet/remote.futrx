@@ -23,7 +23,7 @@ var codeServerUpScript []byte
 // if the unit file exists but is disabled/stopped (e.g. a base-image bake that
 // didn't enable it, or a unit that was turned off later) it still (re-)enables
 // it, so a present-but-inert socket can't leave IDE routing silently broken.
-func (m *Manager) EnsureCodeServer(ctx context.Context, containerName string) error {
+func (m *Manager) EnsureCodeServer(ctx context.Context, containerName, displayName string) error {
 	// Fast path: socket already armed and listening -> nothing to do.
 	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -39,7 +39,7 @@ func (m *Manager) EnsureCodeServer(ctx context.Context, containerName string) er
 	if _, err := m.lxc.Run(tctx, "exec", containerName, "--", "test", "-f", "/etc/systemd/system/code-server.socket"); err != nil {
 		ictx, icancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer icancel()
-		if out, err := m.lxc.Run(ictx, "exec", containerName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
+		if out, err := m.lxc.Run(ictx, "exec", containerName, "--env", "CODE_SERVER_WS_NAME="+displayName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
 			return fmt.Errorf("install code-server: %w; output: %s", err, truncateOut(out, 2000))
 		}
 	}
