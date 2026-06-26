@@ -31,7 +31,7 @@ export function buildIdeUrl(folderPath: string, filePath?: string): string {
   const proj = projectSlugAndContainerPath(folder);
   if (proj) {
     // Per-container IDE: <slug>.code.remote.futrx.dev with in-container paths.
-    const url = new URL(`https://${proj.slug}.code.remote.futrx.dev/`);
+    const url = new URL(`https://code.remote.futrx.dev/${proj.slug}/`);
     url.searchParams.set("folder", proj.containerPath);
     if (filePath) {
       const f = projectSlugAndContainerPath(normalizeAbsolutePath(filePath));

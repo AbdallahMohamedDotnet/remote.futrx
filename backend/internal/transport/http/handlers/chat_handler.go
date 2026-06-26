@@ -768,7 +768,7 @@ func ideFolderURL(workspaceRoot string) string {
 	base := ideBaseURL
 	folder := workspaceRoot
 	if slug, containerRoot, ok := containerSlugAndPath(workspaceRoot); ok {
-		base = "https://" + slug + ".code.remote.futrx.dev/"
+		base = "https://code.remote.futrx.dev/" + slug + "/"
 		folder = containerRoot
 	}
 	u, err := url.Parse(base)
@@ -790,7 +790,7 @@ func ideOpenRedirectURL(target ideOpenTarget) string {
 	folder := target.WorkspaceRoot
 	file := target.FilePath
 	if slug, containerRoot, ok := containerSlugAndPath(target.WorkspaceRoot); ok {
-		base = "https://" + slug + ".code.remote.futrx.dev/"
+		base = "https://code.remote.futrx.dev/" + slug + "/"
 		folder = containerRoot
 		if _, containerFile, okFile := containerSlugAndPath(target.FilePath); okFile {
 			file = containerFile

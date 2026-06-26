@@ -34,20 +34,47 @@ ${HOSTNAME} {
 
 code.${HOSTNAME} {
     encode zstd gzip
-    # Admin-session gate (same check as the rest of the platform).
-    forward_auth 127.0.0.1:${SERVICE_PORT} {
-        uri /auth/verify
-    }
-    # Futrx IDE launcher: a static PWA listing projects; each opens that
-    # project's per-container IDE (<slug>.code.${HOSTNAME}) in a new window.
-    # /api/* proxies to the backend with the session cookie intact so the
-    # launcher can list projects same-origin. (Replaces the old host code-server.)
-    handle /api/* {
-        reverse_proxy 127.0.0.1:${SERVICE_PORT}
-    }
-    handle {
-        root * ${INSTALL_DIR}/infra/launcher
-        file_server
+    route {
+        # Admin-session gate (same check as the rest of the platform).
+        forward_auth 127.0.0.1:${SERVICE_PORT} {
+            uri /auth/verify
+        }
+        # Futrx IDE launcher PWA shell (one origin => one installable app).
+        handle / {
+            root * ${INSTALL_DIR}/infra/launcher
+            file_server
+        }
+        @launcher path /index.html /manifest.webmanifest /sw.js /icon.svg /favicon.ico
+        handle @launcher {
+            root * ${INSTALL_DIR}/infra/launcher
+            file_server
+        }
+        # Project list for the launcher (backend, session cookie intact).
+        handle /api/* {
+            reverse_proxy 127.0.0.1:${SERVICE_PORT}
+        }
+        # /<slug>/* -> that project's own per-container code-server. Same origin
+        # as the launcher, so the whole thing installs as a single PWA and each
+        # workspace opens in its own window. The slug prefix is stripped;
+        # code-server uses relative asset paths so it works under the sub-path.
+        @ide path_regexp ide ^/(?P<slug>[a-z0-9][a-z0-9-]+)(?P<rest>/.*)$
+        handle @ide {
+            rewrite * {re.ide.rest}
+            reverse_proxy {re.ide.slug}.lxd:8842 {
+                transport http {
+                    keepalive off
+                }
+                # Strip the platform admin-session cookies before entering the
+                # container (forward_auth already validated on loopback).
+                header_up Cookie `(?:^|;\s*)(?:remote_session|remote_oauth_state|return_to)=[^;]*` ""
+            }
+        }
+        # Bare /<slug> -> add trailing slash so code-server's relative URLs resolve.
+        @bare path_regexp bare ^/([a-z0-9][a-z0-9-]+)$
+        redir @bare {uri}/ 308
+        handle {
+            respond "Not found" 404
+        }
     }
 }
 
