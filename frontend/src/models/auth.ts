@@ -10,6 +10,20 @@ export interface AuthSession {
 
 export interface ClaudeAuthStatus {
   authenticated: boolean;
+  login?: ClaudeLoginState;
+}
+
+// Streamed handshake state, mirroring CodexDeviceLogin. Claude's CLI uses the
+// authorization-code grant instead of a device grant: it emits an OAuth URL
+// and expects a code pasted back, so there's an `authUrl` + `awaitingCode`
+// rather than a `userCode` for the user to read off.
+export interface ClaudeLoginState {
+  active: boolean;
+  authUrl?: string;
+  awaitingCode?: boolean;
+  startedAt?: number;
+  completed?: boolean;
+  error?: string;
 }
 
 export interface ClaudeLoginStart {

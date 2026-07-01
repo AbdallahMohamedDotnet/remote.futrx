@@ -12,6 +12,10 @@ export function workspaceWebSocketUrl(): string {
   return `${wsBase()}/ws/workspace`;
 }
 
+export function claudeAuthWebSocketUrl(): string {
+  return `${wsBase()}/ws/claude/auth-status`;
+}
+
 export function codexAuthWebSocketUrl(): string {
   return `${wsBase()}/ws/codex/auth-status`;
 }

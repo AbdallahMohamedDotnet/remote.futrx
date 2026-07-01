@@ -1,5 +1,6 @@
 import type { ComponentType } from "preact";
 import { useEffect, useState } from "preact/hooks";
+import { ClaudeAuthWaiting } from "../components/auth/ClaudeAuthWaiting";
 import { LoginScreen } from "../components/auth/LoginScreen";
 import { LoadingScreen } from "../components/ui/LoadingScreen";
 import { useAuthContext } from "../context/AuthContext";
@@ -28,7 +29,12 @@ export function AuthGate() {
   }
   if (!claudeAuth.checked || claudeAuth.loading) return <LoadingScreen />;
   if (!claudeAuth.authenticated) {
-    return <ClaudeLoginContainer onDone={claudeAuth.refresh} />;
+    // Claude login is admin-only (host-wide credential). Non-admins wait here
+    // until an admin signs in; the live status WS opens the gate for them.
+    if (auth.isAdmin || auth.noAuth) {
+      return <ClaudeLoginContainer onDone={claudeAuth.refresh} />;
+    }
+    return <ClaudeAuthWaiting adminEmail={auth.adminEmail} />;
   }
 
   if (!WorkspaceRoute) return <LoadingScreen />;

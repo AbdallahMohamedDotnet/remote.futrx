@@ -2,6 +2,7 @@ import type { AppearanceTheme } from "../../models/settings";
 import type { CodexDeviceLogin, KimiDeviceLogin } from "../../models/auth";
 import { ChevronLeft, Menu } from "../ui/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
+import { ClaudeAuthSettings } from "./ClaudeAuthSettings";
 import { CodexAuthSettings } from "./CodexAuthSettings";
 import { KimiAuthSettings } from "./KimiAuthSettings";
 import { UsersPanel } from "../account/UsersPanel";
@@ -89,6 +90,8 @@ export function SettingsPage({
             error={appearanceError}
             onThemeChange={onAppearanceThemeChange}
           />
+
+          {isAdmin && <ClaudeAuthSettings />}
 
           {isAdmin && (
             <CodexAuthSettings

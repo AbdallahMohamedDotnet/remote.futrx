@@ -38,6 +38,28 @@ var (
 type Manager struct {
 	mu      sync.Mutex
 	session *loginSession
+	state   LoginState
+	subs    map[chan Status]struct{}
+}
+
+// Status is the streamed auth snapshot, mirroring codexauth.Status so the
+// frontend can consume both providers through the same shape.
+type Status struct {
+	Authenticated bool       `json:"authenticated"`
+	Login         LoginState `json:"login,omitempty"`
+}
+
+// LoginState tracks the interactive OAuth handshake. Unlike Codex's device
+// grant (which shows the user a code to type into the browser), Claude's CLI
+// uses the authorization-code grant: it prints an OAuth URL and the user must
+// paste a code back. AwaitingCode signals the frontend to show that input.
+type LoginState struct {
+	Active       bool   `json:"active"`
+	AuthURL      string `json:"authUrl,omitempty"`
+	AwaitingCode bool   `json:"awaitingCode,omitempty"`
+	StartedAt    int64  `json:"startedAt,omitempty"`
+	Completed    bool   `json:"completed,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 type StartResult struct {
@@ -59,11 +81,77 @@ type loginSession struct {
 }
 
 func New() *Manager {
-	return &Manager{}
+	return &Manager{subs: map[chan Status]struct{}{}}
 }
 
 func (m *Manager) Authenticated() bool {
 	return authenticated()
+}
+
+// Status returns the current auth snapshot (authenticated flag + login state).
+func (m *Manager) Status() Status {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.statusLocked()
+}
+
+func (m *Manager) statusLocked() Status {
+	return Status{Authenticated: authenticated(), Login: m.state}
+}
+
+// Subscribe registers a status channel and immediately delivers the current
+// snapshot. The returned func unsubscribes. Mirrors codexauth.Manager.
+func (m *Manager) Subscribe() (<-chan Status, func()) {
+	ch := make(chan Status, 8)
+	m.mu.Lock()
+	if m.subs == nil {
+		m.subs = map[chan Status]struct{}{}
+	}
+	m.subs[ch] = struct{}{}
+	status := m.statusLocked()
+	m.mu.Unlock()
+	ch <- status
+
+	cancel := func() {
+		m.mu.Lock()
+		if _, ok := m.subs[ch]; ok {
+			delete(m.subs, ch)
+			close(ch)
+		}
+		m.mu.Unlock()
+	}
+	return ch, cancel
+}
+
+// Broadcast pushes the current status to every subscriber.
+func (m *Manager) Broadcast() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.broadcastLocked()
+}
+
+func (m *Manager) broadcastLocked() {
+	status := m.statusLocked()
+	for ch := range m.subs {
+		select {
+		case ch <- status:
+		default:
+			delete(m.subs, ch)
+			close(ch)
+		}
+	}
+}
+
+// setStateLocked mutates login state and notifies subscribers atomically.
+func (m *Manager) setStateLocked(state LoginState) {
+	m.state = state
+	m.broadcastLocked()
+}
+
+func (m *Manager) setState(state LoginState) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.setStateLocked(state)
 }
 
 func (m *Manager) Start(ctx context.Context) (StartResult, error) {
@@ -84,6 +172,7 @@ func (m *Manager) Start(ctx context.Context) (StartResult, error) {
 	}
 
 	if _, err := exec.LookPath("claude"); err != nil {
+		m.setStateLocked(LoginState{Error: ErrClaudeNotFound.Error()})
 		m.mu.Unlock()
 		return StartResult{}, ErrClaudeNotFound
 	}
@@ -95,6 +184,7 @@ func (m *Manager) Start(ctx context.Context) (StartResult, error) {
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		cancel()
+		m.setStateLocked(LoginState{Error: fmt.Sprintf("pty start: %v", err)})
 		m.mu.Unlock()
 		return StartResult{}, fmt.Errorf("pty start: %w", err)
 	}
@@ -107,6 +197,7 @@ func (m *Manager) Start(ctx context.Context) (StartResult, error) {
 		done:      make(chan struct{}),
 	}
 	m.session = sess
+	m.setStateLocked(LoginState{Active: true, StartedAt: sess.startedAt.Unix()})
 	m.mu.Unlock()
 
 	urlFound := make(chan string, 1)
@@ -115,22 +206,28 @@ func (m *Manager) Start(ctx context.Context) (StartResult, error) {
 
 	select {
 	case url := <-urlFound:
+		m.setState(LoginState{Active: true, AuthURL: url, AwaitingCode: true, StartedAt: sess.startedAt.Unix()})
 		return StartResult{URL: url}, nil
 	case <-time.After(claudeURLReadWait):
 		cancel()
 		m.clear(sess)
-		return StartResult{}, fmt.Errorf("did not see Anthropic OAuth URL within %s; first 500 bytes of claude output: %s",
+		err := fmt.Errorf("did not see Anthropic OAuth URL within %s; first 500 bytes of claude output: %s",
 			claudeURLReadWait, truncate(sess.Output(), 500))
+		m.setState(LoginState{Error: err.Error()})
+		return StartResult{}, err
 	case <-sess.done:
 		m.clear(sess)
 		msg := "claude exited before printing OAuth URL"
 		if exitErr := sess.ExitErr(); exitErr != nil {
 			msg += " (" + exitErr.Error() + ")"
 		}
-		return StartResult{}, fmt.Errorf("%s; output: %s", msg, truncate(sess.Output(), 500))
+		err := fmt.Errorf("%s; output: %s", msg, truncate(sess.Output(), 500))
+		m.setState(LoginState{Error: err.Error()})
+		return StartResult{}, err
 	case <-ctx.Done():
 		cancel()
 		m.clear(sess)
+		m.setState(LoginState{Error: ctx.Err().Error()})
 		return StartResult{}, ctx.Err()
 	}
 }
@@ -150,7 +247,9 @@ func (m *Manager) SubmitCode(ctx context.Context, code string) error {
 	}
 
 	if _, err := io.WriteString(sess.ptmx, code+"\r"); err != nil {
-		return fmt.Errorf("write to claude stdin: %w", err)
+		err = fmt.Errorf("write to claude stdin: %w", err)
+		m.setState(LoginState{Error: err.Error()})
+		return err
 	}
 
 	select {
@@ -159,8 +258,10 @@ func (m *Manager) SubmitCode(ctx context.Context, code string) error {
 		sess.cancel()
 		<-sess.done
 		m.clear(sess)
-		return fmt.Errorf("claude did not exit within %s after code paste; last output: %s",
+		err := fmt.Errorf("claude did not exit within %s after code paste; last output: %s",
 			claudeExitWait, truncate(sess.Output(), 500))
+		m.setState(LoginState{Error: err.Error()})
+		return err
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -170,12 +271,17 @@ func (m *Manager) SubmitCode(ctx context.Context, code string) error {
 	m.clear(sess)
 
 	if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
-		return fmt.Errorf("claude exited with error: %w; output: %s", exitErr, truncate(debugOut, 500))
+		err := fmt.Errorf("claude exited with error: %w; output: %s", exitErr, truncate(debugOut, 500))
+		m.setState(LoginState{Error: err.Error()})
+		return err
 	}
 	if !authenticated() {
-		return fmt.Errorf("claude exited cleanly but no credentials file was written; output: %s",
+		err := fmt.Errorf("claude exited cleanly but no credentials file was written; output: %s",
 			truncate(debugOut, 500))
+		m.setState(LoginState{Error: err.Error()})
+		return err
 	}
+	m.setState(LoginState{Completed: true})
 	return nil
 }
 
@@ -192,6 +298,7 @@ func (m *Manager) Cancel(ctx context.Context) error {
 	select {
 	case <-sess.done:
 		m.clear(sess)
+		m.setState(LoginState{})
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()

@@ -41,6 +41,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	claudeLogin := claudelogin.New()
 	codexLogin := codexauth.New()
 	kimiLogin := kimiauth.New()
 
@@ -72,7 +73,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Auth,
 		),
 		Users:      httphandlers.NewUsersHandler(deps.Services.Users, deps.Services.Auth),
-		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudelogin.New()),
+		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudeLogin, deps.Services.Auth),
 		CodexAuth:  httphandlers.NewCodexAuthHandler(codexLogin, deps.Services.Auth),
 		KimiAuth:   httphandlers.NewKimiAuthHandler(kimiLogin, deps.Services.Auth),
 		UserSettings: httphandlers.NewUserSettingsHandler(
@@ -86,6 +87,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		TerminalWS:       terminalSocket,
 		ChatWS:           chatSocket,
 		WorkspaceWS:      workspaceSocket,
+		ClaudeAuthWS:     wstransport.NewClaudeAuthSocket(claudeLogin),
 		CodexAuthWS:      wstransport.NewCodexAuthSocket(codexLogin),
 		KimiAuthWS:       wstransport.NewKimiAuthSocket(kimiLogin),
 		BrowserGUIWS:     browserGUISocket,

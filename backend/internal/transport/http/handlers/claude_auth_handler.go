@@ -7,15 +7,17 @@ import (
 	"net/http"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
+	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type ClaudeAuthHandler struct {
 	login *claudelogin.Manager
+	auth  *serviceauth.Service
 }
 
-func NewClaudeAuthHandler(login *claudelogin.Manager) *ClaudeAuthHandler {
-	return &ClaudeAuthHandler{login: login}
+func NewClaudeAuthHandler(login *claudelogin.Manager, auth *serviceauth.Service) *ClaudeAuthHandler {
+	return &ClaudeAuthHandler{login: login, auth: auth}
 }
 
 func (h *ClaudeAuthHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -25,15 +27,38 @@ func (h *ClaudeAuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/claude/login/cancel", h.HandleCancel)
 }
 
+// HandleStatus stays open to every registered user — the workspace gate needs
+// to know whether Claude is authenticated. It returns the full streamed status
+// shape (authenticated + login state) so it matches the WS payload.
 func (h *ClaudeAuthHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
-	httptransport.SendJSON(w, http.StatusOK, map[string]any{
-		"authenticated": h.login.Authenticated(),
-	})
+	httptransport.SendJSON(w, http.StatusOK, h.login.Status())
+}
+
+// requireAdmin gates the interactive login endpoints. Claude credentials are
+// host-wide (one login seeded into every container), so — like Codex — only
+// admins may initiate or cancel the shared OAuth session.
+func (h *ClaudeAuthHandler) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	if h.auth == nil {
+		return true
+	}
+	email, err := callerEmailFromRequest(r, h.auth)
+	if err != nil || email == "" {
+		httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
+		return false
+	}
+	if ok, _ := h.auth.IsAdmin(r.Context(), email); !ok {
+		httptransport.SendErr(w, http.StatusForbidden, "admin only")
+		return false
+	}
+	return true
 }
 
 func (h *ClaudeAuthHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.requireAdmin(w, r) {
 		return
 	}
 
@@ -55,6 +80,9 @@ func (h *ClaudeAuthHandler) HandleCode(w http.ResponseWriter, r *http.Request) {
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	if !h.requireAdmin(w, r) {
+		return
+	}
 
 	var body struct {
 		Code string `json:"code"`
@@ -74,6 +102,9 @@ func (h *ClaudeAuthHandler) HandleCode(w http.ResponseWriter, r *http.Request) {
 func (h *ClaudeAuthHandler) HandleCancel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.requireAdmin(w, r) {
 		return
 	}
 	if err := h.login.Cancel(r.Context()); err != nil {
