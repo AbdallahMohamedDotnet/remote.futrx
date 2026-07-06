@@ -166,3 +166,17 @@ type ContainerApp struct {
 	Process string `json:"process,omitempty"`
 	PID     int    `json:"pid,omitempty"`
 }
+
+// AgentBrowserInfo is the externally visible state of the per-project Agent
+// Browser stack. Core is the agent-facing headed Chromium/CDP layer; view is
+// the human-facing noVNC layer.
+type AgentBrowserInfo struct {
+	Status       string `json:"status"`
+	Core         string `json:"core"`
+	View         string `json:"view"`
+	ViewerCount  int    `json:"viewerCount"`
+	UptimeSec    int64  `json:"uptimeSec,omitempty"`
+	LastActivity int64  `json:"lastActivity,omitempty"`
+	Slug         string `json:"slug,omitempty"`
+	Port         int    `json:"port,omitempty"`
+}

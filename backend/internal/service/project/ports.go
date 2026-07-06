@@ -30,7 +30,11 @@ type ContainerManager interface {
 	// down inside the container (headed Chrome on a virtual display, shared
 	// over noVNC and driven by the agent over CDP).
 	EnsureBrowserGUI(ctx context.Context, containerName string) error
+	EnsureBrowserGUICore(ctx context.Context, containerName string) error
+	EnsureBrowserGUIView(ctx context.Context, containerName string) error
 	StopBrowserGUI(ctx context.Context, containerName string) error
+	StopBrowserGUIView(ctx context.Context, containerName string) error
+	BrowserGUIStatus(ctx context.Context, containerName string) (AgentBrowserInfo, error)
 	// BrowserGUIPort is the in-container noVNC port the GUI stack listens on.
 	BrowserGUIPort() int
 }

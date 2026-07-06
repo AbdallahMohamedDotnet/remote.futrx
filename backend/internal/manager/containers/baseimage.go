@@ -109,7 +109,7 @@ $APT install -y -qq \
 npx --yes playwright@1.60.0 install chromium 2>&1 | tail -3
 
 # Sanity check the GUI toolchain (the chromium glob fails the build if absent).
-which Xvfb x11vnc websockify openbox
+which Xvfb x11vnc websockify openbox xdotool
 ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`
 
 // BuildBaseImage launches a fresh BaseImageSourceImage container, runs the

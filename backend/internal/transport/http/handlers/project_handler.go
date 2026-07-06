@@ -209,6 +209,8 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 				apps = []serviceproject.ContainerApp{}
 			}
 			httptransport.SendJSON(w, http.StatusOK, apps)
+		case "agent-browser":
+			h.handleAgentBrowser(w, r, id)
 		default:
 			httptransport.SendErr(w, http.StatusNotFound, "unknown action")
 		}
@@ -248,6 +250,52 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 		}
 		httptransport.SendJSON(w, http.StatusOK, map[string]bool{"ok": true})
 
+	default:
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (h *ProjectHandler) handleAgentBrowser(w http.ResponseWriter, r *http.Request, id serviceproject.ID) {
+	switch r.Method {
+	case http.MethodGet:
+		info, err := h.projects.AgentBrowserStatus(r.Context(), id)
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		httptransport.SendJSON(w, http.StatusOK, info)
+	case http.MethodPost:
+		m, port, err := h.projects.StartBrowserGUI(r.Context(), id)
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		info, err := h.projects.AgentBrowserStatus(r.Context(), id)
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		info.Slug = m.Slug
+		info.Port = port
+		httptransport.SendJSON(w, http.StatusOK, info)
+	case http.MethodDelete:
+		scope := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("scope")))
+		var err error
+		if scope == "view" {
+			err = h.projects.StopBrowserGUIView(r.Context(), id)
+		} else {
+			err = h.projects.StopBrowserGUI(r.Context(), id)
+		}
+		if err != nil {
+			sendProjectError(w, err)
+			return
+		}
+		info, statusErr := h.projects.AgentBrowserStatus(r.Context(), id)
+		if statusErr != nil {
+			sendProjectError(w, statusErr)
+			return
+		}
+		httptransport.SendJSON(w, http.StatusOK, info)
 	default:
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 	}

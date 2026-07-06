@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
@@ -69,6 +70,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	}
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
 	projectService := serviceproject.New(projects, deps.Containers, deps.ProjectSecrets, deps.ProjectAccess)
+	projectService.StartAgentBrowserReaper(ctx, 20*time.Minute)
 	runs = runhub.New(chats)
 	runs.SetRunningSubscriber(func(id servicechat.ID, _ bool) {
 		chats.publishChat(context.Background(), id)
