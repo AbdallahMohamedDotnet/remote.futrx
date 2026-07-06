@@ -378,6 +378,14 @@ func (s *Service) browserLastActivity(id ID) int64 {
 	return t.UnixMilli()
 }
 
+func (s *Service) forgetAgentBrowserActivity(id ID) {
+	s.browserActivityMu.Lock()
+	defer s.browserActivityMu.Unlock()
+	if s.browserSeen != nil {
+		delete(s.browserSeen, id)
+	}
+}
+
 // StartAgentBrowser ensures the project's container is running, records the
 // Agent Browser as starting, and provisions the stack in the background.
 // Idempotent while a start is already in flight.
@@ -472,10 +480,15 @@ func (s *Service) StopAgentBrowser(ctx context.Context, id ID) error {
 	}
 	if s.containers == nil || m.ContainerName == "" {
 		s.clearAgentBrowserState(id)
+		s.forgetAgentBrowserActivity(id)
 		return nil
 	}
 	s.clearAgentBrowserState(id)
-	return s.containers.StopAgentBrowser(ctx, m.ContainerName)
+	if err := s.containers.StopAgentBrowser(ctx, m.ContainerName); err != nil {
+		return err
+	}
+	s.forgetAgentBrowserActivity(id)
+	return nil
 }
 
 func (s *Service) ensureAgentBrowserStarted(id ID, startID int64, m Meta) {
@@ -624,15 +637,27 @@ func (s *Service) reapIdleAgentBrowsers(ttl time.Duration) {
 		statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		info, statusErr := s.containers.AgentBrowserStatus(statusCtx, m.ContainerName)
 		statusCancel()
-		if statusErr == nil && info.Core == "ready" {
-			stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
-			err := s.containers.StopAgentBrowser(stopCtx, m.ContainerName)
-			stopCancel()
-			if err != nil {
-				log.Printf("projects: browser reap %s/%s after %s: %v", m.ID, m.ContainerName, idle.Round(time.Second), err)
-			} else {
-				log.Printf("projects: browser reap %s/%s after %s", m.ID, m.ContainerName, idle.Round(time.Second))
-			}
+		if statusErr != nil {
+			continue
+		}
+		if info.Core != "ready" {
+			s.clearAgentBrowserState(m.ID)
+			s.forgetAgentBrowserActivity(m.ID)
+			continue
+		}
+		if info.ViewerCount > 0 {
+			s.TouchAgentBrowserActivity(context.Background(), m.ID)
+			continue
+		}
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		err := s.containers.StopAgentBrowser(stopCtx, m.ContainerName)
+		stopCancel()
+		if err != nil {
+			log.Printf("projects: browser reap %s/%s after %s: %v", m.ID, m.ContainerName, idle.Round(time.Second), err)
+		} else {
+			s.clearAgentBrowserState(m.ID)
+			s.forgetAgentBrowserActivity(m.ID)
+			log.Printf("projects: browser reap %s/%s after %s", m.ID, m.ContainerName, idle.Round(time.Second))
 		}
 	}
 }

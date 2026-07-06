@@ -19,10 +19,11 @@ var codeServerUpScript []byte
 
 // EnsureCodeServer installs and enables the on-demand code-server stack inside
 // an existing project container. Idempotent and best-effort, mirroring
-// EnsureBrowserGUI. It returns early only when the socket is actually active;
-// if the unit file exists but is disabled/stopped (e.g. a base-image bake that
-// didn't enable it, or a unit that was turned off later) it still (re-)enables
-// it, so a present-but-inert socket can't leave IDE routing silently broken.
+// other container migration helpers. It returns early only when the socket is
+// actually active; if the unit file exists but is disabled/stopped (e.g. a
+// base-image bake that didn't enable it, or a unit that was turned off later)
+// it still (re-)enables it, so a present-but-inert socket can't leave IDE
+// routing silently broken.
 func (m *Manager) EnsureCodeServer(ctx context.Context, containerName, displayName string) error {
 	// Fast path: socket already armed and listening -> nothing to do.
 	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)

@@ -56,8 +56,8 @@ safe because :8080 is the only reachable port and Caddy gates it.
   idempotent in-container install recipe (deb install, config, three systemd
   units, settings, pinned extensions).
 - `backend/internal/manager/containers/code_server.go` — new;
-  `EnsureCodeServer` (migration path for pre-image containers), mirrors
-  `EnsureBrowserGUI`.
+  `EnsureCodeServer` (migration path for pre-image containers), mirrors the
+  container migration helper pattern.
 - `backend/internal/manager/containers/baseimage.go` — bakes the recipe into
   the base image after the browser-GUI layer.
 - `backend/internal/manager/containers/lifecycle.go` — best-effort

@@ -48,7 +48,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
     setError(null);
     setGuiUrl("");
     setStatus(info.status);
-    return info.status === "starting";
+    return info.status === "starting" || info.status === "core-ready";
   }, []);
 
   useEffect(() => {
@@ -117,7 +117,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
   const stop = useCallback(() => {
     if (!projectId) return;
     const requestId = ++requestRef.current;
-    setStatus("starting");
+    setStatus("stopped");
     setGuiUrl("");
     setError(null);
     projectService.stopAgentBrowser(projectId)

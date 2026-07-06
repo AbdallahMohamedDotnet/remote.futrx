@@ -93,9 +93,10 @@ launch_chrome_direct() {
 }
 
 launch_chrome_scoped() {
-  systemd-run --quiet --scope --unit=agent-browser \
+  systemctl reset-failed agent-browser.scope >/dev/null 2>&1 || true
+  systemd-run --quiet --scope --collect --unit=agent-browser \
     -p MemoryMax=1536M -p CPUQuota=200% \
-    "$CHROME" \
+    setsid "$CHROME" \
     --user-data-dir="$PROFILE" \
     --no-sandbox --no-first-run --no-default-browser-check \
     --disable-dev-shm-usage \

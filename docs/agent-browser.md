@@ -34,7 +34,7 @@ flowchart TB
     %% ---- USER SIDE (watch + log in) ----
     UI -- "1. open Browser pane" --> Caddy
     Caddy --> Backend
-    Backend -- "2. REST start -><br/>StartAgentBrowser / EnsureAgentBrowser" --> Xvfb
+    Backend -- "2. REST start -><br/>StartAgentBrowser / EnsureAgentBrowserView" --> Xvfb
     Xvfb --> Chrome
     Chrome --> Xvfb
     Xvfb --> VNC
@@ -63,13 +63,13 @@ flowchart TB
 
 - **Steps 1-3 (user side):** opening the Browser pane calls the project
   Agent Browser REST endpoint, which drives the backend to
-  spin up the in-container GUI stack (`Xvfb -> openbox -> Chromium -> x11vnc ->
-  websockify/noVNC`), which streams back through Caddy so the user can **watch
-  and log in by hand**. The agent never types credentials.
+  spin up the in-container view stack (`Xvfb -> openbox -> Chromium`, then
+  `x11vnc -> websockify/noVNC`), which streams back through Caddy so the user
+  can **watch and log in by hand**. The agent never types credentials.
 - **Steps 4-6 (agent side):** selecting the `browser` skill flips
   `EnableBrowser`, which wires `@playwright/mcp` into Claude via
-  `--mcp-config` or Codex via inline MCP config; the agent then drives over
-  the **loopback CDP port**.
+  `--mcp-config` or Codex via inline MCP config, starts the browser core when
+  needed, and then drives over the **loopback CDP port**.
 - **The shared Chrome** (highlighted) is what both paths attach to, so the
   agent inherits the user's logged-in cookies.
 
@@ -82,9 +82,13 @@ flowchart TB
 - **Egress is the container's own datacenter IP** (no traffic routing in this
   version), so strict providers (Google, X) may show a "verify it's you"
   challenge -- which is why logins are done by hand through the pane.
-- **Closing the drawer does NOT stop the browser:** the session is shared with
-  the agent over CDP, so it only tears down on an explicit stop.
-- **Resource caps:** 2 CPU / 3 GB, `security.nesting=true`.
+- **Closing the drawer stops only the view layer:** x11vnc/websockify are
+  torn down, while the Chrome/CDP core stays available for the agent until an
+  explicit stop or the idle reaper stops the full stack.
+- **Resource caps target Chrome, not the project container:** Chrome runs in
+  its own systemd scope (`MemoryMax=1536M`, `CPUQuota=200%`) when systemd is
+  available; `EnsureAgentBrowserLimits` keeps `security.nesting=true` and
+  unsets older container-wide `limits.cpu` / `limits.memory` values.
 - Uses **Playwright's Chromium (Chrome for Testing)**, not
   `google-chrome-stable`, because in an unprivileged LXC the latter cannot open
   the CDP socket (`CreatePlatformSocket: EPERM`).
@@ -96,10 +100,11 @@ flowchart TB
 | Concern | File |
 |---|---|
 | GUI launcher (Xvfb -> Chromium -> noVNC) | `backend/internal/manager/containers/templates/gui-up.sh` |
+| OS-level input fallback | `backend/internal/manager/containers/templates/human-input.sh` |
 | Provision/start/stop the Agent Browser stack | `backend/internal/manager/containers/agent_browser.go` |
 | Install `@playwright/mcp` + push provider config | `backend/internal/manager/containers/agent_browser_mcp.go` |
 | The `browser` skill playbook | `backend/internal/manager/containers/templates/skills/browser/SKILL.md` |
 | Ship the skill into the workspace | `backend/internal/manager/containers/browser_skill.go` |
 | Lifecycle REST routes | `backend/internal/transport/http/handlers/project_handler.go` (`/api/projects/{id}/agent-browser`) |
 | Skill -> EnableBrowser -> MCP wiring | `backend/internal/service/prompt/service.go`, provider `command.go` files |
-| Project-service orchestration | `backend/internal/service/project/service.go` (`StartAgentBrowser`) |
+| Project-service orchestration + idle reaper | `backend/internal/service/project/service.go` (`StartAgentBrowser`) |
