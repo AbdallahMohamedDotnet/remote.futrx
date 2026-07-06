@@ -10,50 +10,24 @@ inherits whatever the user is logged into. The Chrome profile lives under
 
 ## Flow
 
+This page keeps the high-level shape only. The detailed flows are split out:
+
+- [Overview flow](agent-browser-flow-overview.md) - how the two paths share one
+  Chrome session.
+- [Human view flow](agent-browser-flow-human-view.md) - opening the pane,
+  logging in, and closing the view.
+- [Agent run flow](agent-browser-flow-agent-run.md) - prompt -> provider ->
+  MCP -> loopback CDP.
+- [Lifecycle flow](agent-browser-flow-lifecycle.md) - status, heartbeats,
+  stop, and idle reap.
+
 ```mermaid
-flowchart TB
-    subgraph browser_box["Your browser (chat UI)"]
-        UI["Chat UI<br/>Browser pane + skill picker"]
-    end
-
-    subgraph edge["apps box edge"]
-        Caddy["Caddy<br/>(Google auth gate)"]
-        Backend["Go backend<br/>:7682"]
-    end
-
-    subgraph container["Project's unprivileged LXD container"]
-        direction TB
-        Agent["Claude / Codex agent<br/>(browser MCP config)"]
-        MCP["@playwright/mcp<br/>browser_* tools"]
-        Chrome["Headed Chromium<br/>(Playwright / CfT)<br/>profile in /workspace"]
-        Xvfb["Xvfb :99 + openbox"]
-        VNC["x11vnc -> websockify<br/>noVNC :6080"]
-        CDP["CDP :9222<br/>loopback only"]
-    end
-
-    %% ---- USER SIDE (watch + log in) ----
-    UI -- "1. open Browser pane" --> Caddy
-    Caddy --> Backend
-    Backend -- "2. REST start -><br/>StartAgentBrowser / EnsureAgentBrowserView" --> Xvfb
-    Xvfb --> Chrome
-    Chrome --> Xvfb
-    Xvfb --> VNC
-    VNC -- "noVNC view via<br/>&lt;slug&gt;--6080.dev.&lt;host&gt;" --> Caddy
-    Caddy -- "3. you watch & log in by hand<br/>(passwords + 2FA)" --> UI
-
-    %% ---- AGENT SIDE (drive) ----
-    UI -- "4. enable 'browser' skill<br/>-> EnableBrowser" --> Backend
-    Backend -- "5. EnsureAgentBrowserMCP<br/>(install + provider config)" --> Agent
-    Agent --> MCP
-    MCP -- "6. navigate / snapshot /<br/>click / type" --> CDP
+flowchart LR
+    User["User"] -->|"opens pane / logs in"| View["noVNC view<br/>:6080 exposed"]
+    Agent["Claude or Codex"] -->|"browser_* tools"| CDP["CDP<br/>:9222 loopback only"]
+    View --> Chrome["One headed Chrome<br/>persistent profile"]
     CDP --> Chrome
-
-    %% ---- SHARED SESSION ----
-    Chrome -. "same Chrome, same cookies/logins" .- VNC
-    Chrome -. "same Chrome" .- CDP
-
-    %% egress
-    Chrome -- "egress = container<br/>datacenter IP" --> Internet(("Target sites"))
+    Chrome --> Sites["Target sites"]
 
     classDef shared fill:#7ba7ff,stroke:#0b0d11,color:#fff;
     class Chrome shared;
