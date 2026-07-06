@@ -88,6 +88,10 @@ func (p *Provider) buildCmd(
 			// Best-effort: a stale skill shim shouldn't block a kimi run.
 			_ = err
 		}
+		if err := p.containers.EnsureBrowserSkill(ctx, project.ContainerName); err != nil {
+			// Best-effort migration for containers created before the skill.
+			_ = err
+		}
 		if err := p.containers.EnsureBrowserScript(ctx, project.ContainerName); err != nil {
 			// Best-effort: only matters if the agent runs scripts/browser.mjs.
 			_ = err

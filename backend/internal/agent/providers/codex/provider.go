@@ -25,6 +25,7 @@ type ContainerPreparer interface {
 	EnsureCodexAuth(ctx context.Context, containerName string) error
 	EnsureAgentInstructions(ctx context.Context, containerName string) error
 	EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error
+	EnsureBrowserSkill(ctx context.Context, containerName string) error
 	EnsureBrowserScript(ctx context.Context, containerName string) error
 	EnsureAgentBrowserMCP(ctx context.Context, containerName string) error
 	EnsureAgentBrowserCore(ctx context.Context, containerName string) error

@@ -192,6 +192,8 @@ func (f *fakeCodexContainers) EnsureAgentInstructions(context.Context, string) e
 
 func (f *fakeCodexContainers) EnsureWorkspaceSkillLinks(context.Context, string) error { return nil }
 
+func (f *fakeCodexContainers) EnsureBrowserSkill(context.Context, string) error { return nil }
+
 func (f *fakeCodexContainers) EnsureBrowserScript(context.Context, string) error { return nil }
 
 func (f *fakeCodexContainers) EnsureAgentBrowserMCP(context.Context, string) error {

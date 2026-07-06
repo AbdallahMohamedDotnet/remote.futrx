@@ -21,6 +21,7 @@ type ContainerPreparer interface {
 	EnsureKimiAuth(ctx context.Context, containerName string) error
 	EnsureAgentInstructions(ctx context.Context, containerName string) error
 	EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error
+	EnsureBrowserSkill(ctx context.Context, containerName string) error
 	EnsureBrowserScript(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	SyncKimiAuthFromContainer(ctx context.Context, containerName string) error

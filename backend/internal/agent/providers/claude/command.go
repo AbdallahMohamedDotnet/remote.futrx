@@ -102,6 +102,10 @@ func (p *Provider) buildCmd(
 			// block a claude run that doesn't depend on it.
 			_ = err
 		}
+		if err := p.containers.EnsureBrowserSkill(ctx, project.ContainerName); err != nil {
+			// Best-effort migration for containers created before the skill.
+			_ = err
+		}
 		if err := p.containers.EnsureBrowserScript(ctx, project.ContainerName); err != nil {
 			// Browser script + config are best-effort: their absence only matters
 			// when the agent tries to drive Playwright. Don't fail the run.
