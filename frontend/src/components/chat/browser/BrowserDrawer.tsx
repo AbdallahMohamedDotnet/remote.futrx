@@ -28,7 +28,7 @@ function readBrowserWidth(): number {
 
 export function BrowserDrawer({
   open,
-  chatId,
+  projectId,
   projectName,
   projectSlug,
   apps,
@@ -40,7 +40,7 @@ export function BrowserDrawer({
   onClose,
 }: {
   open: boolean;
-  chatId: string;
+  projectId: string;
   projectName: string;
   projectSlug: string;
   apps: ContainerApp[];
@@ -61,7 +61,7 @@ export function BrowserDrawer({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const guiIframeRef = useRef<HTMLIFrameElement>(null);
 
-  const gui = useBrowserGUISession({ chatId, enabled: open && guiMode });
+  const gui = useBrowserGUISession({ projectId, enabled: open && guiMode });
 
   const url = useMemo(() => buildBrowserUrl(projectSlug, selectedPort), [projectSlug, selectedPort]);
   const inspectorUrl = useMemo(() => buildInspectorUrl(url), [url]);
@@ -91,7 +91,7 @@ export function BrowserDrawer({
 
   useEffect(() => {
     setGuiMode(false);
-  }, [chatId]);
+  }, [projectId]);
 
   useEffect(() => {
     if (!canLoad) {

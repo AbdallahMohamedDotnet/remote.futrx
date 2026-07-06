@@ -136,3 +136,14 @@ export interface ContainerApp {
   process?: string;
   pid?: number;
 }
+
+export interface AgentBrowserInfo {
+  status: string;
+  core: string;
+  view: string;
+  viewerCount: number;
+  uptimeSec?: number;
+  lastActivity?: number;
+  slug?: string;
+  port?: number;
+}

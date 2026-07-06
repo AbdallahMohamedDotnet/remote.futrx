@@ -230,7 +230,7 @@ export function ChatContainer({
         />
         <BrowserDrawer
           open={browser.browserOpen}
-          chatId={chat.id}
+          projectId={browser.browserProject?.id || ""}
           projectName={browser.browserProject?.name || ""}
           projectSlug={browser.browserProject?.slug || ""}
           apps={browser.containerApps}
