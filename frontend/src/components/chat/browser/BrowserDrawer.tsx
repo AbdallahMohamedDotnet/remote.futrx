@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ContainerApp } from "../../../models/project";
-import { useBrowserGUISession } from "../../../hooks/chat/useBrowserGUISession";
+import { useAgentBrowserSession } from "../../../hooks/chat/useAgentBrowserSession";
 import { BrowserDrawerHeader } from "./BrowserDrawerHeader";
 import { BrowserFrame } from "./BrowserFrame";
 import { BrowserGuiView } from "./BrowserGuiView";
@@ -61,7 +61,7 @@ export function BrowserDrawer({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const guiIframeRef = useRef<HTMLIFrameElement>(null);
 
-  const gui = useBrowserGUISession({ projectId, enabled: open && guiMode });
+  const gui = useAgentBrowserSession({ projectId, enabled: open && guiMode });
 
   const url = useMemo(() => buildBrowserUrl(projectSlug, selectedPort), [projectSlug, selectedPort]);
   const inspectorUrl = useMemo(() => buildInspectorUrl(url), [url]);

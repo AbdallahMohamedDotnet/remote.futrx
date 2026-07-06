@@ -47,7 +47,6 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 
 	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
 	terminalSocket := wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects)
-	browserGUISocket := wstransport.NewBrowserGUISocket(deps.Services.Chats, deps.Services.Projects)
 	workspaceSocket := wstransport.NewWorkspaceSocket(
 		deps.Services.Chats,
 		deps.Services.Projects,
@@ -56,7 +55,6 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Services.Auth != nil {
 		chatSocket = chatSocket.WithAccessChecker(gate)
 		terminalSocket = terminalSocket.WithAccessChecker(gate)
-		browserGUISocket = browserGUISocket.WithAccessChecker(gate)
 		workspaceSocket = workspaceSocket.WithVisibility(gate)
 	}
 
@@ -90,7 +88,6 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		ClaudeAuthWS:     wstransport.NewClaudeAuthSocket(claudeLogin),
 		CodexAuthWS:      wstransport.NewCodexAuthSocket(codexLogin),
 		KimiAuthWS:       wstransport.NewKimiAuthSocket(kimiLogin),
-		BrowserGUIWS:     browserGUISocket,
 		Auth:             auth,
 		Static:           httptransport.NewStaticHandler(deps.Static),
 	}), nil

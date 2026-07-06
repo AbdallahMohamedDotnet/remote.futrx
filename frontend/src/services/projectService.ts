@@ -28,10 +28,10 @@ export const projectService = {
   agentBrowserStatus: (id: string) =>
     json<AgentBrowserInfo>("GET", `/api/projects/${encodeURIComponent(id)}/agent-browser`),
   startAgentBrowser: (id: string) =>
-    json<AgentBrowserInfo>("POST", `/api/projects/${encodeURIComponent(id)}/agent-browser`, {}),
+    json<AgentBrowserInfo>("POST", `/api/projects/${encodeURIComponent(id)}/agent-browser/start`, {}),
   stopAgentBrowser: (id: string, scope?: "view") => {
     const suffix = scope ? `?scope=${encodeURIComponent(scope)}` : "";
-    return json<AgentBrowserInfo>(
+    return json<AgentBrowserInfo | { status: "stopped" }>(
       "DELETE",
       `/api/projects/${encodeURIComponent(id)}/agent-browser${suffix}`
     );

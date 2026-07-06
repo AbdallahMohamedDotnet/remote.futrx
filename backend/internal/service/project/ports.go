@@ -26,15 +26,16 @@ type ContainerManager interface {
 	// the project-secrets flow to ship per-project tokens (Cloudflare, GitHub,
 	// etc.) into the project's container.
 	ApplyContainerEnvDiff(ctx context.Context, containerName string, set map[string]string, unset []string) error
-	// EnsureBrowserGUI / StopBrowserGUI bring the Agent Browser stack up and
-	// down inside the container (headed Chrome on a virtual display, shared
-	// over noVNC and driven by the agent over CDP).
-	EnsureBrowserGUI(ctx context.Context, containerName string) error
-	EnsureBrowserGUICore(ctx context.Context, containerName string) error
-	EnsureBrowserGUIView(ctx context.Context, containerName string) error
-	StopBrowserGUI(ctx context.Context, containerName string) error
-	StopBrowserGUIView(ctx context.Context, containerName string) error
-	BrowserGUIStatus(ctx context.Context, containerName string) (AgentBrowserInfo, error)
-	// BrowserGUIPort is the in-container noVNC port the GUI stack listens on.
-	BrowserGUIPort() int
+	// EnsureAgentBrowser / StopAgentBrowser bring the Agent Browser stack up
+	// and down inside the container (headed Chrome on a virtual display,
+	// shared over noVNC and driven by the agent over CDP).
+	EnsureAgentBrowser(ctx context.Context, containerName string) error
+	EnsureAgentBrowserCore(ctx context.Context, containerName string) error
+	EnsureAgentBrowserView(ctx context.Context, containerName string) error
+	StopAgentBrowser(ctx context.Context, containerName string) error
+	StopAgentBrowserView(ctx context.Context, containerName string) error
+	AgentBrowserRunning(ctx context.Context, containerName string) (bool, error)
+	AgentBrowserStatus(ctx context.Context, containerName string) (AgentBrowserInfo, error)
+	// AgentBrowserPort is the in-container noVNC port the stack listens on.
+	AgentBrowserPort() int
 }

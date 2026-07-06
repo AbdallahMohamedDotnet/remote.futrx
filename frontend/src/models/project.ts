@@ -137,13 +137,18 @@ export interface ContainerApp {
   pid?: number;
 }
 
+export type AgentBrowserStatus = "idle" | "starting" | "ready" | "core-ready" | "error" | "stopped";
+export type AgentBrowserServerStatus = Exclude<AgentBrowserStatus, "idle">;
+
 export interface AgentBrowserInfo {
-  status: string;
-  core: string;
-  view: string;
-  viewerCount: number;
-  uptimeSec?: number;
-  lastActivity?: number;
+  status: AgentBrowserServerStatus;
+  url?: string;
   slug?: string;
   port?: number;
+  error?: string;
+  core?: string;
+  view?: string;
+  viewerCount?: number;
+  uptimeSec?: number;
+  lastActivity?: number;
 }

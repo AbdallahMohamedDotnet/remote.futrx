@@ -1,11 +1,12 @@
 import type { ContainerApp } from "../../../models/project";
-import type { BrowserGUIStatus } from "../../../hooks/chat/useBrowserGUISession";
+import type { AgentBrowserStatus } from "../../../hooks/chat/useAgentBrowserSession";
 import { Crosshair, ExternalLink, Key, Loader, Monitor, RotateCcw, Square, X } from "../../ui/icons";
 
-const guiStatusLabel: Record<BrowserGUIStatus, string> = {
+const guiStatusLabel: Record<AgentBrowserStatus, string> = {
   idle: "off",
   starting: "starting…",
   ready: "connected",
+  "core-ready": "core ready",
   error: "failed",
   stopped: "stopped",
 };
@@ -36,7 +37,7 @@ export function BrowserDrawerHeader({
   canLoad: boolean;
   inspectMode: boolean;
   guiMode: boolean;
-  guiStatus: BrowserGUIStatus;
+  guiStatus: AgentBrowserStatus;
   onSelectPort: (port: number | null) => void;
   onRefreshApps: () => void;
   onToggleInspectMode: () => void;

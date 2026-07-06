@@ -11,6 +11,10 @@ tools attached over CDP to the live shared session. If the user opens the
 Browser pane, they see the same browser and can log in by hand; you inherit
 that session's cookies without handling credentials.
 
+This skill is for the **Live Agent Browser** only. For one-off public
+screenshots, recordings, or cookie-authenticated headless recipes, use
+`/workspace/scripts/browser.mjs` instead.
+
 ## How to work
 Use a hybrid perception loop:
 

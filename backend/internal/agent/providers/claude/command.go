@@ -108,10 +108,10 @@ func (p *Provider) buildCmd(
 			_ = err
 		}
 		if req.EnableBrowser {
-			if err := p.containers.EnsureBrowserMCP(ctx, project.ContainerName); err != nil {
+			if err := p.containers.EnsureAgentBrowserMCP(ctx, project.ContainerName); err != nil {
 				return nil, "", fmt.Errorf("provision browser MCP: %w", err)
 			}
-			if err := p.containers.EnsureBrowserGUICore(ctx, project.ContainerName); err != nil {
+			if err := p.containers.EnsureAgentBrowserCore(ctx, project.ContainerName); err != nil {
 				return nil, "", fmt.Errorf("start browser core: %w", err)
 			}
 		}

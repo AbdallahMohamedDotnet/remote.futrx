@@ -10,13 +10,18 @@ import (
 )
 
 type Service struct {
-	repo        Repository
-	containers  ContainerManager
-	secrets     SecretsRepository
-	access      AccessRepository
-	browserMu   sync.Mutex
-	browserSeen map[ID]time.Time
-	reaperOn    bool
+	repo       Repository
+	containers ContainerManager
+	secrets    SecretsRepository
+	access     AccessRepository
+
+	agentBrowserMu    sync.Mutex
+	agentBrowserInfo  map[ID]AgentBrowserInfo
+	agentBrowserStart map[ID]int64
+
+	browserActivityMu sync.Mutex
+	browserSeen       map[ID]time.Time
+	reaperOn          bool
 }
 
 func New(
@@ -25,7 +30,14 @@ func New(
 	secrets SecretsRepository,
 	access AccessRepository,
 ) *Service {
-	return &Service{repo: repo, containers: containers, secrets: secrets, access: access}
+	return &Service{
+		repo:              repo,
+		containers:        containers,
+		secrets:           secrets,
+		access:            access,
+		agentBrowserInfo:  make(map[ID]AgentBrowserInfo),
+		agentBrowserStart: make(map[ID]int64),
+	}
 }
 
 func (s *Service) ListSecrets(ctx context.Context, id ID) ([]Secret, error) {
@@ -247,6 +259,7 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if err != nil {
 		return err
 	}
+	s.clearAgentBrowserState(id)
 	if s.containers != nil && m.ContainerName != "" {
 		if err := s.containers.Delete(ctx, m.ContainerName); err != nil {
 			log.Printf("projects: delete container %s: %v", m.ContainerName, err)
@@ -344,8 +357,8 @@ func (s *Service) TouchAgentBrowserActivity(ctx context.Context, id ID) {
 	if !ValidID(id) {
 		return
 	}
-	s.browserMu.Lock()
-	defer s.browserMu.Unlock()
+	s.browserActivityMu.Lock()
+	defer s.browserActivityMu.Unlock()
 	if s.browserSeen == nil {
 		s.browserSeen = map[ID]time.Time{}
 	}
@@ -353,8 +366,8 @@ func (s *Service) TouchAgentBrowserActivity(ctx context.Context, id ID) {
 }
 
 func (s *Service) browserLastActivity(id ID) int64 {
-	s.browserMu.Lock()
-	defer s.browserMu.Unlock()
+	s.browserActivityMu.Lock()
+	defer s.browserActivityMu.Unlock()
 	if s.browserSeen == nil {
 		return 0
 	}
@@ -365,25 +378,36 @@ func (s *Service) browserLastActivity(id ID) int64 {
 	return t.UnixMilli()
 }
 
-// StartBrowserGUI ensures the project's container is running and brings up
-// the Agent Browser stack inside it. Returns the project meta (whose slug
-// the caller maps to the noVNC dev-URL) and the noVNC port. Idempotent.
-func (s *Service) StartBrowserGUI(ctx context.Context, id ID) (Meta, int, error) {
+// StartAgentBrowser ensures the project's container is running, records the
+// Agent Browser as starting, and provisions the stack in the background.
+// Idempotent while a start is already in flight.
+func (s *Service) StartAgentBrowser(ctx context.Context, id ID) (AgentBrowserInfo, error) {
 	m, err := s.Start(ctx, id)
 	if err != nil {
-		return Meta{}, 0, err
+		return AgentBrowserInfo{}, err
 	}
 	if s.containers == nil || m.ContainerName == "" {
-		return Meta{}, 0, errors.New("project has no container to run the browser in")
+		return AgentBrowserInfo{}, errors.New("project has no container to run the browser in")
 	}
 	s.TouchAgentBrowserActivity(ctx, id)
-	if err := s.containers.EnsureBrowserGUICore(ctx, m.ContainerName); err != nil {
-		return Meta{}, 0, err
+	if info, ok := s.agentBrowserState(id); ok && info.Status == AgentBrowserStatusStarting {
+		return info, nil
 	}
-	if err := s.containers.EnsureBrowserGUIView(ctx, m.ContainerName); err != nil {
-		return Meta{}, 0, err
+	current, err := s.containers.AgentBrowserStatus(ctx, m.ContainerName)
+	if err != nil {
+		return AgentBrowserInfo{}, err
 	}
-	return m, s.containers.BrowserGUIPort(), nil
+	if current.Status == AgentBrowserStatusReady {
+		current.Slug = m.Slug
+		current.Port = s.containers.AgentBrowserPort()
+		current.LastActivity = s.browserLastActivity(id)
+		s.setAgentBrowserState(id, current)
+		return current, nil
+	}
+
+	info, startID := s.beginAgentBrowserStart(id, m)
+	go s.ensureAgentBrowserStarted(id, startID, m)
+	return info, nil
 }
 
 // AgentBrowserStatus returns split core/view browser state and records a
@@ -396,27 +420,49 @@ func (s *Service) AgentBrowserStatus(ctx context.Context, id ID) (AgentBrowserIn
 	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
-	info := AgentBrowserInfo{Status: "stopped", Core: "off", View: "off"}
-	if s.containers != nil && m.ContainerName != "" {
-		next, err := s.containers.BrowserGUIStatus(ctx, m.ContainerName)
-		if err != nil {
-			return AgentBrowserInfo{}, err
-		}
-		info = next
-	}
-	info.Slug = m.Slug
-	if s.containers != nil {
-		info.Port = s.containers.BrowserGUIPort()
-	}
 	s.TouchAgentBrowserActivity(ctx, id)
+	info := s.agentBrowserInfoFor(m, AgentBrowserStatusStopped, "")
+	if s.containers == nil || m.ContainerName == "" {
+		info.LastActivity = s.browserLastActivity(id)
+		return info, nil
+	}
+	stored, hasStored := s.agentBrowserState(id)
+	containerInfo, err := s.containers.AgentBrowserStatus(ctx, m.ContainerName)
+	if err != nil {
+		return AgentBrowserInfo{}, err
+	}
+	containerInfo.Slug = m.Slug
+	containerInfo.Port = s.containers.AgentBrowserPort()
+	containerInfo.LastActivity = s.browserLastActivity(id)
+	if containerInfo.Core == "ready" {
+		info = containerInfo
+		if info.Status == AgentBrowserStatusCoreReady && info.View == "ready" {
+			info.Status = AgentBrowserStatusReady
+		}
+		s.setAgentBrowserState(id, info)
+		return info, nil
+	}
+	if hasStored {
+		switch stored.Status {
+		case AgentBrowserStatusStarting, AgentBrowserStatusError:
+			stored.LastActivity = s.browserLastActivity(id)
+			return stored, nil
+		case AgentBrowserStatusReady:
+			s.clearAgentBrowserState(id)
+		}
+	}
+	info.Core = containerInfo.Core
+	info.View = containerInfo.View
+	info.ViewerCount = containerInfo.ViewerCount
+	info.UptimeSec = containerInfo.UptimeSec
 	info.LastActivity = s.browserLastActivity(id)
 	return info, nil
 }
 
-// StopBrowserGUI tears down the Agent Browser stack in the project's
+// StopAgentBrowser tears down the Agent Browser stack in the project's
 // container, leaving the container running and the persistent browser
 // profile on disk so logins survive.
-func (s *Service) StopBrowserGUI(ctx context.Context, id ID) error {
+func (s *Service) StopAgentBrowser(ctx context.Context, id ID) error {
 	if !ValidID(id) {
 		return ErrInvalidID
 	}
@@ -425,13 +471,88 @@ func (s *Service) StopBrowserGUI(ctx context.Context, id ID) error {
 		return err
 	}
 	if s.containers == nil || m.ContainerName == "" {
+		s.clearAgentBrowserState(id)
 		return nil
 	}
-	return s.containers.StopBrowserGUI(ctx, m.ContainerName)
+	s.clearAgentBrowserState(id)
+	return s.containers.StopAgentBrowser(ctx, m.ContainerName)
 }
 
-// StopBrowserGUIView tears down only the human noVNC layer.
-func (s *Service) StopBrowserGUIView(ctx context.Context, id ID) error {
+func (s *Service) ensureAgentBrowserStarted(id ID, startID int64, m Meta) {
+	if err := s.containers.EnsureAgentBrowser(context.Background(), m.ContainerName); err != nil {
+		log.Printf("projects: start agent browser for %s: %v", id, err)
+		s.finishAgentBrowserStart(id, startID, s.agentBrowserInfoFor(m, AgentBrowserStatusError, err.Error()))
+		return
+	}
+	s.finishAgentBrowserStart(id, startID, s.agentBrowserInfoFor(m, AgentBrowserStatusReady, ""))
+}
+
+func (s *Service) agentBrowserInfoFor(m Meta, status AgentBrowserStatus, errMsg string) AgentBrowserInfo {
+	info := AgentBrowserInfo{
+		Status: status,
+		Slug:   m.Slug,
+		Error:  errMsg,
+	}
+	if s.containers != nil {
+		info.Port = s.containers.AgentBrowserPort()
+	}
+	return info
+}
+
+func (s *Service) agentBrowserState(id ID) (AgentBrowserInfo, bool) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	info, ok := s.agentBrowserInfo[id]
+	return info, ok
+}
+
+func (s *Service) setAgentBrowserState(id ID, info AgentBrowserInfo) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	s.ensureAgentBrowserStateLocked()
+	s.agentBrowserInfo[id] = info
+}
+
+func (s *Service) beginAgentBrowserStart(id ID, m Meta) (AgentBrowserInfo, int64) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	s.ensureAgentBrowserStateLocked()
+	s.agentBrowserStart[id]++
+	startID := s.agentBrowserStart[id]
+	info := s.agentBrowserInfoFor(m, AgentBrowserStatusStarting, "")
+	s.agentBrowserInfo[id] = info
+	return info, startID
+}
+
+func (s *Service) finishAgentBrowserStart(id ID, startID int64, info AgentBrowserInfo) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	s.ensureAgentBrowserStateLocked()
+	if s.agentBrowserStart[id] != startID {
+		return
+	}
+	s.agentBrowserInfo[id] = info
+}
+
+func (s *Service) clearAgentBrowserState(id ID) {
+	s.agentBrowserMu.Lock()
+	defer s.agentBrowserMu.Unlock()
+	s.ensureAgentBrowserStateLocked()
+	s.agentBrowserStart[id]++
+	delete(s.agentBrowserInfo, id)
+}
+
+func (s *Service) ensureAgentBrowserStateLocked() {
+	if s.agentBrowserInfo == nil {
+		s.agentBrowserInfo = make(map[ID]AgentBrowserInfo)
+	}
+	if s.agentBrowserStart == nil {
+		s.agentBrowserStart = make(map[ID]int64)
+	}
+}
+
+// StopAgentBrowserView tears down only the human noVNC layer.
+func (s *Service) StopAgentBrowserView(ctx context.Context, id ID) error {
 	if !ValidID(id) {
 		return ErrInvalidID
 	}
@@ -442,7 +563,7 @@ func (s *Service) StopBrowserGUIView(ctx context.Context, id ID) error {
 	if s.containers == nil || m.ContainerName == "" {
 		return nil
 	}
-	return s.containers.StopBrowserGUIView(ctx, m.ContainerName)
+	return s.containers.StopAgentBrowserView(ctx, m.ContainerName)
 }
 
 // StartAgentBrowserReaper stops browser stacks that have had no agent or pane
@@ -452,13 +573,13 @@ func (s *Service) StartAgentBrowserReaper(ctx context.Context, ttl time.Duration
 	if ttl <= 0 || s.containers == nil {
 		return
 	}
-	s.browserMu.Lock()
+	s.browserActivityMu.Lock()
 	if s.reaperOn {
-		s.browserMu.Unlock()
+		s.browserActivityMu.Unlock()
 		return
 	}
 	s.reaperOn = true
-	s.browserMu.Unlock()
+	s.browserActivityMu.Unlock()
 
 	go func() {
 		ticker := time.NewTicker(time.Minute)
@@ -485,27 +606,27 @@ func (s *Service) reapIdleAgentBrowsers(ttl time.Duration) {
 		if m.ContainerName == "" {
 			continue
 		}
-		s.browserMu.Lock()
+		s.browserActivityMu.Lock()
 		last, ok := s.browserSeen[m.ID]
 		if !ok || last.IsZero() {
 			if s.browserSeen == nil {
 				s.browserSeen = map[ID]time.Time{}
 			}
 			s.browserSeen[m.ID] = now
-			s.browserMu.Unlock()
+			s.browserActivityMu.Unlock()
 			continue
 		}
 		idle := now.Sub(last)
-		s.browserMu.Unlock()
+		s.browserActivityMu.Unlock()
 		if idle < ttl {
 			continue
 		}
 		statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		info, statusErr := s.containers.BrowserGUIStatus(statusCtx, m.ContainerName)
+		info, statusErr := s.containers.AgentBrowserStatus(statusCtx, m.ContainerName)
 		statusCancel()
 		if statusErr == nil && info.Core == "ready" {
 			stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
-			err := s.containers.StopBrowserGUI(stopCtx, m.ContainerName)
+			err := s.containers.StopAgentBrowser(stopCtx, m.ContainerName)
 			stopCancel()
 			if err != nil {
 				log.Printf("projects: browser reap %s/%s after %s: %v", m.ID, m.ContainerName, idle.Round(time.Second), err)
