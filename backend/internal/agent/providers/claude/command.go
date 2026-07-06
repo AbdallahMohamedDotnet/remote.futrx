@@ -111,6 +111,9 @@ func (p *Provider) buildCmd(
 			if err := p.containers.EnsureBrowserMCP(ctx, project.ContainerName); err != nil {
 				return nil, "", fmt.Errorf("provision browser MCP: %w", err)
 			}
+			if err := p.containers.EnsureBrowserGUICore(ctx, project.ContainerName); err != nil {
+				return nil, "", fmt.Errorf("start browser core: %w", err)
+			}
 		}
 		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)

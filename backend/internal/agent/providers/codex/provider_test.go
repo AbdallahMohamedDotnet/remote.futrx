@@ -73,6 +73,24 @@ func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 	}
 }
 
+func TestArgsIncludeBrowserMCPConfig(t *testing.T) {
+	provider := New(nil, nil)
+	args := provider.args(agent.RunRequest{EnableBrowser: true})
+
+	want := []string{
+		"exec",
+		"--json",
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"-c", `mcp_servers.browser.command="npx"`,
+		"-c", `mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222","--caps=vision"]`,
+		"-",
+	}
+	if !slices.Equal(args, want) {
+		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}
+}
+
 func TestEnsureHostSubscriptionAuthRejectsAPIKeyAuth(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))

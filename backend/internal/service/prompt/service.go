@@ -31,6 +31,10 @@ type ProjectResolver interface {
 	ListSecrets(ctx context.Context, id serviceproject.ID) ([]serviceproject.Secret, error)
 }
 
+type agentBrowserActivityRecorder interface {
+	TouchAgentBrowserActivity(ctx context.Context, id serviceproject.ID)
+}
+
 type ContainerPreparer interface {
 	EnsureClaude(ctx context.Context, containerName string) error
 	EnsureClaudeAuth(ctx context.Context, containerName string) error
@@ -38,6 +42,7 @@ type ContainerPreparer interface {
 	EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error
 	EnsureBrowserScript(ctx context.Context, containerName string) error
 	EnsureBrowserMCP(ctx context.Context, containerName string) error
+	EnsureBrowserGUICore(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error
 	EnsureCodex(ctx context.Context, containerName string) error
@@ -49,10 +54,11 @@ type ContainerPreparer interface {
 }
 
 type Service struct {
-	store  servicechat.Repository
-	tmux   TmuxClient
-	hub    *runhub.Hub
-	agents map[agent.ProviderID]agent.Provider
+	store    servicechat.Repository
+	tmux     TmuxClient
+	projects ProjectResolver
+	hub      *runhub.Hub
+	agents   map[agent.ProviderID]agent.Provider
 }
 
 func New(
@@ -66,9 +72,10 @@ func New(
 		hub = runhub.New(store)
 	}
 	return &Service{
-		store: store,
-		tmux:  tmux,
-		hub:   hub,
+		store:    store,
+		tmux:     tmux,
+		projects: projects,
+		hub:      hub,
 		agents: map[agent.ProviderID]agent.Provider{
 			agent.ProviderClaude: claudeprovider.New(projects, containers),
 			agent.ProviderCodex:  codexprovider.New(projects, containers),
@@ -150,6 +157,11 @@ func (rnr *Service) runPrompt(
 	providerID := providerIDFromChatProvider(meta.Provider)
 	resumeID := sessionIDForProvider(meta, providerID)
 	effectivePrompt := promptForMode(meta.Mode, prompt)
+	enableBrowser := hasBrowserSkill(meta.SelectedSkills)
+	if enableBrowser && meta.ProjectID != "" {
+		stopBrowserKeepalive := rnr.keepAgentBrowserActivity(ctx, serviceproject.ID(meta.ProjectID))
+		defer stopBrowserKeepalive()
+	}
 	if resumeID == "" {
 		effectivePrompt = promptWithVisibleHistory(priorEvents, effectivePrompt)
 	}
@@ -174,13 +186,35 @@ func (rnr *Service) runPrompt(
 		Config: map[string]any{
 			"reasoningEffort": meta.ReasoningEffort,
 		},
-		EnableBrowser: hasBrowserSkill(meta.SelectedSkills),
+		EnableBrowser: enableBrowser,
 	}, func(ev agent.Event) {
 		rnr.emitAgentEvent(ctx, id, ev, emit)
 	})
 	if err != nil && !errors.Is(err, agent.ErrRunFailed) {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " exit: " + err.Error()})
 	}
+}
+
+func (rnr *Service) keepAgentBrowserActivity(ctx context.Context, projectID serviceproject.ID) func() {
+	recorder, ok := rnr.projects.(agentBrowserActivityRecorder)
+	if !ok || recorder == nil {
+		return func() {}
+	}
+	recorder.TouchAgentBrowserActivity(ctx, projectID)
+	keepaliveCtx, cancel := context.WithCancel(ctx)
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-keepaliveCtx.Done():
+				return
+			case <-ticker.C:
+				recorder.TouchAgentBrowserActivity(keepaliveCtx, projectID)
+			}
+		}
+	}()
+	return cancel
 }
 
 func providerIDFromChatProvider(provider servicechat.Provider) agent.ProviderID {

@@ -27,6 +27,9 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	if effort := reasoningEffortFromConfig(req.Config); effort != "" {
 		common = append(common, "-c", "model_reasoning_effort="+effort)
 	}
+	if req.EnableBrowser {
+		common = append(common, browserMCPConfigArgs()...)
+	}
 	if req.ResumeID != "" {
 		args := append([]string{"exec", "resume"}, common...)
 		args = append(args, req.ResumeID, "-")
@@ -35,6 +38,13 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	args := append([]string{"exec"}, common...)
 	args = append(args, "-")
 	return args
+}
+
+func browserMCPConfigArgs() []string {
+	return []string{
+		"-c", `mcp_servers.browser.command="npx"`,
+		"-c", `mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222","--caps=vision"]`,
+	}
 }
 
 func sanitizeModel(model string) string {
@@ -122,6 +132,14 @@ func (p *Provider) buildCmd(
 			// Browser script provisioning is best-effort: its absence only
 			// matters when the agent tries to run scripts/browser.mjs.
 			_ = err
+		}
+		if req.EnableBrowser {
+			if err := p.containers.EnsureBrowserMCP(ctx, project.ContainerName); err != nil {
+				return nil, "", fmt.Errorf("provision browser MCP: %w", err)
+			}
+			if err := p.containers.EnsureBrowserGUICore(ctx, project.ContainerName); err != nil {
+				return nil, "", fmt.Errorf("start browser core: %w", err)
+			}
 		}
 		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)

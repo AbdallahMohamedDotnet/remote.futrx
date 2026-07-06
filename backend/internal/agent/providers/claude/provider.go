@@ -23,6 +23,7 @@ type ContainerPreparer interface {
 	EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error
 	EnsureBrowserScript(ctx context.Context, containerName string) error
 	EnsureBrowserMCP(ctx context.Context, containerName string) error
+	EnsureBrowserGUICore(ctx context.Context, containerName string) error
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error
 }
