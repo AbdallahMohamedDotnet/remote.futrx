@@ -192,6 +192,7 @@ func ensureHostSubscriptionAuth() error {
 func codexEnv(base []string) []string {
 	out := make([]string, 0, len(base)+1)
 	hasCodexHome := false
+	home := ""
 	for _, env := range base {
 		if strings.HasPrefix(env, "OPENAI_API_KEY=") {
 			continue
@@ -199,12 +200,15 @@ func codexEnv(base []string) []string {
 		if strings.HasPrefix(env, "CODEX_HOME=") {
 			hasCodexHome = true
 		}
+		if strings.HasPrefix(env, "HOME=") {
+			home = strings.TrimPrefix(env, "HOME=")
+		}
 		out = append(out, env)
 	}
 	if hasCodexHome {
 		return out
 	}
-	if home := os.Getenv("HOME"); home != "" {
+	if home != "" {
 		return append(out, "CODEX_HOME="+home+"/.codex")
 	}
 	return out

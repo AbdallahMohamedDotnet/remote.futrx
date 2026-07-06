@@ -180,7 +180,7 @@ func (f fakeCodexProjects) ListSecrets(context.Context, serviceproject.ID) ([]se
 }
 
 type fakeCodexContainers struct {
-	agentBrowserMCPCalls int
+	agentBrowserMCPCalls  int
 	agentBrowserCoreCalls int
 }
 

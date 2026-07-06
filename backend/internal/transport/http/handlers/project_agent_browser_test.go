@@ -138,16 +138,16 @@ func newAgentBrowserProjectHandler(t *testing.T) (*ProjectHandler, *fakeProjectC
 }
 
 type fakeProjectContainers struct {
-	mu                      sync.Mutex
-	agentBrowserRunning     bool
-	agentBrowserViewRunning bool
-	agentBrowserStarted     bool
-	agentBrowserStoppedFlag bool
+	mu                          sync.Mutex
+	agentBrowserRunning         bool
+	agentBrowserViewRunning     bool
+	agentBrowserStarted         bool
+	agentBrowserStoppedFlag     bool
 	agentBrowserViewStoppedFlag bool
-	agentBrowserStartedOnce sync.Once
-	agentBrowserAllowOnce   sync.Once
-	agentBrowserStartedCh   chan struct{}
-	agentBrowserAllowCh     chan struct{}
+	agentBrowserStartedOnce     sync.Once
+	agentBrowserAllowOnce       sync.Once
+	agentBrowserStartedCh       chan struct{}
+	agentBrowserAllowCh         chan struct{}
 }
 
 func newFakeProjectContainers() *fakeProjectContainers {

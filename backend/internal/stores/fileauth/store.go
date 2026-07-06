@@ -72,4 +72,3 @@ func (s *Store) SessionKey(ctx context.Context) ([]byte, error) {
 	}
 	return sessionKey, nil
 }
-

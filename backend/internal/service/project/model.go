@@ -23,11 +23,11 @@ const (
 )
 
 const (
-	AgentBrowserStatusStarting AgentBrowserStatus = "starting"
-	AgentBrowserStatusReady    AgentBrowserStatus = "ready"
+	AgentBrowserStatusStarting  AgentBrowserStatus = "starting"
+	AgentBrowserStatusReady     AgentBrowserStatus = "ready"
 	AgentBrowserStatusCoreReady AgentBrowserStatus = "core-ready"
-	AgentBrowserStatusError    AgentBrowserStatus = "error"
-	AgentBrowserStatusStopped  AgentBrowserStatus = "stopped"
+	AgentBrowserStatusError     AgentBrowserStatus = "error"
+	AgentBrowserStatusStopped   AgentBrowserStatus = "stopped"
 )
 
 type Meta struct {

@@ -100,7 +100,7 @@ func (f fakeClaudeProjects) ListSecrets(context.Context, serviceproject.ID) ([]s
 }
 
 type fakeClaudeContainers struct {
-	agentBrowserMCPCalls int
+	agentBrowserMCPCalls  int
 	agentBrowserCoreCalls int
 }
 

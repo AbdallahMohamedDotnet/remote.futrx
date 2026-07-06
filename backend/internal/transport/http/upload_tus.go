@@ -30,8 +30,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	tusd "github.com/tus/tusd/v2/pkg/handler"
 	"github.com/tus/tusd/v2/pkg/filestore"
+	tusd "github.com/tus/tusd/v2/pkg/handler"
 
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 )

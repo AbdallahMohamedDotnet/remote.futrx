@@ -261,16 +261,16 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 }
 
 type agentBrowserResponse struct {
-	Status serviceproject.AgentBrowserStatus `json:"status"`
-	URL    string                            `json:"url"`
-	Slug   string                            `json:"slug"`
-	Port   int                               `json:"port"`
-	Error  string                            `json:"error,omitempty"`
-	Core   string                            `json:"core,omitempty"`
-	View   string                            `json:"view,omitempty"`
-	ViewerCount int                          `json:"viewerCount,omitempty"`
-	UptimeSec int64                           `json:"uptimeSec,omitempty"`
-	LastActivity int64                        `json:"lastActivity,omitempty"`
+	Status       serviceproject.AgentBrowserStatus `json:"status"`
+	URL          string                            `json:"url"`
+	Slug         string                            `json:"slug"`
+	Port         int                               `json:"port"`
+	Error        string                            `json:"error,omitempty"`
+	Core         string                            `json:"core,omitempty"`
+	View         string                            `json:"view,omitempty"`
+	ViewerCount  int                               `json:"viewerCount,omitempty"`
+	UptimeSec    int64                             `json:"uptimeSec,omitempty"`
+	LastActivity int64                             `json:"lastActivity,omitempty"`
 }
 
 func (h *ProjectHandler) handleAgentBrowser(w http.ResponseWriter, r *http.Request, id serviceproject.ID, parts []string) {

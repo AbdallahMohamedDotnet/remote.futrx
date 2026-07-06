@@ -119,11 +119,11 @@ func (s *Service) Login(ctx context.Context, code string) (User, error) {
 }
 
 // claimOrAuthorize is the post-OAuth membership gate. Three branches:
-//   1. users.json empty       — promote the caller to the first admin.
-//   2. caller is registered   — allow the sign-in.
-//   3. caller not registered  — return NotInvitedError; the handler
-//                                redirects them to the "ask an admin to
-//                                add your email" screen.
+//  1. users.json empty       — promote the caller to the first admin.
+//  2. caller is registered   — allow the sign-in.
+//  3. caller not registered  — return NotInvitedError; the handler
+//     redirects them to the "ask an admin to
+//     add your email" screen.
 //
 // Mutex-serialized so concurrent first-time sign-ins can't both seed
 // themselves as the bootstrap admin.

@@ -301,4 +301,3 @@ func sessionCookieValue(r *http.Request) string {
 	}
 	return cookie.Value
 }
-
