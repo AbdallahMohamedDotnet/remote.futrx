@@ -18,6 +18,7 @@ export const CLAUDE_MODEL_OPTIONS: Array<{ value: string; label: string; sub: st
 
 export const CODEX_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
   { value: "", label: "Auto", sub: "codex default" },
+  { value: "gpt-5.6-sol", label: "GPT-5.6 Sol", sub: "flagship preview" },
   { value: "gpt-5.5", label: "GPT-5.5", sub: "frontier coding" },
   { value: "gpt-5.4", label: "GPT-5.4", sub: "strong everyday coding" },
   { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", sub: "fast" },
