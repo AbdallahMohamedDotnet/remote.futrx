@@ -68,10 +68,11 @@ docs/                            base-image.md, frontend-backend-api.md
 |---|---|
 | Caddyfile (permanent) | [`infra/templates/Caddyfile.tmpl`](infra/templates/Caddyfile.tmpl) |
 | Caddyfile (experimental) | `/etc/caddy/Caddyfile` + `systemctl reload caddy` — overwritten on next installer run |
-| Host dependency | [`infra/steps/01-host-deps.sh`](infra/steps/01-host-deps.sh) — guard so re-runs are no-ops |
+| Host dependency | [`infra/steps/01-host-deps.sh`](infra/steps/01-host-deps.sh) — re-runs converge agent CLIs to their pins |
+| Claude/Codex versions | [`agent-cli-versions.env`](backend/internal/manager/containers/agent-cli-versions.env) — shared by the host installer, base image, and container self-healing |
 | code-server version | `CODE_SERVER_VERSION=` in [`infra/steps/02-code-server.sh`](infra/steps/02-code-server.sh) |
 | Backend systemd unit | [`infra/templates/remote.futrx.dev.service.tmpl`](infra/templates/remote.futrx.dev.service.tmpl) |
-| Base-image contents (Node, Claude, Codex) | `BaseImageInstallScript` in [`backend/internal/manager/containers/baseimage.go`](backend/internal/manager/containers/baseimage.go) — Codex is expected to come from this image; old containers should be recreated after a Codex image change |
+| Base-image contents (Node, Claude, Codex) | `BaseImageInstallScript` in [`backend/internal/manager/containers/baseimage.go`](backend/internal/manager/containers/baseimage.go) — stale Claude/Codex binaries upgrade in place on next use |
 
 ## Services (systemd)
 

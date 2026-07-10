@@ -5,15 +5,16 @@ Every project container is launched from a custom LXD image, **`futrx-remote-dev
 ## What the image contains
 
 - Ubuntu 24.04 (from `ubuntu:24.04`)
-- Node.js 20 (via `deb.nodesource.com/setup_20.x`)
-- `@anthropic-ai/claude-code` (latest at build time)
-- `@openai/codex` (latest at build time)
+- Node.js 22 (via `deb.nodesource.com/setup_22.x`)
+- `@anthropic-ai/claude-code` (repository-pinned version)
+- `@openai/codex` (repository-pinned version)
 
-The exact recipe lives in one place in the codebase:
+The recipe and shared version manifest live in the container manager:
 
-- [`internal/manager/containers/baseimage.go`](../backend/internal/manager/containers/baseimage.go) — the `BaseImageInstallScript` constant.
+- [`internal/manager/containers/baseimage.go`](../backend/internal/manager/containers/baseimage.go) — the `BaseImageInstallScript` recipe.
+- [`internal/manager/containers/agent-cli-versions.env`](../backend/internal/manager/containers/agent-cli-versions.env) — the Claude Code and Codex pins used by the image, runtime repair, and host installer.
 
-Codex is expected to be present in the published image. Prompt runs only verify that `codex` exists; they do not run apt/npm installs inside project containers. If an older container is missing Codex, recreate that project container from the current image.
+Prompt runs compare the installed Claude Code or Codex version with the repository pin. A current container only pays for a local `--version` check; a missing or stale CLI is upgraded in place before the agent starts. This lets existing containers adopt model-compatibility updates without being recreated.
 
 ## Building / rebuilding the image
 
@@ -38,13 +39,13 @@ Typical runtime: 60-120s. The CLI logs progress and prints the published alias o
 
 ## Effect on existing containers
 
-Rebuilding the image only affects **new** containers (launched from this point forward). Existing containers keep whatever Node / agent CLIs they were created with. Three ways to bring them up to date — pick based on whether you care about preserving their non-`/workspace` state:
+Rebuilding the image immediately affects **new** containers. Existing containers keep their old rootfs, but Claude Code and Codex converge to the pinned versions the next time that provider runs. You can still force convergence operationally:
 
 | Path | Effect | Command |
 | --- | --- | --- |
-| **Lazy** | New projects get the new image; old containers keep their old versions. | Nothing — just rebuild and move on. |
+| **Automatic** | Existing containers upgrade a stale Claude Code or Codex CLI on the next prompt. | Nothing — deploy the backend and use the provider. |
 | **Force-recreate** | Wipe an old project container; the next project start re-launches it from the new image. Workspace files are bind-mounted so they survive; anything custom in the rootfs is gone. | `lxc delete --force <project-container>` |
-| **In-place upgrade** | Run a targeted CLI upgrade inside selected existing containers. Slow and manual; use only when preserving rootfs state matters. | `lxc exec <container> -- npm install -g @openai/codex` |
+| **Manual in-place upgrade** | Upgrade immediately instead of waiting for the next prompt. | `lxc exec <container> -- npm install -g @openai/codex@<pin> @anthropic-ai/claude-code@<pin>` |
 
 ## Bootstrap on a fresh host
 

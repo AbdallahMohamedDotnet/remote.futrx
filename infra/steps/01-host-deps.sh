@@ -74,17 +74,36 @@ fi
 ok "$(caddy version | head -1)"
 
 # ───────────────── agent CLIs (host-side auth/provisioning) ─────────────────
-if ! command -v claude >/dev/null; then
-    log "Installing Claude Code CLI (via npm)"
-    npm install -g @anthropic-ai/claude-code --silent 2>&1 | tail -3
+# The same manifest is embedded by the Go container manager. Re-running the
+# installer upgrades stale host binaries instead of only checking existence.
+AGENT_CLI_VERSIONS_FILE="$INFRA_DIR/../backend/internal/manager/containers/agent-cli-versions.env"
+if [ ! -r "$AGENT_CLI_VERSIONS_FILE" ]; then
+    err "missing agent CLI version manifest: $AGENT_CLI_VERSIONS_FILE"
+    exit 1
 fi
-ok "claude $(claude --version 2>&1 | head -1)"
+# shellcheck source=/dev/null
+. "$AGENT_CLI_VERSIONS_FILE"
 
-if ! command -v codex >/dev/null; then
-    log "Installing Codex CLI (via npm)"
-    npm install -g @openai/codex --silent 2>&1 | tail -3
-fi
-ok "codex $(codex --version 2>&1 | head -1)"
+agent_cli_version() {
+    "$1" --version 2>&1 \
+        | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?' \
+        | head -1 || true
+}
+
+ensure_agent_cli() {
+    local label="$1" binary="$2" package="$3" expected="$4" current=""
+    if command -v "$binary" >/dev/null; then
+        current="$(agent_cli_version "$binary")"
+    fi
+    if [ "$current" != "$expected" ]; then
+        log "Installing $label $expected (was ${current:-missing})"
+        npm install -g "${package}@${expected}" --silent 2>&1 | tail -3
+    fi
+    ok "$label $("$binary" --version 2>&1 | head -1)"
+}
+
+ensure_agent_cli "Claude Code" claude @anthropic-ai/claude-code "$CLAUDE_CODE_VERSION"
+ensure_agent_cli "Codex" codex @openai/codex "$CODEX_CLI_VERSION"
 
 # ───────────────── LXD (one container per project) ─────────────────
 if ! command -v lxc >/dev/null; then

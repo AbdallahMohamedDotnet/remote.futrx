@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 )
@@ -22,7 +21,6 @@ const (
 
 var (
 	ErrCodexAPIKeyAuth = errors.New("Codex is logged in with an API key; run codex login with ChatGPT to use subscription limits")
-	ErrCodexMissing    = errors.New("Codex CLI is missing from the project container; recreate the container from futrx-remote-dev-base")
 )
 
 func CodexAuthBundle() AuthBundle {
@@ -77,19 +75,9 @@ func codexAuthUsesAPIKey(path string) bool {
 	return mode == "apikey"
 }
 
+// EnsureCodex installs or upgrades Codex to the repository pin. This keeps
+// existing project containers compatible with newly exposed models such as
+// GPT-5.6 Sol without requiring a destructive container recreation.
 func (m *Manager) EnsureCodex(ctx context.Context, containerName string) error {
-	if !m.Available() {
-		return errors.New("lxc not available")
-	}
-	if m.codexInstalled(ctx, containerName) {
-		return nil
-	}
-	return fmt.Errorf("%w: %s", ErrCodexMissing, containerName)
-}
-
-func (m *Manager) codexInstalled(ctx context.Context, containerName string) bool {
-	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	_, err := m.lxc.Run(quickCtx, "exec", containerName, "--", "which", "codex")
-	return err == nil
+	return m.ensureAgentCLI(ctx, containerName, codexCLISpec)
 }

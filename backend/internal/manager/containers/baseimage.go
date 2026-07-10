@@ -3,11 +3,9 @@ package containers
 // Base-image provisioning. The same install script is used in two places:
 //   1. As the recipe baked into the published futrx-remote-dev-base LXD image
 //      (run once by cmd/build-base-image on a fresh ubuntu:24.04 builder).
-//   2. As the fallback in EnsureClaude — runs inside an already-running
-//      container if Claude is missing (covers older proj-* containers that
-//      pre-date the custom image). Codex is required from the base image so
-//      prompt runs do not trigger apt/npm installs.
-// Keeping it in one constant guarantees the two paths can never drift.
+//   2. As the fallback when an already-running container predates Node/npm.
+// Claude and Codex versions come from the embedded agent CLI manifest, so
+// image builds and runtime repair use the same tested pins.
 
 import (
 	"context"
@@ -38,9 +36,9 @@ const (
 )
 
 // BaseImageInstallScript is the shell recipe that turns a fresh
-// ubuntu:24.04 rootfs into the futrx-remote-dev-base image. It is also the
-// fallback EnsureClaude run inside an already-launched container.
-const BaseImageInstallScript = `set -e
+// ubuntu:24.04 rootfs into the futrx-remote-dev-base image. It also repairs
+// very old containers that do not have npm available for a targeted update.
+var BaseImageInstallScript = `set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 
@@ -67,7 +65,7 @@ apt-get update -qq
 apt-get install -y -qq gh
 
 # Agent CLIs.
-npm install -g @anthropic-ai/claude-code @openai/codex @moonshot-ai/kimi-code@0.19.2 --silent 2>&1 | tail -8
+npm install -g ` + claudeCLISpec.npmPackage() + ` ` + codexCLISpec.npmPackage() + ` @moonshot-ai/kimi-code@0.19.2 --silent 2>&1 | tail -8
 
 # Sanity check the full toolchain.
 which claude codex kimi git gh jq node npm python3 ssh

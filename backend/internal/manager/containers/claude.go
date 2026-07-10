@@ -7,10 +7,6 @@ package containers
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
-	"time"
 )
 
 const (
@@ -73,66 +69,9 @@ func (m *Manager) SyncClaudeAuthFromContainer(ctx context.Context, containerName
 	return m.SyncAuthBundleFromContainer(ctx, containerName, ClaudeAuthBundle())
 }
 
-// EnsureClaude installs the Anthropic Claude CLI inside the container if it
-// isn't already present. Safe to call on every prompt — no-ops once
-// installed; coalesces concurrent installs by polling when one is already
-// running.
+// EnsureClaude installs or upgrades Claude Code to the repository pin.
+// Safe to call on every prompt: current containers only pay for a local
+// version check, while stale containers self-heal in place.
 func (m *Manager) EnsureClaude(ctx context.Context, containerName string) error {
-	if !m.Available() {
-		return errors.New("lxc not available")
-	}
-	if m.claudeInstalled(ctx, containerName) {
-		return nil
-	}
-	if m.claudeInstallRunning(ctx, containerName) {
-		waitCtx, cancelW := context.WithTimeout(ctx, 2*time.Minute)
-		defer cancelW()
-		if err := m.waitForClaude(waitCtx, containerName); err == nil {
-			return nil
-		}
-	}
-
-	installCtx, cancelI := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancelI()
-	out, err := m.lxc.Run(installCtx, "exec", containerName, "--", "bash", "-c", BaseImageInstallScript)
-	if err != nil {
-		waitCtx, cancelW := context.WithTimeout(ctx, 90*time.Second)
-		defer cancelW()
-		if waitErr := m.waitForClaude(waitCtx, containerName); waitErr == nil {
-			return nil
-		}
-		return fmt.Errorf("install claude in %s: %w; output: %s",
-			containerName, err, truncateOut(out, 1000))
-	}
-	return nil
-}
-
-func (m *Manager) claudeInstalled(ctx context.Context, containerName string) bool {
-	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	_, err := m.lxc.Run(quickCtx, "exec", containerName, "--", "which", "claude")
-	return err == nil
-}
-
-func (m *Manager) claudeInstallRunning(ctx context.Context, containerName string) bool {
-	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--",
-		"pgrep", "-f", "npm install.*@anthropic-ai/claude-code")
-	return err == nil && strings.TrimSpace(out) != ""
-}
-
-func (m *Manager) waitForClaude(ctx context.Context, containerName string) error {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		if m.claudeInstalled(ctx, containerName) {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-		}
-	}
+	return m.ensureAgentCLI(ctx, containerName, claudeCLISpec)
 }
