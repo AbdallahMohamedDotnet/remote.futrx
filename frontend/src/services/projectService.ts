@@ -23,6 +23,8 @@ export const projectService = {
     json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/stop`, {}),
   containerInfo: (id: string) =>
     json<ProjectContainerInfo>("GET", `/api/projects/${encodeURIComponent(id)}/container`),
+  repairNetwork: (id: string) =>
+    json<ProjectContainerInfo>("POST", `/api/projects/${encodeURIComponent(id)}/repair-network`, {}),
   listApps: (id: string) =>
     json<ContainerApp[]>("GET", `/api/projects/${encodeURIComponent(id)}/apps`),
   agentBrowserStatus: (id: string) =>

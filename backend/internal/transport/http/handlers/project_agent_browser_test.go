@@ -175,6 +175,8 @@ func (f *fakeProjectContainers) Inspect(context.Context, string) (serviceproject
 	return serviceproject.ContainerInspect{}, nil
 }
 
+func (f *fakeProjectContainers) RepairNetwork(context.Context, string) error { return nil }
+
 func (f *fakeProjectContainers) ListListeners(context.Context, string) ([]serviceproject.ContainerApp, error) {
 	return nil, nil
 }

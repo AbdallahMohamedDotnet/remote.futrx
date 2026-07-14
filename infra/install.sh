@@ -205,6 +205,8 @@ fi
 . "$INFRA_DIR/steps/06-base-image.sh"
 # shellcheck source=steps/07-ssh-hardening.sh
 . "$INFRA_DIR/steps/07-ssh-hardening.sh"
+# shellcheck source=steps/08-lxc-ipv4-heal.sh
+. "$INFRA_DIR/steps/08-lxc-ipv4-heal.sh"
 
 # ───────────────── summary ─────────────────
 cat <<EOF

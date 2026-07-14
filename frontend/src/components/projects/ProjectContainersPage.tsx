@@ -44,6 +44,7 @@ export function ProjectContainersPage({
   onAddMember,
   onRemoveMember,
   onRefreshSecrets,
+  onRepairNetwork,
   onStartProject,
   onStopProject,
   onDeleteProject,
@@ -61,6 +62,7 @@ export function ProjectContainersPage({
   onAddMember: (email: string) => Promise<void>;
   onRemoveMember: (email: string) => Promise<void>;
   onRefreshSecrets: () => void;
+  onRepairNetwork: () => Promise<void>;
   onStartProject: () => Promise<void>;
   onStopProject: () => Promise<void>;
   onDeleteProject: () => Promise<void>;
@@ -111,7 +113,7 @@ export function ProjectContainersPage({
             <>
               <ProjectHeader project={project} info={infoRecord.data} refreshedAt={infoRecord.refreshedAt} />
               <CollapsibleSection title="Info" defaultOpen={true} subtitle={infoSubtitle(infoRecord)}>
-                <InfoBody project={project} record={infoRecord} />
+                <InfoBody project={project} record={infoRecord} onRepairNetwork={onRepairNetwork} />
               </CollapsibleSection>
               <CollapsibleSection title="Settings" defaultOpen={false} subtitle={project.status || "unknown"}>
                 <ProjectActions
@@ -458,9 +460,11 @@ function ProjectHeader({
 function InfoBody({
   project,
   record,
+  onRepairNetwork,
 }: {
   project: ProjectMeta;
   record: ProjectContainerRecord;
+  onRepairNetwork: () => Promise<void>;
 }) {
   if (record.error) {
     return (
@@ -499,7 +503,7 @@ function InfoBody({
       {info.os && <OSPanel os={info.os} />}
       {info.resources && <ResourcesPanel res={info.resources} />}
       {info.disks && info.disks.length > 0 && <DisksPanel disks={info.disks} />}
-      {info.network && info.network.length > 0 && <NetworkPanel ifaces={info.network} />}
+      {info.network && info.network.length > 0 && <NetworkPanel ifaces={info.network} onRepair={onRepairNetwork} />}
       {info.workspace && <WorkspacePanel ws={info.workspace} />}
       {info.limits && <LimitsPanel limits={info.limits} />}
       <ClaudePanel claude={info.claude} />
@@ -830,10 +834,40 @@ function DisksPanel({ disks }: { disks: DiskUsage[] }) {
   );
 }
 
-function NetworkPanel({ ifaces }: { ifaces: NetworkInterface[] }) {
+function NetworkPanel({ ifaces, onRepair }: { ifaces: NetworkInterface[]; onRepair: () => Promise<void> }) {
+  const [repairing, setRepairing] = useState(false);
+  const [repairErr, setRepairErr] = useState<string | null>(null);
+  const noIPv4 = !ifaces.some((n) => (n.addresses ?? []).some((a) => a.split("/")[0].includes(".")));
+
+  async function repair() {
+    setRepairing(true);
+    setRepairErr(null);
+    try {
+      await onRepair();
+    } catch (e) {
+      setRepairErr((e as Error).message);
+    } finally {
+      setRepairing(false);
+    }
+  }
+
   return (
     <Panel title="Network">
       <div class="space-y-2">
+        {noIPv4 && (
+          <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
+            <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
+            <div class="text-accent-red break-words">
+              No IPv4 address — the container has no internet access. Use "Repair network" to re-run DHCP.
+            </div>
+          </div>
+        )}
+        {repairErr && (
+          <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
+            <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
+            <div class="text-accent-red break-words">{repairErr}</div>
+          </div>
+        )}
         {ifaces.map((n) => (
           <div
             key={n.name}
@@ -859,6 +893,15 @@ function NetworkPanel({ ifaces }: { ifaces: NetworkInterface[] }) {
           </div>
         ))}
       </div>
+      <button
+        type="button"
+        onClick={() => void repair()}
+        disabled={repairing}
+        class="mt-2 h-9 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-[13px] font-medium text-ink-100 hover:bg-white/[0.08] disabled:opacity-45 disabled:cursor-not-allowed"
+        title="Re-runs DHCP on eth0 inside the container. Fixes the 'running but no internet' state."
+      >
+        {repairing ? "Repairing network..." : "Repair network"}
+      </button>
     </Panel>
   );
 }

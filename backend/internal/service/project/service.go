@@ -337,6 +337,47 @@ func (s *Service) InspectContainer(ctx context.Context, id ID) (ContainerInspect
 	return s.containers.Inspect(ctx, m.ContainerName)
 }
 
+// RepairNetwork re-runs eth0 configuration inside the project's container
+// and returns a fresh inspection once an IPv4 address is back (or after a
+// short grace period if DHCP is slow). Manual recovery for the
+// networkd-dropped-lease failure mode.
+func (s *Service) RepairNetwork(ctx context.Context, id ID) (ContainerInspect, error) {
+	if !ValidID(id) {
+		return ContainerInspect{}, ErrInvalidID
+	}
+	m, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return ContainerInspect{}, err
+	}
+	if s.containers == nil || m.ContainerName == "" {
+		return ContainerInspect{Name: m.ContainerName}, nil
+	}
+	if err := s.containers.RepairNetwork(ctx, m.ContainerName); err != nil {
+		return ContainerInspect{}, err
+	}
+	info, err := s.containers.Inspect(ctx, m.ContainerName)
+	for i := 0; i < 5 && err == nil && !hasIPv4(info); i++ {
+		select {
+		case <-ctx.Done():
+			return info, err
+		case <-time.After(time.Second):
+		}
+		info, err = s.containers.Inspect(ctx, m.ContainerName)
+	}
+	return info, err
+}
+
+func hasIPv4(info ContainerInspect) bool {
+	for _, n := range info.Network {
+		for _, a := range n.Addresses {
+			if strings.Count(a, ".") == 3 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (s *Service) ListContainerApps(ctx context.Context, id ID) ([]ContainerApp, error) {
 	if !ValidID(id) {
 		return nil, ErrInvalidID

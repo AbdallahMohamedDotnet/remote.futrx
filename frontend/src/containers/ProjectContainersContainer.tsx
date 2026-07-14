@@ -168,6 +168,12 @@ export function ProjectContainersContainer({
     [selectedProject]
   );
 
+  const onRepairNetwork = useCallback(async () => {
+    if (!selectedProject) return;
+    const data = await projectService.repairNetwork(selectedProject.id);
+    setInfoRecord({ loading: false, data, refreshedAt: Date.now() });
+  }, [selectedProject]);
+
   const onStartProject = useCallback(async () => {
     if (!selectedProject) return;
     await projectService.start(selectedProject.id);
@@ -211,6 +217,7 @@ export function ProjectContainersContainer({
       onAddMember={onAddMember}
       onRemoveMember={onRemoveMember}
       onRefreshSecrets={() => void loadSecrets()}
+      onRepairNetwork={onRepairNetwork}
       onStartProject={onStartProject}
       onStopProject={onStopProject}
       onDeleteProject={onDeleteProject}

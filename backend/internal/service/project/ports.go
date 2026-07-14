@@ -20,6 +20,10 @@ type ContainerManager interface {
 	Delete(ctx context.Context, containerName string) error
 	State(ctx context.Context, containerName string) (ContainerState, error)
 	Inspect(ctx context.Context, containerName string) (ContainerInspect, error)
+	// RepairNetwork re-runs eth0 configuration (DHCP) inside the container --
+	// recovers the "RUNNING but no IPv4" state systemd-networkd leaves after
+	// rtnl timeouts under host load.
+	RepairNetwork(ctx context.Context, containerName string) error
 	ListListeners(ctx context.Context, containerName string) ([]ContainerApp, error)
 	// ApplyContainerEnvDiff sets / unsets LXD environment.<KEY> entries on the
 	// container so subsequent `lxc exec` sessions inherit the vars. Used by
