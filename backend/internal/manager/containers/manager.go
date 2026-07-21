@@ -8,11 +8,11 @@ package containers
 // install, CLAUDE.md template).
 
 import (
+	"context"
+	"io"
 	"os"
 	"sync"
 	"time"
-
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 )
 
 const (
@@ -32,18 +32,26 @@ const (
 	queryTimeout  = 10 * time.Second
 )
 
-// Manager is the value passed to services that need to launch / drive
+// CommandRunner is the transport seam used to invoke the container runtime.
+// The LXC CLI adapter implements it at the application composition root.
+type CommandRunner interface {
+	Available() bool
+	Run(ctx context.Context, args ...string) (string, error)
+	RunStdin(ctx context.Context, stdin io.Reader, args ...string) (string, error)
+}
+
+// Manager is the value passed to services that need to launch or drive
 // containers. Wire it up once in main and share the pointer.
 type Manager struct {
-	lxc   *lxc.Client
+	lxc   CommandRunner
 	image string
 
 	mu      sync.RWMutex
 	bundles []AuthBundle
 }
 
-// New returns a Manager that delegates CLI calls to the supplied lxc.Client.
-func New(client *lxc.Client) *Manager {
+// New returns a Manager that delegates CLI calls to the supplied runner.
+func New(client CommandRunner) *Manager {
 	return &Manager{lxc: client, image: defaultImage}
 }
 
