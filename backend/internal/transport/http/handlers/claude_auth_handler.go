@@ -12,11 +12,11 @@ import (
 )
 
 type ClaudeAuthHandler struct {
-	login *claudelogin.Manager
+	login *claudelogin.Service
 	auth  *serviceauth.Service
 }
 
-func NewClaudeAuthHandler(login *claudelogin.Manager, auth *serviceauth.Service) *ClaudeAuthHandler {
+func NewClaudeAuthHandler(login *claudelogin.Service, auth *serviceauth.Service) *ClaudeAuthHandler {
 	return &ClaudeAuthHandler{login: login, auth: auth}
 }
 

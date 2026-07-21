@@ -9,10 +9,10 @@ import (
 )
 
 type ClaudeAuthSocket struct {
-	login *claudelogin.Manager
+	login *claudelogin.Service
 }
 
-func NewClaudeAuthSocket(login *claudelogin.Manager) *ClaudeAuthSocket {
+func NewClaudeAuthSocket(login *claudelogin.Service) *ClaudeAuthSocket {
 	return &ClaudeAuthSocket{login: login}
 }
 

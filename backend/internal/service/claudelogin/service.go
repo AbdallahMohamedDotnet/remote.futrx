@@ -1,6 +1,6 @@
 package claudelogin
 
-// Manager owns the single interactive `claude auth login --claudeai` process.
+// Service owns the single interactive `claude auth login --claudeai` process.
 // HTTP handlers stay in transport/http; this package only deals with process
 // lifecycle, PTY IO, and credential detection.
 
@@ -35,7 +35,7 @@ var (
 	claudeAuthURLRe = regexp.MustCompile(`https://claude\.com/cai/oauth/authorize\?[^\s]+`)
 )
 
-type Manager struct {
+type Service struct {
 	mu      sync.Mutex
 	session *loginSession
 	state   LoginState
@@ -80,28 +80,28 @@ type loginSession struct {
 	exitErr error
 }
 
-func New() *Manager {
-	return &Manager{subs: map[chan Status]struct{}{}}
+func New() *Service {
+	return &Service{subs: map[chan Status]struct{}{}}
 }
 
-func (m *Manager) Authenticated() bool {
+func (m *Service) Authenticated() bool {
 	return authenticated()
 }
 
 // Status returns the current auth snapshot (authenticated flag + login state).
-func (m *Manager) Status() Status {
+func (m *Service) Status() Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.statusLocked()
 }
 
-func (m *Manager) statusLocked() Status {
+func (m *Service) statusLocked() Status {
 	return Status{Authenticated: authenticated(), Login: m.state}
 }
 
 // Subscribe registers a status channel and immediately delivers the current
-// snapshot. The returned func unsubscribes. Mirrors codexauth.Manager.
-func (m *Manager) Subscribe() (<-chan Status, func()) {
+// snapshot. The returned func unsubscribes. Mirrors codexauth.Service.
+func (m *Service) Subscribe() (<-chan Status, func()) {
 	ch := make(chan Status, 8)
 	m.mu.Lock()
 	if m.subs == nil {
@@ -124,13 +124,13 @@ func (m *Manager) Subscribe() (<-chan Status, func()) {
 }
 
 // Broadcast pushes the current status to every subscriber.
-func (m *Manager) Broadcast() {
+func (m *Service) Broadcast() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.broadcastLocked()
 }
 
-func (m *Manager) broadcastLocked() {
+func (m *Service) broadcastLocked() {
 	status := m.statusLocked()
 	for ch := range m.subs {
 		select {
@@ -143,18 +143,18 @@ func (m *Manager) broadcastLocked() {
 }
 
 // setStateLocked mutates login state and notifies subscribers atomically.
-func (m *Manager) setStateLocked(state LoginState) {
+func (m *Service) setStateLocked(state LoginState) {
 	m.state = state
 	m.broadcastLocked()
 }
 
-func (m *Manager) setState(state LoginState) {
+func (m *Service) setState(state LoginState) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.setStateLocked(state)
 }
 
-func (m *Manager) Start(ctx context.Context) (StartResult, error) {
+func (m *Service) Start(ctx context.Context) (StartResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -232,7 +232,7 @@ func (m *Manager) Start(ctx context.Context) (StartResult, error) {
 	}
 }
 
-func (m *Manager) SubmitCode(ctx context.Context, code string) error {
+func (m *Service) SubmitCode(ctx context.Context, code string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -285,7 +285,7 @@ func (m *Manager) SubmitCode(ctx context.Context, code string) error {
 	return nil
 }
 
-func (m *Manager) Cancel(ctx context.Context) error {
+func (m *Service) Cancel(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -305,13 +305,13 @@ func (m *Manager) Cancel(ctx context.Context) error {
 	}
 }
 
-func (m *Manager) current() *loginSession {
+func (m *Service) current() *loginSession {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.session
 }
 
-func (m *Manager) clear(sess *loginSession) {
+func (m *Service) clear(sess *loginSession) {
 	m.mu.Lock()
 	if m.session == sess {
 		m.session = nil
