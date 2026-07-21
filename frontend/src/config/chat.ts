@@ -6,14 +6,14 @@ export const PROVIDER_OPTIONS: Array<{ value: ChatProvider; label: string }> = [
   { value: "kimi", label: "Kimi" },
 ];
 
-export const CLAUDE_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
+const CLAUDE_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
   { value: "", label: "Auto", sub: "server default" },
   { value: "opus", label: "Opus", sub: "deepest reasoning" },
   { value: "sonnet", label: "Sonnet", sub: "balanced" },
   { value: "haiku", label: "Haiku", sub: "fast" },
 ];
 
-export const CODEX_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
+const CODEX_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
   { value: "", label: "Auto", sub: "codex default" },
   { value: "gpt-5.6-sol", label: "GPT-5.6 Sol", sub: "flagship preview" },
   { value: "gpt-5.5", label: "GPT-5.5", sub: "frontier coding" },
@@ -22,7 +22,7 @@ export const CODEX_MODEL_OPTIONS: Array<{ value: string; label: string; sub: str
   { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", sub: "coding optimized" },
 ];
 
-export const KIMI_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
+const KIMI_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
   { value: "", label: "Auto", sub: "kimi default" },
 ];
 
