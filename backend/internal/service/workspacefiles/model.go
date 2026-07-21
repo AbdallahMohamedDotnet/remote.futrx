@@ -6,22 +6,23 @@ import (
 )
 
 type Node struct {
-	Name     string  `json:"name"`
-	Path     string  `json:"path"`
-	IsDir    bool    `json:"isDir"`
-	Size     int64   `json:"size,omitempty"`
-	ModTime  int64   `json:"modTime,omitempty"`
-	Children []*Node `json:"children,omitempty"`
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	IsDir   bool   `json:"isDir"`
+	Size    int64  `json:"size,omitempty"`
+	ModTime int64  `json:"modTime,omitempty"`
 }
 
-type Tree struct {
-	Dir      string  `json:"dir"`
-	Exists   bool    `json:"exists"`
-	Children []*Node `json:"children"`
-}
-
+// Listing is the contents of a single directory within the workspace.
 type Listing struct {
-	Trees     []*Tree `json:"trees"`
+	Path      string  `json:"path"`
+	Entries   []*Node `json:"entries"`
+	Truncated bool    `json:"truncated"`
+}
+
+// SearchResult is a flat set of workspace entries whose name matched a query.
+type SearchResult struct {
+	Entries   []*Node `json:"entries"`
 	Truncated bool    `json:"truncated"`
 }
 
@@ -40,8 +41,9 @@ func (f *File) Close() error {
 }
 
 type Archive struct {
-	Name string
-	path string
+	Name     string
+	root     string
+	relative string
 }
 
 type Media struct {

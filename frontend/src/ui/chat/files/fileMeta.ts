@@ -1,5 +1,3 @@
-import type { FileNode } from "../../../models/files";
-
 export type FileCategory =
   | "image"
   | "video"
@@ -42,72 +40,8 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(value < 10 ? 1 : 0)} ${units[i]}`;
 }
 
-/** Stable expand-state key for a folder within a given dir tree. */
-export function nodeKey(dir: string, p: string): string {
-  return `${dir}:${p}`;
-}
-
-export function countFiles(nodes?: FileNode[]): number {
-  if (!nodes) return 0;
-  let total = 0;
-  for (const node of nodes) {
-    total += node.isDir ? countFiles(node.children) : 1;
-  }
-  return total;
-}
-
-export function treeStats(nodes: FileNode[]): { files: number; size: number } {
-  let files = 0;
-  let size = 0;
-  const walk = (list: FileNode[]) => {
-    for (const node of list) {
-      if (node.isDir) {
-        if (node.children) walk(node.children);
-      } else {
-        files++;
-        size += node.size ?? 0;
-      }
-    }
-  };
-  walk(nodes);
-  return { files, size };
-}
-
-/** Every folder key in the tree — used by "expand all". */
-export function collectFolderKeys(dir: string, nodes: FileNode[], acc: Set<string>): Set<string> {
-  for (const node of nodes) {
-    if (node.isDir) {
-      acc.add(nodeKey(dir, node.path));
-      if (node.children) collectFolderKeys(dir, node.children, acc);
-    }
-  }
-  return acc;
-}
-
-/**
- * Prune a tree to files whose name matches the query (case-insensitive) plus
- * their ancestor folders, accumulating the folder keys that must be force-open
- * so every match is visible.
- */
-export function filterTree(
-  dir: string,
-  nodes: FileNode[],
-  query: string,
-  openAcc: Set<string>
-): FileNode[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return nodes;
-  const out: FileNode[] = [];
-  for (const node of nodes) {
-    if (node.isDir) {
-      const kids = node.children ? filterTree(dir, node.children, query, openAcc) : [];
-      if (kids.length > 0 || node.name.toLowerCase().includes(q)) {
-        openAcc.add(nodeKey(dir, node.path));
-        out.push({ ...node, children: kids });
-      }
-    } else if (node.name.toLowerCase().includes(q)) {
-      out.push(node);
-    }
-  }
-  return out;
+/** The parent directory path of a workspace-relative path ("" = workspace root). */
+export function parentDir(path: string): string {
+  const slash = path.lastIndexOf("/");
+  return slash < 0 ? "" : path.slice(0, slash);
 }

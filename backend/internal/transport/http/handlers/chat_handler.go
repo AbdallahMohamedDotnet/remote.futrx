@@ -120,6 +120,8 @@ func (h *ChatHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			h.handleMediaOpen(w, r, meta)
 		case "files":
 			h.handleFilesList(w, r, meta)
+		case "files/search":
+			h.handleFilesSearch(w, r, meta)
 		case "files/download":
 			h.handleFilesDownload(w, r, meta)
 		case "files/download-folder":

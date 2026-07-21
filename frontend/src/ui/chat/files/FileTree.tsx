@@ -11,9 +11,10 @@ import {
   Folder,
   FolderOpen,
   Image,
+  Loader,
   Music,
 } from "../../primitives/icons";
-import { categorize, countFiles, formatBytes, nodeKey, type FileCategory } from "./fileMeta";
+import { categorize, formatBytes, parentDir, type FileCategory } from "./fileMeta";
 
 type IconComponent = (props: JSX.SVGAttributes<SVGSVGElement>) => JSX.Element;
 
@@ -28,36 +29,32 @@ const CATEGORY_META: Record<FileCategory, { Icon: IconComponent; color: string }
   text: { Icon: FileText, color: "text-ink-300" },
 };
 
+/** Shared state + callbacks threaded through the lazily-loaded tree. */
+export interface TreeState {
+  chatId: string;
+  expanded: Set<string>;
+  loading: Set<string>;
+  childrenByDir: Map<string, FileNode[]>;
+  errorByDir: Map<string, string>;
+  onToggle: (path: string) => void;
+}
+
 export function FileTreeNodes({
-  chatId,
-  dir,
   nodes,
   depth,
-  expanded,
-  onToggle,
+  state,
 }: {
-  chatId: string;
-  dir: string;
   nodes: FileNode[];
   depth: number;
-  expanded: Set<string>;
-  onToggle: (key: string) => void;
+  state: TreeState;
 }) {
   return (
     <ul class={depth > 0 ? "ml-3 border-l border-white/[0.07] pl-1" : ""}>
       {nodes.map((node) =>
         node.isDir ? (
-          <FolderRow
-            key={node.path}
-            chatId={chatId}
-            dir={dir}
-            node={node}
-            depth={depth}
-            expanded={expanded}
-            onToggle={onToggle}
-          />
+          <FolderRow key={node.path} node={node} depth={depth} state={state} />
         ) : (
-          <FileRow key={node.path} chatId={chatId} dir={dir} node={node} />
+          <FileRow key={node.path} chatId={state.chatId} node={node} />
         )
       )}
     </ul>
@@ -65,23 +62,18 @@ export function FileTreeNodes({
 }
 
 function FolderRow({
-  chatId,
-  dir,
   node,
   depth,
-  expanded,
-  onToggle,
+  state,
 }: {
-  chatId: string;
-  dir: string;
   node: FileNode;
   depth: number;
-  expanded: Set<string>;
-  onToggle: (key: string) => void;
+  state: TreeState;
 }) {
-  const key = nodeKey(dir, node.path);
-  const isOpen = expanded.has(key);
-  const fileCount = countFiles(node.children);
+  const isOpen = state.expanded.has(node.path);
+  const isLoading = state.loading.has(node.path);
+  const children = state.childrenByDir.get(node.path);
+  const error = state.errorByDir.get(node.path);
 
   return (
     <li>
@@ -89,26 +81,32 @@ function FolderRow({
         class="group flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-white/[0.05] cursor-pointer select-none"
         role="button"
         tabIndex={0}
-        onClick={() => onToggle(key)}
+        onClick={() => state.onToggle(node.path)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            onToggle(key);
+            state.onToggle(node.path);
           }
         }}
       >
-        <ChevronRight
-          class={`w-3.5 h-3.5 flex-none text-ink-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
-        />
+        {isLoading ? (
+          <Loader class="w-3.5 h-3.5 flex-none text-ink-400 animate-spin" />
+        ) : (
+          <ChevronRight
+            class={`w-3.5 h-3.5 flex-none text-ink-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
+          />
+        )}
         {isOpen ? (
           <FolderOpen class="w-4 h-4 flex-none text-accent-blue" />
         ) : (
           <Folder class="w-4 h-4 flex-none text-accent-blue" />
         )}
         <span class="flex-1 min-w-0 truncate text-[13px] text-ink-100">{node.name}</span>
-        <span class="text-[11px] text-ink-500 tabular-nums flex-none">{fileCount}</span>
+        {children && (
+          <span class="text-[11px] text-ink-500 tabular-nums flex-none">{children.length}</span>
+        )}
         <a
-          href={chatApi.folderDownloadUrl(chatId, dir, node.path)}
+          href={chatApi.folderDownloadUrl(state.chatId, node.path)}
           onClick={(event) => event.stopPropagation()}
           class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
                  opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
@@ -118,21 +116,20 @@ function FolderRow({
           <Download class="w-3.5 h-3.5" />
         </a>
       </div>
-      {isOpen && node.children && node.children.length > 0 && (
-        <FileTreeNodes
-          chatId={chatId}
-          dir={dir}
-          nodes={node.children}
-          depth={depth + 1}
-          expanded={expanded}
-          onToggle={onToggle}
-        />
+      {isOpen && error && (
+        <div class="ml-3 pl-2 py-1 text-[12px] text-accent-red">{error}</div>
+      )}
+      {isOpen && children && children.length === 0 && !error && (
+        <div class="ml-3 pl-2 py-1 text-[12px] text-ink-500">Empty folder.</div>
+      )}
+      {isOpen && children && children.length > 0 && (
+        <FileTreeNodes nodes={children} depth={depth + 1} state={state} />
       )}
     </li>
   );
 }
 
-function FileRow({ chatId, dir, node }: { chatId: string; dir: string; node: FileNode }) {
+function FileRow({ chatId, node }: { chatId: string; node: FileNode }) {
   const { Icon, color } = CATEGORY_META[categorize(node.name)];
   return (
     <li>
@@ -144,12 +141,47 @@ function FileRow({ chatId, dir, node }: { chatId: string; dir: string; node: Fil
           <span class="text-[11px] text-ink-500 tabular-nums flex-none">{formatBytes(node.size)}</span>
         )}
         <a
-          href={chatApi.fileDownloadUrl(chatId, dir, node.path)}
+          href={chatApi.fileDownloadUrl(chatId, node.path)}
           download={node.name}
           class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
                  opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
           title={`Download ${node.name}`}
           aria-label={`Download ${node.name}`}
+        >
+          <Download class="w-3.5 h-3.5" />
+        </a>
+      </div>
+    </li>
+  );
+}
+
+/** Flat row used to render server-side search results, showing the full path. */
+export function SearchResultRow({ chatId, node }: { chatId: string; node: FileNode }) {
+  const dir = parentDir(node.path);
+  const { Icon, color } = node.isDir
+    ? { Icon: Folder as IconComponent, color: "text-accent-blue" }
+    : CATEGORY_META[categorize(node.name)];
+  const href = node.isDir
+    ? chatApi.folderDownloadUrl(chatId, node.path)
+    : chatApi.fileDownloadUrl(chatId, node.path);
+  return (
+    <li>
+      <div class="group flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-white/[0.05]">
+        <Icon class={`w-4 h-4 flex-none ${color}`} />
+        <div class="flex-1 min-w-0">
+          <div class="truncate text-[13px] text-ink-100">{node.name}</div>
+          {dir && <div class="truncate text-[11px] text-ink-500 font-mono">{dir}/</div>}
+        </div>
+        {!node.isDir && node.size != null && (
+          <span class="text-[11px] text-ink-500 tabular-nums flex-none">{formatBytes(node.size)}</span>
+        )}
+        <a
+          href={href}
+          download={node.isDir ? undefined : node.name}
+          class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
+                 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
+          title={node.isDir ? `Download ${node.name} as zip` : `Download ${node.name}`}
+          aria-label={node.isDir ? `Download ${node.name} as zip` : `Download ${node.name}`}
         >
           <Download class="w-3.5 h-3.5" />
         </a>

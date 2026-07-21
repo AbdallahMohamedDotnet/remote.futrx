@@ -1,14 +1,17 @@
 import { requestJson } from "../apiRequest";
-import type { FileTreeResponse } from "../../models/files";
+import type { DirListing, FileSearchResult } from "../../models/files";
 import { API_ROUTES } from "../../config/routes";
 
 export const chatFilesApi = {
-  fetchFiles: (id: string) =>
-    requestJson<FileTreeResponse>("GET", API_ROUTES.chats.files(id)),
+  listDir: (id: string, path = "") =>
+    requestJson<DirListing>("GET", API_ROUTES.chats.files(id, path)),
 
-  fileDownloadUrl: (id: string, dir: string, path: string) =>
-    API_ROUTES.chats.fileDownload(id, dir, path),
+  searchFiles: (id: string, query: string) =>
+    requestJson<FileSearchResult>("GET", API_ROUTES.chats.filesSearch(id, query)),
 
-  folderDownloadUrl: (id: string, dir: string, path = "") =>
-    API_ROUTES.chats.folderDownload(id, dir, path),
+  fileDownloadUrl: (id: string, path: string) =>
+    API_ROUTES.chats.fileDownload(id, path),
+
+  folderDownloadUrl: (id: string, path = "") =>
+    API_ROUTES.chats.folderDownload(id, path),
 };

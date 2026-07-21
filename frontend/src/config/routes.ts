@@ -13,11 +13,14 @@ export const API_ROUTES = {
     read: (id: string) => `/api/chats/${encodeURIComponent(id)}/read`,
     unread: (id: string) => `/api/chats/${encodeURIComponent(id)}/unread`,
     fork: (id: string) => `/api/chats/${encodeURIComponent(id)}/fork`,
-    files: (id: string) => `/api/chats/${encodeURIComponent(id)}/files`,
-    fileDownload: (id: string, dir: string, path: string) =>
-      `/api/chats/${encodeURIComponent(id)}/files/download?dir=${encodeURIComponent(dir)}&path=${encodeURIComponent(path)}`,
-    folderDownload: (id: string, dir: string, path: string) =>
-      `/api/chats/${encodeURIComponent(id)}/files/download-folder?dir=${encodeURIComponent(dir)}${path ? `&path=${encodeURIComponent(path)}` : ""}`,
+    files: (id: string, path = "") =>
+      `/api/chats/${encodeURIComponent(id)}/files${path ? `?path=${encodeURIComponent(path)}` : ""}`,
+    filesSearch: (id: string, query: string) =>
+      `/api/chats/${encodeURIComponent(id)}/files/search?q=${encodeURIComponent(query)}`,
+    fileDownload: (id: string, path: string) =>
+      `/api/chats/${encodeURIComponent(id)}/files/download?path=${encodeURIComponent(path)}`,
+    folderDownload: (id: string, path = "") =>
+      `/api/chats/${encodeURIComponent(id)}/files/download-folder${path ? `?path=${encodeURIComponent(path)}` : ""}`,
     events: (id: string, query: string) =>
       `/api/chats/${encodeURIComponent(id)}/events${query ? `?${query}` : ""}`,
     rewind: (id: string) => `/api/chats/${encodeURIComponent(id)}/rewind`,

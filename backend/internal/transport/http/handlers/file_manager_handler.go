@@ -15,7 +15,25 @@ func (h *ChatHandler) handleFilesList(w http.ResponseWriter, r *http.Request, me
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	httptransport.SendJSON(w, http.StatusOK, h.files.List(meta.Cwd))
+	listing, err := h.files.List(meta.Cwd, r.URL.Query().Get("path"))
+	if err != nil {
+		sendWorkspaceFileError(w, err)
+		return
+	}
+	httptransport.SendJSON(w, http.StatusOK, listing)
+}
+
+func (h *ChatHandler) handleFilesSearch(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
+	if r.Method != http.MethodGet {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	result, err := h.files.Search(meta.Cwd, r.URL.Query().Get("q"))
+	if err != nil {
+		sendWorkspaceFileError(w, err)
+		return
+	}
+	httptransport.SendJSON(w, http.StatusOK, result)
 }
 
 func (h *ChatHandler) handleFilesDownload(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {
@@ -23,7 +41,7 @@ func (h *ChatHandler) handleFilesDownload(w http.ResponseWriter, r *http.Request
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	file, err := h.files.OpenFile(meta.Cwd, r.URL.Query().Get("dir"), r.URL.Query().Get("path"))
+	file, err := h.files.OpenFile(meta.Cwd, r.URL.Query().Get("path"))
 	if err != nil {
 		sendWorkspaceFileError(w, err)
 		return
@@ -40,7 +58,7 @@ func (h *ChatHandler) handleFilesDownloadFolder(w http.ResponseWriter, r *http.R
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	archive, err := h.files.PrepareArchive(meta.Cwd, r.URL.Query().Get("dir"), r.URL.Query().Get("path"))
+	archive, err := h.files.PrepareArchive(meta.Cwd, r.URL.Query().Get("path"))
 	if err != nil {
 		sendWorkspaceFileError(w, err)
 		return

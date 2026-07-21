@@ -3,6 +3,7 @@ package workspacefiles
 import (
 	"errors"
 	"io"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -11,8 +12,14 @@ import (
 )
 
 const (
-	maxTreeNodes = 5000
-	maxTreeDepth = 24
+	// maxDirEntries bounds a single directory listing so a folder with a huge
+	// number of children can't produce an unbounded response. Browsing is lazy
+	// (one level per request), so this is per-directory, not per-tree.
+	maxDirEntries = 10000
+	// maxSearchResults bounds a name search across the whole workspace.
+	maxSearchResults = 300
+	// minSearchQuery is the shortest query we will walk the tree for.
+	minSearchQuery = 2
 )
 
 var (
@@ -22,13 +29,15 @@ var (
 	ErrUnsupportedMedia = errors.New("file type cannot be opened in browser")
 )
 
-var directories = []string{".uploads", ".media"}
-
+// Store is the filesystem boundary. Every method takes the workspace root plus a
+// path relative to it; the implementation is responsible for keeping access
+// inside the root (including resolving symlinks that might escape it).
 type Store interface {
-	DirectoryExists(path string) bool
-	ReadTree(root string, maxNodes, maxDepth int) ([]*Node, bool)
-	OpenFile(path string) (io.ReadSeekCloser, string, time.Time, error)
-	WriteArchive(root string, destination io.Writer) error
+	DirectoryExists(root, relative string) bool
+	ListDir(root, relative string, maxEntries int) ([]*Node, bool, error)
+	OpenFile(root, relative string) (io.ReadSeekCloser, string, time.Time, error)
+	WriteArchive(root, relative string, destination io.Writer) error
+	Search(root, query string, limit int) ([]*Node, bool, error)
 }
 
 type Service struct {
@@ -39,32 +48,38 @@ func New(store Store) *Service {
 	return &Service{store: store}
 }
 
-func (s *Service) List(cwd string) Listing {
-	trees := make([]*Tree, 0, len(directories))
-	truncated := false
-	for _, directory := range directories {
-		tree := &Tree{Dir: directory, Children: []*Node{}}
-		if root, ok := s.resolveRoot(cwd, directory); ok && s.store.DirectoryExists(root) {
-			tree.Exists = true
-			children, treeTruncated := s.store.ReadTree(root, maxTreeNodes, maxTreeDepth)
-			tree.Children = children
-			truncated = truncated || treeTruncated
-		}
-		trees = append(trees, tree)
+// List returns the entries directly under relativePath within the workspace.
+// An empty relativePath lists the workspace root.
+func (s *Service) List(cwd, relativePath string) (Listing, error) {
+	root := workspacepath.Root(cwd)
+	if root == "" {
+		return Listing{}, ErrInvalidPath
 	}
-	return Listing{Trees: trees, Truncated: truncated}
+	rel := cleanRelative(relativePath)
+	entries, truncated, err := s.store.ListDir(root, rel, maxDirEntries)
+	if err != nil {
+		return Listing{}, ErrFolderNotFound
+	}
+	if entries == nil {
+		entries = []*Node{}
+	}
+	return Listing{Path: rel, Entries: entries, Truncated: truncated}, nil
 }
 
-func (s *Service) OpenFile(cwd, directory, relativePath string) (*File, error) {
-	path, ok := s.resolvePath(cwd, directory, relativePath)
-	if !ok {
+func (s *Service) OpenFile(cwd, relativePath string) (*File, error) {
+	root := workspacepath.Root(cwd)
+	if root == "" {
 		return nil, ErrInvalidPath
 	}
-	content, _, modTime, err := s.store.OpenFile(path)
+	rel := cleanRelative(relativePath)
+	if rel == "" {
+		return nil, ErrInvalidPath
+	}
+	content, _, modTime, err := s.store.OpenFile(root, rel)
 	if err != nil {
 		return nil, ErrFileNotFound
 	}
-	return &File{Name: filepath.Base(path), ModTime: modTime, content: content}, nil
+	return &File{Name: path.Base(rel), ModTime: modTime, content: content}, nil
 }
 
 func (s *Service) OpenMedia(cwd, rawPath string) (Media, error) {
@@ -76,7 +91,11 @@ func (s *Service) OpenMedia(cwd, rawPath string) (Media, error) {
 	if !supported {
 		return Media{}, ErrUnsupportedMedia
 	}
-	content, _, modTime, err := s.store.OpenFile(target.FilePath)
+	relative, err := filepath.Rel(target.WorkspaceRoot, target.FilePath)
+	if err != nil {
+		return Media{}, ErrFileNotFound
+	}
+	content, _, modTime, err := s.store.OpenFile(target.WorkspaceRoot, filepath.ToSlash(relative))
 	if err != nil {
 		return Media{}, ErrFileNotFound
 	}
@@ -90,71 +109,59 @@ func (s *Service) OpenMedia(cwd, rawPath string) (Media, error) {
 	}, nil
 }
 
-func (s *Service) PrepareArchive(cwd, directory, relativePath string) (Archive, error) {
-	relativePath = strings.TrimSpace(relativePath)
-	var (
-		path string
-		ok   bool
-	)
-	if relativePath == "" {
-		path, ok = s.resolveRoot(cwd, directory)
-	} else {
-		path, ok = s.resolvePath(cwd, directory, relativePath)
-	}
-	if !ok {
+func (s *Service) PrepareArchive(cwd, relativePath string) (Archive, error) {
+	root := workspacepath.Root(cwd)
+	if root == "" {
 		return Archive{}, ErrInvalidPath
 	}
-	if !s.store.DirectoryExists(path) {
+	rel := cleanRelative(relativePath)
+	if !s.store.DirectoryExists(root, rel) {
 		return Archive{}, ErrFolderNotFound
 	}
-	name := filepath.Base(path)
-	if relativePath == "" {
-		name = strings.TrimPrefix(directory, ".")
+	name := path.Base(rel)
+	if rel == "" || name == "." || name == "/" {
+		name = "workspace"
 	}
-	if name == "" || name == "." {
-		name = "files"
-	}
-	return Archive{Name: name + ".zip", path: path}, nil
+	return Archive{Name: name + ".zip", root: root, relative: rel}, nil
 }
 
 func (s *Service) WriteArchive(archive Archive, destination io.Writer) error {
-	return s.store.WriteArchive(archive.path, destination)
+	return s.store.WriteArchive(archive.root, archive.relative, destination)
 }
 
-func (s *Service) resolveRoot(cwd, directory string) (string, bool) {
-	if !allowedDirectory(directory) {
-		return "", false
+func (s *Service) Search(cwd, query string) (SearchResult, error) {
+	root := workspacepath.Root(cwd)
+	if root == "" {
+		return SearchResult{}, ErrInvalidPath
 	}
-	workspace := workspacepath.Root(cwd)
-	if workspace == "" {
-		return "", false
+	trimmed := strings.TrimSpace(query)
+	if len([]rune(trimmed)) < minSearchQuery {
+		return SearchResult{Entries: []*Node{}}, nil
 	}
-	return filepath.Join(workspace, directory), true
+	entries, truncated, err := s.store.Search(root, trimmed, maxSearchResults)
+	if err != nil {
+		return SearchResult{}, ErrFolderNotFound
+	}
+	if entries == nil {
+		entries = []*Node{}
+	}
+	return SearchResult{Entries: entries, Truncated: truncated}, nil
 }
 
-func (s *Service) resolvePath(cwd, directory, relativePath string) (string, bool) {
-	root, ok := s.resolveRoot(cwd, directory)
-	if !ok || strings.TrimSpace(relativePath) == "" {
-		return "", false
+// cleanRelative normalises a caller-supplied path into a forward-slash path
+// relative to the workspace root. Traversal ("..") is collapsed here; the store
+// enforces the real containment guarantee (including symlinks).
+func cleanRelative(relativePath string) string {
+	relativePath = strings.TrimSpace(filepath.ToSlash(relativePath))
+	if relativePath == "" {
+		return ""
 	}
-	target := filepath.Join(root, filepath.FromSlash(relativePath))
-	if !workspacepath.Contains(target, root) {
-		return "", false
-	}
-	return target, true
+	cleaned := path.Clean("/" + strings.TrimPrefix(relativePath, "/"))
+	return strings.TrimPrefix(cleaned, "/")
 }
 
-func allowedDirectory(directory string) bool {
-	for _, allowed := range directories {
-		if directory == allowed {
-			return true
-		}
-	}
-	return false
-}
-
-func supportedMediaType(path string) (string, bool) {
-	contentType, ok := mediaTypes[strings.ToLower(filepath.Ext(path))]
+func supportedMediaType(p string) (string, bool) {
+	contentType, ok := mediaTypes[strings.ToLower(filepath.Ext(p))]
 	return contentType, ok
 }
 
