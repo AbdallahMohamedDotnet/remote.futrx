@@ -51,7 +51,7 @@ export function HistoryDrawer({
     setReposLoading(true);
     setError(null);
     try {
-      const response = await chatApi.historyRepos(chatId);
+      const response = await chatApi.fetchHistoryRepos(chatId);
       const nextRepos = response.repos || [];
       const nextRepoId = nextRepos.some((repo) => repo.id === selectedRepoId)
         ? selectedRepoId
@@ -80,7 +80,7 @@ export function HistoryDrawer({
     setCommitsLoading(true);
     setError(null);
     try {
-      const response = await chatApi.historyCommits(chatId, repoId, 100);
+      const response = await chatApi.fetchHistoryCommits(chatId, repoId, 100);
       const nextCommits = response.commits || [];
       const nextSha = nextCommits.some((commit) => commit.sha === selectedSha)
         ? selectedSha
@@ -106,7 +106,7 @@ export function HistoryDrawer({
     setDiffLoading(true);
     setError(null);
     try {
-      const response = await chatApi.historyDiff(chatId, repoId, sha);
+      const response = await chatApi.fetchHistoryDiff(chatId, repoId, sha);
       setDiff(response.diff || "");
       if (response.truncated) setCheckoutMessage("Diff truncated at 768 KB.");
     } catch (err) {

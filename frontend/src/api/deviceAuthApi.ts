@@ -15,7 +15,7 @@ export class DeviceAuthApi<TStatus, TDeviceLogin> {
     this.#routes = routes;
   }
 
-  readonly status = (): Promise<TStatus> =>
+  readonly fetchStatus = (): Promise<TStatus> =>
     requestJson<TStatus>("GET", this.#routes.status);
 
   readonly startDeviceLogin = (): Promise<TDeviceLogin> =>

@@ -33,7 +33,7 @@ export function FileManagerDrawer({
     setLoading(true);
     setError(null);
     try {
-      const response = await chatApi.files(chatId);
+      const response = await chatApi.fetchFiles(chatId);
       const nextTrees = response.trees || [];
       setTrees(nextTrees);
       setTruncated(response.truncated);

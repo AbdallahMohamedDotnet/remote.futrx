@@ -40,7 +40,7 @@ export function useClaudeAuth(enabled: boolean): ClaudeAuthState {
   // The WS keeps status live, so this is a best-effort one-shot resync.
   async function refresh() {
     try {
-      applyStatus(await claudeAuthApi.status());
+      applyStatus(await claudeAuthApi.fetchStatus());
     } catch (e) {
       setError((e as Error).message);
     }

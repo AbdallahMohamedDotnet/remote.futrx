@@ -15,13 +15,13 @@ import {
 } from "../../config/api";
 
 export const chatHistoryApi = {
-  historyRepos: (id: string) =>
+  fetchHistoryRepos: (id: string) =>
     requestJson<GitHistoryReposResponse>(
       "GET",
       API_ROUTES.chats.historyRepos(id)
     ),
 
-  historyCommits: (
+  fetchHistoryCommits: (
     id: string,
     repo: string,
     limit = DEFAULT_CHAT_HISTORY_COMMIT_LIMIT
@@ -33,7 +33,7 @@ export const chatHistoryApi = {
     );
   },
 
-  historyDiff: (id: string, repo: string, sha: string) => {
+  fetchHistoryDiff: (id: string, repo: string, sha: string) => {
     const search = new URLSearchParams({ repo, sha });
     return requestJson<GitHistoryDiffResponse>(
       "GET",

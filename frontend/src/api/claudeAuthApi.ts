@@ -4,7 +4,8 @@ import type { ClaudeAuthStatus, ClaudeLoginStart } from "../models/auth";
 import { API_ROUTES, WEB_SOCKET_ROUTES } from "../config/routes";
 
 export const claudeAuthApi = {
-  status: () => requestJson<ClaudeAuthStatus>("GET", API_ROUTES.claudeAuth.status),
+  fetchStatus: () =>
+    requestJson<ClaudeAuthStatus>("GET", API_ROUTES.claudeAuth.status),
   startLogin: () =>
     requestJson<ClaudeLoginStart>("POST", API_ROUTES.claudeAuth.startLogin, {}),
   submitCode: (code: string) =>

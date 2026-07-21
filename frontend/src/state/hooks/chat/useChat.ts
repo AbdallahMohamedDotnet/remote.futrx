@@ -175,7 +175,7 @@ export function useChat(chatId: string): UseChatResult {
       try {
         const [m, page] = await Promise.all([
           chatApi.fetch(chatId),
-          chatApi.events(chatId, { limit: CHAT_EVENT_PAGE_LIMIT }),
+          chatApi.fetchEvents(chatId, { limit: CHAT_EVENT_PAGE_LIMIT }),
         ]);
         if (cancelled) return;
         lastSeqRef.current = Math.max(page.lastSeq, latestSeq(page.events));
@@ -260,7 +260,7 @@ export function useChat(chatId: string): UseChatResult {
     if (loadingOlder || !renderState.hasOlder || !renderState.nextBefore) return;
     setLoadingOlder(true);
     try {
-      const page = await chatApi.events(chatId, {
+      const page = await chatApi.fetchEvents(chatId, {
         limit: CHAT_EVENT_PAGE_LIMIT,
         before: renderState.nextBefore,
       });

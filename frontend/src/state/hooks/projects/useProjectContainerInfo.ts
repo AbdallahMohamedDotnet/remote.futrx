@@ -17,7 +17,7 @@ export function useProjectContainerInfo(project: ProjectMeta | null) {
       }
       setRecord((current) => ({ ...current, loading: true, error: undefined }));
       try {
-        const data = await projectApi.containerInfo(project.id);
+        const data = await projectApi.fetchContainerInfo(project.id);
         if (signal?.cancelled) return;
         setRecord({ loading: false, data, refreshedAt: Date.now() });
       } catch (error) {

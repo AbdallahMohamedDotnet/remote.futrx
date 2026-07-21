@@ -5,7 +5,10 @@ import type { ChatStream, ChatStreamCallbacks } from "../../types/chatApi";
 import { API_ROUTES } from "../../config/routes";
 
 export const chatEventsApi = {
-  events: (id: string, params: { limit?: number; before?: number } = {}) => {
+  fetchEvents: (
+    id: string,
+    params: { limit?: number; before?: number } = {}
+  ) => {
     const search = new URLSearchParams();
     if (params.limit) search.set("limit", String(params.limit));
     if (params.before) search.set("before", String(params.before));

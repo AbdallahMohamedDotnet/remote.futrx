@@ -69,7 +69,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
 
     async function pollStatus() {
       try {
-        const info = await projectApi.agentBrowserStatus(projectId);
+        const info = await projectApi.fetchAgentBrowserStatus(projectId);
         if (!isCurrent()) return;
         if (applyInfo(info)) pollTimer = window.setTimeout(pollStatus, pollIntervalMs);
       } catch (err) {
@@ -81,7 +81,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
 
     async function heartbeatStatus() {
       try {
-        const info = await projectApi.agentBrowserStatus(projectId);
+        const info = await projectApi.fetchAgentBrowserStatus(projectId);
         if (isCurrent()) applyInfo(info);
       } catch {
         // The fast start poll surfaces startup errors. Heartbeats should keep

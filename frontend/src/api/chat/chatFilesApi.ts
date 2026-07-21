@@ -3,7 +3,7 @@ import type { FileTreeResponse } from "../../models/files";
 import { API_ROUTES } from "../../config/routes";
 
 export const chatFilesApi = {
-  files: (id: string) =>
+  fetchFiles: (id: string) =>
     requestJson<FileTreeResponse>("GET", API_ROUTES.chats.files(id)),
 
   fileDownloadUrl: (id: string, dir: string, path: string) =>

@@ -6,7 +6,7 @@ export const projectBrowserApi = {
   listApps: (id: string) =>
     requestJson<ContainerApp[]>("GET", API_ROUTES.projects.apps(id)),
 
-  agentBrowserStatus: (id: string) =>
+  fetchAgentBrowserStatus: (id: string) =>
     requestJson<AgentBrowserInfo>(
       "GET",
       API_ROUTES.projects.agentBrowser(id)
