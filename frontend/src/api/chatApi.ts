@@ -1,5 +1,5 @@
 import { requestJson, sendHttpRequest } from "../transport/http";
-import { ReconnectingJsonWebSocket } from "../transport/ReconnectingJsonWebSocket";
+import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
 import { webSocketUrl } from "../transport/websocket";
 import type { FileTreeResponse } from "../models/files";
 import type { ChatEvent, ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";

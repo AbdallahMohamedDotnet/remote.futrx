@@ -1,7 +1,7 @@
 const INITIAL_RECONNECT_DELAY_MS = 400;
 const MAX_RECONNECT_DELAY_MS = 5_000;
 
-export interface ReconnectingJsonWebSocketOptions<TMessage> {
+interface ReconnectingJsonWebSocketOptions<TMessage> {
   resolveUrl: () => string;
   onMessage: (message: TMessage) => void;
   onOpen?: () => void;
@@ -9,14 +9,14 @@ export interface ReconnectingJsonWebSocketOptions<TMessage> {
 }
 
 export class ReconnectingJsonWebSocket<TMessage> {
-  readonly #options: ReconnectingJsonWebSocketOptions<TMessage>;
+  readonly #configuration: ReconnectingJsonWebSocketOptions<TMessage>;
   #socket: WebSocket | null = null;
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   #reconnectAttempt = 0;
   #isStopped = true;
 
   constructor(options: ReconnectingJsonWebSocketOptions<TMessage>) {
-    this.#options = options;
+    this.#configuration = options;
   }
 
   get isOpen(): boolean {
@@ -60,26 +60,26 @@ export class ReconnectingJsonWebSocket<TMessage> {
 
   #connect(): void {
     if (this.#isStopped) return;
-    const socket = new WebSocket(this.#options.resolveUrl());
+    const socket = new WebSocket(this.#configuration.resolveUrl());
     this.#socket = socket;
 
     socket.onopen = () => {
       if (this.#isStopped || this.#socket !== socket) return;
       this.#reconnectAttempt = 0;
-      this.#options.onOpen?.();
+      this.#configuration.onOpen?.();
     };
 
     socket.onmessage = (event) => {
       if (this.#isStopped || this.#socket !== socket) return;
       try {
-        this.#options.onMessage(JSON.parse(event.data) as TMessage);
+        this.#configuration.onMessage(JSON.parse(event.data) as TMessage);
       } catch {}
     };
 
     socket.onclose = () => {
       if (this.#socket !== socket) return;
       this.#socket = null;
-      this.#options.onClose?.();
+      this.#configuration.onClose?.();
       this.#scheduleReconnect();
     };
 

@@ -1,6 +1,6 @@
 import type { ChatMeta } from "../models/chat";
 import type { ProjectMeta } from "../models/project";
-import { ReconnectingJsonWebSocket } from "../transport/ReconnectingJsonWebSocket";
+import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
 import { webSocketUrl } from "../transport/websocket";
 
 export type WorkspaceMessage =

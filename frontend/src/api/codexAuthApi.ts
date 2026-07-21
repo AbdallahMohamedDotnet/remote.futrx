@@ -1,5 +1,5 @@
 import { requestJson } from "../transport/http";
-import { ReconnectingJsonWebSocket } from "../transport/ReconnectingJsonWebSocket";
+import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
 import { webSocketUrl } from "../transport/websocket";
 import type { CodexAuthStatus, CodexDeviceLogin } from "../models/auth";
 
