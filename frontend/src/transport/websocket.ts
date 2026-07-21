@@ -1,29 +1,29 @@
-function wsBase(): string {
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${location.host}`;
+export function webSocketUrl(path: `/${string}`): string {
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${location.host}${path}`;
 }
 
 export function chatWebSocketUrl(chatId: string, sinceSeq = 0): string {
-  const url = `${wsBase()}/ws/chat/${encodeURIComponent(chatId)}`;
+  const url = webSocketUrl(`/ws/chat/${encodeURIComponent(chatId)}`);
   return sinceSeq > 0 ? `${url}?since=${sinceSeq}` : url;
 }
 
 export function workspaceWebSocketUrl(): string {
-  return `${wsBase()}/ws/workspace`;
+  return webSocketUrl("/ws/workspace");
 }
 
 export function claudeAuthWebSocketUrl(): string {
-  return `${wsBase()}/ws/claude/auth-status`;
+  return webSocketUrl("/ws/claude/auth-status");
 }
 
 export function codexAuthWebSocketUrl(): string {
-  return `${wsBase()}/ws/codex/auth-status`;
+  return webSocketUrl("/ws/codex/auth-status");
 }
 
 export function kimiAuthWebSocketUrl(): string {
-  return `${wsBase()}/ws/kimi/auth-status`;
+  return webSocketUrl("/ws/kimi/auth-status");
 }
 
 export function terminalWebSocketUrl(chatId: string): string {
-  return `${wsBase()}/ws/terminal?chat=${encodeURIComponent(chatId)}`;
+  return webSocketUrl(`/ws/terminal?chat=${encodeURIComponent(chatId)}`);
 }
