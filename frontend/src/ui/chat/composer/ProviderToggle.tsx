@@ -1,5 +1,5 @@
 import type { ChatProvider } from "../../../models/chat";
-import { PROVIDER_OPTIONS } from "../../../state/chat/usage";
+import { PROVIDER_OPTIONS } from "../../../config/chat";
 
 export function ProviderToggle({
   provider,

@@ -1,6 +1,6 @@
 import type { ChatProvider, SelectedSkill } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
-import { modelOptionsForProvider } from "../../../state/chat/usage";
+import { modelOptionsForProvider } from "../../../config/chat";
 import { ComposerModelPicker } from "./ComposerModelPicker";
 import { ProviderToggle } from "./ProviderToggle";
 import { SkillPicker } from "./SkillPicker";

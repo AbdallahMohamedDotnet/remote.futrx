@@ -1,5 +1,5 @@
 import type { ChatMeta } from "../../../models/chat";
-import { providerDisplayLabel } from "../../../state/chat/usage";
+import { providerDisplayLabel } from "../../../config/chat";
 import { Menu, MessageSquare } from "../../primitives/icons";
 import { WorkspaceActions } from "./WorkspaceActions";
 

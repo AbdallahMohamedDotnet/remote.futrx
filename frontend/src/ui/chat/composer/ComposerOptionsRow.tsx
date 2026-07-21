@@ -1,5 +1,5 @@
 import type { ChatMode, ChatProvider, ReasoningEffort } from "../../../models/chat";
-import { MODE_OPTIONS, REASONING_EFFORT_OPTIONS } from "../../../state/chat/usage";
+import { MODE_OPTIONS, REASONING_EFFORT_OPTIONS } from "../../../config/chat";
 import { Activity, MessageSquare } from "../../primitives/icons";
 import { ComposerOptionDropdown } from "./ComposerOptionDropdown";
 
