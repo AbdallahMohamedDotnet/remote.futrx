@@ -5,8 +5,10 @@ import type {
   TerminalConnectionCallbacks,
 } from "../types/terminal";
 import { WEB_SOCKET_ROUTES } from "../config/routes";
-import { TERMINAL_WEB_SOCKET_BINARY_TYPE } from "../config/terminal";
-import { TERMINAL_MESSAGE_TYPES } from "../config/protocol";
+import {
+  TERMINAL_MESSAGE_TYPES,
+  TERMINAL_WEB_SOCKET_BINARY_TYPE,
+} from "../config/terminal";
 
 export const terminalApi = {
   connect(chatId: string, callbacks: TerminalConnectionCallbacks): TerminalConnection {

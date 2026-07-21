@@ -9,10 +9,10 @@ import type { ChatStream, ChatStreamCallbacks } from "../types/chatApi";
 import { API_ROUTES, WEB_SOCKET_ROUTES } from "../config/routes";
 import {
   API_RESPONSE_STATUS,
+  CHAT_STREAM_MESSAGE_TYPES,
   DEFAULT_CHAT_HISTORY_COMMIT_LIMIT,
   DIRTY_WORKING_TREE_FALLBACK_MESSAGE,
 } from "../config/api";
-import { CHAT_STREAM_MESSAGE_TYPES } from "../config/protocol";
 
 export const chatApi = {
   list: () => requestJson<ChatMeta[]>("GET", API_ROUTES.chats.collection),

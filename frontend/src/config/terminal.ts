@@ -42,3 +42,7 @@ export const TERMINAL_STATUS = {
   closed: "closed",
   error: "error",
 } as const;
+export const TERMINAL_MESSAGE_TYPES = {
+  input: "input",
+  resize: "resize",
+} as const;
