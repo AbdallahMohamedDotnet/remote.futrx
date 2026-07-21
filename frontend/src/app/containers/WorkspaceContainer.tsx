@@ -24,6 +24,7 @@ export function WorkspaceContainer() {
           selectedProjectId={workspace.ui.containerProjectId}
           onBack={workspace.showChat}
           onHamburger={workspace.openSidebar}
+          onDeleteProject={workspace.deleteProject}
         />
       ) : workspace.activeChat ? (
         <ChatContainer

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { ProjectContainersPage } from "../../ui/projects/ProjectContainersPage";
 import type { ProjectMeta } from "../../models/project";
-import { projectApi } from "../../api/projectApi";
 import { useProjectAccess } from "../../state/hooks/projects/useProjectAccess";
 import { useProjectContainerInfo } from "../../state/hooks/projects/useProjectContainerInfo";
 import { useProjectSecrets } from "../../state/hooks/projects/useProjectSecrets";
@@ -11,11 +10,13 @@ export function ProjectContainersContainer({
   selectedProjectId,
   onBack,
   onHamburger,
+  onDeleteProject,
 }: {
   projects: ProjectMeta[];
   selectedProjectId: string | null;
   onBack: () => void;
   onHamburger: () => void;
+  onDeleteProject: (projectId: string) => Promise<void>;
 }) {
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? null,
@@ -37,11 +38,11 @@ export function ProjectContainersContainer({
     }
   }, [selectedProject, info.load, secrets.load, access.load]);
 
-  const onDeleteProject = useCallback(async () => {
+  const deleteSelectedProject = useCallback(async () => {
     if (!selectedProject) return;
-    await projectApi.delete(selectedProject.id);
+    await onDeleteProject(selectedProject.id);
     onBack();
-  }, [selectedProject, onBack]);
+  }, [selectedProject, onBack, onDeleteProject]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -70,7 +71,7 @@ export function ProjectContainersContainer({
       onRepairNetwork={info.repairNetwork}
       onStartProject={info.start}
       onStopProject={info.stop}
-      onDeleteProject={onDeleteProject}
+      onDeleteProject={deleteSelectedProject}
     />
   );
 }
