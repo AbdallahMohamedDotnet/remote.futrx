@@ -15,15 +15,16 @@ const (
 // CLISpec is the provider-owned description of a CLI installed in project
 // containers. Container integrations own how the description is applied.
 type CLISpec struct {
-	Name           string
-	ImageLabel     string
-	Binary         string
-	PackageName    string
-	Version        string
-	CheckVersion   bool
-	InstallMode    InstallMode
-	InstallTimeout time.Duration
-	WaitTimeout    time.Duration
+	Name               string
+	ImageLabel         string
+	Binary             string
+	PackageName        string
+	Version            string
+	CheckVersion       bool
+	VerifyAfterInstall bool
+	InstallMode        InstallMode
+	InstallTimeout     time.Duration
+	WaitTimeout        time.Duration
 }
 
 func (s CLISpec) NPMPackage() string {

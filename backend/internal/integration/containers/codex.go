@@ -79,5 +79,5 @@ func codexAuthUsesAPIKey(path string) bool {
 // existing project containers compatible with newly exposed models such as
 // GPT-5.6 Sol without requiring a destructive container recreation.
 func (c *Client) EnsureCodex(ctx context.Context, containerName string) error {
-	return c.ensureAgentCLI(ctx, containerName, codexCLISpec)
+	return c.EnsureCLI(ctx, containerName, codexCLISpec)
 }

@@ -65,7 +65,7 @@ apt-get update -qq
 apt-get install -y -qq gh
 
 # Agent CLIs.
-npm install -g ` + claudeCLISpec.npmPackage() + ` ` + codexCLISpec.npmPackage() + ` @moonshot-ai/kimi-code@0.19.2 --silent 2>&1 | tail -8
+npm install -g ` + claudeCLISpec.NPMPackage() + ` ` + codexCLISpec.NPMPackage() + ` @moonshot-ai/kimi-code@0.19.2 --silent 2>&1 | tail -8
 
 # Sanity check the full toolchain.
 which claude codex kimi git gh jq node npm python3 ssh

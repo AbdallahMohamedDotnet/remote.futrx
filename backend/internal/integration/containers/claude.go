@@ -73,5 +73,5 @@ func (c *Client) SyncClaudeAuthFromContainer(ctx context.Context, containerName 
 // Safe to call on every prompt: current containers only pay for a local
 // version check, while stale containers self-heal in place.
 func (c *Client) EnsureClaude(ctx context.Context, containerName string) error {
-	return c.ensureAgentCLI(ctx, containerName, claudeCLISpec)
+	return c.EnsureCLI(ctx, containerName, claudeCLISpec)
 }
