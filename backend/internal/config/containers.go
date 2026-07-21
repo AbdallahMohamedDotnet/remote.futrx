@@ -18,6 +18,7 @@ import (
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostfs"
 	servicebrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/browser"
+	servicecredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/credentials"
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/launch"
 	servicelifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/lifecycle"
 	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
@@ -31,7 +32,7 @@ const hostMappedUID = 1000000
 type ContainerStack struct {
 	Lifecycle   *servicelifecycle.Service
 	Inspection  *containerinspection.Inspector
-	Credentials *containercredentials.Synchronizer
+	Credentials *servicecredentials.Service
 	Environment *containerenvironment.Service
 	CLI         *containercli.Provisioner
 	Browser     *servicebrowser.Service
@@ -70,7 +71,8 @@ func (s ContainerStack) AgentDependencies() provisioning.ContainerDependencies {
 func NewContainerStack(runner command.Runner, configuredProfiles []provisioning.Profile) ContainerStack {
 	profiles := serviceprofiles.NewCatalog(configuredProfiles)
 	publisher := assets.NewPublisher(runner)
-	credentials := containercredentials.NewSynchronizer(runner, profiles)
+	credentialTransfer := containercredentials.NewAdapter(runner)
+	credentials := servicecredentials.NewService(profiles, credentialTransfer)
 	environment := containerenvironment.NewService(runner)
 	listeners := containerlisteners.NewScanner(runner)
 	network := containernetwork.NewRepairer(runner)

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 )
 
 type runnerResponse struct {
@@ -51,7 +50,7 @@ func TestEnsureRejectsMissingRequiredHostFileBeforeContainerMutation(t *testing.
 		}},
 	}
 
-	err := NewSynchronizer(runner, serviceprofiles.NewCatalog(nil)).Ensure(context.Background(), "c1", spec)
+	err := NewAdapter(runner).EnsureFiles(context.Background(), "c1", spec)
 	want := "host file missing (provider not authenticated yet?): " + missing
 	if err == nil || err.Error() != want {
 		t.Fatalf("Ensure error = %v, want %q", err, want)
@@ -94,7 +93,7 @@ func TestEnsurePushesOnlyStrictlyNewerFilesWithDefaultMode(t *testing.T) {
 		},
 	}
 
-	if err := NewSynchronizer(runner, serviceprofiles.NewCatalog(nil)).Ensure(context.Background(), "c1", spec); err != nil {
+	if err := NewAdapter(runner).EnsureFiles(context.Background(), "c1", spec); err != nil {
 		t.Fatalf("Ensure: %v", err)
 	}
 	wantCalls := []string{
@@ -123,7 +122,7 @@ func TestSyncFromContainerSkipsMissingOptionalFileButRejectsMissingRequiredFile(
 		},
 	}
 
-	err := NewSynchronizer(runner, serviceprofiles.NewCatalog(nil)).SyncFromContainer(context.Background(), "c1", spec)
+	err := NewAdapter(runner).SyncFilesFromContainer(context.Background(), "c1", spec)
 	want := "container file missing /root/.agent/required.json: missing; output: required absent"
 	if err == nil || err.Error() != want {
 		t.Fatalf("SyncFromContainer error = %v, want %q", err, want)
@@ -134,39 +133,5 @@ func TestSyncFromContainerSkipsMissingOptionalFileButRejectsMissingRequiredFile(
 	}
 	if !reflect.DeepEqual(runner.calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", runner.calls, wantCalls)
-	}
-}
-
-func TestEnsureRegisteredJoinsAllSeedErrors(t *testing.T) {
-	runner := &recordingRunner{}
-	hostDir := t.TempDir()
-	catalog := serviceprofiles.NewCatalog([]provisioning.Profile{
-		{Credentials: provisioning.CredentialSpec{
-			Name:         "alpha",
-			SeedOnLaunch: true,
-			Files: []provisioning.CredentialFile{{
-				HostPath: filepath.Join(hostDir, "alpha.json"), PushRequired: true,
-			}},
-		}},
-		{Credentials: provisioning.CredentialSpec{
-			Name:         "beta",
-			SeedOnLaunch: true,
-			Files: []provisioning.CredentialFile{{
-				HostPath: filepath.Join(hostDir, "beta.json"), PushRequired: true,
-			}},
-		}},
-	})
-
-	err := NewSynchronizer(runner, catalog).EnsureRegistered(context.Background(), "c1")
-	if err == nil {
-		t.Fatal("EnsureRegistered error = nil, want both seed errors")
-	}
-	for _, want := range []string{"alpha: host file missing", "beta: host file missing"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("EnsureRegistered error = %q, missing %q", err, want)
-		}
-	}
-	if !strings.Contains(err.Error(), "\n") {
-		t.Fatalf("EnsureRegistered error = %q, want joined errors", err)
 	}
 }
