@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
-import { ProjectContainersPage } from "../components/projects/ProjectContainersPage";
+import { ProjectContainersPage } from "../ui/projects/ProjectContainersPage";
 import type { ProjectContainerInfo, ProjectMeta, ProjectSecret } from "../models/project";
 import { projectApi } from "../api/projectApi";
 

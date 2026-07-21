@@ -1,8 +1,8 @@
 import type { ComponentType } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { ClaudeAuthWaiting } from "../components/auth/ClaudeAuthWaiting";
-import { LoginScreen } from "../components/auth/LoginScreen";
-import { LoadingScreen } from "../components/ui/LoadingScreen";
+import { ClaudeAuthWaiting } from "../ui/auth/ClaudeAuthWaiting";
+import { LoginScreen } from "../ui/auth/LoginScreen";
+import { LoadingScreen } from "../ui/ui/LoadingScreen";
 import { useAuthContext } from "../context/AuthContext";
 import { ClaudeLoginContainer } from "./ClaudeLoginContainer";
 

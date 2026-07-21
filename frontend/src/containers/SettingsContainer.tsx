@@ -1,4 +1,4 @@
-import { SettingsPage } from "../components/settings/SettingsPage";
+import { SettingsPage } from "../ui/settings/SettingsPage";
 import { useAuthContext } from "../context/AuthContext";
 import { useUserSettingsContext } from "../context/UserSettingsContext";
 import { useCodexAuth } from "../hooks/auth/useCodexAuth";

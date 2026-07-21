@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "preact/hooks";
-import { ClaudeLoginScreen } from "../components/auth/ClaudeLoginScreen";
+import { ClaudeLoginScreen } from "../ui/auth/ClaudeLoginScreen";
 import { useClaudeLoginFlow } from "../hooks/auth/useClaudeLoginFlow";
 
 export function ClaudeLoginContainer({ onDone }: { onDone: () => void }) {

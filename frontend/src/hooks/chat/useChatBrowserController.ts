@@ -4,7 +4,7 @@ import type { ChatMeta } from "../../models/chat";
 import type { ContainerApp, ProjectMeta } from "../../models/project";
 import type { Block } from "../../state/chat/messageBlocks";
 import { projectApi } from "../../api/projectApi";
-import type { BrowserElementCapture } from "../../components/chat/browser/BrowserDrawer";
+import type { BrowserElementCapture } from "../../ui/chat/browser/BrowserDrawer";
 
 export function useChatBrowserController({
   chat,

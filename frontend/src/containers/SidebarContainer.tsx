@@ -1,5 +1,5 @@
 import { useMemo } from "preact/hooks";
-import { Sidebar } from "../components/sidebar/Sidebar";
+import { Sidebar } from "../ui/sidebar/Sidebar";
 import { useAuthContext } from "../context/AuthContext";
 import { useWorkspaceContext } from "../context/WorkspaceContext";
 import { useSidebarState } from "../hooks/workspace/useSidebarState";
