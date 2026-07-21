@@ -46,8 +46,8 @@ const (
 	agentBrowserInstallTimeout = 8 * time.Minute
 )
 
-// agentBrowser owns installation, workspace templates, split core/view
-// lifecycle, status inspection, and browser-specific container configuration.
+// agentBrowser owns installation, workspace templates, and the split core/view
+// runtime lifecycle.
 type agentBrowser struct {
 	lxc       CommandRunner
 	templates *templatePublisher
@@ -218,42 +218,4 @@ func parseAgentBrowserStatus(out string) serviceproject.AgentBrowserInfo {
 		info.Status = serviceproject.AgentBrowserStatusStopped
 	}
 	return info
-}
-
-// EnsureAgentBrowserLimits applies only container config that Chrome needs and
-// removes older browser-induced container-wide CPU/memory limits.
-func (c *Client) EnsureAgentBrowserLimits(ctx context.Context, containerName string) error {
-	return c.browser.ensureLimits(ctx, containerName)
-}
-
-func (b *agentBrowser) ensureLimits(ctx context.Context, containerName string) error {
-	if !b.lxc.Available() {
-		return errors.New("lxc not available")
-	}
-	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	cur, _ := b.lxc.Run(lctx, "config", "get", containerName, "security.nesting")
-	if strings.TrimSpace(cur) != "true" {
-		out, err := b.lxc.Run(lctx, "config", "set", containerName, "security.nesting", "true")
-		if err != nil {
-			cancel()
-			return fmt.Errorf("set security.nesting: %w; output: %s", err, out)
-		}
-	}
-	cancel()
-
-	for _, key := range []string{"limits.cpu", "limits.memory"} {
-		qctx, qcancel := context.WithTimeout(ctx, queryTimeout)
-		cur, _ := b.lxc.Run(qctx, "config", "get", containerName, key)
-		qcancel()
-		if strings.TrimSpace(cur) == "" {
-			continue
-		}
-		uctx, ucancel := context.WithTimeout(ctx, queryTimeout)
-		out, err := b.lxc.Run(uctx, "config", "unset", containerName, key)
-		ucancel()
-		if err != nil {
-			return fmt.Errorf("unset %s: %w; output: %s", key, err, out)
-		}
-	}
-	return nil
 }

@@ -41,18 +41,19 @@ type CommandRunner interface {
 // Client implements the container ports consumed by project and prompt
 // services. Wire it once at the composition root and share the pointer.
 type Client struct {
-	lxc         CommandRunner
-	profiles    profileRegistry
-	templates   templatePublisher
-	inspector   containerInspector
-	credentials credentialSynchronizer
-	clis        cliProvisioner
-	browser     agentBrowser
-	browserMCP  agentBrowserMCPProvisioner
-	codeServer  codeServerProvisioner
-	lifecycle   containerLifecycle
-	workspace   workspaceProvisioner
-	images      baseImageBuilder
+	lxc           CommandRunner
+	profiles      profileRegistry
+	templates     templatePublisher
+	inspector     containerInspector
+	credentials   credentialSynchronizer
+	clis          cliProvisioner
+	browser       agentBrowser
+	browserMCP    agentBrowserMCPProvisioner
+	browserConfig agentBrowserConfigurator
+	codeServer    codeServerProvisioner
+	lifecycle     containerLifecycle
+	workspace     workspaceProvisioner
+	images        baseImageBuilder
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
@@ -95,6 +96,7 @@ func New(client CommandRunner) *Client {
 		profiles:  &containerClient.profiles,
 		templates: &containerClient.templates,
 	}
+	containerClient.browserConfig = agentBrowserConfigurator{lxc: client}
 	containerClient.codeServer = codeServerProvisioner{lxc: client}
 	containerClient.workspace = workspaceProvisioner{
 		lxc:       client,
@@ -108,7 +110,7 @@ func New(client CommandRunner) *Client {
 	containerClient.lifecycle.provisioner = &containerLaunchProvisioner{
 		credentials: &containerClient.credentials,
 		workspace:   &containerClient.workspace,
-		browser:     &containerClient.browser,
+		browser:     &containerClient.browserConfig,
 		codeServer:  &containerClient.codeServer,
 	}
 	return containerClient

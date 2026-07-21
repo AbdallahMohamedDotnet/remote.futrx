@@ -8,7 +8,7 @@ import "context"
 type containerLaunchProvisioner struct {
 	credentials *credentialSynchronizer
 	workspace   *workspaceProvisioner
-	browser     *agentBrowser
+	browser     *agentBrowserConfigurator
 	codeServer  *codeServerProvisioner
 }
 
@@ -17,6 +17,6 @@ func (p *containerLaunchProvisioner) provision(ctx context.Context, containerNam
 	_ = p.workspace.ensureSkillLinks(ctx, containerName)
 	_ = p.workspace.ensureBrowserScript(ctx, containerName)
 	_ = p.workspace.ensureBrowserSkill(ctx, containerName)
-	_ = p.browser.ensureLimits(ctx, containerName)
+	_ = p.browser.ensure(ctx, containerName)
 	_ = p.codeServer.ensure(ctx, containerName, displayName)
 }
