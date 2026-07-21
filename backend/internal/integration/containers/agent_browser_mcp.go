@@ -25,23 +25,27 @@ const (
 // profile-owned MCP templates. Cheap once installed: the npm-presence check
 // short-circuits, and templates are only re-pushed when their content changes.
 func (c *Client) EnsureAgentBrowserMCP(ctx context.Context, containerName string) error {
-	if !c.Available() {
+	return c.browser.ensureMCP(ctx, containerName)
+}
+
+func (b *agentBrowser) ensureMCP(ctx context.Context, containerName string) error {
+	if !b.lxc.Available() {
 		return errors.New("lxc not available")
 	}
 
 	cctx, cancelC := context.WithTimeout(ctx, queryTimeout)
-	_, missing := c.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "npm ls -g @playwright/mcp >/dev/null 2>&1")
+	_, missing := b.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "npm ls -g @playwright/mcp >/dev/null 2>&1")
 	cancelC()
 	if missing != nil {
 		ictx, cancelI := context.WithTimeout(ctx, browserMCPInstallTimeout)
-		out, err := c.lxc.Run(ictx, "exec", containerName, "--", "sh", "-c", "npm install -g @playwright/mcp 2>&1 | tail -3")
+		out, err := b.lxc.Run(ictx, "exec", containerName, "--", "sh", "-c", "npm install -g @playwright/mcp 2>&1 | tail -3")
 		cancelI()
 		if err != nil {
 			return fmt.Errorf("install @playwright/mcp: %w; output: %s", err, truncateOut(out, 1000))
 		}
 	}
 
-	for _, profile := range c.AgentProfiles() {
+	for _, profile := range b.profiles.snapshot() {
 		for _, template := range profile.BrowserMCPTemplates {
 			directory := template.Directory
 			if directory == "" {
@@ -52,7 +56,7 @@ func (c *Client) EnsureAgentBrowserMCP(ctx context.Context, containerName string
 				directoryMode = "755"
 			}
 			dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-			out, err := c.lxc.Run(dctx, "exec", containerName, "--",
+			out, err := b.lxc.Run(dctx, "exec", containerName, "--",
 				"install", "-d", "-m", directoryMode, directory)
 			cancelD()
 			if err != nil {
@@ -62,7 +66,7 @@ func (c *Client) EnsureAgentBrowserMCP(ctx context.Context, containerName string
 			if mode == "" {
 				mode = "644"
 			}
-			if err := c.templates.push(ctx, containerName, template.Content,
+			if err := b.templates.push(ctx, containerName, template.Content,
 				template.HashPath, mode, template.Path); err != nil {
 				return err
 			}
