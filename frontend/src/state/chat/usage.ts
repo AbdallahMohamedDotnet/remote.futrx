@@ -1,13 +1,7 @@
 import type { ChatEvent } from "../../models/chat";
+import type { ChatUsageTotals } from "../../models/chatUsage";
 
-export interface UsageTotals {
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-}
-
-export const EMPTY_USAGE_TOTALS: UsageTotals = {
+export const EMPTY_USAGE_TOTALS: ChatUsageTotals = {
   inputTokens: 0,
   outputTokens: 0,
   cacheReadTokens: 0,
@@ -23,7 +17,7 @@ type Usage =
     }
   | null;
 
-export function addUsageFromEvent(totals: UsageTotals, event: ChatEvent): UsageTotals {
+export function addUsageFromEvent(totals: ChatUsageTotals, event: ChatEvent): ChatUsageTotals {
   if (event.type !== "complete" || !event.usage) return totals;
 
   try {

@@ -3,19 +3,16 @@ import { chatApi } from "../../../api/chatApi";
 import type { ChatStream } from "../../../types/chatApi";
 import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../../models/chat";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
+import type { ChatUsageTotals } from "../../../models/chatUsage";
 import { buildChatMessageBlocks } from "../../chat/messageBlocks";
-import {
-  addUsageFromEvent,
-  EMPTY_USAGE_TOTALS,
-  type UsageTotals,
-} from "../../chat/usage";
+import { addUsageFromEvent, EMPTY_USAGE_TOTALS } from "../../chat/usage";
 
 const CHAT_EVENT_PAGE_LIMIT = 240;
 
 interface UseChatResult {
   meta: ChatMeta | null;
   blocks: ChatMessageBlock[];
-  usageTotals: UsageTotals;
+  usageTotals: ChatUsageTotals;
   eventCount: number;
   hasOlder: boolean;
   loadingOlder: boolean;
@@ -32,7 +29,7 @@ interface UseChatResult {
 interface ChatRenderState {
   events: ChatEvent[];
   blocks: ChatMessageBlock[];
-  usageTotals: UsageTotals;
+  usageTotals: ChatUsageTotals;
   eventCount: number;
   hasOlder: boolean;
   nextBefore: number;

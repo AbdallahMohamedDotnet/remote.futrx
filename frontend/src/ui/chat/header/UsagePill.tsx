@@ -1,4 +1,4 @@
-import type { UsageTotals } from "../../../state/chat/usage";
+import type { ChatUsageTotals } from "../../../models/chatUsage";
 import { Activity } from "../../primitives/icons";
 
 export function UsagePill({
@@ -6,7 +6,7 @@ export function UsagePill({
   tokenLabel,
   costUsd,
 }: {
-  totals: UsageTotals;
+  totals: ChatUsageTotals;
   tokenLabel: string;
   costUsd: number;
 }) {
