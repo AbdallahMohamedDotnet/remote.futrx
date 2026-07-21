@@ -1,4 +1,5 @@
 import { requestJson } from "./apiRequest";
+import { openChatStream } from "./chat/chatStream";
 import { sendHttpRequest } from "../transport/http";
 import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
 import { webSocketUrl } from "../transport/webSocketUrl";
@@ -96,11 +97,7 @@ export const chatApi = {
     id: string,
     latestSeq: () => number,
     callbacks: ChatStreamCallbacks
-  ): ChatStream => {
-    const stream = new ReconnectingChatStream(id, latestSeq, callbacks);
-    stream.open();
-    return stream;
-  },
+  ): ChatStream => openChatStream(id, latestSeq, callbacks),
 };
 
 class ReconnectingChatStream implements ChatStream {
