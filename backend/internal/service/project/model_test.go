@@ -24,3 +24,37 @@ func TestSetAgentStatusesPreservesLegacyInspectFields(t *testing.T) {
 		t.Fatalf("Codex compatibility status = %#v", inspect.Codex)
 	}
 }
+
+func TestNormalizeContainerLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		limits  ContainerLimits
+		want    ContainerLimits
+		wantErr bool
+	}{
+		{name: "empty inherits defaults"},
+		{
+			name:   "valid values are trimmed",
+			limits: ContainerLimits{CPU: " 4 ", Memory: "8GiB", Disk: "40GiB"},
+			want:   ContainerLimits{CPU: "4", Memory: "8GiB", Disk: "40GiB"},
+		},
+		{name: "zero cpu", limits: ContainerLimits{CPU: "0"}, wantErr: true},
+		{name: "fractional cpu", limits: ContainerLimits{CPU: "1.5"}, wantErr: true},
+		{name: "cpu too large", limits: ContainerLimits{CPU: "257"}, wantErr: true},
+		{name: "unit required", limits: ContainerLimits{Memory: "8192"}, wantErr: true},
+		{name: "binary unit required", limits: ContainerLimits{Disk: "40GB"}, wantErr: true},
+		{name: "zero size", limits: ContainerLimits{Memory: "0GiB"}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeContainerLimits(tt.limits)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("normalizeContainerLimits() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Fatalf("normalizeContainerLimits() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}

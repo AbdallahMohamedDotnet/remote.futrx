@@ -96,6 +96,11 @@ func (r recordingResources) Ensure(_ context.Context, containerName string) erro
 	return r.err
 }
 
+func (r recordingResources) SetLimits(_ context.Context, containerName, cpu, memory, disk string) error {
+	*r.events = append(*r.events, "resources limits "+containerName+" "+cpu+" "+memory+" "+disk)
+	return r.err
+}
+
 type recordingProvisioner struct{ events *[]string }
 
 func (p recordingProvisioner) Provision(_ context.Context, containerName, displayName string) {
@@ -194,5 +199,39 @@ func TestLaunchExistingContainerEnsuresResourcesBeforeStart(t *testing.T) {
 				t.Fatalf("events:\n got: %q\nwant: %q", events, tt.want)
 			}
 		})
+	}
+}
+
+func TestLaunchAppliesProjectResourceLimitsBeforeStarting(t *testing.T) {
+	var events []string
+	service := NewService(
+		recordingRuntime{events: &events, available: true, state: serviceproject.ContainerStateStopped},
+		"unused",
+		recordingWorkspace{events: &events},
+		recordingResources{events: &events},
+		recordingProvisioner{events: &events},
+	)
+
+	err := service.Launch(context.Background(), serviceproject.Meta{
+		Cwd:           "/host/workspaces/project-1",
+		ContainerName: "project-1",
+		ResourceLimits: &serviceproject.ContainerLimits{
+			CPU: "4", Memory: "8GiB", Disk: "40GiB",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+
+	want := []string{
+		"runtime available",
+		"workspace prepare /host/workspaces/project-1",
+		"runtime state project-1",
+		"resources ensure project-1",
+		"resources limits project-1 4 8GiB 40GiB",
+		"runtime start project-1",
+	}
+	if !slices.Equal(events, want) {
+		t.Fatalf("events:\n got: %q\nwant: %q", events, want)
 	}
 }

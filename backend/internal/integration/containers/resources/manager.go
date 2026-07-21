@@ -72,6 +72,65 @@ func (m *Manager) Ensure(ctx context.Context, containerName string) error {
 	return m.ensureAttached(ctx, containerName)
 }
 
+// SetLimits writes container-local overrides, which take precedence over the
+// managed profile. Empty values remove the corresponding override. CPU and
+// memory are instance config keys; root-disk quota is a disk-device property.
+func (m *Manager) SetLimits(ctx context.Context, containerName, cpu, memory, disk string) error {
+	for _, limit := range []struct {
+		key   string
+		value string
+	}{
+		{key: "limits.cpu", value: cpu},
+		{key: "limits.memory", value: memory},
+	} {
+		args := []string{"config", "set", containerName, limit.key, limit.value}
+		if limit.value == "" {
+			args = []string{"config", "unset", containerName, limit.key}
+		}
+		limitCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+		out, err := m.runner.Run(limitCtx, args...)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("%s: %w; output: %s", strings.Join(args, " "), err, out)
+		}
+	}
+
+	if disk == "" {
+		diskCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+		out, err := m.runner.Run(diskCtx, "config", "device", "unset", containerName, "root", "size")
+		cancel()
+		if err != nil && !missingDeviceOutput(out+" "+err.Error()) {
+			return fmt.Errorf("config device unset %s root size: %w; output: %s", containerName, err, out)
+		}
+		return nil
+	}
+
+	diskCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	out, err := m.runner.Run(diskCtx, "config", "device", "override", containerName, "root", "size="+disk)
+	cancel()
+	if err == nil {
+		return nil
+	}
+	if !strings.Contains(strings.ToLower(out+" "+err.Error()), "already exists") {
+		return fmt.Errorf("config device override %s root: %w; output: %s", containerName, err, out)
+	}
+	diskCtx, cancel = context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	out, err = m.runner.Run(diskCtx, "config", "device", "set", containerName, "root", "size", disk)
+	if err != nil {
+		return fmt.Errorf("config device set %s root size: %w; output: %s", containerName, err, out)
+	}
+	return nil
+}
+
+func missingDeviceOutput(output string) bool {
+	lower := strings.ToLower(output)
+	return strings.Contains(lower, "not found") ||
+		strings.Contains(lower, "doesn't exist") ||
+		strings.Contains(lower, "does not exist") ||
+		strings.Contains(lower, "not defined")
+}
+
 func (m *Manager) ensureProfile(ctx context.Context) error {
 	if !m.runner.Available() {
 		return errors.New("lxc not available")

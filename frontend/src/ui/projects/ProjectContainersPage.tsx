@@ -12,8 +12,9 @@ import {
 } from "./project-containers/ProjectInfoSection";
 import { ProjectSecretsSection } from "./project-containers/ProjectSecretsSection";
 import { ProjectSharingSection } from "./project-containers/ProjectSharingSection";
+import { ProjectResourceLimits } from "./project-containers/ProjectResourceLimits";
 import { formatRelativeTime as fmtRelative } from "./project-containers/projectContainerFormat";
-import type { ProjectContainerInfo, ProjectMeta } from "../../models/project";
+import type { ContainerLimits, ProjectContainerInfo, ProjectMeta } from "../../models/project";
 import { ChevronLeft, Info, Key, Loader, Menu, RotateCcw, Settings, Users } from "../primitives/icons";
 
 export type ProjectSettingsTab = "info" | "settings" | "secrets" | "sharing";
@@ -57,6 +58,7 @@ export function ProjectContainersPage({
   secretsRecord,
   accessRecord,
   refreshing,
+  isAdmin,
   onRefresh,
   onBack,
   onHamburger,
@@ -66,6 +68,7 @@ export function ProjectContainersPage({
   onAddMember,
   onRemoveMember,
   onRepairNetwork,
+  onSetResourceLimits,
   onStartProject,
   onStopProject,
   onRestartProject,
@@ -77,6 +80,7 @@ export function ProjectContainersPage({
   secretsRecord: SecretsRecord;
   accessRecord: AccessRecord;
   refreshing: boolean;
+  isAdmin: boolean;
   onRefresh: () => void;
   onBack: () => void;
   onHamburger: () => void;
@@ -86,6 +90,7 @@ export function ProjectContainersPage({
   onAddMember: (email: string) => Promise<void>;
   onRemoveMember: (email: string) => Promise<void>;
   onRepairNetwork: () => Promise<void>;
+  onSetResourceLimits: (limits: ContainerLimits) => Promise<void>;
   onStartProject: () => Promise<void>;
   onStopProject: () => Promise<void>;
   onRestartProject: () => Promise<void>;
@@ -177,19 +182,28 @@ export function ProjectContainersPage({
                 )}
 
                 {activeTab === "settings" && (
-                  <ProjectSettingsPanel
-                    title="Project lifecycle"
-                    description={`Current status: ${project.status || "unknown"}`}
-                    Icon={Settings}
-                  >
-                    <ProjectActions
-                      project={project}
-                      onStart={onStartProject}
-                      onStop={onStopProject}
-                      onRestart={onRestartProject}
-                      onDelete={onDeleteProject}
+                  <div class="space-y-4">
+                    <ProjectResourceLimits
+                      effective={infoRecord.data?.limits}
+                      overrides={infoRecord.data ? infoRecord.data.limitOverrides : project.resourceLimits}
+                      loading={infoRecord.loading}
+                      isAdmin={isAdmin}
+                      onSave={onSetResourceLimits}
                     />
-                  </ProjectSettingsPanel>
+                    <ProjectSettingsPanel
+                      title="Project lifecycle"
+                      description={`Current status: ${project.status || "unknown"}`}
+                      Icon={Settings}
+                    >
+                      <ProjectActions
+                        project={project}
+                        onStart={onStartProject}
+                        onStop={onStopProject}
+                        onRestart={onRestartProject}
+                        onDelete={onDeleteProject}
+                      />
+                    </ProjectSettingsPanel>
+                  </div>
                 )}
 
                 {activeTab === "secrets" && (

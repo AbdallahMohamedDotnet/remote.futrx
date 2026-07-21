@@ -224,6 +224,26 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 			httptransport.SendJSON(w, http.StatusOK, info)
+		case "limits":
+			if r.Method != http.MethodPut {
+				httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+				return
+			}
+			if !isAdmin {
+				httptransport.SendErr(w, http.StatusForbidden, "admin only")
+				return
+			}
+			var body serviceproject.ContainerLimits
+			if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
+				httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
+				return
+			}
+			info, err := h.projects.SetContainerLimits(r.Context(), id, body)
+			if err != nil {
+				sendProjectError(w, err)
+				return
+			}
+			httptransport.SendJSON(w, http.StatusOK, info)
 		case "apps":
 			if r.Method != http.MethodGet {
 				httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -609,7 +629,8 @@ func sendProjectError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, serviceproject.ErrNameRequired),
 		errors.Is(err, serviceproject.ErrInvalidID),
-		errors.Is(err, serviceproject.ErrInvalidSecretKey):
+		errors.Is(err, serviceproject.ErrInvalidSecretKey),
+		errors.Is(err, serviceproject.ErrInvalidLimits):
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, serviceproject.ErrSecretsUnavailable):
 		httptransport.SendErr(w, http.StatusServiceUnavailable, err.Error())

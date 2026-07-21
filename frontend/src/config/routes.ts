@@ -52,6 +52,8 @@ export const API_ROUTES = {
     restart: (id: string) => `/api/projects/${encodeURIComponent(id)}/restart`,
     container: (id: string) =>
       `/api/projects/${encodeURIComponent(id)}/container`,
+    limits: (id: string) =>
+      `/api/projects/${encodeURIComponent(id)}/limits`,
     repairNetwork: (id: string) =>
       `/api/projects/${encodeURIComponent(id)}/repair-network`,
     apps: (id: string) => `/api/projects/${encodeURIComponent(id)}/apps`,

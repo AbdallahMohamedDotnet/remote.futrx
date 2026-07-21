@@ -1,5 +1,9 @@
 import { requestJson } from "../apiRequest";
-import type { ProjectContainerInfo, ProjectMeta } from "../../models/project";
+import type {
+  ContainerLimits,
+  ProjectContainerInfo,
+  ProjectMeta,
+} from "../../models/project";
 import { API_ROUTES } from "../../config/routes";
 
 export const projectContainerApi = {
@@ -16,6 +20,13 @@ export const projectContainerApi = {
     requestJson<ProjectContainerInfo>(
       "GET",
       API_ROUTES.projects.container(id)
+    ),
+
+  setContainerLimits: (id: string, limits: ContainerLimits) =>
+    requestJson<ProjectContainerInfo>(
+      "PUT",
+      API_ROUTES.projects.limits(id),
+      limits
     ),
 
   repairNetwork: (id: string) =>

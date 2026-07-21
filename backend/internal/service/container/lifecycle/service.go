@@ -30,6 +30,7 @@ type WorkspacePreparer interface {
 
 type ResourceEnsurer interface {
 	Ensure(ctx context.Context, containerName string) error
+	SetLimits(ctx context.Context, containerName, cpu, memory, disk string) error
 }
 
 type LaunchProvisioner interface {
@@ -79,6 +80,17 @@ func (s *Service) Launch(ctx context.Context, project serviceproject.Meta) error
 	}
 	if state != serviceproject.ContainerStateMissing {
 		_ = s.resources.Ensure(ctx, project.ContainerName)
+		if project.ResourceLimits != nil {
+			if err := s.resources.SetLimits(
+				ctx,
+				project.ContainerName,
+				project.ResourceLimits.CPU,
+				project.ResourceLimits.Memory,
+				project.ResourceLimits.Disk,
+			); err != nil {
+				return fmt.Errorf("apply resource limits: %w", err)
+			}
+		}
 		if state == serviceproject.ContainerStateStopped {
 			return s.runtime.Start(ctx, project.ContainerName)
 		}
@@ -90,6 +102,17 @@ func (s *Service) Launch(ctx context.Context, project serviceproject.Meta) error
 	}
 
 	_ = s.resources.Ensure(ctx, project.ContainerName)
+	if project.ResourceLimits != nil {
+		if err := s.resources.SetLimits(
+			ctx,
+			project.ContainerName,
+			project.ResourceLimits.CPU,
+			project.ResourceLimits.Memory,
+			project.ResourceLimits.Disk,
+		); err != nil {
+			return fmt.Errorf("apply resource limits: %w", err)
+		}
+	}
 
 	if err := s.runtime.AttachDisk(
 		ctx,
@@ -123,6 +146,20 @@ func (s *Service) EnsureResources(ctx context.Context, containerName string) err
 		return errors.New("lxc not available")
 	}
 	return s.resources.Ensure(ctx, containerName)
+}
+
+func (s *Service) SetResourceLimits(
+	ctx context.Context,
+	containerName string,
+	limits serviceproject.ContainerLimits,
+) error {
+	if !s.runtime.Available() {
+		return errors.New("lxc not available")
+	}
+	if err := s.resources.Ensure(ctx, containerName); err != nil {
+		return err
+	}
+	return s.resources.SetLimits(ctx, containerName, limits.CPU, limits.Memory, limits.Disk)
 }
 
 func (s *Service) Start(ctx context.Context, containerName string) error {

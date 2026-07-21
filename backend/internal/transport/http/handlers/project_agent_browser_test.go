@@ -122,6 +122,49 @@ func TestProjectAgentBrowserRouteMethods(t *testing.T) {
 	}
 }
 
+func TestProjectResourceLimitsRoute(t *testing.T) {
+	handler, containers, project := newAgentBrowserProjectHandler(t)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/projects/"+string(project.ID)+"/limits", strings.NewReader(`{"cpu":"4","memory":"8GiB","disk":"40GiB"}`))
+	rec := httptest.NewRecorder()
+	handler.HandleResource(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT limits = %d body=%s", rec.Code, rec.Body.String())
+	}
+	want := serviceproject.ContainerLimits{CPU: "4", Memory: "8GiB", Disk: "40GiB"}
+	if got := containers.currentResourceLimits(); got != want {
+		t.Fatalf("applied limits = %#v, want %#v", got, want)
+	}
+	meta, err := handler.projects.Get(context.Background(), project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.ResourceLimits == nil || *meta.ResourceLimits != want {
+		t.Fatalf("persisted limits = %#v, want %#v", meta.ResourceLimits, want)
+	}
+
+	req = httptest.NewRequest(http.MethodPut, "/api/projects/"+string(project.ID)+"/limits", strings.NewReader(`{"cpu":"0"}`))
+	rec = httptest.NewRecorder()
+	handler.HandleResource(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("PUT invalid limits = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPut, "/api/projects/"+string(project.ID)+"/limits", strings.NewReader(`{}`))
+	rec = httptest.NewRecorder()
+	handler.HandleResource(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT reset limits = %d body=%s", rec.Code, rec.Body.String())
+	}
+	meta, err = handler.projects.Get(context.Background(), project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.ResourceLimits != nil {
+		t.Fatalf("persisted reset limits = %#v, want nil", meta.ResourceLimits)
+	}
+}
+
 func newAgentBrowserProjectHandler(t *testing.T) (*ProjectHandler, *fakeProjectContainers, serviceproject.Meta) {
 	t.Helper()
 	repo, err := fileproject.NewWithWorkspaceRoot(t.TempDir(), t.TempDir())
@@ -155,6 +198,7 @@ type fakeProjectContainers struct {
 	agentBrowserAllowOnce       sync.Once
 	agentBrowserStartedCh       chan struct{}
 	agentBrowserAllowCh         chan struct{}
+	resourceLimits              serviceproject.ContainerLimits
 }
 
 func newFakeProjectContainers() *fakeProjectContainers {
@@ -193,6 +237,19 @@ func (f *fakeProjectContainers) Launch(context.Context, serviceproject.Meta) err
 func (f *fakeProjectContainers) Start(context.Context, string) error { return nil }
 
 func (f *fakeProjectContainers) EnsureResources(context.Context, string) error { return nil }
+
+func (f *fakeProjectContainers) SetResourceLimits(_ context.Context, _ string, limits serviceproject.ContainerLimits) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resourceLimits = limits
+	return nil
+}
+
+func (f *fakeProjectContainers) currentResourceLimits() serviceproject.ContainerLimits {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.resourceLimits
+}
 
 func (f *fakeProjectContainers) Restart(context.Context, string) error { return nil }
 

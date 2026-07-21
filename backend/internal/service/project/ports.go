@@ -28,6 +28,9 @@ type ContainerLifecycle interface {
 	// EnsureResources converges the fleet-default resource envelope (the
 	// managed LXD profile) onto an existing container.
 	EnsureResources(ctx context.Context, containerName string) error
+	// SetResourceLimits applies container-local overrides. Empty values remove
+	// overrides so the managed fleet profile becomes effective again.
+	SetResourceLimits(ctx context.Context, containerName string, limits ContainerLimits) error
 }
 
 // ContainerEnvironment applies project secrets to future container sessions.

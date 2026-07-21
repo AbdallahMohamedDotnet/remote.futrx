@@ -22,6 +22,7 @@ export interface ProjectMeta {
   status: ProjectStatus;
   order?: number;
   errorMsg?: string;
+  resourceLimits?: ContainerLimits;
   createdAt: number;
   updatedAt: number;
 }
@@ -119,6 +120,7 @@ export interface ProjectContainerInfo {
   os?: OSInfo;
   disks?: DiskUsage[];
   limits?: ContainerLimits;
+  limitOverrides?: ContainerLimits;
   claude: ClaudeContainerStatus;
   codex: CodexContainerStatus;
   authBundles: AuthBundleStatus[];

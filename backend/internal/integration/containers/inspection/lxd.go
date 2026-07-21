@@ -17,13 +17,14 @@ type containerLXDInspector struct {
 // ExpandedConfig merges profile-provided keys (e.g. the futrx-workspace
 // resource limits) with container-local config; Config is local-only.
 type instanceConfig struct {
-	Architecture   string                       `json:"architecture"`
-	Type           string                       `json:"type"`
-	CreatedAt      string                       `json:"created_at"`
-	LastUsedAt     string                       `json:"last_used_at"`
-	Config         map[string]string            `json:"config"`
-	ExpandedConfig map[string]string            `json:"expanded_config"`
-	Devices        map[string]map[string]string `json:"devices"`
+	Architecture    string                       `json:"architecture"`
+	Type            string                       `json:"type"`
+	CreatedAt       string                       `json:"created_at"`
+	LastUsedAt      string                       `json:"last_used_at"`
+	Config          map[string]string            `json:"config"`
+	ExpandedConfig  map[string]string            `json:"expanded_config"`
+	Devices         map[string]map[string]string `json:"devices"`
+	ExpandedDevices map[string]map[string]string `json:"expanded_devices"`
 }
 
 // effectiveConfig returns the value a key actually resolves to on the
@@ -87,7 +88,11 @@ func (i *containerLXDInspector) inspectConfiguration(ctx context.Context, name s
 	} else if alias := cfg.Config["image.alias"]; alias != "" {
 		out.Image = alias
 	}
-	if cpu, memory, disk := cfg.effectiveConfig("limits.cpu"), cfg.effectiveConfig("limits.memory"), cfg.effectiveConfig("limits.disk"); cpu != "" || memory != "" || disk != "" {
+	disk := ""
+	if root := cfg.ExpandedDevices["root"]; root != nil {
+		disk = root["size"]
+	}
+	if cpu, memory := cfg.effectiveConfig("limits.cpu"), cfg.effectiveConfig("limits.memory"); cpu != "" || memory != "" || disk != "" {
 		out.Limits = &serviceproject.ContainerLimits{CPU: cpu, Memory: memory, Disk: disk}
 	}
 	if workspace, ok := cfg.Devices["workspace"]; ok {

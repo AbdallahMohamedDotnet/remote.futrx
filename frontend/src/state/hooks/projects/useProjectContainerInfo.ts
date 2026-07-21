@@ -1,6 +1,6 @@
 import { useCallback, useState } from "preact/hooks";
 import { projectApi } from "../../../api/projectApi";
-import type { ProjectMeta } from "../../../models/project";
+import type { ContainerLimits, ProjectMeta } from "../../../models/project";
 import type {
   ProjectContainerRecord,
   ProjectDataLoadSignal,
@@ -38,6 +38,12 @@ export function useProjectContainerInfo(project: ProjectMeta | null) {
     setRecord({ loading: false, data, refreshedAt: Date.now() });
   }, [project]);
 
+  const setLimits = useCallback(async (limits: ContainerLimits) => {
+    if (!project) return;
+    const data = await projectApi.setContainerLimits(project.id, limits);
+    setRecord({ loading: false, data, refreshedAt: Date.now() });
+  }, [project]);
+
   const start = useCallback(async () => {
     if (!project) return;
     await projectApi.start(project.id);
@@ -56,5 +62,5 @@ export function useProjectContainerInfo(project: ProjectMeta | null) {
     await load();
   }, [project, load]);
 
-  return { record, load, repairNetwork, start, stop, restart };
+  return { record, load, repairNetwork, setLimits, start, stop, restart };
 }

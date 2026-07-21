@@ -5,6 +5,7 @@ import {
 } from "../../ui/projects/ProjectContainersPage";
 import type { ProjectMeta } from "../../models/project";
 import { useProjectContainersController } from "../../state/hooks/projects/useProjectContainersController";
+import { useAuthContext } from "../../state/context/AuthContext";
 
 export function ProjectContainersContainer({
   projects,
@@ -19,6 +20,7 @@ export function ProjectContainersContainer({
   onHamburger: () => void;
   onDeleteProject: (projectId: string) => Promise<void>;
 }) {
+  const { auth } = useAuthContext();
   const controller = useProjectContainersController(projects, selectedProjectId);
   const { selectedProject, info, secrets, access } = controller;
   const [activeTab, setActiveTab] = useState<ProjectSettingsTab>("info");
@@ -37,6 +39,7 @@ export function ProjectContainersContainer({
       secretsRecord={secrets.record}
       accessRecord={access.record}
       refreshing={controller.refreshing}
+      isAdmin={auth.isAdmin || auth.noAuth}
       onRefresh={() => void controller.refresh()}
       onBack={onBack}
       onHamburger={onHamburger}
@@ -46,6 +49,7 @@ export function ProjectContainersContainer({
       onAddMember={access.add}
       onRemoveMember={access.remove}
       onRepairNetwork={info.repairNetwork}
+      onSetResourceLimits={info.setLimits}
       onStartProject={info.start}
       onStopProject={info.stop}
       onRestartProject={info.restart}

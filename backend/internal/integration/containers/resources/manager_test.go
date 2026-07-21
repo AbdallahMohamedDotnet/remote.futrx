@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -102,5 +103,39 @@ func TestEnsureRepairsDriftedKey(t *testing.T) {
 	got := runner.called("profile set")
 	if len(got) != 1 || !strings.Contains(got[0], "limits.memory 4GiB") {
 		t.Fatalf("expected exactly the drifted key to be reset, got %v", got)
+	}
+}
+
+func TestSetLimitsAppliesContainerOverrides(t *testing.T) {
+	runner := &fakeRunner{responses: map[string]fakeResponse{}}
+
+	if err := NewManager(runner).SetLimits(context.Background(), "c1", "4", "8GiB", "40GiB"); err != nil {
+		t.Fatalf("SetLimits: %v", err)
+	}
+
+	want := []string{
+		"config set c1 limits.cpu 4",
+		"config set c1 limits.memory 8GiB",
+		"config device override c1 root size=40GiB",
+	}
+	if !slices.Equal(runner.calls, want) {
+		t.Fatalf("calls:\n got: %q\nwant: %q", runner.calls, want)
+	}
+}
+
+func TestSetLimitsClearsContainerOverrides(t *testing.T) {
+	runner := &fakeRunner{responses: map[string]fakeResponse{}}
+
+	if err := NewManager(runner).SetLimits(context.Background(), "c1", "", "", ""); err != nil {
+		t.Fatalf("SetLimits: %v", err)
+	}
+
+	want := []string{
+		"config unset c1 limits.cpu",
+		"config unset c1 limits.memory",
+		"config device unset c1 root size",
+	}
+	if !slices.Equal(runner.calls, want) {
+		t.Fatalf("calls:\n got: %q\nwant: %q", runner.calls, want)
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -233,6 +235,83 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 	})
 }
 
+var resourceSizePattern = regexp.MustCompile(`^[1-9][0-9]*(MiB|GiB|TiB)$`)
+
+// SetContainerLimits validates and persists project-level LXD overrides. The
+// running or stopped container is updated immediately; a missing container
+// retains the desired values in metadata for its next launch.
+func (s *Service) SetContainerLimits(ctx context.Context, id ID, limits ContainerLimits) (ContainerInspect, error) {
+	if !ValidID(id) {
+		return ContainerInspect{}, ErrInvalidID
+	}
+	normalized, err := normalizeContainerLimits(limits)
+	if err != nil {
+		return ContainerInspect{}, err
+	}
+	meta, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return ContainerInspect{}, err
+	}
+
+	if s.containerLifecycle != nil && meta.ContainerName != "" {
+		state, stateErr := s.containerLifecycle.State(ctx, meta.ContainerName)
+		if stateErr != nil {
+			return ContainerInspect{}, stateErr
+		}
+		if state != ContainerStateMissing {
+			if err := s.containerLifecycle.SetResourceLimits(ctx, meta.ContainerName, normalized); err != nil {
+				return ContainerInspect{}, err
+			}
+		}
+	}
+
+	meta, err = s.repo.Update(ctx, id, func(project *Meta) {
+		if limitsEmpty(normalized) {
+			project.ResourceLimits = nil
+			return
+		}
+		copy := normalized
+		project.ResourceLimits = &copy
+	})
+	if err != nil {
+		return ContainerInspect{}, err
+	}
+	if s.containerInspector == nil || meta.ContainerName == "" {
+		return ContainerInspect{Name: meta.ContainerName, LimitOverrides: meta.ResourceLimits}, nil
+	}
+	info, err := s.containerInspector.Inspect(ctx, meta.ContainerName)
+	if err != nil {
+		// The mutation and persistence already succeeded. Keep the response
+		// successful even when the follow-up best-effort snapshot is unavailable.
+		return ContainerInspect{Name: meta.ContainerName, LimitOverrides: meta.ResourceLimits}, nil
+	}
+	info.LimitOverrides = meta.ResourceLimits
+	return info, nil
+}
+
+func normalizeContainerLimits(limits ContainerLimits) (ContainerLimits, error) {
+	limits.CPU = strings.TrimSpace(limits.CPU)
+	limits.Memory = strings.TrimSpace(limits.Memory)
+	limits.Disk = strings.TrimSpace(limits.Disk)
+	if limits.CPU != "" {
+		cores, err := strconv.Atoi(limits.CPU)
+		if err != nil || cores < 1 || cores > 256 {
+			return ContainerLimits{}, ErrInvalidLimits
+		}
+	}
+	if limits.Memory != "" && !resourceSizePattern.MatchString(limits.Memory) {
+		return ContainerLimits{}, ErrInvalidLimits
+	}
+	if limits.Disk != "" && !resourceSizePattern.MatchString(limits.Disk) {
+		return ContainerLimits{}, ErrInvalidLimits
+	}
+	return limits, nil
+}
+
+func limitsEmpty(limits ContainerLimits) bool {
+	return limits.CPU == "" && limits.Memory == "" && limits.Disk == ""
+}
+
 func (s *Service) Reorder(ctx context.Context, ids []ID) ([]Meta, error) {
 	if len(ids) == 0 {
 		return nil, nil
@@ -370,9 +449,14 @@ func (s *Service) InspectContainer(ctx context.Context, id ID) (ContainerInspect
 		return ContainerInspect{}, err
 	}
 	if s.containerInspector == nil || m.ContainerName == "" {
-		return ContainerInspect{Name: m.ContainerName}, nil
+		return ContainerInspect{Name: m.ContainerName, LimitOverrides: m.ResourceLimits}, nil
 	}
-	return s.containerInspector.Inspect(ctx, m.ContainerName)
+	info, err := s.containerInspector.Inspect(ctx, m.ContainerName)
+	if err != nil {
+		return ContainerInspect{}, err
+	}
+	info.LimitOverrides = m.ResourceLimits
+	return info, nil
 }
 
 // RepairNetwork re-runs eth0 configuration inside the project's container
@@ -388,7 +472,7 @@ func (s *Service) RepairNetwork(ctx context.Context, id ID) (ContainerInspect, e
 		return ContainerInspect{}, err
 	}
 	if s.containerNetwork == nil || s.containerInspector == nil || m.ContainerName == "" {
-		return ContainerInspect{Name: m.ContainerName}, nil
+		return ContainerInspect{Name: m.ContainerName, LimitOverrides: m.ResourceLimits}, nil
 	}
 	if err := s.containerNetwork.Repair(ctx, m.ContainerName); err != nil {
 		return ContainerInspect{}, err
@@ -397,11 +481,13 @@ func (s *Service) RepairNetwork(ctx context.Context, id ID) (ContainerInspect, e
 	for i := 0; i < 5 && err == nil && !hasIPv4(info); i++ {
 		select {
 		case <-ctx.Done():
+			info.LimitOverrides = m.ResourceLimits
 			return info, err
 		case <-time.After(time.Second):
 		}
 		info, err = s.containerInspector.Inspect(ctx, m.ContainerName)
 	}
+	info.LimitOverrides = m.ResourceLimits
 	return info, err
 }
 
@@ -769,6 +855,11 @@ func (s *Service) Reconcile(ctx context.Context) error {
 				log.Printf("projects: reconcile resources %s/%s: %v", m.ID, m.ContainerName, err)
 			} else {
 				converged++
+			}
+			if m.ResourceLimits != nil {
+				if err := s.containerLifecycle.SetResourceLimits(ctx, m.ContainerName, *m.ResourceLimits); err != nil {
+					log.Printf("projects: reconcile resource overrides %s/%s: %v", m.ID, m.ContainerName, err)
+				}
 			}
 		}
 	}

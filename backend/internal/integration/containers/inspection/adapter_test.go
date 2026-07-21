@@ -31,9 +31,9 @@ func TestAdapterLXDProbesPopulateProviderNeutralSnapshot(t *testing.T) {
 			},
 			"expanded_config":{
 				"limits.cpu":"2",
-				"limits.memory":"8GiB",
-				"limits.disk":"40GiB"
+				"limits.memory":"8GiB"
 			},
+			"expanded_devices":{"root":{"type":"disk","path":"/","size":"40GiB"}},
 			"devices":{"workspace":{"source":"/host/workspace","path":"/workspace"}}
 		}`},
 		"query /1.0/instances/c1/state": {output: `{
