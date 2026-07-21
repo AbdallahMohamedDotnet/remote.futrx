@@ -3,6 +3,7 @@ import type {
   ResumableUploadHandle,
   ResumableUploadOptions,
 } from "../types/transport";
+import { RESUMABLE_UPLOAD_CONFIG } from "../config/transport";
 
 /**
  * Start a resumable upload. Connection drops are retried automatically and
@@ -23,12 +24,14 @@ class TusResumableUpload implements ResumableUploadHandle {
       endpoint: options.endpoint,
       // 5 MiB chunks: small enough for snappy progress + retry, large enough
       // that HTTP/TLS overhead stays well under 1%.
-      chunkSize: 5 * 1024 * 1024,
-      retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
+      chunkSize: RESUMABLE_UPLOAD_CONFIG.chunkSizeBytes,
+      retryDelays: [...RESUMABLE_UPLOAD_CONFIG.retryDelaysMs],
       // tus-js-client stores the upload URL in localStorage under this identity.
       fingerprint: options.fingerprint,
-      storeFingerprintForResuming: true,
-      removeFingerprintOnSuccess: true,
+      storeFingerprintForResuming:
+        RESUMABLE_UPLOAD_CONFIG.storeFingerprintForResuming,
+      removeFingerprintOnSuccess:
+        RESUMABLE_UPLOAD_CONFIG.removeFingerprintOnSuccess,
       metadata: options.metadata,
       onError(error) {
         options.onError(error);

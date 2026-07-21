@@ -1,8 +1,6 @@
 import { WebSocketConnection } from "./webSocketConnection";
 import type { ReconnectingJsonWebSocketOptions } from "../types/transport";
-
-const INITIAL_RECONNECT_DELAY_MS = 400;
-const MAX_RECONNECT_DELAY_MS = 5_000;
+import { JSON_SOCKET_RECONNECT_POLICY } from "../config/transport";
 
 export class ReconnectingJsonWebSocket<TMessage> {
   readonly #configuration: ReconnectingJsonWebSocketOptions<TMessage>;
@@ -45,8 +43,8 @@ export class ReconnectingJsonWebSocket<TMessage> {
   #scheduleReconnect(): void {
     if (this.#isStopped) return;
     const delayMs = Math.min(
-      MAX_RECONNECT_DELAY_MS,
-      INITIAL_RECONNECT_DELAY_MS * 2 ** this.#reconnectAttempt
+      JSON_SOCKET_RECONNECT_POLICY.maxDelayMs,
+      JSON_SOCKET_RECONNECT_POLICY.initialDelayMs * 2 ** this.#reconnectAttempt
     );
     this.#reconnectAttempt++;
     this.#reconnectTimer = setTimeout(() => this.#connect(), delayMs);

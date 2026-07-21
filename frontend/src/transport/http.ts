@@ -1,4 +1,8 @@
 import type { HttpMethod } from "../types/transport";
+import {
+  DEFAULT_HTTP_CREDENTIALS,
+  HTTP_JSON_CONTENT_TYPE,
+} from "../config/transport";
 
 export async function sendHttpRequest(
   method: HttpMethod,
@@ -12,7 +16,7 @@ export async function sendHttpRequest(
   if (body instanceof FormData) {
     payload = body;
   } else if (body !== undefined) {
-    headers.set("Content-Type", "application/json");
+    headers.set("Content-Type", HTTP_JSON_CONTENT_TYPE);
     payload = JSON.stringify(body);
   }
 
@@ -21,6 +25,6 @@ export async function sendHttpRequest(
     method,
     headers,
     body: payload,
-    credentials: init?.credentials ?? "same-origin",
+    credentials: init?.credentials ?? DEFAULT_HTTP_CREDENTIALS,
   });
 }
