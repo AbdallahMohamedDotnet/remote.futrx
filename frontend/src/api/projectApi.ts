@@ -1,6 +1,6 @@
 import { requestJson } from "./apiRequest";
 import { projectAccessApi } from "./project/projectAccessApi";
-import { projectBrowserApi } from "./project/projectBrowserApi";
+import { projectAppsApi } from "./project/projectAppsApi";
 import { projectContainerApi } from "./project/projectContainerApi";
 import { projectSecretsApi } from "./project/projectSecretsApi";
 import type { ProjectMeta } from "../models/project";
@@ -19,7 +19,7 @@ export const projectApi = {
   delete: (id: string) =>
     requestJson<{ ok: boolean }>("DELETE", API_ROUTES.projects.item(id)),
   ...projectContainerApi,
-  ...projectBrowserApi,
+  ...projectAppsApi,
   ...projectSecretsApi,
   ...projectAccessApi,
 };

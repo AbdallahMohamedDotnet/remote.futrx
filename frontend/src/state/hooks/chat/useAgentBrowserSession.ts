@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { agentBrowserApi } from "../../../api/agents/agentBrowserApi";
 import type { AgentBrowserInfo, AgentBrowserStatus } from "../../../models/project";
-import { projectApi } from "../../../api/projectApi";
 
 const pollIntervalMs = 1500;
 const heartbeatIntervalMs = 15000;
@@ -69,7 +69,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
 
     async function pollStatus() {
       try {
-        const info = await projectApi.fetchAgentBrowserStatus(projectId);
+        const info = await agentBrowserApi.fetchAgentBrowserStatus(projectId);
         if (!isCurrent()) return;
         if (applyInfo(info)) pollTimer = window.setTimeout(pollStatus, pollIntervalMs);
       } catch (err) {
@@ -81,7 +81,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
 
     async function heartbeatStatus() {
       try {
-        const info = await projectApi.fetchAgentBrowserStatus(projectId);
+        const info = await agentBrowserApi.fetchAgentBrowserStatus(projectId);
         if (isCurrent()) applyInfo(info);
       } catch {
         // The fast start poll surfaces startup errors. Heartbeats should keep
@@ -89,7 +89,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
       }
     }
 
-    projectApi.startAgentBrowser(projectId)
+    agentBrowserApi.startAgentBrowser(projectId)
       .then((info) => {
         if (!isCurrent()) return;
         if (applyInfo(info)) pollTimer = window.setTimeout(pollStatus, pollIntervalMs);
@@ -108,7 +108,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
       requestRef.current++;
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
       if (heartbeatTimer !== undefined) window.clearInterval(heartbeatTimer);
-      void projectApi.stopAgentBrowser(projectId, "view").catch(() => {});
+      void agentBrowserApi.stopAgentBrowser(projectId, "view").catch(() => {});
     };
   }, [projectId, enabled, applyInfo]);
 
@@ -118,7 +118,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
     setStatus("stopped");
     setGuiUrl("");
     setError(null);
-    projectApi.stopAgentBrowser(projectId)
+    agentBrowserApi.stopAgentBrowser(projectId)
       .then(() => {
         if (!mountedRef.current || requestRef.current !== requestId) return;
         setGuiUrl("");

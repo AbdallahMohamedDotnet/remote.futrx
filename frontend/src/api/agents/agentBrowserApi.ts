@@ -1,11 +1,8 @@
 import { requestJson } from "../apiRequest";
-import type { AgentBrowserInfo, ContainerApp } from "../../models/project";
+import type { AgentBrowserInfo } from "../../models/project";
 import { API_ROUTES } from "../../config/routes";
 
-export const projectBrowserApi = {
-  listApps: (id: string) =>
-    requestJson<ContainerApp[]>("GET", API_ROUTES.projects.apps(id)),
-
+export const agentBrowserApi = {
   fetchAgentBrowserStatus: (id: string) =>
     requestJson<AgentBrowserInfo>(
       "GET",
