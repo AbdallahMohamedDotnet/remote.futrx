@@ -38,9 +38,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	claudeLogin := deps.Services.AgentAuth.Claude
-	codexLogin := deps.Services.AgentAuth.Codex
-	kimiLogin := deps.Services.AgentAuth.Kimi
+	agentAuthBindings := deps.Services.AgentAuth.Bindings()
 
 	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
 	terminalSocket := wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects)
@@ -69,7 +67,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		),
 		Users: httphandlers.NewUsersHandler(deps.Services.Users, deps.Services.Auth),
 		AgentAuth: httphandlers.NewAgentAuthHandler(
-			deps.Services.AgentAuth.Bindings(),
+			agentAuthBindings,
 			deps.Services.Auth,
 		),
 		UserSettings: httphandlers.NewUserSettingsHandler(
@@ -83,9 +81,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		TerminalWS:       terminalSocket,
 		ChatWS:           chatSocket,
 		WorkspaceWS:      workspaceSocket,
-		ClaudeAuthWS:     wstransport.NewClaudeAuthSocket(claudeLogin),
-		CodexAuthWS:      wstransport.NewCodexAuthSocket(codexLogin),
-		KimiAuthWS:       wstransport.NewKimiAuthSocket(kimiLogin),
+		AgentAuthWS:      wstransport.NewAgentAuthSocket(agentAuthBindings),
 		Auth:             auth,
 		Static:           httptransport.NewStaticHandler(deps.Static),
 	}), nil
