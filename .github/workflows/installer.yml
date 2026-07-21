@@ -33,6 +33,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Test installer compatibility
+        run: |
+          bash infra/tests/go-toolchain-test.sh
+          bash infra/tests/go-download-check.sh
+
       - name: Prepare SSH
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}

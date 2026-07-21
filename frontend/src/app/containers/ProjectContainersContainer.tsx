@@ -6,6 +6,7 @@ import {
 import type { ProjectMeta } from "../../models/project";
 import { useProjectContainersController } from "../../state/hooks/projects/useProjectContainersController";
 import { useAuthContext } from "../../state/context/AuthContext";
+import { useServerInfo } from "../../state/hooks/server/useServerInfo";
 
 export function ProjectContainersContainer({
   projects,
@@ -24,6 +25,7 @@ export function ProjectContainersContainer({
   const controller = useProjectContainersController(projects, selectedProjectId);
   const { selectedProject, info, secrets, access } = controller;
   const [activeTab, setActiveTab] = useState<ProjectSettingsTab>("info");
+  const serverInfo = useServerInfo(activeTab === "settings");
 
   const deleteSelectedProject = useCallback(async () => {
     if (!selectedProject) return;
@@ -40,6 +42,8 @@ export function ProjectContainersContainer({
       accessRecord={access.record}
       refreshing={controller.refreshing}
       isAdmin={auth.isAdmin || auth.noAuth}
+      serverMemoryTotalBytes={serverInfo.info?.memory.totalBytes}
+      serverMemoryLoading={serverInfo.loading}
       onRefresh={() => void controller.refresh()}
       onBack={onBack}
       onHamburger={onHamburger}

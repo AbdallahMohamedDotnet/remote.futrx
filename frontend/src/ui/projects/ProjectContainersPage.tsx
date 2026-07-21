@@ -59,6 +59,8 @@ export function ProjectContainersPage({
   accessRecord,
   refreshing,
   isAdmin,
+  serverMemoryTotalBytes,
+  serverMemoryLoading,
   onRefresh,
   onBack,
   onHamburger,
@@ -81,6 +83,8 @@ export function ProjectContainersPage({
   accessRecord: AccessRecord;
   refreshing: boolean;
   isAdmin: boolean;
+  serverMemoryTotalBytes?: number;
+  serverMemoryLoading: boolean;
   onRefresh: () => void;
   onBack: () => void;
   onHamburger: () => void;
@@ -188,6 +192,8 @@ export function ProjectContainersPage({
                       overrides={infoRecord.data ? infoRecord.data.limitOverrides : project.resourceLimits}
                       loading={infoRecord.loading}
                       isAdmin={isAdmin}
+                      serverMemoryTotalBytes={serverMemoryTotalBytes}
+                      serverMemoryLoading={serverMemoryLoading}
                       onSave={onSetResourceLimits}
                     />
                     <ProjectSettingsPanel

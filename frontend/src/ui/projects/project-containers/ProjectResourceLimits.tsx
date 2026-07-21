@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { ContainerLimits } from "../../../models/project";
 import { AlertCircle, Cpu, HardDrive, Loader, MemoryStick, RotateCcw } from "../../primitives/icons";
+import { formatBytes } from "./projectContainerFormat";
 
 const sizePattern = /^[1-9][0-9]*(MiB|GiB|TiB)$/;
 
@@ -9,12 +10,16 @@ export function ProjectResourceLimits({
   overrides,
   loading,
   isAdmin,
+  serverMemoryTotalBytes,
+  serverMemoryLoading,
   onSave,
 }: {
   effective?: ContainerLimits;
   overrides?: ContainerLimits;
   loading: boolean;
   isAdmin: boolean;
+  serverMemoryTotalBytes?: number;
+  serverMemoryLoading: boolean;
   onSave: (limits: ContainerLimits) => Promise<void>;
 }) {
   const [cpu, setCPU] = useState("");
@@ -90,10 +95,15 @@ export function ProjectResourceLimits({
       </header>
 
       <div class="p-4 space-y-4">
-        <div class="grid gap-2 sm:grid-cols-3">
+        <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <EffectiveLimit Icon={Cpu} label="Effective CPU" value={effective?.cpu || "Inherited"} />
           <EffectiveLimit Icon={MemoryStick} label="Effective memory" value={effective?.memory || "Inherited"} />
           <EffectiveLimit Icon={HardDrive} label="Effective disk quota" value={effective?.disk || "No quota"} />
+          <EffectiveLimit
+            Icon={MemoryStick}
+            label="Server total memory"
+            value={serverMemoryLoading ? "Loading…" : formatBytes(serverMemoryTotalBytes)}
+          />
         </div>
 
         {loading && !effective ? (

@@ -54,28 +54,15 @@ ok "node $(node -v)  npm $(npm -v)"
 
 # ───────────────── Go (pinned, official tarball) ─────────────────
 # Installed to /usr/local/go with symlinks in /usr/local/bin, which
-# precedes /usr/bin on PATH — so this shadows any distro golang-go left
-# over from older installs.
-CURRENT_GO=""
-if command -v go >/dev/null; then
-    CURRENT_GO="$(go version | grep -Eo 'go[0-9]+(\.[0-9]+)+' | head -1 | sed 's/^go//')"
+# precedes /usr/bin on PATH — so this safely upgrades older distro installs.
+GO_TOOLCHAIN_INSTALLER="$INFRA_DIR/lib/go-toolchain.sh"
+if [ ! -r "$GO_TOOLCHAIN_INSTALLER" ]; then
+    err "missing Go toolchain installer: $GO_TOOLCHAIN_INSTALLER"
+    exit 1
 fi
-if [ "$CURRENT_GO" != "$GO_VERSION" ]; then
-    log "Installing Go ${GO_VERSION} (was ${CURRENT_GO:-missing})"
-    GO_ARCH="$(dpkg --print-architecture)"   # amd64 / arm64 match Go's tarball naming
-    GO_TGZ="$(mktemp --suffix=.tgz)"
-    curl -fsSL --retry 3 -o "$GO_TGZ" "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
-    rm -rf /usr/local/go
-    tar -C /usr/local -xzf "$GO_TGZ"
-    rm -f "$GO_TGZ"
-    ln -sf /usr/local/go/bin/go    /usr/local/bin/go
-    ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
-    hash -r
-    if dpkg -s golang-go >/dev/null 2>&1; then
-        warn "distro golang-go is installed but now shadowed by /usr/local/go (apt-get remove golang-go to clean up)"
-    fi
-fi
-ok "$(go version)"
+# shellcheck source=/dev/null
+. "$GO_TOOLCHAIN_INSTALLER"
+ensure_go_toolchain "$GO_VERSION"
 
 # ───────────────── ports 80/443 free? ─────────────────
 log "Checking ports 80 + 443 are free (or held by Caddy)"
