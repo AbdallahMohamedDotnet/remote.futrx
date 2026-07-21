@@ -32,7 +32,6 @@ export function ChatThread({
   scrollRef,
   contentRef,
   bottomRef,
-  header,
   onHamburger,
   onScroll,
   onJumpToBottom,
@@ -80,14 +79,6 @@ export function ChatThread({
   scrollRef: RefObject<HTMLDivElement>;
   contentRef: RefObject<HTMLDivElement>;
   bottomRef: RefObject<HTMLDivElement>;
-  header: {
-    editingCwd: boolean;
-    cwdInput: string;
-    onStartEditCwd: () => void;
-    onCwdInput: (value: string) => void;
-    onCommitCwd: () => void;
-    onCancelCwdEdit: () => void;
-  };
   onHamburger: () => void;
   onScroll: () => void;
   onJumpToBottom: () => void;
@@ -117,12 +108,6 @@ export function ChatThread({
       <ThreadHeader
         chat={chat}
         streaming={streaming}
-        editingCwd={header.editingCwd}
-        cwdInput={header.cwdInput}
-        onStartEditCwd={header.onStartEditCwd}
-        onCwdInput={header.onCwdInput}
-        onCommitCwd={header.onCommitCwd}
-        onCancelCwdEdit={header.onCancelCwdEdit}
         onOpenTerminal={onOpenTerminal}
         onOpenBrowser={onOpenBrowser}
         onOpenHistory={onOpenHistory}

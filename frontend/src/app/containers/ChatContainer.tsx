@@ -13,7 +13,6 @@ import { useChatKeyboardShortcuts } from "../../state/hooks/chat/useChatKeyboard
 import { useChatMetaActions } from "../../state/hooks/chat/useChatMetaActions";
 import { useChatReadMarker } from "../../state/hooks/chat/useChatReadMarker";
 import { useTerminalOverlayController } from "../../state/hooks/chat/useTerminalOverlayController";
-import { useThreadHeaderState } from "../../state/hooks/chat/useThreadHeaderState";
 import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
 
 export function ChatContainer({
@@ -57,7 +56,6 @@ export function ChatContainer({
     chatId: chat.id,
     refreshMeta,
   });
-  const header = useThreadHeaderState(displayMeta.cwd, (cwd) => metaActions.applyMeta({ cwd }));
   const composer = useChatComposerController({
     chatId: chat.id,
     eventCount,
@@ -178,14 +176,6 @@ export function ChatContainer({
             scrollRef={composer.scroll.scrollRef}
             contentRef={composer.scroll.contentRef}
             bottomRef={composer.scroll.bottomRef}
-            header={{
-              editingCwd: header.editingCwd,
-              cwdInput: header.cwdInput,
-              onStartEditCwd: () => header.setEditingCwd(true),
-              onCwdInput: header.setCwdInput,
-              onCommitCwd: header.commitCwd,
-              onCancelCwdEdit: header.cancelCwdEdit,
-            }}
             onHamburger={onHamburger}
             onScroll={composer.scroll.onScroll}
             onJumpToBottom={composer.scroll.jumpToBottom}

@@ -1,26 +1,14 @@
 import { Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
 
-export function CwdEditor({
-  editing,
+export function WorkspaceActions({
   cwd,
-  value,
-  onStartEdit,
-  onChange,
-  onCommit,
-  onCancel,
   onOpenTerminal,
   onOpenBrowser,
   onOpenHistory,
   onOpenFiles,
 }: {
-  editing: boolean;
   cwd: string;
-  value: string;
-  onStartEdit: () => void;
-  onChange: (value: string) => void;
-  onCommit: () => void;
-  onCancel: () => void;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
   onOpenHistory: () => void;
@@ -28,23 +16,6 @@ export function CwdEditor({
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = buildIdeUrl(workspacePath);
-
-  if (editing) {
-    return (
-      <input
-        class="h-9 flex-1 min-w-[220px] bg-[#0b0d11] border border-accent-blue/70 rounded-md px-3
-               text-ink-100 text-[13px] font-mono focus:outline-none"
-        value={value}
-        onInput={(event) => onChange((event.currentTarget as HTMLInputElement).value)}
-        onBlur={onCommit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") onCommit();
-          if (event.key === "Escape") onCancel();
-        }}
-        autofocus
-      />
-    );
-  }
 
   return (
     <>

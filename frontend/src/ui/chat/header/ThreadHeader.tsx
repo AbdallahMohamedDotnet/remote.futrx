@@ -1,17 +1,11 @@
 import type { ChatMeta } from "../../../models/chat";
 import { providerDisplayLabel } from "../../../state/chat/usage";
 import { Menu, MessageSquare } from "../../primitives/icons";
-import { CwdEditor } from "./CwdEditor";
+import { WorkspaceActions } from "./WorkspaceActions";
 
 export function ThreadHeader({
   chat,
   streaming,
-  editingCwd,
-  cwdInput,
-  onStartEditCwd,
-  onCwdInput,
-  onCommitCwd,
-  onCancelCwdEdit,
   onOpenTerminal,
   onOpenBrowser,
   onOpenHistory,
@@ -20,12 +14,6 @@ export function ThreadHeader({
 }: {
   chat: ChatMeta;
   streaming: boolean;
-  editingCwd: boolean;
-  cwdInput: string;
-  onStartEditCwd: () => void;
-  onCwdInput: (value: string) => void;
-  onCommitCwd: () => void;
-  onCancelCwdEdit: () => void;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
   onOpenHistory: () => void;
@@ -66,14 +54,8 @@ export function ThreadHeader({
       </div>
 
       <div class="flex w-full items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
-        <CwdEditor
-          editing={editingCwd}
+        <WorkspaceActions
           cwd={chat.cwd || "~"}
-          value={cwdInput}
-          onStartEdit={onStartEditCwd}
-          onChange={onCwdInput}
-          onCommit={onCommitCwd}
-          onCancel={onCancelCwdEdit}
           onOpenTerminal={onOpenTerminal}
           onOpenBrowser={onOpenBrowser}
           onOpenHistory={onOpenHistory}
