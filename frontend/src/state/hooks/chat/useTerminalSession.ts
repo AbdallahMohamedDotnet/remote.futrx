@@ -8,6 +8,7 @@ import {
   TERMINAL_DEFAULT_TITLE,
   TERMINAL_INITIAL_FIT_DELAY_MS,
   TERMINAL_OPTIONS,
+  TERMINAL_STATUS,
   TERMINAL_THEME,
 } from "../../../config/terminal";
 
@@ -32,7 +33,7 @@ export function useTerminalSession({
   const fitRef = useRef<FitAddon | null>(null);
   const connectionRef = useRef<TerminalConnection | null>(null);
   const titleRef = useRef(title);
-  const [status, setStatus] = useState<TerminalStatus>("closed");
+  const [status, setStatus] = useState<TerminalStatus>(TERMINAL_STATUS.closed);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,7 +60,7 @@ export function useTerminalSession({
 
   useEffect(() => {
     if (!enabled) {
-      setStatus("closed");
+      setStatus(TERMINAL_STATUS.closed);
       setError(null);
       return;
     }
@@ -76,7 +77,7 @@ export function useTerminalSession({
     const connection = terminalApi.connect(chatId, {
       onOpen() {
         if (disposed) return;
-        setStatus("connected");
+        setStatus(TERMINAL_STATUS.connected);
         terminal.writeln(
           `Connected to ${titleRef.current || TERMINAL_DEFAULT_TITLE} terminal`
         );
@@ -90,15 +91,17 @@ export function useTerminalSession({
       onError() {
         if (disposed) return;
         setError(TERMINAL_CONNECTION_ERROR_MESSAGE);
-        setStatus("error");
+        setStatus(TERMINAL_STATUS.error);
       },
       onClose() {
         if (disposed) return;
-        setStatus((current) => current === "error" ? current : "closed");
+        setStatus((current) =>
+          current === TERMINAL_STATUS.error ? current : TERMINAL_STATUS.closed
+        );
       },
     });
     connectionRef.current = connection;
-    setStatus("connecting");
+    setStatus(TERMINAL_STATUS.connecting);
     setError(null);
 
     const inputSub = terminal.onData((data) => {

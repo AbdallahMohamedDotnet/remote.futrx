@@ -36,3 +36,9 @@ export const TERMINAL_WEB_SOCKET_BINARY_TYPE = "arraybuffer";
 export const TERMINAL_CONNECTION_ERROR_MESSAGE = "Terminal connection failed.";
 export const TERMINAL_DEFAULT_TITLE = "workspace";
 export const TERMINAL_INITIAL_FIT_DELAY_MS = 0;
+export const TERMINAL_STATUS = {
+  connecting: "connecting",
+  connected: "connected",
+  closed: "closed",
+  error: "error",
+} as const;
