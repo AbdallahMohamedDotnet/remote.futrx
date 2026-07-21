@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
 import type { ChatStream } from "../../../types/chatApi";
 import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../../models/chat";
-import type { Block } from "../../../models/chatMessage";
-import { groupEvents } from "../../chat/messageBlocks";
+import type { ChatMessageBlock } from "../../../models/chatMessage";
+import { buildChatMessageBlocks } from "../../chat/messageBlocks";
 import {
   addUsageFromEvent,
   EMPTY_USAGE_TOTALS,
@@ -14,7 +14,7 @@ const CHAT_EVENT_PAGE_LIMIT = 240;
 
 interface UseChatResult {
   meta: ChatMeta | null;
-  blocks: Block[];
+  blocks: ChatMessageBlock[];
   usageTotals: UsageTotals;
   eventCount: number;
   hasOlder: boolean;
@@ -31,7 +31,7 @@ interface UseChatResult {
 
 interface ChatRenderState {
   events: ChatEvent[];
-  blocks: Block[];
+  blocks: ChatMessageBlock[];
   usageTotals: UsageTotals;
   eventCount: number;
   hasOlder: boolean;
@@ -63,7 +63,7 @@ function stateFromEvents(
 
   return {
     events,
-    blocks: groupEvents(events),
+    blocks: buildChatMessageBlocks(events),
     usageTotals,
     eventCount: events.length,
     hasOlder: page.hasMore,

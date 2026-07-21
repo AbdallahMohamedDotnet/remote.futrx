@@ -1,4 +1,4 @@
-export type AssistantPart =
+export type AssistantMessagePart =
   | { kind: "text"; text: string }
   | {
       kind: "tool";
@@ -11,14 +11,14 @@ export type AssistantPart =
     }
   | { kind: "thinking"; text: string };
 
-export type AssistantBlock = {
+export type AssistantMessageBlock = {
   type: "assistant";
-  parts: AssistantPart[];
+  parts: AssistantMessagePart[];
   t: number;
   isComplete: boolean;
 };
 
-export type Block =
+export type ChatMessageBlock =
   | { type: "user"; text: string; t: number }
-  | AssistantBlock
+  | AssistantMessageBlock
   | { type: "error"; message: string; t: number };

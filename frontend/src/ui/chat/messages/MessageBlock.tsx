@@ -1,4 +1,4 @@
-import type { Block } from "../../../models/chatMessage";
+import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { AssistantMessage } from "./AssistantMessage";
 import { ErrorMessage } from "./ErrorMessage";
 import { UserMessage } from "./UserMessage";
@@ -11,7 +11,7 @@ export function MessageBlock({
   onAnswerQuestion,
   onRewind,
 }: {
-  block: Block;
+  block: ChatMessageBlock;
   streaming: boolean;
   chatId?: string;
   cwd?: string;

@@ -3,7 +3,7 @@ import type { RefObject } from "preact";
 import type { BrowserElementCapture } from "../../../models/browser";
 import type { ChatMeta } from "../../../models/chat";
 import type { ContainerApp, ProjectMeta } from "../../../models/project";
-import type { Block } from "../../../models/chatMessage";
+import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { projectApi } from "../../../api/projectApi";
 
 export function useChatBrowserController({
@@ -16,7 +16,7 @@ export function useChatBrowserController({
 }: {
   chat: ChatMeta;
   projects: ProjectMeta[];
-  blocks: Block[];
+  blocks: ChatMessageBlock[];
   text: string;
   setText: (text: string) => void;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -96,7 +96,7 @@ export function useChatBrowserController({
   };
 }
 
-function latestPublicDevUrl(blocks: Block[], slug: string): string {
+function latestPublicDevUrl(blocks: ChatMessageBlock[], slug: string): string {
   let latest = "";
   for (const block of blocks) {
     for (const text of blockTexts(block)) {
@@ -108,7 +108,7 @@ function latestPublicDevUrl(blocks: Block[], slug: string): string {
   return latest;
 }
 
-function blockTexts(block: Block): string[] {
+function blockTexts(block: ChatMessageBlock): string[] {
   if (block.type === "user") return [block.text];
   if (block.type === "error") return [block.message];
   return block.parts.flatMap((part) => {

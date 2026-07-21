@@ -1,4 +1,4 @@
-import type { AssistantBlock } from "../../../models/chatMessage";
+import type { AssistantMessageBlock } from "../../../models/chatMessage";
 import { AssistantPartList } from "./AssistantPartList";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 
@@ -9,7 +9,7 @@ export function AssistantMessage({
   cwd,
   onAnswerQuestion,
 }: {
-  block: AssistantBlock;
+  block: AssistantMessageBlock;
   streaming: boolean;
   chatId?: string;
   cwd?: string;

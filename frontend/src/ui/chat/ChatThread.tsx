@@ -1,6 +1,6 @@
 import type { RefObject } from "preact";
 import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, ReasoningEffort, SelectedSkill } from "../../models/chat";
-import type { Block } from "../../models/chatMessage";
+import type { ChatMessageBlock } from "../../models/chatMessage";
 import type { Attachment } from "../../models/upload";
 import type { RegisteredSkill } from "../../models/skill";
 import { ChatComposer } from "./composer/ChatComposer";
@@ -57,7 +57,7 @@ export function ChatThread({
   onOpenFiles,
 }: {
   chat: ChatMeta;
-  blocks: Block[];
+  blocks: ChatMessageBlock[];
   hasOlder: boolean;
   loadingOlder: boolean;
   status: ChatStatus;

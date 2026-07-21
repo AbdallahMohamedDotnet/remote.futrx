@@ -1,10 +1,10 @@
 import type { ComponentChildren } from "preact";
-import type { AssistantPart } from "../../../models/chatMessage";
+import type { AssistantMessagePart } from "../../../models/chatMessage";
 import { ToolCall } from "../tool-calls/ToolCall";
 import { StreamingText } from "./StreamingText";
 import { ToolGroup } from "./ToolGroup";
 
-type ToolPart = Extract<AssistantPart, { kind: "tool" }>;
+type ToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
 
 export function AssistantPartList({
   parts,
@@ -13,7 +13,7 @@ export function AssistantPartList({
   cwd,
   onAnswerQuestion,
 }: {
-  parts: AssistantPart[];
+  parts: AssistantMessagePart[];
   streaming: boolean;
   chatId?: string;
   cwd?: string;
@@ -23,7 +23,7 @@ export function AssistantPartList({
 }
 
 function renderAssistantParts(
-  parts: AssistantPart[],
+  parts: AssistantMessagePart[],
   context: { streaming: boolean; chatId?: string; cwd?: string; onAnswerQuestion?: (text: string) => void }
 ): ComponentChildren[] {
   const rendered: ComponentChildren[] = [];

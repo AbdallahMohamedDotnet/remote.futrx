@@ -1,9 +1,9 @@
-import type { AssistantPart } from "../../../models/chatMessage";
+import type { AssistantMessagePart } from "../../../models/chatMessage";
 import { TerminalIcon } from "../../primitives/icons";
 import { ToolCall } from "../tool-calls/ToolCall";
 import { ToolShell } from "../tool-calls/ToolShell";
 
-type ToolPart = Extract<AssistantPart, { kind: "tool" }>;
+type ToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
 
 export function ToolGroup({
   parts,
