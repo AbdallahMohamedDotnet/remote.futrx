@@ -57,7 +57,7 @@ type Services struct {
 	Auth         *serviceauth.Service
 	Users        *serviceuser.Service
 	UserSettings *serviceusersettings.Service
-	Skills       *serviceskills.Service
+	Skills       *serviceskills.Catalog
 	Tmux         *servicetmux.Service
 }
 
@@ -134,6 +134,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	}
 	userSettingsService := serviceusersettings.New(deps.UserSettings)
 	skillService := serviceskills.New()
+	skillCatalog := serviceskills.NewCatalog(skillService, projectService, authService)
 	var tmuxService *servicetmux.Service
 	if deps.TmuxClient != nil {
 		tmuxService = servicetmux.NewSessions(deps.TmuxClient)
@@ -149,7 +150,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Auth:         authService,
 		Users:        userService,
 		UserSettings: userSettingsService,
-		Skills:       skillService,
+		Skills:       skillCatalog,
 		Tmux:         tmuxService,
 	}, nil
 }

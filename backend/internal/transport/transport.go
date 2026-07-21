@@ -88,7 +88,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Auth,
 		),
 		ServerInfo:       httphandlers.NewServerInfoHandler(deps.ServerInfo),
-		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills, deps.Services.Projects, deps.Services.Auth),
+		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills),
 		BrowserInspector: httphandlers.NewBrowserInspectorHandler(),
 		Uploads:          uploads,
 		TmuxWS:           wstransport.NewTmuxSocket(deps.TmuxClient),

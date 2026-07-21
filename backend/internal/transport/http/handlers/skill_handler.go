@@ -5,24 +5,17 @@ import (
 	"net/http"
 	"strings"
 
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	serviceskills "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/skills"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type SkillHandler struct {
-	skills   *serviceskills.Service
-	projects *serviceproject.Service
-	auth     *serviceauth.Service
+	skills *serviceskills.Catalog
 }
 
-func NewSkillHandler(
-	skills *serviceskills.Service,
-	projects *serviceproject.Service,
-	auth *serviceauth.Service,
-) *SkillHandler {
-	return &SkillHandler{skills: skills, projects: projects, auth: auth}
+func NewSkillHandler(skills *serviceskills.Catalog) *SkillHandler {
+	return &SkillHandler{skills: skills}
 }
 
 func (h *SkillHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -39,41 +32,11 @@ func (h *SkillHandler) HandleCollection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	provider := serviceskills.Provider(strings.TrimSpace(r.URL.Query().Get("provider")))
-	if provider == "" {
-		provider = serviceskills.ProviderCodex
-	}
-
-	workspacePath := ""
-	if projectID := serviceproject.ID(strings.TrimSpace(r.URL.Query().Get("projectId"))); projectID != "" {
-		if h.projects == nil || h.auth == nil {
-			httptransport.SendErr(w, http.StatusServiceUnavailable, "project lookup unavailable")
-			return
-		}
-		meta, err := h.projects.Get(r.Context(), projectID)
-		if err != nil {
-			if errors.Is(err, serviceproject.ErrNotFound) {
-				httptransport.SendErr(w, http.StatusNotFound, "project not found")
-				return
-			}
-			httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		email, err := callerEmailFromRequest(r, h.auth)
-		if err != nil || email == "" {
-			httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
-			return
-		}
-		if admin, _ := h.auth.IsAdmin(r.Context(), email); !admin {
-			if ok, _ := h.projects.HasAccess(r.Context(), meta.ID, email); !ok {
-				httptransport.SendErr(w, http.StatusForbidden, "project access denied")
-				return
-			}
-		}
-		workspacePath = meta.Cwd
-	}
-
-	items, err := h.skills.List(r.Context(), provider, workspacePath)
+	items, err := h.skills.List(r.Context(), serviceskills.ListQuery{
+		Provider:      serviceskills.Provider(strings.TrimSpace(r.URL.Query().Get("provider"))),
+		ProjectID:     serviceproject.ID(strings.TrimSpace(r.URL.Query().Get("projectId"))),
+		SessionCookie: sessionCookieValue(r),
+	})
 	if err != nil {
 		sendSkillError(w, err)
 		return
@@ -85,6 +48,14 @@ func sendSkillError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, serviceskills.ErrInvalidProvider):
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, serviceskills.ErrProjectLookupUnavailable):
+		httptransport.SendErr(w, http.StatusServiceUnavailable, err.Error())
+	case errors.Is(err, serviceskills.ErrProjectNotFound):
+		httptransport.SendErr(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, serviceskills.ErrAuthenticationRequired):
+		httptransport.SendErr(w, http.StatusUnauthorized, err.Error())
+	case errors.Is(err, serviceskills.ErrProjectAccessDenied):
+		httptransport.SendErr(w, http.StatusForbidden, err.Error())
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 	}
