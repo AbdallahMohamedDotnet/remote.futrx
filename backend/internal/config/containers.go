@@ -19,6 +19,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostfs"
 	servicebrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/browser"
 	servicecredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/credentials"
+	serviceimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/image"
 	serviceinspection "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/inspection"
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/launch"
 	servicelifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/lifecycle"
@@ -40,7 +41,7 @@ type ContainerStack struct {
 	Listeners   *containerlisteners.Scanner
 	Network     *containernetwork.Repairer
 	Workspace   *containerworkspace.Provisioner
-	Images      *containerbaseimage.Builder
+	Images      *serviceimage.Builder
 }
 
 // ProjectDependencies exposes only the capabilities consumed by project
@@ -77,7 +78,7 @@ func NewContainerStack(runner command.Runner, configuredProfiles []provisioning.
 	environment := containerenvironment.NewService(runner)
 	listeners := containerlisteners.NewScanner(runner)
 	network := containernetwork.NewRepairer(runner)
-	cli := containercli.NewProvisioner(runner, profiles, containerbaseimage.InstallScript)
+	cli := containercli.NewProvisioner(runner, profiles, serviceimage.InstallScript)
 	browserAdapter := containerbrowser.NewAdapter(runner, profiles, publisher)
 	browser := servicebrowser.NewService(servicebrowser.Dependencies{
 		Provisioner: browserAdapter,
@@ -86,8 +87,8 @@ func NewContainerStack(runner command.Runner, configuredProfiles []provisioning.
 	}, containerbrowser.VNCPort)
 	codeServer := containercodeserver.NewProvisioner(runner)
 	workspace := containerworkspace.NewProvisioner(runner, profiles, publisher)
-	images := containerbaseimage.NewBuilder(
-		runner,
+	images := serviceimage.NewBuilder(
+		containerbaseimage.NewClient(runner),
 		profiles,
 		containerbrowser.InstallScript(),
 		containercodeserver.InstallScript(),
@@ -101,7 +102,7 @@ func NewContainerStack(runner command.Runner, configuredProfiles []provisioning.
 	resources := containerresources.NewManager(runner)
 	lifecycle := servicelifecycle.NewService(
 		containerlifecycle.NewClient(runner),
-		containerbaseimage.Alias,
+		serviceimage.Alias,
 		hostfs.NewWorkspacePreparer(hostMappedUID, hostMappedUID),
 		resources,
 		launchProvisioner,

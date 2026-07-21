@@ -20,13 +20,13 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
-	containerbaseimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/baseimage"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
+	serviceimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/image"
 )
 
 func main() {
-	alias := flag.String("alias", containerbaseimage.Alias, "image alias to publish under")
+	alias := flag.String("alias", serviceimage.Alias, "image alias to publish under")
 	overwrite := flag.Bool("overwrite", false, "delete any existing image at -alias before publishing")
 	flag.Parse()
 
@@ -49,7 +49,7 @@ func main() {
 		}
 	}
 
-	log.Printf("building %q from %q...", *alias, containerbaseimage.SourceImage)
+	log.Printf("building %q from %q...", *alias, serviceimage.SourceImage)
 	log.Printf("(this typically takes 60-120s — apt update + nodejs + npm install -g @anthropic-ai/claude-code)")
 
 	if err := containerStack.Images.Build(ctx, *alias); err != nil {

@@ -1,4 +1,4 @@
-package baseimage
+package image
 
 import (
 	"strings"
@@ -23,5 +23,19 @@ func TestRecipeUsesConfiguredProfiles(t *testing.T) {
 	}
 	if got, want := description(profiles), "futrx remote dev base: ubuntu 24.04 + node 22 + alpha-cli + beta-cli"; got != want {
 		t.Fatalf("description = %q, want %q", got, want)
+	}
+}
+
+func TestInstallScriptRejectsMissingProfilesAndIncompleteCLI(t *testing.T) {
+	if _, err := InstallScript(nil); err == nil || err.Error() != "no agent profiles configured" {
+		t.Fatalf("InstallScript(nil) error = %v", err)
+	}
+
+	profiles := []provisioning.Profile{{
+		ID:  "alpha",
+		CLI: provisioning.CLISpec{Binary: "alpha"},
+	}}
+	if _, err := InstallScript(profiles); err == nil || err.Error() != `agent profile "alpha" has an incomplete CLI definition` {
+		t.Fatalf("InstallScript(incomplete) error = %v", err)
 	}
 }
