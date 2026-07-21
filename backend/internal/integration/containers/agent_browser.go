@@ -50,7 +50,6 @@ const (
 // lifecycle, status inspection, and browser-specific container configuration.
 type agentBrowser struct {
 	lxc       CommandRunner
-	profiles  *profileRegistry
 	templates *templatePublisher
 }
 
