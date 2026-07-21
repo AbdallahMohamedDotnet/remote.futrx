@@ -1,6 +1,5 @@
 import { requestJson } from "./apiRequest";
-import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
-import { webSocketUrl } from "../transport/webSocketUrl";
+import { subscribeToJsonMessages } from "../transport/jsonMessageSubscription";
 import type { ClaudeAuthStatus, ClaudeLoginStart } from "../models/auth";
 import { API_ROUTES, WEB_SOCKET_ROUTES } from "../config/routes";
 
@@ -12,12 +11,6 @@ export const claudeAuthApi = {
     requestJson<{ success: boolean }>("POST", API_ROUTES.claudeAuth.submitCode, { code }),
   cancelLogin: () =>
     requestJson<{ ok: boolean }>("POST", API_ROUTES.claudeAuth.cancelLogin, {}),
-  subscribe: (onStatus: (status: ClaudeAuthStatus) => void) => {
-    const connection = new ReconnectingJsonWebSocket({
-      resolveUrl: () => webSocketUrl(WEB_SOCKET_ROUTES.claudeAuthStatus),
-      onMessage: onStatus,
-    });
-    connection.start();
-    return () => connection.stop();
-  },
+  subscribe: (onStatus: (status: ClaudeAuthStatus) => void) =>
+    subscribeToJsonMessages(WEB_SOCKET_ROUTES.claudeAuthStatus, onStatus),
 };
