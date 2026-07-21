@@ -34,7 +34,9 @@ fi
 
 log "Health-checking backend on 127.0.0.1:${SERVICE_PORT}"
 HEALTH_OK=0
-for _ in 1 2 3 4 5; do
+# Cold start binds the port only after converging container resource envelopes
+# (~13s with 16 projects), so poll up to 30s, not 5.
+for _ in $(seq 1 30); do
     if curl -fsS --max-time 3 "http://127.0.0.1:${SERVICE_PORT}/" >/dev/null 2>&1; then
         HEALTH_OK=1
         break
@@ -42,7 +44,7 @@ for _ in 1 2 3 4 5; do
     sleep 1
 done
 if [ "$HEALTH_OK" -eq 0 ]; then
-    err "Backend did not respond on 127.0.0.1:${SERVICE_PORT} within 5s"
+    err "Backend did not respond on 127.0.0.1:${SERVICE_PORT} within 30s"
     journalctl -u remote.futrx.service -n 30 --no-pager >&2
     exit 1
 fi
