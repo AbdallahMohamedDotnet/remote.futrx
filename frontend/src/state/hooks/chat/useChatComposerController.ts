@@ -17,7 +17,6 @@ export function useChatComposerController({
   rewind,
   refreshMeta,
   attachmentBasePath,
-  onMetaUpdate,
 }: {
   chatId: string;
   eventCount: number;
@@ -28,7 +27,6 @@ export function useChatComposerController({
   rewind: (beforeT: number) => Promise<unknown>;
   refreshMeta: () => Promise<void>;
   attachmentBasePath: string;
-  onMetaUpdate: () => void;
 }) {
   // Initialise from the per-chat draft store and mirror every change back to it.
   // ChatContainer remounts on chat switch (it is keyed by chatId), so this is
@@ -46,7 +44,7 @@ export function useChatComposerController({
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { textareaRef, focusInput } = useAutosizeTextarea(text);
-  const upload = useAttachmentUpload(chatId, attachmentBasePath, onMetaUpdate);
+  const upload = useAttachmentUpload(chatId, attachmentBasePath);
   const drag = useDragUpload(upload.doUpload);
   const scroll = useThreadScroll(chatId, `${eventCount}:${blockCount}`);
   const queue = usePromptQueue({
@@ -72,7 +70,6 @@ export function useChatComposerController({
       queue.clearQueuedPrompts();
       setText(promptText);
       await refreshMeta();
-      onMetaUpdate();
       scroll.unlockAutoScroll();
       setTimeout(() => {
         scroll.jumpToBottom();

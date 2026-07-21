@@ -6,12 +6,10 @@ export function useChatReadMarker({
   chatId,
   eventCount,
   status,
-  onMetaUpdate,
 }: {
   chatId: string;
   eventCount: number;
   status: ChatStatus;
-  onMetaUpdate: () => void;
 }) {
   const readMarkerRef = useRef("");
 
@@ -20,6 +18,6 @@ export function useChatReadMarker({
     const key = `${chatId}:${eventCount}`;
     if (readMarkerRef.current === key) return;
     readMarkerRef.current = key;
-    void chatApi.markRead(chatId).then(onMetaUpdate).catch(() => {});
-  }, [chatId, eventCount, onMetaUpdate, status]);
+    void chatApi.markRead(chatId).catch(() => {});
+  }, [chatId, eventCount, status]);
 }

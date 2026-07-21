@@ -20,12 +20,10 @@ export function ChatContainer({
   chat,
   projects,
   onHamburger,
-  onMetaUpdate,
 }: {
   chat: ChatMeta;
   projects: ProjectMeta[];
   onHamburger: () => void;
-  onMetaUpdate: () => void;
 }) {
   const {
     meta,
@@ -58,7 +56,6 @@ export function ChatContainer({
   const metaActions = useChatMetaActions({
     chatId: chat.id,
     refreshMeta,
-    onMetaUpdate,
   });
   const header = useThreadHeaderState(displayMeta.cwd, (cwd) => metaActions.applyMeta({ cwd }));
   const composer = useChatComposerController({
@@ -71,7 +68,6 @@ export function ChatContainer({
     rewind,
     refreshMeta,
     attachmentBasePath,
-    onMetaUpdate,
   });
   const browser = useChatBrowserController({
     chat: displayMeta,
@@ -91,7 +87,7 @@ export function ChatContainer({
     setFilesOpen(false);
   }, [chat.id]);
 
-  useChatReadMarker({ chatId: chat.id, eventCount, status, onMetaUpdate });
+  useChatReadMarker({ chatId: chat.id, eventCount, status });
   useChatKeyboardShortcuts({ status, onCancel: cancel });
 
   function changeProvider(provider: ChatProvider) {

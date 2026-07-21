@@ -29,8 +29,6 @@ interface WorkspaceContextValue {
   showChat: () => void;
   showSettings: () => void;
   showProjectContainers: (projectId: string | null) => void;
-  refreshChats: () => void;
-  refreshProjects: () => void;
   createProject: (name: string) => Promise<ProjectMeta>;
   createChat: (projectId?: string) => Promise<ChatMeta>;
   deleteChat: (chatId: string) => Promise<void>;
@@ -90,7 +88,6 @@ export function WorkspaceProvider({
 
   async function forkChat(chatId: string): Promise<ChatMeta> {
     const chat = await chatApi.fork(chatId);
-    data.refreshChats();
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
   }
@@ -125,8 +122,6 @@ export function WorkspaceProvider({
         showSettings: () => dispatch({ type: "show-settings" }),
         showProjectContainers: (projectId) =>
           dispatch({ type: "show-project-containers", projectId }),
-        refreshChats: data.refreshChats,
-        refreshProjects: data.refreshProjects,
         createProject,
         createChat,
         deleteChat,

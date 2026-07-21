@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { workspaceApi, type WorkspaceMessage } from "../../../api/workspaceApi";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
@@ -6,9 +6,6 @@ import type { ProjectMeta } from "../../../models/project";
 export function useWorkspaceData(enabled: boolean) {
   const [chats, setChats] = useState<ChatMeta[]>([]);
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
-
-  const refreshChats = useCallback(async () => {}, []);
-  const refreshProjects = useCallback(async () => {}, []);
 
   useEffect(() => {
     if (!enabled) {
@@ -52,8 +49,6 @@ export function useWorkspaceData(enabled: boolean) {
   return {
     chats,
     projects,
-    refreshChats,
-    refreshProjects,
   };
 }
 

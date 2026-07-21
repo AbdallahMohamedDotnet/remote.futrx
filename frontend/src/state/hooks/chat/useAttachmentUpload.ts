@@ -5,8 +5,7 @@ import { randomId } from "../../../shared/ids";
 
 export function useAttachmentUpload(
   chatId: string,
-  attachmentBasePath: string,
-  onAfterUpload?: () => void
+  attachmentBasePath: string
 ) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -116,9 +115,8 @@ export function useAttachmentUpload(
 
       await Promise.all(finishedFlags);
       setUploading(false);
-      onAfterUpload?.();
     },
-    [chatId, onAfterUpload]
+    [chatId]
   );
 
   function removeAttachment(id: string) {

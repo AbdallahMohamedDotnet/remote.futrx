@@ -31,7 +31,6 @@ export function WorkspaceContainer() {
           chat={workspace.activeChat}
           projects={workspace.projects}
           onHamburger={workspace.openSidebar}
-          onMetaUpdate={workspace.refreshChats}
         />
       ) : (
         <NoChatSelected
