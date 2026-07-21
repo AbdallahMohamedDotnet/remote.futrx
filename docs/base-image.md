@@ -14,7 +14,7 @@ The provider-neutral recipe and shared version manifest are composed from the ag
 
 - [`internal/service/agent_catalog.go`](../backend/internal/service/agent_catalog.go) — the Claude, Codex, and Kimi registration catalog supplied to image builds and runtime containers.
 - [`internal/integration/containers/baseimage.go`](../backend/internal/integration/containers/baseimage.go) — generates the image recipe from those profiles.
-- [`internal/agent/provisioning/agent-cli-versions.env`](../backend/internal/agent/provisioning/agent-cli-versions.env) — the Claude Code and Codex pins used by the image, runtime repair, and host installer.
+- [`internal/agent/provisioning/agent-cli-versions.env`](../backend/internal/agent/provisioning/agent-cli-versions.env) — the Claude Code and Codex pins used by the image, runtime repair, and host installer. (Host Node/Go pins live separately in [`infra/versions.env`](../infra/versions.env).)
 
 Each provider applies its own profile before a prompt. Claude and Codex compare their installed versions with the repository pin; Kimi checks for its binary. A current container only pays for a local check, while a missing or stale CLI is repaired in place before the agent starts.
 

@@ -70,10 +70,9 @@ Service=code-server-proxy.service
 WantedBy=sockets.target
 UNIT
 
-# Managed user settings — parity with the host code.<host> baseline
-# (infra/templates/code-server-settings.json). Runtime keys an extension may
-# add later (e.g. dbcode.connections) are host-specific and intentionally
-# omitted here.
+# Managed user settings for this container's code-server. Runtime keys an
+# extension may add later (e.g. dbcode.connections) are workspace-specific and
+# intentionally omitted here.
 install -d -m 0755 /root/.local/share/code-server/User
 cat > /root/.local/share/code-server/User/settings.json <<'JSON'
 {
@@ -159,7 +158,6 @@ cat > /root/.local/share/code-server/User/settings.json <<'JSON'
 JSON
 
 # Pinned extensions, best-effort: a flaky Open VSX must never fail the build.
-# Same set as the host code.<host> baseline (infra/steps/02-code-server.sh).
 for ext in \
     anan.jetbrains-darcula-theme \
     anwar.papyrus-pdf \

@@ -4,7 +4,7 @@
 #
 # Expects from caller:
 #   - log / ok / err helpers
-#   - $INFRA_DIR, $HOSTNAME, $HOSTNAME_RE, $SERVICE_PORT, $CODE_SERVER_PORT
+#   - $INFRA_DIR, $HOSTNAME, $HOSTNAME_RE, $SERVICE_PORT
 set -euo pipefail
 
 log "Rendering /etc/caddy/Caddyfile for $HOSTNAME"

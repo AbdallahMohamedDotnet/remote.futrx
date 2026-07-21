@@ -25,7 +25,7 @@ Each project LXD container runs **its own** code-server, installed into the
 base image and reachable at `<slug>.code.<host>`. Inside the container the
 stack is fully socket-activated and scales to zero:
 
-- `code-server.socket` listens on `0.0.0.0:8080` (cheap; always armed).
+- `code-server.socket` listens on `0.0.0.0:8842` (cheap; always armed).
 - `code-server-proxy.service` is `systemd-socket-proxyd` with
   `--exit-idle-time=20min`, forwarding to `127.0.0.1:8081`. It `Requires=`
   the real service, so the first connection pulls code-server up.
@@ -45,10 +45,10 @@ Each project is isolated — fixing (3).
 sits behind the **same Google admin gate** (`forward_auth` →
 `/auth/verify`) as the existing `code.${HOSTNAME}` block, strips the
 platform's admin-session cookies before the request enters the container,
-and reverse-proxies to `<slug>.lxd:8080`. On-demand TLS is gated by the
+and reverse-proxies to `<slug>.lxd:8842`. On-demand TLS is gated by the
 backend's `/internal/tls-ask`, now extended to also accept
 `<slug>.code.<host>` for real projects. `auth: none` inside the container is
-safe because :8080 is the only reachable port and Caddy gates it.
+safe because :8842 is the only reachable port and Caddy gates it.
 
 ## Files changed
 
