@@ -74,6 +74,11 @@ func New(client CommandRunner) *Client {
 	containerClient.credentials = credentialSynchronizer{
 		lxc:      client,
 		profiles: &containerClient.profiles,
+		files:    credentialFileSynchronizer{lxc: client},
+	}
+	containerClient.credentials.directories = credentialDirectorySynchronizer{
+		lxc:   client,
+		files: &containerClient.credentials.files,
 	}
 	containerClient.clis = cliProvisioner{
 		lxc:      client,

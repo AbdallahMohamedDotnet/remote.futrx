@@ -23,8 +23,10 @@ const authPushTimeout = 30 * time.Second
 // credentialSynchronizer owns bidirectional credential transfer between the
 // host's canonical files and their provider-defined container destinations.
 type credentialSynchronizer struct {
-	lxc      CommandRunner
-	profiles *profileRegistry
+	lxc         CommandRunner
+	profiles    *profileRegistry
+	files       credentialFileSynchronizer
+	directories credentialDirectorySynchronizer
 }
 
 // EnsureRegisteredCredentials seeds every profile that opts into launch-time
@@ -57,9 +59,9 @@ func (c *Client) EnsureCredentials(ctx context.Context, containerName string, sp
 
 func (s *credentialSynchronizer) ensure(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
 	if spec.Directory != nil {
-		return s.ensureDirectory(ctx, containerName, spec)
+		return s.directories.ensure(ctx, containerName, spec)
 	}
-	return s.ensureFiles(ctx, containerName, spec)
+	return s.files.ensure(ctx, containerName, spec)
 }
 
 func (s *credentialSynchronizer) ensureFiles(ctx context.Context, containerName string, b provisioning.CredentialSpec) error {
@@ -120,9 +122,9 @@ func (c *Client) SyncCredentialsFromContainer(ctx context.Context, containerName
 
 func (s *credentialSynchronizer) syncFromContainer(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
 	if spec.Directory != nil {
-		return s.syncDirectoryFromContainer(ctx, containerName, spec)
+		return s.directories.syncFromContainer(ctx, containerName, spec)
 	}
-	return s.syncFilesFromContainer(ctx, containerName, spec)
+	return s.files.syncFromContainer(ctx, containerName, spec)
 }
 
 func (s *credentialSynchronizer) syncFilesFromContainer(ctx context.Context, containerName string, b provisioning.CredentialSpec) error {
