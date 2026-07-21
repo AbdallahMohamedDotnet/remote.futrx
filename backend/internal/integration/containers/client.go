@@ -10,6 +10,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
+	containerbaseimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/baseimage"
 	containerbrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/browser"
 	containercodeserver "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/codeserver"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
@@ -20,6 +21,9 @@ import (
 )
 
 const (
+	containerImageAlias  = containerbaseimage.Alias
+	containerImageSource = containerbaseimage.SourceImage
+
 	// hostMappedUID is the host uid that LXD's default idmap presents as
 	// root inside an unprivileged container. Files in the bind-mounted
 	// workspace must be owned by this uid or the container's root cannot
@@ -56,7 +60,7 @@ type Client struct {
 	codeServer  *containercodeserver.Provisioner
 	lifecycle   containerLifecycle
 	workspace   *containerworkspace.Provisioner
-	images      baseImageBuilder
+	images      *containerbaseimage.Builder
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
@@ -87,10 +91,12 @@ func New(client CommandRunner) *Client {
 	containerClient.browser = containerbrowser.NewService(client, containerClient.profiles, containerClient.templates)
 	containerClient.codeServer = containercodeserver.NewProvisioner(client)
 	containerClient.workspace = containerworkspace.NewProvisioner(client, containerClient.profiles, containerClient.templates)
-	containerClient.images = baseImageBuilder{
-		lxc:      client,
-		profiles: containerClient.profiles,
-	}
+	containerClient.images = containerbaseimage.NewBuilder(
+		client,
+		containerClient.profiles,
+		containerbrowser.InstallScript(),
+		containercodeserver.InstallScript(),
+	)
 	containerClient.lifecycle.provisioner = &containerLaunchProvisioner{
 		credentials: containerClient.credentials,
 		workspace:   containerClient.workspace,

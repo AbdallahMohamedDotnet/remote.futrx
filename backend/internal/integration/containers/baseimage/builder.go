@@ -1,4 +1,5 @@
-package containers
+// Package baseimage builds the development image used by project containers.
+package baseimage
 
 // Base-image provisioning. The same install script is used in two places:
 //   1. As the recipe baked into the published futrx-remote-dev-base LXD image
@@ -15,17 +16,18 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	containerbrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/browser"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/codeserver"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 )
 
 const (
 	// BaseImageAlias is the LXD image alias the client launches by default.
-	BaseImageAlias = "futrx-remote-dev-base"
+	Alias = "futrx-remote-dev-base"
 
 	// BaseImageSourceImage is the upstream image used as the builder rootfs
 	// when (re)building BaseImageAlias.
-	BaseImageSourceImage = "ubuntu:24.04"
+	SourceImage = "ubuntu:24.04"
 
 	// baseImageBuilderName is the name used for the throwaway builder
 	// container. Kept stable so a retry can clean up a leftover builder
@@ -35,13 +37,32 @@ const (
 	baseImageBuildTimeout   = 15 * time.Minute
 	baseImagePublishTimeout = 5 * time.Minute
 	baseImageNetworkWarmup  = 3 * time.Second
+	deleteTimeout           = 30 * time.Second
 )
 
 // baseImageBuilder owns the disposable builder lifecycle and publishes the
 // profile-derived development image consumed by project containers.
-type baseImageBuilder struct {
-	lxc      CommandRunner
-	profiles *profileRegistry
+type Builder struct {
+	runner                  command.Runner
+	profiles                *profiles.Registry
+	browserInstallScript    string
+	codeServerInstallScript []byte
+}
+
+// NewBuilder returns an image builder configured with the feature install
+// programs layered onto the provider-neutral development image.
+func NewBuilder(
+	runner command.Runner,
+	registry *profiles.Registry,
+	browserInstallScript string,
+	codeServerInstallScript []byte,
+) *Builder {
+	return &Builder{
+		runner:                  runner,
+		profiles:                registry,
+		browserInstallScript:    browserInstallScript,
+		codeServerInstallScript: codeServerInstallScript,
+	}
 }
 
 // baseImageInstallPreamble is the provider-neutral part of the shell recipe.
@@ -72,7 +93,7 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githu
 apt-get update -qq
 apt-get install -y -qq gh`
 
-func baseImageInstallScript(profiles []provisioning.Profile) (string, error) {
+func InstallScript(profiles []provisioning.Profile) (string, error) {
 	packages := make([]string, 0, len(profiles))
 	binaries := make([]string, 0, len(profiles))
 	for _, profile := range profiles {
@@ -101,7 +122,7 @@ func baseImageInstallScript(profiles []provisioning.Profile) (string, error) {
 	return script.String(), nil
 }
 
-func baseImageDescription(profiles []provisioning.Profile) string {
+func description(profiles []provisioning.Profile) string {
 	labels := make([]string, 0, len(profiles))
 	for _, profile := range profiles {
 		if profile.CLI.ImageLabel != "" {
@@ -115,26 +136,22 @@ func baseImageDescription(profiles []provisioning.Profile) string {
 	return description
 }
 
-// BuildBaseImage launches a fresh BaseImageSourceImage container, runs the
-// install script, publishes the result under alias, and removes the
-// builder. If alias is empty, BaseImageAlias is used.
+// Build launches a fresh SourceImage container, runs the install script,
+// publishes the result under alias, and removes the builder. If alias is
+// empty, Alias is used.
 //
 // Any previous publish at alias is NOT removed automatically — callers that
 // want a clean overwrite should delete the image first via
 // `lxc image delete <alias>`.
-func (c *Client) BuildBaseImage(ctx context.Context, alias string) error {
-	return c.images.build(ctx, alias)
-}
-
-func (b *baseImageBuilder) build(ctx context.Context, alias string) error {
-	if !b.lxc.Available() {
+func (b *Builder) Build(ctx context.Context, alias string) error {
+	if !b.runner.Available() {
 		return errors.New("lxc CLI not found on PATH - install LXD on the host first")
 	}
 	if alias == "" {
-		alias = BaseImageAlias
+		alias = Alias
 	}
 	profiles := b.profiles.Snapshot()
-	installScript, err := baseImageInstallScript(profiles)
+	installScript, err := InstallScript(profiles)
 	if err != nil {
 		return err
 	}
@@ -143,7 +160,7 @@ func (b *baseImageBuilder) build(ctx context.Context, alias string) error {
 	// we try to launch a fresh one. Best-effort; failures are tolerated
 	// because the container may simply not exist.
 	cleanCtx, cleanCancel := context.WithTimeout(ctx, deleteTimeout)
-	_, _ = b.lxc.Run(cleanCtx, "delete", "--force", baseImageBuilderName)
+	_, _ = b.runner.Run(cleanCtx, "delete", "--force", baseImageBuilderName)
 	cleanCancel()
 
 	bctx, bcancel := context.WithTimeout(ctx, baseImageBuildTimeout)
@@ -154,10 +171,10 @@ func (b *baseImageBuilder) build(ctx context.Context, alias string) error {
 	defer func() {
 		dctx, dcancel := context.WithTimeout(context.Background(), deleteTimeout)
 		defer dcancel()
-		_, _ = b.lxc.Run(dctx, "delete", "--force", baseImageBuilderName)
+		_, _ = b.runner.Run(dctx, "delete", "--force", baseImageBuilderName)
 	}()
 
-	if out, err := b.lxc.Run(bctx, "launch", BaseImageSourceImage, baseImageBuilderName); err != nil {
+	if out, err := b.runner.Run(bctx, "launch", SourceImage, baseImageBuilderName); err != nil {
 		return fmt.Errorf("launch builder: %w; output: %s", err, out)
 	}
 
@@ -169,29 +186,29 @@ func (b *baseImageBuilder) build(ctx context.Context, alias string) error {
 		return bctx.Err()
 	}
 
-	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", installScript); err != nil {
-		return fmt.Errorf("install script: %w; output: %s", err, truncateOut(out, 2000))
+	if out, err := b.runner.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", installScript); err != nil {
+		return fmt.Errorf("install script: %w; output: %s", err, output.Truncate(out, 2000))
 	}
 
 	// Layer the headed-browser GUI stack on top (Agent Browser feature).
-	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", containerbrowser.InstallScript()); err != nil {
-		return fmt.Errorf("agent browser install script: %w; output: %s", err, truncateOut(out, 2000))
+	if out, err := b.runner.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", b.browserInstallScript); err != nil {
+		return fmt.Errorf("agent browser install script: %w; output: %s", err, output.Truncate(out, 2000))
 	}
 
 	// Layer the on-demand code-server IDE on top (per-container VS Code).
-	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", string(codeserver.InstallScript())); err != nil {
-		return fmt.Errorf("code-server install script: %w; output: %s", err, truncateOut(out, 2000))
+	if out, err := b.runner.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", string(b.codeServerInstallScript)); err != nil {
+		return fmt.Errorf("code-server install script: %w; output: %s", err, output.Truncate(out, 2000))
 	}
 
-	if out, err := b.lxc.Run(bctx, "stop", baseImageBuilderName); err != nil {
+	if out, err := b.runner.Run(bctx, "stop", baseImageBuilderName); err != nil {
 		return fmt.Errorf("stop builder: %w; output: %s", err, out)
 	}
 
 	pctx, pcancel := context.WithTimeout(ctx, baseImagePublishTimeout)
 	defer pcancel()
-	if out, err := b.lxc.Run(pctx, "publish", baseImageBuilderName,
+	if out, err := b.runner.Run(pctx, "publish", baseImageBuilderName,
 		"--alias", alias,
-		"description="+baseImageDescription(profiles)); err != nil {
+		"description="+description(profiles)); err != nil {
 		return fmt.Errorf("publish: %w; output: %s", err, out)
 	}
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/baseimage"
 )
 
 // cliProvisioner owns agent CLI readiness checks, installation, repair, and
@@ -46,7 +47,7 @@ func (p *cliProvisioner) ensure(ctx context.Context, containerName string, spec 
 	var out string
 	var err error
 	if spec.InstallMode == provisioning.InstallWithImageRepair {
-		installScript, scriptErr := baseImageInstallScript(p.profiles.Snapshot())
+		installScript, scriptErr := baseimage.InstallScript(p.profiles.Snapshot())
 		if scriptErr != nil {
 			return fmt.Errorf("prepare agent CLI repair: %w", scriptErr)
 		}
@@ -57,7 +58,7 @@ func (p *cliProvisioner) ensure(ctx context.Context, containerName string, spec 
 	} else {
 		// Very old containers may pre-date Node/npm. Reuse the full image recipe
 		// in that case so the runtime still self-heals from a bare rootfs.
-		installScript, scriptErr := baseImageInstallScript(p.profiles.Snapshot())
+		installScript, scriptErr := baseimage.InstallScript(p.profiles.Snapshot())
 		if scriptErr != nil {
 			return fmt.Errorf("prepare agent CLI repair: %w", scriptErr)
 		}
