@@ -20,17 +20,28 @@ import (
 
 const authPushTimeout = 30 * time.Second
 
+// credentialSynchronizer owns bidirectional credential transfer between the
+// host's canonical files and their provider-defined container destinations.
+type credentialSynchronizer struct {
+	lxc      CommandRunner
+	profiles *profileRegistry
+}
+
 // EnsureRegisteredCredentials seeds every profile that opts into launch-time
 // credential provisioning. Errors are joined so one provider does not hide
 // another provider's failure.
 func (c *Client) EnsureRegisteredCredentials(ctx context.Context, containerName string) error {
+	return c.credentials.ensureRegistered(ctx, containerName)
+}
+
+func (s *credentialSynchronizer) ensureRegistered(ctx context.Context, containerName string) error {
 	var errs []error
-	for _, profile := range c.AgentProfiles() {
+	for _, profile := range s.profiles.snapshot() {
 		credentials := profile.Credentials
 		if credentials.Empty() || !credentials.SeedOnLaunch {
 			continue
 		}
-		if err := c.EnsureCredentials(ctx, containerName, credentials); err != nil {
+		if err := s.ensure(ctx, containerName, credentials); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", credentials.Name, err))
 		}
 	}
@@ -41,14 +52,18 @@ func (c *Client) EnsureRegisteredCredentials(ctx context.Context, containerName 
 // Each file is only pushed when its host mtime is newer than the container
 // copy, so this is cheap to call on every prompt.
 func (c *Client) EnsureCredentials(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
-	if spec.Directory != nil {
-		return c.ensureCredentialDirectory(ctx, containerName, spec)
-	}
-	return c.ensureCredentialFiles(ctx, containerName, spec)
+	return c.credentials.ensure(ctx, containerName, spec)
 }
 
-func (c *Client) ensureCredentialFiles(ctx context.Context, containerName string, b provisioning.CredentialSpec) error {
-	if !c.Available() {
+func (s *credentialSynchronizer) ensure(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
+	if spec.Directory != nil {
+		return s.ensureDirectory(ctx, containerName, spec)
+	}
+	return s.ensureFiles(ctx, containerName, spec)
+}
+
+func (s *credentialSynchronizer) ensureFiles(ctx context.Context, containerName string, b provisioning.CredentialSpec) error {
+	if !s.lxc.Available() {
 		return errors.New("lxc not available")
 	}
 	if err := validateCredentialSpec(b); err != nil {
@@ -57,7 +72,7 @@ func (c *Client) ensureCredentialFiles(ctx context.Context, containerName string
 
 	for _, dev := range b.LegacyDevices {
 		dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-		_, _ = c.lxc.Run(dctx, "config", "device", "remove", containerName, dev)
+		_, _ = s.lxc.Run(dctx, "config", "device", "remove", containerName, dev)
 		cancelD()
 	}
 
@@ -77,7 +92,7 @@ func (c *Client) ensureCredentialFiles(ctx context.Context, containerName string
 	defer cancelP()
 
 	if b.ContainerDir != "" {
-		if out, err := c.lxc.Run(pctx, "exec", containerName, "--",
+		if out, err := s.lxc.Run(pctx, "exec", containerName, "--",
 			"install", "-d", "-m", "700", b.ContainerDir); err != nil {
 			return fmt.Errorf("mkdir %s in container: %w; output: %s",
 				b.ContainerDir, err, out)
@@ -90,7 +105,7 @@ func (c *Client) ensureCredentialFiles(ctx context.Context, containerName string
 			// files can still be missing here, and we silently skip them.
 			continue
 		}
-		if err := c.pushCredentialFileIfNewer(pctx, f, containerName); err != nil {
+		if err := s.pushFileIfNewer(pctx, f, containerName); err != nil {
 			return fmt.Errorf("push %s: %w", f.ContainerPath, err)
 		}
 	}
@@ -100,14 +115,18 @@ func (c *Client) ensureCredentialFiles(ctx context.Context, containerName string
 // SyncCredentialsFromContainer pulls credentials back to the host after a
 // provider rotates them inside the container.
 func (c *Client) SyncCredentialsFromContainer(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
-	if spec.Directory != nil {
-		return c.syncCredentialDirectoryFromContainer(ctx, containerName, spec)
-	}
-	return c.syncCredentialFilesFromContainer(ctx, containerName, spec)
+	return c.credentials.syncFromContainer(ctx, containerName, spec)
 }
 
-func (c *Client) syncCredentialFilesFromContainer(ctx context.Context, containerName string, b provisioning.CredentialSpec) error {
-	if !c.Available() {
+func (s *credentialSynchronizer) syncFromContainer(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
+	if spec.Directory != nil {
+		return s.syncDirectoryFromContainer(ctx, containerName, spec)
+	}
+	return s.syncFilesFromContainer(ctx, containerName, spec)
+}
+
+func (s *credentialSynchronizer) syncFilesFromContainer(ctx context.Context, containerName string, b provisioning.CredentialSpec) error {
+	if !s.lxc.Available() {
 		return errors.New("lxc not available")
 	}
 	if err := validateCredentialSpec(b); err != nil {
@@ -125,14 +144,14 @@ func (c *Client) syncCredentialFilesFromContainer(ctx context.Context, container
 	defer cancel()
 
 	for _, f := range b.Files {
-		if out, err := c.lxc.Run(pctx, "exec", containerName, "--", "test", "-f", f.ContainerPath); err != nil {
+		if out, err := s.lxc.Run(pctx, "exec", containerName, "--", "test", "-f", f.ContainerPath); err != nil {
 			if f.PullRequired {
 				return fmt.Errorf("container file missing %s: %w; output: %s",
 					f.ContainerPath, err, out)
 			}
 			continue
 		}
-		if out, err := c.lxc.Run(pctx, "file", "pull", containerName+f.ContainerPath, f.HostPath); err != nil {
+		if out, err := s.lxc.Run(pctx, "file", "pull", containerName+f.ContainerPath, f.HostPath); err != nil {
 			return fmt.Errorf("pull %s: %w; output: %s",
 				f.ContainerPath, err, out)
 		}
@@ -153,14 +172,14 @@ func validateCredentialSpec(b provisioning.CredentialSpec) error {
 	return nil
 }
 
-func (c *Client) pushCredentialFileIfNewer(ctx context.Context, f provisioning.CredentialFile, containerName string) error {
+func (s *credentialSynchronizer) pushFileIfNewer(ctx context.Context, f provisioning.CredentialFile, containerName string) error {
 	hostInfo, err := os.Stat(f.HostPath)
 	if err != nil {
 		return err
 	}
 
 	shouldPush := true
-	if out, err := c.lxc.Run(ctx, "exec", containerName, "--", "stat", "-c", "%Y", f.ContainerPath); err == nil {
+	if out, err := s.lxc.Run(ctx, "exec", containerName, "--", "stat", "-c", "%Y", f.ContainerPath); err == nil {
 		if containerUnix, parseErr := strconv.ParseInt(strings.TrimSpace(out), 10, 64); parseErr == nil {
 			shouldPush = hostInfo.ModTime().Unix() > containerUnix
 		}
@@ -173,24 +192,24 @@ func (c *Client) pushCredentialFileIfNewer(ctx context.Context, f provisioning.C
 	if mode == "" {
 		mode = "600"
 	}
-	if out, err := c.lxc.Run(ctx, "file", "push", "--mode="+mode, f.HostPath, containerName+f.ContainerPath); err != nil {
+	if out, err := s.lxc.Run(ctx, "file", "push", "--mode="+mode, f.HostPath, containerName+f.ContainerPath); err != nil {
 		return fmt.Errorf("lxc file push: %w; output: %s", err, out)
 	}
 	return nil
 }
 
-func (c *Client) ensureCredentialDirectory(
+func (s *credentialSynchronizer) ensureDirectory(
 	ctx context.Context,
 	containerName string,
 	spec provisioning.CredentialSpec,
 ) error {
-	if !c.Available() {
+	if !s.lxc.Available() {
 		return errors.New("lxc not available")
 	}
 	directory := spec.Directory
 	files, err := regularCredentialFiles(directory.HostPath)
 	if err != nil || len(files) == 0 {
-		if directory.AllowContainerOnly && c.containerCredentialDirectoryHasFiles(ctx, containerName, directory.ContainerPath) {
+		if directory.AllowContainerOnly && s.containerDirectoryHasFiles(ctx, containerName, directory.ContainerPath) {
 			return nil
 		}
 		if directory.MissingErrorFormat != "" {
@@ -202,7 +221,7 @@ func (c *Client) ensureCredentialDirectory(
 	pctx, cancel := context.WithTimeout(ctx, authPushTimeout)
 	defer cancel()
 	for _, path := range directory.ContainerDirs {
-		if out, err := c.lxc.Run(pctx, "exec", containerName, "--", "install", "-d", "-m", "700", path); err != nil {
+		if out, err := s.lxc.Run(pctx, "exec", containerName, "--", "install", "-d", "-m", "700", path); err != nil {
 			return fmt.Errorf("mkdir %s in container: %w; output: %s", path, err, out)
 		}
 	}
@@ -212,20 +231,20 @@ func (c *Client) ensureCredentialDirectory(
 			ContainerPath: directory.ContainerPath + "/" + name,
 			Mode:          "600",
 		}
-		if err := c.pushCredentialFileIfNewer(pctx, file, containerName); err != nil {
+		if err := s.pushFileIfNewer(pctx, file, containerName); err != nil {
 			return fmt.Errorf("push %s: %w", file.ContainerPath, err)
 		}
 	}
 	return nil
 }
 
-func (c *Client) syncCredentialDirectoryFromContainer(
+func (s *credentialSynchronizer) syncDirectoryFromContainer(
 	ctx context.Context,
 	containerName string,
 	spec provisioning.CredentialSpec,
 ) error {
 	directory := spec.Directory
-	if !c.Available() {
+	if !s.lxc.Available() {
 		if directory.SyncUnavailableIsNoop {
 			return nil
 		}
@@ -239,7 +258,7 @@ func (c *Client) syncCredentialDirectoryFromContainer(
 
 	pctx, cancel := context.WithTimeout(ctx, authPushTimeout)
 	defer cancel()
-	out, err := c.lxc.Run(pctx, "exec", containerName, "--",
+	out, err := s.lxc.Run(pctx, "exec", containerName, "--",
 		"find", directory.ContainerPath, "-maxdepth", "1", "-type", "f", "-printf", "%f\n")
 	if err != nil {
 		return nil
@@ -247,7 +266,7 @@ func (c *Client) syncCredentialDirectoryFromContainer(
 	for _, name := range strings.Fields(out) {
 		containerPath := directory.ContainerPath + "/" + name
 		hostPath := filepath.Join(directory.HostPath, name)
-		if out, err := c.lxc.Run(pctx, "file", "pull", containerName+containerPath, hostPath); err != nil {
+		if out, err := s.lxc.Run(pctx, "file", "pull", containerName+containerPath, hostPath); err != nil {
 			return fmt.Errorf("pull %s: %w; output: %s", containerPath, err, out)
 		}
 		_ = os.Chmod(hostPath, 0o600)
@@ -257,14 +276,14 @@ func (c *Client) syncCredentialDirectoryFromContainer(
 	return nil
 }
 
-func (c *Client) containerCredentialDirectoryHasFiles(
+func (s *credentialSynchronizer) containerDirectoryHasFiles(
 	ctx context.Context,
 	containerName string,
 	containerPath string,
 ) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := c.lxc.Run(quickCtx, "exec", containerName, "--",
+	out, err := s.lxc.Run(quickCtx, "exec", containerName, "--",
 		"sh", "-c", "ls -1 "+containerPath+" 2>/dev/null | head -1")
 	return err == nil && strings.TrimSpace(out) != ""
 }
