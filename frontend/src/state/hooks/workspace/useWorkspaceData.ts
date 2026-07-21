@@ -1,19 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { workspaceWebSocketUrl } from "../../../transport/websocket";
+import { useCallback, useEffect, useState } from "preact/hooks";
+import { workspaceApi, type WorkspaceMessage } from "../../../api/workspaceApi";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
-
-type WorkspaceMessage =
-  | { type: "workspace.snapshot"; chats: ChatMeta[]; projects: ProjectMeta[] }
-  | { type: "chat.upsert"; chat: ChatMeta }
-  | { type: "chat.delete"; id: string }
-  | { type: "project.upsert"; project: ProjectMeta }
-  | { type: "project.delete"; id: string };
 
 export function useWorkspaceData(enabled: boolean) {
   const [chats, setChats] = useState<ChatMeta[]>([]);
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
-  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshChats = useCallback(async () => {}, []);
   const refreshProjects = useCallback(async () => {}, []);
@@ -25,51 +17,7 @@ export function useWorkspaceData(enabled: boolean) {
       return;
     }
 
-    let stopped = false;
-    let attempt = 0;
-    let socket: WebSocket | null = null;
-
-    function scheduleReconnect() {
-      if (stopped) return;
-      const delay = Math.min(5000, 400 * 2 ** attempt);
-      attempt++;
-      reconnectRef.current = setTimeout(connect, delay);
-    }
-
-    function connect() {
-      if (stopped) return;
-      socket = new WebSocket(workspaceWebSocketUrl());
-
-      socket.onopen = () => {
-        attempt = 0;
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          applyWorkspaceMessage(JSON.parse(event.data) as WorkspaceMessage);
-        } catch {}
-      };
-
-      socket.onclose = () => {
-        socket = null;
-        scheduleReconnect();
-      };
-
-      socket.onerror = () => {
-        try { socket?.close(); } catch {}
-      };
-    }
-
-    connect();
-
-    return () => {
-      stopped = true;
-      if (reconnectRef.current) {
-        clearTimeout(reconnectRef.current);
-        reconnectRef.current = null;
-      }
-      try { socket?.close(); } catch {}
-    };
+    return workspaceApi.subscribe(applyWorkspaceMessage);
   }, [enabled]);
 
   function applyWorkspaceMessage(message: WorkspaceMessage) {
