@@ -24,26 +24,18 @@ import (
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 )
 
-const (
-	containerImageAlias  = containerbaseimage.Alias
-	containerImageSource = containerbaseimage.SourceImage
-
-	defaultImage = BaseImageAlias
-)
+const defaultImage = containerbaseimage.Alias
 
 // CommandRunner is the transport seam used to invoke the container runtime.
 // The LXC CLI adapter implements it at the application composition root.
 type CommandRunner = command.Runner
 
-type profileRegistry = profileconfig.Registry
-type templatePublisher = assets.Publisher
-
 // Client implements the container ports consumed by project and prompt
 // services. Wire it once at the composition root and share the pointer.
 type Client struct {
 	lxc         CommandRunner
-	profiles    *profileRegistry
-	templates   *templatePublisher
+	profiles    *profileconfig.Registry
+	templates   *assets.Publisher
 	inspector   *containerinspection.Inspector
 	credentials *containercredentials.Synchronizer
 	environment *containerenvironment.Service
