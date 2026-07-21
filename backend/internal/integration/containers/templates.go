@@ -61,7 +61,7 @@ func (c *Client) EnsureAgentInstructions(ctx context.Context, containerName stri
 		batches[index].paths = append(batches[index].paths, target.Path)
 	}
 	for _, batch := range batches {
-		if err := c.pushTemplatedFile(ctx, containerName, agentInstructionsTemplate,
+		if err := c.templates.push(ctx, containerName, agentInstructionsTemplate,
 			batch.hashPath, "644", batch.paths...); err != nil {
 			return err
 		}

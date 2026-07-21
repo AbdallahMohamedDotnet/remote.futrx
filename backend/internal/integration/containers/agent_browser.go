@@ -100,10 +100,10 @@ func (c *Client) pushAgentBrowserTemplates(ctx context.Context, containerName st
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerGUIDir, err, out)
 	}
-	if err := c.pushTemplatedFile(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript); err != nil {
+	if err := c.templates.push(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript); err != nil {
 		return err
 	}
-	return c.pushTemplatedFile(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
+	return c.templates.push(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
 }
 
 // StopAgentBrowser tears down the browser, VNC bridge, and virtual display.

@@ -62,7 +62,7 @@ func (c *Client) EnsureAgentBrowserMCP(ctx context.Context, containerName string
 			if mode == "" {
 				mode = "644"
 			}
-			if err := c.pushTemplatedFile(ctx, containerName, template.Content,
+			if err := c.templates.push(ctx, containerName, template.Content,
 				template.HashPath, mode, template.Path); err != nil {
 				return err
 			}

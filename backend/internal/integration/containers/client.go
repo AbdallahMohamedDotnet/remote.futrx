@@ -42,14 +42,19 @@ type CommandRunner interface {
 // Client implements the container ports consumed by project and prompt
 // services. Wire it once at the composition root and share the pointer.
 type Client struct {
-	lxc      CommandRunner
-	image    string
-	profiles profileRegistry
+	lxc       CommandRunner
+	image     string
+	profiles  profileRegistry
+	templates templatePublisher
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
 func New(client CommandRunner) *Client {
-	return &Client{lxc: client, image: defaultImage}
+	return &Client{
+		lxc:       client,
+		image:     defaultImage,
+		templates: templatePublisher{lxc: client},
+	}
 }
 
 func (c *Client) ConfigureAgentProfiles(profiles []provisioning.Profile) {
