@@ -10,6 +10,7 @@ import (
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
+	serviceworkspacefiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacefiles"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
 	wstransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/ws"
@@ -25,6 +26,7 @@ type Dependencies struct {
 	Static     fs.FS
 	DataDir    string
 	ServerInfo *serviceserverinfo.Service
+	Files      *serviceworkspacefiles.Service
 }
 
 func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
@@ -60,6 +62,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Chats,
 			deps.Services.Projects,
 			deps.Services.Auth,
+			deps.Files,
 		),
 		Projects: httphandlers.NewProjectHandler(
 			deps.Services.Projects,

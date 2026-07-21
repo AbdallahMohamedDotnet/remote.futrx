@@ -22,6 +22,7 @@ import (
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	serviceworkspacefiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacefiles"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
@@ -34,14 +35,16 @@ type ChatHandler struct {
 	chats    *servicechat.Service
 	projects *serviceproject.Service
 	auth     *serviceauth.Service
+	files    *serviceworkspacefiles.Service
 }
 
 func NewChatHandler(
 	chats *servicechat.Service,
 	projects *serviceproject.Service,
 	auth *serviceauth.Service,
+	files *serviceworkspacefiles.Service,
 ) *ChatHandler {
-	return &ChatHandler{chats: chats, projects: projects, auth: auth}
+	return &ChatHandler{chats: chats, projects: projects, auth: auth, files: files}
 }
 
 func (h *ChatHandler) RegisterRoutes(mux *http.ServeMux) {
