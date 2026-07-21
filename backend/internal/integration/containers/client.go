@@ -12,10 +12,10 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	containerbaseimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/baseimage"
 	containerbrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/browser"
+	containercli "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/cli"
 	containercodeserver "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/codeserver"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 )
@@ -55,7 +55,7 @@ type Client struct {
 	templates   *templatePublisher
 	inspector   containerInspector
 	credentials *containercredentials.Synchronizer
-	clis        cliProvisioner
+	clis        *containercli.Provisioner
 	browser     *containerbrowser.Service
 	codeServer  *containercodeserver.Provisioner
 	lifecycle   containerLifecycle
@@ -84,10 +84,7 @@ func New(client CommandRunner) *Client {
 		credentials: containerCredentialInspector{commands: inspectionCommands, profiles: containerClient.profiles},
 	}
 	containerClient.credentials = containercredentials.NewSynchronizer(client, containerClient.profiles)
-	containerClient.clis = cliProvisioner{
-		lxc:      client,
-		profiles: containerClient.profiles,
-	}
+	containerClient.clis = containercli.NewProvisioner(client, containerClient.profiles, containerbaseimage.InstallScript)
 	containerClient.browser = containerbrowser.NewService(client, containerClient.profiles, containerClient.templates)
 	containerClient.codeServer = containercodeserver.NewProvisioner(client)
 	containerClient.workspace = containerworkspace.NewProvisioner(client, containerClient.profiles, containerClient.templates)
@@ -112,7 +109,3 @@ func (c *Client) ConfigureAgentProfiles(profiles []provisioning.Profile) {
 
 // Available reports whether the underlying lxc binary is reachable.
 func (c *Client) Available() bool { return c.lxc.Available() }
-
-func truncateOut(s string, max int) string {
-	return output.Truncate(s, max)
-}
