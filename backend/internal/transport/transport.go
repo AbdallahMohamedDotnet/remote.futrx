@@ -9,6 +9,7 @@ import (
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
 	wstransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/ws"
@@ -23,6 +24,7 @@ type Dependencies struct {
 	TmuxClient TmuxClient
 	Static     fs.FS
 	DataDir    string
+	ServerInfo *serviceserverinfo.Service
 }
 
 func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
@@ -73,7 +75,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.UserSettings,
 			deps.Services.Auth,
 		),
-		ServerInfo:       httphandlers.NewServerInfoHandler(deps.DataDir),
+		ServerInfo:       httphandlers.NewServerInfoHandler(deps.ServerInfo),
 		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills, deps.Services.Projects, deps.Services.Auth),
 		BrowserInspector: httphandlers.NewBrowserInspectorHandler(),
 		Uploads:          uploads,

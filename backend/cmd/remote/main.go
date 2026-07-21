@@ -17,10 +17,13 @@ import (
 
 	remote "github.com/Kings-Of-The-Web/remote.futrx.dev"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostinfo"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
+	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport"
 )
 
@@ -65,12 +68,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	serverInfoService := serviceserverinfo.New(hostinfo.New(), cfg.DataDir, fileproject.WorkspaceRoot)
 
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:   serviceSet,
 		TmuxClient: tmuxClient,
 		Static:     static,
 		DataDir:    cfg.DataDir,
+		ServerInfo: serverInfoService,
 	})
 	if err != nil {
 		log.Fatalf("init http handler: %v", err)
