@@ -5,38 +5,20 @@ import type {
   ProjectContainerRecord,
   SecretsRecord,
 } from "../../state/projects/projectContainerRecords";
-import {
-  Empty,
-  Field,
-  Grid,
-  Loading,
-  Panel,
-} from "./project-containers/ProjectContainerPrimitives";
+import { Empty } from "./project-containers/ProjectContainerPrimitives";
 import { ProjectActions } from "./project-containers/ProjectActions";
+import {
+  ContainerStateBadge,
+  ProjectInfoSection,
+} from "./project-containers/ProjectInfoSection";
 import { ProjectSecretsSection } from "./project-containers/ProjectSecretsSection";
 import { ProjectSharingSection } from "./project-containers/ProjectSharingSection";
 import {
-  formatBytes as fmtBytes,
-  formatDate as fmtDate,
-  formatDuration as fmtDuration,
   formatRelativeTime as fmtRelative,
-  formatUnixTime as fmtMtime,
   truncate,
 } from "./project-containers/projectContainerFormat";
-import type {
-  AuthBundleFileStatus,
-  AuthBundleStatus,
-  ContainerLimits,
-  DiskUsage,
-  NetworkInterface,
-  OSInfo,
-  ProjectContainerInfo,
-  ProjectMeta,
-  ResourceInfo,
-  WorkspaceInfo,
-} from "../../models/project";
+import type { ProjectContainerInfo, ProjectMeta } from "../../models/project";
 import {
-  AlertCircle,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -127,7 +109,11 @@ export function ProjectContainersPage({
             <>
               <ProjectHeader project={project} info={infoRecord.data} refreshedAt={infoRecord.refreshedAt} />
               <CollapsibleSection title="Info" defaultOpen={true} subtitle={infoSubtitle(infoRecord)}>
-                <InfoBody project={project} record={infoRecord} onRepairNetwork={onRepairNetwork} />
+                <ProjectInfoSection
+                  project={project}
+                  record={infoRecord}
+                  onRepairNetwork={onRepairNetwork}
+                />
               </CollapsibleSection>
               <CollapsibleSection title="Settings" defaultOpen={false} subtitle={project.status || "unknown"}>
                 <ProjectActions
@@ -239,7 +225,7 @@ function ProjectHeader({
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 min-w-0">
           <span class="text-[14.5px] font-semibold text-ink-50 truncate">{project.name}</span>
-          {info && <StateBadge state={info.state ?? "UNKNOWN"} />}
+          {info && <ContainerStateBadge state={info.state ?? "UNKNOWN"} />}
         </div>
         <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug font-mono truncate">
           {project.containerName || project.slug}
@@ -249,316 +235,5 @@ function ProjectHeader({
         <div class="text-[11px] text-ink-400 mt-1.5">refreshed {fmtRelative(refreshedAt)}</div>
       )}
     </section>
-  );
-}
-
-function InfoBody({
-  project,
-  record,
-  onRepairNetwork,
-}: {
-  project: ProjectMeta;
-  record: ProjectContainerRecord;
-  onRepairNetwork: () => Promise<void>;
-}) {
-  if (record.error) {
-    return (
-      <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
-        <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
-        <div class="min-w-0">
-          <div class="font-medium text-accent-red">Container endpoint unavailable</div>
-          <div class="text-ink-200 mt-0.5 break-words">
-            GET /api/projects/{project.id}/container returned {record.error}.
-          </div>
-        </div>
-      </div>
-    );
-  }
-  if (record.loading && !record.data) {
-    return <Loading text="Loading container data…" />;
-  }
-  if (!record.data) return <Loading text="No data." />;
-
-  const info = record.data;
-  return (
-    <>
-      <Panel title="Overview">
-        <Grid>
-          <Field label="Container" value={info.name} mono />
-          <Field label="State" value={info.state ?? "UNKNOWN"} mono />
-          <Field label="PID" value={info.pid ? String(info.pid) : "—"} mono />
-          <Field label="Processes" value={info.resources?.processes ? String(info.resources.processes) : "—"} mono />
-          <Field label="Image" value={info.image || "—"} />
-          <Field label="Architecture" value={info.architecture || "—"} mono />
-          <Field label="Boot autostart" value={info.bootAutostart ? "yes" : "no"} mono />
-          <Field label="Created" value={fmtDate(info.createdAt)} mono />
-          <Field label="Last used" value={fmtDate(info.lastUsedAt)} mono />
-        </Grid>
-      </Panel>
-      {info.os && <OSPanel os={info.os} />}
-      {info.resources && <ResourcesPanel res={info.resources} />}
-      {info.disks && info.disks.length > 0 && <DisksPanel disks={info.disks} />}
-      {info.network && info.network.length > 0 && <NetworkPanel ifaces={info.network} onRepair={onRepairNetwork} />}
-      {info.workspace && <WorkspacePanel ws={info.workspace} />}
-      {info.limits && <LimitsPanel limits={info.limits} />}
-      <ClaudePanel claude={info.claude} />
-      <CodexPanel codex={info.codex} />
-      {info.authBundles && info.authBundles.length > 0 && <AuthBundlesPanel bundles={info.authBundles} />}
-    </>
-  );
-}
-
-function StateBadge({ state }: { state: string }) {
-  const tone =
-    state === "RUNNING"
-      ? "text-accent-green bg-accent-green/[0.12]"
-      : state === "STOPPED"
-      ? "text-ink-300 bg-white/[0.06]"
-      : state === "MISSING"
-      ? "text-accent-red bg-accent-red/[0.12]"
-      : "text-ink-300 bg-white/[0.06]";
-  return (
-    <span class={`inline-flex items-center h-5 px-1.5 rounded text-[11px] font-medium ${tone}`}>
-      {state.toLowerCase()}
-    </span>
-  );
-}
-
-function OSPanel({ os }: { os: OSInfo }) {
-  return (
-    <Panel title="OS">
-      <Grid>
-        <Field label="Distribution" value={os.prettyName || "—"} />
-        <Field label="Kernel" value={os.kernel || "—"} mono />
-        <Field label="Hostname" value={os.hostname || "—"} mono />
-        <Field label="CPU count" value={os.cpuCount ? String(os.cpuCount) : "—"} mono />
-        <Field label="Uptime" value={os.uptimeSec ? fmtDuration(os.uptimeSec) : "—"} mono />
-      </Grid>
-    </Panel>
-  );
-}
-
-function ResourcesPanel({ res }: { res: ResourceInfo }) {
-  return (
-    <Panel title="Resources">
-      <Grid>
-        <Field label="Memory used" value={`${fmtBytes(res.memoryCurrentBytes)} / ${fmtBytes(res.memoryTotalBytes)}`} mono />
-        <Field label="Memory peak" value={fmtBytes(res.memoryPeakBytes)} mono />
-        <Field label="Swap" value={fmtBytes(res.swapCurrentBytes)} mono />
-        <Field label="Disk (rootfs)" value={fmtBytes(res.diskUsageBytes)} mono />
-        <Field label="CPU time" value={res.cpuUsageSeconds ? `${res.cpuUsageSeconds.toLocaleString()} s` : "—"} mono />
-        <Field label="Processes" value={res.processes ? String(res.processes) : "—"} mono />
-      </Grid>
-    </Panel>
-  );
-}
-
-function DisksPanel({ disks }: { disks: DiskUsage[] }) {
-  return (
-    <Panel title="Disk usage (inside container)">
-      <div class="space-y-2">
-        {disks.map((d) => {
-          const pct = d.totalBytes && d.usedBytes != null ? Math.round((d.usedBytes / d.totalBytes) * 100) : null;
-          return (
-            <div
-              key={d.mountPath}
-              class="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2"
-            >
-              <div class="flex items-center justify-between gap-2 min-w-0">
-                <div class="font-mono text-[12.5px] text-ink-100 truncate">{d.mountPath}</div>
-                <div class="text-[11px] text-ink-300 font-mono whitespace-nowrap">
-                  {fmtBytes(d.usedBytes)} / {fmtBytes(d.totalBytes)}
-                  {pct != null && <span class="ml-1.5 text-ink-400">({pct}%)</span>}
-                </div>
-              </div>
-              {pct != null && (
-                <div class="mt-1.5 h-1 rounded-full bg-white/[0.06] overflow-hidden">
-                  <div
-                    class={`h-full ${pct > 85 ? "bg-accent-red" : pct > 60 ? "bg-accent-orange" : "bg-accent-green"}`}
-                    style={{ width: `${Math.min(100, pct)}%` }}
-                  />
-                </div>
-              )}
-              <div class="mt-1 text-[11px] text-ink-400 font-mono truncate">
-                {d.filesystem} · avail {fmtBytes(d.availBytes)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Panel>
-  );
-}
-
-function NetworkPanel({ ifaces, onRepair }: { ifaces: NetworkInterface[]; onRepair: () => Promise<void> }) {
-  const [repairing, setRepairing] = useState(false);
-  const [repairErr, setRepairErr] = useState<string | null>(null);
-  const noIPv4 = !ifaces.some((n) => (n.addresses ?? []).some((a) => a.split("/")[0].includes(".")));
-
-  async function repair() {
-    setRepairing(true);
-    setRepairErr(null);
-    try {
-      await onRepair();
-    } catch (e) {
-      setRepairErr((e as Error).message);
-    } finally {
-      setRepairing(false);
-    }
-  }
-
-  return (
-    <Panel title="Network">
-      <div class="space-y-2">
-        {noIPv4 && (
-          <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
-            <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
-            <div class="text-accent-red break-words">
-              No IPv4 address — the container has no internet access. Use "Repair network" to re-run DHCP.
-            </div>
-          </div>
-        )}
-        {repairErr && (
-          <div class="flex items-start gap-2.5 rounded-lg border border-accent-red/30 bg-accent-red/[0.08] px-3 py-2.5 text-[13px]">
-            <AlertCircle class="w-4 h-4 mt-0.5 flex-none text-accent-red" />
-            <div class="text-accent-red break-words">{repairErr}</div>
-          </div>
-        )}
-        {ifaces.map((n) => (
-          <div
-            key={n.name}
-            class="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 space-y-1"
-          >
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="font-mono text-[12.5px] text-ink-100">{n.name}</span>
-              <span class="text-[11px] text-ink-400">{n.state ?? "—"}</span>
-              {n.macAddress && (
-                <span class="ml-auto font-mono text-[11px] text-ink-400">{n.macAddress}</span>
-              )}
-            </div>
-            {n.addresses && n.addresses.length > 0 && (
-              <div class="font-mono text-[12px] text-ink-200 break-all">
-                {n.addresses.join(", ")}
-              </div>
-            )}
-            <div class="text-[11px] text-ink-400 font-mono">
-              rx {fmtBytes(n.bytesReceived)} · tx {fmtBytes(n.bytesSent)}
-              {n.mtu ? ` · mtu ${n.mtu}` : ""}
-              {n.hostName ? ` · host ${n.hostName}` : ""}
-            </div>
-          </div>
-        ))}
-      </div>
-      <button
-        type="button"
-        onClick={() => void repair()}
-        disabled={repairing}
-        class="mt-2 h-9 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-[13px] font-medium text-ink-100 hover:bg-white/[0.08] disabled:opacity-45 disabled:cursor-not-allowed"
-        title="Re-runs DHCP on eth0 inside the container. Fixes the 'running but no internet' state."
-      >
-        {repairing ? "Repairing network..." : "Repair network"}
-      </button>
-    </Panel>
-  );
-}
-
-function WorkspacePanel({ ws }: { ws: WorkspaceInfo }) {
-  return (
-    <Panel title="Workspace mount">
-      <Grid>
-        <Field label="Host source" value={ws.hostSource || "—"} mono />
-        <Field label="Container path" value={ws.containerPath || "—"} mono />
-      </Grid>
-    </Panel>
-  );
-}
-
-function LimitsPanel({ limits }: { limits: ContainerLimits }) {
-  return (
-    <Panel title="Resource limits">
-      <Grid>
-        <Field label="CPU" value={limits.cpu || "—"} mono />
-        <Field label="Memory" value={limits.memory || "—"} mono />
-        <Field label="Disk" value={limits.disk || "—"} mono />
-      </Grid>
-    </Panel>
-  );
-}
-
-function ClaudePanel({ claude }: { claude: ProjectContainerInfo["claude"] }) {
-  return (
-    <Panel title="Claude provisioning">
-      <Grid>
-        <Field label="CLI installed" value={claude.installed ? "yes" : "no"} mono />
-        <Field label="Version" value={claude.version || "—"} mono />
-        <Field label="CLAUDE.md" value={claude.claudeMdInstalled ? "installed" : "missing"} mono />
-        <Field
-          label="CLAUDE.md in sync"
-          value={claude.claudeMdInSync ? "yes" : "no"}
-          mono
-          tone={claude.claudeMdInstalled && !claude.claudeMdInSync ? "warn" : undefined}
-        />
-      </Grid>
-    </Panel>
-  );
-}
-
-function CodexPanel({ codex }: { codex: ProjectContainerInfo["codex"] }) {
-  return (
-    <Panel title="Codex provisioning">
-      <Grid>
-        <Field label="CLI installed" value={codex.installed ? "yes" : "no"} mono />
-        <Field label="Version" value={codex.version || "—"} mono />
-      </Grid>
-    </Panel>
-  );
-}
-
-function AuthBundlesPanel({ bundles }: { bundles: AuthBundleStatus[] }) {
-  return (
-    <Panel title="Auth bundles">
-      <div class="space-y-3">
-        {bundles.map((b) => (
-          <div key={b.name} class="rounded-md border border-white/[0.08] bg-white/[0.03] p-2.5 space-y-2">
-            <div class="text-[12.5px] font-semibold text-ink-100">{b.name}</div>
-            <div class="space-y-1.5">
-              {b.files.map((f) => (
-                <AuthFileRow key={f.containerPath} f={f} />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
-function AuthFileRow({ f }: { f: AuthBundleFileStatus }) {
-  const tone = f.containerNewer
-    ? "text-accent-orange"
-    : f.hostNewer
-    ? "text-ink-300"
-    : f.hostExists && f.containerExists
-    ? "text-accent-green"
-    : "text-ink-400";
-  const label = f.containerNewer
-    ? "container rotated — pending pull"
-    : f.hostNewer
-    ? "host newer — will push next prompt"
-    : f.hostExists && f.containerExists
-    ? "in sync"
-    : !f.hostExists && !f.containerExists
-    ? "missing on both"
-    : f.hostExists
-    ? "host only"
-    : "container only";
-  return (
-    <div class="rounded border border-white/[0.06] bg-black/20 px-2.5 py-1.5">
-      <div class="font-mono text-[11.5px] text-ink-200 break-all">{f.containerPath}</div>
-      <div class={`text-[11px] mt-0.5 ${tone}`}>{label}</div>
-      <div class="text-[10.5px] font-mono text-ink-400 mt-0.5">
-        host {f.hostExists ? fmtMtime(f.hostMtime) : "—"} · container {f.containerExists ? fmtMtime(f.containerMtime) : "—"}
-      </div>
-    </div>
   );
 }
