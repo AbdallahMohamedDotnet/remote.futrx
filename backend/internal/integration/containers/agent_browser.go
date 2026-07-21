@@ -14,12 +14,10 @@ import (
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
-const (
-	// AgentBrowserVNCPort is the in-container port the noVNC/websockify front
-	// listens on. It is the only externally-reachable port of the GUI stack
-	// and is surfaced to the user through the existing dev-URL proxy.
-	AgentBrowserVNCPort = 6080
-)
+// agentBrowserVNCPort is the in-container port the noVNC/websockify front
+// listens on. It is the only externally-reachable port of the GUI stack and is
+// surfaced to the user through the existing dev-URL proxy.
+const agentBrowserVNCPort = 6080
 
 // agentBrowser owns installation, workspace templates, and the split core/view
 // runtime lifecycle.
@@ -29,7 +27,7 @@ type agentBrowser struct {
 }
 
 // AgentBrowserPort returns the in-container noVNC port the stack listens on.
-func (c *Client) AgentBrowserPort() int { return AgentBrowserVNCPort }
+func (c *Client) AgentBrowserPort() int { return agentBrowserVNCPort }
 
 // EnsureAgentBrowser starts the full stack: browser core plus noVNC view.
 func (c *Client) EnsureAgentBrowser(ctx context.Context, containerName string) error {
