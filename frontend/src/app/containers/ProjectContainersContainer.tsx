@@ -202,7 +202,6 @@ export function ProjectContainersContainer({
       onDeleteSecret={onDeleteSecret}
       onAddMember={onAddMember}
       onRemoveMember={onRemoveMember}
-      onRefreshSecrets={() => void loadSecrets()}
       onRepairNetwork={onRepairNetwork}
       onStartProject={onStartProject}
       onStopProject={onStopProject}

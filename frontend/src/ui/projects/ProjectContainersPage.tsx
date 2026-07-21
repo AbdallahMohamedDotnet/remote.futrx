@@ -43,7 +43,6 @@ export function ProjectContainersPage({
   onDeleteSecret,
   onAddMember,
   onRemoveMember,
-  onRefreshSecrets,
   onRepairNetwork,
   onStartProject,
   onStopProject,
@@ -61,7 +60,6 @@ export function ProjectContainersPage({
   onDeleteSecret: (key: string) => Promise<void>;
   onAddMember: (email: string) => Promise<void>;
   onRemoveMember: (email: string) => Promise<void>;
-  onRefreshSecrets: () => void;
   onRepairNetwork: () => Promise<void>;
   onStartProject: () => Promise<void>;
   onStopProject: () => Promise<void>;
