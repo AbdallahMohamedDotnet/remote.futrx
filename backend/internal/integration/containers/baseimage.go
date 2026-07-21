@@ -35,6 +35,13 @@ const (
 	baseImageNetworkWarmup  = 3 * time.Second
 )
 
+// baseImageBuilder owns the disposable builder lifecycle and publishes the
+// profile-derived development image consumed by project containers.
+type baseImageBuilder struct {
+	lxc      CommandRunner
+	profiles *profileRegistry
+}
+
 // baseImageInstallPreamble is the provider-neutral part of the shell recipe.
 // Agent packages contribute the npm packages and binaries appended below.
 const baseImageInstallPreamble = `set -e
@@ -166,13 +173,17 @@ ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`
 // want a clean overwrite should delete the image first via
 // `lxc image delete <alias>`.
 func (c *Client) BuildBaseImage(ctx context.Context, alias string) error {
-	if !c.Available() {
+	return c.images.build(ctx, alias)
+}
+
+func (b *baseImageBuilder) build(ctx context.Context, alias string) error {
+	if !b.lxc.Available() {
 		return errors.New("lxc CLI not found on PATH - install LXD on the host first")
 	}
 	if alias == "" {
 		alias = BaseImageAlias
 	}
-	profiles := c.AgentProfiles()
+	profiles := b.profiles.snapshot()
 	installScript, err := baseImageInstallScript(profiles)
 	if err != nil {
 		return err
@@ -182,7 +193,7 @@ func (c *Client) BuildBaseImage(ctx context.Context, alias string) error {
 	// we try to launch a fresh one. Best-effort; failures are tolerated
 	// because the container may simply not exist.
 	cleanCtx, cleanCancel := context.WithTimeout(ctx, deleteTimeout)
-	_, _ = c.lxc.Run(cleanCtx, "delete", "--force", baseImageBuilderName)
+	_, _ = b.lxc.Run(cleanCtx, "delete", "--force", baseImageBuilderName)
 	cleanCancel()
 
 	bctx, bcancel := context.WithTimeout(ctx, baseImageBuildTimeout)
@@ -193,10 +204,10 @@ func (c *Client) BuildBaseImage(ctx context.Context, alias string) error {
 	defer func() {
 		dctx, dcancel := context.WithTimeout(context.Background(), deleteTimeout)
 		defer dcancel()
-		_, _ = c.lxc.Run(dctx, "delete", "--force", baseImageBuilderName)
+		_, _ = b.lxc.Run(dctx, "delete", "--force", baseImageBuilderName)
 	}()
 
-	if out, err := c.lxc.Run(bctx, "launch", BaseImageSourceImage, baseImageBuilderName); err != nil {
+	if out, err := b.lxc.Run(bctx, "launch", BaseImageSourceImage, baseImageBuilderName); err != nil {
 		return fmt.Errorf("launch builder: %w; output: %s", err, out)
 	}
 
@@ -208,27 +219,27 @@ func (c *Client) BuildBaseImage(ctx context.Context, alias string) error {
 		return bctx.Err()
 	}
 
-	if out, err := c.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", installScript); err != nil {
+	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", installScript); err != nil {
 		return fmt.Errorf("install script: %w; output: %s", err, truncateOut(out, 2000))
 	}
 
 	// Layer the headed-browser GUI stack on top (Agent Browser feature).
-	if out, err := c.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", AgentBrowserInstallScript); err != nil {
+	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", AgentBrowserInstallScript); err != nil {
 		return fmt.Errorf("agent browser install script: %w; output: %s", err, truncateOut(out, 2000))
 	}
 
 	// Layer the on-demand code-server IDE on top (per-container VS Code).
-	if out, err := c.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
+	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
 		return fmt.Errorf("code-server install script: %w; output: %s", err, truncateOut(out, 2000))
 	}
 
-	if out, err := c.lxc.Run(bctx, "stop", baseImageBuilderName); err != nil {
+	if out, err := b.lxc.Run(bctx, "stop", baseImageBuilderName); err != nil {
 		return fmt.Errorf("stop builder: %w; output: %s", err, out)
 	}
 
 	pctx, pcancel := context.WithTimeout(ctx, baseImagePublishTimeout)
 	defer pcancel()
-	if out, err := c.lxc.Run(pctx, "publish", baseImageBuilderName,
+	if out, err := b.lxc.Run(pctx, "publish", baseImageBuilderName,
 		"--alias", alias,
 		"description="+baseImageDescription(profiles)); err != nil {
 		return fmt.Errorf("publish: %w; output: %s", err, out)

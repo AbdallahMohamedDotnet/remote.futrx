@@ -50,6 +50,7 @@ type Client struct {
 	browser     agentBrowser
 	lifecycle   containerLifecycle
 	workspace   workspaceProvisioner
+	images      baseImageBuilder
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
@@ -85,6 +86,10 @@ func New(client CommandRunner) *Client {
 		lxc:       client,
 		profiles:  &containerClient.profiles,
 		templates: &containerClient.templates,
+	}
+	containerClient.images = baseImageBuilder{
+		lxc:      client,
+		profiles: &containerClient.profiles,
 	}
 	return containerClient
 }
