@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { ProjectContainersPage } from "../../ui/projects/ProjectContainersPage";
 import type { ProjectMeta } from "../../models/project";
 import { projectApi } from "../../api/projectApi";
+import { useProjectContainerInfo } from "../../state/hooks/projects/useProjectContainerInfo";
 import type {
   AccessRecord,
-  ProjectContainerRecord,
   SecretsRecord,
 } from "../../state/projects/projectContainerRecords";
 
@@ -24,33 +24,10 @@ export function ProjectContainersContainer({
     [projects, selectedProjectId]
   );
 
-  const [infoRecord, setInfoRecord] = useState<ProjectContainerRecord>({ loading: false });
+  const info = useProjectContainerInfo(selectedProject);
   const [secretsRecord, setSecretsRecord] = useState<SecretsRecord>({ loading: false });
   const [accessRecord, setAccessRecord] = useState<AccessRecord>({ loading: false });
   const [refreshing, setRefreshing] = useState(false);
-
-  const loadInfo = useCallback(
-    async (signal?: { cancelled: boolean }) => {
-      if (!selectedProject) {
-        setInfoRecord({ loading: false });
-        return;
-      }
-      setInfoRecord((prev) => ({ ...prev, loading: true, error: undefined }));
-      try {
-        const data = await projectApi.containerInfo(selectedProject.id);
-        if (signal?.cancelled) return;
-        setInfoRecord({ loading: false, data, refreshedAt: Date.now() });
-      } catch (error) {
-        if (signal?.cancelled) return;
-        setInfoRecord({
-          loading: false,
-          error: (error as Error).message,
-          refreshedAt: Date.now(),
-        });
-      }
-    },
-    [selectedProject]
-  );
 
   const loadSecrets = useCallback(
     async (signal?: { cancelled: boolean }) => {
@@ -94,11 +71,11 @@ export function ProjectContainersContainer({
     if (!selectedProject) return;
     setRefreshing(true);
     try {
-      await Promise.all([loadInfo(), loadSecrets(), loadAccess()]);
+      await Promise.all([info.load(), loadSecrets(), loadAccess()]);
     } finally {
       setRefreshing(false);
     }
-  }, [selectedProject, loadInfo, loadSecrets, loadAccess]);
+  }, [selectedProject, info.load, loadSecrets, loadAccess]);
 
   const onSaveSecret = useCallback(
     async (key: string, value: string) => {
@@ -154,24 +131,6 @@ export function ProjectContainersContainer({
     [selectedProject]
   );
 
-  const onRepairNetwork = useCallback(async () => {
-    if (!selectedProject) return;
-    const data = await projectApi.repairNetwork(selectedProject.id);
-    setInfoRecord({ loading: false, data, refreshedAt: Date.now() });
-  }, [selectedProject]);
-
-  const onStartProject = useCallback(async () => {
-    if (!selectedProject) return;
-    await projectApi.start(selectedProject.id);
-    await loadInfo();
-  }, [selectedProject, loadInfo]);
-
-  const onStopProject = useCallback(async () => {
-    if (!selectedProject) return;
-    await projectApi.stop(selectedProject.id);
-    await loadInfo();
-  }, [selectedProject, loadInfo]);
-
   const onDeleteProject = useCallback(async () => {
     if (!selectedProject) return;
     await projectApi.delete(selectedProject.id);
@@ -180,18 +139,18 @@ export function ProjectContainersContainer({
 
   useEffect(() => {
     const signal = { cancelled: false };
-    void loadInfo(signal);
+    void info.load(signal);
     void loadSecrets(signal);
     void loadAccess(signal);
     return () => {
       signal.cancelled = true;
     };
-  }, [loadInfo, loadSecrets, loadAccess]);
+  }, [info.load, loadSecrets, loadAccess]);
 
   return (
     <ProjectContainersPage
       project={selectedProject}
-      infoRecord={infoRecord}
+      infoRecord={info.record}
       secretsRecord={secretsRecord}
       accessRecord={accessRecord}
       refreshing={refreshing}
@@ -202,9 +161,9 @@ export function ProjectContainersContainer({
       onDeleteSecret={onDeleteSecret}
       onAddMember={onAddMember}
       onRemoveMember={onRemoveMember}
-      onRepairNetwork={onRepairNetwork}
-      onStartProject={onStartProject}
-      onStopProject={onStopProject}
+      onRepairNetwork={info.repairNetwork}
+      onStartProject={info.start}
+      onStopProject={info.stop}
       onDeleteProject={onDeleteProject}
     />
   );
