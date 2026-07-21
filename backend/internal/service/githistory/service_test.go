@@ -2,12 +2,13 @@ package githistory
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/gitcli"
 )
 
 func TestResolveRepositoryPath(t *testing.T) {
@@ -15,7 +16,7 @@ func TestResolveRepositoryPath(t *testing.T) {
 	makeGitRepo(t, workspaceRoot)
 	makeGitRepo(t, filepath.Join(workspaceRoot, "packages", "app"))
 	nestedRepo := filepath.Join(workspaceRoot, "packages", "app")
-	service := New(testGitClient{})
+	service := New(gitcli.NewHistoryClient())
 	tests := []struct {
 		name          string
 		rawRepository string
@@ -43,7 +44,7 @@ func TestResolveRepositoryPath(t *testing.T) {
 func TestResolveRepositoryPathRejectsUnsafePaths(t *testing.T) {
 	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 	makeGitRepo(t, workspaceRoot)
-	service := New(testGitClient{})
+	service := New(gitcli.NewHistoryClient())
 	tests := []string{"../other", "/workspace/../etc", filepath.Join(filepath.Dir(workspaceRoot), "other"), "/etc"}
 
 	for _, rawRepository := range tests {
@@ -97,7 +98,7 @@ func TestCheckpointChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	service := New(testGitClient{})
+	service := New(gitcli.NewHistoryClient())
 	sha, err := service.checkpointChanges(context.Background(), repository, "  checkpoint\n before switch  ")
 	if err != nil {
 		t.Fatalf("checkpointChanges() error = %v", err)
@@ -116,83 +117,6 @@ func TestCheckpointChanges(t *testing.T) {
 	if strings.TrimSpace(message) != "checkpoint before switch" {
 		t.Fatalf("commit subject = %q", message)
 	}
-}
-
-type testGitClient struct{}
-
-func (testGitClient) DirectoryExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
-}
-
-func (testGitClient) IsRepository(path string) bool {
-	_, err := os.Stat(filepath.Join(path, ".git"))
-	return err == nil
-}
-
-func (testGitClient) DiscoverRepositories(string, int, []string) []string {
-	return nil
-}
-
-func (client testGitClient) Head(ctx context.Context, repository string) (string, error) {
-	return client.run(ctx, repository, "rev-parse", "HEAD")
-}
-
-func (client testGitClient) CurrentRef(ctx context.Context, repository string) (string, error) {
-	return client.run(ctx, repository, "symbolic-ref", "--short", "HEAD")
-}
-
-func (client testGitClient) Status(ctx context.Context, repository string) (string, error) {
-	return client.run(ctx, repository, "status", "--porcelain")
-}
-
-func (client testGitClient) Log(ctx context.Context, repository string, limit int) (string, error) {
-	return client.run(ctx, repository, "log", fmt.Sprintf("--max-count=%d", limit))
-}
-
-func (client testGitClient) CommitDetails(ctx context.Context, repository, sha string) (string, error) {
-	return client.run(ctx, repository, "show", "-s", sha)
-}
-
-func (client testGitClient) CommitDiff(ctx context.Context, repository, sha string) (string, error) {
-	return client.run(ctx, repository, "show", sha)
-}
-
-func (client testGitClient) ResolveCommit(ctx context.Context, repository, sha string) (string, error) {
-	return client.run(ctx, repository, "rev-parse", "--verify", sha+"^{commit}")
-}
-
-func (client testGitClient) StageAll(ctx context.Context, repository string) error {
-	_, err := client.run(ctx, repository, "add", "-A")
-	return err
-}
-
-func (client testGitClient) CreateCheckpoint(ctx context.Context, repository, message string) error {
-	_, err := client.run(
-		ctx,
-		repository,
-		"-c",
-		"user.name=remote.futrx.dev",
-		"-c",
-		"user.email=checkpoint@remote.futrx.dev",
-		"commit",
-		"-m",
-		message,
-	)
-	return err
-}
-
-func (client testGitClient) CheckoutDetached(ctx context.Context, repository, sha string) (string, error) {
-	return client.run(ctx, repository, "checkout", "--detach", sha)
-}
-
-func (testGitClient) run(ctx context.Context, repository string, args ...string) (string, error) {
-	command := exec.CommandContext(ctx, "git", append([]string{"-C", repository}, args...)...)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(string(output)))
-	}
-	return strings.TrimRight(string(output), "\n"), nil
 }
 
 func makeGitRepo(t *testing.T, path string) {
