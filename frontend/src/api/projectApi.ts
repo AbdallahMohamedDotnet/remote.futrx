@@ -1,4 +1,4 @@
-import { requestJson } from "../transport/http";
+import { requestJson } from "./apiRequest";
 import type {
   AgentBrowserInfo,
   ContainerApp,

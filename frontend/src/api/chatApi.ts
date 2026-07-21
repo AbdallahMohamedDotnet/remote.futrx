@@ -1,4 +1,5 @@
-import { requestJson, sendHttpRequest } from "../transport/http";
+import { requestJson } from "./apiRequest";
+import { sendHttpRequest } from "../transport/http";
 import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
 import { webSocketUrl } from "../transport/webSocketUrl";
 import type { FileTreeResponse } from "../models/files";

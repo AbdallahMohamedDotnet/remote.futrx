@@ -1,4 +1,4 @@
-import { requestJson } from "../transport/http";
+import { requestJson } from "./apiRequest";
 import type { User, UserRole } from "../models/user";
 
 export const userApi = {

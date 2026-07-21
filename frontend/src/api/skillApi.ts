@@ -1,4 +1,4 @@
-import { requestJson } from "../transport/http";
+import { requestJson } from "./apiRequest";
 import type { ChatProvider } from "../models/chat";
 import type { RegisteredSkill } from "../models/skill";
 

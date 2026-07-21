@@ -1,4 +1,4 @@
-import { requestJson } from "../transport/http";
+import { requestJson } from "./apiRequest";
 import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
 import { webSocketUrl } from "../transport/webSocketUrl";
 import type { CodexAuthStatus, CodexDeviceLogin } from "../models/auth";
