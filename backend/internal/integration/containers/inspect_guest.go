@@ -13,6 +13,8 @@ type containerGuestInspector struct {
 	commands *quickCommandRunner
 }
 
+// inspect batches several /proc reads + commands into one `lxc exec sh -c`
+// round-trip. The output is split on `=== KEY ===` markers.
 func (i *containerGuestInspector) inspect(ctx context.Context, name string) (*serviceproject.OSInfo, []serviceproject.DiskUsage) {
 	script := `
 echo "=== OS_RELEASE ==="
@@ -76,4 +78,28 @@ echo "=== END ==="
 		})
 	}
 	return osInfo, disks
+}
+
+func splitSections(raw string) map[string]string {
+	out := map[string]string{}
+	var current string
+	var section strings.Builder
+	for _, line := range strings.Split(raw, "\n") {
+		if strings.HasPrefix(line, "=== ") && strings.HasSuffix(line, " ===") {
+			if current != "" {
+				out[current] = strings.TrimRight(section.String(), "\n")
+			}
+			current = strings.TrimSuffix(strings.TrimPrefix(line, "=== "), " ===")
+			section.Reset()
+			continue
+		}
+		if current != "" && current != "END" {
+			section.WriteString(line)
+			section.WriteByte('\n')
+		}
+	}
+	if current != "" && current != "END" {
+		out[current] = strings.TrimRight(section.String(), "\n")
+	}
+	return out
 }

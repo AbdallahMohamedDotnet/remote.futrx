@@ -68,8 +68,6 @@ func New(client CommandRunner) *Client {
 	}
 	inspectionCommands := &quickCommandRunner{lxc: client, timeout: inspectQuickTimeout}
 	containerClient.inspector = containerInspector{
-		lxc:         client,
-		profiles:    &containerClient.profiles,
 		states:      containerClient,
 		lxd:         containerLXDInspector{commands: inspectionCommands},
 		guest:       containerGuestInspector{commands: inspectionCommands},

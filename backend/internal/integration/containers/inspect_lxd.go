@@ -13,6 +13,53 @@ type containerLXDInspector struct {
 	commands *quickCommandRunner
 }
 
+// instanceConfig mirrors the subset of /1.0/instances/<n> we care about.
+type instanceConfig struct {
+	Architecture string                       `json:"architecture"`
+	Type         string                       `json:"type"`
+	CreatedAt    string                       `json:"created_at"`
+	LastUsedAt   string                       `json:"last_used_at"`
+	Config       map[string]string            `json:"config"`
+	Devices      map[string]map[string]string `json:"devices"`
+}
+
+// instanceState mirrors /1.0/instances/<n>/state.
+type instanceState struct {
+	PID       int    `json:"pid"`
+	Processes int    `json:"processes"`
+	Status    string `json:"status"`
+	CPU       struct {
+		Usage int64 `json:"usage"` // nanoseconds
+	} `json:"cpu"`
+	Disk map[string]struct {
+		Usage int64 `json:"usage"`
+		Total int64 `json:"total"`
+	} `json:"disk"`
+	Memory struct {
+		Usage     int64 `json:"usage"`
+		UsagePeak int64 `json:"usage_peak"`
+		Total     int64 `json:"total"`
+		Swap      int64 `json:"swap_usage"`
+	} `json:"memory"`
+	Network map[string]struct {
+		HWAddr   string `json:"hwaddr"`
+		HostName string `json:"host_name"`
+		MTU      int    `json:"mtu"`
+		State    string `json:"state"`
+		Type     string `json:"type"`
+		Counters struct {
+			BytesReceived int64 `json:"bytes_received"`
+			BytesSent     int64 `json:"bytes_sent"`
+		} `json:"counters"`
+		Addresses []struct {
+			Family  string `json:"family"`
+			Address string `json:"address"`
+			Netmask string `json:"netmask"`
+			Scope   string `json:"scope"`
+		} `json:"addresses"`
+	} `json:"network"`
+}
+
 func (i *containerLXDInspector) inspectConfiguration(ctx context.Context, name string, out *serviceproject.ContainerInspect) {
 	cfg, err := i.queryInstance(ctx, name)
 	if err != nil {
