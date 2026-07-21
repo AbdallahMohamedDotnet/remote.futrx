@@ -1,6 +1,6 @@
 export function buildBrowserUrl(slug: string, port: number | null): string {
   if (!slug || !port) return "";
-  return `https://${slug}--${port}.dev.remote.futrx.dev`;
+  return `https://${slug}--${port}.dev.remote.futrx.com`;
 }
 
 export function buildInspectorUrl(url: string): string {

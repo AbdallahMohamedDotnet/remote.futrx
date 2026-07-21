@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 // AgentAuthHandler exposes the shared host-side auth flows registered by the

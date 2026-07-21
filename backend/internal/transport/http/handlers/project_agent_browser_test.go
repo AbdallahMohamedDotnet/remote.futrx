@@ -10,15 +10,15 @@ import (
 	"testing"
 	"time"
 
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/fileproject"
 )
 
 func TestProjectAgentBrowserRoutes(t *testing.T) {
 	handler, containers, project := newAgentBrowserProjectHandler(t)
 
 	statusReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+string(project.ID)+"/agent-browser", nil)
-	statusReq.Host = "remote.futrx.dev"
+	statusReq.Host = "remote.futrx.com"
 	statusRec := httptest.NewRecorder()
 	handler.HandleResource(statusRec, statusReq)
 	if statusRec.Code != http.StatusOK {
@@ -33,7 +33,7 @@ func TestProjectAgentBrowserRoutes(t *testing.T) {
 	}
 
 	startReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+string(project.ID)+"/agent-browser/start", strings.NewReader("{}"))
-	startReq.Host = "remote.futrx.dev"
+	startReq.Host = "remote.futrx.com"
 	startReq.Header.Set("X-Forwarded-Proto", "https")
 	startRec := httptest.NewRecorder()
 	handler.HandleResource(startRec, startReq)
@@ -44,14 +44,14 @@ func TestProjectAgentBrowserRoutes(t *testing.T) {
 	if err := json.NewDecoder(startRec.Body).Decode(&started); err != nil {
 		t.Fatal(err)
 	}
-	wantURL := "https://" + project.Slug + "--6080.dev.remote.futrx.dev/vnc.html?autoconnect=1&resize=scale&reconnect=1"
+	wantURL := "https://" + project.Slug + "--6080.dev.remote.futrx.com/vnc.html?autoconnect=1&resize=scale&reconnect=1"
 	if started.Status != serviceproject.AgentBrowserStatusStarting || started.URL != "" || started.Slug != project.Slug || started.Port != 6080 {
 		t.Fatalf("POST response = %#v", started)
 	}
 	containers.waitForAgentBrowserStart(t)
 
 	statusReq = httptest.NewRequest(http.MethodGet, "/api/projects/"+string(project.ID)+"/agent-browser", nil)
-	statusReq.Host = "remote.futrx.dev"
+	statusReq.Host = "remote.futrx.com"
 	statusRec = httptest.NewRecorder()
 	handler.HandleResource(statusRec, statusReq)
 	if statusRec.Code != http.StatusOK {
@@ -362,7 +362,7 @@ func waitForAgentBrowserReady(t *testing.T, handler *ProjectHandler, project ser
 	deadline := time.Now().Add(time.Second)
 	for {
 		req := httptest.NewRequest(http.MethodGet, "/api/projects/"+string(project.ID)+"/agent-browser", nil)
-		req.Host = "remote.futrx.dev"
+		req.Host = "remote.futrx.com"
 		req.Header.Set("X-Forwarded-Proto", "https")
 		rec := httptest.NewRecorder()
 		handler.HandleResource(rec, req)

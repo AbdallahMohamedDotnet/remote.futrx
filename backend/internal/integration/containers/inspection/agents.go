@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	serviceprofiles "github.com/futrx-com/remote.futrx.com/internal/service/container/profiles"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 // containerAgentInspector reports provider CLI and instruction readiness.

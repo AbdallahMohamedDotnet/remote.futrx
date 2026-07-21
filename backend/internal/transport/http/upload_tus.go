@@ -33,7 +33,7 @@ import (
 	"github.com/tus/tusd/v2/pkg/filestore"
 	tusd "github.com/tus/tusd/v2/pkg/handler"
 
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
 
 const (

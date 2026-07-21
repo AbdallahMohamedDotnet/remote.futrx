@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/output"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
+	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
 )
 
 //go:embed assets/gui-up.sh

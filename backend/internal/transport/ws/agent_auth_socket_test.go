@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	"github.com/gorilla/websocket"
 )
 

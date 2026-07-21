@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# remote.futrx.dev — main installer / deployer.
+# remote.futrx — main installer / deployer.
 # Walks through infra/steps/*.sh in order. Idempotent: safe to re-run on
 # every CI deploy as well as the initial bootstrap.
 #
@@ -8,7 +8,7 @@
 #   sudo bash infra/install.sh <hostname> [flags]
 #
 # Usage (fresh box, curl|bash):
-#   curl -fsSL https://raw.githubusercontent.com/Kings-Of-The-Web/remote.futrx.dev/main/infra/install.sh \
+#   curl -fsSL https://raw.githubusercontent.com/futrx-com/remote.futrx.com/main/infra/install.sh \
 #     | sudo bash -s -- <hostname> [flags]
 #
 # Flags:
@@ -40,7 +40,7 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
         apt-get install -y -qq git ca-certificates
     fi
 
-    TARGET="/opt/remote.futrx.dev"
+    TARGET="/opt/remote.futrx"
 
     # Honor --github-token / GITHUB_TOKEN for the bootstrap clone of a private
     # repo. The full arg loop later re-parses everything.
@@ -50,9 +50,9 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
             --github-token=*) BOOTSTRAP_TOKEN="${a#*=}" ;;
         esac
     done
-    CLONE_URL="https://github.com/Kings-Of-The-Web/remote.futrx.dev.git"
+    CLONE_URL="https://github.com/futrx-com/remote.futrx.com.git"
     if [ -n "$BOOTSTRAP_TOKEN" ]; then
-        CLONE_URL="https://x-access-token:${BOOTSTRAP_TOKEN}@github.com/Kings-Of-The-Web/remote.futrx.dev.git"
+        CLONE_URL="https://x-access-token:${BOOTSTRAP_TOKEN}@github.com/futrx-com/remote.futrx.com.git"
     fi
 
     if [ ! -d "$TARGET/.git" ]; then
@@ -115,8 +115,8 @@ export HOSTNAME GITHUB_TOKEN GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
 
 # ───────────────── globals ─────────────────
 INFRA_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-INSTALL_DIR="/opt/remote.futrx.dev"
-REPO_URL="https://github.com/Kings-Of-The-Web/remote.futrx.dev.git"
+INSTALL_DIR="/opt/remote.futrx"
+REPO_URL="https://github.com/futrx-com/remote.futrx.com.git"
 SERVICE_PORT="${SERVICE_PORT:-7682}"
 
 # Escape dots in HOSTNAME for Caddy regex (dots match any char in regex; we
@@ -227,9 +227,9 @@ cat <<EOF
  provider's console as well as UFW.
 
  Manage:
-   systemctl status   remote.futrx.dev
+   systemctl status   remote.futrx
    systemctl status   caddy
-   journalctl -u      remote.futrx.dev -f
+   journalctl -u      remote.futrx -f
 
  Re-run this installer any time to pull latest + rebuild + restart.
 ═══════════════════════════════════════════════════════════════

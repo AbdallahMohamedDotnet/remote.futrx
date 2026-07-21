@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/output"
+	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
 )
 
 const (

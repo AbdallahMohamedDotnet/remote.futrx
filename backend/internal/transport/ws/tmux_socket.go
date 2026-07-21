@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/tmuxcli"
 	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 )

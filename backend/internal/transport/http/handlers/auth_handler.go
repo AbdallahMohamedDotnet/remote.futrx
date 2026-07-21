@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 // returnToCookieName is the short-lived cookie carrying the post-login redirect

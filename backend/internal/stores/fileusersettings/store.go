@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
+	serviceusersettings "github.com/futrx-com/remote.futrx.com/internal/service/usersettings"
 )
 
 var _ serviceusersettings.Repository = (*Store)(nil)

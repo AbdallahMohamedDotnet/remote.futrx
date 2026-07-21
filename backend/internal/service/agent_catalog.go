@@ -1,13 +1,13 @@
 package service
 
 import (
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	claudeagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/claude"
-	codexagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/codex"
-	kimiagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/kimi"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	claudeagent "github.com/futrx-com/remote.futrx.com/internal/agent/claude"
+	codexagent "github.com/futrx-com/remote.futrx.com/internal/agent/codex"
+	kimiagent "github.com/futrx-com/remote.futrx.com/internal/agent/kimi"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 // agentDefinition is the single composition catalog for one agent. Adding an

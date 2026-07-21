@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
 var ErrInvalidBinding = errors.New("invalid agent auth binding")

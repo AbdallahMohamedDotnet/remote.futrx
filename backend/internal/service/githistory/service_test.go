@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/gitcli"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/gitcli"
 )
 
 func TestResolveRepositoryPath(t *testing.T) {

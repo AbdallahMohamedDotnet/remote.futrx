@@ -6,9 +6,9 @@ import (
 	"io"
 	"net/http"
 
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	servicegithistory "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/githistory"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 func (h *ChatHandler) handleHistoryRepos(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {

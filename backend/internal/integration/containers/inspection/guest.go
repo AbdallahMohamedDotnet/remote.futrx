@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 // containerGuestInspector owns the batched in-container OS and disk probe.

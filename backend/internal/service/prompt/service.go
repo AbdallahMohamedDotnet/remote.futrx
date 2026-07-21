@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/runhub"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
 )
 
 type ChatEvent = servicechat.Event

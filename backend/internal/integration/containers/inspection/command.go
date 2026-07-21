@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 )
 
 // quickCommandRunner applies the short diagnostic timeout shared by every

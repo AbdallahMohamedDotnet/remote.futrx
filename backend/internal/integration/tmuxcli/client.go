@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	servicetmux "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/tmux"
+	servicetmux "github.com/futrx-com/remote.futrx.com/internal/service/tmux"
 )
 
 type Session = servicetmux.Session

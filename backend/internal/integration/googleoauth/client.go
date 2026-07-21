@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	serviceworkspacefiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacefiles"
+	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
 )
 
 type WorkspaceFileStore struct{}

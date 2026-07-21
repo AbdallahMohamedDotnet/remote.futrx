@@ -6,9 +6,9 @@ import (
 	"io"
 	"net/http"
 
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	serviceusersettings "github.com/futrx-com/remote.futrx.com/internal/service/usersettings"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 type UserSettingsHandler struct {

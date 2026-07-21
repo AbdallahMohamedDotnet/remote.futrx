@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	servicecli "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/cli"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
+	servicecli "github.com/futrx-com/remote.futrx.com/internal/service/container/cli"
 )
 
 const queryTimeout = 10 * time.Second

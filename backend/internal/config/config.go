@@ -2,7 +2,7 @@ package config
 
 import "os"
 
-const CodeServerBaseURL = "https://code.remote.futrx.dev/"
+const CodeServerBaseURL = "https://code.remote.futrx.com/"
 
 type Config struct {
 	Host    string
@@ -15,7 +15,7 @@ func Load() Config {
 	return Config{
 		Host:    envDefault("HOST", "127.0.0.1"),
 		Port:    envDefault("PORT", "7682"),
-		DataDir: envDefault("DATA_DIR", "/opt/remote.futrx.dev/data"),
+		DataDir: envDefault("DATA_DIR", "/opt/remote.futrx/data"),
 		BaseURL: envDefault("BASE_URL", ""),
 	}
 }

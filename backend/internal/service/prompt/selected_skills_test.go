@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
 
 func TestPromptWithSelectedSkillsPrefixesClaudeSlashCommands(t *testing.T) {

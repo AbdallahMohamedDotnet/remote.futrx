@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
 // Documented kimi-code stream-json output for a tool-using turn (verified

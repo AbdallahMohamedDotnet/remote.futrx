@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 )

@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/launch"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	containerlaunch "github.com/futrx-com/remote.futrx.com/internal/service/container/launch"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 var (

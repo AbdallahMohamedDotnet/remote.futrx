@@ -5,9 +5,9 @@ import (
 	"mime"
 	"net/http"
 
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	serviceworkspacefiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacefiles"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 func (h *ChatHandler) handleFilesList(w http.ResponseWriter, r *http.Request, meta servicechat.Meta) {

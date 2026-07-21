@@ -52,7 +52,7 @@ jobs:
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
               "bash -se" <<'REMOTE'
           set -euo pipefail
-          cd /opt/remote.futrx.dev
+          cd /opt/remote.futrx
 
           echo "==> git fetch + fast-forward to origin/main"
           git fetch --quiet --tags origin
@@ -65,11 +65,11 @@ jobs:
           ( cd backend && go build -trimpath -ldflags="-s -w" -o remote ./cmd/remote )
 
           echo "==> restart backend"
-          systemctl restart remote.futrx.dev
+          systemctl restart remote.futrx
           sleep 1
-          systemctl is-active --quiet remote.futrx.dev || {
+          systemctl is-active --quiet remote.futrx || {
               echo "✗ service failed to start"
-              journalctl -u remote.futrx.dev -n 30 --no-pager
+              journalctl -u remote.futrx -n 30 --no-pager
               exit 1
           }
 
@@ -82,7 +82,7 @@ jobs:
               sleep 1
           done
           echo "✗ backend did not respond on 127.0.0.1:7682 within 5s"
-          journalctl -u remote.futrx.dev -n 30 --no-pager
+          journalctl -u remote.futrx -n 30 --no-pager
           exit 1
           REMOTE
 

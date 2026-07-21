@@ -5,10 +5,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	agentruntime "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/runtime"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/agent/runtime"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 type ProjectResolver interface {

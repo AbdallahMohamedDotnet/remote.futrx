@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 )
 
 type Store struct {

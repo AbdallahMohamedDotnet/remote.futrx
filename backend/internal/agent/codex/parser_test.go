@@ -3,7 +3,7 @@ package codex
 import (
 	"testing"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
 func TestParserMapsThreadStarted(t *testing.T) {

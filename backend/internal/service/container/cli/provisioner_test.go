@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	serviceprofiles "github.com/futrx-com/remote.futrx.com/internal/service/container/profiles"
 )
 
 type runtimeResponse struct {

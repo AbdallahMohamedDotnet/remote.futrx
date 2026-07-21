@@ -5,7 +5,7 @@ package inspection
 import (
 	"context"
 
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 // StateReader reports the lifecycle state that determines which probes are

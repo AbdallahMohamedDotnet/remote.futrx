@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 func TestParseAgentBrowserStatus(t *testing.T) {

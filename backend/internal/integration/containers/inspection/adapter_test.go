@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
-	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
+	serviceprofiles "github.com/futrx-com/remote.futrx.com/internal/service/container/profiles"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 func TestAdapterLXDProbesPopulateProviderNeutralSnapshot(t *testing.T) {

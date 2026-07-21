@@ -9,12 +9,12 @@ import (
 	"strconv"
 	"strings"
 
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	servicegithistory "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/githistory"
-	serviceworkspacefiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacefiles"
-	serviceworkspaceide "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspaceide"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
+	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
+	serviceworkspaceide "github.com/futrx-com/remote.futrx.com/internal/service/workspaceide"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 type ChatHandler struct {

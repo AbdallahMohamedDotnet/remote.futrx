@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
 func TestProfilePreservesClaudeProvisioningPolicy(t *testing.T) {
@@ -19,7 +19,7 @@ func TestProfilePreservesClaudeProvisioningPolicy(t *testing.T) {
 		ImageLabel:         "claude-code",
 		Binary:             "claude",
 		PackageName:        "@anthropic-ai/claude-code",
-		Version:            "2.1.206",
+		Version:            "2.1.216",
 		ReportVersion:      true,
 		CheckVersion:       true,
 		VerifyAfterInstall: true,

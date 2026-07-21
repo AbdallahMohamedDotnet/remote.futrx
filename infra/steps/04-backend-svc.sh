@@ -11,24 +11,24 @@
 set -euo pipefail
 
 # ───────────────── systemd unit ─────────────────
-log "Rendering /etc/systemd/system/remote.futrx.dev.service"
-render_template "${INFRA_DIR}/templates/remote.futrx.dev.service.tmpl" \
-                /etc/systemd/system/remote.futrx.dev.service
+log "Rendering /etc/systemd/system/remote.futrx.service"
+render_template "${INFRA_DIR}/templates/remote.futrx.service.tmpl" \
+                /etc/systemd/system/remote.futrx.service
 systemctl daemon-reload
 
-if systemctl is-active --quiet remote.futrx.dev.service; then
-    log "Restarting remote.futrx.dev.service"
-    systemctl restart remote.futrx.dev.service
+if systemctl is-active --quiet remote.futrx.service; then
+    log "Restarting remote.futrx.service"
+    systemctl restart remote.futrx.service
 else
-    log "Starting remote.futrx.dev.service"
-    systemctl enable --now remote.futrx.dev.service
+    log "Starting remote.futrx.service"
+    systemctl enable --now remote.futrx.service
 fi
 
 # ───────────────── health check ─────────────────
 sleep 1
-if ! systemctl is-active --quiet remote.futrx.dev.service; then
+if ! systemctl is-active --quiet remote.futrx.service; then
     err "Service failed to start. Recent logs:"
-    journalctl -u remote.futrx.dev.service -n 30 --no-pager >&2
+    journalctl -u remote.futrx.service -n 30 --no-pager >&2
     exit 1
 fi
 
@@ -43,7 +43,7 @@ for _ in 1 2 3 4 5; do
 done
 if [ "$HEALTH_OK" -eq 0 ]; then
     err "Backend did not respond on 127.0.0.1:${SERVICE_PORT} within 5s"
-    journalctl -u remote.futrx.dev.service -n 30 --no-pager >&2
+    journalctl -u remote.futrx.service -n 30 --no-pager >&2
     exit 1
 fi
 ok "backend responding"

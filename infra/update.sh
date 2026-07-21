@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# remote.futrx.dev — one-command update for an installed box.
+# remote.futrx — one-command update for an installed box.
 #
 # The updater deliberately pulls and re-executes itself before doing any
 # convergence. That guarantees newly committed toolchain and agent CLI pins
@@ -7,16 +7,16 @@
 # updates the checkout.
 #
 # Default flow:
-#   1. Fast-forward /opt/remote.futrx.dev to origin/main.
+#   1. Fast-forward /opt/remote.futrx to origin/main.
 #   2. Converge host dependencies and all host agent CLIs.
 #   3. Build and restart the application.
 #   4. Rebuild the base image with the pinned agent CLIs.
 #   5. Recycle idle workspaces onto the new image (busy ones are skipped).
 #
 # Usage:
-#   sudo bash /opt/remote.futrx.dev/infra/update.sh
-#   sudo bash /opt/remote.futrx.dev/infra/update.sh <hostname>
-#   sudo bash /opt/remote.futrx.dev/infra/update.sh --include-busy
+#   sudo bash /opt/remote.futrx/infra/update.sh
+#   sudo bash /opt/remote.futrx/infra/update.sh <hostname>
+#   sudo bash /opt/remote.futrx/infra/update.sh --include-busy
 #
 # Flags:
 #   --include-busy     also recycle workspaces with an active agent process
@@ -24,8 +24,8 @@
 #                      image or recycling workspace containers
 set -euo pipefail
 
-INSTALL_DIR="/opt/remote.futrx.dev"
-UNIT="/etc/systemd/system/remote.futrx.dev.service"
+INSTALL_DIR="/opt/remote.futrx"
+UNIT="/etc/systemd/system/remote.futrx.service"
 
 usage() {
     sed -n '2,25s/^# \{0,1\}//p' "$0"

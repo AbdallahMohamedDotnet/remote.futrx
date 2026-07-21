@@ -1,7 +1,7 @@
-# Sandbox: remote.futrx.dev
+# Sandbox: remote.futrx
 
 You're running inside an unprivileged LXC container, one per project,
-spawned by [remote.futrx.dev](https://remote.futrx.dev). Other
+spawned by [remote.futrx](https://remote.futrx.com). Other
 projects can't see this one - fresh `apt` installs, crashed
 processes, deleted files only affect you.
 
@@ -78,7 +78,7 @@ Whenever the user asks for a dev server, **the URL they reach it at
 is**:
 
 ```
-https://<this-project-slug>--<port>.dev.remote.futrx.dev
+https://<this-project-slug>--<port>.dev.remote.futrx.com
 ```
 
 Replace `<this-project-slug>` with this project's slug and `<port>`
@@ -91,7 +91,7 @@ Two rules to make it work:
 1. **Bind to `0.0.0.0`, not `127.0.0.1`** (otherwise the LXD bridge
    can't reach it).
 2. **If your dev server has a Host allowlist, add
-   `.dev.remote.futrx.dev` to it.** This bites Vite, Next.js dev,
+   `.dev.remote.futrx.com` to it.** This bites Vite, Next.js dev,
    Webpack, CRA, Angular, Django (`ALLOWED_HOSTS`), Rails
    (`config.hosts`). It does NOT bite `php -S`, plain Python/Node/Go
    servers, Flask, FastAPI, Symfony, Laravel. When in doubt: search

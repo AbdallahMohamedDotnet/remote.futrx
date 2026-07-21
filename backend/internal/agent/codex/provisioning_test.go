@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
 func TestProfilePreservesCodexProvisioningPolicy(t *testing.T) {
@@ -16,7 +16,7 @@ func TestProfilePreservesCodexProvisioningPolicy(t *testing.T) {
 			ImageLabel:         "codex",
 			Binary:             "codex",
 			PackageName:        "@openai/codex",
-			Version:            "0.144.1",
+			Version:            "0.145.0",
 			ReportVersion:      true,
 			CheckVersion:       true,
 			VerifyAfterInstall: true,

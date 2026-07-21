@@ -1,4 +1,4 @@
-// remote.futrx.dev: self-hosted Claude Code / Codex chat + terminal-PTY server.
+// remote.futrx: self-hosted Claude Code / Codex chat + terminal-PTY server.
 //
 // Backend serves:
 //   - Static SPA (Preact/Vite bundle) embedded via go:embed
@@ -15,21 +15,21 @@ import (
 	"log"
 	"net/http"
 
-	remote "github.com/Kings-Of-The-Web/remote.futrx.dev"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/gitcli"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostfs"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostinfo"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
-	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
-	servicegithistory "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/githistory"
-	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
-	serviceworkspacefiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacefiles"
-	serviceworkspaceide "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspaceide"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport"
+	remote "github.com/futrx-com/remote.futrx.com"
+	"github.com/futrx-com/remote.futrx.com/internal/config"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/gitcli"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/hostfs"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/hostinfo"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/tmuxcli"
+	service "github.com/futrx-com/remote.futrx.com/internal/service"
+	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
+	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
+	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
+	serviceworkspaceide "github.com/futrx-com/remote.futrx.com/internal/service/workspaceide"
+	"github.com/futrx-com/remote.futrx.com/internal/stores"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/fileproject"
+	"github.com/futrx-com/remote.futrx.com/internal/transport"
 )
 
 func main() {
@@ -93,7 +93,7 @@ func main() {
 	}
 
 	srv := transport.NewHTTPServer(cfg.Addr(), handler)
-	log.Printf("remote.futrx.dev listening on %s", cfg.Addr())
+	log.Printf("remote.futrx listening on %s", cfg.Addr())
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}

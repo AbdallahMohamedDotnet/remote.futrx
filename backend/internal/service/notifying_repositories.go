@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacehub"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/service/workspacehub"
 )
 
 type notifyingChatRepository struct {

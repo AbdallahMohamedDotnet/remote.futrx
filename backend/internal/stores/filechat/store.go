@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
 
 var _ servicechat.Repository = (*Store)(nil)

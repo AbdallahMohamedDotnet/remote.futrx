@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
+	serviceusersettings "github.com/futrx-com/remote.futrx.com/internal/service/usersettings"
 )
 
 func TestStoreRoundTripUsesHashedFilename(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
 type runtimeResponse struct {

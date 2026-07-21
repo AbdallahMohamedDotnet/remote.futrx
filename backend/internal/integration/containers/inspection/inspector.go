@@ -6,11 +6,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
+	serviceprofiles "github.com/futrx-com/remote.futrx.com/internal/service/container/profiles"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 const inspectQuickTimeout = 5 * time.Second

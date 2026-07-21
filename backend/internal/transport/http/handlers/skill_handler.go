@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
-	serviceskills "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/skills"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
+	serviceskills "github.com/futrx-com/remote.futrx.com/internal/service/skills"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 type SkillHandler struct {

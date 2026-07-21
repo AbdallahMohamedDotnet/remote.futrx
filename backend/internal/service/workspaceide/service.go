@@ -3,7 +3,7 @@ package workspaceide
 import (
 	"net/url"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/workspacepath"
+	"github.com/futrx-com/remote.futrx.com/internal/shared/workspacepath"
 )
 
 type Service struct {

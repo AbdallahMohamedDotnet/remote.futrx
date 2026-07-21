@@ -5,7 +5,7 @@ package browser
 import (
 	"context"
 
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 // StackProvisioner prepares the browser packages and runtime assets in a

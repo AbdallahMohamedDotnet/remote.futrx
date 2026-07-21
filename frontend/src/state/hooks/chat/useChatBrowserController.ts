@@ -118,14 +118,14 @@ function blockTexts(block: ChatMessageBlock): string[] {
 }
 
 function publicDevUrls(text: string): string[] {
-  return [...text.matchAll(/https:\/\/[a-z0-9][a-z0-9-]*--\d{4,5}\.dev\.remote\.futrx\.dev[^\s<>)\]]*/g)]
+  return [...text.matchAll(/https:\/\/[a-z0-9][a-z0-9-]*--\d{4,5}\.dev\.remote\.futrx\.com[^\s<>)\]]*/g)]
     .map((match) => match[0].replace(/[.,;:!?]+$/, ""));
 }
 
 function isProjectDevUrl(raw: string, slug: string): boolean {
   try {
     const url = new URL(raw);
-    const suffix = ".dev.remote.futrx.dev";
+    const suffix = ".dev.remote.futrx.com";
     const portStart = `${slug}--`;
     return (
       url.protocol === "https:" &&

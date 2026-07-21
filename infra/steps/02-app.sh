@@ -22,7 +22,7 @@ fi
 
 CLONE_URL="$REPO_URL"
 if [ -n "${GITHUB_TOKEN:-}" ]; then
-    CLONE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/Kings-Of-The-Web/remote.futrx.dev.git"
+    CLONE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/futrx-com/remote.futrx.com.git"
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -38,7 +38,7 @@ else
 
   This repo is private. Provide a GitHub Personal Access Token:
     1. https://github.com/settings/personal-access-tokens → Generate (fine-grained)
-    2. Select repo Kings-Of-The-Web/remote.futrx.dev → Contents: Read
+    2. Select repo futrx-com/remote.futrx.com → Contents: Read
     3. Re-run: sudo $0 $HOSTNAME --github-token=ghp_xxx
 EOF
         fi

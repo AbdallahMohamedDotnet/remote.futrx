@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/output"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
 )
 
 const (

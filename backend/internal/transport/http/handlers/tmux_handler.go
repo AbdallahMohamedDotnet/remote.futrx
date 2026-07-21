@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	servicetmux "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/tmux"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	servicetmux "github.com/futrx-com/remote.futrx.com/internal/service/tmux"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 type TmuxHandler struct {

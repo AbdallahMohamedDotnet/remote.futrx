@@ -14,7 +14,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/user"
+	"github.com/futrx-com/remote.futrx.com/internal/service/user"
 )
 
 var _ user.Repository = (*Store)(nil)

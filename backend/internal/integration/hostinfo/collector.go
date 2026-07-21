@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
+	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
 )
 
 type Collector struct{}

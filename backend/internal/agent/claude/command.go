@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 func (p *Provider) args(req agent.RunRequest) []string {

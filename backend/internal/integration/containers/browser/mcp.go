@@ -16,10 +16,10 @@ import (
 	"path"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/output"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
+	serviceprofiles "github.com/futrx-com/remote.futrx.com/internal/service/container/profiles"
+	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
 )
 
 const (

@@ -22,7 +22,7 @@
 #     unrelated LXD containers on the same host are never touched.
 #
 # Usage:
-#   sudo bash /opt/remote.futrx.dev/infra/upgrade-workspaces.sh [flags]
+#   sudo bash /opt/remote.futrx/infra/upgrade-workspaces.sh [flags]
 #
 # Flags:
 #   --dry-run        show what would happen, change nothing
@@ -31,7 +31,7 @@
 set -euo pipefail
 
 INFRA_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-PROJECTS_DIR="${FUTRX_DATA_DIR:-/opt/remote.futrx.dev/data}/projects"
+PROJECTS_DIR="${FUTRX_DATA_DIR:-/opt/remote.futrx/data}/projects"
 
 log()  { printf "\n\033[1;36m==> %s\033[0m\n" "$*"; }
 warn() { printf "\033[1;33m!! %s\033[0m\n" "$*"; }

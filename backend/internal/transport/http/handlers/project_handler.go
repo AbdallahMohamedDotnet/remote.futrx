@@ -13,10 +13,10 @@ import (
 	"strconv"
 	"strings"
 
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
-	serviceuser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/user"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
+	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 type ProjectHandler struct {
@@ -409,12 +409,12 @@ func buildAgentBrowserURL(r *http.Request, slug string, port int) string {
 	return fmt.Sprintf("%s://%s--%d.dev.%s/vnc.html?autoconnect=1&resize=scale&reconnect=1", scheme, slug, port, host)
 }
 
-var projectHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.remote\.futrx\.dev$`)
+var projectHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.remote\.futrx\.com$`)
 
-// codeHostPattern matches the per-project IDE host <slug>.code.remote.futrx.dev
+// codeHostPattern matches the per-project IDE host <slug>.code.remote.futrx.com
 // (no port segment). Used by HandleTLSAsk so Caddy's on-demand TLS will issue
 // certs for code subdomains of real projects only.
-var codeHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)\.code\.remote\.futrx\.dev$`)
+var codeHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)\.code\.remote\.futrx\.com$`)
 
 func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

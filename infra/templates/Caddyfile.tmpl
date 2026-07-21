@@ -1,4 +1,4 @@
-# Caddyfile for remote.futrx.dev — managed by infra/install.sh.
+# Caddyfile for remote.futrx — managed by infra/install.sh.
 #
 # Three site blocks:
 #   1. ${HOSTNAME}            main chat UI + backend API
@@ -140,7 +140,7 @@ code.${HOSTNAME} {
     }
     handle @valid {
         reverse_proxy {re.host.1}.lxd:{re.host.2} {
-            # Strip remote.futrx.dev's own auth cookies before the request
+            # Strip remote.futrx's own auth cookies before the request
             # enters the project container. forward_auth (above) already
             # validated the session against the main backend on loopback, so
             # the gate is unaffected; this stops any code running inside a

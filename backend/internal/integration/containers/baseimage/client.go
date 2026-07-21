@@ -5,7 +5,7 @@ package baseimage
 import (
 	"context"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 )
 
 // Client is the command adapter for the base-image application workflow.

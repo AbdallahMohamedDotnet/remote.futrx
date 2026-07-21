@@ -2,7 +2,7 @@
 // container application services and adapters.
 package profiles
 
-import "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+import "github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 
 // Source exposes defensive snapshots of the configured agent profiles.
 type Source interface {

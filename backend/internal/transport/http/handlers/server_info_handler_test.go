@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
+	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
 )
 
 type stubServerInfoService struct {

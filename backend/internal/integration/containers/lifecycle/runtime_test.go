@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 type runnerResponse struct {

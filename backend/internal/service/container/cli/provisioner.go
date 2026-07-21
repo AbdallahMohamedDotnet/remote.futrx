@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/output"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	serviceprofiles "github.com/futrx-com/remote.futrx.com/internal/service/container/profiles"
+	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
 )
 
 const failedInstallWaitTimeout = 90 * time.Second

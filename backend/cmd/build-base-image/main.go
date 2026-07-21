@@ -19,10 +19,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
-	serviceimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/image"
+	"github.com/futrx-com/remote.futrx.com/internal/config"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
+	"github.com/futrx-com/remote.futrx.com/internal/service"
+	serviceimage "github.com/futrx-com/remote.futrx.com/internal/service/container/image"
 )
 
 func main() {

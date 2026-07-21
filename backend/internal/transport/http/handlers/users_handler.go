@@ -9,9 +9,9 @@ import (
 	"net/url"
 	"strings"
 
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	serviceuser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/user"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 // UsersHandler exposes admin-only CRUD for the users directory. Every route

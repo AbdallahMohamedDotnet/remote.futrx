@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 // containerKimiHome is the KIMI_CODE_HOME inside a project container — where

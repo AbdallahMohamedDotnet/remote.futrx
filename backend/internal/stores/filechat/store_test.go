@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
 
 func TestStoreListUsesCachedMetadata(t *testing.T) {

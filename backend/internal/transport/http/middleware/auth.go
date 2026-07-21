@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 )
 
 type Auth struct {

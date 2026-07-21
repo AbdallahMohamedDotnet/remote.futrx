@@ -19,7 +19,7 @@ export function LoginScreen({
             <MessageSquare class="w-7 h-7 text-accent-blue" />
           </div>
           <div>
-            <div class="text-xl font-semibold">remote.futrx.dev</div>
+            <div class="text-xl font-semibold">remote.futrx</div>
             <div class="text-xs text-ink-300 mt-1">Self-hosted agent workspace</div>
           </div>
         </div>

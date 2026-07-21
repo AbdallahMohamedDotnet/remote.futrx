@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/filechat"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/filechat"
 )
 
 func TestHubSubscribeReplaysAndBroadcasts(t *testing.T) {

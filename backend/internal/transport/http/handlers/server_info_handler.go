@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
-	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
+	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 type ServerInfoService interface {

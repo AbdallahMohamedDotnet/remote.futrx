@@ -19,7 +19,7 @@
 name: installer
 
 env:
-  PUBLIC_HOSTNAME: remote.futrx.dev
+  PUBLIC_HOSTNAME: remote.futrx.com
 
 on:
   workflow_dispatch:
@@ -59,7 +59,7 @@ jobs:
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
               "PUBLIC_HOSTNAME=${PUBLIC_HOSTNAME} bash -se" <<'REMOTE'
           set -euo pipefail
-          cd /opt/remote.futrx.dev
+          cd /opt/remote.futrx
 
           echo "==> git fetch + fast-forward to origin/main"
           git fetch --quiet --tags origin

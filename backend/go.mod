@@ -1,4 +1,4 @@
-module github.com/Kings-Of-The-Web/remote.futrx.dev
+module github.com/futrx-com/remote.futrx.com
 
 go 1.25.0
 

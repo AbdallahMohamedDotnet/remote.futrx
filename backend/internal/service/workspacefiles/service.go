@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/workspacepath"
+	"github.com/futrx-com/remote.futrx.com/internal/shared/workspacepath"
 )
 
 const (
