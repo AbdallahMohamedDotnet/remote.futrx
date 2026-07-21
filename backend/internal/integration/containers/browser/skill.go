@@ -25,7 +25,7 @@ const (
 
 // EnsureBrowserSkill provisions the `browser` skill into the workspace skills
 // directory. Idempotent: re-pushed only when the embedded SKILL.md changes.
-func (s *Service) EnsureSkill(ctx context.Context, containerName string) error {
+func (s *Adapter) EnsureSkill(ctx context.Context, containerName string) error {
 	if !s.runner.Available() {
 		return errors.New("lxc not available")
 	}

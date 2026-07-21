@@ -32,7 +32,7 @@ const (
 // workspace and seeds an empty .agents/browser-auth.json if missing.
 // Idempotent: the script is only re-pushed when its embedded content
 // changes (sha256 marker stored alongside the config).
-func (s *Service) EnsureScript(ctx context.Context, containerName string) error {
+func (s *Adapter) EnsureScript(ctx context.Context, containerName string) error {
 	if !s.runner.Available() {
 		return errors.New("lxc not available")
 	}

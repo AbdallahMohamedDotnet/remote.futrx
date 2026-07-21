@@ -22,7 +22,7 @@ type agentBrowserConfigurator struct {
 // EnsureLimits applies the container config Chrome needs. security.nesting
 // also lives in the workspace profile; this container-local set remains as
 // a belt-and-braces for containers whose profile attach failed.
-func (s *Service) EnsureLimits(ctx context.Context, containerName string) error {
+func (s *Adapter) EnsureLimits(ctx context.Context, containerName string) error {
 	return s.config.ensure(ctx, containerName)
 }
 

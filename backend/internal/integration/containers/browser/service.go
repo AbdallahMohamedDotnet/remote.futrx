@@ -24,25 +24,26 @@ import (
 // surfaced to the user through the existing dev-URL proxy.
 const VNCPort = 6080
 
-// Service owns browser installation, workspace assets, MCP integration,
-// container configuration, and the split core/view runtime.
-type Service struct {
-	runner    command.Runner
-	publisher *assets.Publisher
-	browser   agentBrowser
-	mcp       agentBrowserMCPProvisioner
-	config    agentBrowserConfigurator
+// Adapter owns the raw LXD process, installation, and asset operations used by
+// the browser application service. It deliberately does not decide when a
+// browser stack must be provisioned before a runtime transition.
+type Adapter struct {
+	runner      command.Runner
+	publisher   *assets.Publisher
+	provisioner agentBrowserProvisioner
+	runtime     agentBrowserRuntime
+	mcp         agentBrowserMCPProvisioner
+	config      agentBrowserConfigurator
 }
 
-// NewService returns a browser service backed by shared container dependencies.
-func NewService(runner command.Runner, profileSource serviceprofiles.Source, publisher *assets.Publisher) *Service {
-	return &Service{
-		runner:    runner,
-		publisher: publisher,
-		browser: agentBrowser{
-			provisioner: agentBrowserProvisioner{runner: runner, publisher: publisher},
-			runtime:     agentBrowserRuntime{runner: runner},
-		},
+// NewAdapter returns raw browser operations backed by shared container
+// dependencies.
+func NewAdapter(runner command.Runner, profileSource serviceprofiles.Source, publisher *assets.Publisher) *Adapter {
+	return &Adapter{
+		runner:      runner,
+		publisher:   publisher,
+		provisioner: agentBrowserProvisioner{runner: runner, publisher: publisher},
+		runtime:     agentBrowserRuntime{runner: runner},
 		mcp: agentBrowserMCPProvisioner{
 			runner:    runner,
 			profiles:  profileSource,
@@ -52,54 +53,42 @@ func NewService(runner command.Runner, profileSource serviceprofiles.Source, pub
 	}
 }
 
-// agentBrowser owns installation, workspace templates, and the split core/view
-// runtime lifecycle.
-type agentBrowser struct {
-	provisioner agentBrowserProvisioner
-	runtime     agentBrowserRuntime
+// Provision installs the browser stack and publishes its runtime templates.
+func (a *Adapter) Provision(ctx context.Context, containerName string) error {
+	return a.provisioner.ensure(ctx, containerName)
 }
 
-// AgentBrowserPort returns the in-container noVNC port the stack listens on.
-func (s *Service) Port() int { return VNCPort }
-
-// EnsureAgentBrowser starts the full stack: browser core plus noVNC view.
-func (s *Service) Ensure(ctx context.Context, containerName string) error {
-	return s.browser.start(ctx, containerName, "start", "start agent browser")
+// Start starts the full browser core and noVNC view.
+func (a *Adapter) Start(ctx context.Context, containerName string) error {
+	return a.runtime.start(ctx, containerName, "start", "start agent browser")
 }
 
-// EnsureAgentBrowserCore starts only Xvfb, openbox, headed Chromium, and CDP.
-func (s *Service) EnsureCore(ctx context.Context, containerName string) error {
-	return s.browser.start(ctx, containerName, "start-core", "start agent browser core")
+// StartCore starts Xvfb, openbox, headed Chromium, and CDP without noVNC.
+func (a *Adapter) StartCore(ctx context.Context, containerName string) error {
+	return a.runtime.start(ctx, containerName, "start-core", "start agent browser core")
 }
 
-// EnsureAgentBrowserView starts the noVNC/VNC layer on top of the same core.
-func (s *Service) EnsureView(ctx context.Context, containerName string) error {
-	return s.browser.start(ctx, containerName, "start-view", "start agent browser view")
+// StartView starts the noVNC/VNC layer on top of an existing core.
+func (a *Adapter) StartView(ctx context.Context, containerName string) error {
+	return a.runtime.start(ctx, containerName, "start-view", "start agent browser view")
 }
 
-func (b *agentBrowser) start(ctx context.Context, containerName, verb, label string) error {
-	if err := b.provisioner.ensure(ctx, containerName); err != nil {
-		return err
-	}
-	return b.runtime.start(ctx, containerName, verb, label)
+// Stop tears down the browser, VNC bridge, and virtual display.
+func (a *Adapter) Stop(ctx context.Context, containerName string) error {
+	return a.runtime.stop(ctx, containerName)
 }
 
-// StopAgentBrowser tears down the browser, VNC bridge, and virtual display.
-func (s *Service) Stop(ctx context.Context, containerName string) error {
-	return s.browser.runtime.stop(ctx, containerName)
+// StopView tears down only the noVNC/VNC layer.
+func (a *Adapter) StopView(ctx context.Context, containerName string) error {
+	return a.runtime.stopView(ctx, containerName)
 }
 
-// StopAgentBrowserView tears down only the noVNC/VNC layer.
-func (s *Service) StopView(ctx context.Context, containerName string) error {
-	return s.browser.runtime.stopView(ctx, containerName)
+// Running reports whether the core is currently ready.
+func (a *Adapter) Running(ctx context.Context, containerName string) (bool, error) {
+	return a.runtime.running(ctx, containerName)
 }
 
-// AgentBrowserRunning reports whether the core is currently ready.
-func (s *Service) Running(ctx context.Context, containerName string) (bool, error) {
-	return s.browser.runtime.running(ctx, containerName)
-}
-
-// AgentBrowserStatus returns the split core/view state reported by gui-up.sh.
-func (s *Service) Status(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
-	return s.browser.runtime.status(ctx, containerName)
+// Status returns the split core/view state reported by gui-up.sh.
+func (a *Adapter) Status(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
+	return a.runtime.status(ctx, containerName)
 }

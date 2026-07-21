@@ -37,7 +37,7 @@ type agentBrowserMCPProvisioner struct {
 // EnsureAgentBrowserMCP installs @playwright/mcp (idempotently) and pushes the
 // profile-owned MCP templates. Cheap once installed: the npm-presence check
 // short-circuits, and templates are only re-pushed when their content changes.
-func (s *Service) EnsureMCP(ctx context.Context, containerName string) error {
+func (s *Adapter) EnsureMCP(ctx context.Context, containerName string) error {
 	return s.mcp.ensure(ctx, containerName)
 }
 

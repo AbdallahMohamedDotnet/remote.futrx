@@ -64,33 +64,46 @@ func TestParseAgentBrowserStatus(t *testing.T) {
 	}
 }
 
-func TestEnsureProvisionsBeforeStartingWithExpectedVerb(t *testing.T) {
+func TestAdapterProvisionPublishesRuntimeAssets(t *testing.T) {
+	runner := &browserRecordingRunner{}
+	adapter := NewAdapter(runner, nil, assets.NewPublisher(runner))
+
+	if err := adapter.Provision(context.Background(), "c1"); err != nil {
+		t.Fatalf("provision browser: %v", err)
+	}
+
+	want := []string{
+		"exec c1 -- sh -c command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1",
+		"exec c1 -- install -d -m 755 " + containerGUIDir,
+		"exec c1 -- cat " + containerGUIScriptHash,
+		"exec c1 -- cat " + containerHumanInputHash,
+	}
+	if got := strings.Join(runner.calls, "\n"); got != strings.Join(want, "\n") {
+		t.Fatalf("command order:\n%s\nwant:\n%s", got, strings.Join(want, "\n"))
+	}
+}
+
+func TestAdapterStartsExpectedRuntimeVerbWithoutProvisioning(t *testing.T) {
 	tests := []struct {
-		name   string
-		ensure func(*Service, context.Context, string) error
-		verb   string
+		name  string
+		start func(*Adapter, context.Context, string) error
+		verb  string
 	}{
-		{name: "full stack", ensure: (*Service).Ensure, verb: "start"},
-		{name: "core", ensure: (*Service).EnsureCore, verb: "start-core"},
-		{name: "view", ensure: (*Service).EnsureView, verb: "start-view"},
+		{name: "full stack", start: (*Adapter).Start, verb: "start"},
+		{name: "core", start: (*Adapter).StartCore, verb: "start-core"},
+		{name: "view", start: (*Adapter).StartView, verb: "start-view"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			runner := &browserRecordingRunner{}
-			service := NewService(runner, nil, assets.NewPublisher(runner))
+			adapter := NewAdapter(runner, nil, assets.NewPublisher(runner))
 
-			if err := tt.ensure(service, context.Background(), "c1"); err != nil {
-				t.Fatalf("ensure browser: %v", err)
+			if err := tt.start(adapter, context.Background(), "c1"); err != nil {
+				t.Fatalf("start browser: %v", err)
 			}
 
-			want := []string{
-				"exec c1 -- sh -c command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1",
-				"exec c1 -- install -d -m 755 " + containerGUIDir,
-				"exec c1 -- cat " + containerGUIScriptHash,
-				"exec c1 -- cat " + containerHumanInputHash,
-				"exec c1 -- sh " + containerGUIScript + " " + tt.verb,
-			}
+			want := []string{"exec c1 -- sh " + containerGUIScript + " " + tt.verb}
 			if got := strings.Join(runner.calls, "\n"); got != strings.Join(want, "\n") {
 				t.Fatalf("command order:\n%s\nwant:\n%s", got, strings.Join(want, "\n"))
 			}
