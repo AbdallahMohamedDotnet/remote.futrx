@@ -7,7 +7,6 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/workspacehub"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -15,6 +14,7 @@ import (
 	serviceskills "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/skills"
 	serviceuser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/user"
 	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacehub"
 )
 
 type AuthStore interface {
