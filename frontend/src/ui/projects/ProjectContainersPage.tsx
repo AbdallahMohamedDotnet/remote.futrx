@@ -1,5 +1,4 @@
-import { useState } from "preact/hooks";
-import type { JSX } from "preact";
+import type { ComponentChildren, ComponentType } from "preact";
 import type {
   AccessRecord,
   ProjectContainerRecord,
@@ -13,22 +12,46 @@ import {
 } from "./project-containers/ProjectInfoSection";
 import { ProjectSecretsSection } from "./project-containers/ProjectSecretsSection";
 import { ProjectSharingSection } from "./project-containers/ProjectSharingSection";
-import {
-  formatRelativeTime as fmtRelative,
-  truncate,
-} from "./project-containers/projectContainerFormat";
+import { formatRelativeTime as fmtRelative } from "./project-containers/projectContainerFormat";
 import type { ProjectContainerInfo, ProjectMeta } from "../../models/project";
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Loader,
-  Menu,
-  RotateCcw,
-  Settings,
-} from "../primitives/icons";
+import { ChevronLeft, Info, Key, Loader, Menu, RotateCcw, Settings, Users } from "../primitives/icons";
+
+export type ProjectSettingsTab = "info" | "settings" | "secrets" | "sharing";
+
+const tabs: Array<{
+  id: ProjectSettingsTab;
+  label: string;
+  description: string;
+  Icon: ComponentType<{ class?: string }>;
+}> = [
+  {
+    id: "info",
+    label: "Info",
+    description: "Inspect the container, operating system, resources, network, and agent tooling.",
+    Icon: Info,
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    description: "Manage this project's container lifecycle and destructive actions.",
+    Icon: Settings,
+  },
+  {
+    id: "secrets",
+    label: "Secrets",
+    description: "Configure environment secrets passed to agents in this project.",
+    Icon: Key,
+  },
+  {
+    id: "sharing",
+    label: "Sharing",
+    description: "Control which registered users can access this project.",
+    Icon: Users,
+  },
+];
 
 export function ProjectContainersPage({
+  activeTab,
   project,
   infoRecord,
   secretsRecord,
@@ -37,6 +60,7 @@ export function ProjectContainersPage({
   onRefresh,
   onBack,
   onHamburger,
+  onTabChange,
   onSaveSecret,
   onDeleteSecret,
   onAddMember,
@@ -47,6 +71,7 @@ export function ProjectContainersPage({
   onRestartProject,
   onDeleteProject,
 }: {
+  activeTab: ProjectSettingsTab;
   project: ProjectMeta | null;
   infoRecord: ProjectContainerRecord;
   secretsRecord: SecretsRecord;
@@ -55,6 +80,7 @@ export function ProjectContainersPage({
   onRefresh: () => void;
   onBack: () => void;
   onHamburger: () => void;
+  onTabChange: (tab: ProjectSettingsTab) => void;
   onSaveSecret: (key: string, value: string) => Promise<void>;
   onDeleteSecret: (key: string) => Promise<void>;
   onAddMember: (email: string) => Promise<void>;
@@ -65,6 +91,8 @@ export function ProjectContainersPage({
   onRestartProject: () => Promise<void>;
   onDeleteProject: () => Promise<void>;
 }) {
+  const activeTabDetails = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+
   return (
     <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
       <header class="codex-header top-chrome flex-none z-20 bg-[#101318] border-b border-white/10 px-3 pb-2 flex items-center gap-2 min-h-[52px]">
@@ -87,7 +115,7 @@ export function ProjectContainersPage({
         <div class="flex-1 min-w-0">
           <div class="text-[11px] text-ink-300">Projects</div>
           <div class="text-[15px] font-semibold text-ink-50 truncate">
-            {project ? `${project.name} — container` : "Container info"}
+            {project ? `${project.name} — settings` : "Project settings"}
           </div>
         </div>
         <button
@@ -103,112 +131,187 @@ export function ProjectContainersPage({
         </button>
       </header>
 
-      <div class="flex-1 overflow-y-auto touch-scroll">
-        <div class="max-w-3xl mx-auto px-4 py-5 space-y-3">
-          {!project ? (
-            <Empty text="Select a project from the sidebar." />
-          ) : (
-            <>
-              <ProjectHeader project={project} info={infoRecord.data} refreshedAt={infoRecord.refreshedAt} />
-              <CollapsibleSection title="Info" defaultOpen={true} subtitle={infoSubtitle(infoRecord)}>
-                <ProjectInfoSection
-                  project={project}
-                  record={infoRecord}
-                  onRepairNetwork={onRepairNetwork}
-                />
-              </CollapsibleSection>
-              <CollapsibleSection title="Settings" defaultOpen={false} subtitle={project.status || "unknown"}>
-                <ProjectActions
-                  project={project}
-                  onStart={onStartProject}
-                  onStop={onStopProject}
-                  onRestart={onRestartProject}
-                  onDelete={onDeleteProject}
-                />
-              </CollapsibleSection>
-              <CollapsibleSection
-                title="Secrets"
-                defaultOpen={false}
-                subtitle={secretsSubtitle(secretsRecord)}
-              >
-                <ProjectSecretsSection
-                  record={secretsRecord}
-                  onSave={onSaveSecret}
-                  onDelete={onDeleteSecret}
-                />
-              </CollapsibleSection>
-              <CollapsibleSection
-                title="Sharing"
-                defaultOpen={false}
-                subtitle={accessSubtitle(accessRecord)}
-              >
-                <ProjectSharingSection
-                  record={accessRecord}
-                  onAdd={onAddMember}
-                  onRemove={onRemoveMember}
-                />
-              </CollapsibleSection>
-            </>
-          )}
-        </div>
+      <div class="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+        <ProjectSettingsNavigation
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          className="hidden md:flex w-56 flex-none border-r border-white/10 bg-[#0f1217] p-3"
+        />
+        <ProjectSettingsNavigation
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          mobile
+          className="md:hidden flex-none border-b border-white/10 bg-[#0f1217] px-3 py-2 overflow-x-auto no-scrollbar"
+        />
+
+        <main
+          id="project-settings-active-panel"
+          role="tabpanel"
+          class="flex-1 min-w-0 overflow-y-auto touch-scroll"
+        >
+          <div class="w-full px-4 py-5 md:px-6 md:py-7">
+            <header class="mb-5">
+              <h1 class="text-xl font-semibold text-ink-50">{activeTabDetails.label}</h1>
+              <p class="mt-1 text-[13px] leading-relaxed text-ink-300">
+                {activeTabDetails.description}
+              </p>
+            </header>
+
+            {!project ? (
+              <Empty text="Select a project from the sidebar." />
+            ) : (
+              <>
+                {activeTab === "info" && (
+                  <div class="space-y-3">
+                    <ProjectHeader
+                      project={project}
+                      info={infoRecord.data}
+                      refreshedAt={infoRecord.refreshedAt}
+                    />
+                    <ProjectInfoSection
+                      project={project}
+                      record={infoRecord}
+                      onRepairNetwork={onRepairNetwork}
+                    />
+                  </div>
+                )}
+
+                {activeTab === "settings" && (
+                  <ProjectSettingsPanel
+                    title="Project lifecycle"
+                    description={`Current status: ${project.status || "unknown"}`}
+                    Icon={Settings}
+                  >
+                    <ProjectActions
+                      project={project}
+                      onStart={onStartProject}
+                      onStop={onStopProject}
+                      onRestart={onRestartProject}
+                      onDelete={onDeleteProject}
+                    />
+                  </ProjectSettingsPanel>
+                )}
+
+                {activeTab === "secrets" && (
+                  <ProjectSettingsPanel
+                    title="Project secrets"
+                    description={secretsDescription(secretsRecord)}
+                    Icon={Key}
+                  >
+                    <ProjectSecretsSection
+                      record={secretsRecord}
+                      onSave={onSaveSecret}
+                      onDelete={onDeleteSecret}
+                    />
+                  </ProjectSettingsPanel>
+                )}
+
+                {activeTab === "sharing" && (
+                  <ProjectSettingsPanel
+                    title="Project access"
+                    description={accessDescription(accessRecord)}
+                    Icon={Users}
+                  >
+                    <ProjectSharingSection
+                      record={accessRecord}
+                      onAdd={onAddMember}
+                      onRemove={onRemoveMember}
+                    />
+                  </ProjectSettingsPanel>
+                )}
+              </>
+            )}
+          </div>
+        </main>
       </div>
     </div>
   );
 }
 
-function infoSubtitle(r: ProjectContainerRecord): string {
-  if (r.loading && !r.data) return "loading…";
-  if (r.error) return "error";
-  if (r.data) return `${r.data.state.toLowerCase()}${r.data.image ? ` · ${truncate(r.data.image, 40)}` : ""}`;
-  return "";
+function ProjectSettingsNavigation({
+  activeTab,
+  onTabChange,
+  mobile = false,
+  className,
+}: {
+  activeTab: ProjectSettingsTab;
+  onTabChange: (tab: ProjectSettingsTab) => void;
+  mobile?: boolean;
+  className: string;
+}) {
+  return (
+    <aside class={className} aria-label="Project settings sections">
+      <nav
+        class={mobile ? "flex gap-1 min-w-max" : "w-full space-y-1"}
+        role="tablist"
+        aria-orientation={mobile ? "horizontal" : "vertical"}
+      >
+        {tabs.map(({ id, label, Icon }) => {
+          const active = id === activeTab;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-controls="project-settings-active-panel"
+              tabIndex={active ? 0 : -1}
+              onClick={() => onTabChange(id)}
+              class={`${mobile ? "h-9 px-3" : "w-full h-10 px-3"} rounded-md inline-flex items-center gap-2.5 border text-[13px] font-medium transition-colors ${
+                active
+                  ? "border-white/10 bg-white/[0.08] text-ink-50"
+                  : "border-transparent text-ink-300 hover:text-ink-100 hover:bg-white/[0.05]"
+              }`}
+            >
+              <Icon class={`w-4 h-4 flex-none ${active ? "text-accent-blue" : "text-ink-400"}`} />
+              <span>{label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </aside>
+  );
 }
 
-function secretsSubtitle(r: SecretsRecord): string {
-  if (r.loading && !r.data) return "loading…";
-  if (r.error) return "error";
-  const n = r.data?.length ?? 0;
-  return `${n} secret${n === 1 ? "" : "s"}`;
-}
-
-function accessSubtitle(r: AccessRecord): string {
-  if (r.loading && !r.data) return "loading…";
-  if (r.error) return "error";
-  const n = r.data?.length ?? 0;
-  return `${n} member${n === 1 ? "" : "s"}`;
-}
-
-function CollapsibleSection({
+function ProjectSettingsPanel({
   title,
-  subtitle,
-  defaultOpen,
+  description,
+  Icon,
   children,
 }: {
   title: string;
-  subtitle?: string;
-  defaultOpen?: boolean;
-  children: JSX.Element | JSX.Element[];
+  description: string;
+  Icon: ComponentType<{ class?: string }>;
+  children: ComponentChildren;
 }) {
-  const [open, setOpen] = useState(!!defaultOpen);
   return (
     <section class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        class="w-full px-4 py-3 flex items-center gap-2 hover:bg-white/[0.03] text-left"
-      >
-        {open ? (
-          <ChevronDown class="w-4 h-4 text-ink-300 flex-none" />
-        ) : (
-          <ChevronRight class="w-4 h-4 text-ink-300 flex-none" />
-        )}
-        <span class="text-[13px] font-semibold text-ink-50">{title}</span>
-        {subtitle && (
-          <span class="text-[11.5px] text-ink-400 truncate min-w-0">{subtitle}</span>
-        )}
-      </button>
-      {open && <div class="border-t border-white/[0.06] p-3 space-y-3">{children}</div>}
+      <header class="px-4 py-3 flex items-start gap-3 border-b border-white/[0.06]">
+        <div class="mt-0.5 w-9 h-9 rounded-md bg-white/[0.06] border border-white/10 grid place-items-center flex-none">
+          <Icon class="w-4 h-4 text-ink-200" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-[14.5px] font-semibold text-ink-50">{title}</div>
+          <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug">{description}</div>
+        </div>
+      </header>
+      <div class="p-3 space-y-3">{children}</div>
     </section>
   );
+}
+
+function secretsDescription(record: SecretsRecord): string {
+  if (record.loading && !record.data) return "Loading project secrets…";
+  if (record.error) return "Project secrets could not be loaded.";
+  const count = record.data?.length ?? 0;
+  return `${count} configured secret${count === 1 ? "" : "s"}`;
+}
+
+function accessDescription(record: AccessRecord): string {
+  if (record.loading && !record.data) return "Loading project members…";
+  if (record.error) return "Project members could not be loaded.";
+  const count = record.data?.length ?? 0;
+  return `${count} project member${count === 1 ? "" : "s"}`;
 }
 
 function ProjectHeader({

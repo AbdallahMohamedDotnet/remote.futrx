@@ -1,5 +1,8 @@
-import { useCallback } from "preact/hooks";
-import { ProjectContainersPage } from "../../ui/projects/ProjectContainersPage";
+import { useCallback, useState } from "preact/hooks";
+import {
+  ProjectContainersPage,
+  type ProjectSettingsTab,
+} from "../../ui/projects/ProjectContainersPage";
 import type { ProjectMeta } from "../../models/project";
 import { useProjectContainersController } from "../../state/hooks/projects/useProjectContainersController";
 
@@ -18,6 +21,7 @@ export function ProjectContainersContainer({
 }) {
   const controller = useProjectContainersController(projects, selectedProjectId);
   const { selectedProject, info, secrets, access } = controller;
+  const [activeTab, setActiveTab] = useState<ProjectSettingsTab>("info");
 
   const deleteSelectedProject = useCallback(async () => {
     if (!selectedProject) return;
@@ -27,6 +31,7 @@ export function ProjectContainersContainer({
 
   return (
     <ProjectContainersPage
+      activeTab={activeTab}
       project={selectedProject}
       infoRecord={info.record}
       secretsRecord={secrets.record}
@@ -35,6 +40,7 @@ export function ProjectContainersContainer({
       onRefresh={() => void controller.refresh()}
       onBack={onBack}
       onHamburger={onHamburger}
+      onTabChange={setActiveTab}
       onSaveSecret={secrets.save}
       onDeleteSecret={secrets.remove}
       onAddMember={access.add}
