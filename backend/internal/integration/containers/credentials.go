@@ -1,6 +1,6 @@
 package containers
 
-// Generic credential pipeline. The host holds the canonical copy of each
+// Credential orchestration. The host holds the canonical copy of each
 // profile's files; the client pushes them into containers
 // before use and pulls any rotations back afterwards so the host stays
 // current. Provider packages own every path and credential rule.
