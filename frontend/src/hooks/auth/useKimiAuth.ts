@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { kimiAuthWebSocketUrl } from "../../api/websocket";
+import { kimiAuthWebSocketUrl } from "../../transport/websocket";
 import type { KimiAuthStatus, KimiDeviceLogin } from "../../models/auth";
 import { kimiAuthService } from "../../services/kimiAuthService";
 

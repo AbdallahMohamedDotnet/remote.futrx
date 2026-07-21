@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { claudeAuthWebSocketUrl } from "../../api/websocket";
+import { claudeAuthWebSocketUrl } from "../../transport/websocket";
 import type { ClaudeAuthStatus, ClaudeLoginState } from "../../models/auth";
 import { claudeAuthService } from "../../services/claudeAuthService";
 

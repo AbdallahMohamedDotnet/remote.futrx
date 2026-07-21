@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { codexAuthWebSocketUrl } from "../../api/websocket";
+import { codexAuthWebSocketUrl } from "../../transport/websocket";
 import type { CodexAuthStatus, CodexDeviceLogin } from "../../models/auth";
 import { codexAuthService } from "../../services/codexAuthService";
 

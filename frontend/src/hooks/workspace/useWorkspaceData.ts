@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { workspaceWebSocketUrl } from "../../api/websocket";
+import { workspaceWebSocketUrl } from "../../transport/websocket";
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { chatWebSocketUrl } from "../../api/websocket";
+import { chatWebSocketUrl } from "../../transport/websocket";
 import { chatService } from "../../services/chatService";
 import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../models/chat";
 import { groupEvents, type Block } from "../../state/chat/messageBlocks";

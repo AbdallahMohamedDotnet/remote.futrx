@@ -1,4 +1,4 @@
-import { request } from "../api/http";
+import { request } from "../transport/http";
 import type { AuthSession } from "../models/auth";
 
 const unauthenticated: AuthSession = {

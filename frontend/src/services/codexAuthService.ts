@@ -1,4 +1,4 @@
-import { json } from "../api/http";
+import { json } from "../transport/http";
 import type { CodexAuthStatus, CodexDeviceLogin } from "../models/auth";
 
 export const codexAuthService = {

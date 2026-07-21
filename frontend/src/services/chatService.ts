@@ -1,4 +1,4 @@
-import { json, request } from "../api/http";
+import { json, request } from "../transport/http";
 import type { FileTreeResponse } from "../models/files";
 import type { ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
