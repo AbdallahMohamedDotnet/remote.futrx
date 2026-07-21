@@ -1,41 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { FitAddon } from "@xterm/addon-fit";
-import { Terminal as XTerm, type ITheme } from "@xterm/xterm";
+import { Terminal as XTerm } from "@xterm/xterm";
 import { terminalApi } from "../../../api/terminalApi";
 import type { TerminalConnection, TerminalStatus } from "../../../types/terminal";
-
-const terminalTheme: ITheme = {
-  background: "#0f1014",
-  foreground: "#e4e4e7",
-  cursor: "#f4f4f5",
-  selectionBackground: "#3f4047",
-  black: "#18191e",
-  red: "#ff7b72",
-  green: "#7bd88f",
-  yellow: "#e2b86d",
-  blue: "#8ab4ff",
-  magenta: "#b8a8ff",
-  cyan: "#7dd3fc",
-  white: "#e4e4e7",
-  brightBlack: "#707078",
-  brightRed: "#ff9b96",
-  brightGreen: "#b7f7c2",
-  brightYellow: "#f0d28a",
-  brightBlue: "#a7c7ff",
-  brightMagenta: "#c8bbff",
-  brightCyan: "#a5f3fc",
-  brightWhite: "#f4f4f5",
-};
+import {
+  TERMINAL_CONNECTION_ERROR_MESSAGE,
+  TERMINAL_DEFAULT_TITLE,
+  TERMINAL_INITIAL_FIT_DELAY_MS,
+  TERMINAL_OPTIONS,
+  TERMINAL_THEME,
+} from "../../../config/terminal";
 
 function createTerminal(): XTerm {
   return new XTerm({
-    cursorBlink: true,
-    convertEol: true,
-    fontFamily: "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace",
-    fontSize: 13,
-    lineHeight: 1.18,
-    scrollback: 6000,
-    theme: terminalTheme,
+    ...TERMINAL_OPTIONS,
+    theme: TERMINAL_THEME,
   });
 }
 
@@ -98,7 +77,9 @@ export function useTerminalSession({
       onOpen() {
         if (disposed) return;
         setStatus("connected");
-        terminal.writeln(`Connected to ${titleRef.current || "workspace"} terminal`);
+        terminal.writeln(
+          `Connected to ${titleRef.current || TERMINAL_DEFAULT_TITLE} terminal`
+        );
         terminal.writeln("");
         fitAndResize();
       },
@@ -108,7 +89,7 @@ export function useTerminalSession({
       },
       onError() {
         if (disposed) return;
-        setError("Terminal connection failed.");
+        setError(TERMINAL_CONNECTION_ERROR_MESSAGE);
         setStatus("error");
       },
       onClose() {
@@ -130,7 +111,7 @@ export function useTerminalSession({
       if (connection.isOpen) fitAndResize();
     });
     resizeObserver.observe(hostRef.current);
-    window.setTimeout(fitAndResize, 0);
+    window.setTimeout(fitAndResize, TERMINAL_INITIAL_FIT_DELAY_MS);
 
     return () => {
       disposed = true;

@@ -5,6 +5,7 @@ import type {
   TerminalConnectionCallbacks,
 } from "../types/terminal";
 import { WEB_SOCKET_ROUTES } from "../config/routes";
+import { TERMINAL_WEB_SOCKET_BINARY_TYPE } from "../config/terminal";
 
 export const terminalApi = {
   connect(chatId: string, callbacks: TerminalConnectionCallbacks): TerminalConnection {
@@ -18,7 +19,7 @@ class WebSocketTerminalConnection implements TerminalConnection {
   constructor(chatId: string, callbacks: TerminalConnectionCallbacks) {
     this.#connection = new WebSocketConnection({
       url: webSocketUrl(WEB_SOCKET_ROUTES.terminal(chatId)),
-      binaryType: "arraybuffer",
+      binaryType: TERMINAL_WEB_SOCKET_BINARY_TYPE,
       onOpen: callbacks.onOpen,
       onMessage(data) {
         callbacks.onOutput(
