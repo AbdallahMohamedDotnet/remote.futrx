@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 )
 
 type runnerResponse struct {
@@ -51,7 +51,7 @@ func TestEnsureRejectsMissingRequiredHostFileBeforeContainerMutation(t *testing.
 		}},
 	}
 
-	err := NewSynchronizer(runner, profiles.NewRegistry()).Ensure(context.Background(), "c1", spec)
+	err := NewSynchronizer(runner, serviceprofiles.NewCatalog(nil)).Ensure(context.Background(), "c1", spec)
 	want := "host file missing (provider not authenticated yet?): " + missing
 	if err == nil || err.Error() != want {
 		t.Fatalf("Ensure error = %v, want %q", err, want)
@@ -94,7 +94,7 @@ func TestEnsurePushesOnlyStrictlyNewerFilesWithDefaultMode(t *testing.T) {
 		},
 	}
 
-	if err := NewSynchronizer(runner, profiles.NewRegistry()).Ensure(context.Background(), "c1", spec); err != nil {
+	if err := NewSynchronizer(runner, serviceprofiles.NewCatalog(nil)).Ensure(context.Background(), "c1", spec); err != nil {
 		t.Fatalf("Ensure: %v", err)
 	}
 	wantCalls := []string{
@@ -123,7 +123,7 @@ func TestSyncFromContainerSkipsMissingOptionalFileButRejectsMissingRequiredFile(
 		},
 	}
 
-	err := NewSynchronizer(runner, profiles.NewRegistry()).SyncFromContainer(context.Background(), "c1", spec)
+	err := NewSynchronizer(runner, serviceprofiles.NewCatalog(nil)).SyncFromContainer(context.Background(), "c1", spec)
 	want := "container file missing /root/.agent/required.json: missing; output: required absent"
 	if err == nil || err.Error() != want {
 		t.Fatalf("SyncFromContainer error = %v, want %q", err, want)
@@ -139,9 +139,8 @@ func TestSyncFromContainerSkipsMissingOptionalFileButRejectsMissingRequiredFile(
 
 func TestEnsureRegisteredJoinsAllSeedErrors(t *testing.T) {
 	runner := &recordingRunner{}
-	registry := profiles.NewRegistry()
 	hostDir := t.TempDir()
-	registry.Replace([]provisioning.Profile{
+	catalog := serviceprofiles.NewCatalog([]provisioning.Profile{
 		{Credentials: provisioning.CredentialSpec{
 			Name:         "alpha",
 			SeedOnLaunch: true,
@@ -158,7 +157,7 @@ func TestEnsureRegisteredJoinsAllSeedErrors(t *testing.T) {
 		}},
 	})
 
-	err := NewSynchronizer(runner, registry).EnsureRegistered(context.Background(), "c1")
+	err := NewSynchronizer(runner, catalog).EnsureRegistered(context.Background(), "c1")
 	if err == nil {
 		t.Fatal("EnsureRegistered error = nil, want both seed errors")
 	}
