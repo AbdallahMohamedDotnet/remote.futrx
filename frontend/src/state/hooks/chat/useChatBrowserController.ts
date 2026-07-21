@@ -3,7 +3,7 @@ import type { RefObject } from "preact";
 import type { BrowserElementCapture } from "../../../models/browser";
 import type { ChatMeta } from "../../../models/chat";
 import type { ContainerApp, ProjectMeta } from "../../../models/project";
-import type { Block } from "../../chat/messageBlocks";
+import type { Block } from "../../../models/chatMessage";
 import { projectApi } from "../../../api/projectApi";
 
 export function useChatBrowserController({

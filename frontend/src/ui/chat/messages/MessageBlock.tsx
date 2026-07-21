@@ -1,4 +1,4 @@
-import type { Block } from "../../../state/chat/messageBlocks";
+import type { Block } from "../../../models/chatMessage";
 import { AssistantMessage } from "./AssistantMessage";
 import { ErrorMessage } from "./ErrorMessage";
 import { UserMessage } from "./UserMessage";

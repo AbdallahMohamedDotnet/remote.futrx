@@ -1,8 +1,8 @@
 import type { RefObject } from "preact";
 import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, ReasoningEffort, SelectedSkill } from "../../models/chat";
+import type { Block } from "../../models/chatMessage";
 import type { Attachment } from "../../models/upload";
 import type { RegisteredSkill } from "../../models/skill";
-import type { Block } from "../../state/chat/messageBlocks";
 import { ChatComposer } from "./composer/ChatComposer";
 import { JumpToLatestButton } from "./messages/JumpToLatestButton";
 import { MessageList } from "./messages/MessageList";

@@ -1,4 +1,4 @@
-import type { AssistantBlock } from "../../../state/chat/messageBlocks";
+import type { AssistantBlock } from "../../../models/chatMessage";
 import { AssistantPartList } from "./AssistantPartList";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 

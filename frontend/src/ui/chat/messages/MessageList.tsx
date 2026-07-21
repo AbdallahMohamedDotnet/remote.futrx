@@ -1,7 +1,7 @@
 import type { RefObject } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { ChatStatus } from "../../../models/chat";
-import type { Block } from "../../../state/chat/messageBlocks";
+import type { Block } from "../../../models/chatMessage";
 import { Loader } from "../../primitives/icons";
 import { MessageBlock } from "./MessageBlock";
 import { ThreadEmptyState } from "./ThreadEmptyState";

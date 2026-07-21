@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import type { AssistantPart } from "../../../state/chat/messageBlocks";
+import type { AssistantPart } from "../../../models/chatMessage";
 import { ToolCall } from "../tool-calls/ToolCall";
 import { StreamingText } from "./StreamingText";
 import { ToolGroup } from "./ToolGroup";

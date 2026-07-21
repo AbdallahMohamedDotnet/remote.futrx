@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
 import type { ChatStream } from "../../../types/chatApi";
 import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../../models/chat";
-import { groupEvents, type Block } from "../../chat/messageBlocks";
+import type { Block } from "../../../models/chatMessage";
+import { groupEvents } from "../../chat/messageBlocks";
 import {
   addUsageFromEvent,
   EMPTY_USAGE_TOTALS,
