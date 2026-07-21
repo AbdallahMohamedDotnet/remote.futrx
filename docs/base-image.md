@@ -12,7 +12,7 @@ Every project container is launched from a custom LXD image, **`futrx-remote-dev
 The recipe and shared version manifest live in the container manager:
 
 - [`internal/integration/containers/baseimage.go`](../backend/internal/integration/containers/baseimage.go) — the `BaseImageInstallScript` recipe.
-- [`internal/integration/containers/agent-cli-versions.env`](../backend/internal/integration/containers/agent-cli-versions.env) — the Claude Code and Codex pins used by the image, runtime repair, and host installer.
+- [`internal/agent/provisioning/agent-cli-versions.env`](../backend/internal/agent/provisioning/agent-cli-versions.env) — the Claude Code and Codex pins used by the image, runtime repair, and host installer.
 
 Prompt runs compare the installed Claude Code or Codex version with the repository pin. A current container only pays for a local `--version` check; a missing or stale CLI is upgraded in place before the agent starts. This lets existing containers adopt model-compatibility updates without being recreated.
 

@@ -1,15 +1,15 @@
 package containers
 
 import (
-	"bufio"
 	"context"
-	_ "embed"
 	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 )
 
 const (
@@ -17,12 +17,9 @@ const (
 	agentCLIWaitTimeout    = 2 * time.Minute
 )
 
-//go:embed agent-cli-versions.env
-var agentCLIVersionManifest string
-
 var (
-	pinnedClaudeCodeVersion = mustAgentCLIVersion("CLAUDE_CODE_VERSION")
-	pinnedCodexCLIVersion   = mustAgentCLIVersion("CODEX_CLI_VERSION")
+	pinnedClaudeCodeVersion = provisioning.MustCLIVersion("CLAUDE_CODE_VERSION")
+	pinnedCodexCLIVersion   = provisioning.MustCLIVersion("CODEX_CLI_VERSION")
 
 	claudeCLISpec = agentCLISpec{
 		name:        "Claude Code",
@@ -47,21 +44,6 @@ type agentCLISpec struct {
 
 func (s agentCLISpec) npmPackage() string {
 	return s.packageName + "@" + s.version
-}
-
-func mustAgentCLIVersion(key string) string {
-	scanner := bufio.NewScanner(strings.NewReader(agentCLIVersionManifest))
-	for scanner.Scan() {
-		name, value, ok := strings.Cut(strings.TrimSpace(scanner.Text()), "=")
-		if ok && name == key {
-			value = strings.TrimSpace(value)
-			if _, valid := parseSemanticVersion(value); valid {
-				return value
-			}
-			panic("invalid " + key + " in agent-cli-versions.env")
-		}
-	}
-	panic("missing " + key + " in agent-cli-versions.env")
 }
 
 // ensureAgentCLI is cheap on the normal path (one local `--version` call).

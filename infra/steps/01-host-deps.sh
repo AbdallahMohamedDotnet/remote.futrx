@@ -76,7 +76,7 @@ ok "$(caddy version | head -1)"
 # ───────────────── agent CLIs (host-side auth/provisioning) ─────────────────
 # The same manifest is embedded by the Go container manager. Re-running the
 # installer upgrades stale host binaries instead of only checking existence.
-AGENT_CLI_VERSIONS_FILE="$INFRA_DIR/../backend/internal/integration/containers/agent-cli-versions.env"
+AGENT_CLI_VERSIONS_FILE="$INFRA_DIR/../backend/internal/agent/provisioning/agent-cli-versions.env"
 if [ ! -r "$AGENT_CLI_VERSIONS_FILE" ]; then
     err "missing agent CLI version manifest: $AGENT_CLI_VERSIONS_FILE"
     exit 1

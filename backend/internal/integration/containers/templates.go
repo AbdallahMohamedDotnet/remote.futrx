@@ -6,14 +6,14 @@ package containers
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 )
 
-//go:embed templates/AGENTS.md
-var agentInstructionsTemplate []byte
+var agentInstructionsTemplate = provisioning.InstructionsTemplate()
 
 const (
 	containerClaudeMD         = "/root/.claude/CLAUDE.md"
