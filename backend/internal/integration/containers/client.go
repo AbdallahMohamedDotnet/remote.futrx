@@ -48,6 +48,7 @@ type Client struct {
 	templates   templatePublisher
 	inspector   containerInspector
 	credentials credentialSynchronizer
+	clis        cliProvisioner
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
@@ -63,6 +64,10 @@ func New(client CommandRunner) *Client {
 		states:   containerClient,
 	}
 	containerClient.credentials = credentialSynchronizer{
+		lxc:      client,
+		profiles: &containerClient.profiles,
+	}
+	containerClient.clis = cliProvisioner{
 		lxc:      client,
 		profiles: &containerClient.profiles,
 	}
