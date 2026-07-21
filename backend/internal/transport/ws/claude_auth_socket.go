@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/claudelogin"
 	"github.com/gorilla/websocket"
 )
 

@@ -5,12 +5,12 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/codexauth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/kimiauth"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/claudelogin"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"

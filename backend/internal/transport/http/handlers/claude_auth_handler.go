@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/claudelogin"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/claudelogin"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
