@@ -4,6 +4,7 @@ import type {
   TerminalConnection,
   TerminalConnectionCallbacks,
 } from "../types/terminal";
+import { WEB_SOCKET_ROUTES } from "../config/routes";
 
 export const terminalApi = {
   connect(chatId: string, callbacks: TerminalConnectionCallbacks): TerminalConnection {
@@ -16,7 +17,7 @@ class WebSocketTerminalConnection implements TerminalConnection {
 
   constructor(chatId: string, callbacks: TerminalConnectionCallbacks) {
     this.#connection = new WebSocketConnection({
-      url: webSocketUrl(`/ws/terminal?chat=${encodeURIComponent(chatId)}`),
+      url: webSocketUrl(WEB_SOCKET_ROUTES.terminal(chatId)),
       binaryType: "arraybuffer",
       onOpen: callbacks.onOpen,
       onMessage(data) {
