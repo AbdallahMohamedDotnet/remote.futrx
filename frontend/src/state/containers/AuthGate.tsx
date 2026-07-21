@@ -3,7 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { ClaudeAuthWaiting } from "../../ui/auth/ClaudeAuthWaiting";
 import { LoginScreen } from "../../ui/auth/LoginScreen";
 import { LoadingScreen } from "../../ui/ui/LoadingScreen";
-import { useAuthContext } from "../../context/AuthContext";
+import { useAuthContext } from "../context/AuthContext";
 import { ClaudeLoginContainer } from "./ClaudeLoginContainer";
 
 type WorkspaceRouteComponent = ComponentType<{ enabled: boolean }>;

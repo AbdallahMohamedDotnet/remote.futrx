@@ -1,22 +1,22 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
 import { useContext, useEffect, useReducer } from "preact/hooks";
-import type { ChatMeta, CreateChatInput } from "../models/chat";
-import type { ProjectMeta } from "../models/project";
-import { chatApi } from "../api/chatApi";
-import { projectApi } from "../api/projectApi";
-import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
+import type { ChatMeta, CreateChatInput } from "../../models/chat";
+import type { ProjectMeta } from "../../models/project";
+import { chatApi } from "../../api/chatApi";
+import { projectApi } from "../../api/projectApi";
+import { useWorkspaceData } from "../../hooks/workspace/useWorkspaceData";
 import { useUserSettingsContext } from "./UserSettingsContext";
 import {
   initialWorkspaceUiState,
   workspaceUiReducer,
   type WorkspaceUiState,
-} from "../state/workspace/reducer";
+} from "../workspace/reducer";
 import {
   isActiveChatMissing,
   selectActiveChat,
   shouldSelectInitialChat,
-} from "../state/workspace/selectors";
+} from "../workspace/selectors";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];

@@ -1,6 +1,6 @@
 import { SettingsPage } from "../../ui/settings/SettingsPage";
-import { useAuthContext } from "../../context/AuthContext";
-import { useUserSettingsContext } from "../../context/UserSettingsContext";
+import { useAuthContext } from "../context/AuthContext";
+import { useUserSettingsContext } from "../context/UserSettingsContext";
 import { useCodexAuth } from "../../hooks/auth/useCodexAuth";
 import { useKimiAuth } from "../../hooks/auth/useKimiAuth";
 

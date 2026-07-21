@@ -7,8 +7,8 @@ import {
   type AppearanceTheme,
   type ChatSettings,
   type UserSettings,
-} from "../models/settings";
-import { settingsApi } from "../api/settingsApi";
+} from "../../models/settings";
+import { settingsApi } from "../../api/settingsApi";
 
 interface UserSettingsContextValue {
   settings: UserSettings;

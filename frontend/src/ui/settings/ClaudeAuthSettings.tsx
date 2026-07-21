@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "preact/hooks";
-import { useAuthContext } from "../../context/AuthContext";
+import { useAuthContext } from "../../state/context/AuthContext";
 import { useClaudeLoginFlow } from "../../hooks/auth/useClaudeLoginFlow";
 import { Check, ExternalLink, Key, Loader } from "../ui/icons";
 
