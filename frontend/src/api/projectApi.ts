@@ -6,62 +6,71 @@ import type {
   ProjectMeta,
   ProjectSecret,
 } from "../models/project";
+import { API_ROUTES } from "../config/routes";
 
 export const projectApi = {
-  list: () => requestJson<ProjectMeta[]>("GET", "/api/projects"),
-  create: (name: string) => requestJson<ProjectMeta>("POST", "/api/projects", { name }),
-  get: (id: string) => requestJson<ProjectMeta>("GET", `/api/projects/${encodeURIComponent(id)}`),
+  list: () => requestJson<ProjectMeta[]>("GET", API_ROUTES.projects.collection),
+  create: (name: string) =>
+    requestJson<ProjectMeta>("POST", API_ROUTES.projects.collection, { name }),
+  get: (id: string) =>
+    requestJson<ProjectMeta>("GET", API_ROUTES.projects.item(id)),
   update: (id: string, body: { name?: string }) =>
-    requestJson<ProjectMeta>("PATCH", `/api/projects/${encodeURIComponent(id)}`, body),
+    requestJson<ProjectMeta>("PATCH", API_ROUTES.projects.item(id), body),
   reorder: (ids: string[]) =>
-    requestJson<ProjectMeta[]>("POST", "/api/projects/reorder", { ids }),
+    requestJson<ProjectMeta[]>("POST", API_ROUTES.projects.reorder, { ids }),
   delete: (id: string) =>
-    requestJson<{ ok: boolean }>("DELETE", `/api/projects/${encodeURIComponent(id)}`),
+    requestJson<{ ok: boolean }>("DELETE", API_ROUTES.projects.item(id)),
   start: (id: string) =>
-    requestJson<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/start`, {}),
+    requestJson<ProjectMeta>("POST", API_ROUTES.projects.start(id), {}),
   stop: (id: string) =>
-    requestJson<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/stop`, {}),
+    requestJson<ProjectMeta>("POST", API_ROUTES.projects.stop(id), {}),
   containerInfo: (id: string) =>
-    requestJson<ProjectContainerInfo>("GET", `/api/projects/${encodeURIComponent(id)}/container`),
+    requestJson<ProjectContainerInfo>("GET", API_ROUTES.projects.container(id)),
   repairNetwork: (id: string) =>
-    requestJson<ProjectContainerInfo>("POST", `/api/projects/${encodeURIComponent(id)}/repair-network`, {}),
+    requestJson<ProjectContainerInfo>(
+      "POST",
+      API_ROUTES.projects.repairNetwork(id),
+      {}
+    ),
   listApps: (id: string) =>
-    requestJson<ContainerApp[]>("GET", `/api/projects/${encodeURIComponent(id)}/apps`),
+    requestJson<ContainerApp[]>("GET", API_ROUTES.projects.apps(id)),
   agentBrowserStatus: (id: string) =>
-    requestJson<AgentBrowserInfo>("GET", `/api/projects/${encodeURIComponent(id)}/agent-browser`),
+    requestJson<AgentBrowserInfo>("GET", API_ROUTES.projects.agentBrowser(id)),
   startAgentBrowser: (id: string) =>
-    requestJson<AgentBrowserInfo>("POST", `/api/projects/${encodeURIComponent(id)}/agent-browser/start`, {}),
-  stopAgentBrowser: (id: string, scope?: "view") => {
-    const suffix = scope ? `?scope=${encodeURIComponent(scope)}` : "";
-    return requestJson<AgentBrowserInfo | { status: "stopped" }>(
+    requestJson<AgentBrowserInfo>(
+      "POST",
+      API_ROUTES.projects.startAgentBrowser(id),
+      {}
+    ),
+  stopAgentBrowser: (id: string, scope?: "view") =>
+    requestJson<AgentBrowserInfo | { status: "stopped" }>(
       "DELETE",
-      `/api/projects/${encodeURIComponent(id)}/agent-browser${suffix}`
-    );
-  },
+      API_ROUTES.projects.agentBrowser(id, scope)
+    ),
   listSecrets: (id: string) =>
-    requestJson<ProjectSecret[]>("GET", `/api/projects/${encodeURIComponent(id)}/secrets`),
+    requestJson<ProjectSecret[]>("GET", API_ROUTES.projects.secrets(id)),
   setSecret: (id: string, key: string, value: string) =>
     requestJson<ProjectSecret>(
       "PUT",
-      `/api/projects/${encodeURIComponent(id)}/secrets/${encodeURIComponent(key)}`,
+      API_ROUTES.projects.secret(id, key),
       { value }
     ),
   deleteSecret: (id: string, key: string) =>
     requestJson<{ ok: boolean }>(
       "DELETE",
-      `/api/projects/${encodeURIComponent(id)}/secrets/${encodeURIComponent(key)}`
+      API_ROUTES.projects.secret(id, key)
     ),
   listAccess: (id: string) =>
-    requestJson<string[]>("GET", `/api/projects/${encodeURIComponent(id)}/access`),
+    requestJson<string[]>("GET", API_ROUTES.projects.access(id)),
   addAccess: (id: string, email: string) =>
     requestJson<{ email: string }>(
       "POST",
-      `/api/projects/${encodeURIComponent(id)}/access`,
+      API_ROUTES.projects.access(id),
       { email }
     ),
   removeAccess: (id: string, email: string) =>
     requestJson<{ ok: boolean }>(
       "DELETE",
-      `/api/projects/${encodeURIComponent(id)}/access/${encodeURIComponent(email)}`
+      API_ROUTES.projects.accessMember(id, email)
     ),
 };
