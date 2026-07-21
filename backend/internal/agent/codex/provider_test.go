@@ -77,6 +77,56 @@ func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 	}
 }
 
+func TestArgsIncludeServiceTier(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{
+		Config: map[string]any{"serviceTier": "priority"},
+	})
+
+	want := []string{
+		"exec",
+		"--json",
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"-c", "service_tier=priority",
+		"-",
+	}
+	if !slices.Equal(args, want) {
+		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}
+}
+
+func TestArgsIncludeReasoningEffortAndServiceTier(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{
+		Config: map[string]any{"reasoningEffort": "xhigh", "serviceTier": "default"},
+	})
+
+	want := []string{
+		"exec",
+		"--json",
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"-c", "model_reasoning_effort=xhigh",
+		"-c", "service_tier=default",
+		"-",
+	}
+	if !slices.Equal(args, want) {
+		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}
+}
+
+func TestArgsIgnoreInvalidServiceTier(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{
+		Config: map[string]any{"serviceTier": "turbo"},
+	})
+
+	if slices.Contains(args, "-c") {
+		t.Fatalf("invalid service tier should not add config args: %#v", args)
+	}
+}
+
 func TestArgsIncludeBrowserMCPConfig(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{EnableBrowser: true})

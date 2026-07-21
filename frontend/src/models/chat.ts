@@ -14,13 +14,16 @@ export interface ChatMeta {
   model?: string;
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;
+  serviceTier?: ServiceTier;
   projectId?: string;
   selectedSkills?: SelectedSkill[];
 }
 
 export type ChatProvider = "claude" | "codex" | "kimi";
 export type ChatMode = "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
-export type ReasoningEffort = "" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type ReasoningEffort = "" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+// Codex `service_tier` (speed/cost lever). "" = Auto (omit; server default).
+export type ServiceTier = "" | "default" | "priority" | "fast";
 
 export interface SelectedSkill {
   name: string;
@@ -80,6 +83,7 @@ export interface CreateChatInput {
   model?: string;
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;
+  serviceTier?: ServiceTier;
   projectId?: string;
   selectedSkills?: SelectedSkill[];
 }
@@ -91,5 +95,6 @@ export interface UpdateChatInput {
   model?: string;
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;
+  serviceTier?: ServiceTier;
   selectedSkills?: SelectedSkill[];
 }

@@ -26,6 +26,9 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	if effort := reasoningEffortFromConfig(req.Config); effort != "" {
 		common = append(common, "-c", "model_reasoning_effort="+effort)
 	}
+	if tier := serviceTierFromConfig(req.Config); tier != "" {
+		common = append(common, "-c", "service_tier="+tier)
+	}
 	if req.EnableBrowser {
 		common = append(common, browserMCPConfigArgs()...)
 	}
@@ -76,6 +79,28 @@ func reasoningEffortFromConfig(config map[string]any) string {
 		return "xhigh"
 	case "max":
 		return "max"
+	case "ultra":
+		return "ultra"
+	default:
+		return ""
+	}
+}
+
+// serviceTierFromConfig maps the conversation's speed selection onto codex's
+// `-c service_tier=` values we expose (default, priority). Unsupported tiers are
+// warned-and-omitted by codex itself, so we only forward the ones we surface.
+func serviceTierFromConfig(config map[string]any) string {
+	if len(config) == 0 {
+		return ""
+	}
+	tier, _ := config["serviceTier"].(string)
+	switch strings.ToLower(strings.TrimSpace(tier)) {
+	case "default":
+		return "default"
+	case "priority":
+		return "priority"
+	case "fast":
+		return "fast"
 	default:
 		return ""
 	}

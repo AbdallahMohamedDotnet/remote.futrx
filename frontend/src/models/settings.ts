@@ -1,4 +1,4 @@
-import type { ChatMode, ChatProvider, ReasoningEffort } from "./chat";
+import type { ChatMode, ChatProvider, ReasoningEffort, ServiceTier } from "./chat";
 
 export type AppearanceTheme = "system" | "dark" | "light";
 
@@ -11,6 +11,7 @@ export interface ChatSettings {
   model: string;
   mode: ChatMode;
   reasoningEffort: ReasoningEffort;
+  serviceTier: ServiceTier;
 }
 
 export interface UserSettings {

@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import type { ChatMode, ChatProvider, QueuedPrompt, ReasoningEffort, SelectedSkill } from "../../../models/chat";
+import type { ChatMode, ChatProvider, QueuedPrompt, ReasoningEffort, SelectedSkill, ServiceTier } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import type { Attachment } from "../../../models/upload";
 import { AttachmentTray } from "./AttachmentTray";
@@ -20,6 +20,7 @@ export function ChatComposer({
   provider,
   mode,
   reasoningEffort,
+  serviceTier,
   queuedPrompts,
   selectedSkills,
   attachments,
@@ -41,6 +42,7 @@ export function ChatComposer({
   onSelectSkill,
   onRemoveSelectedSkill,
   onReasoningEffortChange,
+  onServiceTierChange,
 }: {
   chatId: string;
   projectId?: string;
@@ -50,6 +52,7 @@ export function ChatComposer({
   provider: ChatProvider;
   mode: ChatMode;
   reasoningEffort: ReasoningEffort;
+  serviceTier: ServiceTier;
   queuedPrompts: QueuedPrompt[];
   selectedSkills: SelectedSkill[];
   draftText?: string;
@@ -73,6 +76,7 @@ export function ChatComposer({
   onSelectSkill: (skill: RegisteredSkill) => void;
   onRemoveSelectedSkill: (skill: SelectedSkill) => void;
   onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
+  onServiceTierChange: (serviceTier: ServiceTier) => void;
 }) {
   const disconnected = !canSendPrompt && !streaming;
   const hasContent = text.trim().length > 0 || attachments.some((attachment) => attachment.serverPath);
@@ -132,9 +136,11 @@ export function ChatComposer({
         provider={provider}
         mode={mode}
         reasoningEffort={reasoningEffort}
+        serviceTier={serviceTier}
         streaming={streaming}
         onModeChange={onModeChange}
         onReasoningEffortChange={onReasoningEffortChange}
+        onServiceTierChange={onServiceTierChange}
       />
     </div>
   );

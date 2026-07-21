@@ -10,6 +10,7 @@ import {
   VALID_CHAT_MODES,
   VALID_CHAT_PROVIDERS,
   VALID_REASONING_EFFORTS,
+  VALID_SERVICE_TIERS,
 } from "../config/settings";
 
 export const settingsApi = {
@@ -28,6 +29,7 @@ function normalizeUserSettings(settings: UserSettings): UserSettings {
   const provider = settings?.chat?.provider;
   const mode = settings?.chat?.mode;
   const reasoningEffort = settings?.chat?.reasoningEffort;
+  const serviceTier = settings?.chat?.serviceTier;
   return {
     ...DEFAULT_USER_SETTINGS,
     ...settings,
@@ -52,6 +54,9 @@ function normalizeUserSettings(settings: UserSettings): UserSettings {
       reasoningEffort: VALID_REASONING_EFFORTS.has(reasoningEffort)
         ? reasoningEffort
         : DEFAULT_USER_SETTINGS.chat.reasoningEffort,
+      serviceTier: VALID_SERVICE_TIERS.has(serviceTier)
+        ? serviceTier
+        : DEFAULT_USER_SETTINGS.chat.serviceTier,
     },
   };
 }

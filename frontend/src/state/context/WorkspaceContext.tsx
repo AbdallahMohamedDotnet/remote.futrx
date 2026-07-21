@@ -75,6 +75,7 @@ export function WorkspaceProvider({
       model: settings.chat.model,
       mode: settings.chat.mode,
       reasoningEffort: settings.chat.reasoningEffort,
+      serviceTier: settings.chat.serviceTier,
       ...(projectId ? { projectId } : {}),
     };
     const chat = await chatApi.create(input);

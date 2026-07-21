@@ -83,6 +83,13 @@ func (s *Service) Update(ctx context.Context, key Key, input UpdateInput) (Setti
 			}
 			settings.Chat.ReasoningEffort = effort
 		}
+		if input.Chat.ServiceTier != nil {
+			tier := normalizeServiceTier(*input.Chat.ServiceTier)
+			if !ValidServiceTier(tier) {
+				return Settings{}, ErrInvalidServiceTier
+			}
+			settings.Chat.ServiceTier = tier
+		}
 	}
 
 	settings.UpdatedAt = time.Now().UnixMilli()
@@ -107,6 +114,10 @@ func normalize(settings Settings) Settings {
 	if !ValidReasoningEffort(settings.Chat.ReasoningEffort) {
 		settings.Chat.ReasoningEffort = defaults.Chat.ReasoningEffort
 	}
+	settings.Chat.ServiceTier = normalizeServiceTier(settings.Chat.ServiceTier)
+	if !ValidServiceTier(settings.Chat.ServiceTier) {
+		settings.Chat.ServiceTier = defaults.Chat.ServiceTier
+	}
 	return settings
 }
 
@@ -120,4 +131,8 @@ func normalizeChatMode(mode ChatMode) ChatMode {
 
 func normalizeReasoningEffort(effort ReasoningEffort) ReasoningEffort {
 	return ReasoningEffort(strings.ToLower(strings.TrimSpace(string(effort))))
+}
+
+func normalizeServiceTier(tier ServiceTier) ServiceTier {
+	return ServiceTier(strings.ToLower(strings.TrimSpace(string(tier))))
 }

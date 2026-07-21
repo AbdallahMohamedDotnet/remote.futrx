@@ -160,6 +160,7 @@ func (rnr *Service) runPrompt(
 		Fork:           meta.ForkPending,
 		Config: map[string]any{
 			"reasoningEffort": meta.ReasoningEffort,
+			"serviceTier":     meta.ServiceTier,
 		},
 		EnableBrowser: enableBrowser,
 	}, func(ev agent.Event) {

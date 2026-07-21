@@ -89,7 +89,8 @@ func sendUserSettingsError(w http.ResponseWriter, err error) {
 	case errors.Is(err, serviceusersettings.ErrInvalidTheme),
 		errors.Is(err, serviceusersettings.ErrInvalidChatProvider),
 		errors.Is(err, serviceusersettings.ErrInvalidChatMode),
-		errors.Is(err, serviceusersettings.ErrInvalidReasoningEffort):
+		errors.Is(err, serviceusersettings.ErrInvalidReasoningEffort),
+		errors.Is(err, serviceusersettings.ErrInvalidServiceTier):
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())

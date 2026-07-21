@@ -33,6 +33,7 @@ type Meta struct {
 	Model           string     `json:"model,omitempty"`
 	Mode            string     `json:"mode,omitempty"`
 	ReasoningEffort string     `json:"reasoningEffort,omitempty"`
+	ServiceTier     string     `json:"serviceTier,omitempty"`
 	ProjectID       ProjectID  `json:"projectId,omitempty"`
 	ForkPending     bool       `json:"forkPending,omitempty"`
 	SelectedSkills  []SkillRef `json:"selectedSkills,omitempty"`
@@ -88,6 +89,7 @@ type CreateInput struct {
 	Model           string     `json:"model,omitempty"`
 	Mode            string     `json:"mode,omitempty"`
 	ReasoningEffort string     `json:"reasoningEffort,omitempty"`
+	ServiceTier     string     `json:"serviceTier,omitempty"`
 	ProjectID       ProjectID  `json:"projectId,omitempty"`
 	SelectedSkills  []SkillRef `json:"selectedSkills,omitempty"`
 }
@@ -99,6 +101,7 @@ type UpdateInput struct {
 	Model           *string     `json:"model,omitempty"`
 	Mode            *string     `json:"mode,omitempty"`
 	ReasoningEffort *string     `json:"reasoningEffort,omitempty"`
+	ServiceTier     *string     `json:"serviceTier,omitempty"`
 	SelectedSkills  *[]SkillRef `json:"selectedSkills,omitempty"`
 }
 
@@ -129,6 +132,23 @@ func NormalizeReasoningEffort(effort string) string {
 		return "xhigh"
 	case "max":
 		return "max"
+	case "ultra":
+		return "ultra"
+	default:
+		return ""
+	}
+}
+
+// NormalizeServiceTier maps codex service_tier values we expose (default,
+// priority). "" = Auto (omit the flag). Unknown values collapse to "".
+func NormalizeServiceTier(tier string) string {
+	switch strings.ToLower(strings.TrimSpace(tier)) {
+	case "default":
+		return "default"
+	case "priority":
+		return "priority"
+	case "fast":
+		return "fast"
 	default:
 		return ""
 	}

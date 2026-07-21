@@ -1,4 +1,4 @@
-import type { ChatMode, ChatProvider, ReasoningEffort } from "../models/chat";
+import type { ChatMode, ChatProvider, ReasoningEffort, ServiceTier } from "../models/chat";
 
 export const PROVIDER_OPTIONS: Array<{ value: ChatProvider; label: string }> = [
   { value: "codex", label: "Codex" },
@@ -46,8 +46,8 @@ type ReasoningEffortOption = { value: ReasoningEffort; label: string };
 
 // Reasoning-effort ladders differ per CLI (verified against each provider's
 // --help / config validation):
-//   Claude `claude --effort`:            low, medium, high, xhigh, max
-//   Codex  `-c model_reasoning_effort=`: none, minimal, low, medium, high, xhigh, max
+//   Claude `claude --effort`:            low, medium, high, xhigh, max, ultra
+//   Codex  `-c model_reasoning_effort=`: none, minimal, low, medium, high, xhigh, max, ultra
 //   Kimi:  no reasoning/effort flag at all
 // "Auto" ("") omits the flag so the CLI/server picks its own default.
 const CLAUDE_REASONING_EFFORT_OPTIONS: ReasoningEffortOption[] = [
@@ -57,6 +57,7 @@ const CLAUDE_REASONING_EFFORT_OPTIONS: ReasoningEffortOption[] = [
   { value: "high", label: "High" },
   { value: "xhigh", label: "XHigh" },
   { value: "max", label: "Max" },
+  { value: "ultra", label: "Ultra" },
 ];
 
 const CODEX_REASONING_EFFORT_OPTIONS: ReasoningEffortOption[] = [
@@ -68,6 +69,7 @@ const CODEX_REASONING_EFFORT_OPTIONS: ReasoningEffortOption[] = [
   { value: "high", label: "High" },
   { value: "xhigh", label: "XHigh" },
   { value: "max", label: "Max" },
+  { value: "ultra", label: "Ultra" },
 ];
 
 export function reasoningEffortOptionsForProvider(
@@ -76,6 +78,26 @@ export function reasoningEffortOptionsForProvider(
   if (provider === "claude") return CLAUDE_REASONING_EFFORT_OPTIONS;
   if (provider === "kimi") return [];
   return CODEX_REASONING_EFFORT_OPTIONS;
+}
+
+type ServiceTierOption = { value: ServiceTier; label: string };
+
+// Codex `service_tier` is the only headless speed lever across our providers
+// (Claude's fast mode is interactive-only; Kimi has none). Values are
+// model-gated — the flagship advertises default/priority and unsupported tiers
+// are warned-and-omitted by the CLI. "Auto" ("") omits the flag entirely.
+const CODEX_SERVICE_TIER_OPTIONS: ServiceTierOption[] = [
+  { value: "", label: "Auto" },
+  { value: "default", label: "Default" },
+  { value: "priority", label: "Priority" },
+  { value: "fast", label: "Fast" },
+];
+
+export function serviceTierOptionsForProvider(
+  provider?: ChatProvider,
+): ServiceTierOption[] {
+  if (provider === "codex") return CODEX_SERVICE_TIER_OPTIONS;
+  return [];
 }
 
 export function providerDisplayLabel(provider?: ChatProvider): string {

@@ -21,6 +21,7 @@ type metaRecord struct {
 	Model           string           `json:"model,omitempty"`
 	Mode            string           `json:"mode,omitempty"`
 	ReasoningEffort string           `json:"reasoningEffort,omitempty"`
+	ServiceTier     string           `json:"serviceTier,omitempty"`
 	ProjectID       string           `json:"projectId,omitempty"`
 	ForkPending     bool             `json:"forkPending,omitempty"`
 	SelectedSkills  []skillRefRecord `json:"selectedSkills,omitempty"`
@@ -49,6 +50,7 @@ func metaRecordFromDomain(m servicechat.Meta) metaRecord {
 		Model:           m.Model,
 		Mode:            m.Mode,
 		ReasoningEffort: m.ReasoningEffort,
+		ServiceTier:     m.ServiceTier,
 		ProjectID:       string(m.ProjectID),
 		ForkPending:     m.ForkPending,
 		SelectedSkills:  skillRefRecordsFromDomain(m.SelectedSkills),
@@ -76,6 +78,7 @@ func (r metaRecord) toDomain() servicechat.Meta {
 		Model:           r.Model,
 		Mode:            r.Mode,
 		ReasoningEffort: servicechat.NormalizeReasoningEffort(r.ReasoningEffort),
+		ServiceTier:     servicechat.NormalizeServiceTier(r.ServiceTier),
 		ProjectID:       servicechat.ProjectID(r.ProjectID),
 		ForkPending:     r.ForkPending,
 		SelectedSkills:  servicechat.NormalizeSelectedSkills(skillRefRecordsToDomain(r.SelectedSkills), provider),

@@ -102,6 +102,7 @@ function sameChats(a: ChatMeta[], b: ChatMeta[]): boolean {
       left.model !== right.model ||
       left.mode !== right.mode ||
       left.reasoningEffort !== right.reasoningEffort ||
+      left.serviceTier !== right.serviceTier ||
       left.projectId !== right.projectId
     ) {
       return false;

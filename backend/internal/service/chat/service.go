@@ -83,6 +83,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		Model:           in.Model,
 		Mode:            mode,
 		ReasoningEffort: NormalizeReasoningEffort(in.ReasoningEffort),
+		ServiceTier:     NormalizeServiceTier(in.ServiceTier),
 		ProjectID:       in.ProjectID,
 		SelectedSkills:  NormalizeSelectedSkills(in.SelectedSkills, provider),
 	})
@@ -129,6 +130,7 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 		Model:           src.Model,
 		Mode:            src.Mode,
 		ReasoningEffort: src.ReasoningEffort,
+		ServiceTier:     src.ServiceTier,
 		ProjectID:       src.ProjectID,
 		SelectedSkills:  src.SelectedSkills,
 		ForkPending:     forkPending,
@@ -176,6 +178,9 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		}
 		if in.ReasoningEffort != nil {
 			m.ReasoningEffort = NormalizeReasoningEffort(*in.ReasoningEffort)
+		}
+		if in.ServiceTier != nil {
+			m.ServiceTier = NormalizeServiceTier(*in.ServiceTier)
 		}
 		if in.SelectedSkills != nil {
 			m.SelectedSkills = NormalizeSelectedSkills(*in.SelectedSkills, m.Provider)

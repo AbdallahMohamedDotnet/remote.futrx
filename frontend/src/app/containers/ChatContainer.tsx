@@ -113,6 +113,7 @@ export function ChatContainer({
             onModelChange={preferences.changeModel}
             onModeChange={preferences.changeMode}
             onReasoningEffortChange={preferences.changeReasoningEffort}
+            onServiceTierChange={preferences.changeServiceTier}
             onSelectSkill={preferences.selectSkill}
             onRemoveSelectedSkill={preferences.removeSelectedSkill}
             onOpenTerminal={terminal.openTerminal}

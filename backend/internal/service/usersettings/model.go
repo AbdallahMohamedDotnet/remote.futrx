@@ -9,6 +9,7 @@ var (
 	ErrInvalidChatProvider    = errors.New("invalid chat provider")
 	ErrInvalidChatMode        = errors.New("invalid chat mode")
 	ErrInvalidReasoningEffort = errors.New("invalid reasoning effort")
+	ErrInvalidServiceTier     = errors.New("invalid service tier")
 )
 
 type Key string
@@ -63,6 +64,16 @@ const (
 	ReasoningEffortHigh    ReasoningEffort = "high"
 	ReasoningEffortXHigh   ReasoningEffort = "xhigh"
 	ReasoningEffortMax     ReasoningEffort = "max"
+	ReasoningEffortUltra   ReasoningEffort = "ultra"
+)
+
+type ServiceTier string
+
+const (
+	ServiceTierAuto     ServiceTier = ""
+	ServiceTierDefault  ServiceTier = "default"
+	ServiceTierPriority ServiceTier = "priority"
+	ServiceTierFast     ServiceTier = "fast"
 )
 
 type Chat struct {
@@ -70,6 +81,7 @@ type Chat struct {
 	Model           string          `json:"model"`
 	Mode            ChatMode        `json:"mode"`
 	ReasoningEffort ReasoningEffort `json:"reasoningEffort"`
+	ServiceTier     ServiceTier     `json:"serviceTier"`
 }
 
 type UpdateInput struct {
@@ -86,6 +98,7 @@ type ChatUpdate struct {
 	Model           *string          `json:"model,omitempty"`
 	Mode            *ChatMode        `json:"mode,omitempty"`
 	ReasoningEffort *ReasoningEffort `json:"reasoningEffort,omitempty"`
+	ServiceTier     *ServiceTier     `json:"serviceTier,omitempty"`
 }
 
 func DefaultSettings() Settings {
@@ -96,6 +109,7 @@ func DefaultSettings() Settings {
 			Model:           "",
 			Mode:            ChatModeCode,
 			ReasoningEffort: ReasoningEffortAuto,
+			ServiceTier:     ServiceTierAuto,
 		},
 	}
 }
@@ -129,7 +143,16 @@ func ValidChatMode(mode ChatMode) bool {
 
 func ValidReasoningEffort(effort ReasoningEffort) bool {
 	switch effort {
-	case ReasoningEffortAuto, ReasoningEffortNone, ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax:
+	case ReasoningEffortAuto, ReasoningEffortNone, ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax, ReasoningEffortUltra:
+		return true
+	default:
+		return false
+	}
+}
+
+func ValidServiceTier(tier ServiceTier) bool {
+	switch tier {
+	case ServiceTierAuto, ServiceTierDefault, ServiceTierPriority, ServiceTierFast:
 		return true
 	default:
 		return false

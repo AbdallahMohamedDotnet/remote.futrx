@@ -65,6 +65,8 @@ func reasoningEffortFromConfig(config map[string]any) string {
 		return "xhigh"
 	case "max":
 		return "max"
+	case "ultra":
+		return "ultra"
 	default:
 		return ""
 	}

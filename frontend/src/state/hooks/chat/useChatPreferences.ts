@@ -4,6 +4,7 @@ import type {
   ChatProvider,
   ReasoningEffort,
   SelectedSkill,
+  ServiceTier,
 } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import { useUserSettingsContext } from "../../context/UserSettingsContext";
@@ -28,14 +29,15 @@ export function useChatPreferences({
     model: baseMeta.model ?? settings.chat.model,
     mode: displayMode,
     reasoningEffort: baseMeta.reasoningEffort ?? settings.chat.reasoningEffort,
+    serviceTier: baseMeta.serviceTier ?? settings.chat.serviceTier,
   };
   const selectedSkills = displayMeta.selectedSkills || [];
   const metaActions = useChatMetaActions({ chatId: chat.id, refreshMeta });
 
   function changeProvider(provider: ChatProvider) {
     if (provider === displayProvider) return;
-    metaActions.applyMeta({ provider, model: "", reasoningEffort: "", selectedSkills: [] });
-    void setChatSettings({ provider, model: "", reasoningEffort: "" });
+    metaActions.applyMeta({ provider, model: "", reasoningEffort: "", serviceTier: "", selectedSkills: [] });
+    void setChatSettings({ provider, model: "", reasoningEffort: "", serviceTier: "" });
   }
 
   function selectSkill(skill: RegisteredSkill) {
@@ -73,6 +75,11 @@ export function useChatPreferences({
     void setChatSettings({ reasoningEffort });
   }
 
+  function changeServiceTier(serviceTier: ServiceTier) {
+    metaActions.applyMeta({ serviceTier });
+    void setChatSettings({ serviceTier });
+  }
+
   return {
     displayMeta,
     displayMode,
@@ -81,6 +88,7 @@ export function useChatPreferences({
     changeModel,
     changeMode,
     changeReasoningEffort,
+    changeServiceTier,
     selectSkill,
     removeSelectedSkill,
   };

@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, ReasoningEffort, SelectedSkill } from "../../models/chat";
+import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, ReasoningEffort, SelectedSkill, ServiceTier } from "../../models/chat";
 import type { ChatMessageBlock } from "../../models/chatMessage";
 import type { Attachment } from "../../models/upload";
 import type { RegisteredSkill } from "../../models/skill";
@@ -49,6 +49,7 @@ export function ChatThread({
   onModelChange,
   onModeChange,
   onReasoningEffortChange,
+  onServiceTierChange,
   onSelectSkill,
   onRemoveSelectedSkill,
   onOpenTerminal,
@@ -96,6 +97,7 @@ export function ChatThread({
   onModelChange: (model: string) => void;
   onModeChange: (mode: ChatMode) => void;
   onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
+  onServiceTierChange: (serviceTier: ServiceTier) => void;
   onSelectSkill: (skill: RegisteredSkill) => void;
   onRemoveSelectedSkill: (skill: SelectedSkill) => void;
   onOpenTerminal: () => void;
@@ -144,6 +146,7 @@ export function ChatThread({
         provider={chat.provider || "codex"}
         mode={mode}
         reasoningEffort={chat.reasoningEffort || ""}
+        serviceTier={chat.serviceTier || ""}
         queuedPrompts={queuedPrompts}
         selectedSkills={selectedSkills}
         draftText={draftText}
@@ -165,6 +168,7 @@ export function ChatThread({
         onModelChange={onModelChange}
         onModeChange={onModeChange}
         onReasoningEffortChange={onReasoningEffortChange}
+        onServiceTierChange={onServiceTierChange}
         onSelectSkill={onSelectSkill}
         onRemoveSelectedSkill={onRemoveSelectedSkill}
       />
