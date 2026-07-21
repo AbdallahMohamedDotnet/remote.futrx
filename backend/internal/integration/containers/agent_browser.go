@@ -81,7 +81,7 @@ func (b *agentBrowser) ensure(ctx context.Context, containerName, verb, label st
 	cancelC()
 	if stackErr != nil {
 		ictx, cancelI := context.WithTimeout(ctx, agentBrowserInstallTimeout)
-		out, err := b.lxc.Run(ictx, "exec", containerName, "--", "bash", "-c", agentBrowserInstallScript)
+		out, err := b.lxc.Run(ictx, "exec", containerName, "--", "bash", "-c", agentBrowserInstallScript())
 		cancelI()
 		if err != nil {
 			return fmt.Errorf("install agent browser stack: %w; output: %s", err, truncateOut(out, 2000))
