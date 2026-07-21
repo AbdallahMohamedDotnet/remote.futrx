@@ -13,7 +13,6 @@ import (
 	"time"
 
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
@@ -28,21 +27,13 @@ const returnToCookieName = "return_to"
 // gate project subdomains on membership instead of just authentication.
 var projectVerifyHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.(.+)$`)
 
-// ProjectAccessGate is what AuthHandler needs from the project service to
-// gate per-project subdomains. Declared as a small interface so the handler
-// can be used in tests without standing up a full *project.Service.
-type ProjectAccessGate interface {
-	GetBySlug(ctx context.Context, slug string) (serviceproject.Meta, error)
-	HasAccess(ctx context.Context, id serviceproject.ID, email string) (bool, error)
-}
-
 type AuthHandler struct {
-	auth     *serviceauth.Service
-	projects ProjectAccessGate
+	auth   *serviceauth.Service
+	access *serviceauth.AccessVerifier
 }
 
-func NewAuthHandler(auth *serviceauth.Service, projects ProjectAccessGate) *AuthHandler {
-	return &AuthHandler{auth: auth, projects: projects}
+func NewAuthHandler(auth *serviceauth.Service, access *serviceauth.AccessVerifier) *AuthHandler {
+	return &AuthHandler{auth: auth, access: access}
 }
 
 func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -157,9 +148,6 @@ func (h *AuthHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
-	session, sessionErr := h.auth.CurrentSession(sessionCookieValue(r))
-	authenticated := sessionErr == nil && session != nil
-
 	// Determine whether the request is for a per-project preview subdomain
 	// (`<slug>--<port>.dev.<base-host>`) so we can gate on project
 	// membership instead of plain authentication.
@@ -173,41 +161,20 @@ func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if matchedSlug != "" && h.projects != nil {
-		if !authenticated {
-			h.redirectToLogin(w, r)
-			return
-		}
-		proj, err := h.projects.GetBySlug(r.Context(), matchedSlug)
-		if err != nil {
-			// Unknown slug or DB error: treat as not-found to be safe.
-			http.Error(w, "no such project", http.StatusNotFound)
-			return
-		}
-		// Admins always pass; otherwise check membership.
-		isAdmin, _ := h.auth.IsAdmin(r.Context(), session.Email)
-		if !isAdmin {
-			ok, _ := h.projects.HasAccess(r.Context(), proj.ID, session.Email)
-			if !ok {
-				http.Error(w, "forbidden - not a member of this project", http.StatusForbidden)
-				return
-			}
-		}
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	// Non-project request (main UI, code-server, etc.): any registered user
-	// passes. Unauthenticated → bounce to login.
-	if !authenticated {
+	err := h.access.Verify(r.Context(), sessionCookieValue(r), matchedSlug)
+	switch {
+	case errors.Is(err, serviceauth.ErrAuthenticationRequired):
 		h.redirectToLogin(w, r)
-		return
-	}
-	if ok, _ := h.auth.IsRegistered(r.Context(), session.Email); ok {
+	case errors.Is(err, serviceauth.ErrProjectNotFound):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, serviceauth.ErrProjectAccessDenied),
+		errors.Is(err, serviceauth.ErrAccountNotAuthorized):
+		http.Error(w, err.Error(), http.StatusForbidden)
+	case err != nil:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	default:
 		w.WriteHeader(http.StatusOK)
-		return
 	}
-	http.Error(w, "account not authorized", http.StatusForbidden)
 }
 
 func (h *AuthHandler) redirectToLogin(w http.ResponseWriter, r *http.Request) {

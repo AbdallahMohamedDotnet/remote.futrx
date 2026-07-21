@@ -38,7 +38,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	var auth httptransport.RouteRegistrar
 	var middleware httptransport.Middleware
 	if deps.Services.Auth != nil {
-		auth = httphandlers.NewAuthHandler(deps.Services.Auth, deps.Services.Projects)
+		auth = httphandlers.NewAuthHandler(deps.Services.Auth, deps.Services.Access)
 		middleware = httpmiddleware.NewAuth(deps.Services.Auth)
 	}
 

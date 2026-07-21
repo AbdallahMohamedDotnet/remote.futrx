@@ -59,6 +59,7 @@ type Services struct {
 	UserSettings *serviceusersettings.Service
 	Skills       *serviceskills.Catalog
 	Tmux         *servicetmux.Service
+	Access       *serviceauth.AccessVerifier
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -135,6 +136,10 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	userSettingsService := serviceusersettings.New(deps.UserSettings)
 	skillService := serviceskills.New()
 	skillCatalog := serviceskills.NewCatalog(skillService, projectService, authService)
+	var accessVerifier *serviceauth.AccessVerifier
+	if authService != nil {
+		accessVerifier = serviceauth.NewAccessVerifier(authService, projectService)
+	}
 	var tmuxService *servicetmux.Service
 	if deps.TmuxClient != nil {
 		tmuxService = servicetmux.NewSessions(deps.TmuxClient)
@@ -152,6 +157,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		UserSettings: userSettingsService,
 		Skills:       skillCatalog,
 		Tmux:         tmuxService,
+		Access:       accessVerifier,
 	}, nil
 }
 
