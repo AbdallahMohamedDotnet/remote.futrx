@@ -9,6 +9,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
+	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -54,7 +55,7 @@ type Services struct {
 	Chats        *servicechat.Service
 	Projects     *serviceproject.Service
 	Prompt       *prompt.Service
-	AgentAuth    AgentAuthCallers
+	AgentAuth    *agentauth.Registry
 	Runs         *runhub.Hub
 	Workspace    *workspacehub.Hub
 	Auth         *serviceauth.Service
@@ -96,7 +97,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		runs,
 	)
 	agents := agent.NewRegistry()
-	agentAuth := AgentAuthCallers{}
+	agentAuth := agentauth.NewRegistry()
 	for index, definition := range definitions {
 		provider := definition.provider(projectService, deps.Containers)
 		if string(provider.ID()) != profiles[index].ID {
@@ -108,7 +109,16 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		if err := agents.Register(provider); err != nil {
 			return Services{}, err
 		}
-		definition.configureAuth(&agentAuth)
+		authBinding := definition.authBinding()
+		if authBinding.ID() != provider.ID() {
+			return Services{}, fmt.Errorf(
+				"agent auth registration mismatch: binding %q has provider %q",
+				authBinding.ID(), provider.ID(),
+			)
+		}
+		if err := agentAuth.Register(authBinding); err != nil {
+			return Services{}, err
+		}
 	}
 	promptService := prompt.New(
 		chats,

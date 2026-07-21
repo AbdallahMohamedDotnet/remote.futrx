@@ -3,6 +3,8 @@ package service
 import (
 	"slices"
 	"testing"
+
+	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
 )
 
 func TestAgentProfilesComeFromRegistrationCatalog(t *testing.T) {
@@ -19,6 +21,29 @@ func TestAgentProfilesComeFromRegistrationCatalog(t *testing.T) {
 	}
 	if want := []string{"claude", "codex", "kimi"}; !slices.Equal(ids, want) {
 		t.Fatalf("profile IDs = %v, want %v", ids, want)
+	}
+}
+
+func TestAgentAuthBindingsComeFromRegistrationCatalog(t *testing.T) {
+	definitions := agentDefinitions()
+	registry := agentauth.NewRegistry()
+	ids := make([]string, 0, len(definitions))
+	for _, definition := range definitions {
+		binding := definition.authBinding()
+		profile := definition.profile()
+		if string(binding.ID()) != profile.ID {
+			t.Fatalf("auth binding %q has profile %q", binding.ID(), profile.ID)
+		}
+		if !binding.Available() {
+			t.Fatalf("auth binding %q is unavailable", binding.ID())
+		}
+		if err := registry.Register(binding); err != nil {
+			t.Fatalf("register auth binding %q: %v", binding.ID(), err)
+		}
+		ids = append(ids, string(binding.ID()))
+	}
+	if want := []string{"claude", "codex", "kimi"}; !slices.Equal(ids, want) {
+		t.Fatalf("auth binding IDs = %v, want %v", ids, want)
 	}
 }
 

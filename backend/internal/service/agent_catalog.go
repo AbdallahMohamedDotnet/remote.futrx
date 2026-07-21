@@ -10,27 +10,13 @@ import (
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
-// AgentAuthCallers are the agent-facing adapters configured over the shared
-// service/agent/auth lifecycle implementation.
-type AgentAuthCallers struct {
-	Claude *claudeagent.Auth
-	Codex  *codexagent.Auth
-	Kimi   *kimiagent.Auth
-
-	bindings []agentauth.Binding
-}
-
-func (c AgentAuthCallers) Bindings() []agentauth.Binding {
-	return append([]agentauth.Binding(nil), c.bindings...)
-}
-
 // agentDefinition is the single composition catalog for one agent. Adding an
 // agent means adding one entry with its provider, provisioning profile, and
 // shared-auth caller configuration.
 type agentDefinition struct {
-	profile       func() provisioning.Profile
-	provider      func(*serviceproject.Service, provisioning.Container) agent.Provider
-	configureAuth func(*AgentAuthCallers)
+	profile     func() provisioning.Profile
+	provider    func(*serviceproject.Service, provisioning.Container) agent.Provider
+	authBinding func() agentauth.Binding
 }
 
 func agentDefinitions() []agentDefinition {
@@ -40,10 +26,8 @@ func agentDefinitions() []agentDefinition {
 			provider: func(projects *serviceproject.Service, containers provisioning.Container) agent.Provider {
 				return claudeagent.New(projects, containers)
 			},
-			configureAuth: func(auth *AgentAuthCallers) {
-				auth.Claude = claudeagent.NewAuth()
-				auth.bindings = append(auth.bindings,
-					agentauth.NewCodeBinding(agent.ProviderClaude, auth.Claude))
+			authBinding: func() agentauth.Binding {
+				return agentauth.NewCodeBinding(agent.ProviderClaude, claudeagent.NewAuth())
 			},
 		},
 		{
@@ -51,10 +35,8 @@ func agentDefinitions() []agentDefinition {
 			provider: func(projects *serviceproject.Service, containers provisioning.Container) agent.Provider {
 				return codexagent.New(projects, containers)
 			},
-			configureAuth: func(auth *AgentAuthCallers) {
-				auth.Codex = codexagent.NewAuth()
-				auth.bindings = append(auth.bindings,
-					agentauth.NewDeviceBinding(agent.ProviderCodex, auth.Codex))
+			authBinding: func() agentauth.Binding {
+				return agentauth.NewDeviceBinding(agent.ProviderCodex, codexagent.NewAuth())
 			},
 		},
 		{
@@ -62,17 +44,15 @@ func agentDefinitions() []agentDefinition {
 			provider: func(projects *serviceproject.Service, containers provisioning.Container) agent.Provider {
 				return kimiagent.New(projects, containers)
 			},
-			configureAuth: func(auth *AgentAuthCallers) {
-				auth.Kimi = kimiagent.NewAuth()
-				auth.bindings = append(auth.bindings,
-					agentauth.NewDeviceBinding(agent.ProviderKimi, auth.Kimi))
+			authBinding: func() agentauth.Binding {
+				return agentauth.NewDeviceBinding(agent.ProviderKimi, kimiagent.NewAuth())
 			},
 		},
 	}
 }
 
 // AgentProfiles returns the container-facing profiles from the same catalog
-// used to register providers and configure their auth callers.
+// used to register providers and their auth callers.
 func AgentProfiles() []provisioning.Profile {
 	return profilesFromDefinitions(agentDefinitions())
 }
