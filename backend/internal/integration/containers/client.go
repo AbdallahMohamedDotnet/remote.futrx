@@ -62,8 +62,9 @@ func New(client CommandRunner) *Client {
 		templates: templatePublisher{lxc: client},
 	}
 	containerClient.lifecycle = containerLifecycle{
-		lxc:   client,
-		image: defaultImage,
+		lxc:       client,
+		image:     defaultImage,
+		workspace: hostWorkspacePreparer{uid: hostMappedUID, gid: hostMappedUID},
 	}
 	inspectionCommands := &quickCommandRunner{lxc: client, timeout: inspectQuickTimeout}
 	containerClient.inspector = containerInspector{

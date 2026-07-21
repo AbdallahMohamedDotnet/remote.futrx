@@ -8,17 +8,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
-// containerLifecycle owns host workspace preparation, container state
-// transitions, workspace attachment, and launch-time capability orchestration.
+// containerLifecycle owns container state transitions, workspace attachment,
+// and launch-time capability orchestration.
 type containerLifecycle struct {
 	lxc         CommandRunner
 	image       string
+	workspace   hostWorkspacePreparer
 	provisioner *containerLaunchProvisioner
 }
 
@@ -31,11 +31,8 @@ func (l *containerLifecycle) launch(ctx context.Context, p serviceproject.Meta) 
 		return errors.New("lxc CLI not found on PATH - install LXD on the host first")
 	}
 
-	if err := os.MkdirAll(p.Cwd, 0o755); err != nil {
-		return fmt.Errorf("create workspace dir: %w", err)
-	}
-	if err := chownRecursively(p.Cwd, hostMappedUID, hostMappedUID); err != nil {
-		return fmt.Errorf("chown workspace: %w", err)
+	if err := l.workspace.prepare(p.Cwd); err != nil {
+		return err
 	}
 
 	state, err := l.state(ctx, p.ContainerName)
@@ -194,27 +191,4 @@ func (l *containerLifecycle) state(ctx context.Context, containerName string) (s
 		}
 	}
 	return serviceproject.ContainerStateUnknown, nil
-}
-
-func chownRecursively(path string, uid, gid int) error {
-	if err := os.Chown(path, uid, gid); err != nil {
-		return err
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() {
-		return nil
-	}
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		if err := chownRecursively(path+"/"+e.Name(), uid, gid); err != nil {
-			return err
-		}
-	}
-	return nil
 }
