@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { AgentBrowserInfo, AgentBrowserStatus } from "../../../models/project";
 import { projectApi } from "../../../api/projectApi";
 
-export type { AgentBrowserStatus };
-
 const pollIntervalMs = 1500;
 const heartbeatIntervalMs = 15000;
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import type { BrowserElementCapture } from "../../../models/browser";
 import type { ContainerApp } from "../../../models/project";
 import { useAgentBrowserSession } from "../../../state/hooks/chat/useAgentBrowserSession";
 import { BrowserDrawerHeader } from "./BrowserDrawerHeader";
@@ -6,9 +7,6 @@ import { BrowserFrame } from "./BrowserFrame";
 import { BrowserGuiView } from "./BrowserGuiView";
 import { BrowserResizeHandle } from "./BrowserResizeHandle";
 import { buildBrowserUrl, buildInspectorUrl } from "./browserUrls";
-import type { BrowserElementCapture } from "./types";
-
-export type { BrowserElementCapture } from "./types";
 
 const browserWidthKey = "remote.futrx.browserDrawerWidth";
 const defaultBrowserWidth = 720;
