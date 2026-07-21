@@ -19,13 +19,14 @@ import (
 	"log"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
+	containerbaseimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/baseimage"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 )
 
 func main() {
-	alias := flag.String("alias", containers.BaseImageAlias, "image alias to publish under")
+	alias := flag.String("alias", containerbaseimage.Alias, "image alias to publish under")
 	overwrite := flag.Bool("overwrite", false, "delete any existing image at -alias before publishing")
 	flag.Parse()
 
@@ -35,7 +36,7 @@ func main() {
 	if !lxcClient.Available() {
 		log.Fatalf("lxc CLI not found on PATH - install LXD on the host first")
 	}
-	containerClient := containers.New(lxcClient, service.AgentProfiles())
+	containerStack := config.NewContainerStack(lxcClient, service.AgentProfiles())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
@@ -48,10 +49,10 @@ func main() {
 		}
 	}
 
-	log.Printf("building %q from %q...", *alias, containers.BaseImageSourceImage)
+	log.Printf("building %q from %q...", *alias, containerbaseimage.SourceImage)
 	log.Printf("(this typically takes 60-120s — apt update + nodejs + npm install -g @anthropic-ai/claude-code)")
 
-	if err := containerClient.BuildBaseImage(ctx, *alias); err != nil {
+	if err := containerStack.Images.Build(ctx, *alias); err != nil {
 		log.Fatalf("build failed: %v", err)
 	}
 

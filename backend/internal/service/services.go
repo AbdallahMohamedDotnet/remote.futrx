@@ -31,23 +31,19 @@ type TmuxCwdClient interface {
 	Cwd(session string) (string, error)
 }
 
-type ContainerManager interface {
-	serviceproject.ContainerManager
-	provisioning.Container
-}
-
 type Dependencies struct {
-	Chats          servicechat.Repository
-	Projects       serviceproject.Repository
-	ProjectSecrets serviceproject.SecretsRepository
-	ProjectAccess  serviceproject.AccessRepository
-	Auth           AuthStore
-	Users          serviceuser.Repository
-	UserSettings   serviceusersettings.Repository
-	AuthBaseURL    string
-	Containers     ContainerManager
-	TmuxClient     TmuxCwdClient
-	ValidTmuxName  func(string) bool
+	Chats             servicechat.Repository
+	Projects          serviceproject.Repository
+	ProjectSecrets    serviceproject.SecretsRepository
+	ProjectAccess     serviceproject.AccessRepository
+	Auth              AuthStore
+	Users             serviceuser.Repository
+	UserSettings      serviceusersettings.Repository
+	AuthBaseURL       string
+	ProjectContainers serviceproject.ContainerDependencies
+	AgentContainers   provisioning.ContainerDependencies
+	TmuxClient        TmuxCwdClient
+	ValidTmuxName     func(string) bool
 }
 
 type Services struct {
@@ -76,7 +72,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
 	definitions := agentDefinitions()
 	profiles := profilesFromDefinitions(definitions)
-	projectService := serviceproject.New(projects, deps.Containers, deps.ProjectSecrets, deps.ProjectAccess)
+	projectService := serviceproject.New(projects, deps.ProjectContainers, deps.ProjectSecrets, deps.ProjectAccess)
 	projectService.StartAgentBrowserReaper(ctx, 20*time.Minute)
 	runs = runhub.New(chats)
 	runs.SetRunningSubscriber(func(id servicechat.ID, _ bool) {
@@ -97,7 +93,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	agents := agent.NewRegistry()
 	agentAuth := agentauth.NewRegistry()
 	for index, definition := range definitions {
-		provider := definition.provider(projectService, deps.Containers)
+		provider := definition.provider(projectService, deps.AgentContainers)
 		if string(provider.ID()) != profiles[index].ID {
 			return Services{}, fmt.Errorf(
 				"agent registration mismatch: provider %q has profile %q",

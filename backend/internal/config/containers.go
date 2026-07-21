@@ -20,6 +20,7 @@ import (
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/launch"
 	servicelifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/lifecycle"
 	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
 const hostMappedUID = 1000000
@@ -37,6 +38,32 @@ type ContainerStack struct {
 	Network     *containernetwork.Repairer
 	Workspace   *containerworkspace.Provisioner
 	Images      *containerbaseimage.Builder
+}
+
+// ProjectDependencies exposes only the capabilities consumed by project
+// policy. Each capability can be replaced independently in tests or by a
+// different runtime adapter.
+func (s ContainerStack) ProjectDependencies() serviceproject.ContainerDependencies {
+	return serviceproject.ContainerDependencies{
+		Lifecycle:   s.Lifecycle,
+		Environment: s.Environment,
+		Inspector:   s.Inspection,
+		Network:     s.Network,
+		Listeners:   s.Listeners,
+		Browser:     s.Browser,
+	}
+}
+
+// AgentDependencies exposes only the capabilities used while preparing a
+// container for an agent provider.
+func (s ContainerStack) AgentDependencies() provisioning.ContainerDependencies {
+	return provisioning.ContainerDependencies{
+		CLI:         s.CLI,
+		Credentials: s.Credentials,
+		Workspace:   s.Workspace,
+		Browser:     s.Browser,
+		Lifecycle:   s.Lifecycle,
+	}
 }
 
 func NewContainerStack(runner command.Runner, configuredProfiles []provisioning.Profile) ContainerStack {
