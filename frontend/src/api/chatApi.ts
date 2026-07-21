@@ -12,6 +12,7 @@ import {
   DEFAULT_CHAT_HISTORY_COMMIT_LIMIT,
   DIRTY_WORKING_TREE_FALLBACK_MESSAGE,
 } from "../config/api";
+import { CHAT_STREAM_MESSAGE_TYPES } from "../config/protocol";
 
 export const chatApi = {
   list: () => requestJson<ChatMeta[]>("GET", API_ROUTES.chats.collection),
@@ -127,11 +128,11 @@ class ReconnectingChatStream implements ChatStream {
   }
 
   sendPrompt(text: string): boolean {
-    return this.#connection.send({ type: "prompt", text });
+    return this.#connection.send({ type: CHAT_STREAM_MESSAGE_TYPES.prompt, text });
   }
 
   cancel(): boolean {
-    return this.#connection.send({ type: "cancel" });
+    return this.#connection.send({ type: CHAT_STREAM_MESSAGE_TYPES.cancel });
   }
 
   close(): void {

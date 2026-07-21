@@ -6,6 +6,7 @@ import type {
 } from "../types/terminal";
 import { WEB_SOCKET_ROUTES } from "../config/routes";
 import { TERMINAL_WEB_SOCKET_BINARY_TYPE } from "../config/terminal";
+import { TERMINAL_MESSAGE_TYPES } from "../config/protocol";
 
 export const terminalApi = {
   connect(chatId: string, callbacks: TerminalConnectionCallbacks): TerminalConnection {
@@ -37,12 +38,16 @@ class WebSocketTerminalConnection implements TerminalConnection {
 
   sendInput(data: string): void {
     if (!this.isOpen) return;
-    this.#connection.send(JSON.stringify({ type: "input", data }));
+    this.#connection.send(
+      JSON.stringify({ type: TERMINAL_MESSAGE_TYPES.input, data })
+    );
   }
 
   resize(cols: number, rows: number): void {
     if (!this.isOpen) return;
-    this.#connection.send(JSON.stringify({ type: "resize", cols, rows }));
+    this.#connection.send(
+      JSON.stringify({ type: TERMINAL_MESSAGE_TYPES.resize, cols, rows })
+    );
   }
 
   close(): void {
