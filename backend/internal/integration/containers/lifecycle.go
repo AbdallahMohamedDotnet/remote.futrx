@@ -14,54 +14,75 @@ import (
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
+type launchProvisioner interface {
+	EnsureRegisteredCredentials(context.Context, string) error
+	EnsureWorkspaceSkillLinks(context.Context, string) error
+	EnsureBrowserScript(context.Context, string) error
+	EnsureBrowserSkill(context.Context, string) error
+	EnsureAgentBrowserLimits(context.Context, string) error
+	EnsureCodeServer(context.Context, string, string) error
+}
+
+// containerLifecycle owns host workspace preparation, container state
+// transitions, workspace attachment, and launch-time capability orchestration.
+type containerLifecycle struct {
+	lxc         CommandRunner
+	image       string
+	provisioner launchProvisioner
+}
+
 func (c *Client) Launch(ctx context.Context, p serviceproject.Meta) error {
-	if !c.Available() {
+	return c.lifecycle.launch(ctx, p)
+}
+
+func (l *containerLifecycle) launch(ctx context.Context, p serviceproject.Meta) error {
+	if !l.lxc.Available() {
 		return errors.New("lxc CLI not found on PATH - install LXD on the host first")
 	}
 
 	if err := os.MkdirAll(p.Cwd, 0o755); err != nil {
 		return fmt.Errorf("create workspace dir: %w", err)
 	}
-	if err := chownRecursive(p.Cwd, hostMappedUID, hostMappedUID); err != nil {
+	if err := chownRecursively(p.Cwd, hostMappedUID, hostMappedUID); err != nil {
 		return fmt.Errorf("chown workspace: %w", err)
 	}
 
-	state, err := c.State(ctx, p.ContainerName)
+	state, err := l.state(ctx, p.ContainerName)
 	if err != nil {
 		return err
 	}
 	if state != serviceproject.ContainerStateMissing {
 		if state == serviceproject.ContainerStateStopped {
-			return c.Start(ctx, p.ContainerName)
+			return l.start(ctx, p.ContainerName)
 		}
 		return nil
 	}
 
 	lctx, cancel := context.WithTimeout(ctx, launchTimeout)
 	defer cancel()
-	if out, err := c.lxc.Run(lctx, "launch", c.image, p.ContainerName); err != nil {
+	if out, err := l.lxc.Run(lctx, "launch", l.image, p.ContainerName); err != nil {
 		return fmt.Errorf("lxc launch: %w; output: %s", err, out)
 	}
 
-	if err := c.attachDisk(ctx, p.ContainerName, "workspace", p.Cwd, containerWS, false); err != nil {
+	if err := l.attachDisk(ctx, p.ContainerName, "workspace", p.Cwd, containerWS, false); err != nil {
 		return fmt.Errorf("attach workspace: %w", err)
 	}
 
 	// Best-effort: a missing autostart bit or an unauthenticated provider
 	// should not block the container from coming up. Both are idempotent
 	// and will be retried on the next prompt.
-	_ = c.EnsureBootAutostart(ctx, p.ContainerName)
-	_ = c.EnsureRegisteredCredentials(ctx, p.ContainerName)
-	_ = c.EnsureWorkspaceSkillLinks(ctx, p.ContainerName)
-	_ = c.EnsureBrowserScript(ctx, p.ContainerName)
-	_ = c.EnsureBrowserSkill(ctx, p.ContainerName)
-	_ = c.EnsureAgentBrowserLimits(ctx, p.ContainerName)
-	_ = c.EnsureCodeServer(ctx, p.ContainerName, p.Name)
+	_ = l.ensureBootAutostart(ctx, p.ContainerName)
+	_ = l.provisioner.EnsureRegisteredCredentials(ctx, p.ContainerName)
+	_ = l.provisioner.EnsureWorkspaceSkillLinks(ctx, p.ContainerName)
+	_ = l.provisioner.EnsureBrowserScript(ctx, p.ContainerName)
+	_ = l.provisioner.EnsureBrowserSkill(ctx, p.ContainerName)
+	_ = l.provisioner.EnsureAgentBrowserLimits(ctx, p.ContainerName)
+	_ = l.provisioner.EnsureCodeServer(ctx, p.ContainerName, p.Name)
 
 	return nil
 }
 
-func (c *Client) attachDisk(ctx context.Context, container, deviceName, hostSrc, containerPath string, readonly bool) error {
+func (l *containerLifecycle) attachDisk(ctx context.Context, container, deviceName, hostSrc, containerPath string, readonly bool) error {
 	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 	args := []string{
@@ -72,7 +93,7 @@ func (c *Client) attachDisk(ctx context.Context, container, deviceName, hostSrc,
 	if readonly {
 		args = append(args, "readonly=true")
 	}
-	if out, err := c.lxc.Run(lctx, args...); err != nil {
+	if out, err := l.lxc.Run(lctx, args...); err != nil {
 		return fmt.Errorf("lxc config device add %s: %w; output: %s", deviceName, err, out)
 	}
 	return nil
@@ -84,25 +105,33 @@ func (c *Client) attachDisk(ctx context.Context, container, deviceName, hostSrc,
 // silently breaks anything time-driven (cron, systemd timers). Idempotent;
 // cheap; safe to call on every prompt as a migration for older containers.
 func (c *Client) EnsureBootAutostart(ctx context.Context, containerName string) error {
-	if !c.Available() {
+	return c.lifecycle.ensureBootAutostart(ctx, containerName)
+}
+
+func (l *containerLifecycle) ensureBootAutostart(ctx context.Context, containerName string) error {
+	if !l.lxc.Available() {
 		return errors.New("lxc not available")
 	}
 	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	cur, _ := c.lxc.Run(lctx, "config", "get", containerName, "boot.autostart")
+	cur, _ := l.lxc.Run(lctx, "config", "get", containerName, "boot.autostart")
 	if strings.TrimSpace(cur) == "true" {
 		return nil
 	}
-	if out, err := c.lxc.Run(lctx, "config", "set", containerName, "boot.autostart", "true"); err != nil {
+	if out, err := l.lxc.Run(lctx, "config", "set", containerName, "boot.autostart", "true"); err != nil {
 		return fmt.Errorf("set boot.autostart: %w; output: %s", err, out)
 	}
 	return nil
 }
 
 func (c *Client) Start(ctx context.Context, containerName string) error {
+	return c.lifecycle.start(ctx, containerName)
+}
+
+func (l *containerLifecycle) start(ctx context.Context, containerName string) error {
 	lctx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
-	if out, err := c.lxc.Run(lctx, "start", containerName); err != nil {
+	if out, err := l.lxc.Run(lctx, "start", containerName); err != nil {
 		if strings.Contains(out, "is already running") {
 			return nil
 		}
@@ -112,9 +141,13 @@ func (c *Client) Start(ctx context.Context, containerName string) error {
 }
 
 func (c *Client) Stop(ctx context.Context, containerName string) error {
+	return c.lifecycle.stop(ctx, containerName)
+}
+
+func (l *containerLifecycle) stop(ctx context.Context, containerName string) error {
 	lctx, cancel := context.WithTimeout(ctx, stopTimeout)
 	defer cancel()
-	if out, err := c.lxc.Run(lctx, "stop", containerName); err != nil {
+	if out, err := l.lxc.Run(lctx, "stop", containerName); err != nil {
 		if strings.Contains(out, "not found") || strings.Contains(out, "is already stopped") {
 			return nil
 		}
@@ -124,12 +157,16 @@ func (c *Client) Stop(ctx context.Context, containerName string) error {
 }
 
 func (c *Client) Delete(ctx context.Context, containerName string) error {
-	if !c.Available() {
+	return c.lifecycle.delete(ctx, containerName)
+}
+
+func (l *containerLifecycle) delete(ctx context.Context, containerName string) error {
+	if !l.lxc.Available() {
 		return nil
 	}
 	lctx, cancel := context.WithTimeout(ctx, deleteTimeout)
 	defer cancel()
-	if out, err := c.lxc.Run(lctx, "delete", "--force", containerName); err != nil {
+	if out, err := l.lxc.Run(lctx, "delete", "--force", containerName); err != nil {
 		if strings.Contains(out, "not found") {
 			return nil
 		}
@@ -139,12 +176,16 @@ func (c *Client) Delete(ctx context.Context, containerName string) error {
 }
 
 func (c *Client) State(ctx context.Context, containerName string) (serviceproject.ContainerState, error) {
-	if !c.Available() {
+	return c.lifecycle.state(ctx, containerName)
+}
+
+func (l *containerLifecycle) state(ctx context.Context, containerName string) (serviceproject.ContainerState, error) {
+	if !l.lxc.Available() {
 		return serviceproject.ContainerStateUnknown, nil
 	}
 	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := c.lxc.Run(lctx, "info", containerName)
+	out, err := l.lxc.Run(lctx, "info", containerName)
 	if err != nil {
 		if strings.Contains(out, "not found") || strings.Contains(out, "doesn't exist") {
 			return serviceproject.ContainerStateMissing, nil
@@ -167,4 +208,27 @@ func (c *Client) State(ctx context.Context, containerName string) (serviceprojec
 		}
 	}
 	return serviceproject.ContainerStateUnknown, nil
+}
+
+func chownRecursively(path string, uid, gid int) error {
+	if err := os.Chown(path, uid, gid); err != nil {
+		return err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return nil
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := chownRecursively(path+"/"+e.Name(), uid, gid); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -8,7 +8,6 @@ package containers
 import (
 	"context"
 	"io"
-	"os"
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
@@ -43,21 +42,25 @@ type CommandRunner interface {
 // services. Wire it once at the composition root and share the pointer.
 type Client struct {
 	lxc         CommandRunner
-	image       string
 	profiles    profileRegistry
 	templates   templatePublisher
 	inspector   containerInspector
 	credentials credentialSynchronizer
 	clis        cliProvisioner
 	browser     agentBrowser
+	lifecycle   containerLifecycle
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
 func New(client CommandRunner) *Client {
 	containerClient := &Client{
 		lxc:       client,
-		image:     defaultImage,
 		templates: templatePublisher{lxc: client},
+	}
+	containerClient.lifecycle = containerLifecycle{
+		lxc:         client,
+		image:       defaultImage,
+		provisioner: containerClient,
 	}
 	containerClient.inspector = containerInspector{
 		lxc:      client,
@@ -96,31 +99,4 @@ func truncateOut(s string, max int) string {
 		return s
 	}
 	return s[:max] + "..."
-}
-
-func chownRecursive(root string, uid, gid int) error {
-	return walkAndChown(root, uid, gid)
-}
-
-func walkAndChown(path string, uid, gid int) error {
-	if err := os.Chown(path, uid, gid); err != nil {
-		return err
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() {
-		return nil
-	}
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		if err := walkAndChown(path+"/"+e.Name(), uid, gid); err != nil {
-			return err
-		}
-	}
-	return nil
 }
