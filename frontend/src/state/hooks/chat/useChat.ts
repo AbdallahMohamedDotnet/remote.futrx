@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { chatApi, type ChatStream } from "../../../api/chatApi";
+import { chatApi } from "../../../api/chatApi";
+import type { ChatStream } from "../../../types/chatApi";
 import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../../models/chat";
 import { groupEvents, type Block } from "../../chat/messageBlocks";
 import {

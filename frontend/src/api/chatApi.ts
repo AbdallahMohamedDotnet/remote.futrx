@@ -5,19 +5,7 @@ import { webSocketUrl } from "../transport/webSocketUrl";
 import type { FileTreeResponse } from "../models/files";
 import type { ChatEvent, ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
-
-export interface ChatStream {
-  readonly isOpen: boolean;
-  sendPrompt(text: string): boolean;
-  cancel(): boolean;
-  close(): void;
-}
-
-export interface ChatStreamCallbacks {
-  onOpen: () => void;
-  onEvent: (event: ChatEvent) => void;
-  onClose: () => void;
-}
+import type { ChatStream, ChatStreamCallbacks } from "../types/chatApi";
 
 export const chatApi = {
   list: () => requestJson<ChatMeta[]>("GET", "/api/chats"),
