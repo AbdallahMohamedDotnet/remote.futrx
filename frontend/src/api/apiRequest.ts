@@ -1,4 +1,5 @@
-import { sendHttpRequest, type HttpMethod } from "../transport/http";
+import { sendHttpRequest } from "../transport/http";
+import type { HttpMethod } from "../types/transport";
 
 export async function requestJson<T>(
   method: HttpMethod,

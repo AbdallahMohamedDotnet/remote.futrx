@@ -1,14 +1,8 @@
 import { WebSocketConnection } from "./webSocketConnection";
+import type { ReconnectingJsonWebSocketOptions } from "../types/transport";
 
 const INITIAL_RECONNECT_DELAY_MS = 400;
 const MAX_RECONNECT_DELAY_MS = 5_000;
-
-interface ReconnectingJsonWebSocketOptions<TMessage> {
-  resolveUrl: () => string;
-  onMessage: (message: TMessage) => void;
-  onOpen?: () => void;
-  onClose?: () => void;
-}
 
 export class ReconnectingJsonWebSocket<TMessage> {
   readonly #configuration: ReconnectingJsonWebSocketOptions<TMessage>;

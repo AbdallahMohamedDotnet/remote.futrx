@@ -1,11 +1,4 @@
-interface WebSocketConnectionOptions {
-  url: string;
-  binaryType?: BinaryType;
-  onOpen: () => void;
-  onMessage: (data: unknown) => void;
-  onError: () => void;
-  onClose: () => void;
-}
+import type { WebSocketConnectionOptions } from "../types/transport";
 
 export class WebSocketConnection {
   readonly #socket: WebSocket;

@@ -1,4 +1,4 @@
-export type HttpMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
+import type { HttpMethod } from "../types/transport";
 
 export async function sendHttpRequest(
   method: HttpMethod,

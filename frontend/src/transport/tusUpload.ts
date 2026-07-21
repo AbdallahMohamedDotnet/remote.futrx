@@ -1,17 +1,8 @@
 import * as tus from "tus-js-client";
-
-interface ResumableUploadHandle {
-  abort: () => Promise<void>;
-}
-
-interface ResumableUploadOptions {
-  endpoint: string;
-  fingerprint: () => Promise<string>;
-  metadata: Record<string, string>;
-  onProgress: (loaded: number, total: number) => void;
-  onSuccess: () => void;
-  onError: (error: Error) => void;
-}
+import type {
+  ResumableUploadHandle,
+  ResumableUploadOptions,
+} from "../types/transport";
 
 /**
  * Start a resumable upload. Connection drops are retried automatically and
