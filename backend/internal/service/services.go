@@ -74,6 +74,11 @@ type AgentAuthServices struct {
 	Kimi   *kimiagent.Auth
 }
 
+type agentRegistration struct {
+	provider      agent.Provider
+	configureAuth func(*AgentAuthServices)
+}
+
 func New(ctx context.Context, deps Dependencies) (Services, error) {
 	workspace := workspacehub.New()
 	var runs *runhub.Hub
@@ -104,14 +109,31 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		runs,
 	)
 	agents := agent.NewRegistry()
-	for _, provider := range []agent.Provider{
-		claudeagent.New(projectService, deps.Containers),
-		codexagent.New(projectService, deps.Containers),
-		kimiagent.New(projectService, deps.Containers),
+	agentAuth := AgentAuthServices{}
+	for _, registration := range []agentRegistration{
+		{
+			provider: claudeagent.New(projectService, deps.Containers),
+			configureAuth: func(auth *AgentAuthServices) {
+				auth.Claude = claudeagent.NewAuth()
+			},
+		},
+		{
+			provider: codexagent.New(projectService, deps.Containers),
+			configureAuth: func(auth *AgentAuthServices) {
+				auth.Codex = codexagent.NewAuth()
+			},
+		},
+		{
+			provider: kimiagent.New(projectService, deps.Containers),
+			configureAuth: func(auth *AgentAuthServices) {
+				auth.Kimi = kimiagent.NewAuth()
+			},
+		},
 	} {
-		if err := agents.Register(provider); err != nil {
+		if err := agents.Register(registration.provider); err != nil {
 			return Services{}, err
 		}
+		registration.configureAuth(&agentAuth)
 	}
 	promptService := prompt.New(
 		chats,
@@ -120,11 +142,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		runs,
 		agents,
 	)
-	agentAuth := AgentAuthServices{
-		Claude: claudeagent.NewAuth(),
-		Codex:  codexagent.NewAuth(),
-		Kimi:   kimiagent.NewAuth(),
-	}
 	userService := serviceuser.New(deps.Users)
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
 	if err != nil {
