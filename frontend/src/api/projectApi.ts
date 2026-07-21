@@ -10,7 +10,7 @@ export const projectApi = {
   list: () => requestJson<ProjectMeta[]>("GET", API_ROUTES.projects.collection),
   create: (name: string) =>
     requestJson<ProjectMeta>("POST", API_ROUTES.projects.collection, { name }),
-  get: (id: string) =>
+  fetch: (id: string) =>
     requestJson<ProjectMeta>("GET", API_ROUTES.projects.item(id)),
   update: (id: string, body: { name?: string }) =>
     requestJson<ProjectMeta>("PATCH", API_ROUTES.projects.item(id), body),

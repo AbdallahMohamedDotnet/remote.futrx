@@ -42,7 +42,7 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
 
     setLoading(true);
     try {
-      setSettings(await settingsApi.get());
+      setSettings(await settingsApi.fetch());
       setError(null);
     } catch (e) {
       setError((e as Error).message);

@@ -4,7 +4,7 @@ import { API_ROUTES } from "../config/routes";
 import { API_RESPONSE_STATUS } from "../config/api";
 import { UNAUTHENTICATED_SESSION } from "../config/auth";
 
-export async function getAuthSession(): Promise<AuthSession> {
+export async function fetchAuthSession(): Promise<AuthSession> {
   try {
     const response = await sendHttpRequest("GET", API_ROUTES.authSession);
     if (response.status === API_RESPONSE_STATUS.notFound) {

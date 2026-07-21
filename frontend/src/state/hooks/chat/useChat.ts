@@ -174,7 +174,7 @@ export function useChat(chatId: string): UseChatResult {
     (async () => {
       try {
         const [m, page] = await Promise.all([
-          chatApi.get(chatId),
+          chatApi.fetch(chatId),
           chatApi.events(chatId, { limit: CHAT_EVENT_PAGE_LIMIT }),
         ]);
         if (cancelled) return;
@@ -273,7 +273,7 @@ export function useChat(chatId: string): UseChatResult {
   const refreshMeta = useCallback(async () => {
     if (!chatId) return;
     try {
-      const m = await chatApi.get(chatId);
+      const m = await chatApi.fetch(chatId);
       setMeta(m);
     } catch {}
   }, [chatId]);

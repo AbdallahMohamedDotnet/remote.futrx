@@ -9,7 +9,8 @@ export const chatApi = {
   list: () => requestJson<ChatMeta[]>("GET", API_ROUTES.chats.collection),
   create: (body: CreateChatInput = {}) =>
     requestJson<ChatMeta>("POST", API_ROUTES.chats.collection, body),
-  get: (id: string) => requestJson<ChatMeta>("GET", API_ROUTES.chats.item(id)),
+  fetch: (id: string) =>
+    requestJson<ChatMeta>("GET", API_ROUTES.chats.item(id)),
   update: (id: string, body: UpdateChatInput) =>
     requestJson<ChatMeta>("PATCH", API_ROUTES.chats.item(id), body),
   markRead: (id: string) =>

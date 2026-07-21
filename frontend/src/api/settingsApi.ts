@@ -13,7 +13,7 @@ import {
 } from "../config/settings";
 
 export const settingsApi = {
-  get: async () =>
+  fetch: async () =>
     normalizeUserSettings(
       await requestJson<UserSettings>("GET", API_ROUTES.settings)
     ),

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { getAuthSession } from "../../../api/authApi";
+import { fetchAuthSession } from "../../../api/authApi";
 import type { AuthSession } from "../../../models/auth";
 
 export interface AuthState extends AuthSession {
@@ -23,7 +23,7 @@ export function useAuth(): AuthState {
   const [state, setState] = useState<AuthState>(initial);
 
   async function load() {
-    const session = await getAuthSession();
+    const session = await fetchAuthSession();
     setState({ ...session, loading: false, refresh: load });
   }
 
