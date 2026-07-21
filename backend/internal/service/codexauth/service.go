@@ -47,23 +47,23 @@ type DeviceLoginState struct {
 	Error           string `json:"error,omitempty"`
 }
 
-type Manager struct {
+type Service struct {
 	mu     sync.Mutex
 	device DeviceLoginState
 	cancel context.CancelFunc
 	subs   map[chan Status]struct{}
 }
 
-func New() *Manager {
-	return &Manager{subs: map[chan Status]struct{}{}}
+func New() *Service {
+	return &Service{subs: map[chan Status]struct{}{}}
 }
 
-func (m *Manager) Authenticated() bool {
+func (m *Service) Authenticated() bool {
 	authenticated, _, _ := authenticated()
 	return authenticated
 }
 
-func (m *Manager) Status() Status {
+func (m *Service) Status() Status {
 	authenticated, authMode, usesAPIKey := authenticated()
 	return Status{
 		Authenticated: authenticated,
@@ -73,7 +73,7 @@ func (m *Manager) Status() Status {
 	}
 }
 
-func (m *Manager) Subscribe() (<-chan Status, func()) {
+func (m *Service) Subscribe() (<-chan Status, func()) {
 	ch := make(chan Status, 8)
 	m.mu.Lock()
 	if m.subs == nil {
@@ -95,7 +95,7 @@ func (m *Manager) Subscribe() (<-chan Status, func()) {
 	return ch, cancel
 }
 
-func (m *Manager) StartDeviceLogin(ctx context.Context) (DeviceLoginState, error) {
+func (m *Service) StartDeviceLogin(ctx context.Context) (DeviceLoginState, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -176,13 +176,13 @@ func (m *Manager) StartDeviceLogin(ctx context.Context) (DeviceLoginState, error
 	}
 }
 
-func (m *Manager) deviceSnapshot() DeviceLoginState {
+func (m *Service) deviceSnapshot() DeviceLoginState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.device
 }
 
-func (m *Manager) consumeDeviceLoginOutput(reader io.Reader, markReady func()) {
+func (m *Service) consumeDeviceLoginOutput(reader io.Reader, markReady func()) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := ansiEscapeRE.ReplaceAllString(scanner.Text(), "")
@@ -210,7 +210,7 @@ func (m *Manager) consumeDeviceLoginOutput(reader io.Reader, markReady func()) {
 	}
 }
 
-func (m *Manager) finishDeviceLogin(err error) {
+func (m *Service) finishDeviceLogin(err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -237,13 +237,13 @@ func (m *Manager) finishDeviceLogin(err error) {
 	m.broadcastLocked()
 }
 
-func (m *Manager) Broadcast() {
+func (m *Service) Broadcast() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.broadcastLocked()
 }
 
-func (m *Manager) statusLocked() Status {
+func (m *Service) statusLocked() Status {
 	authenticated, authMode, usesAPIKey := authenticated()
 	return Status{
 		Authenticated: authenticated,
@@ -253,7 +253,7 @@ func (m *Manager) statusLocked() Status {
 	}
 }
 
-func (m *Manager) broadcastLocked() {
+func (m *Service) broadcastLocked() {
 	status := m.statusLocked()
 	for ch := range m.subs {
 		select {

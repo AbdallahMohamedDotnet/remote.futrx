@@ -9,10 +9,10 @@ import (
 )
 
 type CodexAuthSocket struct {
-	login *codexauth.Manager
+	login *codexauth.Service
 }
 
-func NewCodexAuthSocket(login *codexauth.Manager) *CodexAuthSocket {
+func NewCodexAuthSocket(login *codexauth.Service) *CodexAuthSocket {
 	return &CodexAuthSocket{login: login}
 }
 

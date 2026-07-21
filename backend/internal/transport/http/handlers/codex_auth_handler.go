@@ -10,11 +10,11 @@ import (
 )
 
 type CodexAuthHandler struct {
-	login *codexauth.Manager
+	login *codexauth.Service
 	auth  *serviceauth.Service
 }
 
-func NewCodexAuthHandler(login *codexauth.Manager, auth *serviceauth.Service) *CodexAuthHandler {
+func NewCodexAuthHandler(login *codexauth.Service, auth *serviceauth.Service) *CodexAuthHandler {
 	return &CodexAuthHandler{login: login, auth: auth}
 }
 
