@@ -1,14 +1,6 @@
-import type { ChatMeta } from "../models/chat";
-import type { ProjectMeta } from "../models/project";
 import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
 import { webSocketUrl } from "../transport/webSocketUrl";
-
-export type WorkspaceMessage =
-  | { type: "workspace.snapshot"; chats: ChatMeta[]; projects: ProjectMeta[] }
-  | { type: "chat.upsert"; chat: ChatMeta }
-  | { type: "chat.delete"; id: string }
-  | { type: "project.upsert"; project: ProjectMeta }
-  | { type: "project.delete"; id: string };
+import type { WorkspaceMessage } from "../types/workspaceApi";
 
 export const workspaceApi = {
   subscribe: (onMessage: (message: WorkspaceMessage) => void) => {

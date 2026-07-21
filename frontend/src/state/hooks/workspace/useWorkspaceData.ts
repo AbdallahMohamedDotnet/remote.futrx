@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
-import { workspaceApi, type WorkspaceMessage } from "../../../api/workspaceApi";
+import { workspaceApi } from "../../../api/workspaceApi";
+import type { WorkspaceMessage } from "../../../types/workspaceApi";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
 
