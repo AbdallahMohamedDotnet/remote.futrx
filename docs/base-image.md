@@ -1,6 +1,6 @@
 # Base Image: `futrx-remote-dev-base`
 
-Every project container is launched from a custom LXD image, **`futrx-remote-dev-base`**, baked once on the host. Keeping the image preinstalled with Node + Claude + Codex means container creation takes ~5s instead of ~90s, and the first prompt is no longer dominated by an apt/npm install.
+Every project container is launched from a custom LXD image, **`futrx-remote-dev-base`**, baked once on the host. Keeping the image preinstalled with Node and the registered agent CLIs means container creation takes ~5s instead of ~90s, and the first prompt is no longer dominated by an apt/npm install.
 
 ## What the image contains
 
@@ -8,13 +8,15 @@ Every project container is launched from a custom LXD image, **`futrx-remote-dev
 - Node.js 22 (via `deb.nodesource.com/setup_22.x`)
 - `@anthropic-ai/claude-code` (repository-pinned version)
 - `@openai/codex` (repository-pinned version)
+- `@moonshot-ai/kimi-code` (provider-pinned version)
 
-The recipe and shared version manifest live in the container manager:
+The provider-neutral recipe and shared version manifest are composed from the agent catalog:
 
-- [`internal/manager/containers/baseimage.go`](../backend/internal/manager/containers/baseimage.go) — the `BaseImageInstallScript` recipe.
-- [`internal/manager/containers/agent-cli-versions.env`](../backend/internal/manager/containers/agent-cli-versions.env) — the Claude Code and Codex pins used by the image, runtime repair, and host installer.
+- [`internal/service/agent_catalog.go`](../backend/internal/service/agent_catalog.go) — the Claude, Codex, and Kimi registration catalog supplied to image builds and runtime containers.
+- [`internal/integration/containers/baseimage.go`](../backend/internal/integration/containers/baseimage.go) — generates the image recipe from those profiles.
+- [`internal/agent/provisioning/agent-cli-versions.env`](../backend/internal/agent/provisioning/agent-cli-versions.env) — the Claude Code and Codex pins used by the image, runtime repair, and host installer. (Host Node/Go pins live separately in [`infra/versions.env`](../infra/versions.env).)
 
-Prompt runs compare the installed Claude Code or Codex version with the repository pin. A current container only pays for a local `--version` check; a missing or stale CLI is upgraded in place before the agent starts. This lets existing containers adopt model-compatibility updates without being recreated.
+Each provider applies its own profile before a prompt. Claude and Codex compare their installed versions with the repository pin; Kimi checks for its binary. A current container only pays for a local check, while a missing or stale CLI is repaired in place before the agent starts.
 
 ## Building / rebuilding the image
 
@@ -26,7 +28,7 @@ cd backend
 # First-time build (no existing alias):
 go run ./cmd/build-base-image
 
-# Rebuild after bumping Node / Claude / Codex:
+# Rebuild after bumping Node or an agent CLI:
 go run ./cmd/build-base-image -overwrite
 
 # Custom alias (for testing a new image without disrupting production):
@@ -39,13 +41,14 @@ Typical runtime: 60-120s. The CLI logs progress and prints the published alias o
 
 ## Effect on existing containers
 
-Rebuilding the image immediately affects **new** containers. Existing containers keep their old rootfs, but Claude Code and Codex converge to the pinned versions the next time that provider runs. You can still force convergence operationally:
+Rebuilding the image immediately affects **new** containers. Existing containers keep their old rootfs, but registered providers repair their CLI the next time they run. You can still force convergence operationally:
 
 | Path | Effect | Command |
 | --- | --- | --- |
-| **Automatic** | Existing containers upgrade a stale Claude Code or Codex CLI on the next prompt. | Nothing — deploy the backend and use the provider. |
-| **Force-recreate** | Wipe an old project container; the next project start re-launches it from the new image. Workspace files are bind-mounted so they survive; anything custom in the rootfs is gone. | `lxc delete --force <project-container>` |
-| **Manual in-place upgrade** | Upgrade immediately instead of waiting for the next prompt. | `lxc exec <container> -- npm install -g @openai/codex@<pin> @anthropic-ai/claude-code@<pin>` |
+| **Automatic** | Existing containers repair a missing or stale registered agent CLI on the next prompt. | Nothing — deploy the backend and use the provider. |
+| **Force-recreate (all)** | Rebake, then recycle every idle project container in one shot — busy workspaces are skipped so in-flight chats survive; re-run for stragglers. `--dry-run` previews, `--no-rebake` skips the bake. | `sudo bash infra/upgrade-workspaces.sh` |
+| **Force-recreate (one)** | Wipe an old project container; the next project start re-launches it from the new image. Workspace files are bind-mounted so they survive; anything custom in the rootfs is gone. | `lxc delete --force <project-container>` |
+| **Manual in-place upgrade** | Upgrade immediately instead of waiting for the next prompt. | `lxc exec <container> -- npm install -g @openai/codex@<pin> @anthropic-ai/claude-code@<pin> @moonshot-ai/kimi-code@0.19.2` |
 
 ## Bootstrap on a fresh host
 
