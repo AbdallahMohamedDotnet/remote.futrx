@@ -55,11 +55,14 @@ const (
 type ReasoningEffort string
 
 const (
-	ReasoningEffortAuto   ReasoningEffort = ""
-	ReasoningEffortLow    ReasoningEffort = "low"
-	ReasoningEffortMedium ReasoningEffort = "medium"
-	ReasoningEffortHigh   ReasoningEffort = "high"
-	ReasoningEffortXHigh  ReasoningEffort = "xhigh"
+	ReasoningEffortAuto    ReasoningEffort = ""
+	ReasoningEffortNone    ReasoningEffort = "none"
+	ReasoningEffortMinimal ReasoningEffort = "minimal"
+	ReasoningEffortLow     ReasoningEffort = "low"
+	ReasoningEffortMedium  ReasoningEffort = "medium"
+	ReasoningEffortHigh    ReasoningEffort = "high"
+	ReasoningEffortXHigh   ReasoningEffort = "xhigh"
+	ReasoningEffortMax     ReasoningEffort = "max"
 )
 
 type Chat struct {
@@ -126,7 +129,7 @@ func ValidChatMode(mode ChatMode) bool {
 
 func ValidReasoningEffort(effort ReasoningEffort) bool {
 	switch effort {
-	case ReasoningEffortAuto, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh:
+	case ReasoningEffortAuto, ReasoningEffortNone, ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax:
 		return true
 	default:
 		return false

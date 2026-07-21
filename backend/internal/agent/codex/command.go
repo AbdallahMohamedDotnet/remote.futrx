@@ -59,7 +59,13 @@ func reasoningEffortFromConfig(config map[string]any) string {
 		return ""
 	}
 	effort, _ := config["reasoningEffort"].(string)
+	// Valid `model_reasoning_effort` values for the codex CLI, per its own
+	// reasoning.effort validation: none, minimal, low, medium, high, xhigh, max.
 	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "none":
+		return "none"
+	case "minimal":
+		return "minimal"
 	case "low":
 		return "low"
 	case "medium":
@@ -68,6 +74,8 @@ func reasoningEffortFromConfig(config map[string]any) string {
 		return "high"
 	case "xhigh":
 		return "xhigh"
+	case "max":
+		return "max"
 	default:
 		return ""
 	}

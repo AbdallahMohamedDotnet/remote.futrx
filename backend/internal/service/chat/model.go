@@ -115,6 +115,10 @@ func NormalizeProvider(provider Provider) Provider {
 
 func NormalizeReasoningEffort(effort string) string {
 	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "none":
+		return "none"
+	case "minimal":
+		return "minimal"
 	case "low":
 		return "low"
 	case "medium":
@@ -123,6 +127,8 @@ func NormalizeReasoningEffort(effort string) string {
 		return "high"
 	case "xhigh":
 		return "xhigh"
+	case "max":
+		return "max"
 	default:
 		return ""
 	}

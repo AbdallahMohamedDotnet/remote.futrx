@@ -8,6 +8,7 @@ export const PROVIDER_OPTIONS: Array<{ value: ChatProvider; label: string }> = [
 
 const CLAUDE_MODEL_OPTIONS: Array<{ value: string; label: string; sub: string }> = [
   { value: "", label: "Auto", sub: "server default" },
+  { value: "fable", label: "Fable", sub: "most capable" },
   { value: "opus", label: "Opus", sub: "deepest reasoning" },
   { value: "sonnet", label: "Sonnet", sub: "balanced" },
   { value: "haiku", label: "Haiku", sub: "fast" },
@@ -41,13 +42,41 @@ export const MODE_OPTIONS: Array<{ value: ChatMode; label: string }> = [
   { value: "full-auto", label: "Full auto" },
 ];
 
-export const REASONING_EFFORT_OPTIONS: Array<{ value: ReasoningEffort; label: string }> = [
+type ReasoningEffortOption = { value: ReasoningEffort; label: string };
+
+// Reasoning-effort ladders differ per CLI (verified against each provider's
+// --help / config validation):
+//   Claude `claude --effort`:            low, medium, high, xhigh, max
+//   Codex  `-c model_reasoning_effort=`: none, minimal, low, medium, high, xhigh, max
+//   Kimi:  no reasoning/effort flag at all
+// "Auto" ("") omits the flag so the CLI/server picks its own default.
+const CLAUDE_REASONING_EFFORT_OPTIONS: ReasoningEffortOption[] = [
   { value: "", label: "Auto" },
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
   { value: "xhigh", label: "XHigh" },
+  { value: "max", label: "Max" },
 ];
+
+const CODEX_REASONING_EFFORT_OPTIONS: ReasoningEffortOption[] = [
+  { value: "", label: "Auto" },
+  { value: "none", label: "None" },
+  { value: "minimal", label: "Minimal" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "XHigh" },
+  { value: "max", label: "Max" },
+];
+
+export function reasoningEffortOptionsForProvider(
+  provider?: ChatProvider,
+): ReasoningEffortOption[] {
+  if (provider === "claude") return CLAUDE_REASONING_EFFORT_OPTIONS;
+  if (provider === "kimi") return [];
+  return CODEX_REASONING_EFFORT_OPTIONS;
+}
 
 export function providerDisplayLabel(provider?: ChatProvider): string {
   if (provider === "codex") return "Codex";
@@ -62,6 +91,7 @@ export function modelDisplayLabel(model?: string, provider?: ChatProvider): stri
     const match = CODEX_MODEL_OPTIONS.find((option) => option.value === model);
     return match?.label ?? model;
   }
+  if (lower.includes("fable")) return "Fable";
   if (lower.includes("opus")) return "Opus";
   if (lower.includes("sonnet")) return "Sonnet";
   if (lower.includes("haiku")) return "Haiku";

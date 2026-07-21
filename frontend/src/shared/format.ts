@@ -23,6 +23,7 @@ export function timeAgo(ms: number, now = Date.now()): string {
 export function formatModelShortLabel(model?: string): string {
   if (!model) return "auto";
   const lower = model.toLowerCase();
+  if (lower.includes("fable")) return "fable";
   if (lower.includes("opus")) return "opus";
   if (lower.includes("sonnet")) return "sonnet";
   if (lower.includes("haiku")) return "haiku";

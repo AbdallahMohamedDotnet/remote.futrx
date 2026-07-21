@@ -1,8 +1,11 @@
 package config
 
-import "os"
-
-const CodeServerBaseURL = "https://code.remote.futrx.com/"
+import (
+	"errors"
+	"net"
+	"net/url"
+	"os"
+)
 
 type Config struct {
 	Host    string
@@ -22,6 +25,26 @@ func Load() Config {
 
 func (c Config) Addr() string {
 	return c.Host + ":" + c.Port
+}
+
+// CodeServerBaseURL derives the IDE origin from the public hostname selected
+// during installation. For example, https://remote.example.com becomes
+// https://code.remote.example.com/.
+func CodeServerBaseURL(baseURL string) (string, error) {
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+		return "", errors.New("BASE_URL must be an absolute URL")
+	}
+	host := "code." + parsed.Hostname()
+	if port := parsed.Port(); port != "" {
+		host = net.JoinHostPort(host, port)
+	}
+	parsed.Host = host
+	parsed.Path = "/"
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String(), nil
 }
 
 func envDefault(key, def string) string {

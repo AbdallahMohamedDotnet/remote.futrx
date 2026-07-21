@@ -1,6 +1,5 @@
 export const defaultWorkspacePath = "/opt/remote.futrx";
 
-const ideBaseUrl = "https://code.remote.futrx.com/";
 const containerWorkspacePath = "/workspace";
 const workspaceSegment = "/workspace";
 
@@ -29,9 +28,10 @@ function projectSlugAndContainerPath(
 export function buildIdeUrl(folderPath: string, filePath?: string): string {
   const folder = normalizeAbsolutePath(folderPath) || defaultWorkspacePath;
   const proj = projectSlugAndContainerPath(folder);
+  const ideBaseUrl = currentIdeBaseUrl();
   if (proj) {
-    // Per-container IDE: <slug>.code.remote.futrx.com with in-container paths.
-    const url = new URL(`https://code.remote.futrx.com/${proj.slug}/`);
+    // Per-container IDE: code.<installed-domain>/<slug>/.
+    const url = new URL(`${proj.slug}/`, ideBaseUrl);
     url.searchParams.set("folder", proj.containerPath);
     if (filePath) {
       const f = projectSlugAndContainerPath(normalizeAbsolutePath(filePath));
@@ -43,6 +43,13 @@ export function buildIdeUrl(folderPath: string, filePath?: string): string {
   const url = new URL(ideBaseUrl);
   url.searchParams.set("folder", folder);
   if (filePath) url.searchParams.set("file", normalizeAbsolutePath(filePath));
+  return url.toString();
+}
+
+function currentIdeBaseUrl(): string {
+  const url = new URL(location.origin);
+  url.hostname = `code.${url.hostname}`;
+  url.pathname = "/";
   return url.toString();
 }
 

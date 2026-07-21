@@ -76,7 +76,11 @@ func main() {
 	serverInfoService := serviceserverinfo.New(hostinfo.New(), cfg.DataDir, fileproject.WorkspaceRoot)
 	workspaceFileService := serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore())
 	gitHistoryService := servicegithistory.New(gitcli.NewHistoryClient())
-	workspaceIDEService := serviceworkspaceide.New(config.CodeServerBaseURL, fileproject.WorkspaceRoot)
+	codeServerBaseURL, err := config.CodeServerBaseURL(cfg.BaseURL)
+	if err != nil {
+		log.Fatalf("configure IDE URL: %v", err)
+	}
+	workspaceIDEService := serviceworkspaceide.New(codeServerBaseURL, fileproject.WorkspaceRoot)
 
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:   serviceSet,

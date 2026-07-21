@@ -20,7 +20,7 @@ export interface ChatMeta {
 
 export type ChatProvider = "claude" | "codex" | "kimi";
 export type ChatMode = "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
-export type ReasoningEffort = "" | "low" | "medium" | "high" | "xhigh";
+export type ReasoningEffort = "" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export interface SelectedSkill {
   name: string;

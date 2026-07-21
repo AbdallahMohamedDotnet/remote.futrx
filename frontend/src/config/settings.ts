@@ -22,10 +22,13 @@ export const VALID_CHAT_MODES = new Set<ChatMode>([
 ]);
 export const VALID_REASONING_EFFORTS = new Set<ReasoningEffort>([
   "",
+  "none",
+  "minimal",
   "low",
   "medium",
   "high",
   "xhigh",
+  "max",
 ]);
 
 export const SYSTEM_LIGHT_MEDIA_QUERY = "(prefers-color-scheme: light)";
