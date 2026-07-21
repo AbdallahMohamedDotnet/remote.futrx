@@ -1,26 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { ProjectContainersPage } from "../../ui/projects/ProjectContainersPage";
-import type { ProjectContainerInfo, ProjectMeta, ProjectSecret } from "../../models/project";
+import type { ProjectMeta } from "../../models/project";
 import { projectApi } from "../../api/projectApi";
-
-export interface ProjectContainerRecord {
-  loading: boolean;
-  data?: ProjectContainerInfo;
-  error?: string;
-  refreshedAt?: number;
-}
-
-export interface SecretsRecord {
-  loading: boolean;
-  data?: ProjectSecret[];
-  error?: string;
-}
-
-export interface AccessRecord {
-  loading: boolean;
-  data?: string[];
-  error?: string;
-}
+import type {
+  AccessRecord,
+  ProjectContainerRecord,
+  SecretsRecord,
+} from "../../state/projects/projectContainerRecords";
 
 export function ProjectContainersContainer({
   projects,

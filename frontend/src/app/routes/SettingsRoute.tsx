@@ -1,4 +1,4 @@
-import { SettingsContainer } from "../../state/containers/SettingsContainer";
+import { SettingsContainer } from "../containers/SettingsContainer";
 
 export function SettingsRoute({
   onBack,

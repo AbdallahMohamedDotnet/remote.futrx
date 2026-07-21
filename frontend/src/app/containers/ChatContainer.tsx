@@ -14,7 +14,7 @@ import { useChatMetaActions } from "../../hooks/chat/useChatMetaActions";
 import { useChatReadMarker } from "../../hooks/chat/useChatReadMarker";
 import { useTerminalOverlayController } from "../../hooks/chat/useTerminalOverlayController";
 import { useThreadHeaderState } from "../../hooks/chat/useThreadHeaderState";
-import { useUserSettingsContext } from "../context/UserSettingsContext";
+import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
 
 export function ChatContainer({
   chat,

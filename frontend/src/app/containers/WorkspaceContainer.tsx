@@ -1,8 +1,8 @@
-import { ProjectContainersRoute } from "../../app/routes/ProjectContainersRoute";
-import { SettingsRoute } from "../../app/routes/SettingsRoute";
+import { ProjectContainersRoute } from "../routes/ProjectContainersRoute";
+import { SettingsRoute } from "../routes/SettingsRoute";
 import { AppShell } from "../../ui/layout/AppShell";
 import { NoChatSelected } from "../../ui/layout/NoChatSelected";
-import { useWorkspaceContext } from "../context/WorkspaceContext";
+import { useWorkspaceContext } from "../../state/context/WorkspaceContext";
 import { useWorkspaceCommands } from "../../hooks/workspace/useWorkspaceCommands";
 import { ChatContainer } from "./ChatContainer";
 import { SidebarContainer } from "./SidebarContainer";

@@ -4,7 +4,7 @@ import type {
   AccessRecord,
   ProjectContainerRecord,
   SecretsRecord,
-} from "../../state/containers/ProjectContainersContainer";
+} from "../../state/projects/projectContainerRecords";
 import type {
   AuthBundleFileStatus,
   AuthBundleStatus,
