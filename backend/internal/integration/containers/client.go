@@ -98,10 +98,6 @@ func (c *Client) ConfigureAgentProfiles(profiles []provisioning.Profile) {
 	c.profiles.replace(profiles)
 }
 
-func (c *Client) AgentProfiles() []provisioning.Profile {
-	return c.profiles.snapshot()
-}
-
 // Available reports whether the underlying lxc binary is reachable.
 func (c *Client) Available() bool { return c.lxc.Available() }
 
