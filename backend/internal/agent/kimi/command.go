@@ -73,30 +73,33 @@ func (p *Provider) buildCmd(
 		}
 	}
 
-	if p.containers != nil {
+	if err := p.containerDeps.Validate(); err != nil {
+		return nil, "", err
+	}
+	if !p.containerDeps.IsZero() {
 		emitSystem(req, emit, "container_preparing")
-		if err := p.containers.EnsureCLI(ctx, project.ContainerName, p.profile.CLI); err != nil {
+		if err := p.containerDeps.CLI.Ensure(ctx, project.ContainerName, p.profile.CLI); err != nil {
 			return nil, "", fmt.Errorf("install kimi in container: %w", err)
 		}
-		if err := p.containers.EnsureCredentials(ctx, project.ContainerName, p.profile.Credentials); err != nil {
+		if err := p.containerDeps.Credentials.Ensure(ctx, project.ContainerName, p.profile.Credentials); err != nil {
 			return nil, "", fmt.Errorf("seed kimi auth in container: %w", err)
 		}
-		if err := p.containers.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Workspace.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("push agent instructions to container: %w", err)
 		}
-		if err := p.containers.EnsureWorkspaceSkillLinks(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Workspace.EnsureSkillLinks(ctx, project.ContainerName); err != nil {
 			// Best-effort: a stale skill shim shouldn't block a kimi run.
 			_ = err
 		}
-		if err := p.containers.EnsureBrowserSkill(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Browser.EnsureSkill(ctx, project.ContainerName); err != nil {
 			// Best-effort migration for containers created before the skill.
 			_ = err
 		}
-		if err := p.containers.EnsureBrowserScript(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Browser.EnsureScript(ctx, project.ContainerName); err != nil {
 			// Best-effort: only matters if the agent runs scripts/browser.mjs.
 			_ = err
 		}
-		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Lifecycle.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
 		}
 	}

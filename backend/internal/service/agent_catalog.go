@@ -15,7 +15,7 @@ import (
 // shared-auth caller configuration.
 type agentDefinition struct {
 	profile     func() provisioning.Profile
-	provider    func(*serviceproject.Service, provisioning.Container) agent.Provider
+	provider    func(*serviceproject.Service, provisioning.ContainerDependencies) agent.Provider
 	authBinding func() agentauth.Binding
 }
 
@@ -23,8 +23,8 @@ func agentDefinitions() []agentDefinition {
 	return []agentDefinition{
 		{
 			profile: claudeagent.Profile,
-			provider: func(projects *serviceproject.Service, containers provisioning.Container) agent.Provider {
-				return claudeagent.New(projects, containers)
+			provider: func(projects *serviceproject.Service, containerDeps provisioning.ContainerDependencies) agent.Provider {
+				return claudeagent.New(projects, containerDeps)
 			},
 			authBinding: func() agentauth.Binding {
 				return agentauth.NewCodeBinding(agent.ProviderClaude, claudeagent.NewAuth())
@@ -32,8 +32,8 @@ func agentDefinitions() []agentDefinition {
 		},
 		{
 			profile: codexagent.Profile,
-			provider: func(projects *serviceproject.Service, containers provisioning.Container) agent.Provider {
-				return codexagent.New(projects, containers)
+			provider: func(projects *serviceproject.Service, containerDeps provisioning.ContainerDependencies) agent.Provider {
+				return codexagent.New(projects, containerDeps)
 			},
 			authBinding: func() agentauth.Binding {
 				return agentauth.NewDeviceBinding(agent.ProviderCodex, codexagent.NewAuth())
@@ -41,8 +41,8 @@ func agentDefinitions() []agentDefinition {
 		},
 		{
 			profile: kimiagent.Profile,
-			provider: func(projects *serviceproject.Service, containers provisioning.Container) agent.Provider {
-				return kimiagent.New(projects, containers)
+			provider: func(projects *serviceproject.Service, containerDeps provisioning.ContainerDependencies) agent.Provider {
+				return kimiagent.New(projects, containerDeps)
 			},
 			authBinding: func() agentauth.Binding {
 				return agentauth.NewDeviceBinding(agent.ProviderKimi, kimiagent.NewAuth())

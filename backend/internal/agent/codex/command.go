@@ -113,38 +113,41 @@ func (p *Provider) buildCmd(
 		}
 	}
 
-	if p.containers != nil {
+	if err := p.containerDeps.Validate(); err != nil {
+		return nil, "", err
+	}
+	if !p.containerDeps.IsZero() {
 		emitSystem(req, emit, "container_preparing")
-		if err := p.containers.EnsureCLI(ctx, project.ContainerName, p.profile.CLI); err != nil {
+		if err := p.containerDeps.CLI.Ensure(ctx, project.ContainerName, p.profile.CLI); err != nil {
 			return nil, "", fmt.Errorf("codex CLI unavailable in container: %w", err)
 		}
 		if err := p.ensureCredentials(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("seed codex auth in container: %w", err)
 		}
-		if err := p.containers.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Workspace.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("push agent instructions to container: %w", err)
 		}
-		if err := p.containers.EnsureWorkspaceSkillLinks(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Workspace.EnsureSkillLinks(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("prepare workspace skill links: %w", err)
 		}
-		if err := p.containers.EnsureBrowserSkill(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Browser.EnsureSkill(ctx, project.ContainerName); err != nil {
 			// Best-effort migration for containers created before the skill.
 			_ = err
 		}
-		if err := p.containers.EnsureBrowserScript(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Browser.EnsureScript(ctx, project.ContainerName); err != nil {
 			// Browser script provisioning is best-effort: its absence only
 			// matters when the agent tries to run scripts/browser.mjs.
 			_ = err
 		}
 		if req.EnableBrowser {
-			if err := p.containers.EnsureAgentBrowserMCP(ctx, project.ContainerName); err != nil {
+			if err := p.containerDeps.Browser.EnsureMCP(ctx, project.ContainerName); err != nil {
 				return nil, "", fmt.Errorf("provision browser MCP: %w", err)
 			}
-			if err := p.containers.EnsureAgentBrowserCore(ctx, project.ContainerName); err != nil {
+			if err := p.containerDeps.Browser.EnsureCore(ctx, project.ContainerName); err != nil {
 				return nil, "", fmt.Errorf("start browser core: %w", err)
 			}
 		}
-		if err := p.containers.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
+		if err := p.containerDeps.Lifecycle.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
 		}
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
-	provider := New(nil, nil)
+	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{Model: "sonnet [1m]", ResumeID: "session-123"})
 
 	want := []string{
@@ -32,7 +32,7 @@ func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
 }
 
 func TestArgsIncludeBrowserMCPConfigOnlyWhenEnabled(t *testing.T) {
-	provider := New(nil, nil)
+	provider := New(nil, provisioning.ContainerDependencies{})
 	withoutBrowser := provider.args(agent.RunRequest{})
 	if slices.Contains(withoutBrowser, "--mcp-config") {
 		t.Fatalf("unexpected browser MCP config: %#v", withoutBrowser)
@@ -57,8 +57,8 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 	}
 	projects := fakeClaudeProjects{project: project}
 
-	withoutBrowser := &fakeClaudeContainers{}
-	provider := New(projects, withoutBrowser)
+	withoutBrowser := &fakeClaudeBrowser{}
+	provider := New(projects, claudeContainerDependencies(withoutBrowser))
 	req := agent.RunRequest{ProjectID: string(project.ID)}
 	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
 		t.Fatal(err)
@@ -70,8 +70,8 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 		t.Fatalf("browser core started without browser skill: %d", withoutBrowser.agentBrowserCoreCalls)
 	}
 
-	withBrowser := &fakeClaudeContainers{}
-	provider = New(projects, withBrowser)
+	withBrowser := &fakeClaudeBrowser{}
+	provider = New(projects, claudeContainerDependencies(withBrowser))
 	req.EnableBrowser = true
 	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
 		t.Fatal(err)
@@ -81,6 +81,28 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 	}
 	if withBrowser.agentBrowserCoreCalls != 1 {
 		t.Fatalf("browser core calls = %d, want 1", withBrowser.agentBrowserCoreCalls)
+	}
+}
+
+func TestBuildCmdRejectsPartialContainerDependencies(t *testing.T) {
+	project := serviceproject.Meta{
+		ID:            serviceproject.ID("abcd"),
+		ContainerName: "partial-dependencies",
+		Status:        serviceproject.StatusRunning,
+	}
+	provider := New(
+		fakeClaudeProjects{project: project},
+		provisioning.ContainerDependencies{CLI: fakeClaudeCLI{}},
+	)
+	req := agent.RunRequest{ProjectID: string(project.ID)}
+
+	_, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {})
+	if err == nil {
+		t.Fatal("expected partial container dependencies to fail")
+	}
+	const want = "incomplete container dependencies: missing credentials, workspace, browser, lifecycle"
+	if err.Error() != want {
+		t.Fatalf("buildCmd error = %q, want %q", err, want)
 	}
 }
 
@@ -100,39 +122,55 @@ func (f fakeClaudeProjects) ListSecrets(context.Context, serviceproject.ID) ([]s
 	return nil, nil
 }
 
-type fakeClaudeContainers struct {
+type fakeClaudeCLI struct{}
+
+func (fakeClaudeCLI) Ensure(context.Context, string, provisioning.CLISpec) error { return nil }
+
+type fakeClaudeCredentials struct{}
+
+func (fakeClaudeCredentials) Ensure(context.Context, string, provisioning.CredentialSpec) error {
+	return nil
+}
+
+func (fakeClaudeCredentials) SyncFromContainer(context.Context, string, provisioning.CredentialSpec) error {
+	return nil
+}
+
+type fakeClaudeWorkspace struct{}
+
+func (fakeClaudeWorkspace) EnsureAgentInstructions(context.Context, string) error { return nil }
+
+func (fakeClaudeWorkspace) EnsureSkillLinks(context.Context, string) error { return nil }
+
+type fakeClaudeBrowser struct {
 	agentBrowserMCPCalls  int
 	agentBrowserCoreCalls int
 }
 
-func (f *fakeClaudeContainers) EnsureCLI(context.Context, string, provisioning.CLISpec) error {
-	return nil
-}
+func (f *fakeClaudeBrowser) EnsureSkill(context.Context, string) error { return nil }
 
-func (f *fakeClaudeContainers) EnsureCredentials(context.Context, string, provisioning.CredentialSpec) error {
-	return nil
-}
+func (f *fakeClaudeBrowser) EnsureScript(context.Context, string) error { return nil }
 
-func (f *fakeClaudeContainers) EnsureAgentInstructions(context.Context, string) error { return nil }
-
-func (f *fakeClaudeContainers) EnsureWorkspaceSkillLinks(context.Context, string) error { return nil }
-
-func (f *fakeClaudeContainers) EnsureBrowserSkill(context.Context, string) error { return nil }
-
-func (f *fakeClaudeContainers) EnsureBrowserScript(context.Context, string) error { return nil }
-
-func (f *fakeClaudeContainers) EnsureAgentBrowserMCP(context.Context, string) error {
+func (f *fakeClaudeBrowser) EnsureMCP(context.Context, string) error {
 	f.agentBrowserMCPCalls++
 	return nil
 }
 
-func (f *fakeClaudeContainers) EnsureAgentBrowserCore(context.Context, string) error {
+func (f *fakeClaudeBrowser) EnsureCore(context.Context, string) error {
 	f.agentBrowserCoreCalls++
 	return nil
 }
 
-func (f *fakeClaudeContainers) EnsureBootAutostart(context.Context, string) error { return nil }
+type fakeClaudeLifecycle struct{}
 
-func (f *fakeClaudeContainers) SyncCredentialsFromContainer(context.Context, string, provisioning.CredentialSpec) error {
-	return nil
+func (fakeClaudeLifecycle) EnsureBootAutostart(context.Context, string) error { return nil }
+
+func claudeContainerDependencies(browser provisioning.BrowserProvisioner) provisioning.ContainerDependencies {
+	return provisioning.ContainerDependencies{
+		CLI:         fakeClaudeCLI{},
+		Credentials: fakeClaudeCredentials{},
+		Workspace:   fakeClaudeWorkspace{},
+		Browser:     browser,
+		Lifecycle:   fakeClaudeLifecycle{},
+	}
 }

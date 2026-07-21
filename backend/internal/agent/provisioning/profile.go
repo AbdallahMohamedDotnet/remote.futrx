@@ -1,9 +1,6 @@
 package provisioning
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
 type InstallMode string
 
@@ -124,19 +121,4 @@ func (p Profile) Clone() Profile {
 		p.BrowserMCPTemplates[i].Content = append([]byte(nil), p.BrowserMCPTemplates[i].Content...)
 	}
 	return p
-}
-
-// Container is the provider-neutral port agent implementations use to prepare
-// a project container. The LXC integration is its concrete implementation.
-type Container interface {
-	EnsureCLI(context.Context, string, CLISpec) error
-	EnsureCredentials(context.Context, string, CredentialSpec) error
-	SyncCredentialsFromContainer(context.Context, string, CredentialSpec) error
-	EnsureAgentInstructions(context.Context, string) error
-	EnsureWorkspaceSkillLinks(context.Context, string) error
-	EnsureBrowserSkill(context.Context, string) error
-	EnsureBrowserScript(context.Context, string) error
-	EnsureAgentBrowserMCP(context.Context, string) error
-	EnsureAgentBrowserCore(context.Context, string) error
-	EnsureBootAutostart(context.Context, string) error
 }

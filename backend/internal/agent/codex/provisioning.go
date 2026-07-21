@@ -74,11 +74,11 @@ func (p *Provider) ensureCredentials(ctx context.Context, containerName string) 
 	if codexAuthUsesAPIKey(p.profile.Credentials.Files[0].HostPath) {
 		return ErrCodexAPIKeyAuth
 	}
-	return p.containers.EnsureCredentials(ctx, containerName, p.profile.Credentials)
+	return p.containerDeps.Credentials.Ensure(ctx, containerName, p.profile.Credentials)
 }
 
 func (p *Provider) syncCredentialsFromContainer(ctx context.Context, containerName string) error {
-	if err := p.containers.SyncCredentialsFromContainer(ctx, containerName, p.profile.Credentials); err != nil {
+	if err := p.containerDeps.Credentials.SyncFromContainer(ctx, containerName, p.profile.Credentials); err != nil {
 		return err
 	}
 	if codexAuthUsesAPIKey(p.profile.Credentials.Files[0].HostPath) {

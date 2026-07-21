@@ -22,13 +22,13 @@ type ProjectResolver interface {
 }
 
 type Provider struct {
-	projects   ProjectResolver
-	containers provisioning.Container
-	profile    provisioning.Profile
+	projects      ProjectResolver
+	containerDeps provisioning.ContainerDependencies
+	profile       provisioning.Profile
 }
 
-func New(projects ProjectResolver, containers provisioning.Container) *Provider {
-	return &Provider{projects: projects, containers: containers, profile: Profile()}
+func New(projects ProjectResolver, containerDeps provisioning.ContainerDependencies) *Provider {
+	return &Provider{projects: projects, containerDeps: containerDeps, profile: Profile()}
 }
 
 func (p *Provider) ID() agent.ProviderID {
@@ -74,7 +74,7 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 		Provider:       agent.ProviderCodex,
 		ConversationID: req.ConversationID,
 	})
-	if err == nil && containerName != "" && p.containers != nil {
+	if err == nil && containerName != "" && p.containerDeps.Credentials != nil {
 		syncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if syncErr := p.syncCredentialsFromContainer(syncCtx, containerName); syncErr != nil {
