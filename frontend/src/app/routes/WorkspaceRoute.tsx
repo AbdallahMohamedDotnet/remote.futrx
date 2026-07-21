@@ -1,5 +1,5 @@
 import { WorkspaceProvider } from "../../context/WorkspaceContext";
-import { WorkspaceContainer } from "../../containers/WorkspaceContainer";
+import { WorkspaceContainer } from "../../state/containers/WorkspaceContainer";
 
 export function WorkspaceRoute({ enabled }: { enabled: boolean }) {
   return (

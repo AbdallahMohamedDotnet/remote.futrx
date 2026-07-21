@@ -1,20 +1,20 @@
 import { useEffect, useState } from "preact/hooks";
-import type { ChatMeta, ChatMode, ChatProvider, ReasoningEffort, SelectedSkill } from "../models/chat";
-import type { ProjectMeta } from "../models/project";
-import type { RegisteredSkill } from "../models/skill";
-import { BrowserDrawer } from "../ui/chat/browser/BrowserDrawer";
-import { ChatThread } from "../ui/chat/ChatThread";
-import { HistoryDrawer } from "../ui/chat/history/HistoryDrawer";
-import { FileManagerDrawer } from "../ui/chat/files/FileManagerDrawer";
-import { useChat } from "../hooks/chat/useChat";
-import { useChatBrowserController } from "../hooks/chat/useChatBrowserController";
-import { useChatComposerController } from "../hooks/chat/useChatComposerController";
-import { useChatKeyboardShortcuts } from "../hooks/chat/useChatKeyboardShortcuts";
-import { useChatMetaActions } from "../hooks/chat/useChatMetaActions";
-import { useChatReadMarker } from "../hooks/chat/useChatReadMarker";
-import { useTerminalOverlayController } from "../hooks/chat/useTerminalOverlayController";
-import { useThreadHeaderState } from "../hooks/chat/useThreadHeaderState";
-import { useUserSettingsContext } from "../context/UserSettingsContext";
+import type { ChatMeta, ChatMode, ChatProvider, ReasoningEffort, SelectedSkill } from "../../models/chat";
+import type { ProjectMeta } from "../../models/project";
+import type { RegisteredSkill } from "../../models/skill";
+import { BrowserDrawer } from "../../ui/chat/browser/BrowserDrawer";
+import { ChatThread } from "../../ui/chat/ChatThread";
+import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
+import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
+import { useChat } from "../../hooks/chat/useChat";
+import { useChatBrowserController } from "../../hooks/chat/useChatBrowserController";
+import { useChatComposerController } from "../../hooks/chat/useChatComposerController";
+import { useChatKeyboardShortcuts } from "../../hooks/chat/useChatKeyboardShortcuts";
+import { useChatMetaActions } from "../../hooks/chat/useChatMetaActions";
+import { useChatReadMarker } from "../../hooks/chat/useChatReadMarker";
+import { useTerminalOverlayController } from "../../hooks/chat/useTerminalOverlayController";
+import { useThreadHeaderState } from "../../hooks/chat/useThreadHeaderState";
+import { useUserSettingsContext } from "../../context/UserSettingsContext";
 
 export function ChatContainer({
   chat,

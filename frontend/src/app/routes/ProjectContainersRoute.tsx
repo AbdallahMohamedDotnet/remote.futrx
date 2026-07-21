@@ -1,4 +1,4 @@
-import { ProjectContainersContainer } from "../../containers/ProjectContainersContainer";
+import { ProjectContainersContainer } from "../../state/containers/ProjectContainersContainer";
 import type { ProjectMeta } from "../../models/project";
 
 export function ProjectContainersRoute({

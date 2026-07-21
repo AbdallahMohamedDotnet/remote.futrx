@@ -1,9 +1,9 @@
 import type { ComponentType } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { ClaudeAuthWaiting } from "../ui/auth/ClaudeAuthWaiting";
-import { LoginScreen } from "../ui/auth/LoginScreen";
-import { LoadingScreen } from "../ui/ui/LoadingScreen";
-import { useAuthContext } from "../context/AuthContext";
+import { ClaudeAuthWaiting } from "../../ui/auth/ClaudeAuthWaiting";
+import { LoginScreen } from "../../ui/auth/LoginScreen";
+import { LoadingScreen } from "../../ui/ui/LoadingScreen";
+import { useAuthContext } from "../../context/AuthContext";
 import { ClaudeLoginContainer } from "./ClaudeLoginContainer";
 
 type WorkspaceRouteComponent = ComponentType<{ enabled: boolean }>;
@@ -15,7 +15,7 @@ export function AuthGate() {
   useEffect(() => {
     if (!gateOpen || WorkspaceRoute) return;
     let cancelled = false;
-    import("../app/routes/WorkspaceRoute").then((module) => {
+    import("../../app/routes/WorkspaceRoute").then((module) => {
       if (!cancelled) setWorkspaceRoute(() => module.WorkspaceRoute);
     });
     return () => {

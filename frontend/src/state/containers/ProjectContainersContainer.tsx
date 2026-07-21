@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
-import { ProjectContainersPage } from "../ui/projects/ProjectContainersPage";
-import type { ProjectContainerInfo, ProjectMeta, ProjectSecret } from "../models/project";
-import { projectApi } from "../api/projectApi";
+import { ProjectContainersPage } from "../../ui/projects/ProjectContainersPage";
+import type { ProjectContainerInfo, ProjectMeta, ProjectSecret } from "../../models/project";
+import { projectApi } from "../../api/projectApi";
 
 export interface ProjectContainerRecord {
   loading: boolean;
