@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm, type ITheme } from "@xterm/xterm";
-import { terminalWebSocketUrl } from "../../../transport/websocket";
+import { webSocketUrl } from "../../../transport/websocket";
 
 export type TerminalStatus = "connecting" | "connected" | "closed" | "error";
 
@@ -95,7 +95,9 @@ export function useTerminalSession({
     terminalRef.current = terminal;
     fitRef.current = fit;
 
-    const socket = new WebSocket(terminalWebSocketUrl(chatId));
+    const socket = new WebSocket(
+      webSocketUrl(`/ws/terminal?chat=${encodeURIComponent(chatId)}`)
+    );
     socket.binaryType = "arraybuffer";
     socketRef.current = socket;
     setStatus("connecting");

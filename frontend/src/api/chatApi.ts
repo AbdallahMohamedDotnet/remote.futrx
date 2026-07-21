@@ -1,6 +1,6 @@
 import { json, request } from "../transport/http";
 import { ReconnectingJsonWebSocket } from "../transport/ReconnectingJsonWebSocket";
-import { chatWebSocketUrl } from "../transport/websocket";
+import { webSocketUrl } from "../transport/websocket";
 import type { FileTreeResponse } from "../models/files";
 import type { ChatEvent, ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
@@ -108,7 +108,7 @@ class ReconnectingChatStream implements ChatStream {
     callbacks: ChatStreamCallbacks
   ) {
     this.#connection = new ReconnectingJsonWebSocket({
-      url: () => chatWebSocketUrl(chatId, latestSeq()),
+      url: () => chatStreamUrl(chatId, latestSeq()),
       onOpen: callbacks.onOpen,
       onMessage: callbacks.onEvent,
       onClose: callbacks.onClose,
@@ -134,4 +134,9 @@ class ReconnectingChatStream implements ChatStream {
   close(): void {
     this.#connection.stop();
   }
+}
+
+function chatStreamUrl(chatId: string, sinceSeq: number): string {
+  const url = webSocketUrl(`/ws/chat/${encodeURIComponent(chatId)}`);
+  return sinceSeq > 0 ? `${url}?since=${sinceSeq}` : url;
 }

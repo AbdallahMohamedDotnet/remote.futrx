@@ -1,7 +1,7 @@
 import type { ChatMeta } from "../models/chat";
 import type { ProjectMeta } from "../models/project";
 import { ReconnectingJsonWebSocket } from "../transport/ReconnectingJsonWebSocket";
-import { workspaceWebSocketUrl } from "../transport/websocket";
+import { webSocketUrl } from "../transport/websocket";
 
 export type WorkspaceMessage =
   | { type: "workspace.snapshot"; chats: ChatMeta[]; projects: ProjectMeta[] }
@@ -13,7 +13,7 @@ export type WorkspaceMessage =
 export const workspaceApi = {
   subscribe: (onMessage: (message: WorkspaceMessage) => void) => {
     const connection = new ReconnectingJsonWebSocket({
-      url: workspaceWebSocketUrl,
+      url: () => webSocketUrl("/ws/workspace"),
       onMessage,
     });
     connection.start();

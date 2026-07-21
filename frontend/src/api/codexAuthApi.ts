@@ -1,6 +1,6 @@
 import { json } from "../transport/http";
 import { ReconnectingJsonWebSocket } from "../transport/ReconnectingJsonWebSocket";
-import { codexAuthWebSocketUrl } from "../transport/websocket";
+import { webSocketUrl } from "../transport/websocket";
 import type { CodexAuthStatus, CodexDeviceLogin } from "../models/auth";
 
 export const codexAuthApi = {
@@ -8,7 +8,7 @@ export const codexAuthApi = {
   startDeviceLogin: () => json<CodexDeviceLogin>("POST", "/api/codex/login/device", {}),
   subscribe: (onStatus: (status: CodexAuthStatus) => void) => {
     const connection = new ReconnectingJsonWebSocket({
-      url: codexAuthWebSocketUrl,
+      url: () => webSocketUrl("/ws/codex/auth-status"),
       onMessage: onStatus,
     });
     connection.start();
