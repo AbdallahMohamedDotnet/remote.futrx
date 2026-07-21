@@ -54,3 +54,7 @@ export const Bot = (p: P) => (<svg {...base} {...p}><rect x="4" y="6" width="16"
 export const Users = (p: P) => (<svg {...base} {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
 export const Info = (p: P) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>);
 export const Server = (p: P) => (<svg {...base} {...p}><rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="18" height="7" rx="1"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h7M11 17.5h7"/></svg>);
+export const Cpu = (p: P) => (<svg {...base} {...p}><rect x="6" y="6" width="12" height="12" rx="1"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>);
+export const MemoryStick = (p: P) => (<svg {...base} {...p}><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h2v4H6zM11 10h2v4h-2zM16 10h2v4h-2zM6 18v2M10 18v2M14 18v2M18 18v2"/></svg>);
+export const HardDrive = (p: P) => (<svg {...base} {...p}><path d="M22 12H2l3-7h14l3 7Z"/><rect x="2" y="12" width="20" height="7" rx="1"/><path d="M6 15.5h.01M10 15.5h.01"/></svg>);
+export const Network = (p: P) => (<svg {...base} {...p}><rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-4h14v4"/></svg>);

@@ -1,6 +1,7 @@
 import type { AppearanceTheme } from "../../models/settings";
 import type { CodexDeviceLogin, KimiDeviceLogin } from "../../models/auth";
 import type { UserDirectory } from "../../state/hooks/users/useUserDirectory";
+import type { ServerInfo } from "../../models/serverInfo";
 import type { ComponentType } from "preact";
 import { Bot, ChevronLeft, Info, Menu, Monitor, Users } from "../primitives/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
@@ -49,6 +50,10 @@ export function SettingsPage({
   currentEmail,
   isAdmin,
   noAuth,
+  serverInfo,
+  serverInfoLoading,
+  serverInfoRefreshing,
+  serverInfoError,
   userDirectory,
   appearanceTheme,
   appearanceLoading,
@@ -68,6 +73,7 @@ export function SettingsPage({
   onBack,
   onHamburger,
   onTabChange,
+  onRefreshServerInfo,
   onAppearanceThemeChange,
   onStartCodexDeviceLogin,
   onStartKimiDeviceLogin,
@@ -76,6 +82,10 @@ export function SettingsPage({
   currentEmail: string;
   isAdmin: boolean;
   noAuth: boolean;
+  serverInfo: ServerInfo | null;
+  serverInfoLoading: boolean;
+  serverInfoRefreshing: boolean;
+  serverInfoError: string | null;
   userDirectory: UserDirectory;
   appearanceTheme: AppearanceTheme;
   appearanceLoading: boolean;
@@ -95,6 +105,7 @@ export function SettingsPage({
   onBack: () => void;
   onHamburger: () => void;
   onTabChange: (tab: SettingsTab) => void;
+  onRefreshServerInfo: () => Promise<void>;
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
   onStartCodexDeviceLogin: () => Promise<void>;
   onStartKimiDeviceLogin: () => Promise<void>;
@@ -144,7 +155,7 @@ export function SettingsPage({
           role="tabpanel"
           class="flex-1 min-w-0 overflow-y-auto touch-scroll"
         >
-          <div class="max-w-3xl mx-auto px-4 py-5 md:px-6 md:py-7">
+          <div class="w-full px-4 py-5 md:px-6 md:py-7">
             <header class="mb-5">
               <h1 class="text-xl font-semibold text-ink-50">{activeTabDetails.label}</h1>
               <p class="mt-1 text-[13px] leading-relaxed text-ink-300">
@@ -223,6 +234,11 @@ export function SettingsPage({
                 currentEmail={currentEmail}
                 isAdmin={isAdmin}
                 noAuth={noAuth}
+                info={serverInfo}
+                loading={serverInfoLoading}
+                refreshing={serverInfoRefreshing}
+                error={serverInfoError}
+                onRefresh={onRefreshServerInfo}
               />
             )}
           </div>

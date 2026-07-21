@@ -74,6 +74,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.UserSettings,
 			deps.Services.Auth,
 		),
+		ServerInfo:       httphandlers.NewServerInfoHandler(deps.DataDir),
 		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills, deps.Services.Projects, deps.Services.Auth),
 		BrowserInspector: httphandlers.NewBrowserInspectorHandler(),
 		Uploads:          uploads,

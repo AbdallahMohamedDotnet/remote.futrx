@@ -67,6 +67,7 @@ export const API_ROUTES = {
       `/api/projects/${encodeURIComponent(id)}/access/${encodeURIComponent(email)}`,
   },
   settings: "/api/me/settings",
+  serverInfo: "/api/server/info",
   skills: (query: string) => `/api/skills?${query}`,
   uploads: "/api/uploads",
   users: {

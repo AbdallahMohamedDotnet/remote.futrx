@@ -8,6 +8,7 @@ import { useUserSettingsContext } from "../../state/context/UserSettingsContext"
 import { useCodexAuth } from "../../state/hooks/auth/useCodexAuth";
 import { useKimiAuth } from "../../state/hooks/auth/useKimiAuth";
 import { useUserDirectory } from "../../state/hooks/users/useUserDirectory";
+import { useServerInfo } from "../../state/hooks/server/useServerInfo";
 
 export function SettingsContainer({
   onBack,
@@ -22,6 +23,7 @@ export function SettingsContainer({
   const kimiAuth = useKimiAuth(true);
   const userDirectory = useUserDirectory(!auth.noAuth && auth.isAdmin);
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const serverInfo = useServerInfo(activeTab === "info");
 
   return (
     <SettingsPage
@@ -29,6 +31,10 @@ export function SettingsContainer({
       currentEmail={auth.email}
       isAdmin={auth.isAdmin}
       noAuth={auth.noAuth}
+      serverInfo={serverInfo.info}
+      serverInfoLoading={serverInfo.loading}
+      serverInfoRefreshing={serverInfo.refreshing}
+      serverInfoError={serverInfo.error}
       userDirectory={userDirectory}
       appearanceTheme={userSettings.settings.appearance.theme}
       appearanceLoading={userSettings.loading}
@@ -43,6 +49,7 @@ export function SettingsContainer({
       onBack={onBack}
       onHamburger={onHamburger}
       onTabChange={setActiveTab}
+      onRefreshServerInfo={serverInfo.refresh}
       onAppearanceThemeChange={(theme) => void userSettings.setTheme(theme)}
       onStartCodexDeviceLogin={codexAuth.startDeviceLogin}
       kimiAuthenticated={kimiAuth.authenticated}
