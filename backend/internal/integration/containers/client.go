@@ -9,7 +9,6 @@ import (
 	"context"
 	"io"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
@@ -43,11 +42,9 @@ type CommandRunner interface {
 // Client implements the container ports consumed by project and prompt
 // services. Wire it once at the composition root and share the pointer.
 type Client struct {
-	lxc   CommandRunner
-	image string
-
-	mu       sync.RWMutex
-	profiles []provisioning.Profile
+	lxc      CommandRunner
+	image    string
+	profiles profileRegistry
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
@@ -56,23 +53,11 @@ func New(client CommandRunner) *Client {
 }
 
 func (c *Client) ConfigureAgentProfiles(profiles []provisioning.Profile) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.profiles = cloneProfiles(profiles)
+	c.profiles.replace(profiles)
 }
 
 func (c *Client) AgentProfiles() []provisioning.Profile {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return cloneProfiles(c.profiles)
-}
-
-func cloneProfiles(profiles []provisioning.Profile) []provisioning.Profile {
-	out := make([]provisioning.Profile, len(profiles))
-	for i := range profiles {
-		out[i] = profiles[i].Clone()
-	}
-	return out
+	return c.profiles.snapshot()
 }
 
 // Available reports whether the underlying lxc binary is reachable.
