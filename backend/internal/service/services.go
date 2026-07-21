@@ -56,12 +56,22 @@ type Services struct {
 	Chats        *servicechat.Service
 	Projects     *serviceproject.Service
 	Prompt       *prompt.Service
+	AgentAuth    AgentAuthServices
 	Runs         *runhub.Hub
 	Workspace    *workspacehub.Hub
 	Auth         *serviceauth.Service
 	Users        *serviceuser.Service
 	UserSettings *serviceusersettings.Service
 	Skills       *serviceskills.Service
+}
+
+// AgentAuthServices are the shared auth lifecycles configured by each
+// registered agent. Provider packages supply policy; service/agent/auth owns
+// the process and subscription behavior.
+type AgentAuthServices struct {
+	Claude *claudeagent.Auth
+	Codex  *codexagent.Auth
+	Kimi   *kimiagent.Auth
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -110,6 +120,11 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		runs,
 		agents,
 	)
+	agentAuth := AgentAuthServices{
+		Claude: claudeagent.NewAuth(),
+		Codex:  codexagent.NewAuth(),
+		Kimi:   kimiagent.NewAuth(),
+	}
 	userService := serviceuser.New(deps.Users)
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
 	if err != nil {
@@ -122,6 +137,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Chats:        chatService,
 		Projects:     projectService,
 		Prompt:       promptService,
+		AgentAuth:    agentAuth,
 		Runs:         runs,
 		Workspace:    workspace,
 		Auth:         authService,
