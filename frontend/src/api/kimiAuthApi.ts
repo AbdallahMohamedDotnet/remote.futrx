@@ -1,6 +1,6 @@
 import { requestJson } from "../transport/http";
 import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
-import { webSocketUrl } from "../transport/websocket";
+import { webSocketUrl } from "../transport/webSocketUrl";
 import type { KimiAuthStatus, KimiDeviceLogin } from "../models/auth";
 
 export const kimiAuthApi = {

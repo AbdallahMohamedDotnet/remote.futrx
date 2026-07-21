@@ -1,6 +1,6 @@
 import { requestJson } from "../transport/http";
 import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
-import { webSocketUrl } from "../transport/websocket";
+import { webSocketUrl } from "../transport/webSocketUrl";
 import type { ClaudeAuthStatus, ClaudeLoginStart } from "../models/auth";
 
 export const claudeAuthApi = {

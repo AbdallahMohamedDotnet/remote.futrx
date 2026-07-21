@@ -1,7 +1,7 @@
 import type { ChatMeta } from "../models/chat";
 import type { ProjectMeta } from "../models/project";
 import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
-import { webSocketUrl } from "../transport/websocket";
+import { webSocketUrl } from "../transport/webSocketUrl";
 
 export type WorkspaceMessage =
   | { type: "workspace.snapshot"; chats: ChatMeta[]; projects: ProjectMeta[] }

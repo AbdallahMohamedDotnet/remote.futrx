@@ -1,6 +1,6 @@
 import { requestJson, sendHttpRequest } from "../transport/http";
 import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
-import { webSocketUrl } from "../transport/websocket";
+import { webSocketUrl } from "../transport/webSocketUrl";
 import type { FileTreeResponse } from "../models/files";
 import type { ChatEvent, ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";

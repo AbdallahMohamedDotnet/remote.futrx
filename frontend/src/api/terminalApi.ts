@@ -1,5 +1,5 @@
 import { WebSocketConnection } from "../transport/webSocketConnection";
-import { webSocketUrl } from "../transport/websocket";
+import { webSocketUrl } from "../transport/webSocketUrl";
 
 export interface TerminalConnection {
   readonly isOpen: boolean;
