@@ -17,6 +17,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/launch"
+	containerlifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/lifecycle"
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 )
@@ -25,20 +26,8 @@ const (
 	containerImageAlias  = containerbaseimage.Alias
 	containerImageSource = containerbaseimage.SourceImage
 
-	// hostMappedUID is the host uid that LXD's default idmap presents as
-	// root inside an unprivileged container. Files in the bind-mounted
-	// workspace must be owned by this uid or the container's root cannot
-	// write them.
-	hostMappedUID = 1000000
-
-	defaultImage           = BaseImageAlias
-	containerWorkspacePath = "/workspace"
-
-	launchTimeout = 90 * time.Second
-	startTimeout  = 30 * time.Second
-	stopTimeout   = 30 * time.Second
-	deleteTimeout = 30 * time.Second
-	queryTimeout  = 10 * time.Second
+	defaultImage = BaseImageAlias
+	queryTimeout = 10 * time.Second
 )
 
 // CommandRunner is the transport seam used to invoke the container runtime.
@@ -59,7 +48,7 @@ type Client struct {
 	clis        *containercli.Provisioner
 	browser     *containerbrowser.Service
 	codeServer  *containercodeserver.Provisioner
-	lifecycle   containerLifecycle
+	lifecycle   *containerlifecycle.Service
 	workspace   *containerworkspace.Provisioner
 	images      *containerbaseimage.Builder
 }
@@ -70,19 +59,6 @@ func New(client CommandRunner) *Client {
 		lxc:       client,
 		profiles:  profileconfig.NewRegistry(),
 		templates: assets.NewPublisher(client),
-	}
-	containerClient.lifecycle = containerLifecycle{
-		lxc:       client,
-		image:     defaultImage,
-		workspace: hostWorkspacePreparer{uid: hostMappedUID, gid: hostMappedUID},
-	}
-	inspectionCommands := &quickCommandRunner{lxc: client, timeout: inspectQuickTimeout}
-	containerClient.inspector = containerInspector{
-		states:      &containerClient.lifecycle,
-		lxd:         containerLXDInspector{commands: inspectionCommands},
-		guest:       containerGuestInspector{commands: inspectionCommands},
-		agents:      containerAgentInspector{commands: inspectionCommands, profiles: containerClient.profiles},
-		credentials: containerCredentialInspector{commands: inspectionCommands, profiles: containerClient.profiles},
 	}
 	containerClient.credentials = containercredentials.NewSynchronizer(client, containerClient.profiles)
 	containerClient.clis = containercli.NewProvisioner(client, containerClient.profiles, containerbaseimage.InstallScript)
@@ -95,12 +71,21 @@ func New(client CommandRunner) *Client {
 		containerbrowser.InstallScript(),
 		containercodeserver.InstallScript(),
 	)
-	containerClient.lifecycle.provisioner = containerlaunch.NewProvisioner(
+	launchProvisioner := containerlaunch.NewProvisioner(
 		containerClient.credentials,
 		containerClient.workspace,
 		containerClient.browser,
 		containerClient.codeServer,
 	)
+	containerClient.lifecycle = containerlifecycle.NewService(client, defaultImage, launchProvisioner)
+	inspectionCommands := &quickCommandRunner{lxc: client, timeout: inspectQuickTimeout}
+	containerClient.inspector = containerInspector{
+		states:      containerClient.lifecycle,
+		lxd:         containerLXDInspector{commands: inspectionCommands},
+		guest:       containerGuestInspector{commands: inspectionCommands},
+		agents:      containerAgentInspector{commands: inspectionCommands, profiles: containerClient.profiles},
+		credentials: containerCredentialInspector{commands: inspectionCommands, profiles: containerClient.profiles},
+	}
 	return containerClient
 }
 

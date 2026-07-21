@@ -21,11 +21,15 @@ const inspectQuickTimeout = 5 * time.Second
 // containerInspector owns the best-effort snapshot assembled from LXD, the
 // guest operating system, configured agent profiles, and host credential files.
 type containerInspector struct {
-	states      *containerLifecycle
+	states      containerStateReader
 	lxd         containerLXDInspector
 	guest       containerGuestInspector
 	agents      containerAgentInspector
 	credentials containerCredentialInspector
+}
+
+type containerStateReader interface {
+	State(ctx context.Context, containerName string) (serviceproject.ContainerState, error)
 }
 
 func (c *Client) Inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
@@ -35,7 +39,7 @@ func (c *Client) Inspect(ctx context.Context, containerName string) (serviceproj
 func (i *containerInspector) inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
 	out := serviceproject.ContainerInspect{Name: containerName}
 
-	state, err := i.states.state(ctx, containerName)
+	state, err := i.states.State(ctx, containerName)
 	if err != nil {
 		return out, err
 	}
