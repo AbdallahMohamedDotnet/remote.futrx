@@ -45,11 +45,11 @@ func templateHash(content []byte) string {
 // Ensure* step that ships an embedded template into the workspace, so the
 // temp-file / push / marker dance lives in one place. Callers are responsible
 // for creating any parent directories the destinations need.
-func (m *Client) pushTemplatedFile(ctx context.Context, containerName string, content []byte, hashPath, fileMode string, destPaths ...string) error {
+func (c *Client) pushTemplatedFile(ctx context.Context, containerName string, content []byte, hashPath, fileMode string, destPaths ...string) error {
 	want := templateHash(content)
 
 	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
-	got, err := m.lxc.Run(qctx, "exec", containerName, "--", "cat", hashPath)
+	got, err := c.lxc.Run(qctx, "exec", containerName, "--", "cat", hashPath)
 	cancelQ()
 	if err == nil && strings.TrimSpace(got) == want {
 		return nil
@@ -70,11 +70,11 @@ func (m *Client) pushTemplatedFile(ctx context.Context, containerName string, co
 	tmp.Close()
 
 	for _, destPath := range destPaths {
-		if out, err := m.lxc.Run(pctx, "file", "push", "--mode="+fileMode, tmp.Name(), containerName+destPath); err != nil {
+		if out, err := c.lxc.Run(pctx, "file", "push", "--mode="+fileMode, tmp.Name(), containerName+destPath); err != nil {
 			return fmt.Errorf("push %s: %w; output: %s", destPath, err, out)
 		}
 	}
-	if out, err := m.lxc.RunStdin(pctx, strings.NewReader(want), "exec", containerName, "--", "tee", hashPath); err != nil {
+	if out, err := c.lxc.RunStdin(pctx, strings.NewReader(want), "exec", containerName, "--", "tee", hashPath); err != nil {
 		return fmt.Errorf("write %s hash marker: %w; output: %s", hashPath, err, out)
 	}
 	return nil
@@ -84,8 +84,8 @@ func (m *Client) pushTemplatedFile(ctx context.Context, containerName string, co
 // workspace and seeds an empty .agents/browser-auth.json if missing.
 // Idempotent: the script is only re-pushed when its embedded content
 // changes (sha256 marker stored alongside the config).
-func (m *Client) EnsureBrowserScript(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) EnsureBrowserScript(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 
@@ -93,7 +93,7 @@ func (m *Client) EnsureBrowserScript(ctx context.Context, containerName string) 
 	// We chmod 755 on dirs so the unprivileged container-root user can
 	// traverse them; the host bind-mount preserves the uid 1000000 owner.
 	dctx, cancelD := context.WithTimeout(ctx, 30*time.Second)
-	_, err := m.lxc.Run(dctx, "exec", containerName, "--", "sh", "-c", `set -eu
+	_, err := c.lxc.Run(dctx, "exec", containerName, "--", "sh", "-c", `set -eu
 mkdir -p /workspace/scripts /workspace/.agents /workspace/.browser
 chmod 755 /workspace/scripts /workspace/.agents /workspace/.browser
 if [ ! -f /workspace/.agents/browser-auth.json ]; then
@@ -105,5 +105,5 @@ fi`)
 		return fmt.Errorf("seed browser dirs: %w", err)
 	}
 
-	return m.pushTemplatedFile(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
+	return c.pushTemplatedFile(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
 }

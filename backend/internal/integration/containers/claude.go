@@ -58,20 +58,20 @@ func ClaudeAuthBundle() AuthBundle {
 // Kept as a thin wrapper so existing callers (claude provider, prompt
 // service) keep working; new code can call EnsureAuthBundle directly with
 // any bundle.
-func (m *Client) EnsureClaudeAuth(ctx context.Context, containerName string) error {
-	return m.EnsureAuthBundle(ctx, containerName, ClaudeAuthBundle())
+func (c *Client) EnsureClaudeAuth(ctx context.Context, containerName string) error {
+	return c.EnsureAuthBundle(ctx, containerName, ClaudeAuthBundle())
 }
 
 // SyncClaudeAuthFromContainer pulls Claude credentials back to the host
 // after a run, so any OAuth refresh that happened inside the container
 // survives.
-func (m *Client) SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error {
-	return m.SyncAuthBundleFromContainer(ctx, containerName, ClaudeAuthBundle())
+func (c *Client) SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error {
+	return c.SyncAuthBundleFromContainer(ctx, containerName, ClaudeAuthBundle())
 }
 
 // EnsureClaude installs or upgrades Claude Code to the repository pin.
 // Safe to call on every prompt: current containers only pay for a local
 // version check, while stale containers self-heal in place.
-func (m *Client) EnsureClaude(ctx context.Context, containerName string) error {
-	return m.ensureAgentCLI(ctx, containerName, claudeCLISpec)
+func (c *Client) EnsureClaude(ctx context.Context, containerName string) error {
+	return c.ensureAgentCLI(ctx, containerName, claudeCLISpec)
 }

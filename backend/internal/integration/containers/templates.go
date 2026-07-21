@@ -24,22 +24,22 @@ const (
 // EnsureAgentInstructions pushes the agent system-instructions template into
 // both the Claude (/root/.claude/CLAUDE.md) and Codex (/root/.codex/AGENTS.md)
 // homes, gated by a single sha256 marker. Idempotent.
-func (m *Client) EnsureAgentInstructions(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) EnsureAgentInstructions(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 
 	dctx, cancelD := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelD()
-	if out, err := m.lxc.Run(dctx, "exec", containerName, "--",
+	if out, err := c.lxc.Run(dctx, "exec", containerName, "--",
 		"install", "-d", "-m", "700", containerClaudeDir); err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerClaudeDir, err, out)
 	}
-	if out, err := m.lxc.Run(dctx, "exec", containerName, "--",
+	if out, err := c.lxc.Run(dctx, "exec", containerName, "--",
 		"install", "-d", "-m", "700", "/root/.codex"); err != nil {
 		return fmt.Errorf("mkdir /root/.codex: %w; output: %s", err, out)
 	}
 
-	return m.pushTemplatedFile(ctx, containerName, agentInstructionsTemplate,
+	return c.pushTemplatedFile(ctx, containerName, agentInstructionsTemplate,
 		containerAgentInstrMDHash, "644", containerClaudeMD, containerCodexAGENTS)
 }

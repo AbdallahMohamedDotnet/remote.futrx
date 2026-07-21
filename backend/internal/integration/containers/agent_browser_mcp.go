@@ -34,17 +34,17 @@ const (
 // Claude MCP config. Codex uses equivalent inline config flags, but shares this
 // package install step. Cheap once installed: the npm-presence check short-
 // circuits, and the config is only re-pushed when its embedded content changes.
-func (m *Client) EnsureAgentBrowserMCP(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) EnsureAgentBrowserMCP(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 
 	cctx, cancelC := context.WithTimeout(ctx, queryTimeout)
-	_, missing := m.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "npm ls -g @playwright/mcp >/dev/null 2>&1")
+	_, missing := c.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "npm ls -g @playwright/mcp >/dev/null 2>&1")
 	cancelC()
 	if missing != nil {
 		ictx, cancelI := context.WithTimeout(ctx, browserMCPInstallTimeout)
-		out, err := m.lxc.Run(ictx, "exec", containerName, "--", "sh", "-c", "npm install -g @playwright/mcp 2>&1 | tail -3")
+		out, err := c.lxc.Run(ictx, "exec", containerName, "--", "sh", "-c", "npm install -g @playwright/mcp 2>&1 | tail -3")
 		cancelI()
 		if err != nil {
 			return fmt.Errorf("install @playwright/mcp: %w; output: %s", err, truncateOut(out, 1000))
@@ -52,10 +52,10 @@ func (m *Client) EnsureAgentBrowserMCP(ctx context.Context, containerName string
 	}
 
 	dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-	out, err := m.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
+	out, err := c.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
 	cancelD()
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerGUIDir, err, out)
 	}
-	return m.pushTemplatedFile(ctx, containerName, mcpClaudeConfig, containerMCPConfigHash, "644", ContainerMCPClaudeConfig)
+	return c.pushTemplatedFile(ctx, containerName, mcpClaudeConfig, containerMCPConfigHash, "644", ContainerMCPClaudeConfig)
 }

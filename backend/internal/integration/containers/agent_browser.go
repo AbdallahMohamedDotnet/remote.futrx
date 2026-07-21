@@ -47,94 +47,94 @@ const (
 )
 
 // AgentBrowserPort returns the in-container noVNC port the stack listens on.
-func (m *Client) AgentBrowserPort() int { return AgentBrowserVNCPort }
+func (c *Client) AgentBrowserPort() int { return AgentBrowserVNCPort }
 
 // EnsureAgentBrowser starts the full stack: browser core plus noVNC view.
-func (m *Client) EnsureAgentBrowser(ctx context.Context, containerName string) error {
-	return m.ensureAgentBrowser(ctx, containerName, "start", "start agent browser")
+func (c *Client) EnsureAgentBrowser(ctx context.Context, containerName string) error {
+	return c.ensureAgentBrowser(ctx, containerName, "start", "start agent browser")
 }
 
 // EnsureAgentBrowserCore starts only Xvfb, openbox, headed Chromium, and CDP.
-func (m *Client) EnsureAgentBrowserCore(ctx context.Context, containerName string) error {
-	return m.ensureAgentBrowser(ctx, containerName, "start-core", "start agent browser core")
+func (c *Client) EnsureAgentBrowserCore(ctx context.Context, containerName string) error {
+	return c.ensureAgentBrowser(ctx, containerName, "start-core", "start agent browser core")
 }
 
 // EnsureAgentBrowserView starts the noVNC/VNC layer on top of the same core.
-func (m *Client) EnsureAgentBrowserView(ctx context.Context, containerName string) error {
-	return m.ensureAgentBrowser(ctx, containerName, "start-view", "start agent browser view")
+func (c *Client) EnsureAgentBrowserView(ctx context.Context, containerName string) error {
+	return c.ensureAgentBrowser(ctx, containerName, "start-view", "start agent browser view")
 }
 
-func (m *Client) ensureAgentBrowser(ctx context.Context, containerName, verb, label string) error {
-	if !m.Available() {
+func (c *Client) ensureAgentBrowser(ctx context.Context, containerName, verb, label string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 
 	cctx, cancelC := context.WithTimeout(ctx, queryTimeout)
-	_, stackErr := m.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1")
+	_, stackErr := c.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1")
 	cancelC()
 	if stackErr != nil {
 		ictx, cancelI := context.WithTimeout(ctx, agentBrowserInstallTimeout)
-		out, err := m.lxc.Run(ictx, "exec", containerName, "--", "bash", "-c", AgentBrowserInstallScript)
+		out, err := c.lxc.Run(ictx, "exec", containerName, "--", "bash", "-c", AgentBrowserInstallScript)
 		cancelI()
 		if err != nil {
 			return fmt.Errorf("install agent browser stack: %w; output: %s", err, truncateOut(out, 2000))
 		}
 	}
 
-	if err := m.pushAgentBrowserTemplates(ctx, containerName); err != nil {
+	if err := c.pushAgentBrowserTemplates(ctx, containerName); err != nil {
 		return err
 	}
 
 	sctx, cancelS := context.WithTimeout(ctx, agentBrowserReadyTimeout)
 	defer cancelS()
-	if out, err := m.lxc.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, verb); err != nil {
+	if out, err := c.lxc.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, verb); err != nil {
 		return fmt.Errorf("%s: %w; output: %s", label, err, truncateOut(out, 1000))
 	}
 	return nil
 }
 
-func (m *Client) pushAgentBrowserTemplates(ctx context.Context, containerName string) error {
+func (c *Client) pushAgentBrowserTemplates(ctx context.Context, containerName string) error {
 	dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-	out, err := m.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
+	out, err := c.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
 	cancelD()
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerGUIDir, err, out)
 	}
-	if err := m.pushTemplatedFile(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript); err != nil {
+	if err := c.pushTemplatedFile(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript); err != nil {
 		return err
 	}
-	return m.pushTemplatedFile(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
+	return c.pushTemplatedFile(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
 }
 
 // StopAgentBrowser tears down the browser, VNC bridge, and virtual display.
-func (m *Client) StopAgentBrowser(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) StopAgentBrowser(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 	sctx, cancel := context.WithTimeout(ctx, stopTimeout)
 	defer cancel()
-	if out, err := m.lxc.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop"); err != nil {
+	if out, err := c.lxc.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop"); err != nil {
 		return fmt.Errorf("stop agent browser: %w; output: %s", err, truncateOut(out, 1000))
 	}
 	return nil
 }
 
 // StopAgentBrowserView tears down only the noVNC/VNC layer.
-func (m *Client) StopAgentBrowserView(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) StopAgentBrowserView(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 	sctx, cancel := context.WithTimeout(ctx, stopTimeout)
 	defer cancel()
-	if out, err := m.lxc.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop-view"); err != nil {
+	if out, err := c.lxc.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop-view"); err != nil {
 		return fmt.Errorf("stop agent browser view: %w; output: %s", err, truncateOut(out, 1000))
 	}
 	return nil
 }
 
 // AgentBrowserRunning reports whether the core is currently ready.
-func (m *Client) AgentBrowserRunning(ctx context.Context, containerName string) (bool, error) {
-	info, err := m.AgentBrowserStatus(ctx, containerName)
+func (c *Client) AgentBrowserRunning(ctx context.Context, containerName string) (bool, error) {
+	info, err := c.AgentBrowserStatus(ctx, containerName)
 	if err != nil {
 		return false, err
 	}
@@ -142,13 +142,13 @@ func (m *Client) AgentBrowserRunning(ctx context.Context, containerName string) 
 }
 
 // AgentBrowserStatus returns the split core/view state reported by gui-up.sh.
-func (m *Client) AgentBrowserStatus(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
-	if !m.Available() {
+func (c *Client) AgentBrowserStatus(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
+	if !c.Available() {
 		return serviceproject.AgentBrowserInfo{}, errors.New("lxc not available")
 	}
 	qctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := m.lxc.Run(qctx, "exec", containerName, "--", "sh", containerGUIScript, "status")
+	out, err := c.lxc.Run(qctx, "exec", containerName, "--", "sh", containerGUIScript, "status")
 	if err != nil {
 		return serviceproject.AgentBrowserInfo{
 			Status: serviceproject.AgentBrowserStatusStopped,
@@ -199,14 +199,14 @@ func parseAgentBrowserStatus(out string) serviceproject.AgentBrowserInfo {
 
 // EnsureAgentBrowserLimits applies only container config that Chrome needs and
 // removes older browser-induced container-wide CPU/memory limits.
-func (m *Client) EnsureAgentBrowserLimits(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) EnsureAgentBrowserLimits(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	cur, _ := m.lxc.Run(lctx, "config", "get", containerName, "security.nesting")
+	cur, _ := c.lxc.Run(lctx, "config", "get", containerName, "security.nesting")
 	if strings.TrimSpace(cur) != "true" {
-		out, err := m.lxc.Run(lctx, "config", "set", containerName, "security.nesting", "true")
+		out, err := c.lxc.Run(lctx, "config", "set", containerName, "security.nesting", "true")
 		if err != nil {
 			cancel()
 			return fmt.Errorf("set security.nesting: %w; output: %s", err, out)
@@ -216,13 +216,13 @@ func (m *Client) EnsureAgentBrowserLimits(ctx context.Context, containerName str
 
 	for _, key := range []string{"limits.cpu", "limits.memory"} {
 		qctx, qcancel := context.WithTimeout(ctx, queryTimeout)
-		cur, _ := m.lxc.Run(qctx, "config", "get", containerName, key)
+		cur, _ := c.lxc.Run(qctx, "config", "get", containerName, key)
 		qcancel()
 		if strings.TrimSpace(cur) == "" {
 			continue
 		}
 		uctx, ucancel := context.WithTimeout(ctx, queryTimeout)
-		out, err := m.lxc.Run(uctx, "config", "unset", containerName, key)
+		out, err := c.lxc.Run(uctx, "config", "unset", containerName, key)
 		ucancel()
 		if err != nil {
 			return fmt.Errorf("unset %s: %w; output: %s", key, err, out)

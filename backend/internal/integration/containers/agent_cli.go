@@ -68,17 +68,17 @@ func mustAgentCLIVersion(key string) string {
 // Missing or stale CLIs are upgraded to the repository pin, and concurrent
 // prompt starts coalesce around the npm install already running in the
 // container.
-func (m *Client) ensureAgentCLI(ctx context.Context, containerName string, spec agentCLISpec) error {
-	if !m.Available() {
+func (c *Client) ensureAgentCLI(ctx context.Context, containerName string, spec agentCLISpec) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
-	if m.agentCLIReady(ctx, containerName, spec) {
+	if c.agentCLIReady(ctx, containerName, spec) {
 		return nil
 	}
-	if m.agentCLIInstallRunning(ctx, containerName, spec) {
+	if c.agentCLIInstallRunning(ctx, containerName, spec) {
 		waitCtx, cancel := context.WithTimeout(ctx, agentCLIWaitTimeout)
 		defer cancel()
-		if err := m.waitForAgentCLI(waitCtx, containerName, spec); err == nil {
+		if err := c.waitForAgentCLI(waitCtx, containerName, spec); err == nil {
 			return nil
 		}
 	}
@@ -88,57 +88,57 @@ func (m *Client) ensureAgentCLI(ctx context.Context, containerName string, spec 
 
 	var out string
 	var err error
-	if m.containerCommandExists(installCtx, containerName, "npm") {
-		out, err = m.lxc.Run(installCtx, "exec", containerName, "--",
+	if c.containerCommandExists(installCtx, containerName, "npm") {
+		out, err = c.lxc.Run(installCtx, "exec", containerName, "--",
 			"npm", "install", "-g", spec.npmPackage(), "--silent")
 	} else {
 		// Very old containers may pre-date Node/npm. Reuse the full image recipe
 		// in that case so the runtime still self-heals from a bare rootfs.
-		out, err = m.lxc.Run(installCtx, "exec", containerName, "--", "bash", "-c", BaseImageInstallScript)
+		out, err = c.lxc.Run(installCtx, "exec", containerName, "--", "bash", "-c", BaseImageInstallScript)
 	}
 	if err != nil {
 		waitCtx, cancelWait := context.WithTimeout(ctx, 90*time.Second)
 		defer cancelWait()
-		if waitErr := m.waitForAgentCLI(waitCtx, containerName, spec); waitErr == nil {
+		if waitErr := c.waitForAgentCLI(waitCtx, containerName, spec); waitErr == nil {
 			return nil
 		}
 		return fmt.Errorf("install %s %s in %s: %w; output: %s",
 			spec.name, spec.version, containerName, err, truncateOut(out, 1000))
 	}
-	if !m.agentCLIReady(ctx, containerName, spec) {
+	if !c.agentCLIReady(ctx, containerName, spec) {
 		return fmt.Errorf("install %s %s in %s completed but the required version is unavailable",
 			spec.name, spec.version, containerName)
 	}
 	return nil
 }
 
-func (m *Client) agentCLIReady(ctx context.Context, containerName string, spec agentCLISpec) bool {
+func (c *Client) agentCLIReady(ctx context.Context, containerName string, spec agentCLISpec) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--", spec.binary, "--version")
+	out, err := c.lxc.Run(quickCtx, "exec", containerName, "--", spec.binary, "--version")
 	return err == nil && semanticVersionAtLeast(out, spec.version)
 }
 
-func (m *Client) agentCLIInstallRunning(ctx context.Context, containerName string, spec agentCLISpec) bool {
+func (c *Client) agentCLIInstallRunning(ctx context.Context, containerName string, spec agentCLISpec) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--",
+	out, err := c.lxc.Run(quickCtx, "exec", containerName, "--",
 		"pgrep", "-f", "npm install.*"+spec.packageName)
 	return err == nil && strings.TrimSpace(out) != ""
 }
 
-func (m *Client) containerCommandExists(ctx context.Context, containerName, command string) bool {
+func (c *Client) containerCommandExists(ctx context.Context, containerName, command string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	_, err := m.lxc.Run(quickCtx, "exec", containerName, "--", "which", command)
+	_, err := c.lxc.Run(quickCtx, "exec", containerName, "--", "which", command)
 	return err == nil
 }
 
-func (m *Client) waitForAgentCLI(ctx context.Context, containerName string, spec agentCLISpec) error {
+func (c *Client) waitForAgentCLI(ctx context.Context, containerName string, spec agentCLISpec) error {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
-		if m.agentCLIReady(ctx, containerName, spec) {
+		if c.agentCLIReady(ctx, containerName, spec) {
 			return nil
 		}
 		select {

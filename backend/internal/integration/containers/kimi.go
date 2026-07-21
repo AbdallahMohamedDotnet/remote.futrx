@@ -27,28 +27,28 @@ const (
 // isn't already present. Mirrors EnsureClaude: the shared BaseImageInstallScript
 // (Node 22 + `npm i -g` the agent CLIs) is the install path, so older Node-20
 // containers self-heal on first use.
-func (m *Client) EnsureKimi(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) EnsureKimi(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
-	if m.kimiInstalled(ctx, containerName) {
+	if c.kimiInstalled(ctx, containerName) {
 		return nil
 	}
-	if m.kimiInstallRunning(ctx, containerName) {
+	if c.kimiInstallRunning(ctx, containerName) {
 		waitCtx, cancelW := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancelW()
-		if err := m.waitForKimi(waitCtx, containerName); err == nil {
+		if err := c.waitForKimi(waitCtx, containerName); err == nil {
 			return nil
 		}
 	}
 
 	installCtx, cancelI := context.WithTimeout(ctx, 8*time.Minute)
 	defer cancelI()
-	out, err := m.lxc.Run(installCtx, "exec", containerName, "--", "bash", "-c", BaseImageInstallScript)
+	out, err := c.lxc.Run(installCtx, "exec", containerName, "--", "bash", "-c", BaseImageInstallScript)
 	if err != nil {
 		waitCtx, cancelW := context.WithTimeout(ctx, 90*time.Second)
 		defer cancelW()
-		if waitErr := m.waitForKimi(waitCtx, containerName); waitErr == nil {
+		if waitErr := c.waitForKimi(waitCtx, containerName); waitErr == nil {
 			return nil
 		}
 		return fmt.Errorf("install kimi in %s: %w; output: %s",
@@ -57,26 +57,26 @@ func (m *Client) EnsureKimi(ctx context.Context, containerName string) error {
 	return nil
 }
 
-func (m *Client) kimiInstalled(ctx context.Context, containerName string) bool {
+func (c *Client) kimiInstalled(ctx context.Context, containerName string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	_, err := m.lxc.Run(quickCtx, "exec", containerName, "--", "which", "kimi")
+	_, err := c.lxc.Run(quickCtx, "exec", containerName, "--", "which", "kimi")
 	return err == nil
 }
 
-func (m *Client) kimiInstallRunning(ctx context.Context, containerName string) bool {
+func (c *Client) kimiInstallRunning(ctx context.Context, containerName string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--",
+	out, err := c.lxc.Run(quickCtx, "exec", containerName, "--",
 		"pgrep", "-f", "npm install.*@moonshot-ai/kimi-code")
 	return err == nil && strings.TrimSpace(out) != ""
 }
 
-func (m *Client) waitForKimi(ctx context.Context, containerName string) error {
+func (c *Client) waitForKimi(ctx context.Context, containerName string) error {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
-		if m.kimiInstalled(ctx, containerName) {
+		if c.kimiInstalled(ctx, containerName) {
 			return nil
 		}
 		select {
@@ -95,13 +95,13 @@ func (m *Client) waitForKimi(ctx context.Context, containerName string) error {
 //     logged in (`kimi login` inside it). We leave its credentials untouched.
 //
 // Errors only when neither the host nor the container is authenticated.
-func (m *Client) EnsureKimiAuth(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) EnsureKimiAuth(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 	files, err := hostKimiCredFiles()
 	if err != nil || len(files) == 0 {
-		if m.kimiContainerAuthed(ctx, containerName) {
+		if c.kimiContainerAuthed(ctx, containerName) {
 			return nil
 		}
 		return fmt.Errorf("kimi not authenticated — run `kimi login` on the host or in container %s", containerName)
@@ -111,7 +111,7 @@ func (m *Client) EnsureKimiAuth(ctx context.Context, containerName string) error
 	defer cancel()
 
 	for _, dir := range []string{containerKimiHomeDir, containerKimiCredsDir} {
-		if out, err := m.lxc.Run(pctx, "exec", containerName, "--", "install", "-d", "-m", "700", dir); err != nil {
+		if out, err := c.lxc.Run(pctx, "exec", containerName, "--", "install", "-d", "-m", "700", dir); err != nil {
 			return fmt.Errorf("mkdir %s in container: %w; output: %s", dir, err, out)
 		}
 	}
@@ -119,7 +119,7 @@ func (m *Client) EnsureKimiAuth(ctx context.Context, containerName string) error
 	for _, name := range files {
 		host := filepath.Join(hostKimiCredsDir, name)
 		container := containerKimiCredsDir + "/" + name
-		if err := m.pushKimiFileIfNewer(pctx, host, container, containerName); err != nil {
+		if err := c.pushKimiFileIfNewer(pctx, host, container, containerName); err != nil {
 			return fmt.Errorf("push %s: %w", container, err)
 		}
 	}
@@ -130,8 +130,8 @@ func (m *Client) EnsureKimiAuth(ctx context.Context, containerName string) error
 // after a run (kimi-code rotates its OAuth refresh token). Only meaningful in
 // host-canonical mode; in per-container mode (no host credentials) it is a
 // no-op so one container's identity is never copied onto the host.
-func (m *Client) SyncKimiAuthFromContainer(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) SyncKimiAuthFromContainer(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return nil
 	}
 	if files, err := hostKimiCredFiles(); err != nil || len(files) == 0 {
@@ -141,7 +141,7 @@ func (m *Client) SyncKimiAuthFromContainer(ctx context.Context, containerName st
 	pctx, cancel := context.WithTimeout(ctx, authPushTimeout)
 	defer cancel()
 
-	out, err := m.lxc.Run(pctx, "exec", containerName, "--",
+	out, err := c.lxc.Run(pctx, "exec", containerName, "--",
 		"find", containerKimiCredsDir, "-maxdepth", "1", "-type", "f", "-printf", "%f\n")
 	if err != nil {
 		return nil
@@ -149,7 +149,7 @@ func (m *Client) SyncKimiAuthFromContainer(ctx context.Context, containerName st
 	for _, name := range strings.Fields(out) {
 		container := containerKimiCredsDir + "/" + name
 		host := filepath.Join(hostKimiCredsDir, name)
-		if out, err := m.lxc.Run(pctx, "file", "pull", containerName+container, host); err != nil {
+		if out, err := c.lxc.Run(pctx, "file", "pull", containerName+container, host); err != nil {
 			return fmt.Errorf("pull %s: %w; output: %s", container, err, out)
 		}
 		_ = os.Chmod(host, 0o600)
@@ -159,10 +159,10 @@ func (m *Client) SyncKimiAuthFromContainer(ctx context.Context, containerName st
 	return nil
 }
 
-func (m *Client) kimiContainerAuthed(ctx context.Context, containerName string) bool {
+func (c *Client) kimiContainerAuthed(ctx context.Context, containerName string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--",
+	out, err := c.lxc.Run(quickCtx, "exec", containerName, "--",
 		"sh", "-c", "ls -1 "+containerKimiCredsDir+" 2>/dev/null | head -1")
 	return err == nil && strings.TrimSpace(out) != ""
 }
@@ -181,13 +181,13 @@ func hostKimiCredFiles() ([]string, error) {
 	return files, nil
 }
 
-func (m *Client) pushKimiFileIfNewer(ctx context.Context, hostPath, containerPath, containerName string) error {
+func (c *Client) pushKimiFileIfNewer(ctx context.Context, hostPath, containerPath, containerName string) error {
 	hostInfo, err := os.Stat(hostPath)
 	if err != nil {
 		return err
 	}
 	shouldPush := true
-	if out, err := m.lxc.Run(ctx, "exec", containerName, "--", "stat", "-c", "%Y", containerPath); err == nil {
+	if out, err := c.lxc.Run(ctx, "exec", containerName, "--", "stat", "-c", "%Y", containerPath); err == nil {
 		if containerUnix, perr := strconv.ParseInt(strings.TrimSpace(out), 10, 64); perr == nil {
 			shouldPush = hostInfo.ModTime().Unix() > containerUnix
 		}
@@ -195,7 +195,7 @@ func (m *Client) pushKimiFileIfNewer(ctx context.Context, hostPath, containerPat
 	if !shouldPush {
 		return nil
 	}
-	if out, err := m.lxc.Run(ctx, "file", "push", "--mode=600", hostPath, containerName+containerPath); err != nil {
+	if out, err := c.lxc.Run(ctx, "file", "push", "--mode=600", hostPath, containerName+containerPath); err != nil {
 		return fmt.Errorf("lxc file push: %w; output: %s", err, out)
 	}
 	return nil

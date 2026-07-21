@@ -84,96 +84,96 @@ func New() *Service {
 	return &Service{subs: map[chan Status]struct{}{}}
 }
 
-func (m *Service) Authenticated() bool {
+func (s *Service) Authenticated() bool {
 	return authenticated()
 }
 
 // Status returns the current auth snapshot (authenticated flag + login state).
-func (m *Service) Status() Status {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.statusLocked()
+func (s *Service) Status() Status {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.statusLocked()
 }
 
-func (m *Service) statusLocked() Status {
-	return Status{Authenticated: authenticated(), Login: m.state}
+func (s *Service) statusLocked() Status {
+	return Status{Authenticated: authenticated(), Login: s.state}
 }
 
 // Subscribe registers a status channel and immediately delivers the current
 // snapshot. The returned func unsubscribes. Mirrors codexauth.Service.
-func (m *Service) Subscribe() (<-chan Status, func()) {
+func (s *Service) Subscribe() (<-chan Status, func()) {
 	ch := make(chan Status, 8)
-	m.mu.Lock()
-	if m.subs == nil {
-		m.subs = map[chan Status]struct{}{}
+	s.mu.Lock()
+	if s.subs == nil {
+		s.subs = map[chan Status]struct{}{}
 	}
-	m.subs[ch] = struct{}{}
-	status := m.statusLocked()
-	m.mu.Unlock()
+	s.subs[ch] = struct{}{}
+	status := s.statusLocked()
+	s.mu.Unlock()
 	ch <- status
 
 	cancel := func() {
-		m.mu.Lock()
-		if _, ok := m.subs[ch]; ok {
-			delete(m.subs, ch)
+		s.mu.Lock()
+		if _, ok := s.subs[ch]; ok {
+			delete(s.subs, ch)
 			close(ch)
 		}
-		m.mu.Unlock()
+		s.mu.Unlock()
 	}
 	return ch, cancel
 }
 
 // Broadcast pushes the current status to every subscriber.
-func (m *Service) Broadcast() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.broadcastLocked()
+func (s *Service) Broadcast() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.broadcastLocked()
 }
 
-func (m *Service) broadcastLocked() {
-	status := m.statusLocked()
-	for ch := range m.subs {
+func (s *Service) broadcastLocked() {
+	status := s.statusLocked()
+	for ch := range s.subs {
 		select {
 		case ch <- status:
 		default:
-			delete(m.subs, ch)
+			delete(s.subs, ch)
 			close(ch)
 		}
 	}
 }
 
 // setStateLocked mutates login state and notifies subscribers atomically.
-func (m *Service) setStateLocked(state LoginState) {
-	m.state = state
-	m.broadcastLocked()
+func (s *Service) setStateLocked(state LoginState) {
+	s.state = state
+	s.broadcastLocked()
 }
 
-func (m *Service) setState(state LoginState) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.setStateLocked(state)
+func (s *Service) setState(state LoginState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.setStateLocked(state)
 }
 
-func (m *Service) Start(ctx context.Context) (StartResult, error) {
+func (s *Service) Start(ctx context.Context) (StartResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	m.mu.Lock()
-	if m.session != nil {
+	s.mu.Lock()
+	if s.session != nil {
 		select {
-		case <-m.session.done:
-			m.session = nil
+		case <-s.session.done:
+			s.session = nil
 		default:
-			result := StartResult{URL: m.session.URL(), Resumed: true}
-			m.mu.Unlock()
+			result := StartResult{URL: s.session.URL(), Resumed: true}
+			s.mu.Unlock()
 			return result, nil
 		}
 	}
 
 	if _, err := exec.LookPath("claude"); err != nil {
-		m.setStateLocked(LoginState{Error: ErrClaudeNotFound.Error()})
-		m.mu.Unlock()
+		s.setStateLocked(LoginState{Error: ErrClaudeNotFound.Error()})
+		s.mu.Unlock()
 		return StartResult{}, ErrClaudeNotFound
 	}
 
@@ -184,8 +184,8 @@ func (m *Service) Start(ctx context.Context) (StartResult, error) {
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		cancel()
-		m.setStateLocked(LoginState{Error: fmt.Sprintf("pty start: %v", err)})
-		m.mu.Unlock()
+		s.setStateLocked(LoginState{Error: fmt.Sprintf("pty start: %v", err)})
+		s.mu.Unlock()
 		return StartResult{}, fmt.Errorf("pty start: %w", err)
 	}
 
@@ -196,9 +196,9 @@ func (m *Service) Start(ctx context.Context) (StartResult, error) {
 		cancel:    cancel,
 		done:      make(chan struct{}),
 	}
-	m.session = sess
-	m.setStateLocked(LoginState{Active: true, StartedAt: sess.startedAt.Unix()})
-	m.mu.Unlock()
+	s.session = sess
+	s.setStateLocked(LoginState{Active: true, StartedAt: sess.startedAt.Unix()})
+	s.mu.Unlock()
 
 	urlFound := make(chan string, 1)
 	go readLoginOutput(sess, urlFound)
@@ -206,33 +206,33 @@ func (m *Service) Start(ctx context.Context) (StartResult, error) {
 
 	select {
 	case url := <-urlFound:
-		m.setState(LoginState{Active: true, AuthURL: url, AwaitingCode: true, StartedAt: sess.startedAt.Unix()})
+		s.setState(LoginState{Active: true, AuthURL: url, AwaitingCode: true, StartedAt: sess.startedAt.Unix()})
 		return StartResult{URL: url}, nil
 	case <-time.After(claudeURLReadWait):
 		cancel()
-		m.clear(sess)
+		s.clear(sess)
 		err := fmt.Errorf("did not see Anthropic OAuth URL within %s; first 500 bytes of claude output: %s",
 			claudeURLReadWait, truncate(sess.Output(), 500))
-		m.setState(LoginState{Error: err.Error()})
+		s.setState(LoginState{Error: err.Error()})
 		return StartResult{}, err
 	case <-sess.done:
-		m.clear(sess)
+		s.clear(sess)
 		msg := "claude exited before printing OAuth URL"
 		if exitErr := sess.ExitErr(); exitErr != nil {
 			msg += " (" + exitErr.Error() + ")"
 		}
 		err := fmt.Errorf("%s; output: %s", msg, truncate(sess.Output(), 500))
-		m.setState(LoginState{Error: err.Error()})
+		s.setState(LoginState{Error: err.Error()})
 		return StartResult{}, err
 	case <-ctx.Done():
 		cancel()
-		m.clear(sess)
-		m.setState(LoginState{Error: ctx.Err().Error()})
+		s.clear(sess)
+		s.setState(LoginState{Error: ctx.Err().Error()})
 		return StartResult{}, ctx.Err()
 	}
 }
 
-func (m *Service) SubmitCode(ctx context.Context, code string) error {
+func (s *Service) SubmitCode(ctx context.Context, code string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -241,14 +241,14 @@ func (m *Service) SubmitCode(ctx context.Context, code string) error {
 		return ErrCodeRequired
 	}
 
-	sess := m.current()
+	sess := s.current()
 	if sess == nil {
 		return ErrNoSession
 	}
 
 	if _, err := io.WriteString(sess.ptmx, code+"\r"); err != nil {
 		err = fmt.Errorf("write to claude stdin: %w", err)
-		m.setState(LoginState{Error: err.Error()})
+		s.setState(LoginState{Error: err.Error()})
 		return err
 	}
 
@@ -257,10 +257,10 @@ func (m *Service) SubmitCode(ctx context.Context, code string) error {
 	case <-time.After(claudeExitWait):
 		sess.cancel()
 		<-sess.done
-		m.clear(sess)
+		s.clear(sess)
 		err := fmt.Errorf("claude did not exit within %s after code paste; last output: %s",
 			claudeExitWait, truncate(sess.Output(), 500))
-		m.setState(LoginState{Error: err.Error()})
+		s.setState(LoginState{Error: err.Error()})
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
@@ -268,28 +268,28 @@ func (m *Service) SubmitCode(ctx context.Context, code string) error {
 
 	debugOut := sess.Output()
 	exitErr := sess.ExitErr()
-	m.clear(sess)
+	s.clear(sess)
 
 	if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
 		err := fmt.Errorf("claude exited with error: %w; output: %s", exitErr, truncate(debugOut, 500))
-		m.setState(LoginState{Error: err.Error()})
+		s.setState(LoginState{Error: err.Error()})
 		return err
 	}
 	if !authenticated() {
 		err := fmt.Errorf("claude exited cleanly but no credentials file was written; output: %s",
 			truncate(debugOut, 500))
-		m.setState(LoginState{Error: err.Error()})
+		s.setState(LoginState{Error: err.Error()})
 		return err
 	}
-	m.setState(LoginState{Completed: true})
+	s.setState(LoginState{Completed: true})
 	return nil
 }
 
-func (m *Service) Cancel(ctx context.Context) error {
+func (s *Service) Cancel(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	sess := m.current()
+	sess := s.current()
 	if sess == nil {
 		return nil
 	}
@@ -297,26 +297,26 @@ func (m *Service) Cancel(ctx context.Context) error {
 
 	select {
 	case <-sess.done:
-		m.clear(sess)
-		m.setState(LoginState{})
+		s.clear(sess)
+		s.setState(LoginState{})
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 }
 
-func (m *Service) current() *loginSession {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.session
+func (s *Service) current() *loginSession {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.session
 }
 
-func (m *Service) clear(sess *loginSession) {
-	m.mu.Lock()
-	if m.session == sess {
-		m.session = nil
+func (s *Service) clear(sess *loginSession) {
+	s.mu.Lock()
+	if s.session == sess {
+		s.session = nil
 	}
-	m.mu.Unlock()
+	s.mu.Unlock()
 }
 
 func readLoginOutput(sess *loginSession, urlFound chan<- string) {

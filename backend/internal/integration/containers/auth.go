@@ -64,29 +64,29 @@ type AuthFile struct {
 // RegisterAuthBundle adds a bundle to the seed list used by Launch. Safe to
 // call from main during wiring; not intended to be called concurrently with
 // Launch.
-func (m *Client) RegisterAuthBundle(b AuthBundle) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.bundles = append(m.bundles, b)
+func (c *Client) RegisterAuthBundle(b AuthBundle) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.bundles = append(c.bundles, b)
 }
 
 // AuthBundles returns a snapshot of the registered bundles. Useful for tests
 // and diagnostics.
-func (m *Client) AuthBundles() []AuthBundle {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	out := make([]AuthBundle, len(m.bundles))
-	copy(out, m.bundles)
+func (c *Client) AuthBundles() []AuthBundle {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]AuthBundle, len(c.bundles))
+	copy(out, c.bundles)
 	return out
 }
 
 // EnsureRegisteredAuth seeds every registered bundle into the container.
 // Errors from individual bundles are joined so a single bad bundle doesn't
 // hide problems in the others.
-func (m *Client) EnsureRegisteredAuth(ctx context.Context, containerName string) error {
+func (c *Client) EnsureRegisteredAuth(ctx context.Context, containerName string) error {
 	var errs []error
-	for _, b := range m.AuthBundles() {
-		if err := m.EnsureAuthBundle(ctx, containerName, b); err != nil {
+	for _, b := range c.AuthBundles() {
+		if err := c.EnsureAuthBundle(ctx, containerName, b); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", b.Name, err))
 		}
 	}
@@ -96,8 +96,8 @@ func (m *Client) EnsureRegisteredAuth(ctx context.Context, containerName string)
 // EnsureAuthBundle pushes the bundle's files into the container. Each file is
 // only pushed when its host mtime is newer than the container copy, so this
 // is cheap to call on every prompt.
-func (m *Client) EnsureAuthBundle(ctx context.Context, containerName string, b AuthBundle) error {
-	if !m.Available() {
+func (c *Client) EnsureAuthBundle(ctx context.Context, containerName string, b AuthBundle) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 	if err := b.validate(); err != nil {
@@ -106,7 +106,7 @@ func (m *Client) EnsureAuthBundle(ctx context.Context, containerName string, b A
 
 	for _, dev := range b.LegacyDevices {
 		dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-		_, _ = m.lxc.Run(dctx, "config", "device", "remove", containerName, dev)
+		_, _ = c.lxc.Run(dctx, "config", "device", "remove", containerName, dev)
 		cancelD()
 	}
 
@@ -126,7 +126,7 @@ func (m *Client) EnsureAuthBundle(ctx context.Context, containerName string, b A
 	defer cancelP()
 
 	if b.ContainerDir != "" {
-		if out, err := m.lxc.Run(pctx, "exec", containerName, "--",
+		if out, err := c.lxc.Run(pctx, "exec", containerName, "--",
 			"install", "-d", "-m", "700", b.ContainerDir); err != nil {
 			return fmt.Errorf("mkdir %s in container: %w; output: %s",
 				b.ContainerDir, err, out)
@@ -139,7 +139,7 @@ func (m *Client) EnsureAuthBundle(ctx context.Context, containerName string, b A
 			// files can still be missing here, and we silently skip them.
 			continue
 		}
-		if err := m.pushAuthFileIfNewer(pctx, f, containerName); err != nil {
+		if err := c.pushAuthFileIfNewer(pctx, f, containerName); err != nil {
 			return fmt.Errorf("push %s: %w", f.ContainerPath, err)
 		}
 	}
@@ -150,8 +150,8 @@ func (m *Client) EnsureAuthBundle(ctx context.Context, containerName string, b A
 // Necessary when the in-container process rotates credentials (OAuth refresh
 // tokens, etc.) — without this, the next push would overwrite the rotation
 // with stale host data.
-func (m *Client) SyncAuthBundleFromContainer(ctx context.Context, containerName string, b AuthBundle) error {
-	if !m.Available() {
+func (c *Client) SyncAuthBundleFromContainer(ctx context.Context, containerName string, b AuthBundle) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 	if err := b.validate(); err != nil {
@@ -169,14 +169,14 @@ func (m *Client) SyncAuthBundleFromContainer(ctx context.Context, containerName 
 	defer cancel()
 
 	for _, f := range b.Files {
-		if out, err := m.lxc.Run(pctx, "exec", containerName, "--", "test", "-f", f.ContainerPath); err != nil {
+		if out, err := c.lxc.Run(pctx, "exec", containerName, "--", "test", "-f", f.ContainerPath); err != nil {
 			if f.PullRequired {
 				return fmt.Errorf("container file missing %s: %w; output: %s",
 					f.ContainerPath, err, out)
 			}
 			continue
 		}
-		if out, err := m.lxc.Run(pctx, "file", "pull", containerName+f.ContainerPath, f.HostPath); err != nil {
+		if out, err := c.lxc.Run(pctx, "file", "pull", containerName+f.ContainerPath, f.HostPath); err != nil {
 			return fmt.Errorf("pull %s: %w; output: %s",
 				f.ContainerPath, err, out)
 		}
@@ -197,14 +197,14 @@ func (b AuthBundle) validate() error {
 	return nil
 }
 
-func (m *Client) pushAuthFileIfNewer(ctx context.Context, f AuthFile, containerName string) error {
+func (c *Client) pushAuthFileIfNewer(ctx context.Context, f AuthFile, containerName string) error {
 	hostInfo, err := os.Stat(f.HostPath)
 	if err != nil {
 		return err
 	}
 
 	shouldPush := true
-	if out, err := m.lxc.Run(ctx, "exec", containerName, "--", "stat", "-c", "%Y", f.ContainerPath); err == nil {
+	if out, err := c.lxc.Run(ctx, "exec", containerName, "--", "stat", "-c", "%Y", f.ContainerPath); err == nil {
 		if containerUnix, parseErr := strconv.ParseInt(strings.TrimSpace(out), 10, 64); parseErr == nil {
 			shouldPush = hostInfo.ModTime().Unix() > containerUnix
 		}
@@ -217,7 +217,7 @@ func (m *Client) pushAuthFileIfNewer(ctx context.Context, f AuthFile, containerN
 	if mode == "" {
 		mode = "600"
 	}
-	if out, err := m.lxc.Run(ctx, "file", "push", "--mode="+mode, f.HostPath, containerName+f.ContainerPath); err != nil {
+	if out, err := c.lxc.Run(ctx, "file", "push", "--mode="+mode, f.HostPath, containerName+f.ContainerPath); err != nil {
 		return fmt.Errorf("lxc file push: %w; output: %s", err, out)
 	}
 	return nil

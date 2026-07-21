@@ -56,7 +56,7 @@ func New(client CommandRunner) *Client {
 }
 
 // Available reports whether the underlying lxc binary is reachable.
-func (m *Client) Available() bool { return m.lxc.Available() }
+func (c *Client) Available() bool { return c.lxc.Available() }
 
 func truncateOut(s string, max int) string {
 	if len(s) <= max {

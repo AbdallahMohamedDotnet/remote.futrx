@@ -40,15 +40,15 @@ func CodexAuthBundle() AuthBundle {
 	}
 }
 
-func (m *Client) EnsureCodexAuth(ctx context.Context, containerName string) error {
+func (c *Client) EnsureCodexAuth(ctx context.Context, containerName string) error {
 	if codexAuthUsesAPIKey(hostCodexAuth) {
 		return ErrCodexAPIKeyAuth
 	}
-	return m.EnsureAuthBundle(ctx, containerName, CodexAuthBundle())
+	return c.EnsureAuthBundle(ctx, containerName, CodexAuthBundle())
 }
 
-func (m *Client) SyncCodexAuthFromContainer(ctx context.Context, containerName string) error {
-	if err := m.SyncAuthBundleFromContainer(ctx, containerName, CodexAuthBundle()); err != nil {
+func (c *Client) SyncCodexAuthFromContainer(ctx context.Context, containerName string) error {
+	if err := c.SyncAuthBundleFromContainer(ctx, containerName, CodexAuthBundle()); err != nil {
 		return err
 	}
 	if codexAuthUsesAPIKey(hostCodexAuth) {
@@ -78,6 +78,6 @@ func codexAuthUsesAPIKey(path string) bool {
 // EnsureCodex installs or upgrades Codex to the repository pin. This keeps
 // existing project containers compatible with newly exposed models such as
 // GPT-5.6 Sol without requiring a destructive container recreation.
-func (m *Client) EnsureCodex(ctx context.Context, containerName string) error {
-	return m.ensureAgentCLI(ctx, containerName, codexCLISpec)
+func (c *Client) EnsureCodex(ctx context.Context, containerName string) error {
+	return c.ensureAgentCLI(ctx, containerName, codexCLISpec)
 }

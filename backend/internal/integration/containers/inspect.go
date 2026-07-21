@@ -69,10 +69,10 @@ type instanceState struct {
 	} `json:"network"`
 }
 
-func (m *Client) Inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
+func (c *Client) Inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
 	out := serviceproject.ContainerInspect{Name: containerName}
 
-	state, err := m.State(ctx, containerName)
+	state, err := c.State(ctx, containerName)
 	if err != nil {
 		return out, err
 	}
@@ -81,7 +81,7 @@ func (m *Client) Inspect(ctx context.Context, containerName string) (serviceproj
 		return out, nil
 	}
 
-	if cfg, err := m.queryInstance(ctx, containerName); err == nil {
+	if cfg, err := c.queryInstance(ctx, containerName); err == nil {
 		out.Architecture = cfg.Architecture
 		out.Type = cfg.Type
 		out.CreatedAt = cfg.CreatedAt
@@ -104,7 +104,7 @@ func (m *Client) Inspect(ctx context.Context, containerName string) (serviceproj
 	}
 
 	if state == serviceproject.ContainerStateRunning {
-		if st, err := m.queryInstanceState(ctx, containerName); err == nil {
+		if st, err := c.queryInstanceState(ctx, containerName); err == nil {
 			out.PID = st.PID
 			out.Resources = &serviceproject.ResourceInfo{
 				Processes:          st.Processes,
@@ -139,19 +139,19 @@ func (m *Client) Inspect(ctx context.Context, containerName string) (serviceproj
 			}
 		}
 
-		osInfo, disks := m.probeInContainer(ctx, containerName)
+		osInfo, disks := c.probeInContainer(ctx, containerName)
 		out.OS = osInfo
 		out.Disks = disks
-		out.Claude = m.inspectClaude(ctx, containerName)
-		out.Codex = m.inspectCodex(ctx, containerName)
+		out.Claude = c.inspectClaude(ctx, containerName)
+		out.Codex = c.inspectCodex(ctx, containerName)
 	}
 
-	out.AuthBundles = m.inspectAuthBundles(ctx, containerName, state)
+	out.AuthBundles = c.inspectAuthBundles(ctx, containerName, state)
 	return out, nil
 }
 
-func (m *Client) queryInstance(ctx context.Context, name string) (*instanceConfig, error) {
-	raw, err := m.runQuick(ctx, "query", "/1.0/instances/"+name)
+func (c *Client) queryInstance(ctx context.Context, name string) (*instanceConfig, error) {
+	raw, err := c.runQuick(ctx, "query", "/1.0/instances/"+name)
 	if err != nil {
 		return nil, err
 	}
@@ -162,8 +162,8 @@ func (m *Client) queryInstance(ctx context.Context, name string) (*instanceConfi
 	return &cfg, nil
 }
 
-func (m *Client) queryInstanceState(ctx context.Context, name string) (*instanceState, error) {
-	raw, err := m.runQuick(ctx, "query", "/1.0/instances/"+name+"/state")
+func (c *Client) queryInstanceState(ctx context.Context, name string) (*instanceState, error) {
+	raw, err := c.runQuick(ctx, "query", "/1.0/instances/"+name+"/state")
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (m *Client) queryInstanceState(ctx context.Context, name string) (*instance
 // probeInContainer batches several /proc reads + commands into a single
 // `lxc exec sh -c` round-trip to keep latency in the low 100ms range. The
 // output is split on `=== KEY ===` markers.
-func (m *Client) probeInContainer(ctx context.Context, name string) (*serviceproject.OSInfo, []serviceproject.DiskUsage) {
+func (c *Client) probeInContainer(ctx context.Context, name string) (*serviceproject.OSInfo, []serviceproject.DiskUsage) {
 	script := `
 echo "=== OS_RELEASE ==="
 cat /etc/os-release 2>/dev/null
@@ -193,7 +193,7 @@ echo "=== DF ==="
 df -P -B1 / /workspace 2>/dev/null
 echo "=== END ==="
 `
-	raw, err := m.runQuick(ctx, "exec", name, "--", "sh", "-c", script)
+	raw, err := c.runQuick(ctx, "exec", name, "--", "sh", "-c", script)
 	if err != nil {
 		return nil, nil
 	}
@@ -266,37 +266,37 @@ func splitSections(raw string) map[string]string {
 	return out
 }
 
-func (m *Client) inspectClaude(ctx context.Context, containerName string) serviceproject.ClaudeContainerStatus {
+func (c *Client) inspectClaude(ctx context.Context, containerName string) serviceproject.ClaudeContainerStatus {
 	var cs serviceproject.ClaudeContainerStatus
-	if _, err := m.runQuick(ctx, "exec", containerName, "--", "which", "claude"); err == nil {
+	if _, err := c.runQuick(ctx, "exec", containerName, "--", "which", "claude"); err == nil {
 		cs.Installed = true
-		if v, err := m.runQuick(ctx, "exec", containerName, "--", "claude", "--version"); err == nil {
+		if v, err := c.runQuick(ctx, "exec", containerName, "--", "claude", "--version"); err == nil {
 			cs.Version = strings.TrimSpace(v)
 		}
 	}
 
-	if _, err := m.runQuick(ctx, "exec", containerName, "--", "test", "-f", containerClaudeMD); err == nil {
+	if _, err := c.runQuick(ctx, "exec", containerName, "--", "test", "-f", containerClaudeMD); err == nil {
 		cs.ClaudeMDInstalled = true
 	}
-	if got, err := m.runQuick(ctx, "exec", containerName, "--", "cat", containerAgentInstrMDHash); err == nil {
+	if got, err := c.runQuick(ctx, "exec", containerName, "--", "cat", containerAgentInstrMDHash); err == nil {
 		cs.ClaudeMDInSync = strings.TrimSpace(got) == templateHash(agentInstructionsTemplate)
 	}
 	return cs
 }
 
-func (m *Client) inspectCodex(ctx context.Context, containerName string) serviceproject.CodexContainerStatus {
+func (c *Client) inspectCodex(ctx context.Context, containerName string) serviceproject.CodexContainerStatus {
 	var cs serviceproject.CodexContainerStatus
-	if _, err := m.runQuick(ctx, "exec", containerName, "--", "which", "codex"); err == nil {
+	if _, err := c.runQuick(ctx, "exec", containerName, "--", "which", "codex"); err == nil {
 		cs.Installed = true
-		if v, err := m.runQuick(ctx, "exec", containerName, "--", "codex", "--version"); err == nil {
+		if v, err := c.runQuick(ctx, "exec", containerName, "--", "codex", "--version"); err == nil {
 			cs.Version = strings.TrimSpace(v)
 		}
 	}
 	return cs
 }
 
-func (m *Client) inspectAuthBundles(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {
-	bundles := m.AuthBundles()
+func (c *Client) inspectAuthBundles(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {
+	bundles := c.AuthBundles()
 	out := make([]serviceproject.AuthBundleStatus, 0, len(bundles))
 	for _, b := range bundles {
 		st := serviceproject.AuthBundleStatus{Name: b.Name}
@@ -310,7 +310,7 @@ func (m *Client) inspectAuthBundles(ctx context.Context, containerName string, s
 				fs.HostMTime = info.ModTime().Unix()
 			}
 			if state == serviceproject.ContainerStateRunning {
-				if raw, err := m.runQuick(ctx,
+				if raw, err := c.runQuick(ctx,
 					"exec", containerName, "--", "stat", "-c", "%Y", f.ContainerPath); err == nil {
 					if mt, perr := strconv.ParseInt(strings.TrimSpace(raw), 10, 64); perr == nil {
 						fs.ContainerExists = true
@@ -334,8 +334,8 @@ func (m *Client) inspectAuthBundles(ctx context.Context, containerName string, s
 	return out
 }
 
-func (m *Client) runQuick(parent context.Context, args ...string) (string, error) {
+func (c *Client) runQuick(parent context.Context, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(parent, inspectQuickTimeout)
 	defer cancel()
-	return m.lxc.Run(ctx, args...)
+	return c.lxc.Run(ctx, args...)
 }

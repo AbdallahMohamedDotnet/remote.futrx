@@ -15,13 +15,13 @@ import (
 
 // RepairNetwork re-runs eth0 configuration (DHCP) inside the container.
 // Safe on a healthy container: reconfigure just refreshes the same lease.
-func (m *Client) RepairNetwork(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) RepairNetwork(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 	rctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	if out, err := m.lxc.Run(rctx, "exec", containerName, "--", "networkctl", "reconfigure", "eth0"); err != nil {
+	if out, err := c.lxc.Run(rctx, "exec", containerName, "--", "networkctl", "reconfigure", "eth0"); err != nil {
 		return fmt.Errorf("networkctl reconfigure eth0: %w; output: %s", err, out)
 	}
 	return nil

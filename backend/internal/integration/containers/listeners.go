@@ -20,8 +20,8 @@ import (
 
 const listenersTimeout = 5 * time.Second
 
-func (m *Client) ListListeners(ctx context.Context, containerName string) ([]serviceproject.ContainerApp, error) {
-	if !m.Available() {
+func (c *Client) ListListeners(ctx context.Context, containerName string) ([]serviceproject.ContainerApp, error) {
+	if !c.Available() {
 		return nil, errors.New("lxc not available")
 	}
 	qctx, cancel := context.WithTimeout(ctx, listenersTimeout)
@@ -30,7 +30,7 @@ func (m *Client) ListListeners(ctx context.Context, containerName string) ([]ser
 	// -t TCP, -l listening, -n numeric, -H no header, -p process info.
 	// We accept the inevitable non-zero exit if ss isn't installed (the
 	// base image always has iproute2, but a stripped derivative might not).
-	out, err := m.lxc.Run(qctx, "exec", containerName, "--", "ss", "-tlnHp")
+	out, err := c.lxc.Run(qctx, "exec", containerName, "--", "ss", "-tlnHp")
 	if err != nil {
 		return nil, fmt.Errorf("ss in container: %w; output: %s", err, out)
 	}

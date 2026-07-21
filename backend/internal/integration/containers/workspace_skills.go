@@ -15,8 +15,8 @@ const ensureWorkspaceSymlinksTimeout = 10 * time.Second
 // migrates legacy .claude/.codex skill children when possible, and points both
 // compatibility paths at .agents/skills. Cheap and idempotent, so providers can
 // call it before every prompt.
-func (m *Client) EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error {
-	if !m.Available() {
+func (c *Client) EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error {
+	if !c.Available() {
 		return errors.New("lxc not available")
 	}
 	qctx, cancel := context.WithTimeout(ctx, ensureWorkspaceSymlinksTimeout)
@@ -87,7 +87,7 @@ if [ -d /root/.codex ]; then
   fi
 fi
 `
-	if _, err := m.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
+	if _, err := c.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
 		return err
 	}
 	return nil
