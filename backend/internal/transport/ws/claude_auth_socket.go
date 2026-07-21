@@ -4,15 +4,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/claudeauth"
+	claudeagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/claude"
 	"github.com/gorilla/websocket"
 )
 
 type ClaudeAuthSocket struct {
-	login *claudeauth.Service
+	login *claudeagent.Auth
 }
 
-func NewClaudeAuthSocket(login *claudeauth.Service) *ClaudeAuthSocket {
+func NewClaudeAuthSocket(login *claudeagent.Auth) *ClaudeAuthSocket {
 	return &ClaudeAuthSocket{login: login}
 }
 
