@@ -50,3 +50,7 @@ export const Moon = (p: P) => (<svg {...base} {...p}><path d="M21 12.8A9 9 0 1 1
 export const Sun = (p: P) => (<svg {...base} {...p}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>);
 export const Code = (p: P) => (<svg {...base} {...p}><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg>);
 export const Crosshair = (p: P) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10"/><path d="M22 12h-4M6 12H2M12 6V2M12 22v-4"/><circle cx="12" cy="12" r="2"/></svg>);
+export const Bot = (p: P) => (<svg {...base} {...p}><rect x="4" y="6" width="16" height="13" rx="2"/><path d="M12 2v4M8 11h.01M16 11h.01M9 15h6M2 10h2M20 10h2"/></svg>);
+export const Users = (p: P) => (<svg {...base} {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
+export const Info = (p: P) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>);
+export const Server = (p: P) => (<svg {...base} {...p}><rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="18" height="7" rx="1"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h7M11 17.5h7"/></svg>);

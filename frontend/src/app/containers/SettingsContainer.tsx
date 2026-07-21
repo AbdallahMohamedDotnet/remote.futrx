@@ -1,4 +1,8 @@
-import { SettingsPage } from "../../ui/settings/SettingsPage";
+import { useState } from "preact/hooks";
+import {
+  SettingsPage,
+  type SettingsTab,
+} from "../../ui/settings/SettingsPage";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
 import { useCodexAuth } from "../../state/hooks/auth/useCodexAuth";
@@ -17,9 +21,11 @@ export function SettingsContainer({
   const codexAuth = useCodexAuth(true);
   const kimiAuth = useKimiAuth(true);
   const userDirectory = useUserDirectory(!auth.noAuth && auth.isAdmin);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
 
   return (
     <SettingsPage
+      activeTab={activeTab}
       currentEmail={auth.email}
       isAdmin={auth.isAdmin}
       noAuth={auth.noAuth}
@@ -36,6 +42,7 @@ export function SettingsContainer({
       codexError={codexAuth.error}
       onBack={onBack}
       onHamburger={onHamburger}
+      onTabChange={setActiveTab}
       onAppearanceThemeChange={(theme) => void userSettings.setTheme(theme)}
       onStartCodexDeviceLogin={codexAuth.startDeviceLogin}
       kimiAuthenticated={kimiAuth.authenticated}
