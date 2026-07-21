@@ -6,27 +6,29 @@ import type { FileTreeResponse } from "../models/files";
 import type { ChatEvent, ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
 import type { ChatStream, ChatStreamCallbacks } from "../types/chatApi";
+import { API_ROUTES, WEB_SOCKET_ROUTES } from "../config/routes";
 
 export const chatApi = {
-  list: () => requestJson<ChatMeta[]>("GET", "/api/chats"),
-  create: (body: CreateChatInput = {}) => requestJson<ChatMeta>("POST", "/api/chats", body),
-  get: (id: string) => requestJson<ChatMeta>("GET", `/api/chats/${encodeURIComponent(id)}`),
+  list: () => requestJson<ChatMeta[]>("GET", API_ROUTES.chats.collection),
+  create: (body: CreateChatInput = {}) =>
+    requestJson<ChatMeta>("POST", API_ROUTES.chats.collection, body),
+  get: (id: string) => requestJson<ChatMeta>("GET", API_ROUTES.chats.item(id)),
   update: (id: string, body: UpdateChatInput) =>
-    requestJson<ChatMeta>("PATCH", `/api/chats/${encodeURIComponent(id)}`, body),
+    requestJson<ChatMeta>("PATCH", API_ROUTES.chats.item(id), body),
   markRead: (id: string) =>
-    requestJson<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/read`, {}),
+    requestJson<ChatMeta>("POST", API_ROUTES.chats.read(id), {}),
   markUnread: (id: string) =>
-    requestJson<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/unread`, {}),
+    requestJson<ChatMeta>("POST", API_ROUTES.chats.unread(id), {}),
   delete: (id: string) =>
-    requestJson<{ ok: boolean }>("DELETE", `/api/chats/${encodeURIComponent(id)}`),
+    requestJson<{ ok: boolean }>("DELETE", API_ROUTES.chats.item(id)),
   fork: (id: string) =>
-    requestJson<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/fork`, {}),
+    requestJson<ChatMeta>("POST", API_ROUTES.chats.fork(id), {}),
   files: (id: string) =>
-    requestJson<FileTreeResponse>("GET", `/api/chats/${encodeURIComponent(id)}/files`),
+    requestJson<FileTreeResponse>("GET", API_ROUTES.chats.files(id)),
   fileDownloadUrl: (id: string, dir: string, path: string) =>
-    `/api/chats/${encodeURIComponent(id)}/files/download?dir=${encodeURIComponent(dir)}&path=${encodeURIComponent(path)}`,
+    API_ROUTES.chats.fileDownload(id, dir, path),
   folderDownloadUrl: (id: string, dir: string, path = "") =>
-    `/api/chats/${encodeURIComponent(id)}/files/download-folder?dir=${encodeURIComponent(dir)}${path ? `&path=${encodeURIComponent(path)}` : ""}`,
+    API_ROUTES.chats.folderDownload(id, dir, path),
   events: (id: string, params: { limit?: number; before?: number } = {}) => {
     const search = new URLSearchParams();
     if (params.limit) search.set("limit", String(params.limit));
@@ -34,29 +36,29 @@ export const chatApi = {
     const query = search.toString();
     return requestJson<ChatEventPage>(
       "GET",
-      `/api/chats/${encodeURIComponent(id)}/events${query ? `?${query}` : ""}`
+      API_ROUTES.chats.events(id, query)
     );
   },
   rewind: (id: string, beforeT: number) =>
-    requestJson<ChatEventPage>("POST", `/api/chats/${encodeURIComponent(id)}/rewind`, { beforeT }),
+    requestJson<ChatEventPage>("POST", API_ROUTES.chats.rewind(id), { beforeT }),
   historyRepos: (id: string) =>
-    requestJson<GitHistoryReposResponse>("GET", `/api/chats/${encodeURIComponent(id)}/history/repos`),
+    requestJson<GitHistoryReposResponse>("GET", API_ROUTES.chats.historyRepos(id)),
   historyCommits: (id: string, repo: string, limit = 100) => {
     const search = new URLSearchParams({ repo, limit: String(limit) });
     return requestJson<GitHistoryCommitsResponse>(
       "GET",
-      `/api/chats/${encodeURIComponent(id)}/history/commits?${search.toString()}`
+      API_ROUTES.chats.historyCommits(id, search.toString())
     );
   },
   historyDiff: (id: string, repo: string, sha: string) => {
     const search = new URLSearchParams({ repo, sha });
     return requestJson<GitHistoryDiffResponse>(
       "GET",
-      `/api/chats/${encodeURIComponent(id)}/history/diff?${search.toString()}`
+      API_ROUTES.chats.historyDiff(id, search.toString())
     );
   },
   historyCheckout: async (id: string, repo: string, sha: string, checkpointMessage = "") => {
-    const response = await sendHttpRequest("POST", `/api/chats/${encodeURIComponent(id)}/history/checkout`, {
+    const response = await sendHttpRequest("POST", API_ROUTES.chats.historyCheckout(id), {
       repo,
       sha,
       checkpointMessage,
@@ -97,7 +99,7 @@ class ReconnectingChatStream implements ChatStream {
     callbacks: ChatStreamCallbacks
   ) {
     this.#connection = new ReconnectingJsonWebSocket({
-      resolveUrl: () => chatStreamUrl(chatId, latestSeq()),
+      resolveUrl: () => webSocketUrl(WEB_SOCKET_ROUTES.chat(chatId, latestSeq())),
       onOpen: callbacks.onOpen,
       onMessage: callbacks.onEvent,
       onClose: callbacks.onClose,
@@ -123,9 +125,4 @@ class ReconnectingChatStream implements ChatStream {
   close(): void {
     this.#connection.stop();
   }
-}
-
-function chatStreamUrl(chatId: string, sinceSeq: number): string {
-  const url = webSocketUrl(`/ws/chat/${encodeURIComponent(chatId)}`);
-  return sinceSeq > 0 ? `${url}?since=${sinceSeq}` : url;
 }
