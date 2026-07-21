@@ -17,9 +17,9 @@ import (
 
 	remote "github.com/Kings-Of-The-Web/remote.futrx.dev"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/containers"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport"

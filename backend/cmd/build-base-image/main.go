@@ -19,8 +19,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/containers"
 )
 
 func main() {

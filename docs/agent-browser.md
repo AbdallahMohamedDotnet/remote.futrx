@@ -73,12 +73,12 @@ flowchart LR
 
 | Concern | File |
 |---|---|
-| GUI launcher (Xvfb -> Chromium -> noVNC) | `backend/internal/manager/containers/templates/gui-up.sh` |
-| OS-level input fallback | `backend/internal/manager/containers/templates/human-input.sh` |
-| Provision/start/stop the Agent Browser stack | `backend/internal/manager/containers/agent_browser.go` |
-| Install `@playwright/mcp` + push provider config | `backend/internal/manager/containers/agent_browser_mcp.go` |
-| The `browser` skill playbook | `backend/internal/manager/containers/templates/skills/browser/SKILL.md` |
-| Ship the skill into the workspace | `backend/internal/manager/containers/browser_skill.go` |
+| GUI launcher (Xvfb -> Chromium -> noVNC) | `backend/internal/integration/containers/templates/gui-up.sh` |
+| OS-level input fallback | `backend/internal/integration/containers/templates/human-input.sh` |
+| Provision/start/stop the Agent Browser stack | `backend/internal/integration/containers/agent_browser.go` |
+| Install `@playwright/mcp` + push provider config | `backend/internal/integration/containers/agent_browser_mcp.go` |
+| The `browser` skill playbook | `backend/internal/integration/containers/templates/skills/browser/SKILL.md` |
+| Ship the skill into the workspace | `backend/internal/integration/containers/browser_skill.go` |
 | Lifecycle REST routes | `backend/internal/transport/http/handlers/project_handler.go` (`/api/projects/{id}/agent-browser`) |
 | Skill -> EnableBrowser -> MCP wiring | `backend/internal/service/prompt/service.go`, provider `command.go` files |
 | Project-service orchestration + idle reaper | `backend/internal/service/project/service.go` (`StartAgentBrowser`) |

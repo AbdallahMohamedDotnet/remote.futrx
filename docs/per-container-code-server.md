@@ -52,15 +52,15 @@ safe because :8080 is the only reachable port and Caddy gates it.
 
 ## Files changed
 
-- `backend/internal/manager/containers/templates/code-server-up.sh` — new;
+- `backend/internal/integration/containers/templates/code-server-up.sh` — new;
   idempotent in-container install recipe (deb install, config, three systemd
   units, settings, pinned extensions).
-- `backend/internal/manager/containers/code_server.go` — new;
+- `backend/internal/integration/containers/code_server.go` — new;
   `EnsureCodeServer` (migration path for pre-image containers), mirrors the
   container migration helper pattern.
-- `backend/internal/manager/containers/baseimage.go` — bakes the recipe into
+- `backend/internal/integration/containers/baseimage.go` — bakes the recipe into
   the base image after the browser-GUI layer.
-- `backend/internal/manager/containers/lifecycle.go` — best-effort
+- `backend/internal/integration/containers/lifecycle.go` — best-effort
   `EnsureCodeServer` on every `Launch`.
 - `backend/internal/transport/http/handlers/project_handler.go` — new
   `codeHostPattern`; `HandleTLSAsk` accepts the dev-URL or code host.
