@@ -1,8 +1,7 @@
 import { requestJson } from "./apiRequest";
+import { projectBrowserApi } from "./project/projectBrowserApi";
 import { projectContainerApi } from "./project/projectContainerApi";
 import type {
-  AgentBrowserInfo,
-  ContainerApp,
   ProjectMeta,
   ProjectSecret,
 } from "../models/project";
@@ -24,21 +23,10 @@ export const projectApi = {
   stop: projectContainerApi.stop,
   containerInfo: projectContainerApi.containerInfo,
   repairNetwork: projectContainerApi.repairNetwork,
-  listApps: (id: string) =>
-    requestJson<ContainerApp[]>("GET", API_ROUTES.projects.apps(id)),
-  agentBrowserStatus: (id: string) =>
-    requestJson<AgentBrowserInfo>("GET", API_ROUTES.projects.agentBrowser(id)),
-  startAgentBrowser: (id: string) =>
-    requestJson<AgentBrowserInfo>(
-      "POST",
-      API_ROUTES.projects.startAgentBrowser(id),
-      {}
-    ),
-  stopAgentBrowser: (id: string, scope?: "view") =>
-    requestJson<AgentBrowserInfo | { status: "stopped" }>(
-      "DELETE",
-      API_ROUTES.projects.agentBrowser(id, scope)
-    ),
+  listApps: projectBrowserApi.listApps,
+  agentBrowserStatus: projectBrowserApi.agentBrowserStatus,
+  startAgentBrowser: projectBrowserApi.startAgentBrowser,
+  stopAgentBrowser: projectBrowserApi.stopAgentBrowser,
   listSecrets: (id: string) =>
     requestJson<ProjectSecret[]>("GET", API_ROUTES.projects.secrets(id)),
   setSecret: (id: string, key: string, value: string) =>
