@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	kimiCLIVersion           = "0.19.2"
 	hostKimiCredentialsDir   = "/root/.kimi-code/credentials"
 	containerCredentialsDir  = containerKimiHome + "/credentials"
 	missingCredentialsFormat = "kimi not authenticated — run `kimi login` on the host or in container %s"
@@ -21,9 +20,10 @@ var kimiProfile = provisioning.Profile{
 		ImageLabel:         "kimi-code",
 		Binary:             "kimi",
 		PackageName:        "@moonshot-ai/kimi-code",
-		Version:            kimiCLIVersion,
-		CheckVersion:       false,
-		VerifyAfterInstall: false,
+		Version:            provisioning.MustCLIVersion("KIMI_CODE_VERSION"),
+		ReportVersion:      true,
+		CheckVersion:       true,
+		VerifyAfterInstall: true,
 		InstallMode:        provisioning.InstallWithImageRepair,
 		InstallTimeout:     8 * time.Minute,
 		WaitTimeout:        5 * time.Minute,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bake the futrx-remote-dev-base LXD image used by every project container.
 # Driven by backend/cmd/build-base-image, which is the single source of
-# truth for the install recipe (Node 20 + agent CLIs baked in).
+# truth for the install recipe (Node 22 + agent CLIs baked in).
 #
 # Idempotent: skips when the alias is already published. Set
 # FORCE_REBUILD_BASE_IMAGE=1 to delete + rebuild even when present.

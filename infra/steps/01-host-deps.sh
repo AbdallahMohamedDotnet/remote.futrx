@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host-level system dependencies: apt base, Node 20, Go, Caddy, agent CLIs, LXD.
+# Host-level system dependencies: apt base, Node 22, Go, Caddy, agent CLIs, LXD.
 # Idempotent — re-runs are fast no-ops when everything's already installed.
 #
 # Expects from caller:
@@ -17,7 +17,7 @@ export DEBIAN_FRONTEND=noninteractive
 # ───────────────── base apt deps ─────────────────
 log "apt update + base packages"
 apt-get update -qq
-apt-get install -y -qq git curl ca-certificates gnupg tmux build-essential openssl gettext-base
+apt-get install -y -qq git curl ca-certificates gnupg jq tmux build-essential openssl gettext-base
 
 # ───────────────── host toolchain pins ─────────────────
 # infra/versions.env declares the exact versions the host must run. Every
@@ -30,7 +30,7 @@ if [ ! -r "$VERSIONS_FILE" ]; then
 fi
 # shellcheck source=/dev/null
 . "$VERSIONS_FILE"
-for v in NODE_MAJOR GO_VERSION; do
+for v in NODE_MAJOR NODE_MIN_VERSION GO_VERSION; do
     if [ -z "${!v:-}" ]; then
         err "host version manifest is missing $v: $VERSIONS_FILE"
         exit 1
@@ -39,11 +39,14 @@ done
 
 # ───────────────── Node (pinned major) ─────────────────
 CURRENT_NODE_MAJOR=""
+CURRENT_NODE_VERSION=""
 if command -v node >/dev/null; then
-    CURRENT_NODE_MAJOR="$(node -v | sed 's/^v\([0-9]*\).*/\1/')"
+    CURRENT_NODE_VERSION="$(node -v | sed 's/^v//')"
+    CURRENT_NODE_MAJOR="${CURRENT_NODE_VERSION%%.*}"
 fi
-if [ "$CURRENT_NODE_MAJOR" != "$NODE_MAJOR" ]; then
-    log "Installing Node ${NODE_MAJOR}.x from NodeSource (was ${CURRENT_NODE_MAJOR:-missing})"
+if [ "$CURRENT_NODE_MAJOR" != "$NODE_MAJOR" ] \
+   || dpkg --compare-versions "${CURRENT_NODE_VERSION:-0}" lt "$NODE_MIN_VERSION"; then
+    log "Installing Node ${NODE_MAJOR}.x (>=${NODE_MIN_VERSION}) from NodeSource (was ${CURRENT_NODE_VERSION:-missing})"
     curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null
     apt-get install -y -qq nodejs
 fi
@@ -118,6 +121,12 @@ if [ ! -r "$AGENT_CLI_VERSIONS_FILE" ]; then
 fi
 # shellcheck source=/dev/null
 . "$AGENT_CLI_VERSIONS_FILE"
+for v in CLAUDE_CODE_VERSION CODEX_CLI_VERSION KIMI_CODE_VERSION; do
+    if [ -z "${!v:-}" ]; then
+        err "agent CLI version manifest is missing $v: $AGENT_CLI_VERSIONS_FILE"
+        exit 1
+    fi
+done
 
 agent_cli_version() {
     "$1" --version 2>&1 \
@@ -139,6 +148,7 @@ ensure_agent_cli() {
 
 ensure_agent_cli "Claude Code" claude @anthropic-ai/claude-code "$CLAUDE_CODE_VERSION"
 ensure_agent_cli "Codex" codex @openai/codex "$CODEX_CLI_VERSION"
+ensure_agent_cli "Kimi Code" kimi @moonshot-ai/kimi-code "$KIMI_CODE_VERSION"
 
 # ───────────────── LXD (one container per project) ─────────────────
 if ! command -v lxc >/dev/null; then

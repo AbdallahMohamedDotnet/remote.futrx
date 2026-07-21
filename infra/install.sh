@@ -221,7 +221,8 @@ cat <<EOF
  Next:
    1. claude login         # interactive — authenticate the Claude CLI
    2. open Settings and sign in to Codex with ChatGPT if you want Codex
-   3. open https://$HOSTNAME (Caddy fetches the cert on first hit, ~10s)
+   3. open Settings and sign in to Kimi if you want Kimi
+   4. open https://$HOSTNAME (Caddy fetches the cert on first hit, ~10s)
 
  If you're on a cloud VPS with its own firewall, open 80/443 in the
  provider's console as well as UFW.

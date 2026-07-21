@@ -18,7 +18,8 @@
 #   - Containers with a running agent process (host-side `lxc exec <name> --`)
 #     are SKIPPED by default so an in-flight chat is never killed. Re-run
 #     later for the stragglers, or pass --include-busy to force them too.
-#   - The throwaway image builder container is never touched.
+#   - Only containers recorded in data/projects/*/meta.json are considered;
+#     unrelated LXD containers on the same host are never touched.
 #
 # Usage:
 #   sudo bash /opt/remote.futrx.dev/infra/upgrade-workspaces.sh [flags]
@@ -30,7 +31,7 @@
 set -euo pipefail
 
 INFRA_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-BUILDER_NAME="futrx-remote-dev-builder"
+PROJECTS_DIR="${FUTRX_DATA_DIR:-/opt/remote.futrx.dev/data}/projects"
 
 log()  { printf "\n\033[1;36m==> %s\033[0m\n" "$*"; }
 warn() { printf "\033[1;33m!! %s\033[0m\n" "$*"; }
@@ -57,6 +58,10 @@ if ! command -v lxc >/dev/null; then
     err "lxc CLI not found"
     exit 1
 fi
+if ! command -v jq >/dev/null; then
+    err "jq CLI not found — run infra/update.sh or infra/install.sh first"
+    exit 1
+fi
 
 # ───────────────── 1. rebake ─────────────────
 if [ "$REBAKE" -eq 1 ]; then
@@ -75,9 +80,20 @@ fi
 log "Recycling project containers"
 DELETED=0
 SKIPPED_BUSY=0
+project_container_names() {
+    if [ ! -d "$PROJECTS_DIR" ]; then
+        return
+    fi
+    find "$PROJECTS_DIR" -mindepth 2 -maxdepth 2 -type f -name meta.json -print0 \
+        | xargs -0 -r jq -r '.containerName // empty' \
+        | sort -u
+}
+
 while IFS= read -r name; do
     [ -n "$name" ] || continue
-    [ "$name" = "$BUILDER_NAME" ] && continue
+    if ! lxc info "$name" >/dev/null 2>&1; then
+        continue
+    fi
 
     # Host-side agent processes run as `lxc exec <name> -- ...` (claude,
     # codex, kimi). A live one means a chat is in flight — leave it alone.
@@ -94,7 +110,7 @@ while IFS= read -r name; do
         ok "deleted $name (relaunches from the new image on next use)"
     fi
     DELETED=$((DELETED + 1))
-done < <(lxc list -c n --format csv)
+done < <(project_container_names)
 
 # ───────────────── summary ─────────────────
 echo
