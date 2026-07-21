@@ -22,6 +22,9 @@ type ContainerLifecycle interface {
 	Stop(ctx context.Context, containerName string) error
 	Delete(ctx context.Context, containerName string) error
 	State(ctx context.Context, containerName string) (ContainerState, error)
+	// EnsureResources converges the fleet-default resource envelope (the
+	// managed LXD profile) onto an existing container.
+	EnsureResources(ctx context.Context, containerName string) error
 }
 
 // ContainerEnvironment applies project secrets to future container sessions.

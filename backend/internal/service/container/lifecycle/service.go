@@ -113,7 +113,23 @@ func (s *Service) EnsureBootAutostart(ctx context.Context, containerName string)
 	return s.runtime.EnsureBootAutostart(ctx, containerName)
 }
 
+// EnsureResources converges the fleet-default resource envelope (managed
+// LXD profile) onto a container. Exposed so the project service's startup
+// reconcile can converge the whole fleet — every deploy restarts the
+// backend, so `update.sh` alone brings any box's containers to the pins.
+func (s *Service) EnsureResources(ctx context.Context, containerName string) error {
+	if !s.runtime.Available() {
+		return errors.New("lxc not available")
+	}
+	return s.resources.Ensure(ctx, containerName)
+}
+
 func (s *Service) Start(ctx context.Context, containerName string) error {
+	// Converge the resource envelope on every explicit start, not only in
+	// Launch: the project service short-circuits to Start for containers
+	// that already exist. Best-effort — a profile hiccup must not block
+	// the start; the startup reconcile sweep retries and logs.
+	_ = s.resources.Ensure(ctx, containerName)
 	return s.runtime.Start(ctx, containerName)
 }
 

@@ -721,6 +721,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	converged := 0
 	for _, m := range metas {
 		state, err := s.containerLifecycle.State(ctx, m.ContainerName)
 		if err != nil {
@@ -732,6 +733,19 @@ func (s *Service) Reconcile(ctx context.Context) error {
 				log.Printf("projects: reconcile %s: %v", m.ID, err)
 			}
 		}
+		// Converge the resource envelope on every existing container so a
+		// deploy (backend restart) alone brings the whole fleet to the
+		// pinned limits — no per-project action needed on any box.
+		if state != ContainerStateMissing {
+			if err := s.containerLifecycle.EnsureResources(ctx, m.ContainerName); err != nil {
+				log.Printf("projects: reconcile resources %s/%s: %v", m.ID, m.ContainerName, err)
+			} else {
+				converged++
+			}
+		}
+	}
+	if converged > 0 {
+		log.Printf("projects: resource envelope converged on %d container(s)", converged)
 	}
 	return nil
 }

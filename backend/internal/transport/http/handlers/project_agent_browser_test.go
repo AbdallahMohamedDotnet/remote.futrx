@@ -192,6 +192,8 @@ func (f *fakeProjectContainers) Launch(context.Context, serviceproject.Meta) err
 
 func (f *fakeProjectContainers) Start(context.Context, string) error { return nil }
 
+func (f *fakeProjectContainers) EnsureResources(context.Context, string) error { return nil }
+
 func (f *fakeProjectContainers) Stop(context.Context, string) error { return nil }
 
 func (f *fakeProjectContainers) Delete(context.Context, string) error { return nil }
