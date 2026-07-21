@@ -268,32 +268,6 @@ func isSafeReturnTo(rawURL, base string) bool {
 	return u.Host == bu.Host || strings.HasSuffix(u.Host, "."+bu.Host)
 }
 
-func (h *AuthHandler) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		if !strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/ws") {
-			next.ServeHTTP(w, r)
-			return
-		}
-		if path == "/auth/me" || strings.HasPrefix(path, "/auth/") {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		session, err := h.auth.CurrentSession(sessionCookieValue(r))
-		if err != nil {
-			http.Error(w, "authentication required", http.StatusUnauthorized)
-			return
-		}
-		ok, _ := h.auth.IsRegistered(r.Context(), session.Email)
-		if !ok {
-			http.Error(w, "account not authorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func sessionCookieValue(r *http.Request) string {
 	cookie, err := r.Cookie(serviceauth.SessionCookieName)
 	if err != nil {

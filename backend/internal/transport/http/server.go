@@ -15,9 +15,8 @@ type WebSocketRegistrar interface {
 	RegisterRoutes(*http.ServeMux, websocket.Upgrader)
 }
 
-type AuthRegistrar interface {
-	RouteRegistrar
-	Middleware(http.Handler) http.Handler
+type Middleware interface {
+	Wrap(http.Handler) http.Handler
 }
 
 type Handlers struct {
@@ -36,7 +35,8 @@ type Handlers struct {
 	ChatWS           WebSocketRegistrar
 	WorkspaceWS      WebSocketRegistrar
 	AgentAuthWS      WebSocketRegistrar
-	Auth             AuthRegistrar
+	Auth             RouteRegistrar
+	Middleware       Middleware
 	Static           http.Handler
 }
 
@@ -84,8 +84,8 @@ func NewHandler(handlers Handlers) http.Handler {
 	}
 
 	var handler http.Handler = mux
-	if handlers.Auth != nil {
-		handler = handlers.Auth.Middleware(handler)
+	if handlers.Middleware != nil {
+		handler = handlers.Middleware.Wrap(handler)
 	}
 	return handler
 }

@@ -15,6 +15,7 @@ import (
 	serviceworkspaceide "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspaceide"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 	httphandlers "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/handlers"
+	httpmiddleware "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http/middleware"
 	wstransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/ws"
 )
 
@@ -34,9 +35,11 @@ type Dependencies struct {
 }
 
 func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
-	var auth httptransport.AuthRegistrar
+	var auth httptransport.RouteRegistrar
+	var middleware httptransport.Middleware
 	if deps.Services.Auth != nil {
 		auth = httphandlers.NewAuthHandler(deps.Services.Auth, deps.Services.Projects)
+		middleware = httpmiddleware.NewAuth(deps.Services.Auth)
 	}
 
 	gate := newAccessGate(deps.Services.Auth, deps.Services.Projects, deps.Services.Chats)
@@ -94,6 +97,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		WorkspaceWS:      workspaceSocket,
 		AgentAuthWS:      wstransport.NewAgentAuthSocket(agentAuthBindings),
 		Auth:             auth,
+		Middleware:       middleware,
 		Static:           httptransport.NewStaticHandler(deps.Static),
 	}), nil
 }
