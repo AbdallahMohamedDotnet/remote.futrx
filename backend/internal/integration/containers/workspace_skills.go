@@ -21,14 +21,18 @@ const ensureWorkspaceSymlinksTimeout = 10 * time.Second
 // migrates legacy skill children when possible, and points each configured
 // compatibility path at .agents/skills. Cheap and idempotent.
 func (c *Client) EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error {
-	if !c.Available() {
+	return c.workspace.ensureSkillLinks(ctx, containerName)
+}
+
+func (p *workspaceProvisioner) ensureSkillLinks(ctx context.Context, containerName string) error {
+	if !p.lxc.Available() {
 		return errors.New("lxc not available")
 	}
 	qctx, cancel := context.WithTimeout(ctx, ensureWorkspaceSymlinksTimeout)
 	defer cancel()
 
-	script := workspaceSkillLinksScript(c.AgentProfiles())
-	if _, err := c.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
+	script := workspaceSkillLinksScript(p.profiles.snapshot())
+	if _, err := p.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
 		return err
 	}
 	return nil

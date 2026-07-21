@@ -15,13 +15,25 @@ import (
 
 var agentInstructionsTemplate = provisioning.InstructionsTemplate()
 
+// workspaceProvisioner owns provider-defined and embedded assets installed in
+// the persistent project workspace.
+type workspaceProvisioner struct {
+	lxc       CommandRunner
+	profiles  *profileRegistry
+	templates *templatePublisher
+}
+
 // EnsureAgentInstructions pushes the shared system-instructions template to
 // all configured targets, grouped by hash marker. Idempotent.
 func (c *Client) EnsureAgentInstructions(ctx context.Context, containerName string) error {
-	if !c.Available() {
+	return c.workspace.ensureAgentInstructions(ctx, containerName)
+}
+
+func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, containerName string) error {
+	if !p.lxc.Available() {
 		return errors.New("lxc not available")
 	}
-	targets := configuredInstructionTargets(c.AgentProfiles())
+	targets := configuredInstructionTargets(p.profiles.snapshot())
 	if len(targets) == 0 {
 		return nil
 	}
@@ -34,7 +46,7 @@ func (c *Client) EnsureAgentInstructions(ctx context.Context, containerName stri
 		if created[directory] {
 			continue
 		}
-		if out, err := c.lxc.Run(dctx, "exec", containerName, "--",
+		if out, err := p.lxc.Run(dctx, "exec", containerName, "--",
 			"install", "-d", "-m", "700", directory); err != nil {
 			return fmt.Errorf("mkdir %s: %w; output: %s", directory, err, out)
 		}
@@ -61,7 +73,7 @@ func (c *Client) EnsureAgentInstructions(ctx context.Context, containerName stri
 		batches[index].paths = append(batches[index].paths, target.Path)
 	}
 	for _, batch := range batches {
-		if err := c.templates.push(ctx, containerName, agentInstructionsTemplate,
+		if err := p.templates.push(ctx, containerName, agentInstructionsTemplate,
 			batch.hashPath, "644", batch.paths...); err != nil {
 			return err
 		}

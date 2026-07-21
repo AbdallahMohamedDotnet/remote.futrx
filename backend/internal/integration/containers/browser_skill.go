@@ -26,14 +26,18 @@ const (
 // EnsureBrowserSkill provisions the `browser` skill into the workspace skills
 // directory. Idempotent: re-pushed only when the embedded SKILL.md changes.
 func (c *Client) EnsureBrowserSkill(ctx context.Context, containerName string) error {
-	if !c.Available() {
+	return c.workspace.ensureBrowserSkill(ctx, containerName)
+}
+
+func (p *workspaceProvisioner) ensureBrowserSkill(ctx context.Context, containerName string) error {
+	if !p.lxc.Available() {
 		return errors.New("lxc not available")
 	}
 	dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-	out, err := c.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerBrowserSkillDir)
+	out, err := p.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerBrowserSkillDir)
 	cancelD()
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerBrowserSkillDir, err, out)
 	}
-	return c.templates.push(ctx, containerName, browserSkillTemplate, containerBrowserSkillHash, "644", containerBrowserSkillMD)
+	return p.templates.push(ctx, containerName, browserSkillTemplate, containerBrowserSkillHash, "644", containerBrowserSkillMD)
 }

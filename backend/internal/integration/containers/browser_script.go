@@ -33,7 +33,11 @@ const (
 // Idempotent: the script is only re-pushed when its embedded content
 // changes (sha256 marker stored alongside the config).
 func (c *Client) EnsureBrowserScript(ctx context.Context, containerName string) error {
-	if !c.Available() {
+	return c.workspace.ensureBrowserScript(ctx, containerName)
+}
+
+func (p *workspaceProvisioner) ensureBrowserScript(ctx context.Context, containerName string) error {
+	if !p.lxc.Available() {
 		return errors.New("lxc not available")
 	}
 
@@ -41,7 +45,7 @@ func (c *Client) EnsureBrowserScript(ctx context.Context, containerName string) 
 	// We chmod 755 on dirs so the unprivileged container-root user can
 	// traverse them; the host bind-mount preserves the uid 1000000 owner.
 	dctx, cancelD := context.WithTimeout(ctx, 30*time.Second)
-	_, err := c.lxc.Run(dctx, "exec", containerName, "--", "sh", "-c", `set -eu
+	_, err := p.lxc.Run(dctx, "exec", containerName, "--", "sh", "-c", `set -eu
 mkdir -p /workspace/scripts /workspace/.agents /workspace/.browser
 chmod 755 /workspace/scripts /workspace/.agents /workspace/.browser
 if [ ! -f /workspace/.agents/browser-auth.json ]; then
@@ -53,5 +57,5 @@ fi`)
 		return fmt.Errorf("seed browser dirs: %w", err)
 	}
 
-	return c.templates.push(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
+	return p.templates.push(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
 }

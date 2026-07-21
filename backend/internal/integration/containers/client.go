@@ -49,6 +49,7 @@ type Client struct {
 	clis        cliProvisioner
 	browser     agentBrowser
 	lifecycle   containerLifecycle
+	workspace   workspaceProvisioner
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
@@ -76,6 +77,11 @@ func New(client CommandRunner) *Client {
 		profiles: &containerClient.profiles,
 	}
 	containerClient.browser = agentBrowser{
+		lxc:       client,
+		profiles:  &containerClient.profiles,
+		templates: &containerClient.templates,
+	}
+	containerClient.workspace = workspaceProvisioner{
 		lxc:       client,
 		profiles:  &containerClient.profiles,
 		templates: &containerClient.templates,
