@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm, type ITheme } from "@xterm/xterm";
-import { terminalWebSocketUrl } from "../../transport/websocket";
+import { terminalWebSocketUrl } from "../../../transport/websocket";
 
 export type TerminalStatus = "connecting" | "connected" | "closed" | "error";
 

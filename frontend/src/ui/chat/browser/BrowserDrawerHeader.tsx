@@ -1,5 +1,5 @@
 import type { ContainerApp } from "../../../models/project";
-import type { AgentBrowserStatus } from "../../../hooks/chat/useAgentBrowserSession";
+import type { AgentBrowserStatus } from "../../../state/hooks/chat/useAgentBrowserSession";
 import { Crosshair, ExternalLink, Key, Loader, Monitor, RotateCcw, Square, X } from "../../ui/icons";
 
 const guiStatusLabel: Record<AgentBrowserStatus, string> = {

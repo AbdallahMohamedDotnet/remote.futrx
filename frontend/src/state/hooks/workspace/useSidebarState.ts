@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
-import type { ChatMeta } from "../../models/chat";
-import type { ProjectMeta } from "../../models/project";
+import type { ChatMeta } from "../../../models/chat";
+import type { ProjectMeta } from "../../../models/project";
 
 const sidebarCollapsedKey = "remote.futrx.sidebarCollapsed";
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import type { AgentBrowserInfo, AgentBrowserStatus } from "../../models/project";
-import { projectApi } from "../../api/projectApi";
+import type { AgentBrowserInfo, AgentBrowserStatus } from "../../../models/project";
+import { projectApi } from "../../../api/projectApi";
 
 export type { AgentBrowserStatus };
 

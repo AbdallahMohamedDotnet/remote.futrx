@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import type { RefObject } from "preact";
-import type { ChatMeta } from "../../models/chat";
-import type { ContainerApp, ProjectMeta } from "../../models/project";
-import type { Block } from "../../state/chat/messageBlocks";
-import { projectApi } from "../../api/projectApi";
-import type { BrowserElementCapture } from "../../ui/chat/browser/BrowserDrawer";
+import type { ChatMeta } from "../../../models/chat";
+import type { ContainerApp, ProjectMeta } from "../../../models/project";
+import type { Block } from "../../chat/messageBlocks";
+import { projectApi } from "../../../api/projectApi";
+import type { BrowserElementCapture } from "../../../ui/chat/browser/BrowserDrawer";
 
 export function useChatBrowserController({
   chat,

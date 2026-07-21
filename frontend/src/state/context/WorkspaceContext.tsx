@@ -5,7 +5,7 @@ import type { ChatMeta, CreateChatInput } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatApi } from "../../api/chatApi";
 import { projectApi } from "../../api/projectApi";
-import { useWorkspaceData } from "../../hooks/workspace/useWorkspaceData";
+import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
 import { useUserSettingsContext } from "./UserSettingsContext";
 import {
   initialWorkspaceUiState,

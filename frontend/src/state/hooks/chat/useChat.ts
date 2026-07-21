@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { chatWebSocketUrl } from "../../transport/websocket";
-import { chatApi } from "../../api/chatApi";
-import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../models/chat";
-import { groupEvents, type Block } from "../../state/chat/messageBlocks";
+import { chatWebSocketUrl } from "../../../transport/websocket";
+import { chatApi } from "../../../api/chatApi";
+import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../../models/chat";
+import { groupEvents, type Block } from "../../chat/messageBlocks";
 import {
   addUsageFromEvent,
   EMPTY_USAGE_TOTALS,
   type UsageTotals,
-} from "../../state/chat/usage";
+} from "../../chat/usage";
 
 const CHAT_EVENT_PAGE_LIMIT = 240;
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ContainerApp } from "../../../models/project";
-import { useAgentBrowserSession } from "../../../hooks/chat/useAgentBrowserSession";
+import { useAgentBrowserSession } from "../../../state/hooks/chat/useAgentBrowserSession";
 import { BrowserDrawerHeader } from "./BrowserDrawerHeader";
 import { BrowserFrame } from "./BrowserFrame";
 import { BrowserGuiView } from "./BrowserGuiView";

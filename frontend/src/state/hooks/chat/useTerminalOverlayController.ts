@@ -1,6 +1,6 @@
 import type { ComponentType } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import type { ChatMeta } from "../../models/chat";
+import type { ChatMeta } from "../../../models/chat";
 
 type TerminalOverlayComponent = ComponentType<{
   chat: ChatMeta;
@@ -15,7 +15,7 @@ export function useTerminalOverlayController() {
   useEffect(() => {
     if (!terminalOpen || TerminalOverlay) return;
     let cancelled = false;
-    import("../../ui/chat/terminal/TerminalOverlay").then((module) => {
+    import("../../../ui/chat/terminal/TerminalOverlay").then((module) => {
       if (!cancelled) setTerminalOverlay(() => module.TerminalOverlay);
     });
     return () => {

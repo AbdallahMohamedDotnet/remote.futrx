@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
-import { claudeAuthWebSocketUrl } from "../../transport/websocket";
-import type { ClaudeAuthStatus, ClaudeLoginState } from "../../models/auth";
-import { claudeAuthApi } from "../../api/claudeAuthApi";
+import { claudeAuthWebSocketUrl } from "../../../transport/websocket";
+import type { ClaudeAuthStatus, ClaudeLoginState } from "../../../models/auth";
+import { claudeAuthApi } from "../../../api/claudeAuthApi";
 
 export interface ClaudeAuthState {
   loading: boolean;

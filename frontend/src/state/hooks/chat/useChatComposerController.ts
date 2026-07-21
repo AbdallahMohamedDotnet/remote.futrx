@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import type { ChatStatus } from "../../models/chat";
-import { getDraft, setDraft } from "../../state/chat/drafts";
+import type { ChatStatus } from "../../../models/chat";
+import { getDraft, setDraft } from "../../chat/drafts";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
 import { useDragUpload } from "./useDragUpload";

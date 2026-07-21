@@ -1,8 +1,8 @@
 import { SettingsPage } from "../../ui/settings/SettingsPage";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
-import { useCodexAuth } from "../../hooks/auth/useCodexAuth";
-import { useKimiAuth } from "../../hooks/auth/useKimiAuth";
+import { useCodexAuth } from "../../state/hooks/auth/useCodexAuth";
+import { useKimiAuth } from "../../state/hooks/auth/useKimiAuth";
 
 export function SettingsContainer({
   onBack,

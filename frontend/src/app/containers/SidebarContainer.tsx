@@ -2,8 +2,8 @@ import { useMemo } from "preact/hooks";
 import { Sidebar } from "../../ui/sidebar/Sidebar";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { useWorkspaceContext } from "../../state/context/WorkspaceContext";
-import { useSidebarState } from "../../hooks/workspace/useSidebarState";
-import { useWorkspaceCommands } from "../../hooks/workspace/useWorkspaceCommands";
+import { useSidebarState } from "../../state/hooks/workspace/useSidebarState";
+import { useWorkspaceCommands } from "../../state/hooks/workspace/useWorkspaceCommands";
 import { buildWorkspaceSidebarModel } from "../../state/workspace/selectors";
 
 export function SidebarContainer() {

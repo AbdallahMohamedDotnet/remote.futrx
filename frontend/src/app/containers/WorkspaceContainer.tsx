@@ -3,7 +3,7 @@ import { SettingsRoute } from "../routes/SettingsRoute";
 import { AppShell } from "../../ui/layout/AppShell";
 import { NoChatSelected } from "../../ui/layout/NoChatSelected";
 import { useWorkspaceContext } from "../../state/context/WorkspaceContext";
-import { useWorkspaceCommands } from "../../hooks/workspace/useWorkspaceCommands";
+import { useWorkspaceCommands } from "../../state/hooks/workspace/useWorkspaceCommands";
 import { ChatContainer } from "./ChatContainer";
 import { SidebarContainer } from "./SidebarContainer";
 

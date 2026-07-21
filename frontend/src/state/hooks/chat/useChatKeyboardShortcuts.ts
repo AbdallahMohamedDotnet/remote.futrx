@@ -1,5 +1,5 @@
 import { useEffect } from "preact/hooks";
-import type { ChatStatus } from "../../models/chat";
+import type { ChatStatus } from "../../../models/chat";
 
 export function useChatKeyboardShortcuts({
   status,

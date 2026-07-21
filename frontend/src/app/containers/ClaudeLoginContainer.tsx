@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import { ClaudeLoginScreen } from "../../ui/auth/ClaudeLoginScreen";
-import { useClaudeLoginFlow } from "../../hooks/auth/useClaudeLoginFlow";
+import { useClaudeLoginFlow } from "../../state/hooks/auth/useClaudeLoginFlow";
 
 export function ClaudeLoginContainer({ onDone }: { onDone: () => void }) {
   const codeRef = useRef<HTMLTextAreaElement>(null);

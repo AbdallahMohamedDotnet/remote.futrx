@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { workspaceWebSocketUrl } from "../../transport/websocket";
-import type { ChatMeta } from "../../models/chat";
-import type { ProjectMeta } from "../../models/project";
+import { workspaceWebSocketUrl } from "../../../transport/websocket";
+import type { ChatMeta } from "../../../models/chat";
+import type { ProjectMeta } from "../../../models/project";
 
 type WorkspaceMessage =
   | { type: "workspace.snapshot"; chats: ChatMeta[]; projects: ProjectMeta[] }

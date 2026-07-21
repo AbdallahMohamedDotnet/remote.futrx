@@ -1,28 +1,31 @@
 import { useEffect, useState } from "preact/hooks";
-import { kimiAuthWebSocketUrl } from "../../transport/websocket";
-import type { KimiAuthStatus, KimiDeviceLogin } from "../../models/auth";
-import { kimiAuthApi } from "../../api/kimiAuthApi";
+import { codexAuthWebSocketUrl } from "../../../transport/websocket";
+import type { CodexAuthStatus, CodexDeviceLogin } from "../../../models/auth";
+import { codexAuthApi } from "../../../api/codexAuthApi";
 
-export interface KimiAuthState {
+export interface CodexAuthState {
   loading: boolean;
   checked: boolean;
   authenticated: boolean;
-  deviceLogin?: KimiDeviceLogin;
+  usesApiKey: boolean;
+  deviceLogin?: CodexDeviceLogin;
   starting: boolean;
   error: string | null;
   startDeviceLogin: () => Promise<void>;
 }
 
-export function useKimiAuth(enabled: boolean): KimiAuthState {
+export function useCodexAuth(enabled: boolean): CodexAuthState {
   const [loading, setLoading] = useState(false);
   const [checked, setChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
-  const [deviceLogin, setDeviceLogin] = useState<KimiDeviceLogin | undefined>(undefined);
+  const [usesApiKey, setUsesApiKey] = useState(false);
+  const [deviceLogin, setDeviceLogin] = useState<CodexDeviceLogin | undefined>(undefined);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function applyStatus(status: KimiAuthStatus) {
+  function applyStatus(status: CodexAuthStatus) {
     setAuthenticated(!!status.authenticated);
+    setUsesApiKey(!!status.usesApiKey);
     setDeviceLogin(status.deviceLogin);
     setError(null);
     setLoading(false);
@@ -33,7 +36,7 @@ export function useKimiAuth(enabled: boolean): KimiAuthState {
     setStarting(true);
     setError(null);
     try {
-      const state = await kimiAuthApi.startDeviceLogin();
+      const state = await codexAuthApi.startDeviceLogin();
       setDeviceLogin(state);
     } catch (e) {
       setError((e as Error).message);
@@ -48,6 +51,7 @@ export function useKimiAuth(enabled: boolean): KimiAuthState {
       setLoading(false);
       setChecked(false);
       setAuthenticated(false);
+      setUsesApiKey(false);
       setDeviceLogin(undefined);
       setError(null);
       return;
@@ -69,7 +73,7 @@ export function useKimiAuth(enabled: boolean): KimiAuthState {
 
     function connect() {
       if (stopped) return;
-      socket = new WebSocket(kimiAuthWebSocketUrl());
+      socket = new WebSocket(codexAuthWebSocketUrl());
 
       socket.onopen = () => {
         attempt = 0;
@@ -77,7 +81,7 @@ export function useKimiAuth(enabled: boolean): KimiAuthState {
 
       socket.onmessage = (event) => {
         try {
-          applyStatus(JSON.parse(event.data) as KimiAuthStatus);
+          applyStatus(JSON.parse(event.data) as CodexAuthStatus);
         } catch {}
       };
 
@@ -104,6 +108,7 @@ export function useKimiAuth(enabled: boolean): KimiAuthState {
     loading,
     checked,
     authenticated,
+    usesApiKey,
     deviceLogin,
     starting,
     error,

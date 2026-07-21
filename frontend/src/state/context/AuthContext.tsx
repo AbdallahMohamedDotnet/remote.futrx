@@ -1,8 +1,8 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
 import { useContext } from "preact/hooks";
-import { useAuth, type AuthState } from "../../hooks/auth/useAuth";
-import { useClaudeAuth, type ClaudeAuthState } from "../../hooks/auth/useClaudeAuth";
+import { useAuth, type AuthState } from "../hooks/auth/useAuth";
+import { useClaudeAuth, type ClaudeAuthState } from "../hooks/auth/useClaudeAuth";
 
 interface AuthContextValue {
   auth: AuthState;

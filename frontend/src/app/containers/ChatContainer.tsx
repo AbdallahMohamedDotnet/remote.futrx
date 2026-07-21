@@ -6,14 +6,14 @@ import { BrowserDrawer } from "../../ui/chat/browser/BrowserDrawer";
 import { ChatThread } from "../../ui/chat/ChatThread";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
-import { useChat } from "../../hooks/chat/useChat";
-import { useChatBrowserController } from "../../hooks/chat/useChatBrowserController";
-import { useChatComposerController } from "../../hooks/chat/useChatComposerController";
-import { useChatKeyboardShortcuts } from "../../hooks/chat/useChatKeyboardShortcuts";
-import { useChatMetaActions } from "../../hooks/chat/useChatMetaActions";
-import { useChatReadMarker } from "../../hooks/chat/useChatReadMarker";
-import { useTerminalOverlayController } from "../../hooks/chat/useTerminalOverlayController";
-import { useThreadHeaderState } from "../../hooks/chat/useThreadHeaderState";
+import { useChat } from "../../state/hooks/chat/useChat";
+import { useChatBrowserController } from "../../state/hooks/chat/useChatBrowserController";
+import { useChatComposerController } from "../../state/hooks/chat/useChatComposerController";
+import { useChatKeyboardShortcuts } from "../../state/hooks/chat/useChatKeyboardShortcuts";
+import { useChatMetaActions } from "../../state/hooks/chat/useChatMetaActions";
+import { useChatReadMarker } from "../../state/hooks/chat/useChatReadMarker";
+import { useTerminalOverlayController } from "../../state/hooks/chat/useTerminalOverlayController";
+import { useThreadHeaderState } from "../../state/hooks/chat/useThreadHeaderState";
 import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
 
 export function ChatContainer({
