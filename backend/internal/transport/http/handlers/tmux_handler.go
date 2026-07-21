@@ -2,29 +2,21 @@ package httphandlers
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
+	servicetmux "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/tmux"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
-type TmuxClient interface {
-	List() []tmuxcli.Session
-	Create(name string) error
-	Kill(name string) error
-	Has(name string) bool
-	Cwd(session string) (string, error)
-	SendText(session, text string, pressEnter bool) error
-}
-
 type TmuxHandler struct {
-	client TmuxClient
+	sessions *servicetmux.Service
 }
 
-func NewTmuxHandler(client TmuxClient) *TmuxHandler {
-	return &TmuxHandler{client: client}
+func NewTmuxHandler(sessions *servicetmux.Service) *TmuxHandler {
+	return &TmuxHandler{sessions: sessions}
 }
 
 func (h *TmuxHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -35,7 +27,7 @@ func (h *TmuxHandler) RegisterRoutes(mux *http.ServeMux) {
 func (h *TmuxHandler) HandleSessionsCollection(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		httptransport.SendJSON(w, 200, h.client.List())
+		httptransport.SendJSON(w, 200, h.sessions.List())
 	case http.MethodPost:
 		var body struct {
 			Name string `json:"name"`
@@ -44,17 +36,9 @@ func (h *TmuxHandler) HandleSessionsCollection(w http.ResponseWriter, r *http.Re
 			httptransport.SendErr(w, 400, "invalid json")
 			return
 		}
-		name := strings.TrimSpace(body.Name)
-		if !tmuxcli.ValidName(name) {
-			httptransport.SendErr(w, 400, "invalid name (alphanumeric, _ -, 1-32 chars)")
-			return
-		}
-		if h.client.Has(name) {
-			httptransport.SendErr(w, 409, "session exists")
-			return
-		}
-		if err := h.client.Create(name); err != nil {
-			httptransport.SendErr(w, 500, err.Error())
+		name, err := h.sessions.Create(body.Name)
+		if err != nil {
+			sendTmuxCreateError(w, err)
 			return
 		}
 		httptransport.SendJSON(w, 201, map[string]string{"name": name})
@@ -67,7 +51,7 @@ func (h *TmuxHandler) HandleSessionResource(w http.ResponseWriter, r *http.Reque
 	rest := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	parts := strings.SplitN(rest, "/", 2)
 	name := parts[0]
-	if !tmuxcli.ValidName(name) {
+	if !servicetmux.ValidName(name) {
 		httptransport.SendErr(w, 400, "invalid name")
 		return
 	}
@@ -78,13 +62,9 @@ func (h *TmuxHandler) HandleSessionResource(w http.ResponseWriter, r *http.Reque
 			httptransport.SendErr(w, 405, "method not allowed")
 			return
 		}
-		if !h.client.Has(name) {
-			httptransport.SendErr(w, 404, "session not found")
-			return
-		}
-		cwd, err := h.client.Cwd(name)
-		if err != nil || cwd == "" {
-			httptransport.SendErr(w, 500, "could not resolve session cwd")
+		cwd, err := h.sessions.UploadTarget(name)
+		if err != nil {
+			sendTmuxUploadError(w, err)
 			return
 		}
 		httptransport.HandleMultipart(cwd, w, r)
@@ -95,10 +75,6 @@ func (h *TmuxHandler) HandleSessionResource(w http.ResponseWriter, r *http.Reque
 	if len(parts) == 2 && parts[1] == "send" {
 		if r.Method != http.MethodPost {
 			httptransport.SendErr(w, 405, "method not allowed")
-			return
-		}
-		if !h.client.Has(name) {
-			httptransport.SendErr(w, 404, "session not found")
 			return
 		}
 		var body struct {
@@ -113,12 +89,12 @@ func (h *TmuxHandler) HandleSessionResource(w http.ResponseWriter, r *http.Reque
 		if body.PressEnter != nil {
 			pressEnter = *body.PressEnter
 		}
-		if body.Text == "" && !pressEnter {
-			httptransport.SendJSON(w, 200, map[string]bool{"ok": true})
-			return
-		}
-		if err := h.client.SendText(name, body.Text, pressEnter); err != nil {
-			httptransport.SendErr(w, 500, err.Error())
+		if err := h.sessions.SendText(name, body.Text, pressEnter); err != nil {
+			if errors.Is(err, servicetmux.ErrSessionNotFound) {
+				httptransport.SendErr(w, 404, "session not found")
+			} else {
+				httptransport.SendErr(w, 500, err.Error())
+			}
 			return
 		}
 		httptransport.SendJSON(w, 200, map[string]bool{"ok": true})
@@ -131,12 +107,12 @@ func (h *TmuxHandler) HandleSessionResource(w http.ResponseWriter, r *http.Reque
 			httptransport.SendErr(w, 405, "method not allowed")
 			return
 		}
-		if !h.client.Has(name) {
-			httptransport.SendErr(w, 404, "not found")
-			return
-		}
-		if err := h.client.Kill(name); err != nil {
-			httptransport.SendErr(w, 500, err.Error())
+		if err := h.sessions.Delete(name); err != nil {
+			if errors.Is(err, servicetmux.ErrSessionNotFound) {
+				httptransport.SendErr(w, 404, "not found")
+			} else {
+				httptransport.SendErr(w, 500, err.Error())
+			}
 			return
 		}
 		httptransport.SendJSON(w, 200, map[string]bool{"ok": true})
@@ -144,4 +120,23 @@ func (h *TmuxHandler) HandleSessionResource(w http.ResponseWriter, r *http.Reque
 	}
 
 	httptransport.SendErr(w, 404, "not found")
+}
+
+func sendTmuxCreateError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, servicetmux.ErrInvalidName):
+		httptransport.SendErr(w, 400, "invalid name (alphanumeric, _ -, 1-32 chars)")
+	case errors.Is(err, servicetmux.ErrSessionExists):
+		httptransport.SendErr(w, 409, "session exists")
+	default:
+		httptransport.SendErr(w, 500, err.Error())
+	}
+}
+
+func sendTmuxUploadError(w http.ResponseWriter, err error) {
+	if errors.Is(err, servicetmux.ErrSessionNotFound) {
+		httptransport.SendErr(w, 404, "session not found")
+		return
+	}
+	httptransport.SendErr(w, 500, "could not resolve session cwd")
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/runhub"
 	serviceskills "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/skills"
+	servicetmux "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/tmux"
 	serviceuser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/user"
 	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacehub"
@@ -27,8 +28,8 @@ type AuthStore interface {
 	SessionKey(context.Context) ([]byte, error)
 }
 
-type TmuxCwdClient interface {
-	Cwd(session string) (string, error)
+type TmuxClient interface {
+	servicetmux.SessionClient
 }
 
 type Dependencies struct {
@@ -42,7 +43,7 @@ type Dependencies struct {
 	AuthBaseURL       string
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
-	TmuxClient        TmuxCwdClient
+	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
 }
 
@@ -57,6 +58,7 @@ type Services struct {
 	Users        *serviceuser.Service
 	UserSettings *serviceusersettings.Service
 	Skills       *serviceskills.Service
+	Tmux         *servicetmux.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -132,6 +134,10 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	}
 	userSettingsService := serviceusersettings.New(deps.UserSettings)
 	skillService := serviceskills.New()
+	var tmuxService *servicetmux.Service
+	if deps.TmuxClient != nil {
+		tmuxService = servicetmux.NewSessions(deps.TmuxClient)
+	}
 
 	return Services{
 		Chats:        chatService,
@@ -144,6 +150,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Users:        userService,
 		UserSettings: userSettingsService,
 		Skills:       skillService,
+		Tmux:         tmuxService,
 	}, nil
 }
 
@@ -251,7 +258,7 @@ func (r chatProjectResolver) WorkspaceForProject(ctx context.Context, id service
 }
 
 type chatTmuxResolver struct {
-	client    TmuxCwdClient
+	client    TmuxClient
 	validName func(string) bool
 }
 

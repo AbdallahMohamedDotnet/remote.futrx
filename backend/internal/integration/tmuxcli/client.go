@@ -5,20 +5,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
+
+	servicetmux "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/tmux"
 )
 
-var validName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,32}$`)
-
-type Session struct {
-	Name     string `json:"name"`
-	Created  int64  `json:"created"`
-	Attached bool   `json:"attached"`
-	Windows  int    `json:"windows"`
-	Cwd      string `json:"cwd"`
-}
+type Session = servicetmux.Session
 
 type Client struct{}
 
@@ -27,7 +20,7 @@ func New() *Client {
 }
 
 func ValidName(name string) bool {
-	return validName.MatchString(name)
+	return servicetmux.ValidName(name)
 }
 
 // All session names are pre-validated against validName before being passed to

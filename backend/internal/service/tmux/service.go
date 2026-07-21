@@ -7,10 +7,11 @@ import (
 )
 
 var (
-	ErrInvalidName     = errors.New("invalid tmux session name")
-	ErrSessionExists   = errors.New("tmux session exists")
-	ErrSessionNotFound = errors.New("tmux session not found")
-	ErrCwdUnavailable  = errors.New("could not resolve session cwd")
+	ErrInvalidName         = errors.New("invalid tmux session name")
+	ErrSessionExists       = errors.New("tmux session exists")
+	ErrSessionNotFound     = errors.New("tmux session not found")
+	ErrCwdUnavailable      = errors.New("could not resolve session cwd")
+	ErrTerminalUnavailable = errors.New("tmux terminal unavailable")
 )
 
 var validName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,32}$`)
@@ -30,21 +31,34 @@ type Terminal interface {
 	Close() error
 }
 
-type Client interface {
+type SessionClient interface {
 	List() []Session
 	Create(name string) error
 	Kill(name string) error
 	Has(name string) bool
 	Cwd(session string) (string, error)
 	SendText(session, text string, pressEnter bool) error
+}
+
+type TerminalClient interface {
 	Attach(session string) (Terminal, error)
 }
 
+type Client interface {
+	SessionClient
+	TerminalClient
+}
+
 type Service struct {
-	client Client
+	client   SessionClient
+	terminal TerminalClient
 }
 
 func New(client Client) *Service {
+	return &Service{client: client, terminal: client}
+}
+
+func NewSessions(client SessionClient) *Service {
 	return &Service{client: client}
 }
 
@@ -106,6 +120,9 @@ func (s *Service) SendText(name, text string, pressEnter bool) error {
 	if !s.client.Has(name) {
 		return ErrSessionNotFound
 	}
+	if text == "" && !pressEnter {
+		return nil
+	}
 	return s.client.SendText(name, text, pressEnter)
 }
 
@@ -118,5 +135,8 @@ func (s *Service) Attach(name string) (Terminal, error) {
 			return nil, err
 		}
 	}
-	return s.client.Attach(name)
+	if s.terminal == nil {
+		return nil, ErrTerminalUnavailable
+	}
+	return s.terminal.Attach(name)
 }

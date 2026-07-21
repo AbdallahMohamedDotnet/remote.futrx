@@ -15,7 +15,6 @@ import (
 )
 
 type TmuxClient interface {
-	httphandlers.TmuxClient
 	wstransport.TmuxSessionClient
 }
 
@@ -54,7 +53,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	}
 
 	return httptransport.NewHandler(httptransport.Handlers{
-		Sessions: httphandlers.NewTmuxHandler(deps.TmuxClient),
+		Sessions: httphandlers.NewTmuxHandler(deps.Services.Tmux),
 		Chats: httphandlers.NewChatHandler(
 			deps.Services.Chats,
 			deps.Services.Projects,
