@@ -1,0 +1,127 @@
+// Package resources owns the shared LXD profile that carries the default
+// resource envelope for every project container. Isolation in LXD is
+// namespace isolation only — without cgroup limits a single workspace can
+// starve the host (observed twice in 2026-07: an ffmpeg CPU peg and a node
+// OOM each took the box down). The profile puts a fleet-wide ceiling on
+// every container while leaving per-project overrides to the operator.
+package resources
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+)
+
+const (
+	// ProfileName is the backend-managed LXD profile attached to every
+	// project container alongside `default`. LXD precedence: container-local
+	// config wins over profile config, so a per-project
+	// `lxc config set <container> limits.memory 8GiB` overrides the fleet
+	// default without touching the profile.
+	ProfileName = "futrx-workspace"
+
+	queryTimeout = 10 * time.Second
+)
+
+// profileConfig is the desired state of the managed profile. The limits
+// mirror the caps the operator applied by hand after the 2026-07 host
+// takedowns. The backend converges the profile to these values on every
+// Launch — edit HERE and redeploy to change the fleet default; hand-edits
+// via `lxc profile edit` are reverted on the next convergence.
+var profileConfig = [...][2]string{
+	// Hard memory ceiling: the container's own OOM killer fires inside the
+	// cgroup; the host never feels it.
+	{"limits.memory", "4GiB"},
+	// CPU cap below the host's core count so the host control plane (LXD,
+	// sshd, backend) always has headroom even with a pegged workspace.
+	{"limits.cpu", "6"},
+	// Fork-bomb guard; the kernel PID table is shared with the host.
+	{"limits.processes", "2000"},
+	// Chrome's own sandbox (nested user namespaces) for the Agent Browser.
+	{"security.nesting", "true"},
+}
+
+// Manager converges the managed profile definition and its attachment to
+// project containers.
+type Manager struct {
+	runner command.Runner
+}
+
+// NewManager returns a Manager that issues profile operations through runner.
+func NewManager(runner command.Runner) *Manager {
+	return &Manager{runner: runner}
+}
+
+// Ensure converges the profile definition, then attaches the profile to the
+// container. Idempotent and cheap on the healthy path (a handful of local
+// reads). Called on every Launch — including for pre-existing containers —
+// so old workspaces converge to the resource envelope without recreation.
+//
+// Attaching to a RUNNING container applies the limits live. If the container
+// currently uses more memory than the cap, the kernel reclaims down to it
+// (worst case the container-internal OOM killer trims the offender) — the
+// intended behavior for a workspace that would otherwise threaten the host.
+func (m *Manager) Ensure(ctx context.Context, containerName string) error {
+	if err := m.ensureProfile(ctx); err != nil {
+		return err
+	}
+	return m.ensureAttached(ctx, containerName)
+}
+
+func (m *Manager) ensureProfile(ctx context.Context) error {
+	if !m.runner.Available() {
+		return errors.New("lxc not available")
+	}
+	qctx, qcancel := context.WithTimeout(ctx, queryTimeout)
+	_, showErr := m.runner.Run(qctx, "profile", "show", ProfileName)
+	qcancel()
+	if showErr != nil {
+		cctx, ccancel := context.WithTimeout(ctx, queryTimeout)
+		out, err := m.runner.Run(cctx, "profile", "create", ProfileName)
+		ccancel()
+		// A concurrent Launch may have created it between show and create.
+		if err != nil && !strings.Contains(out, "already exists") {
+			return fmt.Errorf("profile create %s: %w; output: %s", ProfileName, err, out)
+		}
+	}
+	for _, kv := range profileConfig {
+		key, want := kv[0], kv[1]
+		gctx, gcancel := context.WithTimeout(ctx, queryTimeout)
+		current, _ := m.runner.Run(gctx, "profile", "get", ProfileName, key)
+		gcancel()
+		if strings.TrimSpace(current) == want {
+			continue
+		}
+		sctx, scancel := context.WithTimeout(ctx, queryTimeout)
+		out, err := m.runner.Run(sctx, "profile", "set", ProfileName, key, want)
+		scancel()
+		if err != nil {
+			return fmt.Errorf("profile set %s %s: %w; output: %s", ProfileName, key, err, out)
+		}
+	}
+	return nil
+}
+
+func (m *Manager) ensureAttached(ctx context.Context, containerName string) error {
+	qctx, qcancel := context.WithTimeout(ctx, queryTimeout)
+	shown, err := m.runner.Run(qctx, "config", "show", containerName)
+	qcancel()
+	if err != nil {
+		return fmt.Errorf("config show %s: %w; output: %s", containerName, err, shown)
+	}
+	// `lxc config show` lists attached profiles as YAML entries ("- default").
+	if strings.Contains(shown, "- "+ProfileName) {
+		return nil
+	}
+	actx, acancel := context.WithTimeout(ctx, queryTimeout)
+	defer acancel()
+	out, err := m.runner.Run(actx, "profile", "add", containerName, ProfileName)
+	if err != nil {
+		return fmt.Errorf("profile add %s %s: %w; output: %s", containerName, ProfileName, err, out)
+	}
+	return nil
+}

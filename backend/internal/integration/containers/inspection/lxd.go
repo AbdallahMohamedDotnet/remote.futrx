@@ -14,13 +14,25 @@ type containerLXDInspector struct {
 }
 
 // instanceConfig mirrors the subset of /1.0/instances/<n> we care about.
+// ExpandedConfig merges profile-provided keys (e.g. the futrx-workspace
+// resource limits) with container-local config; Config is local-only.
 type instanceConfig struct {
-	Architecture string                       `json:"architecture"`
-	Type         string                       `json:"type"`
-	CreatedAt    string                       `json:"created_at"`
-	LastUsedAt   string                       `json:"last_used_at"`
-	Config       map[string]string            `json:"config"`
-	Devices      map[string]map[string]string `json:"devices"`
+	Architecture   string                       `json:"architecture"`
+	Type           string                       `json:"type"`
+	CreatedAt      string                       `json:"created_at"`
+	LastUsedAt     string                       `json:"last_used_at"`
+	Config         map[string]string            `json:"config"`
+	ExpandedConfig map[string]string            `json:"expanded_config"`
+	Devices        map[string]map[string]string `json:"devices"`
+}
+
+// effectiveConfig returns the value a key actually resolves to on the
+// instance: container-local config wins, then profile-provided config.
+func (c *instanceConfig) effectiveConfig(key string) string {
+	if v := c.Config[key]; v != "" {
+		return v
+	}
+	return c.ExpandedConfig[key]
 }
 
 // instanceState mirrors /1.0/instances/<n>/state.
@@ -75,7 +87,7 @@ func (i *containerLXDInspector) inspectConfiguration(ctx context.Context, name s
 	} else if alias := cfg.Config["image.alias"]; alias != "" {
 		out.Image = alias
 	}
-	if cpu, memory, disk := cfg.Config["limits.cpu"], cfg.Config["limits.memory"], cfg.Config["limits.disk"]; cpu != "" || memory != "" || disk != "" {
+	if cpu, memory, disk := cfg.effectiveConfig("limits.cpu"), cfg.effectiveConfig("limits.memory"), cfg.effectiveConfig("limits.disk"); cpu != "" || memory != "" || disk != "" {
 		out.Limits = &serviceproject.ContainerLimits{CPU: cpu, Memory: memory, Disk: disk}
 	}
 	if workspace, ok := cfg.Devices["workspace"]; ok {

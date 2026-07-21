@@ -33,6 +33,7 @@ type Service struct {
 	runner      command.Runner
 	image       string
 	workspace   hostWorkspacePreparer
+	resources   ResourceEnsurer
 	provisioner LaunchProvisioner
 }
 
@@ -42,13 +43,20 @@ type LaunchProvisioner interface {
 	Provision(ctx context.Context, containerName, displayName string)
 }
 
+// ResourceEnsurer converges the shared workspace profile (default resource
+// limits) onto a container.
+type ResourceEnsurer interface {
+	Ensure(ctx context.Context, containerName string) error
+}
+
 // NewService returns a container lifecycle service using image for newly
 // created project containers.
-func NewService(runner command.Runner, image string, provisioner LaunchProvisioner) *Service {
+func NewService(runner command.Runner, image string, resources ResourceEnsurer, provisioner LaunchProvisioner) *Service {
 	return &Service{
 		runner:      runner,
 		image:       image,
 		workspace:   hostWorkspacePreparer{uid: hostMappedUID, gid: hostMappedUID},
+		resources:   resources,
 		provisioner: provisioner,
 	}
 }
@@ -67,6 +75,10 @@ func (l *Service) Launch(ctx context.Context, p serviceproject.Meta) error {
 		return err
 	}
 	if state != serviceproject.ContainerStateMissing {
+		// Migration for pre-profile containers: converge the resource
+		// envelope on every start of an existing workspace. Best-effort so
+		// a missing lxc capability never blocks the container coming up.
+		_ = l.resources.Ensure(ctx, p.ContainerName)
 		if state == serviceproject.ContainerStateStopped {
 			return l.Start(ctx, p.ContainerName)
 		}
@@ -78,6 +90,9 @@ func (l *Service) Launch(ctx context.Context, p serviceproject.Meta) error {
 	if out, err := l.runner.Run(lctx, "launch", l.image, p.ContainerName); err != nil {
 		return fmt.Errorf("lxc launch: %w; output: %s", err, out)
 	}
+
+	// Cap resources before any workload can run in the fresh container.
+	_ = l.resources.Ensure(ctx, p.ContainerName)
 
 	if err := l.attachDisk(ctx, p.ContainerName, "workspace", p.Cwd, containerWorkspacePath, false); err != nil {
 		return fmt.Errorf("attach workspace: %w", err)

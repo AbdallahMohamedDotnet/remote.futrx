@@ -23,6 +23,7 @@ import (
 	containerlisteners "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/listeners"
 	containernetwork "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/network"
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	containerresources "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/resources"
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 )
 
@@ -51,6 +52,7 @@ type Client struct {
 	lifecycle   *containerlifecycle.Service
 	listeners   *containerlisteners.Scanner
 	network     *containernetwork.Repairer
+	resources   *containerresources.Manager
 	workspace   *containerworkspace.Provisioner
 	images      *containerbaseimage.Builder
 }
@@ -82,7 +84,8 @@ func New(client CommandRunner) *Client {
 		containerClient.browser,
 		containerClient.codeServer,
 	)
-	containerClient.lifecycle = containerlifecycle.NewService(client, defaultImage, launchProvisioner)
+	containerClient.resources = containerresources.NewManager(client)
+	containerClient.lifecycle = containerlifecycle.NewService(client, defaultImage, containerClient.resources, launchProvisioner)
 	containerClient.inspector = containerinspection.NewInspector(client, containerClient.profiles, containerClient.lifecycle)
 	return containerClient
 }
