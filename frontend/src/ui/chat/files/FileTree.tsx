@@ -12,7 +12,7 @@ import {
   FolderOpen,
   Image,
   Music,
-} from "../../ui/icons";
+} from "../../primitives/icons";
 import { categorize, countFiles, formatBytes, nodeKey, type FileCategory } from "./fileMeta";
 
 type IconComponent = (props: JSX.SVGAttributes<SVGSVGElement>) => JSX.Element;

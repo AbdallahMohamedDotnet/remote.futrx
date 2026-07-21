@@ -1,4 +1,4 @@
-import { Check } from "../../../ui/icons";
+import { Check } from "../../../primitives/icons";
 
 export function OtherAnswerOption({
   active,

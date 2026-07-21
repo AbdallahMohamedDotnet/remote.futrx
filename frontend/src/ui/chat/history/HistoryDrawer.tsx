@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { DirtyWorkingTreeError, type GitHistoryCommit, type GitHistoryRepo } from "../../../models/history";
 import { chatApi } from "../../../api/chatApi";
-import { Check, Clock, Loader, RotateCcw, X } from "../../ui/icons";
+import { Check, Clock, Loader, RotateCcw, X } from "../../primitives/icons";
 
 export function HistoryDrawer({
   chatId,

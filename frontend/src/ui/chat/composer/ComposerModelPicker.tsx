@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ChatProvider } from "../../../models/chat";
 import { modelDisplayLabel } from "../../../state/chat/usage";
-import { ChevronDown } from "../../ui/icons";
+import { ChevronDown } from "../../primitives/icons";
 
 export function ComposerModelPicker({
   provider,

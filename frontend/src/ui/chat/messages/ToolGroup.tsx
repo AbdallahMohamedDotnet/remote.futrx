@@ -1,5 +1,5 @@
 import type { AssistantPart } from "../../../state/chat/messageBlocks";
-import { TerminalIcon } from "../../ui/icons";
+import { TerminalIcon } from "../../primitives/icons";
 import { ToolCall } from "../tool-calls/ToolCall";
 import { ToolShell } from "../tool-calls/ToolShell";
 

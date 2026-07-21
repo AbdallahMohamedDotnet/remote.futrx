@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import { Plus } from "../../ui/icons";
+import { Plus } from "../../primitives/icons";
 
 export function AttachButton({
   fileInputRef,

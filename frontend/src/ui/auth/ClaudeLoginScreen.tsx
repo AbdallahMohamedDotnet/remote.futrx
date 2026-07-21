@@ -1,6 +1,6 @@
 import type { RefObject } from "preact";
 import type { ClaudeLoginPhase } from "../../models/auth";
-import { Check, Loader, MessageSquare } from "../ui/icons";
+import { Check, Loader, MessageSquare } from "../primitives/icons";
 
 export function ClaudeLoginScreen({
   phase,

@@ -1,4 +1,4 @@
-import { Loader, MessageSquare } from "../ui/icons";
+import { Loader, MessageSquare } from "../primitives/icons";
 
 // Shown at the gate to non-admins when Claude isn't authenticated yet. Claude
 // login is admin-only (host-wide credential), so members can't initiate it —

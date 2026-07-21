@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { ChevronDown } from "../../ui/icons";
+import { ChevronDown } from "../../primitives/icons";
 
 export interface ComposerOption {
   value: string;

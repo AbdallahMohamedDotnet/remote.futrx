@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { AlertCircle, ChevronDown, ChevronRight, Loader } from "../../ui/icons";
+import { AlertCircle, ChevronDown, ChevronRight, Loader } from "../../primitives/icons";
 
 export function ToolShell({
   icon,

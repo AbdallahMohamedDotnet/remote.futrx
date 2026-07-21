@@ -1,4 +1,4 @@
-import { ArrowUp, Clock, Square } from "../../ui/icons";
+import { ArrowUp, Clock, Square } from "../../primitives/icons";
 
 export function SendControls({
   streaming,

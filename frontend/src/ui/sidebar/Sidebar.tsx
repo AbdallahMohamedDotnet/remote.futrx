@@ -6,7 +6,7 @@ import { ProjectGroup } from "./ProjectGroup";
 import { SidebarEmptyState, SidebarNoMatches } from "./SidebarEmptyState";
 import { WorkspaceSearch } from "./WorkspaceSearch";
 import { AccountFooter } from "./AccountFooter";
-import { ChevronLeft, ChevronRight, Plus, Settings, X } from "../ui/icons";
+import { ChevronLeft, ChevronRight, Plus, Settings, X } from "../primitives/icons";
 import { useState } from "preact/hooks";
 
 export function Sidebar({

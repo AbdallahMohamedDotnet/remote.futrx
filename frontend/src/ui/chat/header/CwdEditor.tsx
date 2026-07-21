@@ -1,4 +1,4 @@
-import { Clock, Code, Folder, Monitor, Terminal } from "../../ui/icons";
+import { Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
 
 export function CwdEditor({

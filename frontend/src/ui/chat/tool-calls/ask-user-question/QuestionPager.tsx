@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "../../../ui/icons";
+import { ChevronLeft, ChevronRight } from "../../../primitives/icons";
 
 export function QuestionPager({
   page,

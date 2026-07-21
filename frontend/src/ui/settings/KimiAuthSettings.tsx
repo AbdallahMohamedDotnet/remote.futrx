@@ -1,5 +1,5 @@
 import type { KimiDeviceLogin } from "../../models/auth";
-import { Check, ExternalLink, Key, Loader } from "../ui/icons";
+import { Check, ExternalLink, Key, Loader } from "../primitives/icons";
 
 export function KimiAuthSettings({
   authenticated,

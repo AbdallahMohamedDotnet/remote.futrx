@@ -1,4 +1,4 @@
-import { Loader } from "../../ui/icons";
+import { Loader } from "../../primitives/icons";
 
 export function ThinkingIndicator() {
   return (

@@ -1,5 +1,5 @@
 import type { UsageTotals } from "../../../state/chat/usage";
-import { Activity } from "../../ui/icons";
+import { Activity } from "../../primitives/icons";
 
 export function UsagePill({
   totals,

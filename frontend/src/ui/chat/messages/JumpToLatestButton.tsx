@@ -1,4 +1,4 @@
-import { ArrowDown } from "../../ui/icons";
+import { ArrowDown } from "../../primitives/icons";
 
 export function JumpToLatestButton({ onClick }: { onClick: () => void }) {
   return (

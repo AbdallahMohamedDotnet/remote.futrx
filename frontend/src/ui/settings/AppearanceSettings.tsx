@@ -1,5 +1,5 @@
 import type { AppearanceTheme } from "../../models/settings";
-import { Check, Loader, Monitor, Moon, Sun } from "../ui/icons";
+import { Check, Loader, Monitor, Moon, Sun } from "../primitives/icons";
 
 const options: Array<{
   theme: AppearanceTheme;

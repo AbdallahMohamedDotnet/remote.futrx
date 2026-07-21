@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { FileTree } from "../../../models/files";
 import { chatApi } from "../../../api/chatApi";
-import { ChevronsDownUp, ChevronsUpDown, Download, Folder, Loader, RotateCcw, Search, X } from "../../ui/icons";
+import { ChevronsDownUp, ChevronsUpDown, Download, Folder, Loader, RotateCcw, Search, X } from "../../primitives/icons";
 import { FileTreeNodes } from "./FileTree";
 import { collectFolderKeys, filterTree, formatBytes, nodeKey, treeStats } from "./fileMeta";
 

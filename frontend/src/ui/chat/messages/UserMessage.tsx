@@ -1,4 +1,4 @@
-import { RotateCcw } from "../../ui/icons";
+import { RotateCcw } from "../../primitives/icons";
 
 export function UserMessage({
   text,

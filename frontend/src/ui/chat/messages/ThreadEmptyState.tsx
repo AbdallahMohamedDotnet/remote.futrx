@@ -1,4 +1,4 @@
-import { MessageSquare } from "../../ui/icons";
+import { MessageSquare } from "../../primitives/icons";
 
 export function ThreadEmptyState({ cwd }: { cwd?: string }) {
   return (

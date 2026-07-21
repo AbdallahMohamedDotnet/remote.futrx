@@ -1,5 +1,5 @@
 import type { SelectedSkill } from "../../../models/chat";
-import { X } from "../../ui/icons";
+import { X } from "../../primitives/icons";
 
 export function SelectedSkillChips({
   skills,

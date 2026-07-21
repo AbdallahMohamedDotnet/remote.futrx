@@ -1,4 +1,4 @@
-import { LogOut, Settings } from "../ui/icons";
+import { LogOut, Settings } from "../primitives/icons";
 
 export function AccountFooter({
   email,

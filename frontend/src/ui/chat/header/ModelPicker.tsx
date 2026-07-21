@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import { ChevronDown } from "../../ui/icons";
+import { ChevronDown } from "../../primitives/icons";
 
 export function ModelPicker({
   modelRef,

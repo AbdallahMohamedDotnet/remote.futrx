@@ -1,6 +1,6 @@
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
-import { ChevronDown, ChevronRight, Loader, Plus, Settings } from "../ui/icons";
+import { ChevronDown, ChevronRight, Loader, Plus, Settings } from "../primitives/icons";
 import { ChatRow } from "./ChatRow";
 
 export function ProjectGroup({

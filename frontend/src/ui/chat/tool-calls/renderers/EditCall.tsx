@@ -1,6 +1,6 @@
 import { useMemo } from "preact/hooks";
 import { diffLines } from "../../../../shared/diff";
-import { Edit as EditIcon } from "../../../ui/icons";
+import { Edit as EditIcon } from "../../../primitives/icons";
 import type { ToolCallProps } from "../ToolCallTypes";
 import { ToolShell } from "../ToolShell";
 import { shortPath } from "../utils";

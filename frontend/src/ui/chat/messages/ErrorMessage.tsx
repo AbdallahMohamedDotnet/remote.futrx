@@ -1,4 +1,4 @@
-import { AlertCircle } from "../../ui/icons";
+import { AlertCircle } from "../../primitives/icons";
 
 export function ErrorMessage({ message }: { message: string }) {
   return (

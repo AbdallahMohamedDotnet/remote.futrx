@@ -1,4 +1,4 @@
-import { Search, X } from "../ui/icons";
+import { Search, X } from "../primitives/icons";
 
 export function WorkspaceSearch({
   query,

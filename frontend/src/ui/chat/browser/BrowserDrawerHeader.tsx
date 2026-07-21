@@ -1,6 +1,6 @@
 import type { ContainerApp } from "../../../models/project";
 import type { AgentBrowserStatus } from "../../../state/hooks/chat/useAgentBrowserSession";
-import { Crosshair, ExternalLink, Key, Loader, Monitor, RotateCcw, Square, X } from "../../ui/icons";
+import { Crosshair, ExternalLink, Key, Loader, Monitor, RotateCcw, Square, X } from "../../primitives/icons";
 
 const guiStatusLabel: Record<AgentBrowserStatus, string> = {
   idle: "off",

@@ -1,4 +1,4 @@
-import { Folder, Plus, Search } from "../ui/icons";
+import { Folder, Plus, Search } from "../primitives/icons";
 
 export function SidebarEmptyState({ onNewProject }: { onNewProject: () => void }) {
   return (

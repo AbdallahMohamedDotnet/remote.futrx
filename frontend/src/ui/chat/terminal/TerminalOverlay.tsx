@@ -2,7 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import "@xterm/xterm/css/xterm.css";
 import type { ChatMeta } from "../../../models/chat";
 import { useTerminalSession } from "../../../state/hooks/chat/useTerminalSession";
-import { Terminal as TerminalIcon, X } from "../../ui/icons";
+import { Terminal as TerminalIcon, X } from "../../primitives/icons";
 
 export function TerminalOverlay({
   chat,

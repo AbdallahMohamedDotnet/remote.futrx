@@ -1,4 +1,4 @@
-import { Upload } from "../../ui/icons";
+import { Upload } from "../../primitives/icons";
 
 export function ComposerDropOverlay() {
   return (

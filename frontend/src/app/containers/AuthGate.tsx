@@ -2,7 +2,7 @@ import type { ComponentType } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { ClaudeAuthWaiting } from "../../ui/auth/ClaudeAuthWaiting";
 import { LoginScreen } from "../../ui/auth/LoginScreen";
-import { LoadingScreen } from "../../ui/ui/LoadingScreen";
+import { LoadingScreen } from "../../ui/primitives/LoadingScreen";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { ClaudeLoginContainer } from "./ClaudeLoginContainer";
 

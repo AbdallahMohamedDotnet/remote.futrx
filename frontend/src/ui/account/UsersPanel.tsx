@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import type { User, UserRole } from "../../models/user";
 import { userApi } from "../../api/userApi";
-import { AlertCircle, Check, Loader, X } from "../ui/icons";
+import { AlertCircle, Check, Loader, X } from "../primitives/icons";
 
 interface UsersPanelProps {
   currentEmail: string;

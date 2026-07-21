@@ -28,7 +28,7 @@ import {
   RotateCcw,
   Settings,
   X,
-} from "../ui/icons";
+} from "../primitives/icons";
 
 export function ProjectContainersPage({
   project,

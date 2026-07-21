@@ -1,6 +1,6 @@
 import type { ChatMeta } from "../../models/chat";
 import { formatModelShortLabel, timeAgo } from "../../shared/format";
-import { Clock, Eye, EyeOff, GitFork, Loader, MessageSquare, X } from "../ui/icons";
+import { Clock, Eye, EyeOff, GitFork, Loader, MessageSquare, X } from "../primitives/icons";
 
 export function ChatRow({
   chat,

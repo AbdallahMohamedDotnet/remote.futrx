@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { useClaudeLoginFlow } from "../../state/hooks/auth/useClaudeLoginFlow";
-import { Check, ExternalLink, Key, Loader } from "../ui/icons";
+import { Check, ExternalLink, Key, Loader } from "../primitives/icons";
 
 // Admin-only Claude auth pill, matching CodexAuthSettings/KimiAuthSettings.
 // Self-contained: live status comes from the shared AuthContext WS (no extra

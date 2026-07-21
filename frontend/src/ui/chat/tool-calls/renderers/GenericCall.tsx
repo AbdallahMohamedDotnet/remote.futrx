@@ -1,4 +1,4 @@
-import { TerminalIcon } from "../../../ui/icons";
+import { TerminalIcon } from "../../../primitives/icons";
 import type { ToolCallProps } from "../ToolCallTypes";
 import { CodeBlock } from "../CodeBlock";
 import { ToolShell } from "../ToolShell";

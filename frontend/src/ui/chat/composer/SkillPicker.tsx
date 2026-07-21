@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ChatProvider } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import { skillApi } from "../../../api/skillApi";
-import { ChevronDown, Code, Search } from "../../ui/icons";
+import { ChevronDown, Code, Search } from "../../primitives/icons";
 
 export function SkillPicker({
   provider,

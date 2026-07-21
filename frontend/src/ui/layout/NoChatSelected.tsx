@@ -1,4 +1,4 @@
-import { Folder, Menu, MessageSquare, Plus } from "../ui/icons";
+import { Folder, Menu, MessageSquare, Plus } from "../primitives/icons";
 
 export function NoChatSelected({
   hasProjects,

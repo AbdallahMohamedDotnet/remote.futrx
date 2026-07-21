@@ -1,6 +1,6 @@
 import type { ChatMeta } from "../../../models/chat";
 import { providerDisplayLabel } from "../../../state/chat/usage";
-import { Menu, MessageSquare } from "../../ui/icons";
+import { Menu, MessageSquare } from "../../primitives/icons";
 import { CwdEditor } from "./CwdEditor";
 
 export function ThreadHeader({
