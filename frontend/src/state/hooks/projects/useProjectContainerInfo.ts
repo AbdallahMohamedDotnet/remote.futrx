@@ -1,17 +1,16 @@
 import { useCallback, useState } from "preact/hooks";
 import { projectApi } from "../../../api/projectApi";
 import type { ProjectMeta } from "../../../models/project";
-import type { ProjectContainerRecord } from "../../projects/projectContainerRecords";
-
-export interface CancellationSignal {
-  cancelled: boolean;
-}
+import type {
+  ProjectContainerRecord,
+  ProjectDataLoadSignal,
+} from "../../projects/projectContainerRecords";
 
 export function useProjectContainerInfo(project: ProjectMeta | null) {
   const [record, setRecord] = useState<ProjectContainerRecord>({ loading: false });
 
   const load = useCallback(
-    async (signal?: CancellationSignal) => {
+    async (signal?: ProjectDataLoadSignal) => {
       if (!project) {
         setRecord({ loading: false });
         return;

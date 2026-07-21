@@ -3,10 +3,8 @@ import { ProjectContainersPage } from "../../ui/projects/ProjectContainersPage";
 import type { ProjectMeta } from "../../models/project";
 import { projectApi } from "../../api/projectApi";
 import { useProjectContainerInfo } from "../../state/hooks/projects/useProjectContainerInfo";
-import type {
-  AccessRecord,
-  SecretsRecord,
-} from "../../state/projects/projectContainerRecords";
+import { useProjectSecrets } from "../../state/hooks/projects/useProjectSecrets";
+import type { AccessRecord } from "../../state/projects/projectContainerRecords";
 
 export function ProjectContainersContainer({
   projects,
@@ -25,28 +23,9 @@ export function ProjectContainersContainer({
   );
 
   const info = useProjectContainerInfo(selectedProject);
-  const [secretsRecord, setSecretsRecord] = useState<SecretsRecord>({ loading: false });
+  const secrets = useProjectSecrets(selectedProject);
   const [accessRecord, setAccessRecord] = useState<AccessRecord>({ loading: false });
   const [refreshing, setRefreshing] = useState(false);
-
-  const loadSecrets = useCallback(
-    async (signal?: { cancelled: boolean }) => {
-      if (!selectedProject) {
-        setSecretsRecord({ loading: false });
-        return;
-      }
-      setSecretsRecord((prev) => ({ ...prev, loading: true, error: undefined }));
-      try {
-        const data = await projectApi.listSecrets(selectedProject.id);
-        if (signal?.cancelled) return;
-        setSecretsRecord({ loading: false, data });
-      } catch (error) {
-        if (signal?.cancelled) return;
-        setSecretsRecord({ loading: false, error: (error as Error).message });
-      }
-    },
-    [selectedProject]
-  );
 
   const loadAccess = useCallback(
     async (signal?: { cancelled: boolean }) => {
@@ -71,39 +50,11 @@ export function ProjectContainersContainer({
     if (!selectedProject) return;
     setRefreshing(true);
     try {
-      await Promise.all([info.load(), loadSecrets(), loadAccess()]);
+      await Promise.all([info.load(), secrets.load(), loadAccess()]);
     } finally {
       setRefreshing(false);
     }
-  }, [selectedProject, info.load, loadSecrets, loadAccess]);
-
-  const onSaveSecret = useCallback(
-    async (key: string, value: string) => {
-      if (!selectedProject) return;
-      const saved = await projectApi.setSecret(selectedProject.id, key, value);
-      setSecretsRecord((prev) => {
-        const list = prev.data ? [...prev.data] : [];
-        const idx = list.findIndex((s) => s.key === saved.key);
-        if (idx >= 0) list[idx] = saved;
-        else list.push(saved);
-        list.sort((a, b) => a.key.localeCompare(b.key));
-        return { loading: false, data: list };
-      });
-    },
-    [selectedProject]
-  );
-
-  const onDeleteSecret = useCallback(
-    async (key: string) => {
-      if (!selectedProject) return;
-      await projectApi.deleteSecret(selectedProject.id, key);
-      setSecretsRecord((prev) => ({
-        loading: false,
-        data: prev.data?.filter((s) => s.key !== key) ?? [],
-      }));
-    },
-    [selectedProject]
-  );
+  }, [selectedProject, info.load, secrets.load, loadAccess]);
 
   const onAddMember = useCallback(
     async (email: string) => {
@@ -140,25 +91,25 @@ export function ProjectContainersContainer({
   useEffect(() => {
     const signal = { cancelled: false };
     void info.load(signal);
-    void loadSecrets(signal);
+    void secrets.load(signal);
     void loadAccess(signal);
     return () => {
       signal.cancelled = true;
     };
-  }, [info.load, loadSecrets, loadAccess]);
+  }, [info.load, secrets.load, loadAccess]);
 
   return (
     <ProjectContainersPage
       project={selectedProject}
       infoRecord={info.record}
-      secretsRecord={secretsRecord}
+      secretsRecord={secrets.record}
       accessRecord={accessRecord}
       refreshing={refreshing}
       onRefresh={() => void refresh()}
       onBack={onBack}
       onHamburger={onHamburger}
-      onSaveSecret={onSaveSecret}
-      onDeleteSecret={onDeleteSecret}
+      onSaveSecret={secrets.save}
+      onDeleteSecret={secrets.remove}
       onAddMember={onAddMember}
       onRemoveMember={onRemoveMember}
       onRepairNetwork={info.repairNetwork}

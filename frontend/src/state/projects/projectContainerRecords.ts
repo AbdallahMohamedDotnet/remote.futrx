@@ -1,5 +1,9 @@
 import type { ProjectContainerInfo, ProjectSecret } from "../../models/project";
 
+export interface ProjectDataLoadSignal {
+  cancelled: boolean;
+}
+
 export interface ProjectContainerRecord {
   loading: boolean;
   data?: ProjectContainerInfo;
