@@ -19,6 +19,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostfs"
 	servicebrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/browser"
 	servicecredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/credentials"
+	serviceinspection "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/inspection"
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/launch"
 	servicelifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/lifecycle"
 	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
@@ -31,7 +32,7 @@ const hostMappedUID = 1000000
 // and their LXD/host-filesystem adapters.
 type ContainerStack struct {
 	Lifecycle   *servicelifecycle.Service
-	Inspection  *containerinspection.Inspector
+	Inspection  *serviceinspection.Service
 	Credentials *servicecredentials.Service
 	Environment *containerenvironment.Service
 	CLI         *containercli.Provisioner
@@ -105,7 +106,15 @@ func NewContainerStack(runner command.Runner, configuredProfiles []provisioning.
 		resources,
 		launchProvisioner,
 	)
-	inspection := containerinspection.NewInspector(runner, profiles, lifecycle)
+	inspectionAdapter := containerinspection.NewAdapter(runner, profiles)
+	inspection := serviceinspection.NewService(serviceinspection.Dependencies{
+		States:        lifecycle,
+		Configuration: inspectionAdapter,
+		Runtime:       inspectionAdapter,
+		Guest:         inspectionAdapter,
+		Agents:        inspectionAdapter,
+		Credentials:   inspectionAdapter,
+	})
 
 	return ContainerStack{
 		Lifecycle:   lifecycle,

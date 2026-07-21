@@ -1,15 +1,6 @@
-// Package inspection assembles best-effort diagnostic snapshots of project
-// containers.
+// Package inspection implements the LXD, guest, profile, and host-file probes
+// used to assemble container diagnostic snapshots.
 package inspection
-
-// Inspect gathers a rich debugging snapshot of one project's container.
-// Sources, in order:
-//   1. `lxc query /1.0/instances/<n>`        — instance config (image, devices, limits)
-//   2. `lxc query /1.0/instances/<n>/state`  — live runtime stats (memory, network, cpu)
-//   3. `lxc exec <n> -- sh -c "<probe>"`     — OS info + df from inside the container
-//   4. host-side stat()                       — per-bundle auth file mtimes
-// Each section is best-effort: a stopped or missing container leaves
-// dependent fields zero-valued.
 
 import (
 	"context"
@@ -24,29 +15,24 @@ import (
 
 const inspectQuickTimeout = 5 * time.Second
 
-// Inspector owns the best-effort snapshot assembled from LXD, the
-// guest operating system, configured agent profiles, and host credential files.
-type Inspector struct {
-	states      StateReader
+// Adapter owns the independent best-effort probes backed by LXD, the guest
+// operating system, configured agent profiles, and host credential files.
+// Snapshot sequencing and lifecycle-state policy live in the application
+// service.
+type Adapter struct {
 	lxd         containerLXDInspector
 	guest       containerGuestInspector
 	agents      containerAgentInspector
 	credentials containerCredentialInspector
 }
 
-// StateReader reports the lifecycle state required to scope an inspection.
-type StateReader interface {
-	State(ctx context.Context, containerName string) (serviceproject.ContainerState, error)
-}
-
-// NewInspector returns a diagnostic inspector backed by the lifecycle state
-// reader and shared agent profiles.
-func NewInspector(runner command.Runner, profileSource serviceprofiles.Source, states StateReader) *Inspector {
+// NewAdapter returns independent diagnostic probes backed by the shared
+// runtime and agent profiles.
+func NewAdapter(runner command.Runner, profileSource serviceprofiles.Source) *Adapter {
 	commands := &quickCommandRunner{runner: runner, timeout: inspectQuickTimeout}
-	return &Inspector{
-		states: states,
-		lxd:    containerLXDInspector{commands: commands},
-		guest:  containerGuestInspector{commands: commands},
+	return &Adapter{
+		lxd:   containerLXDInspector{commands: commands},
+		guest: containerGuestInspector{commands: commands},
 		agents: containerAgentInspector{
 			commands:        commands,
 			profiles:        profileSource,
@@ -56,28 +42,32 @@ func NewInspector(runner command.Runner, profileSource serviceprofiles.Source, s
 	}
 }
 
-func (i *Inspector) Inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
-	out := serviceproject.ContainerInspect{Name: containerName}
+// InspectConfiguration adds the provider-neutral LXD instance configuration
+// fields available for a stopped or running container.
+func (a *Adapter) InspectConfiguration(ctx context.Context, containerName string, out *serviceproject.ContainerInspect) {
+	a.lxd.inspectConfiguration(ctx, containerName, out)
+}
 
-	state, err := i.states.State(ctx, containerName)
-	if err != nil {
-		return out, err
-	}
-	out.State = state
-	if state == serviceproject.ContainerStateMissing {
-		return out, nil
-	}
+// InspectRuntime adds live LXD state and resource fields.
+func (a *Adapter) InspectRuntime(ctx context.Context, containerName string, out *serviceproject.ContainerInspect) {
+	a.lxd.inspectRuntime(ctx, containerName, out)
+}
 
-	i.lxd.inspectConfiguration(ctx, containerName, &out)
+// InspectGuest reads operating-system and disk details from a running guest.
+func (a *Adapter) InspectGuest(ctx context.Context, containerName string) (*serviceproject.OSInfo, []serviceproject.DiskUsage) {
+	return a.guest.inspect(ctx, containerName)
+}
 
-	if state == serviceproject.ContainerStateRunning {
-		i.lxd.inspectRuntime(ctx, containerName, &out)
-		osInfo, disks := i.guest.inspect(ctx, containerName)
-		out.OS = osInfo
-		out.Disks = disks
-		out.SetAgentStatuses(i.agents.inspect(ctx, containerName))
-	}
+// InspectAgents reports configured agent CLI and instruction readiness.
+func (a *Adapter) InspectAgents(ctx context.Context, containerName string) []serviceproject.AgentContainerStatus {
+	return a.agents.inspect(ctx, containerName)
+}
 
-	out.AuthBundles = i.credentials.inspect(ctx, containerName, state)
-	return out, nil
+// InspectCredentials compares host and guest credential file timestamps.
+func (a *Adapter) InspectCredentials(
+	ctx context.Context,
+	containerName string,
+	state serviceproject.ContainerState,
+) []serviceproject.AuthBundleStatus {
+	return a.credentials.inspect(ctx, containerName, state)
 }
