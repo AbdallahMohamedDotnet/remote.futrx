@@ -42,7 +42,7 @@ if [ -n "${FORCE_REBUILD_BASE_IMAGE:-}" ]; then
     CLI_ARGS+=(-overwrite)
 fi
 
-log "Running cmd/build-base-image (60-120s: apt + nodejs + npm install agent CLIs)"
+log "Running cmd/build-base-image (the first build can take up to 10 minutes)"
 (
     cd "$INSTALL_DIR/backend"
     go run ./cmd/build-base-image "${CLI_ARGS[@]}"

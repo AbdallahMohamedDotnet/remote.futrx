@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
@@ -35,8 +36,43 @@ const (
 	baseImageBuildTimeout   = 15 * time.Minute
 	baseImagePublishTimeout = 5 * time.Minute
 	baseImageNetworkWarmup  = 3 * time.Second
+	baseImageProgressTick   = 30 * time.Second
 	deleteTimeout           = 30 * time.Second
 )
+
+type buildStageResult struct {
+	output string
+	err    error
+}
+
+func runBuildStage(label string, run func() (string, error)) (string, error) {
+	started := time.Now()
+	log.Printf("%s...", label)
+
+	done := make(chan buildStageResult, 1)
+	go func() {
+		out, err := run()
+		done <- buildStageResult{output: out, err: err}
+	}()
+
+	ticker := time.NewTicker(baseImageProgressTick)
+	defer ticker.Stop()
+	for {
+		select {
+		case result := <-done:
+			elapsed := time.Since(started).Round(time.Second)
+			if result.err != nil {
+				log.Printf("%s failed after %s", label, elapsed)
+			} else {
+				log.Printf("%s finished in %s", label, elapsed)
+			}
+			return result.output, result.err
+		case <-ticker.C:
+			elapsed := time.Since(started).Round(time.Second)
+			log.Printf("%s still running (%s elapsed)", label, elapsed)
+		}
+	}
+}
 
 // Builder owns the disposable builder lifecycle and publishes the
 // profile-derived development image consumed by project containers.
@@ -101,7 +137,10 @@ func (b *Builder) Build(ctx context.Context, alias string) error {
 		_, _ = b.runtime.DeleteContainer(dctx, baseImageBuilderName)
 	}()
 
-	if out, err := b.runtime.LaunchContainer(bctx, SourceImage, baseImageBuilderName); err != nil {
+	out, err := runBuildStage("[1/6] Downloading Ubuntu 24.04 and starting the builder", func() (string, error) {
+		return b.runtime.LaunchContainer(bctx, SourceImage, baseImageBuilderName)
+	})
+	if err != nil {
 		return fmt.Errorf("launch builder: %w; output: %s", err, out)
 	}
 
@@ -113,30 +152,45 @@ func (b *Builder) Build(ctx context.Context, alias string) error {
 		return bctx.Err()
 	}
 
-	if out, err := b.runtime.ExecuteScript(bctx, baseImageBuilderName, installScript); err != nil {
+	out, err = runBuildStage("[2/6] Installing system tools, Node.js, and agent CLIs", func() (string, error) {
+		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, installScript)
+	})
+	if err != nil {
 		return fmt.Errorf("install script: %w; output: %s", err, output.Truncate(out, 2000))
 	}
 
-	if out, err := b.runtime.ExecuteScript(bctx, baseImageBuilderName, b.browserInstallScript); err != nil {
+	out, err = runBuildStage("[3/6] Installing the agent browser and Chromium", func() (string, error) {
+		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, b.browserInstallScript)
+	})
+	if err != nil {
 		return fmt.Errorf("agent browser install script: %w; output: %s", err, output.Truncate(out, 2000))
 	}
 
-	if out, err := b.runtime.ExecuteScript(bctx, baseImageBuilderName, string(b.codeServerInstallScript)); err != nil {
+	out, err = runBuildStage("[4/6] Installing the browser IDE", func() (string, error) {
+		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, string(b.codeServerInstallScript))
+	})
+	if err != nil {
 		return fmt.Errorf("code-server install script: %w; output: %s", err, output.Truncate(out, 2000))
 	}
 
-	if out, err := b.runtime.StopContainer(bctx, baseImageBuilderName); err != nil {
+	out, err = runBuildStage("[5/6] Finalizing the builder container", func() (string, error) {
+		return b.runtime.StopContainer(bctx, baseImageBuilderName)
+	})
+	if err != nil {
 		return fmt.Errorf("stop builder: %w; output: %s", err, out)
 	}
 
 	pctx, pcancel := context.WithTimeout(ctx, baseImagePublishTimeout)
 	defer pcancel()
-	if out, err := b.runtime.PublishImage(
-		pctx,
-		baseImageBuilderName,
-		alias,
-		description(profiles),
-	); err != nil {
+	out, err = runBuildStage("[6/6] Publishing the reusable workspace image", func() (string, error) {
+		return b.runtime.PublishImage(
+			pctx,
+			baseImageBuilderName,
+			alias,
+			description(profiles),
+		)
+	})
+	if err != nil {
 		return fmt.Errorf("publish: %w; output: %s", err, out)
 	}
 

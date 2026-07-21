@@ -50,7 +50,7 @@ func main() {
 	}
 
 	log.Printf("building %q from %q...", *alias, serviceimage.SourceImage)
-	log.Printf("(this typically takes 60-120s — apt update + nodejs + npm install -g @anthropic-ai/claude-code)")
+	log.Printf("(the first build can take up to 10 minutes; progress is reported every 30 seconds)")
 
 	if err := containerStack.Images.Build(ctx, *alias); err != nil {
 		log.Fatalf("build failed: %v", err)
