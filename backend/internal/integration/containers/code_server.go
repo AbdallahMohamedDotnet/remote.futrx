@@ -24,7 +24,7 @@ var codeServerUpScript []byte
 // base-image bake that didn't enable it, or a unit that was turned off later)
 // it still (re-)enables it, so a present-but-inert socket can't leave IDE
 // routing silently broken.
-func (m *Manager) EnsureCodeServer(ctx context.Context, containerName, displayName string) error {
+func (m *Client) EnsureCodeServer(ctx context.Context, containerName, displayName string) error {
 	// Fast path: socket already armed and listening -> nothing to do.
 	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

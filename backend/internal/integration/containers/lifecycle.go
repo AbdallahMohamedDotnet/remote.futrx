@@ -15,7 +15,7 @@ import (
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
-func (m *Manager) Launch(ctx context.Context, p serviceproject.Meta) error {
+func (m *Client) Launch(ctx context.Context, p serviceproject.Meta) error {
 	if !m.Available() {
 		return errors.New("lxc CLI not found on PATH - install LXD on the host first")
 	}
@@ -62,7 +62,7 @@ func (m *Manager) Launch(ctx context.Context, p serviceproject.Meta) error {
 	return nil
 }
 
-func (m *Manager) attachDisk(ctx context.Context, container, deviceName, hostSrc, containerPath string, readonly bool) error {
+func (m *Client) attachDisk(ctx context.Context, container, deviceName, hostSrc, containerPath string, readonly bool) error {
 	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 	args := []string{
@@ -84,7 +84,7 @@ func (m *Manager) attachDisk(ctx context.Context, container, deviceName, hostSrc
 // `stopped` state until the runner brings it back via a prompt — which
 // silently breaks anything time-driven (cron, systemd timers). Idempotent;
 // cheap; safe to call on every prompt as a migration for older containers.
-func (m *Manager) EnsureBootAutostart(ctx context.Context, containerName string) error {
+func (m *Client) EnsureBootAutostart(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
@@ -100,7 +100,7 @@ func (m *Manager) EnsureBootAutostart(ctx context.Context, containerName string)
 	return nil
 }
 
-func (m *Manager) Start(ctx context.Context, containerName string) error {
+func (m *Client) Start(ctx context.Context, containerName string) error {
 	lctx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
 	if out, err := m.lxc.Run(lctx, "start", containerName); err != nil {
@@ -112,7 +112,7 @@ func (m *Manager) Start(ctx context.Context, containerName string) error {
 	return nil
 }
 
-func (m *Manager) Stop(ctx context.Context, containerName string) error {
+func (m *Client) Stop(ctx context.Context, containerName string) error {
 	lctx, cancel := context.WithTimeout(ctx, stopTimeout)
 	defer cancel()
 	if out, err := m.lxc.Run(lctx, "stop", containerName); err != nil {
@@ -124,7 +124,7 @@ func (m *Manager) Stop(ctx context.Context, containerName string) error {
 	return nil
 }
 
-func (m *Manager) Delete(ctx context.Context, containerName string) error {
+func (m *Client) Delete(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return nil
 	}
@@ -139,7 +139,7 @@ func (m *Manager) Delete(ctx context.Context, containerName string) error {
 	return nil
 }
 
-func (m *Manager) State(ctx context.Context, containerName string) (serviceproject.ContainerState, error) {
+func (m *Client) State(ctx context.Context, containerName string) (serviceproject.ContainerState, error) {
 	if !m.Available() {
 		return serviceproject.ContainerStateUnknown, nil
 	}

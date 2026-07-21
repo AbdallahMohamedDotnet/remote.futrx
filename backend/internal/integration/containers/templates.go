@@ -24,7 +24,7 @@ const (
 // EnsureAgentInstructions pushes the agent system-instructions template into
 // both the Claude (/root/.claude/CLAUDE.md) and Codex (/root/.codex/AGENTS.md)
 // homes, gated by a single sha256 marker. Idempotent.
-func (m *Manager) EnsureAgentInstructions(ctx context.Context, containerName string) error {
+func (m *Client) EnsureAgentInstructions(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}

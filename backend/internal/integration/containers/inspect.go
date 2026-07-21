@@ -69,7 +69,7 @@ type instanceState struct {
 	} `json:"network"`
 }
 
-func (m *Manager) Inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
+func (m *Client) Inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
 	out := serviceproject.ContainerInspect{Name: containerName}
 
 	state, err := m.State(ctx, containerName)
@@ -150,7 +150,7 @@ func (m *Manager) Inspect(ctx context.Context, containerName string) (servicepro
 	return out, nil
 }
 
-func (m *Manager) queryInstance(ctx context.Context, name string) (*instanceConfig, error) {
+func (m *Client) queryInstance(ctx context.Context, name string) (*instanceConfig, error) {
 	raw, err := m.runQuick(ctx, "query", "/1.0/instances/"+name)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (m *Manager) queryInstance(ctx context.Context, name string) (*instanceConf
 	return &cfg, nil
 }
 
-func (m *Manager) queryInstanceState(ctx context.Context, name string) (*instanceState, error) {
+func (m *Client) queryInstanceState(ctx context.Context, name string) (*instanceState, error) {
 	raw, err := m.runQuick(ctx, "query", "/1.0/instances/"+name+"/state")
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func (m *Manager) queryInstanceState(ctx context.Context, name string) (*instanc
 // probeInContainer batches several /proc reads + commands into a single
 // `lxc exec sh -c` round-trip to keep latency in the low 100ms range. The
 // output is split on `=== KEY ===` markers.
-func (m *Manager) probeInContainer(ctx context.Context, name string) (*serviceproject.OSInfo, []serviceproject.DiskUsage) {
+func (m *Client) probeInContainer(ctx context.Context, name string) (*serviceproject.OSInfo, []serviceproject.DiskUsage) {
 	script := `
 echo "=== OS_RELEASE ==="
 cat /etc/os-release 2>/dev/null
@@ -266,7 +266,7 @@ func splitSections(raw string) map[string]string {
 	return out
 }
 
-func (m *Manager) inspectClaude(ctx context.Context, containerName string) serviceproject.ClaudeContainerStatus {
+func (m *Client) inspectClaude(ctx context.Context, containerName string) serviceproject.ClaudeContainerStatus {
 	var cs serviceproject.ClaudeContainerStatus
 	if _, err := m.runQuick(ctx, "exec", containerName, "--", "which", "claude"); err == nil {
 		cs.Installed = true
@@ -284,7 +284,7 @@ func (m *Manager) inspectClaude(ctx context.Context, containerName string) servi
 	return cs
 }
 
-func (m *Manager) inspectCodex(ctx context.Context, containerName string) serviceproject.CodexContainerStatus {
+func (m *Client) inspectCodex(ctx context.Context, containerName string) serviceproject.CodexContainerStatus {
 	var cs serviceproject.CodexContainerStatus
 	if _, err := m.runQuick(ctx, "exec", containerName, "--", "which", "codex"); err == nil {
 		cs.Installed = true
@@ -295,7 +295,7 @@ func (m *Manager) inspectCodex(ctx context.Context, containerName string) servic
 	return cs
 }
 
-func (m *Manager) inspectAuthBundles(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {
+func (m *Client) inspectAuthBundles(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {
 	bundles := m.AuthBundles()
 	out := make([]serviceproject.AuthBundleStatus, 0, len(bundles))
 	for _, b := range bundles {
@@ -334,7 +334,7 @@ func (m *Manager) inspectAuthBundles(ctx context.Context, containerName string, 
 	return out
 }
 
-func (m *Manager) runQuick(parent context.Context, args ...string) (string, error) {
+func (m *Client) runQuick(parent context.Context, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(parent, inspectQuickTimeout)
 	defer cancel()
 	return m.lxc.Run(ctx, args...)

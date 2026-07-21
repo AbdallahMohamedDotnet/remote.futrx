@@ -34,9 +34,9 @@ func main() {
 		log.Fatalf("init stores: %v", err)
 	}
 	lxcClient := lxc.New()
-	containerManager := containers.New(lxcClient)
-	containerManager.RegisterAuthBundle(containers.ClaudeAuthBundle())
-	containerManager.RegisterAuthBundle(containers.CodexAuthBundle())
+	containerClient := containers.New(lxcClient)
+	containerClient.RegisterAuthBundle(containers.ClaudeAuthBundle())
+	containerClient.RegisterAuthBundle(containers.CodexAuthBundle())
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:          storeSet.Chats,
@@ -47,7 +47,7 @@ func main() {
 		Users:          storeSet.Users,
 		UserSettings:   storeSet.UserSettings,
 		AuthBaseURL:    cfg.BaseURL,
-		Containers:     containerManager,
+		Containers:     containerClient,
 		TmuxClient:     tmuxClient,
 		ValidTmuxName:  tmuxcli.ValidName,
 	})

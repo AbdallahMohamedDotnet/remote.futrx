@@ -20,7 +20,7 @@ import (
 
 const listenersTimeout = 5 * time.Second
 
-func (m *Manager) ListListeners(ctx context.Context, containerName string) ([]serviceproject.ContainerApp, error) {
+func (m *Client) ListListeners(ctx context.Context, containerName string) ([]serviceproject.ContainerApp, error) {
 	if !m.Available() {
 		return nil, errors.New("lxc not available")
 	}

@@ -45,7 +45,7 @@ func templateHash(content []byte) string {
 // Ensure* step that ships an embedded template into the workspace, so the
 // temp-file / push / marker dance lives in one place. Callers are responsible
 // for creating any parent directories the destinations need.
-func (m *Manager) pushTemplatedFile(ctx context.Context, containerName string, content []byte, hashPath, fileMode string, destPaths ...string) error {
+func (m *Client) pushTemplatedFile(ctx context.Context, containerName string, content []byte, hashPath, fileMode string, destPaths ...string) error {
 	want := templateHash(content)
 
 	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
@@ -84,7 +84,7 @@ func (m *Manager) pushTemplatedFile(ctx context.Context, containerName string, c
 // workspace and seeds an empty .agents/browser-auth.json if missing.
 // Idempotent: the script is only re-pushed when its embedded content
 // changes (sha256 marker stored alongside the config).
-func (m *Manager) EnsureBrowserScript(ctx context.Context, containerName string) error {
+func (m *Client) EnsureBrowserScript(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}

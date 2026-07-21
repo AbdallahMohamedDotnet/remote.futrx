@@ -1,7 +1,7 @@
 package containers
 
 // Generic OAuth/credential bundle pipeline. The host holds the canonical
-// copy of each bundle's files; the manager pushes them into containers
+// copy of each bundle's files; the client pushes them into containers
 // before use and pulls any rotations back afterwards so the host stays
 // current. Nothing in this file knows about Claude — bundle definitions
 // live with their providers (see claude.go).
@@ -19,7 +19,7 @@ import (
 const authPushTimeout = 30 * time.Second
 
 // AuthBundle describes one provider's credential set on disk. Register an
-// instance via Manager.RegisterAuthBundle to have it auto-seeded on every
+// instance via Client.RegisterAuthBundle to have it auto-seeded on every
 // fresh container launch; call EnsureAuthBundle / SyncAuthBundleFromContainer
 // directly to drive the push/pull pipeline at other points (e.g. before and
 // after each prompt).
@@ -64,7 +64,7 @@ type AuthFile struct {
 // RegisterAuthBundle adds a bundle to the seed list used by Launch. Safe to
 // call from main during wiring; not intended to be called concurrently with
 // Launch.
-func (m *Manager) RegisterAuthBundle(b AuthBundle) {
+func (m *Client) RegisterAuthBundle(b AuthBundle) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.bundles = append(m.bundles, b)
@@ -72,7 +72,7 @@ func (m *Manager) RegisterAuthBundle(b AuthBundle) {
 
 // AuthBundles returns a snapshot of the registered bundles. Useful for tests
 // and diagnostics.
-func (m *Manager) AuthBundles() []AuthBundle {
+func (m *Client) AuthBundles() []AuthBundle {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	out := make([]AuthBundle, len(m.bundles))
@@ -83,7 +83,7 @@ func (m *Manager) AuthBundles() []AuthBundle {
 // EnsureRegisteredAuth seeds every registered bundle into the container.
 // Errors from individual bundles are joined so a single bad bundle doesn't
 // hide problems in the others.
-func (m *Manager) EnsureRegisteredAuth(ctx context.Context, containerName string) error {
+func (m *Client) EnsureRegisteredAuth(ctx context.Context, containerName string) error {
 	var errs []error
 	for _, b := range m.AuthBundles() {
 		if err := m.EnsureAuthBundle(ctx, containerName, b); err != nil {
@@ -96,7 +96,7 @@ func (m *Manager) EnsureRegisteredAuth(ctx context.Context, containerName string
 // EnsureAuthBundle pushes the bundle's files into the container. Each file is
 // only pushed when its host mtime is newer than the container copy, so this
 // is cheap to call on every prompt.
-func (m *Manager) EnsureAuthBundle(ctx context.Context, containerName string, b AuthBundle) error {
+func (m *Client) EnsureAuthBundle(ctx context.Context, containerName string, b AuthBundle) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
@@ -150,7 +150,7 @@ func (m *Manager) EnsureAuthBundle(ctx context.Context, containerName string, b 
 // Necessary when the in-container process rotates credentials (OAuth refresh
 // tokens, etc.) — without this, the next push would overwrite the rotation
 // with stale host data.
-func (m *Manager) SyncAuthBundleFromContainer(ctx context.Context, containerName string, b AuthBundle) error {
+func (m *Client) SyncAuthBundleFromContainer(ctx context.Context, containerName string, b AuthBundle) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
@@ -197,7 +197,7 @@ func (b AuthBundle) validate() error {
 	return nil
 }
 
-func (m *Manager) pushAuthFileIfNewer(ctx context.Context, f AuthFile, containerName string) error {
+func (m *Client) pushAuthFileIfNewer(ctx context.Context, f AuthFile, containerName string) error {
 	hostInfo, err := os.Stat(f.HostPath)
 	if err != nil {
 		return err

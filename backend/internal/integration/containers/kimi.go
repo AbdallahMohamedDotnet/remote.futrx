@@ -27,7 +27,7 @@ const (
 // isn't already present. Mirrors EnsureClaude: the shared BaseImageInstallScript
 // (Node 22 + `npm i -g` the agent CLIs) is the install path, so older Node-20
 // containers self-heal on first use.
-func (m *Manager) EnsureKimi(ctx context.Context, containerName string) error {
+func (m *Client) EnsureKimi(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
@@ -57,14 +57,14 @@ func (m *Manager) EnsureKimi(ctx context.Context, containerName string) error {
 	return nil
 }
 
-func (m *Manager) kimiInstalled(ctx context.Context, containerName string) bool {
+func (m *Client) kimiInstalled(ctx context.Context, containerName string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 	_, err := m.lxc.Run(quickCtx, "exec", containerName, "--", "which", "kimi")
 	return err == nil
 }
 
-func (m *Manager) kimiInstallRunning(ctx context.Context, containerName string) bool {
+func (m *Client) kimiInstallRunning(ctx context.Context, containerName string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--",
@@ -72,7 +72,7 @@ func (m *Manager) kimiInstallRunning(ctx context.Context, containerName string) 
 	return err == nil && strings.TrimSpace(out) != ""
 }
 
-func (m *Manager) waitForKimi(ctx context.Context, containerName string) error {
+func (m *Client) waitForKimi(ctx context.Context, containerName string) error {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -95,7 +95,7 @@ func (m *Manager) waitForKimi(ctx context.Context, containerName string) error {
 //     logged in (`kimi login` inside it). We leave its credentials untouched.
 //
 // Errors only when neither the host nor the container is authenticated.
-func (m *Manager) EnsureKimiAuth(ctx context.Context, containerName string) error {
+func (m *Client) EnsureKimiAuth(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
@@ -130,7 +130,7 @@ func (m *Manager) EnsureKimiAuth(ctx context.Context, containerName string) erro
 // after a run (kimi-code rotates its OAuth refresh token). Only meaningful in
 // host-canonical mode; in per-container mode (no host credentials) it is a
 // no-op so one container's identity is never copied onto the host.
-func (m *Manager) SyncKimiAuthFromContainer(ctx context.Context, containerName string) error {
+func (m *Client) SyncKimiAuthFromContainer(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return nil
 	}
@@ -159,7 +159,7 @@ func (m *Manager) SyncKimiAuthFromContainer(ctx context.Context, containerName s
 	return nil
 }
 
-func (m *Manager) kimiContainerAuthed(ctx context.Context, containerName string) bool {
+func (m *Client) kimiContainerAuthed(ctx context.Context, containerName string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--",
@@ -181,7 +181,7 @@ func hostKimiCredFiles() ([]string, error) {
 	return files, nil
 }
 
-func (m *Manager) pushKimiFileIfNewer(ctx context.Context, hostPath, containerPath, containerName string) error {
+func (m *Client) pushKimiFileIfNewer(ctx context.Context, hostPath, containerPath, containerName string) error {
 	hostInfo, err := os.Stat(hostPath)
 	if err != nil {
 		return err

@@ -47,24 +47,24 @@ const (
 )
 
 // AgentBrowserPort returns the in-container noVNC port the stack listens on.
-func (m *Manager) AgentBrowserPort() int { return AgentBrowserVNCPort }
+func (m *Client) AgentBrowserPort() int { return AgentBrowserVNCPort }
 
 // EnsureAgentBrowser starts the full stack: browser core plus noVNC view.
-func (m *Manager) EnsureAgentBrowser(ctx context.Context, containerName string) error {
+func (m *Client) EnsureAgentBrowser(ctx context.Context, containerName string) error {
 	return m.ensureAgentBrowser(ctx, containerName, "start", "start agent browser")
 }
 
 // EnsureAgentBrowserCore starts only Xvfb, openbox, headed Chromium, and CDP.
-func (m *Manager) EnsureAgentBrowserCore(ctx context.Context, containerName string) error {
+func (m *Client) EnsureAgentBrowserCore(ctx context.Context, containerName string) error {
 	return m.ensureAgentBrowser(ctx, containerName, "start-core", "start agent browser core")
 }
 
 // EnsureAgentBrowserView starts the noVNC/VNC layer on top of the same core.
-func (m *Manager) EnsureAgentBrowserView(ctx context.Context, containerName string) error {
+func (m *Client) EnsureAgentBrowserView(ctx context.Context, containerName string) error {
 	return m.ensureAgentBrowser(ctx, containerName, "start-view", "start agent browser view")
 }
 
-func (m *Manager) ensureAgentBrowser(ctx context.Context, containerName, verb, label string) error {
+func (m *Client) ensureAgentBrowser(ctx context.Context, containerName, verb, label string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
@@ -93,7 +93,7 @@ func (m *Manager) ensureAgentBrowser(ctx context.Context, containerName, verb, l
 	return nil
 }
 
-func (m *Manager) pushAgentBrowserTemplates(ctx context.Context, containerName string) error {
+func (m *Client) pushAgentBrowserTemplates(ctx context.Context, containerName string) error {
 	dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
 	out, err := m.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
 	cancelD()
@@ -107,7 +107,7 @@ func (m *Manager) pushAgentBrowserTemplates(ctx context.Context, containerName s
 }
 
 // StopAgentBrowser tears down the browser, VNC bridge, and virtual display.
-func (m *Manager) StopAgentBrowser(ctx context.Context, containerName string) error {
+func (m *Client) StopAgentBrowser(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
@@ -120,7 +120,7 @@ func (m *Manager) StopAgentBrowser(ctx context.Context, containerName string) er
 }
 
 // StopAgentBrowserView tears down only the noVNC/VNC layer.
-func (m *Manager) StopAgentBrowserView(ctx context.Context, containerName string) error {
+func (m *Client) StopAgentBrowserView(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
@@ -133,7 +133,7 @@ func (m *Manager) StopAgentBrowserView(ctx context.Context, containerName string
 }
 
 // AgentBrowserRunning reports whether the core is currently ready.
-func (m *Manager) AgentBrowserRunning(ctx context.Context, containerName string) (bool, error) {
+func (m *Client) AgentBrowserRunning(ctx context.Context, containerName string) (bool, error) {
 	info, err := m.AgentBrowserStatus(ctx, containerName)
 	if err != nil {
 		return false, err
@@ -142,7 +142,7 @@ func (m *Manager) AgentBrowserRunning(ctx context.Context, containerName string)
 }
 
 // AgentBrowserStatus returns the split core/view state reported by gui-up.sh.
-func (m *Manager) AgentBrowserStatus(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
+func (m *Client) AgentBrowserStatus(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
 	if !m.Available() {
 		return serviceproject.AgentBrowserInfo{}, errors.New("lxc not available")
 	}
@@ -199,7 +199,7 @@ func parseAgentBrowserStatus(out string) serviceproject.AgentBrowserInfo {
 
 // EnsureAgentBrowserLimits applies only container config that Chrome needs and
 // removes older browser-induced container-wide CPU/memory limits.
-func (m *Manager) EnsureAgentBrowserLimits(ctx context.Context, containerName string) error {
+func (m *Client) EnsureAgentBrowserLimits(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}

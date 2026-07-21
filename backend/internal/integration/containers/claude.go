@@ -11,7 +11,7 @@ import (
 
 const (
 	// Host paths — the canonical Claude credentials live in /root/.claude*.
-	// The host runs `claude auth login` once via the claudelogin manager,
+	// The host runs `claude auth login` once via the Claude login service,
 	// then we ship the resulting files into every container that needs them.
 	hostClaudeJSON  = "/root/.claude.json"
 	hostClaudeDir   = "/root/.claude"
@@ -24,7 +24,7 @@ const (
 )
 
 // ClaudeAuthBundle is the AuthBundle definition for Anthropic's Claude CLI.
-// Register it on a Manager (typically in cmd/remote/main.go) to have Claude
+// Register it on a Client (typically in cmd/remote/main.go) to have Claude
 // credentials auto-seeded into every freshly launched container.
 func ClaudeAuthBundle() AuthBundle {
 	return AuthBundle{
@@ -58,20 +58,20 @@ func ClaudeAuthBundle() AuthBundle {
 // Kept as a thin wrapper so existing callers (claude provider, prompt
 // service) keep working; new code can call EnsureAuthBundle directly with
 // any bundle.
-func (m *Manager) EnsureClaudeAuth(ctx context.Context, containerName string) error {
+func (m *Client) EnsureClaudeAuth(ctx context.Context, containerName string) error {
 	return m.EnsureAuthBundle(ctx, containerName, ClaudeAuthBundle())
 }
 
 // SyncClaudeAuthFromContainer pulls Claude credentials back to the host
 // after a run, so any OAuth refresh that happened inside the container
 // survives.
-func (m *Manager) SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error {
+func (m *Client) SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error {
 	return m.SyncAuthBundleFromContainer(ctx, containerName, ClaudeAuthBundle())
 }
 
 // EnsureClaude installs or upgrades Claude Code to the repository pin.
 // Safe to call on every prompt: current containers only pay for a local
 // version check, while stale containers self-heal in place.
-func (m *Manager) EnsureClaude(ctx context.Context, containerName string) error {
+func (m *Client) EnsureClaude(ctx context.Context, containerName string) error {
 	return m.ensureAgentCLI(ctx, containerName, claudeCLISpec)
 }

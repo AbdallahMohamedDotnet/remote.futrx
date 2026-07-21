@@ -1,6 +1,6 @@
 package containers
 
-// Manager owns the lifecycle of LXD containers used for project workspaces.
+// Client adapts LXD container operations for project workspaces.
 // It builds on the thin internal/integration/lxc Client to do the actual
 // `lxc <...>` invocations and layers policy on top: workspace bind mounts,
 // boot-autostart, an auth-bundle pipeline for shipping host-side OAuth
@@ -40,9 +40,9 @@ type CommandRunner interface {
 	RunStdin(ctx context.Context, stdin io.Reader, args ...string) (string, error)
 }
 
-// Manager is the value passed to services that need to launch or drive
-// containers. Wire it up once in main and share the pointer.
-type Manager struct {
+// Client implements the container ports consumed by project and prompt
+// services. Wire it once at the composition root and share the pointer.
+type Client struct {
 	lxc   CommandRunner
 	image string
 
@@ -50,13 +50,13 @@ type Manager struct {
 	bundles []AuthBundle
 }
 
-// New returns a Manager that delegates CLI calls to the supplied runner.
-func New(client CommandRunner) *Manager {
-	return &Manager{lxc: client, image: defaultImage}
+// New returns a Client that delegates CLI calls to the supplied runner.
+func New(client CommandRunner) *Client {
+	return &Client{lxc: client, image: defaultImage}
 }
 
 // Available reports whether the underlying lxc binary is reachable.
-func (m *Manager) Available() bool { return m.lxc.Available() }
+func (m *Client) Available() bool { return m.lxc.Available() }
 
 func truncateOut(s string, max int) string {
 	if len(s) <= max {

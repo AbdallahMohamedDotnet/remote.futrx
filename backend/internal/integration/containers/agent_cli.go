@@ -68,7 +68,7 @@ func mustAgentCLIVersion(key string) string {
 // Missing or stale CLIs are upgraded to the repository pin, and concurrent
 // prompt starts coalesce around the npm install already running in the
 // container.
-func (m *Manager) ensureAgentCLI(ctx context.Context, containerName string, spec agentCLISpec) error {
+func (m *Client) ensureAgentCLI(ctx context.Context, containerName string, spec agentCLISpec) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}
@@ -112,14 +112,14 @@ func (m *Manager) ensureAgentCLI(ctx context.Context, containerName string, spec
 	return nil
 }
 
-func (m *Manager) agentCLIReady(ctx context.Context, containerName string, spec agentCLISpec) bool {
+func (m *Client) agentCLIReady(ctx context.Context, containerName string, spec agentCLISpec) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--", spec.binary, "--version")
 	return err == nil && semanticVersionAtLeast(out, spec.version)
 }
 
-func (m *Manager) agentCLIInstallRunning(ctx context.Context, containerName string, spec agentCLISpec) bool {
+func (m *Client) agentCLIInstallRunning(ctx context.Context, containerName string, spec agentCLISpec) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 	out, err := m.lxc.Run(quickCtx, "exec", containerName, "--",
@@ -127,14 +127,14 @@ func (m *Manager) agentCLIInstallRunning(ctx context.Context, containerName stri
 	return err == nil && strings.TrimSpace(out) != ""
 }
 
-func (m *Manager) containerCommandExists(ctx context.Context, containerName, command string) bool {
+func (m *Client) containerCommandExists(ctx context.Context, containerName, command string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 	_, err := m.lxc.Run(quickCtx, "exec", containerName, "--", "which", command)
 	return err == nil
 }
 
-func (m *Manager) waitForAgentCLI(ctx context.Context, containerName string, spec agentCLISpec) error {
+func (m *Client) waitForAgentCLI(ctx context.Context, containerName string, spec agentCLISpec) error {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {

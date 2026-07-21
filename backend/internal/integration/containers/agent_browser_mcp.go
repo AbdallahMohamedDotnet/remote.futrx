@@ -34,7 +34,7 @@ const (
 // Claude MCP config. Codex uses equivalent inline config flags, but shares this
 // package install step. Cheap once installed: the npm-presence check short-
 // circuits, and the config is only re-pushed when its embedded content changes.
-func (m *Manager) EnsureAgentBrowserMCP(ctx context.Context, containerName string) error {
+func (m *Client) EnsureAgentBrowserMCP(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// BaseImageAlias is the LXD image alias the manager launches by default.
+	// BaseImageAlias is the LXD image alias the client launches by default.
 	BaseImageAlias = "futrx-remote-dev-base"
 
 	// BaseImageSourceImage is the upstream image used as the builder rootfs
@@ -134,7 +134,7 @@ ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`
 // Any previous publish at alias is NOT removed automatically — callers that
 // want a clean overwrite should delete the image first via
 // `lxc image delete <alias>`.
-func (m *Manager) BuildBaseImage(ctx context.Context, alias string) error {
+func (m *Client) BuildBaseImage(ctx context.Context, alias string) error {
 	if !m.Available() {
 		return errors.New("lxc CLI not found on PATH - install LXD on the host first")
 	}

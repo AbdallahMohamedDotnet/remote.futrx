@@ -15,7 +15,7 @@ import (
 
 // RepairNetwork re-runs eth0 configuration (DHCP) inside the container.
 // Safe on a healthy container: reconfigure just refreshes the same lease.
-func (m *Manager) RepairNetwork(ctx context.Context, containerName string) error {
+func (m *Client) RepairNetwork(ctx context.Context, containerName string) error {
 	if !m.Available() {
 		return errors.New("lxc not available")
 	}

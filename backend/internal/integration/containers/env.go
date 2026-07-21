@@ -19,7 +19,7 @@ import (
 // Either map can be nil/empty. Already-running processes inside the container
 // keep their fork-time environ; only new exec sessions and child processes
 // pick up the new values — unavoidable env-var caveat.
-func (m *Manager) ApplyContainerEnvDiff(
+func (m *Client) ApplyContainerEnvDiff(
 	ctx context.Context,
 	container string,
 	set map[string]string,
