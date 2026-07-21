@@ -1,17 +1,16 @@
 import { requestJson } from "./apiRequest";
-import type { ChatMode, ChatProvider, ReasoningEffort } from "../models/chat";
 import {
-  DEFAULT_USER_SETTINGS,
-  type AppearanceTheme,
   type UpdateUserSettingsInput,
   type UserSettings,
 } from "../models/settings";
 import { API_ROUTES } from "../config/routes";
-
-const themes = new Set<AppearanceTheme>(["system", "dark", "light"]);
-const providers = new Set<ChatProvider>(["claude", "codex"]);
-const modes = new Set<ChatMode>(["chat", "plan", "code", "review", "debug", "full-auto"]);
-const reasoningEfforts = new Set<ReasoningEffort>(["", "low", "medium", "high", "xhigh"]);
+import {
+  DEFAULT_USER_SETTINGS,
+  VALID_APPEARANCE_THEMES,
+  VALID_CHAT_MODES,
+  VALID_CHAT_PROVIDERS,
+  VALID_REASONING_EFFORTS,
+} from "../config/settings";
 
 export const settingsApi = {
   get: async () =>
@@ -31,15 +30,19 @@ function normalize(settings: UserSettings): UserSettings {
     appearance: {
       ...DEFAULT_USER_SETTINGS.appearance,
       ...settings?.appearance,
-      theme: themes.has(theme) ? theme : DEFAULT_USER_SETTINGS.appearance.theme,
+      theme: VALID_APPEARANCE_THEMES.has(theme)
+        ? theme
+        : DEFAULT_USER_SETTINGS.appearance.theme,
     },
     chat: {
       ...DEFAULT_USER_SETTINGS.chat,
       ...settings?.chat,
-      provider: providers.has(provider) ? provider : DEFAULT_USER_SETTINGS.chat.provider,
+      provider: VALID_CHAT_PROVIDERS.has(provider)
+        ? provider
+        : DEFAULT_USER_SETTINGS.chat.provider,
       model: typeof settings?.chat?.model === "string" ? settings.chat.model : DEFAULT_USER_SETTINGS.chat.model,
-      mode: modes.has(mode) ? mode : DEFAULT_USER_SETTINGS.chat.mode,
-      reasoningEffort: reasoningEfforts.has(reasoningEffort)
+      mode: VALID_CHAT_MODES.has(mode) ? mode : DEFAULT_USER_SETTINGS.chat.mode,
+      reasoningEffort: VALID_REASONING_EFFORTS.has(reasoningEffort)
         ? reasoningEffort
         : DEFAULT_USER_SETTINGS.chat.reasoningEffort,
     },

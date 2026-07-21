@@ -3,12 +3,15 @@ import { createContext } from "preact";
 import { useCallback, useContext, useEffect, useMemo, useState } from "preact/hooks";
 import { useAuthContext } from "./AuthContext";
 import {
-  DEFAULT_USER_SETTINGS,
   type AppearanceTheme,
   type ChatSettings,
   type UserSettings,
 } from "../../models/settings";
 import { settingsApi } from "../../api/settingsApi";
+import {
+  DEFAULT_USER_SETTINGS,
+  SYSTEM_LIGHT_MEDIA_QUERY,
+} from "../../config/settings";
 
 interface UserSettingsContextValue {
   settings: UserSettings;
@@ -21,7 +24,6 @@ interface UserSettingsContextValue {
 }
 
 const UserSettingsContext = createContext<UserSettingsContextValue | null>(null);
-const systemLightQuery = "(prefers-color-scheme: light)";
 
 export function UserSettingsProvider({ children }: { children: ComponentChildren }) {
   const { googleOk } = useAuthContext();
@@ -57,7 +59,7 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
     applyTheme(settings.appearance.theme);
     if (settings.appearance.theme !== "system" || typeof window === "undefined") return;
 
-    const query = window.matchMedia(systemLightQuery);
+    const query = window.matchMedia(SYSTEM_LIGHT_MEDIA_QUERY);
     const onChange = () => applyTheme("system");
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
@@ -130,5 +132,5 @@ function applyTheme(theme: AppearanceTheme) {
 function resolveTheme(theme: AppearanceTheme): "dark" | "light" {
   if (theme === "light" || theme === "dark") return theme;
   if (typeof window === "undefined") return "dark";
-  return window.matchMedia(systemLightQuery).matches ? "light" : "dark";
+  return window.matchMedia(SYSTEM_LIGHT_MEDIA_QUERY).matches ? "light" : "dark";
 }
