@@ -40,7 +40,7 @@ backend/
 ├── cmd/build-base-image/        bakes the futrx-remote-dev-base LXD image
 └── internal/
     ├── integration/containers/      LXD container lifecycle, auth bundles, image build
-    ├── service/claudelogin/     host-side `claude auth login` workflow
+    ├── service/claudeauth/     host-side `claude auth login` workflow
     ├── service/codexauth/       host-side `codex login --device-auth` workflow
     ├── service/kimiauth/        host-side `kimi login` workflow
     ├── integration/lxc/         thin wrapper around the `lxc` CLI

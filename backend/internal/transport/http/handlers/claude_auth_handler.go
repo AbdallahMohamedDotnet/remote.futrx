@@ -7,16 +7,16 @@ import (
 	"net/http"
 
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/claudelogin"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/claudeauth"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type ClaudeAuthHandler struct {
-	login *claudelogin.Service
+	login *claudeauth.Service
 	auth  *serviceauth.Service
 }
 
-func NewClaudeAuthHandler(login *claudelogin.Service, auth *serviceauth.Service) *ClaudeAuthHandler {
+func NewClaudeAuthHandler(login *claudeauth.Service, auth *serviceauth.Service) *ClaudeAuthHandler {
 	return &ClaudeAuthHandler{login: login, auth: auth}
 }
 
@@ -116,8 +116,8 @@ func (h *ClaudeAuthHandler) HandleCancel(w http.ResponseWriter, r *http.Request)
 
 func sendClaudeLoginError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, claudelogin.ErrCodeRequired),
-		errors.Is(err, claudelogin.ErrNoSession):
+	case errors.Is(err, claudeauth.ErrCodeRequired),
+		errors.Is(err, claudeauth.ErrNoSession):
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())

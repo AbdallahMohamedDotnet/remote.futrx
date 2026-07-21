@@ -1,4 +1,4 @@
-package claudelogin
+package claudeauth
 
 // Service owns the single interactive `claude auth login --claudeai` process.
 // HTTP handlers stay in transport/http; this package only deals with process

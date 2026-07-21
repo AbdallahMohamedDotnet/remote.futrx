@@ -8,7 +8,7 @@ import (
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/claudelogin"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/claudeauth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/codexauth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/kimiauth"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -41,7 +41,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	claudeLogin := claudelogin.New()
+	claudeLogin := claudeauth.New()
 	codexLogin := codexauth.New()
 	kimiLogin := kimiauth.New()
 
