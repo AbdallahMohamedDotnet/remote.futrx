@@ -11,6 +11,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 )
@@ -46,7 +47,7 @@ type Client struct {
 	profiles      *profileRegistry
 	templates     *templatePublisher
 	inspector     containerInspector
-	credentials   credentialSynchronizer
+	credentials   *containercredentials.Synchronizer
 	clis          cliProvisioner
 	browser       agentBrowser
 	browserMCP    agentBrowserMCPProvisioner
@@ -77,14 +78,7 @@ func New(client CommandRunner) *Client {
 		agents:      containerAgentInspector{commands: inspectionCommands, profiles: containerClient.profiles},
 		credentials: containerCredentialInspector{commands: inspectionCommands, profiles: containerClient.profiles},
 	}
-	containerClient.credentials = credentialSynchronizer{
-		profiles: containerClient.profiles,
-		files:    credentialFileSynchronizer{lxc: client},
-	}
-	containerClient.credentials.directories = credentialDirectorySynchronizer{
-		lxc:   client,
-		files: &containerClient.credentials.files,
-	}
+	containerClient.credentials = containercredentials.NewSynchronizer(client, containerClient.profiles)
 	containerClient.clis = cliProvisioner{
 		lxc:      client,
 		profiles: containerClient.profiles,
@@ -110,7 +104,7 @@ func New(client CommandRunner) *Client {
 		profiles: containerClient.profiles,
 	}
 	containerClient.lifecycle.provisioner = &containerLaunchProvisioner{
-		credentials: &containerClient.credentials,
+		credentials: containerClient.credentials,
 		workspace:   &containerClient.workspace,
 		browser:     &containerClient.browserConfig,
 		codeServer:  &containerClient.codeServer,

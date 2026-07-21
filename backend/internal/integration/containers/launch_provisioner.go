@@ -2,18 +2,22 @@ package containers
 
 import "context"
 
+type registeredCredentialEnsurer interface {
+	EnsureRegistered(ctx context.Context, containerName string) error
+}
+
 // containerLaunchProvisioner applies launch-time capabilities in their stable
 // order. Every step is deliberately best-effort so one unavailable capability
 // cannot block the remaining migrations or the newly launched container.
 type containerLaunchProvisioner struct {
-	credentials *credentialSynchronizer
+	credentials registeredCredentialEnsurer
 	workspace   *workspaceProvisioner
 	browser     *agentBrowserConfigurator
 	codeServer  *codeServerProvisioner
 }
 
 func (p *containerLaunchProvisioner) provision(ctx context.Context, containerName, displayName string) {
-	_ = p.credentials.ensureRegistered(ctx, containerName)
+	_ = p.credentials.EnsureRegistered(ctx, containerName)
 	_ = p.workspace.ensureSkillLinks(ctx, containerName)
 	_ = p.workspace.ensureBrowserScript(ctx, containerName)
 	_ = p.workspace.ensureBrowserSkill(ctx, containerName)

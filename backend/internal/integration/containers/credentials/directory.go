@@ -1,4 +1,4 @@
-package containers
+package credentials
 
 import (
 	"context"
@@ -10,17 +10,18 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 )
 
 // credentialDirectorySynchronizer owns dynamic credential directories whose
 // provider may add or rotate an unknown set of files.
-type credentialDirectorySynchronizer struct {
-	lxc   CommandRunner
-	files *credentialFileSynchronizer
+type directorySynchronizer struct {
+	runner command.Runner
+	files  *fileSynchronizer
 }
 
-func (s *credentialDirectorySynchronizer) ensure(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
-	if !s.lxc.Available() {
+func (s *directorySynchronizer) ensure(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
+	if !s.runner.Available() {
 		return errors.New("lxc not available")
 	}
 	directory := spec.Directory
@@ -38,7 +39,7 @@ func (s *credentialDirectorySynchronizer) ensure(ctx context.Context, containerN
 	pctx, cancel := context.WithTimeout(ctx, authPushTimeout)
 	defer cancel()
 	for _, path := range directory.ContainerDirs {
-		if out, err := s.lxc.Run(pctx, "exec", containerName, "--", "install", "-d", "-m", "700", path); err != nil {
+		if out, err := s.runner.Run(pctx, "exec", containerName, "--", "install", "-d", "-m", "700", path); err != nil {
 			return fmt.Errorf("mkdir %s in container: %w; output: %s", path, err, out)
 		}
 	}
@@ -55,9 +56,9 @@ func (s *credentialDirectorySynchronizer) ensure(ctx context.Context, containerN
 	return nil
 }
 
-func (s *credentialDirectorySynchronizer) syncFromContainer(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
+func (s *directorySynchronizer) syncFromContainer(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
 	directory := spec.Directory
-	if !s.lxc.Available() {
+	if !s.runner.Available() {
 		if directory.SyncUnavailableIsNoop {
 			return nil
 		}
@@ -71,7 +72,7 @@ func (s *credentialDirectorySynchronizer) syncFromContainer(ctx context.Context,
 
 	pctx, cancel := context.WithTimeout(ctx, authPushTimeout)
 	defer cancel()
-	out, err := s.lxc.Run(pctx, "exec", containerName, "--",
+	out, err := s.runner.Run(pctx, "exec", containerName, "--",
 		"find", directory.ContainerPath, "-maxdepth", "1", "-type", "f", "-printf", "%f\n")
 	if err != nil {
 		return nil
@@ -79,7 +80,7 @@ func (s *credentialDirectorySynchronizer) syncFromContainer(ctx context.Context,
 	for _, name := range strings.Fields(out) {
 		containerPath := directory.ContainerPath + "/" + name
 		hostPath := filepath.Join(directory.HostPath, name)
-		if out, err := s.lxc.Run(pctx, "file", "pull", containerName+containerPath, hostPath); err != nil {
+		if out, err := s.runner.Run(pctx, "file", "pull", containerName+containerPath, hostPath); err != nil {
 			return fmt.Errorf("pull %s: %w; output: %s", containerPath, err, out)
 		}
 		_ = os.Chmod(hostPath, 0o600)
@@ -89,10 +90,10 @@ func (s *credentialDirectorySynchronizer) syncFromContainer(ctx context.Context,
 	return nil
 }
 
-func (s *credentialDirectorySynchronizer) containerHasFiles(ctx context.Context, containerName, containerPath string) bool {
+func (s *directorySynchronizer) containerHasFiles(ctx context.Context, containerName, containerPath string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := s.lxc.Run(quickCtx, "exec", containerName, "--",
+	out, err := s.runner.Run(quickCtx, "exec", containerName, "--",
 		"sh", "-c", "ls -1 "+containerPath+" 2>/dev/null | head -1")
 	return err == nil && strings.TrimSpace(out) != ""
 }
