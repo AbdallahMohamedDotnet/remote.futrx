@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ChatStatus } from "../../../models/chat";
-import { getDraft, setDraft } from "../../chat/drafts";
+import { chatComposerSessionStore } from "../../chat/composerSessionStore";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
 import { useDragUpload } from "./useDragUpload";
@@ -28,15 +28,15 @@ export function useChatComposerController({
   refreshMeta: () => Promise<void>;
   attachmentBasePath: string;
 }) {
-  // Initialise from the per-chat draft store and mirror every change back to it.
+  // Initialise from the per-chat session store and mirror every change back to it.
   // ChatContainer remounts on chat switch (it is keyed by chatId), so this is
   // what makes a half-typed message survive leaving and returning to a chat.
-  const [text, setTextState] = useState(() => getDraft(chatId));
+  const [text, setTextState] = useState(() => chatComposerSessionStore.getDraft(chatId));
   const setText = useCallback(
     (value: string | ((prev: string) => string)) => {
       setTextState((prev) => {
         const next = typeof value === "function" ? (value as (prev: string) => string)(prev) : value;
-        setDraft(chatId, next);
+        chatComposerSessionStore.setDraft(chatId, next);
         return next;
       });
     },
