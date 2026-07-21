@@ -8,9 +8,6 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	claudeprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/claude"
-	codexprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/codex"
-	kimiprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/kimi"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/runhub"
@@ -35,39 +32,20 @@ type agentBrowserActivityRecorder interface {
 	TouchAgentBrowserActivity(ctx context.Context, id serviceproject.ID)
 }
 
-type ContainerPreparer interface {
-	EnsureClaude(ctx context.Context, containerName string) error
-	EnsureClaudeAuth(ctx context.Context, containerName string) error
-	EnsureAgentInstructions(ctx context.Context, containerName string) error
-	EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error
-	EnsureBrowserSkill(ctx context.Context, containerName string) error
-	EnsureBrowserScript(ctx context.Context, containerName string) error
-	EnsureAgentBrowserMCP(ctx context.Context, containerName string) error
-	EnsureAgentBrowserCore(ctx context.Context, containerName string) error
-	EnsureBootAutostart(ctx context.Context, containerName string) error
-	SyncClaudeAuthFromContainer(ctx context.Context, containerName string) error
-	EnsureCodex(ctx context.Context, containerName string) error
-	EnsureCodexAuth(ctx context.Context, containerName string) error
-	SyncCodexAuthFromContainer(ctx context.Context, containerName string) error
-	EnsureKimi(ctx context.Context, containerName string) error
-	EnsureKimiAuth(ctx context.Context, containerName string) error
-	SyncKimiAuthFromContainer(ctx context.Context, containerName string) error
-}
-
 type Service struct {
 	store    servicechat.Repository
 	tmux     TmuxClient
 	projects ProjectResolver
 	hub      *runhub.Hub
-	agents   map[agent.ProviderID]agent.Provider
+	agents   *agent.Registry
 }
 
 func New(
 	store servicechat.Repository,
 	tmux TmuxClient,
 	projects ProjectResolver,
-	containers ContainerPreparer,
 	hub *runhub.Hub,
+	agents *agent.Registry,
 ) *Service {
 	if hub == nil {
 		hub = runhub.New(store)
@@ -77,11 +55,7 @@ func New(
 		tmux:     tmux,
 		projects: projects,
 		hub:      hub,
-		agents: map[agent.ProviderID]agent.Provider{
-			agent.ProviderClaude: claudeprovider.New(projects, containers),
-			agent.ProviderCodex:  codexprovider.New(projects, containers),
-			agent.ProviderKimi:   kimiprovider.New(projects, containers),
-		},
+		agents:   agents,
 	}
 }
 
@@ -168,7 +142,7 @@ func (rnr *Service) runPrompt(
 	}
 	effectivePrompt = promptWithSelectedSkills(providerID, meta.SelectedSkills, effectivePrompt)
 
-	provider := rnr.agents[providerID]
+	provider := rnr.agents.Lookup(providerID)
 	if provider == nil {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " provider not configured"})
 		return

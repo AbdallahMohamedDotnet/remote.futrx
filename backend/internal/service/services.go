@@ -5,6 +5,10 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	claudeagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/claude"
+	codexagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/codex"
+	kimiagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/kimi"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
@@ -29,7 +33,9 @@ type TmuxCwdClient interface {
 
 type ContainerManager interface {
 	serviceproject.ContainerManager
-	prompt.ContainerPreparer
+	claudeagent.ContainerPreparer
+	codexagent.ContainerPreparer
+	kimiagent.ContainerPreparer
 }
 
 type Dependencies struct {
@@ -87,12 +93,16 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxResolver,
 		runs,
 	)
+	agents := agent.NewRegistry()
+	agents.Register(claudeagent.New(projectService, deps.Containers))
+	agents.Register(codexagent.New(projectService, deps.Containers))
+	agents.Register(kimiagent.New(projectService, deps.Containers))
 	promptService := prompt.New(
 		chats,
 		deps.TmuxClient,
 		projectService,
-		deps.Containers,
 		runs,
+		agents,
 	)
 	userService := serviceuser.New(deps.Users)
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
