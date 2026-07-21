@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm, type ITheme } from "@xterm/xterm";
-import { terminalApi, type TerminalConnection } from "../../../api/terminalApi";
-
-export type TerminalStatus = "connecting" | "connected" | "closed" | "error";
+import { terminalApi } from "../../../api/terminalApi";
+import type { TerminalConnection, TerminalStatus } from "../../../types/terminal";
 
 const terminalTheme: ITheme = {
   background: "#0f1014",

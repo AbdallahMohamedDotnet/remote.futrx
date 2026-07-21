@@ -1,19 +1,9 @@
 import { WebSocketConnection } from "../transport/webSocketConnection";
 import { webSocketUrl } from "../transport/webSocketUrl";
-
-export interface TerminalConnection {
-  readonly isOpen: boolean;
-  sendInput(data: string): void;
-  resize(cols: number, rows: number): void;
-  close(): void;
-}
-
-interface TerminalConnectionCallbacks {
-  onOpen: () => void;
-  onOutput: (data: string | Uint8Array) => void;
-  onError: () => void;
-  onClose: () => void;
-}
+import type {
+  TerminalConnection,
+  TerminalConnectionCallbacks,
+} from "../types/terminal";
 
 export const terminalApi = {
   connect(chatId: string, callbacks: TerminalConnectionCallbacks): TerminalConnection {
