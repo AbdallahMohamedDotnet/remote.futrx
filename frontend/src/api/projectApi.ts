@@ -1,10 +1,8 @@
 import { requestJson } from "./apiRequest";
 import { projectBrowserApi } from "./project/projectBrowserApi";
 import { projectContainerApi } from "./project/projectContainerApi";
-import type {
-  ProjectMeta,
-  ProjectSecret,
-} from "../models/project";
+import { projectSecretsApi } from "./project/projectSecretsApi";
+import type { ProjectMeta } from "../models/project";
 import { API_ROUTES } from "../config/routes";
 
 export const projectApi = {
@@ -27,19 +25,9 @@ export const projectApi = {
   agentBrowserStatus: projectBrowserApi.agentBrowserStatus,
   startAgentBrowser: projectBrowserApi.startAgentBrowser,
   stopAgentBrowser: projectBrowserApi.stopAgentBrowser,
-  listSecrets: (id: string) =>
-    requestJson<ProjectSecret[]>("GET", API_ROUTES.projects.secrets(id)),
-  setSecret: (id: string, key: string, value: string) =>
-    requestJson<ProjectSecret>(
-      "PUT",
-      API_ROUTES.projects.secret(id, key),
-      { value }
-    ),
-  deleteSecret: (id: string, key: string) =>
-    requestJson<{ ok: boolean }>(
-      "DELETE",
-      API_ROUTES.projects.secret(id, key)
-    ),
+  listSecrets: projectSecretsApi.listSecrets,
+  setSecret: projectSecretsApi.setSecret,
+  deleteSecret: projectSecretsApi.deleteSecret,
   listAccess: (id: string) =>
     requestJson<string[]>("GET", API_ROUTES.projects.access(id)),
   addAccess: (id: string, email: string) =>
