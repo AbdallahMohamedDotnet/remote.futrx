@@ -22,9 +22,9 @@ type CodeServerProvisioner interface {
 	Ensure(ctx context.Context, containerName, displayName string) error
 }
 
-// Provisioner applies launch-time capabilities in their stable
-// order. Every step is deliberately best-effort so one unavailable capability
-// cannot block the remaining migrations or the newly launched container.
+// Provisioner applies launch-time capabilities in their stable order. Every
+// step is deliberately best-effort so one unavailable capability cannot block
+// the remaining migrations or the newly launched container.
 type Provisioner struct {
 	credentials RegisteredCredentialEnsurer
 	workspace   WorkspaceProvisioner

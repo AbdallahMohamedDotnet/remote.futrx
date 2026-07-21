@@ -24,23 +24,24 @@ import (
 
 const inspectQuickTimeout = 5 * time.Second
 
-// containerInspector owns the best-effort snapshot assembled from LXD, the
+// Inspector owns the best-effort snapshot assembled from LXD, the
 // guest operating system, configured agent profiles, and host credential files.
 type Inspector struct {
-	states      containerStateReader
+	states      StateReader
 	lxd         containerLXDInspector
 	guest       containerGuestInspector
 	agents      containerAgentInspector
 	credentials containerCredentialInspector
 }
 
-type containerStateReader interface {
+// StateReader reports the lifecycle state required to scope an inspection.
+type StateReader interface {
 	State(ctx context.Context, containerName string) (serviceproject.ContainerState, error)
 }
 
 // NewInspector returns a diagnostic inspector backed by the lifecycle state
 // reader and shared agent profiles.
-func NewInspector(runner command.Runner, registry *profiles.Registry, states containerStateReader) *Inspector {
+func NewInspector(runner command.Runner, registry *profiles.Registry, states StateReader) *Inspector {
 	commands := &quickCommandRunner{runner: runner, timeout: inspectQuickTimeout}
 	return &Inspector{
 		states: states,

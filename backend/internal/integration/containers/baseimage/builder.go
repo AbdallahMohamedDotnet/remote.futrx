@@ -40,7 +40,7 @@ const (
 	deleteTimeout           = 30 * time.Second
 )
 
-// baseImageBuilder owns the disposable builder lifecycle and publishes the
+// Builder owns the disposable builder lifecycle and publishes the
 // profile-derived development image consumed by project containers.
 type Builder struct {
 	runner                  command.Runner
