@@ -4,15 +4,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/kimiauth"
+	kimiagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/kimi"
 	"github.com/gorilla/websocket"
 )
 
 type KimiAuthSocket struct {
-	login *kimiauth.Service
+	login *kimiagent.Auth
 }
 
-func NewKimiAuthSocket(login *kimiauth.Service) *KimiAuthSocket {
+func NewKimiAuthSocket(login *kimiagent.Auth) *KimiAuthSocket {
 	return &KimiAuthSocket{login: login}
 }
 

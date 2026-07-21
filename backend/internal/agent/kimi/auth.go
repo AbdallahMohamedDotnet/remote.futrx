@@ -1,6 +1,6 @@
-package kimiauth
+package kimi
 
-// Service configures the host-side `kimi login` device-code flow for
+// Auth configures the host-side `kimi login` device-code flow for
 // @moonshot-ai/kimi-code. Unlike Codex there is no API-key mode: Kimi Code
 // auth is always a subscription OAuth grant under ~/.kimi-code/credentials/.
 
@@ -31,16 +31,16 @@ var (
 	deviceCodeRE = regexp.MustCompile(`[A-Z0-9]{4}-[A-Z0-9]{4,6}`)
 )
 
-type Status struct {
+type AuthStatus struct {
 	Authenticated bool             `json:"authenticated"`
 	DeviceLogin   DeviceLoginState `json:"deviceLogin,omitempty"`
 }
 
 type DeviceLoginState = agentauth.DeviceState
-type Service = agentauth.DeviceService[Status]
+type Auth = agentauth.DeviceService[AuthStatus]
 
-func New() *Service {
-	return agentauth.NewDeviceService(agentauth.DeviceConfig[Status]{
+func NewAuth() *Auth {
+	return agentauth.NewDeviceService(agentauth.DeviceConfig[AuthStatus]{
 		Command:         "kimi",
 		Args:            []string{"login"},
 		Env:             kimiEnv,
@@ -52,10 +52,10 @@ func New() *Service {
 		URLPattern:      deviceURLRE,
 		CodePattern:     deviceCodeRE,
 		Authenticated:   authenticated,
-		BuildStatus: func() agentauth.DeviceStatusBuilder[Status] {
+		BuildStatus: func() agentauth.DeviceStatusBuilder[AuthStatus] {
 			authenticated := authenticated()
-			return func(state agentauth.DeviceState) Status {
-				return Status{Authenticated: authenticated, DeviceLogin: state}
+			return func(state agentauth.DeviceState) AuthStatus {
+				return AuthStatus{Authenticated: authenticated, DeviceLogin: state}
 			}
 		},
 		ResolveCompletion: func(err error) agentauth.DeviceCompletion {

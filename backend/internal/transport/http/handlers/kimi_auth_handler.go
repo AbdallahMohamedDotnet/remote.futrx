@@ -3,17 +3,17 @@ package httphandlers
 import (
 	"net/http"
 
+	kimiagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/kimi"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/kimiauth"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type KimiAuthHandler struct {
-	login *kimiauth.Service
+	login *kimiagent.Auth
 	auth  *serviceauth.Service
 }
 
-func NewKimiAuthHandler(login *kimiauth.Service, auth *serviceauth.Service) *KimiAuthHandler {
+func NewKimiAuthHandler(login *kimiagent.Auth, auth *serviceauth.Service) *KimiAuthHandler {
 	return &KimiAuthHandler{login: login, auth: auth}
 }
 
