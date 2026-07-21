@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/deviceauth"
+	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
 )
 
 const (
@@ -33,11 +33,11 @@ type Status struct {
 	DeviceLogin   DeviceLoginState `json:"deviceLogin,omitempty"`
 }
 
-type DeviceLoginState = deviceauth.State
-type Service = deviceauth.Service[Status]
+type DeviceLoginState = agentauth.DeviceState
+type Service = agentauth.DeviceService[Status]
 
 func New() *Service {
-	return deviceauth.New(deviceauth.Config[Status]{
+	return agentauth.NewDeviceService(agentauth.DeviceConfig[Status]{
 		Command:         "codex",
 		Args:            []string{"login", "--device-auth"},
 		Env:             codexEnv,
@@ -52,9 +52,9 @@ func New() *Service {
 			authenticated, _, _ := authenticated()
 			return authenticated
 		},
-		BuildStatus: func() deviceauth.StatusBuilder[Status] {
+		BuildStatus: func() agentauth.DeviceStatusBuilder[Status] {
 			authenticated, authMode, usesAPIKey := authenticated()
-			return func(state deviceauth.State) Status {
+			return func(state agentauth.DeviceState) Status {
 				return Status{
 					Authenticated: authenticated,
 					AuthMode:      authMode,
@@ -63,17 +63,17 @@ func New() *Service {
 				}
 			}
 		},
-		ResolveCompletion: func(err error) deviceauth.Completion {
+		ResolveCompletion: func(err error) agentauth.DeviceCompletion {
 			authenticated, _, usesAPIKey := authenticated()
 			switch {
 			case authenticated:
-				return deviceauth.Completion{Completed: true}
+				return agentauth.DeviceCompletion{Completed: true}
 			case usesAPIKey:
-				return deviceauth.Completion{Error: "Codex is still logged in with an API key. Sign in with ChatGPT to use subscription limits."}
+				return agentauth.DeviceCompletion{Error: "Codex is still logged in with an API key. Sign in with ChatGPT to use subscription limits."}
 			case err != nil:
-				return deviceauth.Completion{Error: fmt.Sprintf("codex login failed: %s", truncate(err.Error(), 300))}
+				return agentauth.DeviceCompletion{Error: fmt.Sprintf("codex login failed: %s", truncate(err.Error(), 300))}
 			default:
-				return deviceauth.Completion{Error: "Codex login ended before authentication completed."}
+				return agentauth.DeviceCompletion{Error: "Codex login ended before authentication completed."}
 			}
 		},
 	})

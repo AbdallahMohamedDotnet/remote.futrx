@@ -1,4 +1,4 @@
-package deviceauth
+package auth
 
 import (
 	"bufio"
@@ -16,8 +16,8 @@ const subscriptionBuffer = 8
 
 var ansiEscapeRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-// State is the provider-neutral state of a CLI device-code login.
-type State struct {
+// DeviceState is the provider-neutral state of a CLI device-code login.
+type DeviceState struct {
 	Active          bool   `json:"active"`
 	VerificationURI string `json:"verificationUri,omitempty"`
 	UserCode        string `json:"userCode,omitempty"`
@@ -27,20 +27,20 @@ type State struct {
 	Error           string `json:"error,omitempty"`
 }
 
-// Completion describes the provider-specific result after its login command
+// DeviceCompletion describes the provider-specific result after its login command
 // exits and credentials have been inspected.
-type Completion struct {
+type DeviceCompletion struct {
 	Completed bool
 	Error     string
 }
 
-// StatusBuilder captures provider credential state before the login state is
+// DeviceStatusBuilder captures provider credential state before the login state is
 // snapshotted. This preserves the ordering of the original provider services.
-type StatusBuilder[S any] func(State) S
+type DeviceStatusBuilder[S any] func(DeviceState) S
 
-// Config supplies the provider-specific policy around the shared device-login
+// DeviceConfig supplies the provider-specific policy around the shared device-login
 // lifecycle.
-type Config[S any] struct {
+type DeviceConfig[S any] struct {
 	Command           string
 	Args              []string
 	Env               func([]string) []string
@@ -52,35 +52,35 @@ type Config[S any] struct {
 	URLPattern        *regexp.Regexp
 	CodePattern       *regexp.Regexp
 	Authenticated     func() bool
-	BuildStatus       func() StatusBuilder[S]
-	ResolveCompletion func(error) Completion
+	BuildStatus       func() DeviceStatusBuilder[S]
+	ResolveCompletion func(error) DeviceCompletion
 }
 
-// Service owns one provider's device-code login process and streams status
+// DeviceService owns one provider's device-code login process and streams status
 // snapshots to subscribers.
-type Service[S any] struct {
-	config Config[S]
+type DeviceService[S any] struct {
+	config DeviceConfig[S]
 
 	mu     sync.Mutex
-	device State
+	device DeviceState
 	cancel context.CancelFunc
 	subs   map[chan S]struct{}
 }
 
-func New[S any](config Config[S]) *Service[S] {
-	return &Service[S]{config: config, subs: map[chan S]struct{}{}}
+func NewDeviceService[S any](config DeviceConfig[S]) *DeviceService[S] {
+	return &DeviceService[S]{config: config, subs: map[chan S]struct{}{}}
 }
 
-func (s *Service[S]) Authenticated() bool {
+func (s *DeviceService[S]) Authenticated() bool {
 	return s.config.Authenticated()
 }
 
-func (s *Service[S]) Status() S {
+func (s *DeviceService[S]) Status() S {
 	build := s.config.BuildStatus()
 	return build(s.deviceSnapshot())
 }
 
-func (s *Service[S]) Subscribe() (<-chan S, func()) {
+func (s *DeviceService[S]) Subscribe() (<-chan S, func()) {
 	ch := make(chan S, subscriptionBuffer)
 	s.mu.Lock()
 	if s.subs == nil {
@@ -102,12 +102,12 @@ func (s *Service[S]) Subscribe() (<-chan S, func()) {
 	return ch, cancel
 }
 
-func (s *Service[S]) StartDeviceLogin(ctx context.Context) (State, error) {
+func (s *DeviceService[S]) StartDeviceLogin(ctx context.Context) (DeviceState, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if _, err := exec.LookPath(s.config.Command); err != nil {
-		return State{}, s.config.NotFound
+		return DeviceState{}, s.config.NotFound
 	}
 
 	now := time.Now()
@@ -131,7 +131,7 @@ func (s *Service[S]) StartDeviceLogin(ctx context.Context) (State, error) {
 	cmd.Stdout = writer
 	cmd.Stderr = writer
 
-	state := State{
+	state := DeviceState{
 		Active:    true,
 		StartedAt: now.Unix(),
 		ExpiresAt: now.Add(s.config.LoginTTL).Unix(),
@@ -151,7 +151,7 @@ func (s *Service[S]) StartDeviceLogin(ctx context.Context) (State, error) {
 		cancel()
 		_ = reader.Close()
 		_ = writer.Close()
-		s.device = State{Error: fmt.Sprintf("start %s: %v", s.config.StartErrorLabel, err)}
+		s.device = DeviceState{Error: fmt.Sprintf("start %s: %v", s.config.StartErrorLabel, err)}
 		s.cancel = nil
 		state = s.device
 		s.broadcastLocked()
@@ -183,13 +183,13 @@ func (s *Service[S]) StartDeviceLogin(ctx context.Context) (State, error) {
 	}
 }
 
-func (s *Service[S]) deviceSnapshot() State {
+func (s *DeviceService[S]) deviceSnapshot() DeviceState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.device
 }
 
-func (s *Service[S]) consumeDeviceLoginOutput(reader io.Reader, markReady func()) {
+func (s *DeviceService[S]) consumeDeviceLoginOutput(reader io.Reader, markReady func()) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := ansiEscapeRE.ReplaceAllString(scanner.Text(), "")
@@ -217,7 +217,7 @@ func (s *Service[S]) consumeDeviceLoginOutput(reader io.Reader, markReady func()
 	}
 }
 
-func (s *Service[S]) finishDeviceLogin(err error) {
+func (s *DeviceService[S]) finishDeviceLogin(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -235,17 +235,17 @@ func (s *Service[S]) finishDeviceLogin(err error) {
 	s.broadcastLocked()
 }
 
-func (s *Service[S]) Broadcast() {
+func (s *DeviceService[S]) Broadcast() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.broadcastLocked()
 }
 
-func (s *Service[S]) statusLocked() S {
+func (s *DeviceService[S]) statusLocked() S {
 	return s.config.BuildStatus()(s.device)
 }
 
-func (s *Service[S]) broadcastLocked() {
+func (s *DeviceService[S]) broadcastLocked() {
 	status := s.statusLocked()
 	for ch := range s.subs {
 		select {

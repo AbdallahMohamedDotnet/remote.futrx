@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/deviceauth"
+	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
 )
 
 const (
@@ -36,11 +36,11 @@ type Status struct {
 	DeviceLogin   DeviceLoginState `json:"deviceLogin,omitempty"`
 }
 
-type DeviceLoginState = deviceauth.State
-type Service = deviceauth.Service[Status]
+type DeviceLoginState = agentauth.DeviceState
+type Service = agentauth.DeviceService[Status]
 
 func New() *Service {
-	return deviceauth.New(deviceauth.Config[Status]{
+	return agentauth.NewDeviceService(agentauth.DeviceConfig[Status]{
 		Command:         "kimi",
 		Args:            []string{"login"},
 		Env:             kimiEnv,
@@ -52,20 +52,20 @@ func New() *Service {
 		URLPattern:      deviceURLRE,
 		CodePattern:     deviceCodeRE,
 		Authenticated:   authenticated,
-		BuildStatus: func() deviceauth.StatusBuilder[Status] {
+		BuildStatus: func() agentauth.DeviceStatusBuilder[Status] {
 			authenticated := authenticated()
-			return func(state deviceauth.State) Status {
+			return func(state agentauth.DeviceState) Status {
 				return Status{Authenticated: authenticated, DeviceLogin: state}
 			}
 		},
-		ResolveCompletion: func(err error) deviceauth.Completion {
+		ResolveCompletion: func(err error) agentauth.DeviceCompletion {
 			switch {
 			case authenticated():
-				return deviceauth.Completion{Completed: true}
+				return agentauth.DeviceCompletion{Completed: true}
 			case err != nil:
-				return deviceauth.Completion{Error: fmt.Sprintf("kimi login failed: %s", truncate(err.Error(), 300))}
+				return agentauth.DeviceCompletion{Error: fmt.Sprintf("kimi login failed: %s", truncate(err.Error(), 300))}
 			default:
-				return deviceauth.Completion{Error: "Kimi login ended before authentication completed."}
+				return agentauth.DeviceCompletion{Error: "Kimi login ended before authentication completed."}
 			}
 		},
 	})
