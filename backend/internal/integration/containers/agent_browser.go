@@ -49,8 +49,10 @@ const (
 // agentBrowser owns installation, workspace templates, and the split core/view
 // runtime lifecycle.
 type agentBrowser struct {
-	lxc       CommandRunner
-	templates *templatePublisher
+	lxc         CommandRunner
+	templates   *templatePublisher
+	provisioner agentBrowserProvisioner
+	runtime     agentBrowserRuntime
 }
 
 // AgentBrowserPort returns the in-container noVNC port the stack listens on.
@@ -58,17 +60,24 @@ func (c *Client) AgentBrowserPort() int { return AgentBrowserVNCPort }
 
 // EnsureAgentBrowser starts the full stack: browser core plus noVNC view.
 func (c *Client) EnsureAgentBrowser(ctx context.Context, containerName string) error {
-	return c.browser.ensure(ctx, containerName, "start", "start agent browser")
+	return c.browser.start(ctx, containerName, "start", "start agent browser")
 }
 
 // EnsureAgentBrowserCore starts only Xvfb, openbox, headed Chromium, and CDP.
 func (c *Client) EnsureAgentBrowserCore(ctx context.Context, containerName string) error {
-	return c.browser.ensure(ctx, containerName, "start-core", "start agent browser core")
+	return c.browser.start(ctx, containerName, "start-core", "start agent browser core")
 }
 
 // EnsureAgentBrowserView starts the noVNC/VNC layer on top of the same core.
 func (c *Client) EnsureAgentBrowserView(ctx context.Context, containerName string) error {
-	return c.browser.ensure(ctx, containerName, "start-view", "start agent browser view")
+	return c.browser.start(ctx, containerName, "start-view", "start agent browser view")
+}
+
+func (b *agentBrowser) start(ctx context.Context, containerName, verb, label string) error {
+	if err := b.provisioner.ensure(ctx, containerName); err != nil {
+		return err
+	}
+	return b.runtime.start(ctx, containerName, verb, label)
 }
 
 func (b *agentBrowser) ensure(ctx context.Context, containerName, verb, label string) error {
@@ -115,7 +124,7 @@ func (b *agentBrowser) pushTemplates(ctx context.Context, containerName string) 
 
 // StopAgentBrowser tears down the browser, VNC bridge, and virtual display.
 func (c *Client) StopAgentBrowser(ctx context.Context, containerName string) error {
-	return c.browser.stop(ctx, containerName)
+	return c.browser.runtime.stop(ctx, containerName)
 }
 
 func (b *agentBrowser) stop(ctx context.Context, containerName string) error {
@@ -132,7 +141,7 @@ func (b *agentBrowser) stop(ctx context.Context, containerName string) error {
 
 // StopAgentBrowserView tears down only the noVNC/VNC layer.
 func (c *Client) StopAgentBrowserView(ctx context.Context, containerName string) error {
-	return c.browser.stopView(ctx, containerName)
+	return c.browser.runtime.stopView(ctx, containerName)
 }
 
 func (b *agentBrowser) stopView(ctx context.Context, containerName string) error {
@@ -149,7 +158,7 @@ func (b *agentBrowser) stopView(ctx context.Context, containerName string) error
 
 // AgentBrowserRunning reports whether the core is currently ready.
 func (c *Client) AgentBrowserRunning(ctx context.Context, containerName string) (bool, error) {
-	return c.browser.running(ctx, containerName)
+	return c.browser.runtime.running(ctx, containerName)
 }
 
 func (b *agentBrowser) running(ctx context.Context, containerName string) (bool, error) {
@@ -162,7 +171,7 @@ func (b *agentBrowser) running(ctx context.Context, containerName string) (bool,
 
 // AgentBrowserStatus returns the split core/view state reported by gui-up.sh.
 func (c *Client) AgentBrowserStatus(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
-	return c.browser.status(ctx, containerName)
+	return c.browser.runtime.status(ctx, containerName)
 }
 
 func (b *agentBrowser) status(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
