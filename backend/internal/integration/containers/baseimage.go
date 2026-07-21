@@ -131,7 +131,7 @@ func (b *baseImageBuilder) build(ctx context.Context, alias string) error {
 	if alias == "" {
 		alias = BaseImageAlias
 	}
-	profiles := b.profiles.snapshot()
+	profiles := b.profiles.Snapshot()
 	installScript, err := baseImageInstallScript(profiles)
 	if err != nil {
 		return err

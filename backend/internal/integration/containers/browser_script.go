@@ -57,5 +57,5 @@ fi`)
 		return fmt.Errorf("seed browser dirs: %w", err)
 	}
 
-	return p.templates.push(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
+	return p.templates.Push(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
 }

@@ -33,7 +33,7 @@ func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, cont
 	if !p.lxc.Available() {
 		return errors.New("lxc not available")
 	}
-	targets := configuredInstructionTargets(p.profiles.snapshot())
+	targets := configuredInstructionTargets(p.profiles.Snapshot())
 	if len(targets) == 0 {
 		return nil
 	}
@@ -73,7 +73,7 @@ func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, cont
 		batches[index].paths = append(batches[index].paths, target.Path)
 	}
 	for _, batch := range batches {
-		if err := p.templates.push(ctx, containerName, agentInstructionsTemplate,
+		if err := p.templates.Push(ctx, containerName, agentInstructionsTemplate,
 			batch.hashPath, "644", batch.paths...); err != nil {
 			return err
 		}

@@ -53,7 +53,7 @@ func (p *agentBrowserMCPProvisioner) ensure(ctx context.Context, containerName s
 		}
 	}
 
-	for _, profile := range p.profiles.snapshot() {
+	for _, profile := range p.profiles.Snapshot() {
 		for _, template := range profile.BrowserMCPTemplates {
 			directory := template.Directory
 			if directory == "" {
@@ -74,7 +74,7 @@ func (p *agentBrowserMCPProvisioner) ensure(ctx context.Context, containerName s
 			if mode == "" {
 				mode = "644"
 			}
-			if err := p.templates.push(ctx, containerName, template.Content,
+			if err := p.templates.Push(ctx, containerName, template.Content,
 				template.HashPath, mode, template.Path); err != nil {
 				return err
 			}

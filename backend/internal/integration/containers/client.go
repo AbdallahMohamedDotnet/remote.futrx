@@ -6,11 +6,13 @@ package containers
 // profiles supplied by the service composition root.
 
 import (
-	"context"
-	"io"
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
+	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 )
 
 const (
@@ -32,18 +34,17 @@ const (
 
 // CommandRunner is the transport seam used to invoke the container runtime.
 // The LXC CLI adapter implements it at the application composition root.
-type CommandRunner interface {
-	Available() bool
-	Run(ctx context.Context, args ...string) (string, error)
-	RunStdin(ctx context.Context, stdin io.Reader, args ...string) (string, error)
-}
+type CommandRunner = command.Runner
+
+type profileRegistry = profileconfig.Registry
+type templatePublisher = assets.Publisher
 
 // Client implements the container ports consumed by project and prompt
 // services. Wire it once at the composition root and share the pointer.
 type Client struct {
 	lxc           CommandRunner
-	profiles      profileRegistry
-	templates     templatePublisher
+	profiles      *profileRegistry
+	templates     *templatePublisher
 	inspector     containerInspector
 	credentials   credentialSynchronizer
 	clis          cliProvisioner
@@ -60,7 +61,8 @@ type Client struct {
 func New(client CommandRunner) *Client {
 	containerClient := &Client{
 		lxc:       client,
-		templates: templatePublisher{lxc: client},
+		profiles:  profileconfig.NewRegistry(),
+		templates: assets.NewPublisher(client),
 	}
 	containerClient.lifecycle = containerLifecycle{
 		lxc:       client,
@@ -72,11 +74,11 @@ func New(client CommandRunner) *Client {
 		states:      &containerClient.lifecycle,
 		lxd:         containerLXDInspector{commands: inspectionCommands},
 		guest:       containerGuestInspector{commands: inspectionCommands},
-		agents:      containerAgentInspector{commands: inspectionCommands, profiles: &containerClient.profiles},
-		credentials: containerCredentialInspector{commands: inspectionCommands, profiles: &containerClient.profiles},
+		agents:      containerAgentInspector{commands: inspectionCommands, profiles: containerClient.profiles},
+		credentials: containerCredentialInspector{commands: inspectionCommands, profiles: containerClient.profiles},
 	}
 	containerClient.credentials = credentialSynchronizer{
-		profiles: &containerClient.profiles,
+		profiles: containerClient.profiles,
 		files:    credentialFileSynchronizer{lxc: client},
 	}
 	containerClient.credentials.directories = credentialDirectorySynchronizer{
@@ -85,27 +87,27 @@ func New(client CommandRunner) *Client {
 	}
 	containerClient.clis = cliProvisioner{
 		lxc:      client,
-		profiles: &containerClient.profiles,
+		profiles: containerClient.profiles,
 	}
 	containerClient.browser = agentBrowser{
-		provisioner: agentBrowserProvisioner{lxc: client, templates: &containerClient.templates},
+		provisioner: agentBrowserProvisioner{lxc: client, templates: containerClient.templates},
 		runtime:     agentBrowserRuntime{lxc: client},
 	}
 	containerClient.browserMCP = agentBrowserMCPProvisioner{
 		lxc:       client,
-		profiles:  &containerClient.profiles,
-		templates: &containerClient.templates,
+		profiles:  containerClient.profiles,
+		templates: containerClient.templates,
 	}
 	containerClient.browserConfig = agentBrowserConfigurator{lxc: client}
 	containerClient.codeServer = codeServerProvisioner{lxc: client}
 	containerClient.workspace = workspaceProvisioner{
 		lxc:       client,
-		profiles:  &containerClient.profiles,
-		templates: &containerClient.templates,
+		profiles:  containerClient.profiles,
+		templates: containerClient.templates,
 	}
 	containerClient.images = baseImageBuilder{
 		lxc:      client,
-		profiles: &containerClient.profiles,
+		profiles: containerClient.profiles,
 	}
 	containerClient.lifecycle.provisioner = &containerLaunchProvisioner{
 		credentials: &containerClient.credentials,
@@ -117,15 +119,12 @@ func New(client CommandRunner) *Client {
 }
 
 func (c *Client) ConfigureAgentProfiles(profiles []provisioning.Profile) {
-	c.profiles.replace(profiles)
+	c.profiles.Replace(profiles)
 }
 
 // Available reports whether the underlying lxc binary is reachable.
 func (c *Client) Available() bool { return c.lxc.Available() }
 
 func truncateOut(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max] + "..."
+	return output.Truncate(s, max)
 }

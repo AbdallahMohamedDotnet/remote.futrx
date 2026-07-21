@@ -58,8 +58,8 @@ func (p *agentBrowserProvisioner) pushTemplates(ctx context.Context, containerNa
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerGUIDir, err, out)
 	}
-	if err := p.templates.push(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript); err != nil {
+	if err := p.templates.Push(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript); err != nil {
 		return err
 	}
-	return p.templates.push(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
+	return p.templates.Push(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
 }

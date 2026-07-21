@@ -39,5 +39,5 @@ func (p *workspaceProvisioner) ensureBrowserSkill(ctx context.Context, container
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerBrowserSkillDir, err, out)
 	}
-	return p.templates.push(ctx, containerName, browserSkillTemplate, containerBrowserSkillHash, "644", containerBrowserSkillMD)
+	return p.templates.Push(ctx, containerName, browserSkillTemplate, containerBrowserSkillHash, "644", containerBrowserSkillMD)
 }

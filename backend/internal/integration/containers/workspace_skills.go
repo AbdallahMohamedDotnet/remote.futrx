@@ -31,7 +31,7 @@ func (p *workspaceProvisioner) ensureSkillLinks(ctx context.Context, containerNa
 	qctx, cancel := context.WithTimeout(ctx, ensureWorkspaceSymlinksTimeout)
 	defer cancel()
 
-	script := workspaceSkillLinksScript(p.profiles.snapshot())
+	script := workspaceSkillLinksScript(p.profiles.Snapshot())
 	if _, err := p.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
 		return err
 	}

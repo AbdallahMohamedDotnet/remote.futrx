@@ -17,7 +17,7 @@ type containerCredentialInspector struct {
 }
 
 func (i *containerCredentialInspector) inspect(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {
-	profiles := i.profiles.snapshot()
+	profiles := i.profiles.Snapshot()
 	bundles := make([]serviceproject.AuthBundleStatus, 0, len(profiles))
 	for _, profile := range profiles {
 		credentials := profile.Credentials

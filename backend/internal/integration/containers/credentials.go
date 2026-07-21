@@ -33,7 +33,7 @@ func (c *Client) EnsureRegisteredCredentials(ctx context.Context, containerName 
 
 func (s *credentialSynchronizer) ensureRegistered(ctx context.Context, containerName string) error {
 	var errs []error
-	for _, profile := range s.profiles.snapshot() {
+	for _, profile := range s.profiles.Snapshot() {
 		credentials := profile.Credentials
 		if credentials.Empty() || !credentials.SeedOnLaunch {
 			continue
