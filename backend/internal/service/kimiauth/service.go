@@ -1,6 +1,6 @@
 package kimiauth
 
-// Manager drives the host-side `kimi login` device-code flow for
+// Service drives the host-side `kimi login` device-code flow for
 // @moonshot-ai/kimi-code and streams its state to subscribers. Unlike Codex
 // there is no API-key mode: Kimi Code auth is always a subscription OAuth
 // grant, stored under ~/.kimi-code/credentials/.
@@ -51,26 +51,26 @@ type DeviceLoginState struct {
 	Error           string `json:"error,omitempty"`
 }
 
-type Manager struct {
+type Service struct {
 	mu     sync.Mutex
 	device DeviceLoginState
 	cancel context.CancelFunc
 	subs   map[chan Status]struct{}
 }
 
-func New() *Manager {
-	return &Manager{subs: map[chan Status]struct{}{}}
+func New() *Service {
+	return &Service{subs: map[chan Status]struct{}{}}
 }
 
-func (m *Manager) Authenticated() bool {
+func (m *Service) Authenticated() bool {
 	return authenticated()
 }
 
-func (m *Manager) Status() Status {
+func (m *Service) Status() Status {
 	return Status{Authenticated: authenticated(), DeviceLogin: m.deviceSnapshot()}
 }
 
-func (m *Manager) Subscribe() (<-chan Status, func()) {
+func (m *Service) Subscribe() (<-chan Status, func()) {
 	ch := make(chan Status, 8)
 	m.mu.Lock()
 	if m.subs == nil {
@@ -92,7 +92,7 @@ func (m *Manager) Subscribe() (<-chan Status, func()) {
 	return ch, cancel
 }
 
-func (m *Manager) StartDeviceLogin(ctx context.Context) (DeviceLoginState, error) {
+func (m *Service) StartDeviceLogin(ctx context.Context) (DeviceLoginState, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -173,13 +173,13 @@ func (m *Manager) StartDeviceLogin(ctx context.Context) (DeviceLoginState, error
 	}
 }
 
-func (m *Manager) deviceSnapshot() DeviceLoginState {
+func (m *Service) deviceSnapshot() DeviceLoginState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.device
 }
 
-func (m *Manager) consumeDeviceLoginOutput(reader io.Reader, markReady func()) {
+func (m *Service) consumeDeviceLoginOutput(reader io.Reader, markReady func()) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := ansiEscapeRE.ReplaceAllString(scanner.Text(), "")
@@ -207,7 +207,7 @@ func (m *Manager) consumeDeviceLoginOutput(reader io.Reader, markReady func()) {
 	}
 }
 
-func (m *Manager) finishDeviceLogin(err error) {
+func (m *Service) finishDeviceLogin(err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -231,17 +231,17 @@ func (m *Manager) finishDeviceLogin(err error) {
 	m.broadcastLocked()
 }
 
-func (m *Manager) Broadcast() {
+func (m *Service) Broadcast() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.broadcastLocked()
 }
 
-func (m *Manager) statusLocked() Status {
+func (m *Service) statusLocked() Status {
 	return Status{Authenticated: authenticated(), DeviceLogin: m.device}
 }
 
-func (m *Manager) broadcastLocked() {
+func (m *Service) broadcastLocked() {
 	status := m.statusLocked()
 	for ch := range m.subs {
 		select {

@@ -9,10 +9,10 @@ import (
 )
 
 type KimiAuthSocket struct {
-	login *kimiauth.Manager
+	login *kimiauth.Service
 }
 
-func NewKimiAuthSocket(login *kimiauth.Manager) *KimiAuthSocket {
+func NewKimiAuthSocket(login *kimiauth.Service) *KimiAuthSocket {
 	return &KimiAuthSocket{login: login}
 }
 

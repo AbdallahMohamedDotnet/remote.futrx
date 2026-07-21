@@ -9,11 +9,11 @@ import (
 )
 
 type KimiAuthHandler struct {
-	login *kimiauth.Manager
+	login *kimiauth.Service
 	auth  *serviceauth.Service
 }
 
-func NewKimiAuthHandler(login *kimiauth.Manager, auth *serviceauth.Service) *KimiAuthHandler {
+func NewKimiAuthHandler(login *kimiauth.Service, auth *serviceauth.Service) *KimiAuthHandler {
 	return &KimiAuthHandler{login: login, auth: auth}
 }
 
