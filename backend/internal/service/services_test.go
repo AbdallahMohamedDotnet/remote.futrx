@@ -1,11 +1,30 @@
 package service
 
 import (
+	"context"
 	"slices"
+	"strings"
 	"testing"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
 )
+
+type stubCLIProvisioner struct{}
+
+func (stubCLIProvisioner) Ensure(context.Context, string, provisioning.CLISpec) error { return nil }
+
+func TestNewRejectsPartialAgentContainerDependencies(t *testing.T) {
+	_, err := New(context.Background(), Dependencies{
+		AgentContainers: provisioning.ContainerDependencies{CLI: stubCLIProvisioner{}},
+	})
+	if err == nil {
+		t.Fatal("expected partial agent container dependencies to fail")
+	}
+	if !strings.Contains(err.Error(), "incomplete container dependencies") {
+		t.Fatalf("New error = %q, want incomplete dependency error", err)
+	}
+}
 
 func TestAgentProfilesComeFromRegistrationCatalog(t *testing.T) {
 	profiles := AgentProfiles()

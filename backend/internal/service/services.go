@@ -60,6 +60,10 @@ type Services struct {
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
+	if err := deps.AgentContainers.Validate(); err != nil {
+		return Services{}, fmt.Errorf("agent container dependencies: %w", err)
+	}
+
 	workspace := workspacehub.New()
 	var runs *runhub.Hub
 	chats := notifyingChatRepository{
