@@ -2,7 +2,7 @@
 package codeserver
 
 // On-demand code-server: each project container runs its own code-server,
-// socket-activated and idle-stopped (see templates/code-server-up.sh). New
+// socket-activated and idle-stopped (see assets/code-server-up.sh). New
 // containers get it baked into the base image; EnsureCodeServer is the
 // migration path for containers created before that image. Reached from the
 // host edge at <slug>.code.<host> -> <slug>.lxd:8842, behind the same Google
@@ -24,7 +24,7 @@ var codeServerUpScript []byte
 // InstallScript returns the embedded code-server installation program used by
 // base-image builds.
 func InstallScript() []byte {
-	return codeServerUpScript
+	return append([]byte(nil), codeServerUpScript...)
 }
 
 // codeServerProvisioner owns installation and socket activation for the

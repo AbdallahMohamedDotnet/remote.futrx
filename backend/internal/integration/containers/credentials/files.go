@@ -13,7 +13,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 )
 
-// credentialFileSynchronizer owns fixed host/container credential file sets.
+// fileSynchronizer owns fixed host/container credential file sets.
 type fileSynchronizer struct {
 	runner command.Runner
 }

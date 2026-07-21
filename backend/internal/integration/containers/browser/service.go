@@ -5,8 +5,8 @@ package browser
 // Agent Browser provisioning: brings up a real headed Google Chrome inside
 // the project container, rendered on a virtual display (Xvfb) and exposed two
 // ways onto the SAME session - a noVNC web view the user logs in through, and
-// a loopback CDP port the agent drives. The launcher script (templates/
-// gui-up.sh) is workspace-resident so it survives container deletes; the host
+// a loopback CDP port the agent drives. The launcher script
+// (assets/gui-up.sh) is workspace-resident so it survives container deletes; the host
 // re-pushes it whenever the embedded template changes (sha256 marker, same
 // pattern as browser.mjs / AGENTS.md).
 
@@ -19,7 +19,7 @@ import (
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
-// agentBrowserVNCPort is the in-container port the noVNC/websockify front
+// VNCPort is the in-container port the noVNC/websockify front
 // listens on. It is the only externally-reachable port of the GUI stack and is
 // surfaced to the user through the existing dev-URL proxy.
 const VNCPort = 6080

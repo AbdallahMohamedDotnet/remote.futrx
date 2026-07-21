@@ -22,11 +22,11 @@ import (
 )
 
 const (
-	// BaseImageAlias is the LXD image alias the client launches by default.
+	// Alias is the LXD image alias the client launches by default.
 	Alias = "futrx-remote-dev-base"
 
-	// BaseImageSourceImage is the upstream image used as the builder rootfs
-	// when (re)building BaseImageAlias.
+	// SourceImage is the upstream image used as the builder rootfs when
+	// (re)building Alias.
 	SourceImage = "ubuntu:24.04"
 
 	// baseImageBuilderName is the name used for the throwaway builder

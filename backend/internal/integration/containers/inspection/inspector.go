@@ -15,6 +15,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
@@ -41,10 +43,14 @@ type containerStateReader interface {
 func NewInspector(runner command.Runner, registry *profiles.Registry, states containerStateReader) *Inspector {
 	commands := &quickCommandRunner{runner: runner, timeout: inspectQuickTimeout}
 	return &Inspector{
-		states:      states,
-		lxd:         containerLXDInspector{commands: commands},
-		guest:       containerGuestInspector{commands: commands},
-		agents:      containerAgentInspector{commands: commands, profiles: registry},
+		states: states,
+		lxd:    containerLXDInspector{commands: commands},
+		guest:  containerGuestInspector{commands: commands},
+		agents: containerAgentInspector{
+			commands:        commands,
+			profiles:        registry,
+			instructionHash: assets.Hash(provisioning.InstructionsTemplate()),
+		},
 		credentials: containerCredentialInspector{commands: commands, profiles: registry},
 	}
 }

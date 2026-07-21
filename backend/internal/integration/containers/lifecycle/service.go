@@ -33,16 +33,18 @@ type Service struct {
 	runner      command.Runner
 	image       string
 	workspace   hostWorkspacePreparer
-	provisioner launchProvisioner
+	provisioner LaunchProvisioner
 }
 
-type launchProvisioner interface {
+// LaunchProvisioner applies best-effort capabilities after a new container is
+// created and attached to its workspace.
+type LaunchProvisioner interface {
 	Provision(ctx context.Context, containerName, displayName string)
 }
 
 // NewService returns a container lifecycle service using image for newly
 // created project containers.
-func NewService(runner command.Runner, image string, provisioner launchProvisioner) *Service {
+func NewService(runner command.Runner, image string, provisioner LaunchProvisioner) *Service {
 	return &Service{
 		runner:      runner,
 		image:       image,

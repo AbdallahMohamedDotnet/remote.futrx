@@ -13,7 +13,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 )
 
-// credentialDirectorySynchronizer owns dynamic credential directories whose
+// directorySynchronizer owns dynamic credential directories whose
 // provider may add or rotate an unknown set of files.
 type directorySynchronizer struct {
 	runner command.Runner

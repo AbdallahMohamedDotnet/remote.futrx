@@ -23,7 +23,7 @@ const (
 	queryTimeout    = 10 * time.Second
 )
 
-// credentialSynchronizer owns bidirectional credential transfer between the
+// Synchronizer owns bidirectional credential transfer between the
 // host's canonical files and their provider-defined container destinations.
 type Synchronizer struct {
 	profiles    *profiles.Registry

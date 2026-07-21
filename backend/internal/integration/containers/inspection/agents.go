@@ -4,16 +4,15 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
 // containerAgentInspector reports provider CLI and instruction readiness.
 type containerAgentInspector struct {
-	commands *quickCommandRunner
-	profiles *profiles.Registry
+	commands        *quickCommandRunner
+	profiles        *profiles.Registry
+	instructionHash string
 }
 
 func (i *containerAgentInspector) inspect(ctx context.Context, containerName string) []serviceproject.AgentContainerStatus {
@@ -32,7 +31,7 @@ func (i *containerAgentInspector) inspect(ctx context.Context, containerName str
 				status.InstructionsInstalled = true
 			}
 			if hash, err := i.commands.run(ctx, "exec", containerName, "--", "cat", profile.Instructions.HashPath); err == nil {
-				status.InstructionsInSync = strings.TrimSpace(hash) == assets.Hash(provisioning.InstructionsTemplate())
+				status.InstructionsInSync = strings.TrimSpace(hash) == i.instructionHash
 			}
 		}
 		statuses = append(statuses, status)
