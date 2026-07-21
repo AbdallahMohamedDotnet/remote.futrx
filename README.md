@@ -1,129 +1,168 @@
-# remote.futrx.dev
+# remote.futrx
 
-Self-hosted Claude Code / Codex / Kimi Code chat UI. Go server (embeds the Preact SPA) + one unprivileged LXD container per "project". Dev servers inside any project are reachable at `<slug>--<port>.dev.<HOSTNAME>`.
+### Your AI coding team. One workspace. Anywhere.
 
-## Install (fresh Ubuntu/Debian)
+remote.futrx brings **Claude Code, Codex, and Kimi Code** together in one clean, browser-based workspace.
 
-Prereq: DNS for `<HOSTNAME>` **and** wildcard `*.dev.<HOSTNAME>` already point to this box.
+Start with an idea. Talk to the agent you prefer. Watch it create and improve real project files. Open the result in a full code editor, terminal, or live browser preview—without leaving the conversation.
+
+```mermaid
+flowchart LR
+    A["Your idea"] --> B["A simple conversation"]
+    B --> C["Your AI coding team"]
+    C --> D["A working project"]
+```
+
+## One place to turn ideas into software
+
+- **Choose your agent** — work with Claude, Codex, or Kimi at any time.
+- **See real progress** — agents work directly on your project, not in a throwaway chat.
+- **Preview instantly** — open websites and apps as they are being built.
+- **Stay in control** — inspect files, use the terminal, and review Git history whenever you want.
+- **Keep projects separate** — every project gets its own protected workspace.
+- **Work from anywhere** — all you need is a web browser.
+- **Own your workspace** — remote.futrx runs on your server, under your control.
+
+## More than an AI chat
+
+remote.futrx gives every project the tools needed to go from a conversation to a finished result.
+
+| What you get | What it means for you |
+| --- | --- |
+| AI chat | Describe what you want in everyday language |
+| Multiple agents | Pick the best AI for each task |
+| Browser IDE | View and edit the code yourself |
+| Live preview | See your app while it is being built |
+| Project terminal | Run commands without leaving the browser |
+| Files and Git history | Review the work and stay informed |
+| Separate workspaces | Keep every project organized and isolated |
+
+## How it works
+
+1. Create a project.
+2. Choose Claude, Codex, or Kimi.
+3. Describe what you want to build or change.
+4. Review the result in chat, the IDE, or the live preview.
+5. Ask for another change and keep improving it.
+
+```mermaid
+flowchart LR
+    A["Create a project"] --> B["Describe your goal"]
+    B --> C["The agent builds it"]
+    C --> D["Preview the result"]
+    D --> E["Ask for improvements"]
+    E --> C
+```
+
+## Made for modern builders
+
+remote.futrx is for founders, developers, designers, and small teams who want to build with AI without juggling several terminals, tools, and disconnected chat windows.
+
+Whether you are starting a new product, fixing a bug, exploring an idea, or maintaining an existing codebase, remote.futrx keeps the conversation and the work together.
+
+## Start using remote.futrx
+
+Once your server is ready:
+
+1. Open your remote.futrx website.
+2. Sign in.
+3. Connect your preferred agents under **Settings → Agents**.
+4. Select **New project**.
+5. Start building.
+
+Your everyday workflow stays simple:
+
+```mermaid
+flowchart LR
+    A["Sign in"] --> B["Open a project"]
+    B --> C["Talk to an agent"]
+    C --> D["Review and ship"]
+```
+
+## Install remote.futrx
+
+This section is for the person setting up the server. Everyone else can simply open the website and start using it.
+
+<details>
+<summary><strong>Show the installation steps</strong></summary>
+
+### Before you begin
+
+You need:
+
+- An Ubuntu or Debian server
+- A domain name, such as `remote.example.com`
+- SSH access using a key
+- Ports 80 and 443 open
+
+Point these names to your server's IP address:
+
+- `remote.example.com`
+- `code.remote.example.com`
+- `*.code.remote.example.com`
+- `*.dev.remote.example.com`
+
+### Run the installer
+
+Replace `remote.example.com` with your own domain:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Kings-Of-The-Web/remote.futrx.dev/main/infra/install.sh \
+curl -fsSL https://raw.githubusercontent.com/futrx-com/remote.futrx.com/main/infra/install.sh \
   | sudo bash -s -- remote.example.com
 ```
 
-The installer self-bootstraps when run from a pipe: clones the repo to `/opt/remote.futrx.dev`, then runs every step in [`infra/steps/`](infra/steps/) in order. Each step is idempotent — re-running on a configured box is a ~25s no-op.
+The installer prepares the server, builds remote.futrx, and turns on HTTPS for you.
 
-After it finishes:
+When it finishes, open:
+
+```text
+https://remote.example.com
+```
+
+> The installer makes SSH key-only for better security. Confirm that your SSH key works before running it.
+
+</details>
+
+<details>
+<summary><strong>Recommended: protect the site with Google sign-in</strong></summary>
+
+Create a Google OAuth web application with this redirect URL:
+
+```text
+https://remote.example.com/auth/google/callback
+```
+
+Then run:
 
 ```bash
-claude login     # writes /root/.claude*, inherited by Claude project runs
-# Optional: open Settings and start Codex ChatGPT login for subscription limits
+sudo bash /opt/remote.futrx/infra/install.sh remote.example.com \
+  --google-client-id='YOUR_GOOGLE_CLIENT_ID' \
+  --google-client-secret='YOUR_GOOGLE_CLIENT_SECRET'
 ```
 
-Open `https://<HOSTNAME>`. Pass `--google-client-id=` / `--google-client-secret=` to the installer for Google OAuth; otherwise the site is open to anyone who can reach it.
+The first person to sign in becomes the administrator and can invite other users.
 
-## Update
+Without Google sign-in, anyone who can reach the website can use it.
 
-After changes are pushed to `main`, one command performs a full update: it
-pulls first, converges host tools and all agent CLIs, rebuilds the app and base
-image, then recycles idle workspaces. Busy workspaces are skipped safely.
+</details>
+
+## Update remote.futrx
+
+Updating takes one command:
 
 ```bash
-sudo bash /opt/remote.futrx.dev/infra/update.sh
+sudo bash /opt/remote.futrx/infra/update.sh
 ```
 
-| Change | Action | Wall-clock |
-|---|---|---|
-| Go / Preact source | push to `main` — [`deploy`](.github/workflows/deploy.yml) workflow runs git pull + build + restart | ~25s |
-| Anything in `infra/` | push, then run [`infra/update.sh`](infra/update.sh) on the server | ~2–3min |
-| Full server + workspace update | push to `main`, then run [`infra/update.sh`](infra/update.sh) on the server | ~2–3min |
-| Host Node / Go version | bump the pin in [`infra/versions.env`](infra/versions.env), push, then run `infra/update.sh` | ~2–3min |
-| Claude / Codex / Kimi version | bump the pin in [`agent-cli-versions.env`](backend/internal/agent/provisioning/agent-cli-versions.env), push, then run `infra/update.sh` | ~2–3min |
-| Bake a newer base image | `FORCE_REBUILD_BASE_IMAGE=1 sudo bash /opt/remote.futrx.dev/infra/install.sh <HOSTNAME> --skip-dns-check`<br>or just `cd backend && go run ./cmd/build-base-image -overwrite` | ~120s |
-| Upgrade **all** workspaces to a new base image | `sudo bash /opt/remote.futrx.dev/infra/upgrade-workspaces.sh` — rebakes, then recycles every idle container (busy ones skipped; `--dry-run` to preview) | ~2–3min |
+remote.futrx downloads the newest version, updates its tools, restarts the app, and refreshes idle project workspaces. Active work is skipped safely, and project files are kept.
 
-Existing project containers keep their old image version after a rebake — see [`docs/base-image.md`](docs/base-image.md) for converging them.
-
-## Layout
-
-```
-backend/
-├── cmd/remote/                  the server
-├── cmd/build-base-image/        bakes the futrx-remote-dev-base LXD image
-└── internal/
-    ├── agent/                   registered Claude, Codex, and Kimi adapters + auth callers
-    ├── integration/containers/  provider-neutral LXD mechanics and image build
-    ├── integration/lxc/         thin wrapper around the `lxc` CLI
-    ├── service/agent/auth/      shared host-side CLI auth lifecycle service
-    ├── service/auth/            user OAuth, sessions, and access policy
-    ├── service/                 chat, project, prompt, and supporting services
-    └── transport/               HTTP handlers + WebSocket sockets
-
-frontend/                        Preact SPA, embedded into the Go binary at build time
-
-infra/
-├── install.sh                   orchestrator
-├── update.sh                    pull + converge host/app/image/workspaces in one command
-├── upgrade-workspaces.sh        rebake base image + recycle idle project containers onto it
-├── versions.env                 host toolchain pins (Node, Go) — step 01 converges to these
-├── steps/
-│   ├── 01-host-deps.sh          apt + Node 22 + Go + Caddy + agent CLIs + LXD
-│   ├── 02-app.sh                clone/update repo + build + Google OAuth config seed
-│   ├── 03-caddy.sh              Caddyfile render + reload
-│   ├── 04-backend-svc.sh        backend systemd unit + start + health + firewall
-│   ├── 05-base-image.sh         bake futrx-remote-dev-base via cmd/build-base-image
-│   ├── 06-ssh-hardening.sh      host sshd drop-in: public-key auth only
-│   └── 07-lxc-ipv4-heal.sh      minutely timer reviving containers that lost their IPv4 lease
-└── templates/                   envsubst-rendered: Caddyfile, systemd units, configs
-
-docs/                            base-image.md, frontend-backend-api.md
+```mermaid
+flowchart LR
+    A["Run one command"] --> B["Get the newest version"]
+    B --> C["Restart automatically"]
+    C --> D["Continue building"]
 ```
 
-## Edit map
+## The short version
 
-| Editing | File |
-|---|---|
-| Caddyfile (permanent) | [`infra/templates/Caddyfile.tmpl`](infra/templates/Caddyfile.tmpl) |
-| Caddyfile (experimental) | `/etc/caddy/Caddyfile` + `systemctl reload caddy` — overwritten on next installer run |
-| Host dependency | [`infra/steps/01-host-deps.sh`](infra/steps/01-host-deps.sh) — re-runs converge Node, Go, and agent CLIs to the manifest pins |
-| Host Node / Go pins | [`infra/versions.env`](infra/versions.env) — shell-owned; bump + re-run installer (or `infra/update.sh`) to upgrade every box |
-| Claude/Codex/Kimi pins | [`agent-cli-versions.env`](backend/internal/agent/provisioning/agent-cli-versions.env) — embedded in the backend; shared by the host installer, base image, and container self-healing |
-| code-server version | `CODE_SERVER_VERSION=` in [`code-server-up.sh`](backend/internal/integration/containers/templates/code-server-up.sh) — per-container IDE; also baked into the base image |
-| Backend systemd unit | [`infra/templates/remote.futrx.dev.service.tmpl`](infra/templates/remote.futrx.dev.service.tmpl) |
-| Base-image contents (Node + agent CLIs) | generated by [`backend/internal/integration/containers/baseimage.go`](backend/internal/integration/containers/baseimage.go) from the registration catalog in [`backend/internal/service/agent_catalog.go`](backend/internal/service/agent_catalog.go) |
-| Default container resource limits | `profileConfig` in [`resources/manager.go`](backend/internal/integration/containers/resources/manager.go) — backend-managed `futrx-workspace` LXD profile, converged on every launch; per-project override via `lxc config set <container> limits.memory ...` |
-
-## Services (systemd)
-
-The Preact SPA is embedded in the Go binary at build time, so the backend serves both — no separate frontend process.
-
-| Unit | Source | Listens | Restart |
-|---|---|---|---|
-| `remote.futrx.dev.service` | [`infra/templates/remote.futrx.dev.service.tmpl`](infra/templates/remote.futrx.dev.service.tmpl) | `127.0.0.1:7682` | `always`, 2s |
-| `caddy.service` | Cloudsmith `.deb`; we manage only `/etc/caddy/Caddyfile` | `*:80`, `*:443` | `on-abnormal` |
-| `snap.lxd.daemon.service` | snap | LXD API socket; bridge `lxdbr0` | snap watchdog |
-
-code-server is **not** a host service — each project container runs its own on-demand, idle-stopped instance at `<slug>.lxd:8842` (see [`code-server-up.sh`](backend/internal/integration/containers/templates/code-server-up.sh)).
-
-All units `enable`d → come back on host reboot. Project containers come back because the backend sets `boot.autostart=true` on each at launch time (see `containers.Manager.EnsureBootAutostart`). `KillMode=process` on the backend unit keeps in-flight agent subprocesses alive across deploys.
-
-Inspect:
-
-```bash
-systemctl status remote.futrx.dev caddy snap.lxd.daemon
-journalctl -u remote.futrx.dev -f
-lxc list
-ss -tlnp '( sport = :80 or sport = :443 or sport = :7682 )'
-```
-
-## Template variables
-
-`render_template` in [`infra/install.sh`](infra/install.sh) is a whitelisted `envsubst` wrapper, so stray `$something` in templates (e.g. Caddy's `{re.host.1}`) is left alone.
-
-| Var | Source | Used in |
-|---|---|---|
-| `HOSTNAME` | CLI arg | every template |
-| `HOSTNAME_RE` | derived (dots escaped) | `Caddyfile.tmpl` |
-| `INSTALL_DIR` | `/opt/remote.futrx.dev` | `remote.futrx.dev.service.tmpl` |
-| `SERVICE_PORT` | `7682` | `Caddyfile.tmpl`, `remote.futrx.dev.service.tmpl` |
-| `LXD_BRIDGE_IP` | detected from `lxc network` | `lxd-resolved.conf.tmpl` |
+**Bring the best coding agents together. Give each project a real workspace. Build, preview, and improve—all from one browser tab.**
