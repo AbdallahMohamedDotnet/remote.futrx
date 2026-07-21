@@ -42,6 +42,7 @@ backend/
     ├── manager/containers/      LXD container lifecycle, auth bundles, image build
     ├── service/claudelogin/     host-side `claude auth login` workflow
     ├── service/codexauth/       host-side `codex login --device-auth` workflow
+    ├── service/kimiauth/        host-side `kimi login` workflow
     ├── integration/lxc/         thin wrapper around the `lxc` CLI
     ├── service/                 chat, project, prompt, auth
     └── transport/               http handlers + ws sockets

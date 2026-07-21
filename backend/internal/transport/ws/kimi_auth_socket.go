@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/kimiauth"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/kimiauth"
 	"github.com/gorilla/websocket"
 )
 

@@ -3,8 +3,8 @@ package httphandlers
 import (
 	"net/http"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/kimiauth"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/kimiauth"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
