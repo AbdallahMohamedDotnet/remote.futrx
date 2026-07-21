@@ -1,7 +1,22 @@
 import { json, request } from "../transport/http";
+import { ReconnectingJsonWebSocket } from "../transport/ReconnectingJsonWebSocket";
+import { chatWebSocketUrl } from "../transport/websocket";
 import type { FileTreeResponse } from "../models/files";
-import type { ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
+import type { ChatEvent, ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
+
+export interface ChatStream {
+  readonly isOpen: boolean;
+  sendPrompt(text: string): boolean;
+  cancel(): boolean;
+  close(): void;
+}
+
+export interface ChatStreamCallbacks {
+  onOpen: () => void;
+  onEvent: (event: ChatEvent) => void;
+  onClose: () => void;
+}
 
 export const chatApi = {
   list: () => json<ChatMeta[]>("GET", "/api/chats"),
@@ -73,4 +88,50 @@ export const chatApi = {
     }
     return response.json() as Promise<GitHistoryCheckoutResponse>;
   },
+  openStream: (
+    id: string,
+    latestSeq: () => number,
+    callbacks: ChatStreamCallbacks
+  ): ChatStream => {
+    const stream = new ReconnectingChatStream(id, latestSeq, callbacks);
+    stream.open();
+    return stream;
+  },
 };
+
+class ReconnectingChatStream implements ChatStream {
+  readonly #connection: ReconnectingJsonWebSocket<ChatEvent>;
+
+  constructor(
+    chatId: string,
+    latestSeq: () => number,
+    callbacks: ChatStreamCallbacks
+  ) {
+    this.#connection = new ReconnectingJsonWebSocket({
+      url: () => chatWebSocketUrl(chatId, latestSeq()),
+      onOpen: callbacks.onOpen,
+      onMessage: callbacks.onEvent,
+      onClose: callbacks.onClose,
+    });
+  }
+
+  get isOpen(): boolean {
+    return this.#connection.isOpen;
+  }
+
+  open(): void {
+    this.#connection.start();
+  }
+
+  sendPrompt(text: string): boolean {
+    return this.#connection.send({ type: "prompt", text });
+  }
+
+  cancel(): boolean {
+    return this.#connection.send({ type: "cancel" });
+  }
+
+  close(): void {
+    this.#connection.stop();
+  }
+}

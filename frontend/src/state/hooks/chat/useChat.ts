@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { chatWebSocketUrl } from "../../../transport/websocket";
-import { chatApi } from "../../../api/chatApi";
+import { chatApi, type ChatStream } from "../../../api/chatApi";
 import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../../models/chat";
 import { groupEvents, type Block } from "../../chat/messageBlocks";
 import {
@@ -129,7 +128,7 @@ export function useChat(chatId: string): UseChatResult {
   const [error, setError] = useState<string | null>(null);
   const [wsReady, setWsReady] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const streamRef = useRef<ChatStream | null>(null);
   const pendingEventsRef = useRef<ChatEvent[]>([]);
   const pendingFrameRef = useRef<number | null>(null);
   const lastSeqRef = useRef(0);
@@ -197,88 +196,54 @@ export function useChat(chatId: string): UseChatResult {
   // after the latest sequence this client has already applied.
   useEffect(() => {
     if (!meta || meta.id !== chatId) return;
-    const wsChatId = meta.id;
-    let stopped = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let attempt = 0;
+    const streamChatId = meta.id;
     setWsReady(false);
 
-    function scheduleReconnect() {
-      if (stopped) return;
-      const delay = Math.min(5000, 400 * 2 ** attempt);
-      attempt++;
-      reconnectTimer = setTimeout(connect, delay);
-    }
-
-    function connect() {
-      if (stopped) return;
-      const ws = new WebSocket(chatWebSocketUrl(wsChatId, lastSeqRef.current));
-      wsRef.current = ws;
-      setWsReady(false);
-
-      ws.onopen = () => {
-        if (stopped || wsRef.current !== ws) return;
-        attempt = 0;
-        setError(null);
-        clearPendingEvents();
-        setWsReady(true);
-      };
-
-      ws.onmessage = (e) => {
-        if (stopped || wsRef.current !== ws) return;
-        try {
-          const ev = JSON.parse(e.data) as ChatEvent;
-          if (ev.type === "sync") {
-            setStatus(ev.running ? "streaming" : "ready");
+    const stream = chatApi.openStream(
+      streamChatId,
+      () => lastSeqRef.current,
+      {
+        onOpen: () => {
+          if (streamRef.current !== stream) return;
+          setError(null);
+          clearPendingEvents();
+          setWsReady(true);
+        },
+        onEvent: (event) => {
+          if (streamRef.current !== stream) return;
+          if (event.type === "sync") {
+            setStatus(event.running ? "streaming" : "ready");
             return;
           }
-          enqueueEvent(ev);
-        } catch {}
-      };
-
-      ws.onclose = () => {
-        if (wsRef.current === ws) {
-          wsRef.current = null;
-          setWsReady(false);
-          scheduleReconnect();
-        }
-      };
-
-      ws.onerror = () => {
-        try { ws.close(); } catch {}
-      };
-    }
-
-    connect();
+          enqueueEvent(event);
+        },
+        onClose: () => {
+          if (streamRef.current === stream) setWsReady(false);
+        },
+      }
+    );
+    streamRef.current = stream;
 
     return () => {
-      stopped = true;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-      const ws = wsRef.current;
-      wsRef.current = null;
+      if (streamRef.current === stream) streamRef.current = null;
       setWsReady(false);
       clearPendingEvents();
-      try { ws?.close(); } catch {}
+      stream.close();
     };
   }, [meta?.id, chatId]);
 
   const sendPrompt = useCallback((text: string) => {
-    const ws = wsRef.current;
-    if (!wsReady || !ws || ws.readyState !== WebSocket.OPEN) return false;
+    const stream = streamRef.current;
+    if (!wsReady || !stream?.isOpen) return false;
     if (status !== "ready") return false;
     setStatus("streaming");
-    ws.send(JSON.stringify({ type: "prompt", text }));
+    stream.sendPrompt(text);
     return true;
   }, [status, wsReady]);
 
   const cancel = useCallback(() => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "cancel" }));
-    }
+    const stream = streamRef.current;
+    if (stream?.isOpen) stream.cancel();
   }, []);
 
   const rewind = useCallback(async (beforeT: number) => {
