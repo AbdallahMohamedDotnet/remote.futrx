@@ -39,3 +39,6 @@ export async function json<T>(method: string, url: string, body?: unknown): Prom
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
+
+export const sendHttpRequest = request;
+export const requestJson = json;
