@@ -20,6 +20,7 @@ import (
 	containerinspection "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/inspection"
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/launch"
 	containerlifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/lifecycle"
+	containerlisteners "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/listeners"
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 )
@@ -52,6 +53,7 @@ type Client struct {
 	browser     *containerbrowser.Service
 	codeServer  *containercodeserver.Provisioner
 	lifecycle   *containerlifecycle.Service
+	listeners   *containerlisteners.Scanner
 	workspace   *containerworkspace.Provisioner
 	images      *containerbaseimage.Builder
 }
@@ -65,6 +67,7 @@ func New(client CommandRunner) *Client {
 	}
 	containerClient.credentials = containercredentials.NewSynchronizer(client, containerClient.profiles)
 	containerClient.environment = containerenvironment.NewService(client)
+	containerClient.listeners = containerlisteners.NewScanner(client)
 	containerClient.clis = containercli.NewProvisioner(client, containerClient.profiles, containerbaseimage.InstallScript)
 	containerClient.browser = containerbrowser.NewService(client, containerClient.profiles, containerClient.templates)
 	containerClient.codeServer = containercodeserver.NewProvisioner(client)

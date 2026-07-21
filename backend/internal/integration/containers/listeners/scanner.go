@@ -1,4 +1,6 @@
-package containers
+// Package listeners discovers externally reachable TCP listeners inside
+// project containers.
+package listeners
 
 // ListListeners surfaces every externally-reachable TCP listener inside a
 // container so the UI's Browser drawer can offer them as a pick list. We
@@ -15,13 +17,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
 const listenersTimeout = 5 * time.Second
 
-func (c *Client) ListListeners(ctx context.Context, containerName string) ([]serviceproject.ContainerApp, error) {
-	if !c.Available() {
+// Scanner discovers container applications from listening TCP sockets.
+type Scanner struct {
+	runner command.Runner
+}
+
+// NewScanner returns a listener scanner backed by runner.
+func NewScanner(runner command.Runner) *Scanner {
+	return &Scanner{runner: runner}
+}
+
+func (s *Scanner) List(ctx context.Context, containerName string) ([]serviceproject.ContainerApp, error) {
+	if !s.runner.Available() {
 		return nil, errors.New("lxc not available")
 	}
 	qctx, cancel := context.WithTimeout(ctx, listenersTimeout)
@@ -30,7 +43,7 @@ func (c *Client) ListListeners(ctx context.Context, containerName string) ([]ser
 	// -t TCP, -l listening, -n numeric, -H no header, -p process info.
 	// We accept the inevitable non-zero exit if ss isn't installed (the
 	// base image always has iproute2, but a stripped derivative might not).
-	out, err := c.lxc.Run(qctx, "exec", containerName, "--", "ss", "-tlnHp")
+	out, err := s.runner.Run(qctx, "exec", containerName, "--", "ss", "-tlnHp")
 	if err != nil {
 		return nil, fmt.Errorf("ss in container: %w; output: %s", err, out)
 	}
