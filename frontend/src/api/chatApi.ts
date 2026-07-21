@@ -108,7 +108,7 @@ class ReconnectingChatStream implements ChatStream {
     callbacks: ChatStreamCallbacks
   ) {
     this.#connection = new ReconnectingJsonWebSocket({
-      url: () => chatStreamUrl(chatId, latestSeq()),
+      resolveUrl: () => chatStreamUrl(chatId, latestSeq()),
       onOpen: callbacks.onOpen,
       onMessage: callbacks.onEvent,
       onClose: callbacks.onClose,

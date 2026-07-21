@@ -11,7 +11,7 @@ export const claudeAuthApi = {
   cancelLogin: () => requestJson<{ ok: boolean }>("POST", "/api/claude/login/cancel", {}),
   subscribe: (onStatus: (status: ClaudeAuthStatus) => void) => {
     const connection = new ReconnectingJsonWebSocket({
-      url: () => webSocketUrl("/ws/claude/auth-status"),
+      resolveUrl: () => webSocketUrl("/ws/claude/auth-status"),
       onMessage: onStatus,
     });
     connection.start();

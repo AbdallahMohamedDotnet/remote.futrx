@@ -1,5 +1,5 @@
 export interface ReconnectingJsonWebSocketOptions<TMessage> {
-  url: () => string;
+  resolveUrl: () => string;
   onMessage: (message: TMessage) => void;
   onOpen?: () => void;
   onClose?: () => void;
@@ -54,7 +54,7 @@ export class ReconnectingJsonWebSocket<TMessage> {
 
   #connect(): void {
     if (this.#stopped) return;
-    const socket = new WebSocket(this.#options.url());
+    const socket = new WebSocket(this.#options.resolveUrl());
     this.#socket = socket;
 
     socket.onopen = () => {

@@ -13,7 +13,7 @@ export type WorkspaceMessage =
 export const workspaceApi = {
   subscribe: (onMessage: (message: WorkspaceMessage) => void) => {
     const connection = new ReconnectingJsonWebSocket({
-      url: () => webSocketUrl("/ws/workspace"),
+      resolveUrl: () => webSocketUrl("/ws/workspace"),
       onMessage,
     });
     connection.start();

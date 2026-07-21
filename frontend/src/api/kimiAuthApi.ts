@@ -8,7 +8,7 @@ export const kimiAuthApi = {
   startDeviceLogin: () => requestJson<KimiDeviceLogin>("POST", "/api/kimi/login/device", {}),
   subscribe: (onStatus: (status: KimiAuthStatus) => void) => {
     const connection = new ReconnectingJsonWebSocket({
-      url: () => webSocketUrl("/ws/kimi/auth-status"),
+      resolveUrl: () => webSocketUrl("/ws/kimi/auth-status"),
       onMessage: onStatus,
     });
     connection.start();

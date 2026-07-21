@@ -8,7 +8,7 @@ export const codexAuthApi = {
   startDeviceLogin: () => requestJson<CodexDeviceLogin>("POST", "/api/codex/login/device", {}),
   subscribe: (onStatus: (status: CodexAuthStatus) => void) => {
     const connection = new ReconnectingJsonWebSocket({
-      url: () => webSocketUrl("/ws/codex/auth-status"),
+      resolveUrl: () => webSocketUrl("/ws/codex/auth-status"),
       onMessage: onStatus,
     });
     connection.start();
