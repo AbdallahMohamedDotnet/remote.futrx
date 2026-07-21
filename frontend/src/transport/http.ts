@@ -1,5 +1,7 @@
-export async function request(
-  method: string,
+type HttpMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
+
+export async function sendHttpRequest(
+  method: HttpMethod,
   url: string,
   body?: unknown,
   init?: RequestInit
@@ -23,8 +25,12 @@ export async function request(
   });
 }
 
-export async function json<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const response = await request(method, url, body);
+export async function requestJson<T>(
+  method: HttpMethod,
+  url: string,
+  body?: unknown
+): Promise<T> {
+  const response = await sendHttpRequest(method, url, body);
   if (response.status === 401) {
     location.reload();
     return new Promise<T>(() => {});
@@ -39,6 +45,3 @@ export async function json<T>(method: string, url: string, body?: unknown): Prom
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
-
-export const sendHttpRequest = request;
-export const requestJson = json;
