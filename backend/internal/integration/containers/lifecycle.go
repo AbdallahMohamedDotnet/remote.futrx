@@ -52,7 +52,7 @@ func (l *containerLifecycle) launch(ctx context.Context, p serviceproject.Meta) 
 		return fmt.Errorf("lxc launch: %w; output: %s", err, out)
 	}
 
-	if err := l.attachDisk(ctx, p.ContainerName, "workspace", p.Cwd, containerWS, false); err != nil {
+	if err := l.attachDisk(ctx, p.ContainerName, "workspace", p.Cwd, containerWorkspacePath, false); err != nil {
 		return fmt.Errorf("attach workspace: %w", err)
 	}
 

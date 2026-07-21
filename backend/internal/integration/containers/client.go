@@ -20,8 +20,8 @@ const (
 	// write them.
 	hostMappedUID = 1000000
 
-	defaultImage = BaseImageAlias
-	containerWS  = "/workspace"
+	defaultImage           = BaseImageAlias
+	containerWorkspacePath = "/workspace"
 
 	launchTimeout = 90 * time.Second
 	startTimeout  = 30 * time.Second
