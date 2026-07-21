@@ -2,6 +2,8 @@ package config
 
 import "os"
 
+const CodeServerBaseURL = "https://code.remote.futrx.dev/"
+
 type Config struct {
 	Host    string
 	Port    string

@@ -26,6 +26,7 @@ import (
 	servicegithistory "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/githistory"
 	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
 	serviceworkspacefiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacefiles"
+	serviceworkspaceide "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspaceide"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores/fileproject"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport"
@@ -75,6 +76,7 @@ func main() {
 	serverInfoService := serviceserverinfo.New(hostinfo.New(), cfg.DataDir, fileproject.WorkspaceRoot)
 	workspaceFileService := serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore())
 	gitHistoryService := servicegithistory.New(gitcli.NewHistoryClient())
+	workspaceIDEService := serviceworkspaceide.New(config.CodeServerBaseURL, fileproject.WorkspaceRoot)
 
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:   serviceSet,
@@ -84,6 +86,7 @@ func main() {
 		ServerInfo: serverInfoService,
 		Files:      workspaceFileService,
 		GitHistory: gitHistoryService,
+		IDE:        workspaceIDEService,
 	})
 	if err != nil {
 		log.Fatalf("init http handler: %v", err)

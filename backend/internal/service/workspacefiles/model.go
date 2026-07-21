@@ -43,3 +43,8 @@ type Archive struct {
 	Name string
 	path string
 }
+
+type Media struct {
+	File        *File
+	ContentType string
+}

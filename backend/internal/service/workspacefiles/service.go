@@ -16,9 +16,10 @@ const (
 )
 
 var (
-	ErrInvalidPath    = errors.New("invalid path")
-	ErrFileNotFound   = errors.New("file not found")
-	ErrFolderNotFound = errors.New("folder not found")
+	ErrInvalidPath      = errors.New("invalid path")
+	ErrFileNotFound     = errors.New("file not found")
+	ErrFolderNotFound   = errors.New("folder not found")
+	ErrUnsupportedMedia = errors.New("file type cannot be opened in browser")
 )
 
 var directories = []string{".uploads", ".media"}
@@ -59,11 +60,34 @@ func (s *Service) OpenFile(cwd, directory, relativePath string) (*File, error) {
 	if !ok {
 		return nil, ErrInvalidPath
 	}
-	content, name, modTime, err := s.store.OpenFile(path)
+	content, _, modTime, err := s.store.OpenFile(path)
 	if err != nil {
 		return nil, ErrFileNotFound
 	}
-	return &File{Name: name, ModTime: modTime, content: content}, nil
+	return &File{Name: filepath.Base(path), ModTime: modTime, content: content}, nil
+}
+
+func (s *Service) OpenMedia(cwd, rawPath string) (Media, error) {
+	target, err := workspacepath.ResolveFile(rawPath, cwd)
+	if err != nil {
+		return Media{}, err
+	}
+	contentType, supported := supportedMediaType(target.FilePath)
+	if !supported {
+		return Media{}, ErrUnsupportedMedia
+	}
+	content, _, modTime, err := s.store.OpenFile(target.FilePath)
+	if err != nil {
+		return Media{}, ErrFileNotFound
+	}
+	return Media{
+		File: &File{
+			Name:    filepath.Base(target.FilePath),
+			ModTime: modTime,
+			content: content,
+		},
+		ContentType: contentType,
+	}, nil
 }
 
 func (s *Service) PrepareArchive(cwd, directory, relativePath string) (Archive, error) {
@@ -127,4 +151,37 @@ func allowedDirectory(directory string) bool {
 		}
 	}
 	return false
+}
+
+func supportedMediaType(path string) (string, bool) {
+	contentType, ok := mediaTypes[strings.ToLower(filepath.Ext(path))]
+	return contentType, ok
+}
+
+var mediaTypes = map[string]string{
+	".aac":  "audio/aac",
+	".avif": "image/avif",
+	".bmp":  "image/bmp",
+	".flac": "audio/flac",
+	".gif":  "image/gif",
+	".ico":  "image/x-icon",
+	".jpeg": "image/jpeg",
+	".jpg":  "image/jpeg",
+	".m4a":  "audio/mp4",
+	".m4v":  "video/mp4",
+	".mov":  "video/quicktime",
+	".mp3":  "audio/mpeg",
+	".mp4":  "video/mp4",
+	".oga":  "audio/ogg",
+	".ogg":  "audio/ogg",
+	".ogv":  "video/ogg",
+	".opus": "audio/opus",
+	".pdf":  "application/pdf",
+	".png":  "image/png",
+	".svg":  "image/svg+xml",
+	".tif":  "image/tiff",
+	".tiff": "image/tiff",
+	".wav":  "audio/wav",
+	".webm": "video/webm",
+	".webp": "image/webp",
 }
