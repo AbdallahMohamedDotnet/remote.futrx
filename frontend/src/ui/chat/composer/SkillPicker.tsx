@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ChatProvider } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
-import { skillApi } from "../../../api/skillApi";
+import { useAvailableSkills } from "../../../state/hooks/chat/useAvailableSkills";
 import { ChevronDown, Code, Search } from "../../primitives/icons";
 
 export function SkillPicker({
@@ -17,34 +17,13 @@ export function SkillPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [skills, setSkills] = useState<RegisteredSkill[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const { skills, loading, error } = useAvailableSkills(provider, projectId);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    let cancelled = false;
     setOpen(false);
     setQuery("");
-    setError("");
-    setLoading(true);
-    skillApi.list(provider, projectId)
-      .then((items) => {
-        if (!cancelled) setSkills(items);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setSkills([]);
-          setError((err as Error).message || "Could not load skills");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
   }, [provider, projectId]);
 
   useEffect(() => {
