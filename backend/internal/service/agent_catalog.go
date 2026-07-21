@@ -6,6 +6,7 @@ import (
 	codexagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/codex"
 	kimiagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/kimi"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
@@ -15,6 +16,12 @@ type AgentAuthCallers struct {
 	Claude *claudeagent.Auth
 	Codex  *codexagent.Auth
 	Kimi   *kimiagent.Auth
+
+	bindings []agentauth.Binding
+}
+
+func (c AgentAuthCallers) Bindings() []agentauth.Binding {
+	return append([]agentauth.Binding(nil), c.bindings...)
 }
 
 // agentDefinition is the single composition catalog for one agent. Adding an
@@ -35,6 +42,8 @@ func agentDefinitions() []agentDefinition {
 			},
 			configureAuth: func(auth *AgentAuthCallers) {
 				auth.Claude = claudeagent.NewAuth()
+				auth.bindings = append(auth.bindings,
+					agentauth.NewCodeBinding(agent.ProviderClaude, auth.Claude))
 			},
 		},
 		{
@@ -44,6 +53,8 @@ func agentDefinitions() []agentDefinition {
 			},
 			configureAuth: func(auth *AgentAuthCallers) {
 				auth.Codex = codexagent.NewAuth()
+				auth.bindings = append(auth.bindings,
+					agentauth.NewDeviceBinding(agent.ProviderCodex, auth.Codex))
 			},
 		},
 		{
@@ -53,6 +64,8 @@ func agentDefinitions() []agentDefinition {
 			},
 			configureAuth: func(auth *AgentAuthCallers) {
 				auth.Kimi = kimiagent.NewAuth()
+				auth.bindings = append(auth.bindings,
+					agentauth.NewDeviceBinding(agent.ProviderKimi, auth.Kimi))
 			},
 		},
 	}

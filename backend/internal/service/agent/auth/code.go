@@ -125,6 +125,16 @@ func (s *CodeService) Authenticated() bool {
 	return s.config.Authenticated()
 }
 
+// IsInputError reports whether err represents invalid caller input or a
+// missing interactive session, rather than an internal login failure.
+func (s *CodeService) IsInputError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return (s.config.CodeRequired != nil && errors.Is(err, s.config.CodeRequired)) ||
+		(s.config.NoSession != nil && errors.Is(err, s.config.NoSession))
+}
+
 // Status returns the current credential and login snapshot.
 func (s *CodeService) Status() CodeStatus {
 	s.mu.Lock()
