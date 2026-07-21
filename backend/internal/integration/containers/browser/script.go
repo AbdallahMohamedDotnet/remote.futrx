@@ -1,4 +1,4 @@
-package containers
+package browser
 
 // Browser-script provisioning: pushes the generic Playwright wrapper at
 // /workspace/scripts/browser.mjs and seeds an empty config file at
@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-//go:embed templates/browser.mjs
+//go:embed assets/browser.mjs
 var browserScriptTemplate []byte
 
 const (
@@ -32,12 +32,8 @@ const (
 // workspace and seeds an empty .agents/browser-auth.json if missing.
 // Idempotent: the script is only re-pushed when its embedded content
 // changes (sha256 marker stored alongside the config).
-func (c *Client) EnsureBrowserScript(ctx context.Context, containerName string) error {
-	return c.workspace.ensureBrowserScript(ctx, containerName)
-}
-
-func (p *workspaceProvisioner) ensureBrowserScript(ctx context.Context, containerName string) error {
-	if !p.lxc.Available() {
+func (s *Service) EnsureScript(ctx context.Context, containerName string) error {
+	if !s.runner.Available() {
 		return errors.New("lxc not available")
 	}
 
@@ -45,7 +41,7 @@ func (p *workspaceProvisioner) ensureBrowserScript(ctx context.Context, containe
 	// We chmod 755 on dirs so the unprivileged container-root user can
 	// traverse them; the host bind-mount preserves the uid 1000000 owner.
 	dctx, cancelD := context.WithTimeout(ctx, 30*time.Second)
-	_, err := p.lxc.Run(dctx, "exec", containerName, "--", "sh", "-c", `set -eu
+	_, err := s.runner.Run(dctx, "exec", containerName, "--", "sh", "-c", `set -eu
 mkdir -p /workspace/scripts /workspace/.agents /workspace/.browser
 chmod 755 /workspace/scripts /workspace/.agents /workspace/.browser
 if [ ! -f /workspace/.agents/browser-auth.json ]; then
@@ -57,5 +53,5 @@ fi`)
 		return fmt.Errorf("seed browser dirs: %w", err)
 	}
 
-	return p.templates.Push(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
+	return s.publisher.Push(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
 }

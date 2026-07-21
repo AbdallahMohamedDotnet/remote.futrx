@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	containerbrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/browser"
 )
 
 const (
@@ -172,7 +173,7 @@ func (b *baseImageBuilder) build(ctx context.Context, alias string) error {
 	}
 
 	// Layer the headed-browser GUI stack on top (Agent Browser feature).
-	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", agentBrowserInstallScript()); err != nil {
+	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", containerbrowser.InstallScript()); err != nil {
 		return fmt.Errorf("agent browser install script: %w; output: %s", err, truncateOut(out, 2000))
 	}
 

@@ -1,4 +1,4 @@
-package containers
+package browser
 
 import (
 	"context"
@@ -8,46 +8,51 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
-const agentBrowserReadyTimeout = 60 * time.Second
+const (
+	agentBrowserReadyTimeout = 60 * time.Second
+	stopTimeout              = 30 * time.Second
+)
 
 // agentBrowserRuntime owns launcher commands and translation of the launcher's
 // split core/view status.
 type agentBrowserRuntime struct {
-	lxc CommandRunner
+	runner command.Runner
 }
 
 func (r *agentBrowserRuntime) start(ctx context.Context, containerName, verb, label string) error {
 	sctx, cancel := context.WithTimeout(ctx, agentBrowserReadyTimeout)
 	defer cancel()
-	if out, err := r.lxc.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, verb); err != nil {
-		return fmt.Errorf("%s: %w; output: %s", label, err, truncateOut(out, 1000))
+	if out, err := r.runner.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, verb); err != nil {
+		return fmt.Errorf("%s: %w; output: %s", label, err, output.Truncate(out, 1000))
 	}
 	return nil
 }
 
 func (r *agentBrowserRuntime) stop(ctx context.Context, containerName string) error {
-	if !r.lxc.Available() {
+	if !r.runner.Available() {
 		return errors.New("lxc not available")
 	}
 	sctx, cancel := context.WithTimeout(ctx, stopTimeout)
 	defer cancel()
-	if out, err := r.lxc.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop"); err != nil {
-		return fmt.Errorf("stop agent browser: %w; output: %s", err, truncateOut(out, 1000))
+	if out, err := r.runner.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop"); err != nil {
+		return fmt.Errorf("stop agent browser: %w; output: %s", err, output.Truncate(out, 1000))
 	}
 	return nil
 }
 
 func (r *agentBrowserRuntime) stopView(ctx context.Context, containerName string) error {
-	if !r.lxc.Available() {
+	if !r.runner.Available() {
 		return errors.New("lxc not available")
 	}
 	sctx, cancel := context.WithTimeout(ctx, stopTimeout)
 	defer cancel()
-	if out, err := r.lxc.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop-view"); err != nil {
-		return fmt.Errorf("stop agent browser view: %w; output: %s", err, truncateOut(out, 1000))
+	if out, err := r.runner.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop-view"); err != nil {
+		return fmt.Errorf("stop agent browser view: %w; output: %s", err, output.Truncate(out, 1000))
 	}
 	return nil
 }
@@ -61,12 +66,12 @@ func (r *agentBrowserRuntime) running(ctx context.Context, containerName string)
 }
 
 func (r *agentBrowserRuntime) status(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
-	if !r.lxc.Available() {
+	if !r.runner.Available() {
 		return serviceproject.AgentBrowserInfo{}, errors.New("lxc not available")
 	}
 	qctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := r.lxc.Run(qctx, "exec", containerName, "--", "sh", containerGUIScript, "status")
+	out, err := r.runner.Run(qctx, "exec", containerName, "--", "sh", containerGUIScript, "status")
 	if err != nil {
 		return serviceproject.AgentBrowserInfo{
 			Status: serviceproject.AgentBrowserStatusStopped,

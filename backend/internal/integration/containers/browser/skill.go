@@ -1,4 +1,4 @@
-package containers
+package browser
 
 // Browser-skill provisioning: ships the `browser` SKILL.md into the workspace
 // so it shows up in the skill picker and is available to the agent. The skill
@@ -14,7 +14,7 @@ import (
 	"fmt"
 )
 
-//go:embed templates/skills/browser/SKILL.md
+//go:embed assets/skills/browser/SKILL.md
 var browserSkillTemplate []byte
 
 const (
@@ -25,19 +25,15 @@ const (
 
 // EnsureBrowserSkill provisions the `browser` skill into the workspace skills
 // directory. Idempotent: re-pushed only when the embedded SKILL.md changes.
-func (c *Client) EnsureBrowserSkill(ctx context.Context, containerName string) error {
-	return c.workspace.ensureBrowserSkill(ctx, containerName)
-}
-
-func (p *workspaceProvisioner) ensureBrowserSkill(ctx context.Context, containerName string) error {
-	if !p.lxc.Available() {
+func (s *Service) EnsureSkill(ctx context.Context, containerName string) error {
+	if !s.runner.Available() {
 		return errors.New("lxc not available")
 	}
 	dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-	out, err := p.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerBrowserSkillDir)
+	out, err := s.runner.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerBrowserSkillDir)
 	cancelD()
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerBrowserSkillDir, err, out)
 	}
-	return p.templates.Push(ctx, containerName, browserSkillTemplate, containerBrowserSkillHash, "644", containerBrowserSkillMD)
+	return s.publisher.Push(ctx, containerName, browserSkillTemplate, containerBrowserSkillHash, "644", containerBrowserSkillMD)
 }

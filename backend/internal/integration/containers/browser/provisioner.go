@@ -1,4 +1,4 @@
-package containers
+package browser
 
 import (
 	"context"
@@ -6,12 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
 )
 
-//go:embed templates/gui-up.sh
+//go:embed assets/gui-up.sh
 var guiUpScript []byte
 
-//go:embed templates/human-input.sh
+//go:embed assets/human-input.sh
 var humanInputScript []byte
 
 const (
@@ -27,24 +31,24 @@ const (
 // agentBrowserProvisioner owns browser package installation and the
 // workspace-resident launcher templates.
 type agentBrowserProvisioner struct {
-	lxc       CommandRunner
-	templates *templatePublisher
+	runner    command.Runner
+	publisher *assets.Publisher
 }
 
 func (p *agentBrowserProvisioner) ensure(ctx context.Context, containerName string) error {
-	if !p.lxc.Available() {
+	if !p.runner.Available() {
 		return errors.New("lxc not available")
 	}
 
 	cctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	_, stackErr := p.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1")
+	_, stackErr := p.runner.Run(cctx, "exec", containerName, "--", "sh", "-c", "command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1")
 	cancel()
 	if stackErr != nil {
 		ictx, cancel := context.WithTimeout(ctx, agentBrowserInstallTimeout)
-		out, err := p.lxc.Run(ictx, "exec", containerName, "--", "bash", "-c", agentBrowserInstallScript())
+		out, err := p.runner.Run(ictx, "exec", containerName, "--", "bash", "-c", InstallScript())
 		cancel()
 		if err != nil {
-			return fmt.Errorf("install agent browser stack: %w; output: %s", err, truncateOut(out, 2000))
+			return fmt.Errorf("install agent browser stack: %w; output: %s", err, output.Truncate(out, 2000))
 		}
 	}
 
@@ -53,13 +57,13 @@ func (p *agentBrowserProvisioner) ensure(ctx context.Context, containerName stri
 
 func (p *agentBrowserProvisioner) pushTemplates(ctx context.Context, containerName string) error {
 	dctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	out, err := p.lxc.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
+	out, err := p.runner.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerGUIDir, err, out)
 	}
-	if err := p.templates.Push(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript); err != nil {
+	if err := p.publisher.Push(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript); err != nil {
 		return err
 	}
-	return p.templates.Push(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
+	return p.publisher.Push(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
 }

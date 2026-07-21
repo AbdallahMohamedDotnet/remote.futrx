@@ -10,6 +10,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
+	containerbrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/browser"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
@@ -43,19 +44,17 @@ type templatePublisher = assets.Publisher
 // Client implements the container ports consumed by project and prompt
 // services. Wire it once at the composition root and share the pointer.
 type Client struct {
-	lxc           CommandRunner
-	profiles      *profileRegistry
-	templates     *templatePublisher
-	inspector     containerInspector
-	credentials   *containercredentials.Synchronizer
-	clis          cliProvisioner
-	browser       agentBrowser
-	browserMCP    agentBrowserMCPProvisioner
-	browserConfig agentBrowserConfigurator
-	codeServer    codeServerProvisioner
-	lifecycle     containerLifecycle
-	workspace     workspaceProvisioner
-	images        baseImageBuilder
+	lxc         CommandRunner
+	profiles    *profileRegistry
+	templates   *templatePublisher
+	inspector   containerInspector
+	credentials *containercredentials.Synchronizer
+	clis        cliProvisioner
+	browser     *containerbrowser.Service
+	codeServer  codeServerProvisioner
+	lifecycle   containerLifecycle
+	workspace   workspaceProvisioner
+	images      baseImageBuilder
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
@@ -83,16 +82,7 @@ func New(client CommandRunner) *Client {
 		lxc:      client,
 		profiles: containerClient.profiles,
 	}
-	containerClient.browser = agentBrowser{
-		provisioner: agentBrowserProvisioner{lxc: client, templates: containerClient.templates},
-		runtime:     agentBrowserRuntime{lxc: client},
-	}
-	containerClient.browserMCP = agentBrowserMCPProvisioner{
-		lxc:       client,
-		profiles:  containerClient.profiles,
-		templates: containerClient.templates,
-	}
-	containerClient.browserConfig = agentBrowserConfigurator{lxc: client}
+	containerClient.browser = containerbrowser.NewService(client, containerClient.profiles, containerClient.templates)
 	containerClient.codeServer = codeServerProvisioner{lxc: client}
 	containerClient.workspace = workspaceProvisioner{
 		lxc:       client,
@@ -106,7 +96,7 @@ func New(client CommandRunner) *Client {
 	containerClient.lifecycle.provisioner = &containerLaunchProvisioner{
 		credentials: containerClient.credentials,
 		workspace:   &containerClient.workspace,
-		browser:     &containerClient.browserConfig,
+		browser:     containerClient.browser,
 		codeServer:  &containerClient.codeServer,
 	}
 	return containerClient

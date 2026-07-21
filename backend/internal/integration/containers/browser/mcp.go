@@ -1,4 +1,4 @@
-package containers
+package browser
 
 // Agent Browser MCP provisioning: makes the @playwright/mcp browser tools
 // available to in-container agents, attached over CDP to the live Chrome (the
@@ -15,6 +15,11 @@ import (
 	"fmt"
 	"path"
 	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 )
 
 const (
@@ -24,32 +29,32 @@ const (
 // agentBrowserMCPProvisioner owns installation and profile-defined templates
 // for the browser tool server. It is independent of the browser GUI runtime.
 type agentBrowserMCPProvisioner struct {
-	lxc       CommandRunner
-	profiles  *profileRegistry
-	templates *templatePublisher
+	runner    command.Runner
+	profiles  *profiles.Registry
+	publisher *assets.Publisher
 }
 
 // EnsureAgentBrowserMCP installs @playwright/mcp (idempotently) and pushes the
 // profile-owned MCP templates. Cheap once installed: the npm-presence check
 // short-circuits, and templates are only re-pushed when their content changes.
-func (c *Client) EnsureAgentBrowserMCP(ctx context.Context, containerName string) error {
-	return c.browserMCP.ensure(ctx, containerName)
+func (s *Service) EnsureMCP(ctx context.Context, containerName string) error {
+	return s.mcp.ensure(ctx, containerName)
 }
 
 func (p *agentBrowserMCPProvisioner) ensure(ctx context.Context, containerName string) error {
-	if !p.lxc.Available() {
+	if !p.runner.Available() {
 		return errors.New("lxc not available")
 	}
 
 	cctx, cancelC := context.WithTimeout(ctx, queryTimeout)
-	_, missing := p.lxc.Run(cctx, "exec", containerName, "--", "sh", "-c", "npm ls -g @playwright/mcp >/dev/null 2>&1")
+	_, missing := p.runner.Run(cctx, "exec", containerName, "--", "sh", "-c", "npm ls -g @playwright/mcp >/dev/null 2>&1")
 	cancelC()
 	if missing != nil {
 		ictx, cancelI := context.WithTimeout(ctx, browserMCPInstallTimeout)
-		out, err := p.lxc.Run(ictx, "exec", containerName, "--", "sh", "-c", "npm install -g @playwright/mcp 2>&1 | tail -3")
+		out, err := p.runner.Run(ictx, "exec", containerName, "--", "sh", "-c", "npm install -g @playwright/mcp 2>&1 | tail -3")
 		cancelI()
 		if err != nil {
-			return fmt.Errorf("install @playwright/mcp: %w; output: %s", err, truncateOut(out, 1000))
+			return fmt.Errorf("install @playwright/mcp: %w; output: %s", err, output.Truncate(out, 1000))
 		}
 	}
 
@@ -64,7 +69,7 @@ func (p *agentBrowserMCPProvisioner) ensure(ctx context.Context, containerName s
 				directoryMode = "755"
 			}
 			dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-			out, err := p.lxc.Run(dctx, "exec", containerName, "--",
+			out, err := p.runner.Run(dctx, "exec", containerName, "--",
 				"install", "-d", "-m", directoryMode, directory)
 			cancelD()
 			if err != nil {
@@ -74,7 +79,7 @@ func (p *agentBrowserMCPProvisioner) ensure(ctx context.Context, containerName s
 			if mode == "" {
 				mode = "644"
 			}
-			if err := p.templates.Push(ctx, containerName, template.Content,
+			if err := p.publisher.Push(ctx, containerName, template.Content,
 				template.HashPath, mode, template.Path); err != nil {
 				return err
 			}
