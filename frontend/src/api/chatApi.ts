@@ -1,9 +1,8 @@
 import { requestJson } from "./apiRequest";
+import { chatEventsApi } from "./chat/chatEventsApi";
 import { chatFilesApi } from "./chat/chatFilesApi";
 import { chatHistoryApi } from "./chat/chatHistoryApi";
-import { openChatStream } from "./chat/chatStream";
-import type { ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
-import type { ChatStream, ChatStreamCallbacks } from "../types/chatApi";
+import type { ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { API_ROUTES } from "../config/routes";
 
 export const chatApi = {
@@ -24,25 +23,11 @@ export const chatApi = {
   files: chatFilesApi.files,
   fileDownloadUrl: chatFilesApi.fileDownloadUrl,
   folderDownloadUrl: chatFilesApi.folderDownloadUrl,
-  events: (id: string, params: { limit?: number; before?: number } = {}) => {
-    const search = new URLSearchParams();
-    if (params.limit) search.set("limit", String(params.limit));
-    if (params.before) search.set("before", String(params.before));
-    const query = search.toString();
-    return requestJson<ChatEventPage>(
-      "GET",
-      API_ROUTES.chats.events(id, query)
-    );
-  },
-  rewind: (id: string, beforeT: number) =>
-    requestJson<ChatEventPage>("POST", API_ROUTES.chats.rewind(id), { beforeT }),
+  events: chatEventsApi.events,
+  rewind: chatEventsApi.rewind,
   historyRepos: chatHistoryApi.historyRepos,
   historyCommits: chatHistoryApi.historyCommits,
   historyDiff: chatHistoryApi.historyDiff,
   historyCheckout: chatHistoryApi.historyCheckout,
-  openStream: (
-    id: string,
-    latestSeq: () => number,
-    callbacks: ChatStreamCallbacks
-  ): ChatStream => openChatStream(id, latestSeq, callbacks),
+  openStream: chatEventsApi.openStream,
 };
