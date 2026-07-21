@@ -1,6 +1,7 @@
 import { sendHttpRequest } from "../transport/http";
 import type { AuthSession } from "../models/auth";
 import { API_ROUTES } from "../config/routes";
+import { API_RESPONSE_STATUS } from "../config/api";
 
 const unauthenticated: AuthSession = {
   noAuth: false,
@@ -15,7 +16,7 @@ const unauthenticated: AuthSession = {
 export async function getAuthSession(): Promise<AuthSession> {
   try {
     const response = await sendHttpRequest("GET", API_ROUTES.authSession);
-    if (response.status === 404) {
+    if (response.status === API_RESPONSE_STATUS.notFound) {
       return {
         ...unauthenticated,
         noAuth: true,

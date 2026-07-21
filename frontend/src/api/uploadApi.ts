@@ -1,6 +1,7 @@
 import { startResumableUpload } from "../transport/tusUpload";
 import type { ChatUploadCallbacks, UploadHandle } from "../types/uploadApi";
 import { API_ROUTES } from "../config/routes";
+import { DEFAULT_UPLOAD_MEDIA_TYPE } from "../config/api";
 
 /**
  * Start a resumable upload for one file via the tus protocol. Survives
@@ -22,7 +23,7 @@ export function startChatUpload(
     metadata: {
       chatId,
       filename: file.name,
-      filetype: file.type || "application/octet-stream",
+      filetype: file.type || DEFAULT_UPLOAD_MEDIA_TYPE,
     },
     onError(error) {
       cb.onError(error);

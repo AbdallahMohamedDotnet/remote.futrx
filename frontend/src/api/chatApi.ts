@@ -7,6 +7,11 @@ import type { ChatEvent, ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInp
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
 import type { ChatStream, ChatStreamCallbacks } from "../types/chatApi";
 import { API_ROUTES, WEB_SOCKET_ROUTES } from "../config/routes";
+import {
+  API_RESPONSE_STATUS,
+  DEFAULT_CHAT_HISTORY_COMMIT_LIMIT,
+  DIRTY_WORKING_TREE_FALLBACK_MESSAGE,
+} from "../config/api";
 
 export const chatApi = {
   list: () => requestJson<ChatMeta[]>("GET", API_ROUTES.chats.collection),
@@ -43,7 +48,11 @@ export const chatApi = {
     requestJson<ChatEventPage>("POST", API_ROUTES.chats.rewind(id), { beforeT }),
   historyRepos: (id: string) =>
     requestJson<GitHistoryReposResponse>("GET", API_ROUTES.chats.historyRepos(id)),
-  historyCommits: (id: string, repo: string, limit = 100) => {
+  historyCommits: (
+    id: string,
+    repo: string,
+    limit = DEFAULT_CHAT_HISTORY_COMMIT_LIMIT
+  ) => {
     const search = new URLSearchParams({ repo, limit: String(limit) });
     return requestJson<GitHistoryCommitsResponse>(
       "GET",
@@ -63,7 +72,7 @@ export const chatApi = {
       sha,
       checkpointMessage,
     });
-    if (response.status === 401) {
+    if (response.status === API_RESPONSE_STATUS.unauthorized) {
       location.reload();
       return new Promise<GitHistoryCheckoutResponse>(() => {});
     }
@@ -72,8 +81,11 @@ export const chatApi = {
       try {
         body = await response.json();
       } catch {}
-      if (response.status === 409 && body.dirty) {
-        throw new DirtyWorkingTreeError(body.error || "dirty working tree", body.dirtyFiles || []);
+      if (response.status === API_RESPONSE_STATUS.conflict && body.dirty) {
+        throw new DirtyWorkingTreeError(
+          body.error || DIRTY_WORKING_TREE_FALLBACK_MESSAGE,
+          body.dirtyFiles || []
+        );
       }
       throw new Error(body.error || String(response.status));
     }
