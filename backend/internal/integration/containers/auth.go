@@ -11,9 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 )
 
 const authPushTimeout = 30 * time.Second
@@ -23,43 +26,10 @@ const authPushTimeout = 30 * time.Second
 // fresh container launch; call EnsureAuthBundle / SyncAuthBundleFromContainer
 // directly to drive the push/pull pipeline at other points (e.g. before and
 // after each prompt).
-type AuthBundle struct {
-	// Name is a short identifier used in error messages. Example: "claude".
-	Name string
-
-	// HostDir, if set, is ensured (mode 0700) before pulling files back from
-	// the container. Use for providers whose credentials live in a
-	// dedicated dotdir like /root/.claude.
-	HostDir string
-
-	// ContainerDir, if set, is created inside the container (mode 0700)
-	// before any file is pushed.
-	ContainerDir string
-
-	// Files is the set of credential files the bundle owns.
-	Files []AuthFile
-
-	// LegacyDevices are container device names removed (best-effort) before
-	// each push. Use this to migrate older containers off prior disk-mount
-	// auth schemes.
-	LegacyDevices []string
-}
+type AuthBundle = provisioning.CredentialSpec
 
 // AuthFile is one credential file inside a bundle.
-type AuthFile struct {
-	HostPath      string
-	ContainerPath string
-	// Mode is the octal mode string passed to `lxc file push --mode=`.
-	// Defaults to "600".
-	Mode string
-	// PushRequired: if true, EnsureAuthBundle errors when the file is
-	// missing on the host. Use for the file that gates "is this provider
-	// authenticated at all?".
-	PushRequired bool
-	// PullRequired: if true, SyncAuthBundleFromContainer errors when the
-	// file is missing in the container.
-	PullRequired bool
-}
+type AuthFile = provisioning.CredentialFile
 
 // RegisterAuthBundle adds a bundle to the seed list used by Launch. Safe to
 // call from main during wiring; not intended to be called concurrently with
@@ -97,10 +67,21 @@ func (c *Client) EnsureRegisteredAuth(ctx context.Context, containerName string)
 // only pushed when its host mtime is newer than the container copy, so this
 // is cheap to call on every prompt.
 func (c *Client) EnsureAuthBundle(ctx context.Context, containerName string, b AuthBundle) error {
+	return c.ensureCredentialFiles(ctx, containerName, b)
+}
+
+func (c *Client) EnsureCredentials(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
+	if spec.Directory != nil {
+		return c.ensureCredentialDirectory(ctx, containerName, spec)
+	}
+	return c.ensureCredentialFiles(ctx, containerName, spec)
+}
+
+func (c *Client) ensureCredentialFiles(ctx context.Context, containerName string, b provisioning.CredentialSpec) error {
 	if !c.Available() {
 		return errors.New("lxc not available")
 	}
-	if err := b.validate(); err != nil {
+	if err := validateCredentialSpec(b); err != nil {
 		return err
 	}
 
@@ -139,7 +120,7 @@ func (c *Client) EnsureAuthBundle(ctx context.Context, containerName string, b A
 			// files can still be missing here, and we silently skip them.
 			continue
 		}
-		if err := c.pushAuthFileIfNewer(pctx, f, containerName); err != nil {
+		if err := c.pushCredentialFileIfNewer(pctx, f, containerName); err != nil {
 			return fmt.Errorf("push %s: %w", f.ContainerPath, err)
 		}
 	}
@@ -151,10 +132,21 @@ func (c *Client) EnsureAuthBundle(ctx context.Context, containerName string, b A
 // tokens, etc.) — without this, the next push would overwrite the rotation
 // with stale host data.
 func (c *Client) SyncAuthBundleFromContainer(ctx context.Context, containerName string, b AuthBundle) error {
+	return c.syncCredentialFilesFromContainer(ctx, containerName, b)
+}
+
+func (c *Client) SyncCredentialsFromContainer(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
+	if spec.Directory != nil {
+		return c.syncCredentialDirectoryFromContainer(ctx, containerName, spec)
+	}
+	return c.syncCredentialFilesFromContainer(ctx, containerName, spec)
+}
+
+func (c *Client) syncCredentialFilesFromContainer(ctx context.Context, containerName string, b provisioning.CredentialSpec) error {
 	if !c.Available() {
 		return errors.New("lxc not available")
 	}
-	if err := b.validate(); err != nil {
+	if err := validateCredentialSpec(b); err != nil {
 		return err
 	}
 
@@ -187,7 +179,7 @@ func (c *Client) SyncAuthBundleFromContainer(ctx context.Context, containerName 
 	return nil
 }
 
-func (b AuthBundle) validate() error {
+func validateCredentialSpec(b provisioning.CredentialSpec) error {
 	if b.Name == "" {
 		return errors.New("auth bundle: Name is required")
 	}
@@ -197,7 +189,7 @@ func (b AuthBundle) validate() error {
 	return nil
 }
 
-func (c *Client) pushAuthFileIfNewer(ctx context.Context, f AuthFile, containerName string) error {
+func (c *Client) pushCredentialFileIfNewer(ctx context.Context, f provisioning.CredentialFile, containerName string) error {
 	hostInfo, err := os.Stat(f.HostPath)
 	if err != nil {
 		return err
@@ -221,4 +213,108 @@ func (c *Client) pushAuthFileIfNewer(ctx context.Context, f AuthFile, containerN
 		return fmt.Errorf("lxc file push: %w; output: %s", err, out)
 	}
 	return nil
+}
+
+func (c *Client) ensureCredentialDirectory(
+	ctx context.Context,
+	containerName string,
+	spec provisioning.CredentialSpec,
+) error {
+	if !c.Available() {
+		return errors.New("lxc not available")
+	}
+	directory := spec.Directory
+	files, err := regularCredentialFiles(directory.HostPath)
+	if err != nil || len(files) == 0 {
+		if directory.AllowContainerOnly && c.containerCredentialDirectoryHasFiles(ctx, containerName, directory.ContainerPath) {
+			return nil
+		}
+		if directory.MissingErrorFormat != "" {
+			return errors.New(fmt.Sprintf(directory.MissingErrorFormat, containerName))
+		}
+		return fmt.Errorf("credential directory %s has no files", directory.HostPath)
+	}
+
+	pctx, cancel := context.WithTimeout(ctx, authPushTimeout)
+	defer cancel()
+	for _, path := range directory.ContainerDirs {
+		if out, err := c.lxc.Run(pctx, "exec", containerName, "--", "install", "-d", "-m", "700", path); err != nil {
+			return fmt.Errorf("mkdir %s in container: %w; output: %s", path, err, out)
+		}
+	}
+	for _, name := range files {
+		file := provisioning.CredentialFile{
+			HostPath:      filepath.Join(directory.HostPath, name),
+			ContainerPath: directory.ContainerPath + "/" + name,
+			Mode:          "600",
+		}
+		if err := c.pushCredentialFileIfNewer(pctx, file, containerName); err != nil {
+			return fmt.Errorf("push %s: %w", file.ContainerPath, err)
+		}
+	}
+	return nil
+}
+
+func (c *Client) syncCredentialDirectoryFromContainer(
+	ctx context.Context,
+	containerName string,
+	spec provisioning.CredentialSpec,
+) error {
+	directory := spec.Directory
+	if !c.Available() {
+		if directory.SyncUnavailableIsNoop {
+			return nil
+		}
+		return errors.New("lxc not available")
+	}
+	if directory.SyncOnlyWhenHostHasFiles {
+		if files, err := regularCredentialFiles(directory.HostPath); err != nil || len(files) == 0 {
+			return nil
+		}
+	}
+
+	pctx, cancel := context.WithTimeout(ctx, authPushTimeout)
+	defer cancel()
+	out, err := c.lxc.Run(pctx, "exec", containerName, "--",
+		"find", directory.ContainerPath, "-maxdepth", "1", "-type", "f", "-printf", "%f\n")
+	if err != nil {
+		return nil
+	}
+	for _, name := range strings.Fields(out) {
+		containerPath := directory.ContainerPath + "/" + name
+		hostPath := filepath.Join(directory.HostPath, name)
+		if out, err := c.lxc.Run(pctx, "file", "pull", containerName+containerPath, hostPath); err != nil {
+			return fmt.Errorf("pull %s: %w; output: %s", containerPath, err, out)
+		}
+		_ = os.Chmod(hostPath, 0o600)
+		now := time.Now()
+		_ = os.Chtimes(hostPath, now, now)
+	}
+	return nil
+}
+
+func (c *Client) containerCredentialDirectoryHasFiles(
+	ctx context.Context,
+	containerName string,
+	containerPath string,
+) bool {
+	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	out, err := c.lxc.Run(quickCtx, "exec", containerName, "--",
+		"sh", "-c", "ls -1 "+containerPath+" 2>/dev/null | head -1")
+	return err == nil && strings.TrimSpace(out) != ""
+}
+
+func regularCredentialFiles(path string) ([]string, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Type().IsRegular() {
+			files = append(files, entry.Name())
+		}
+	}
+	return files, nil
 }
