@@ -21,7 +21,7 @@ log "Hardening sshd (key-only auth)"
 
 mkdir -p "$(dirname "$DROPIN")"
 cat > "$DROPIN" <<'EOF'
-# Managed by infra/steps/07-ssh-hardening.sh — do not edit by hand.
+# Managed by infra/steps/06-ssh-hardening.sh — do not edit by hand.
 # Public-key authentication only. Disables the password and keyboard-
 # interactive (PAM password) paths so no account is brute-forceable over SSH.
 PasswordAuthentication no

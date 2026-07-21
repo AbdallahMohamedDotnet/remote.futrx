@@ -191,18 +191,18 @@ fi
 # ───────────────── run the steps ─────────────────
 # shellcheck source=steps/01-host-deps.sh
 . "$INFRA_DIR/steps/01-host-deps.sh"
-# shellcheck source=steps/03-app.sh
-. "$INFRA_DIR/steps/03-app.sh"
-# shellcheck source=steps/04-caddy.sh
-. "$INFRA_DIR/steps/04-caddy.sh"
-# shellcheck source=steps/05-backend-svc.sh
-. "$INFRA_DIR/steps/05-backend-svc.sh"
-# shellcheck source=steps/06-base-image.sh
-. "$INFRA_DIR/steps/06-base-image.sh"
-# shellcheck source=steps/07-ssh-hardening.sh
-. "$INFRA_DIR/steps/07-ssh-hardening.sh"
-# shellcheck source=steps/08-lxc-ipv4-heal.sh
-. "$INFRA_DIR/steps/08-lxc-ipv4-heal.sh"
+# shellcheck source=steps/02-app.sh
+. "$INFRA_DIR/steps/02-app.sh"
+# shellcheck source=steps/03-caddy.sh
+. "$INFRA_DIR/steps/03-caddy.sh"
+# shellcheck source=steps/04-backend-svc.sh
+. "$INFRA_DIR/steps/04-backend-svc.sh"
+# shellcheck source=steps/05-base-image.sh
+. "$INFRA_DIR/steps/05-base-image.sh"
+# shellcheck source=steps/06-ssh-hardening.sh
+. "$INFRA_DIR/steps/06-ssh-hardening.sh"
+# shellcheck source=steps/07-lxc-ipv4-heal.sh
+. "$INFRA_DIR/steps/07-lxc-ipv4-heal.sh"
 
 # ───────────────── summary ─────────────────
 cat <<EOF

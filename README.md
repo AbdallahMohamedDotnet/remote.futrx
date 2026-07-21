@@ -68,10 +68,12 @@ infra/
 ├── versions.env                 host toolchain pins (Node, Go) — step 01 converges to these
 ├── steps/
 │   ├── 01-host-deps.sh          apt + Node 22 + Go + Caddy + agent CLIs + LXD
-│   ├── 03-app.sh                clone/update repo + build + auth-secret seed
-│   ├── 04-caddy.sh              Caddyfile render + reload
-│   ├── 05-backend-svc.sh        backend systemd unit + start + health + firewall
-│   └── 06-base-image.sh         bake futrx-remote-dev-base via cmd/build-base-image
+│   ├── 02-app.sh                clone/update repo + build + Google OAuth config seed
+│   ├── 03-caddy.sh              Caddyfile render + reload
+│   ├── 04-backend-svc.sh        backend systemd unit + start + health + firewall
+│   ├── 05-base-image.sh         bake futrx-remote-dev-base via cmd/build-base-image
+│   ├── 06-ssh-hardening.sh      host sshd drop-in: public-key auth only
+│   └── 07-lxc-ipv4-heal.sh      minutely timer reviving containers that lost their IPv4 lease
 └── templates/                   envsubst-rendered: Caddyfile, systemd units, configs
 
 docs/                            base-image.md, frontend-backend-api.md

@@ -22,7 +22,7 @@ log "Installing lxc-ipv4-heal (container IPv4 self-heal)"
 cat > /usr/local/sbin/lxc-ipv4-heal << "SCRIPT"
 #!/bin/bash
 # Reconfigure eth0 on RUNNING LXD containers that have no IPv4 address.
-# Installed by infra/steps/08-lxc-ipv4-heal.sh; runs from lxc-ipv4-heal.timer.
+# Installed by infra/steps/07-lxc-ipv4-heal.sh; runs from lxc-ipv4-heal.timer.
 set -u
 while IFS=, read -r name state ipv4; do
   [ "$state" = "RUNNING" ] || continue
