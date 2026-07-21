@@ -6,6 +6,7 @@ import {
   type UpdateUserSettingsInput,
   type UserSettings,
 } from "../models/settings";
+import { API_ROUTES } from "../config/routes";
 
 const themes = new Set<AppearanceTheme>(["system", "dark", "light"]);
 const providers = new Set<ChatProvider>(["claude", "codex"]);
@@ -13,9 +14,10 @@ const modes = new Set<ChatMode>(["chat", "plan", "code", "review", "debug", "ful
 const reasoningEfforts = new Set<ReasoningEffort>(["", "low", "medium", "high", "xhigh"]);
 
 export const settingsApi = {
-  get: async () => normalize(await requestJson<UserSettings>("GET", "/api/me/settings")),
+  get: async () =>
+    normalize(await requestJson<UserSettings>("GET", API_ROUTES.settings)),
   update: async (body: UpdateUserSettingsInput) =>
-    normalize(await requestJson<UserSettings>("PATCH", "/api/me/settings", body)),
+    normalize(await requestJson<UserSettings>("PATCH", API_ROUTES.settings, body)),
 };
 
 function normalize(settings: UserSettings): UserSettings {

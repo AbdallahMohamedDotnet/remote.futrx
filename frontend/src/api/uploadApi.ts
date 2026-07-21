@@ -1,5 +1,6 @@
 import { startResumableUpload } from "../transport/tusUpload";
 import type { ChatUploadCallbacks, UploadHandle } from "../types/uploadApi";
+import { API_ROUTES } from "../config/routes";
 
 /**
  * Start a resumable upload for one file via the tus protocol. Survives
@@ -12,7 +13,7 @@ export function startChatUpload(
   cb: ChatUploadCallbacks
 ): UploadHandle {
   return startResumableUpload(file, {
-    endpoint: "/api/uploads",
+    endpoint: API_ROUTES.uploads,
     // Resume identity. tus-js-client stores the upload URL in localStorage
     // keyed by this fingerprint so a tab refresh / browser restart can
     // continue from the last server-acknowledged byte.
