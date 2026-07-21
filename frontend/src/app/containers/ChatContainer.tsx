@@ -1,4 +1,3 @@
-import { useEffect, useState } from "preact/hooks";
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { BrowserDrawer } from "../../ui/chat/browser/BrowserDrawer";
@@ -9,6 +8,7 @@ import { attachmentBasePathForChat } from "../../state/chat/attachmentPaths";
 import { useChat } from "../../state/hooks/chat/useChat";
 import { useChatBrowserController } from "../../state/hooks/chat/useChatBrowserController";
 import { useChatComposerController } from "../../state/hooks/chat/useChatComposerController";
+import { useChatDrawerController } from "../../state/hooks/chat/useChatDrawerController";
 import { useChatKeyboardShortcuts } from "../../state/hooks/chat/useChatKeyboardShortcuts";
 import { useChatPreferences } from "../../state/hooks/chat/useChatPreferences";
 import { useChatReadMarker } from "../../state/hooks/chat/useChatReadMarker";
@@ -61,34 +61,14 @@ export function ChatContainer({
     textareaRef: composer.textareaRef,
   });
   const terminal = useTerminalOverlayController(chat.id);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [filesOpen, setFilesOpen] = useState(false);
-
-  useEffect(() => {
-    setHistoryOpen(false);
-    setFilesOpen(false);
-  }, [chat.id]);
+  const drawers = useChatDrawerController({
+    chatId: chat.id,
+    showBrowser: browser.openBrowserDrawer,
+    hideBrowser: browser.closeBrowserDrawer,
+  });
 
   useChatReadMarker({ chatId: chat.id, eventCount, status });
   useChatKeyboardShortcuts({ status, onCancel: cancel });
-
-  function openBrowserDrawer() {
-    setHistoryOpen(false);
-    setFilesOpen(false);
-    browser.openBrowserDrawer();
-  }
-
-  function openHistoryDrawer() {
-    browser.closeBrowserDrawer();
-    setFilesOpen(false);
-    setHistoryOpen(true);
-  }
-
-  function openFileManager() {
-    browser.closeBrowserDrawer();
-    setHistoryOpen(false);
-    setFilesOpen(true);
-  }
 
   return (
     <div class="relative flex-1 h-full min-h-0 overflow-hidden">
@@ -139,20 +119,20 @@ export function ChatContainer({
             onSelectSkill={preferences.selectSkill}
             onRemoveSelectedSkill={preferences.removeSelectedSkill}
             onOpenTerminal={terminal.openTerminal}
-            onOpenBrowser={openBrowserDrawer}
-            onOpenHistory={openHistoryDrawer}
-            onOpenFiles={openFileManager}
+            onOpenBrowser={drawers.openBrowser}
+            onOpenHistory={drawers.openHistory}
+            onOpenFiles={drawers.openFiles}
           />
         </div>
         <HistoryDrawer
           chatId={chat.id}
-          open={historyOpen}
-          onClose={() => setHistoryOpen(false)}
+          open={drawers.historyOpen}
+          onClose={drawers.closeHistory}
         />
         <FileManagerDrawer
           chatId={chat.id}
-          open={filesOpen}
-          onClose={() => setFilesOpen(false)}
+          open={drawers.filesOpen}
+          onClose={drawers.closeFiles}
         />
         <BrowserDrawer
           open={browser.browserOpen}
