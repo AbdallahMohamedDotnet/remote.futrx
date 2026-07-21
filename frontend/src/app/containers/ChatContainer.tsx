@@ -60,12 +60,11 @@ export function ChatContainer({
     setText: composer.setText,
     textareaRef: composer.textareaRef,
   });
-  const terminal = useTerminalOverlayController();
+  const terminal = useTerminalOverlayController(chat.id);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
 
   useEffect(() => {
-    terminal.resetTerminal();
     setHistoryOpen(false);
     setFilesOpen(false);
   }, [chat.id]);
