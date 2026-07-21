@@ -9,8 +9,10 @@ import type {
   ChatMessageBlock,
 } from "../../models/chatMessage";
 
+type AssistantToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
+
 export function buildChatMessageBlocks(events: ChatEvent[]): ChatMessageBlock[] {
-  return events.reduce(appendEventToBlocks, [] as ChatMessageBlock[]);
+  return events.reduce<ChatMessageBlock[]>(appendEventToBlocks, []);
 }
 
 function appendEventToBlocks(blocks: ChatMessageBlock[], event: ChatEvent): ChatMessageBlock[] {
@@ -41,7 +43,7 @@ function appendEventToBlocks(blocks: ChatMessageBlock[], event: ChatEvent): Chat
         kind: "tool",
         id: event.id,
         name: event.name,
-        input: (event.input as unknown as Record<string, unknown>) ?? {},
+        input: event.input ?? {},
         status: "running",
       });
       return next;
@@ -93,7 +95,7 @@ function ensureTrailingAssistant(
 function updateTrailingTool(
   blocks: ChatMessageBlock[],
   id: string,
-  patch: Partial<Extract<AssistantMessagePart, { kind: "tool" }>>
+  patch: Partial<AssistantToolPart>
 ): ChatMessageBlock[] {
   const lastIndex = blocks.length - 1;
   const last = blocks[lastIndex];
@@ -101,10 +103,12 @@ function updateTrailingTool(
 
   const partIndex = last.parts.findIndex((part) => part.kind === "tool" && part.id === id);
   if (partIndex < 0) return blocks;
+  const part = last.parts[partIndex];
+  if (part.kind !== "tool") return blocks;
 
   const next = blocks.slice();
   const parts = last.parts.slice();
-  parts[partIndex] = { ...parts[partIndex], ...patch } as AssistantMessagePart;
+  parts[partIndex] = { ...part, ...patch };
   next[lastIndex] = { ...last, parts };
   return next;
 }
