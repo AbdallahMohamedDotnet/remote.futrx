@@ -1,0 +1,73 @@
+// Package inspection implements the LXD, guest, profile, and host-file probes
+// used to assemble container diagnostic snapshots.
+package inspection
+
+import (
+	"context"
+	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+)
+
+const inspectQuickTimeout = 5 * time.Second
+
+// Adapter owns the independent best-effort probes backed by LXD, the guest
+// operating system, configured agent profiles, and host credential files.
+// Snapshot sequencing and lifecycle-state policy live in the application
+// service.
+type Adapter struct {
+	lxd         containerLXDInspector
+	guest       containerGuestInspector
+	agents      containerAgentInspector
+	credentials containerCredentialInspector
+}
+
+// NewAdapter returns independent diagnostic probes backed by the shared
+// runtime and agent profiles.
+func NewAdapter(runner command.Runner, profileSource serviceprofiles.Source) *Adapter {
+	commands := &quickCommandRunner{runner: runner, timeout: inspectQuickTimeout}
+	return &Adapter{
+		lxd:   containerLXDInspector{commands: commands},
+		guest: containerGuestInspector{commands: commands},
+		agents: containerAgentInspector{
+			commands:        commands,
+			profiles:        profileSource,
+			instructionHash: assets.Hash(provisioning.InstructionsTemplate()),
+		},
+		credentials: containerCredentialInspector{commands: commands, profiles: profileSource},
+	}
+}
+
+// InspectConfiguration adds the provider-neutral LXD instance configuration
+// fields available for a stopped or running container.
+func (a *Adapter) InspectConfiguration(ctx context.Context, containerName string, out *serviceproject.ContainerInspect) {
+	a.lxd.inspectConfiguration(ctx, containerName, out)
+}
+
+// InspectRuntime adds live LXD state and resource fields.
+func (a *Adapter) InspectRuntime(ctx context.Context, containerName string, out *serviceproject.ContainerInspect) {
+	a.lxd.inspectRuntime(ctx, containerName, out)
+}
+
+// InspectGuest reads operating-system and disk details from a running guest.
+func (a *Adapter) InspectGuest(ctx context.Context, containerName string) (*serviceproject.OSInfo, []serviceproject.DiskUsage) {
+	return a.guest.inspect(ctx, containerName)
+}
+
+// InspectAgents reports configured agent CLI and instruction readiness.
+func (a *Adapter) InspectAgents(ctx context.Context, containerName string) []serviceproject.AgentContainerStatus {
+	return a.agents.inspect(ctx, containerName)
+}
+
+// InspectCredentials compares host and guest credential file timestamps.
+func (a *Adapter) InspectCredentials(
+	ctx context.Context,
+	containerName string,
+	state serviceproject.ContainerState,
+) []serviceproject.AuthBundleStatus {
+	return a.credentials.inspect(ctx, containerName, state)
+}

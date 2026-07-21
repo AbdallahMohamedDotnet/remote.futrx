@@ -129,7 +129,14 @@ func newAgentBrowserProjectHandler(t *testing.T) (*ProjectHandler, *fakeProjectC
 		t.Fatal(err)
 	}
 	containers := newFakeProjectContainers()
-	projects := serviceproject.New(repo, containers, nil, nil)
+	projects := serviceproject.New(repo, serviceproject.ContainerDependencies{
+		Lifecycle:   containers,
+		Environment: containers,
+		Inspector:   containers,
+		Network:     containers,
+		Listeners:   containers,
+		Browser:     fakeProjectBrowser{containers: containers},
+	}, nil, nil)
 	project, err := projects.Create(context.Background(), serviceproject.CreateInput{Name: "Browser Project"}, "user@example.com")
 	if err != nil {
 		t.Fatal(err)
@@ -157,6 +164,28 @@ func newFakeProjectContainers() *fakeProjectContainers {
 	}
 }
 
+type fakeProjectBrowser struct {
+	containers *fakeProjectContainers
+}
+
+func (f fakeProjectBrowser) Ensure(ctx context.Context, containerName string) error {
+	return f.containers.ensureBrowser(ctx, containerName)
+}
+
+func (f fakeProjectBrowser) Stop(ctx context.Context, containerName string) error {
+	return f.containers.stopBrowser(ctx, containerName)
+}
+
+func (f fakeProjectBrowser) StopView(ctx context.Context, containerName string) error {
+	return f.containers.stopBrowserView(ctx, containerName)
+}
+
+func (f fakeProjectBrowser) Status(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
+	return f.containers.browserStatus(ctx, containerName)
+}
+
+func (fakeProjectBrowser) Port() int { return 6080 }
+
 func (f *fakeProjectContainers) Available() bool { return true }
 
 func (f *fakeProjectContainers) Launch(context.Context, serviceproject.Meta) error { return nil }
@@ -175,17 +204,17 @@ func (f *fakeProjectContainers) Inspect(context.Context, string) (serviceproject
 	return serviceproject.ContainerInspect{}, nil
 }
 
-func (f *fakeProjectContainers) RepairNetwork(context.Context, string) error { return nil }
+func (f *fakeProjectContainers) Repair(context.Context, string) error { return nil }
 
-func (f *fakeProjectContainers) ListListeners(context.Context, string) ([]serviceproject.ContainerApp, error) {
+func (f *fakeProjectContainers) List(context.Context, string) ([]serviceproject.ContainerApp, error) {
 	return nil, nil
 }
 
-func (f *fakeProjectContainers) ApplyContainerEnvDiff(context.Context, string, map[string]string, []string) error {
+func (f *fakeProjectContainers) ApplyDiff(context.Context, string, map[string]string, []string) error {
 	return nil
 }
 
-func (f *fakeProjectContainers) EnsureAgentBrowser(ctx context.Context, _ string) error {
+func (f *fakeProjectContainers) ensureBrowser(ctx context.Context, _ string) error {
 	f.agentBrowserStartedOnce.Do(func() {
 		f.mu.Lock()
 		f.agentBrowserStarted = true
@@ -204,22 +233,7 @@ func (f *fakeProjectContainers) EnsureAgentBrowser(ctx context.Context, _ string
 	return nil
 }
 
-func (f *fakeProjectContainers) EnsureAgentBrowserCore(context.Context, string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.agentBrowserRunning = true
-	return nil
-}
-
-func (f *fakeProjectContainers) EnsureAgentBrowserView(context.Context, string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.agentBrowserRunning = true
-	f.agentBrowserViewRunning = true
-	return nil
-}
-
-func (f *fakeProjectContainers) StopAgentBrowser(context.Context, string) error {
+func (f *fakeProjectContainers) stopBrowser(context.Context, string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.agentBrowserRunning = false
@@ -228,7 +242,7 @@ func (f *fakeProjectContainers) StopAgentBrowser(context.Context, string) error 
 	return nil
 }
 
-func (f *fakeProjectContainers) StopAgentBrowserView(context.Context, string) error {
+func (f *fakeProjectContainers) stopBrowserView(context.Context, string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.agentBrowserViewRunning = false
@@ -236,13 +250,7 @@ func (f *fakeProjectContainers) StopAgentBrowserView(context.Context, string) er
 	return nil
 }
 
-func (f *fakeProjectContainers) AgentBrowserRunning(context.Context, string) (bool, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.agentBrowserRunning, nil
-}
-
-func (f *fakeProjectContainers) AgentBrowserStatus(context.Context, string) (serviceproject.AgentBrowserInfo, error) {
+func (f *fakeProjectContainers) browserStatus(context.Context, string) (serviceproject.AgentBrowserInfo, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	info := serviceproject.AgentBrowserInfo{
@@ -260,8 +268,6 @@ func (f *fakeProjectContainers) AgentBrowserStatus(context.Context, string) (ser
 	}
 	return info, nil
 }
-
-func (f *fakeProjectContainers) AgentBrowserPort() int { return 6080 }
 
 func (f *fakeProjectContainers) waitForAgentBrowserStart(t *testing.T) {
 	t.Helper()

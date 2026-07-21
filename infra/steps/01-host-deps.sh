@@ -19,23 +19,58 @@ log "apt update + base packages"
 apt-get update -qq
 apt-get install -y -qq git curl ca-certificates gnupg tmux build-essential openssl gettext-base
 
-# ───────────────── Node 20 ─────────────────
-NODE_OK=0
-if command -v node >/dev/null; then
-    NODE_MAJOR="$(node -v | sed 's/^v\([0-9]*\).*/\1/')"
-    [ "$NODE_MAJOR" -ge 18 ] && NODE_OK=1
+# ───────────────── host toolchain pins ─────────────────
+# infra/versions.env declares the exact versions the host must run. Every
+# section below converges the live box to its pin instead of only checking
+# existence — bump a pin and re-run to upgrade.
+VERSIONS_FILE="$INFRA_DIR/versions.env"
+if [ ! -r "$VERSIONS_FILE" ]; then
+    err "missing host version manifest: $VERSIONS_FILE"
+    exit 1
 fi
-if [ "$NODE_OK" -eq 0 ]; then
-    log "Installing Node 20 from NodeSource"
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
+# shellcheck source=/dev/null
+. "$VERSIONS_FILE"
+for v in NODE_MAJOR GO_VERSION; do
+    if [ -z "${!v:-}" ]; then
+        err "host version manifest is missing $v: $VERSIONS_FILE"
+        exit 1
+    fi
+done
+
+# ───────────────── Node (pinned major) ─────────────────
+CURRENT_NODE_MAJOR=""
+if command -v node >/dev/null; then
+    CURRENT_NODE_MAJOR="$(node -v | sed 's/^v\([0-9]*\).*/\1/')"
+fi
+if [ "$CURRENT_NODE_MAJOR" != "$NODE_MAJOR" ]; then
+    log "Installing Node ${NODE_MAJOR}.x from NodeSource (was ${CURRENT_NODE_MAJOR:-missing})"
+    curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null
     apt-get install -y -qq nodejs
 fi
 ok "node $(node -v)  npm $(npm -v)"
 
-# ───────────────── Go ─────────────────
-if ! command -v go >/dev/null; then
-    log "Installing Go (distro package)"
-    apt-get install -y -qq golang-go
+# ───────────────── Go (pinned, official tarball) ─────────────────
+# Installed to /usr/local/go with symlinks in /usr/local/bin, which
+# precedes /usr/bin on PATH — so this shadows any distro golang-go left
+# over from older installs.
+CURRENT_GO=""
+if command -v go >/dev/null; then
+    CURRENT_GO="$(go version | grep -Eo 'go[0-9]+(\.[0-9]+)+' | head -1 | sed 's/^go//')"
+fi
+if [ "$CURRENT_GO" != "$GO_VERSION" ]; then
+    log "Installing Go ${GO_VERSION} (was ${CURRENT_GO:-missing})"
+    GO_ARCH="$(dpkg --print-architecture)"   # amd64 / arm64 match Go's tarball naming
+    GO_TGZ="$(mktemp --suffix=.tgz)"
+    curl -fsSL --retry 3 -o "$GO_TGZ" "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+    rm -rf /usr/local/go
+    tar -C /usr/local -xzf "$GO_TGZ"
+    rm -f "$GO_TGZ"
+    ln -sf /usr/local/go/bin/go    /usr/local/bin/go
+    ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+    hash -r
+    if dpkg -s golang-go >/dev/null 2>&1; then
+        warn "distro golang-go is installed but now shadowed by /usr/local/go (apt-get remove golang-go to clean up)"
+    fi
 fi
 ok "$(go version)"
 
@@ -76,7 +111,7 @@ ok "$(caddy version | head -1)"
 # ───────────────── agent CLIs (host-side auth/provisioning) ─────────────────
 # The same manifest is embedded by the Go container manager. Re-running the
 # installer upgrades stale host binaries instead of only checking existence.
-AGENT_CLI_VERSIONS_FILE="$INFRA_DIR/../backend/internal/manager/containers/agent-cli-versions.env"
+AGENT_CLI_VERSIONS_FILE="$INFRA_DIR/../backend/internal/agent/provisioning/agent-cli-versions.env"
 if [ ! -r "$AGENT_CLI_VERSIONS_FILE" ]; then
     err "missing agent CLI version manifest: $AGENT_CLI_VERSIONS_FILE"
     exit 1

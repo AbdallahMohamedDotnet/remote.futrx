@@ -1,0 +1,192 @@
+package httphandlers
+
+import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
+)
+
+const missingAgentCLI = "futrx-test-agent-cli-that-does-not-exist"
+
+var (
+	testCodeRequired = errors.New("code is required")
+	testNoSession    = errors.New("no login session in progress - call /api/claude/login/start first")
+)
+
+type agentAuthDeviceStatus struct {
+	Authenticated bool                  `json:"authenticated"`
+	DeviceLogin   agentauth.DeviceState `json:"deviceLogin,omitempty"`
+}
+
+func TestAgentAuthStatusRoutesPreserveProviderPayloads(t *testing.T) {
+	handler := newTestAgentAuthHandler()
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{path: "/api/claude/auth-status", want: `{"authenticated":false,"login":{"active":false}}` + "\n"},
+		{path: "/api/codex/auth-status", want: `{"authenticated":false,"deviceLogin":{"active":false}}` + "\n"},
+		{path: "/api/kimi/auth-status", want: `{"authenticated":false,"deviceLogin":{"active":false}}` + "\n"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodDelete, test.path, nil)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK || rec.Body.String() != test.want {
+				t.Fatalf("response = %d %q, want %d %q", rec.Code, rec.Body.String(), http.StatusOK, test.want)
+			}
+			if got := rec.Header().Get("Content-Type"); got != "application/json" {
+				t.Fatalf("Content-Type = %q, want application/json", got)
+			}
+		})
+	}
+}
+
+func TestAgentAuthMutationRoutesRemainPostOnly(t *testing.T) {
+	handler := newTestAgentAuthHandler()
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+
+	paths := []string{
+		"/api/claude/login/start",
+		"/api/claude/login/code",
+		"/api/claude/login/cancel",
+		"/api/codex/login/device",
+		"/api/kimi/login/device",
+	}
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+			if rec.Code != http.StatusMethodNotAllowed || rec.Body.String() != `{"error":"method not allowed"}`+"\n" {
+				t.Fatalf("response = %d %q", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestAgentAuthCodeErrorsKeepTheirHTTPMapping(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		body string
+		want int
+		text string
+	}{
+		{
+			name: "malformed json",
+			path: "/api/claude/login/code",
+			body: `{`,
+			want: http.StatusBadRequest,
+			text: `{"error":"invalid json: unexpected EOF"}` + "\n",
+		},
+		{
+			name: "blank code",
+			path: "/api/claude/login/code",
+			body: `{"code":"  "}`,
+			want: http.StatusBadRequest,
+			text: `{"error":"code is required"}` + "\n",
+		},
+		{
+			name: "missing session",
+			path: "/api/claude/login/code",
+			body: `{"code":"abc"}`,
+			want: http.StatusBadRequest,
+			text: `{"error":"no login session in progress - call /api/claude/login/start first"}` + "\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := newTestAgentAuthHandler()
+			mux := http.NewServeMux()
+			handler.RegisterRoutes(mux)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body)))
+			if rec.Code != test.want || rec.Body.String() != test.text {
+				t.Fatalf("response = %d %q, want %d %q", rec.Code, rec.Body.String(), test.want, test.text)
+			}
+		})
+	}
+}
+
+func TestAgentAuthOperationalErrorsAndCancelShape(t *testing.T) {
+	handler := newTestAgentAuthHandler()
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+
+	tests := []struct {
+		path string
+		want int
+		body string
+	}{
+		{
+			path: "/api/claude/login/start",
+			want: http.StatusInternalServerError,
+			body: `{"error":"claude CLI not found on PATH - install it first"}` + "\n",
+		},
+		{
+			path: "/api/codex/login/device",
+			want: http.StatusInternalServerError,
+			body: `{"error":"codex CLI not found on PATH - install it first"}` + "\n",
+		},
+		{
+			path: "/api/kimi/login/device",
+			want: http.StatusInternalServerError,
+			body: `{"error":"kimi CLI not found on PATH - install it first"}` + "\n",
+		},
+		{
+			path: "/api/claude/login/cancel",
+			want: http.StatusOK,
+			body: `{"ok":true}` + "\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, test.path, nil))
+			if rec.Code != test.want || rec.Body.String() != test.body {
+				t.Fatalf("response = %d %q, want %d %q", rec.Code, rec.Body.String(), test.want, test.body)
+			}
+		})
+	}
+}
+
+func newTestAgentAuthHandler() *AgentAuthHandler {
+	code := agentauth.NewCodeService(agentauth.CodeConfig{
+		Command:       missingAgentCLI,
+		Authenticated: func() bool { return false },
+		NotFound:      errors.New("claude CLI not found on PATH - install it first"),
+		CodeRequired:  testCodeRequired,
+		NoSession:     testNoSession,
+	})
+	device := func(notFound string) *agentauth.DeviceService[agentAuthDeviceStatus] {
+		return agentauth.NewDeviceService(agentauth.DeviceConfig[agentAuthDeviceStatus]{
+			Command:  missingAgentCLI,
+			NotFound: errors.New(notFound),
+			BuildStatus: func() agentauth.DeviceStatusBuilder[agentAuthDeviceStatus] {
+				return func(state agentauth.DeviceState) agentAuthDeviceStatus {
+					return agentAuthDeviceStatus{DeviceLogin: state}
+				}
+			},
+		})
+	}
+
+	return NewAgentAuthHandler([]agentauth.Binding{
+		agentauth.NewCodeBinding(agent.ProviderClaude, code),
+		agentauth.NewDeviceBinding(agent.ProviderCodex, device("codex CLI not found on PATH - install it first")),
+		agentauth.NewDeviceBinding(agent.ProviderKimi, device("kimi CLI not found on PATH - install it first")),
+	}, nil)
+}

@@ -119,13 +119,12 @@ INFRA_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 INSTALL_DIR="/opt/remote.futrx.dev"
 REPO_URL="https://github.com/Kings-Of-The-Web/remote.futrx.dev.git"
 SERVICE_PORT="${SERVICE_PORT:-7682}"
-CODE_SERVER_PORT="${CODE_SERVER_PORT:-8080}"
 
 # Escape dots in HOSTNAME for Caddy regex (dots match any char in regex; we
 # want literal matches).
 HOSTNAME_RE="$(printf '%s' "$HOSTNAME" | sed 's/\./\\./g')"
 
-export INFRA_DIR INSTALL_DIR REPO_URL SERVICE_PORT CODE_SERVER_PORT HOSTNAME_RE
+export INFRA_DIR INSTALL_DIR REPO_URL SERVICE_PORT HOSTNAME_RE
 
 # ───────────────── helpers (sourced by steps) ─────────────────
 log()  { printf "\n\033[1;36m==> %s\033[0m\n" "$*"; }
@@ -140,7 +139,7 @@ export -f log warn ok err
 # regex `\$` anchors) survive untouched.
 render_template() {
     local tmpl="$1" dest="$2"
-    envsubst '$HOSTNAME $HOSTNAME_RE $INSTALL_DIR $SERVICE_PORT $CODE_SERVER_PORT $LXD_BRIDGE_IP' \
+    envsubst '$HOSTNAME $HOSTNAME_RE $INSTALL_DIR $SERVICE_PORT $LXD_BRIDGE_IP' \
         < "$tmpl" > "$dest"
 }
 export -f render_template
@@ -193,8 +192,6 @@ fi
 # ───────────────── run the steps ─────────────────
 # shellcheck source=steps/01-host-deps.sh
 . "$INFRA_DIR/steps/01-host-deps.sh"
-# shellcheck source=steps/02-code-server.sh
-. "$INFRA_DIR/steps/02-code-server.sh"
 # shellcheck source=steps/03-app.sh
 . "$INFRA_DIR/steps/03-app.sh"
 # shellcheck source=steps/04-caddy.sh
@@ -231,7 +228,6 @@ cat <<EOF
 
  Manage:
    systemctl status   remote.futrx.dev
-   systemctl status   code-server@root
    systemctl status   caddy
    journalctl -u      remote.futrx.dev -f
 

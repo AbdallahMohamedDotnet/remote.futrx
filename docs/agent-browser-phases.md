@@ -49,7 +49,7 @@ Fixes gaps #2 (partially) and #3; delivers **A1, A2, D2**.
 ### Design
 
 Split the process tree managed by
-[gui-up.sh](../backend/internal/manager/containers/templates/gui-up.sh) into
+[gui-up.sh](../backend/internal/integration/containers/templates/gui-up.sh) into
 two named groups:
 
 - **`core`** — Xvfb `:99` + openbox + headed Chrome (persistent profile,
@@ -64,12 +64,12 @@ two named groups:
 | Where | What |
 |---|---|
 | `templates/gui-up.sh` | New verbs: `start-core`, `start-view`, `stop-view`, plus `status` reporting each layer separately (e.g. `core=ready view=off clients=0`). Plain `start`/`stop` keep working as "everything" for compatibility. |
-| [agent_browser.go](../backend/internal/manager/containers/agent_browser.go) | `EnsureAgentBrowser(ctx, name, layer)` — or split into `EnsureAgentBrowserCore` / `EnsureAgentBrowserView` + `StopAgentBrowserView`. Readiness for `core` = CDP responds; for `view` = noVNC responds. |
-| Provider launch paths ([claude/command.go](../backend/internal/agent/providers/claude/command.go), [codex/command.go](../backend/internal/agent/providers/codex/command.go)) | When `req.EnableBrowser`: after `EnsureAgentBrowserMCP`, also `EnsureAgentBrowserCore`. **The agent self-starts the browser.** |
+| [agent_browser.go](../backend/internal/integration/containers/agent_browser.go) | `EnsureAgentBrowser(ctx, name, layer)` — or split into `EnsureAgentBrowserCore` / `EnsureAgentBrowserView` + `StopAgentBrowserView`. Readiness for `core` = CDP responds; for `view` = noVNC responds. |
+| Provider launch paths ([claude/command.go](../backend/internal/agent/claude/command.go), [codex/command.go](../backend/internal/agent/codex/command.go)) | When `req.EnableBrowser`: after `EnsureAgentBrowserMCP`, also `EnsureAgentBrowserCore`. **The agent self-starts the browser.** |
 | [service.go](../backend/internal/service/project/service.go) | `StartAgentBrowser` (pane) ensures `core` + `view`. New `StopAgentBrowserView` used by the drawer-close path; full `StopAgentBrowser` stays behind the explicit stop button. |
 | REST handler | `DELETE /agent-browser?scope=view` (or `POST …/view/stop`) so the frontend can drop only the view layer. |
 | Frontend ([useAgentBrowserSession.ts](../frontend/src/hooks/chat/useAgentBrowserSession.ts)) | On drawer close (`enabled` → false): call the view-stop endpoint. Status hook keys off the combined status payload. |
-| [SKILL.md](../backend/internal/manager/containers/templates/skills/browser/SKILL.md) | Delete "*ask the user to open the Browser pane, then retry*". Replace with: the browser starts with the skill; direct the user to the pane **only for logins**. |
+| [SKILL.md](../backend/internal/integration/containers/templates/skills/browser/SKILL.md) | Delete "*ask the user to open the Browser pane, then retry*". Replace with: the browser starts with the skill; direct the user to the pane **only for logins**. |
 
 ### Acceptance
 
@@ -130,7 +130,7 @@ cron) stops the `view` layer when clients have been 0 for a few minutes.
   (Fallback if systemd scopes are unavailable in the container: keep the
   current direct launch — the flag diet below still helps.)
 - Remove `limits.cpu` / `limits.memory` from `EnsureAgentBrowserLimits` in
-  [agent_browser.go](../backend/internal/manager/containers/agent_browser.go);
+  [agent_browser.go](../backend/internal/integration/containers/agent_browser.go);
   keep `security.nesting`. Container-wide limits stop existing *because of
   the browser feature* (**D3**). Ship as a migration: unset the two keys on
   next launch for containers that have them.
@@ -174,9 +174,9 @@ delivers **B1, B2, B3**. Mostly config + playbook — small and high-leverage.
 
 | Where | What |
 |---|---|
-| [templates/mcp-claude.json](../backend/internal/manager/containers/templates/mcp-claude.json) | `"args": ["@playwright/mcp", "--cdp-endpoint", "http://127.0.0.1:9222", "--caps=vision"]` |
-| [codex/command.go](../backend/internal/agent/providers/codex/command.go) | Mirror the same arg in the inline `mcp_servers.browser.args` flag. Keep the two configs byte-equivalent in intent — they are the same server. |
-| [SKILL.md](../backend/internal/manager/containers/templates/skills/browser/SKILL.md) | Rewrite the "How to work" playbook as a **hybrid perception loop** (below). |
+| [agent/claude/assets/mcp.json](../backend/internal/agent/claude/assets/mcp.json) | `"args": ["@playwright/mcp", "--cdp-endpoint", "http://127.0.0.1:9222", "--caps=vision"]` |
+| [codex/command.go](../backend/internal/agent/codex/command.go) | Mirror the same arg in the inline `mcp_servers.browser.args` flag. Keep the two configs byte-equivalent in intent — they are the same server. |
+| [SKILL.md](../backend/internal/integration/containers/templates/skills/browser/SKILL.md) | Rewrite the "How to work" playbook as a **hybrid perception loop** (below). |
 
 ### The hybrid perception loop (playbook content)
 
@@ -228,7 +228,7 @@ most of "acting like a human". The remaining tell is a dead GPU stack:
 
 For the minority of sites that reject CDP-originated events, add an
 **xdotool path** (already installed by the
-[base-image script](../backend/internal/manager/containers/baseimage.go)) —
+[base-image script](../backend/internal/integration/containers/baseimage.go)) —
 input injected at the X server is indistinguishable from a physical
 mouse/keyboard:
 

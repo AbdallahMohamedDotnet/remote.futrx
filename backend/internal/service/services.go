@@ -3,18 +3,22 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/workspacehub"
+	agentauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/agent/auth"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/runhub"
 	serviceskills "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/skills"
 	serviceuser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/user"
 	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacehub"
 )
 
 type AuthStore interface {
@@ -27,29 +31,26 @@ type TmuxCwdClient interface {
 	Cwd(session string) (string, error)
 }
 
-type ContainerManager interface {
-	serviceproject.ContainerManager
-	prompt.ContainerPreparer
-}
-
 type Dependencies struct {
-	Chats          servicechat.Repository
-	Projects       serviceproject.Repository
-	ProjectSecrets serviceproject.SecretsRepository
-	ProjectAccess  serviceproject.AccessRepository
-	Auth           AuthStore
-	Users          serviceuser.Repository
-	UserSettings   serviceusersettings.Repository
-	AuthBaseURL    string
-	Containers     ContainerManager
-	TmuxClient     TmuxCwdClient
-	ValidTmuxName  func(string) bool
+	Chats             servicechat.Repository
+	Projects          serviceproject.Repository
+	ProjectSecrets    serviceproject.SecretsRepository
+	ProjectAccess     serviceproject.AccessRepository
+	Auth              AuthStore
+	Users             serviceuser.Repository
+	UserSettings      serviceusersettings.Repository
+	AuthBaseURL       string
+	ProjectContainers serviceproject.ContainerDependencies
+	AgentContainers   provisioning.ContainerDependencies
+	TmuxClient        TmuxCwdClient
+	ValidTmuxName     func(string) bool
 }
 
 type Services struct {
 	Chats        *servicechat.Service
 	Projects     *serviceproject.Service
 	Prompt       *prompt.Service
+	AgentAuth    *agentauth.Registry
 	Runs         *runhub.Hub
 	Workspace    *workspacehub.Hub
 	Auth         *serviceauth.Service
@@ -59,6 +60,10 @@ type Services struct {
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
+	if err := deps.AgentContainers.Validate(); err != nil {
+		return Services{}, fmt.Errorf("agent container dependencies: %w", err)
+	}
+
 	workspace := workspacehub.New()
 	var runs *runhub.Hub
 	chats := notifyingChatRepository{
@@ -69,7 +74,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		},
 	}
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
-	projectService := serviceproject.New(projects, deps.Containers, deps.ProjectSecrets, deps.ProjectAccess)
+	definitions := agentDefinitions()
+	profiles := profilesFromDefinitions(definitions)
+	projectService := serviceproject.New(projects, deps.ProjectContainers, deps.ProjectSecrets, deps.ProjectAccess)
 	projectService.StartAgentBrowserReaper(ctx, 20*time.Minute)
 	runs = runhub.New(chats)
 	runs.SetRunningSubscriber(func(id servicechat.ID, _ bool) {
@@ -87,12 +94,36 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxResolver,
 		runs,
 	)
+	agents := agent.NewRegistry()
+	agentAuth := agentauth.NewRegistry()
+	for index, definition := range definitions {
+		provider := definition.provider(projectService, deps.AgentContainers)
+		if string(provider.ID()) != profiles[index].ID {
+			return Services{}, fmt.Errorf(
+				"agent registration mismatch: provider %q has profile %q",
+				provider.ID(), profiles[index].ID,
+			)
+		}
+		if err := agents.Register(provider); err != nil {
+			return Services{}, err
+		}
+		authBinding := definition.authBinding()
+		if authBinding.ID() != provider.ID() {
+			return Services{}, fmt.Errorf(
+				"agent auth registration mismatch: binding %q has provider %q",
+				authBinding.ID(), provider.ID(),
+			)
+		}
+		if err := agentAuth.Register(authBinding); err != nil {
+			return Services{}, err
+		}
+	}
 	promptService := prompt.New(
 		chats,
 		deps.TmuxClient,
 		projectService,
-		deps.Containers,
 		runs,
+		agents,
 	)
 	userService := serviceuser.New(deps.Users)
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
@@ -106,6 +137,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Chats:        chatService,
 		Projects:     projectService,
 		Prompt:       promptService,
+		AgentAuth:    agentAuth,
 		Runs:         runs,
 		Workspace:    workspace,
 		Auth:         authService,

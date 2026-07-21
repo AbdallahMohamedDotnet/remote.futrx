@@ -19,22 +19,24 @@ import (
 	"log"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/containers"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
+	serviceimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/image"
 )
 
 func main() {
-	alias := flag.String("alias", containers.BaseImageAlias, "image alias to publish under")
+	alias := flag.String("alias", serviceimage.Alias, "image alias to publish under")
 	overwrite := flag.Bool("overwrite", false, "delete any existing image at -alias before publishing")
 	flag.Parse()
 
 	log.SetFlags(log.Ltime)
 
-	client := lxc.New()
-	if !client.Available() {
+	lxcClient := lxc.New()
+	if !lxcClient.Available() {
 		log.Fatalf("lxc CLI not found on PATH - install LXD on the host first")
 	}
-	mgr := containers.New(client)
+	containerStack := config.NewContainerStack(lxcClient, service.AgentProfiles())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
@@ -42,15 +44,15 @@ func main() {
 	if *overwrite {
 		log.Printf("removing existing image %q (if any)...", *alias)
 		// Best-effort: ignore the error so a missing alias is fine.
-		if out, err := client.Run(ctx, "image", "delete", *alias); err != nil {
+		if out, err := lxcClient.Run(ctx, "image", "delete", *alias); err != nil {
 			log.Printf("note: image delete returned: %v; output: %s", err, out)
 		}
 	}
 
-	log.Printf("building %q from %q...", *alias, containers.BaseImageSourceImage)
+	log.Printf("building %q from %q...", *alias, serviceimage.SourceImage)
 	log.Printf("(this typically takes 60-120s — apt update + nodejs + npm install -g @anthropic-ai/claude-code)")
 
-	if err := mgr.BuildBaseImage(ctx, *alias); err != nil {
+	if err := containerStack.Images.Build(ctx, *alias); err != nil {
 		log.Fatalf("build failed: %v", err)
 	}
 

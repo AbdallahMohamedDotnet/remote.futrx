@@ -1,0 +1,279 @@
+package codex
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+)
+
+func TestArgsUseCodexExecJSONMode(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{Model: "gpt-5.5 [fast]"})
+
+	want := []string{
+		"exec",
+		"--json",
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"--model", "gpt-5.5",
+		"-",
+	}
+	if !slices.Equal(args, want) {
+		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}
+}
+
+func TestCodexEnvStripsOpenAIAPIKey(t *testing.T) {
+	env := codexEnv([]string{
+		"HOME=/root",
+		"OPENAI_API_KEY=sk-test",
+	})
+
+	for _, item := range env {
+		if strings.HasPrefix(item, "OPENAI_API_KEY=") {
+			t.Fatalf("OPENAI_API_KEY leaked into codex env: %#v", env)
+		}
+	}
+	if !slices.Contains(env, "CODEX_HOME=/root/.codex") {
+		t.Fatalf("CODEX_HOME missing from env: %#v", env)
+	}
+}
+
+func TestArgsIncludeReasoningEffort(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{
+		Config: map[string]any{"reasoningEffort": "high"},
+	})
+
+	want := []string{
+		"exec",
+		"--json",
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"-c", "model_reasoning_effort=high",
+		"-",
+	}
+	if !slices.Equal(args, want) {
+		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}
+}
+
+func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{
+		Config: map[string]any{"reasoningEffort": "extreme"},
+	})
+
+	if slices.Contains(args, "-c") {
+		t.Fatalf("invalid reasoning effort should not add config args: %#v", args)
+	}
+}
+
+func TestArgsIncludeBrowserMCPConfig(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{EnableBrowser: true})
+
+	want := []string{
+		"exec",
+		"--json",
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"-c", `mcp_servers.browser.command="npx"`,
+		"-c", `mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222","--caps=vision"]`,
+		"-",
+	}
+	if !slices.Equal(args, want) {
+		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}
+}
+
+func TestEnsureHostSubscriptionAuthRejectsAPIKeyAuth(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+	if err := os.MkdirAll(filepath.Join(home, ".codex"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".codex", "auth.json"),
+		[]byte(`{"auth_mode":"apikey","OPENAI_API_KEY":"sk-test"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ensureHostSubscriptionAuth(); err == nil {
+		t.Fatal("expected API key auth to be rejected")
+	}
+}
+
+func TestContainerCredentialsRejectAPIKeyAuthBeforeProvisioning(t *testing.T) {
+	authPath := filepath.Join(t.TempDir(), "auth.json")
+	if err := os.WriteFile(authPath, []byte(`{"auth_mode":"apikey","OPENAI_API_KEY":"sk-test"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	credentials := &fakeCodexCredentials{}
+	provider := New(nil, provisioning.ContainerDependencies{Credentials: credentials})
+	provider.profile.Credentials.Files[0].HostPath = authPath
+
+	err := provider.ensureCredentials(context.Background(), "project")
+	if !errors.Is(err, ErrCodexAPIKeyAuth) {
+		t.Fatalf("ensure credentials error = %v, want %v", err, ErrCodexAPIKeyAuth)
+	}
+	if credentials.ensureCalls != 0 {
+		t.Fatalf("credentials provisioned despite API-key auth: %d", credentials.ensureCalls)
+	}
+}
+
+func TestProfileReturnsIndependentProvisioningPolicy(t *testing.T) {
+	first := Profile()
+	first.Credentials.Files[0].HostPath = "/changed"
+
+	second := Profile()
+	if second.ID != "codex" {
+		t.Fatalf("profile ID = %q, want codex", second.ID)
+	}
+	if second.CLI.NPMPackage() != "@openai/codex@"+provisioning.MustCLIVersion("CODEX_CLI_VERSION") {
+		t.Fatalf("CLI package = %q", second.CLI.NPMPackage())
+	}
+	if second.Credentials.Files[0].HostPath != hostCodexAuth {
+		t.Fatalf("profile mutation escaped clone: %q", second.Credentials.Files[0].HostPath)
+	}
+}
+
+func TestArgsResumeThread(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{ResumeID: "thread-123"})
+
+	want := []string{
+		"exec",
+		"resume",
+		"--json",
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"thread-123",
+		"-",
+	}
+	if !slices.Equal(args, want) {
+		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}
+}
+
+func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
+	project := serviceproject.Meta{
+		ID:            serviceproject.ID("abcd"),
+		Slug:          "browser-project",
+		ContainerName: "browser-project",
+		Status:        serviceproject.StatusRunning,
+	}
+	projects := fakeCodexProjects{project: project}
+
+	withoutBrowser := &fakeCodexBrowser{}
+	provider := New(projects, codexContainerDependencies(nil, withoutBrowser))
+	req := agent.RunRequest{ProjectID: string(project.ID)}
+	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if withoutBrowser.agentBrowserMCPCalls != 0 {
+		t.Fatalf("browser MCP provisioned without browser skill: %d", withoutBrowser.agentBrowserMCPCalls)
+	}
+	if withoutBrowser.agentBrowserCoreCalls != 0 {
+		t.Fatalf("browser core started without browser skill: %d", withoutBrowser.agentBrowserCoreCalls)
+	}
+
+	withBrowser := &fakeCodexBrowser{}
+	provider = New(projects, codexContainerDependencies(nil, withBrowser))
+	req.EnableBrowser = true
+	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if withBrowser.agentBrowserMCPCalls != 1 {
+		t.Fatalf("browser MCP calls = %d, want 1", withBrowser.agentBrowserMCPCalls)
+	}
+	if withBrowser.agentBrowserCoreCalls != 1 {
+		t.Fatalf("browser core calls = %d, want 1", withBrowser.agentBrowserCoreCalls)
+	}
+}
+
+type fakeCodexProjects struct {
+	project serviceproject.Meta
+}
+
+func (f fakeCodexProjects) Get(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
+	return f.project, nil
+}
+
+func (f fakeCodexProjects) Start(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
+	return f.project, nil
+}
+
+func (f fakeCodexProjects) ListSecrets(context.Context, serviceproject.ID) ([]serviceproject.Secret, error) {
+	return nil, nil
+}
+
+type fakeCodexCLI struct{}
+
+func (fakeCodexCLI) Ensure(context.Context, string, provisioning.CLISpec) error { return nil }
+
+type fakeCodexCredentials struct {
+	ensureCalls int
+}
+
+func (f *fakeCodexCredentials) Ensure(context.Context, string, provisioning.CredentialSpec) error {
+	f.ensureCalls++
+	return nil
+}
+
+func (f *fakeCodexCredentials) SyncFromContainer(context.Context, string, provisioning.CredentialSpec) error {
+	return nil
+}
+
+type fakeCodexWorkspace struct{}
+
+func (fakeCodexWorkspace) EnsureAgentInstructions(context.Context, string) error { return nil }
+
+func (fakeCodexWorkspace) EnsureSkillLinks(context.Context, string) error { return nil }
+
+type fakeCodexBrowser struct {
+	agentBrowserMCPCalls  int
+	agentBrowserCoreCalls int
+}
+
+func (f *fakeCodexBrowser) EnsureSkill(context.Context, string) error { return nil }
+
+func (f *fakeCodexBrowser) EnsureScript(context.Context, string) error { return nil }
+
+func (f *fakeCodexBrowser) EnsureMCP(context.Context, string) error {
+	f.agentBrowserMCPCalls++
+	return nil
+}
+
+func (f *fakeCodexBrowser) EnsureCore(context.Context, string) error {
+	f.agentBrowserCoreCalls++
+	return nil
+}
+
+type fakeCodexLifecycle struct{}
+
+func (fakeCodexLifecycle) EnsureBootAutostart(context.Context, string) error { return nil }
+
+func codexContainerDependencies(
+	credentials *fakeCodexCredentials,
+	browser provisioning.BrowserProvisioner,
+) provisioning.ContainerDependencies {
+	if credentials == nil {
+		credentials = &fakeCodexCredentials{}
+	}
+	return provisioning.ContainerDependencies{
+		CLI:         fakeCodexCLI{},
+		Credentials: credentials,
+		Workspace:   fakeCodexWorkspace{},
+		Browser:     browser,
+		Lifecycle:   fakeCodexLifecycle{},
+	}
+}

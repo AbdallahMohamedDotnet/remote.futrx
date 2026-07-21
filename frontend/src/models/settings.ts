@@ -23,8 +23,3 @@ export interface UpdateUserSettingsInput {
   appearance?: Partial<AppearanceSettings>;
   chat?: Partial<ChatSettings>;
 }
-
-export const DEFAULT_USER_SETTINGS: UserSettings = {
-  appearance: { theme: "system" },
-  chat: { provider: "codex", model: "", mode: "code", reasoningEffort: "" },
-};

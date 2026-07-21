@@ -19,7 +19,6 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/containers"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport"
@@ -34,22 +33,21 @@ func main() {
 		log.Fatalf("init stores: %v", err)
 	}
 	lxcClient := lxc.New()
-	containerManager := containers.New(lxcClient)
-	containerManager.RegisterAuthBundle(containers.ClaudeAuthBundle())
-	containerManager.RegisterAuthBundle(containers.CodexAuthBundle())
+	containerStack := config.NewContainerStack(lxcClient, service.AgentProfiles())
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
-		Chats:          storeSet.Chats,
-		Projects:       storeSet.Projects,
-		ProjectSecrets: storeSet.ProjectSecrets,
-		ProjectAccess:  storeSet.ProjectAccess,
-		Auth:           storeSet.Auth,
-		Users:          storeSet.Users,
-		UserSettings:   storeSet.UserSettings,
-		AuthBaseURL:    cfg.BaseURL,
-		Containers:     containerManager,
-		TmuxClient:     tmuxClient,
-		ValidTmuxName:  tmuxcli.ValidName,
+		Chats:             storeSet.Chats,
+		Projects:          storeSet.Projects,
+		ProjectSecrets:    storeSet.ProjectSecrets,
+		ProjectAccess:     storeSet.ProjectAccess,
+		Auth:              storeSet.Auth,
+		Users:             storeSet.Users,
+		UserSettings:      storeSet.UserSettings,
+		AuthBaseURL:       cfg.BaseURL,
+		ProjectContainers: containerStack.ProjectDependencies(),
+		AgentContainers:   containerStack.AgentDependencies(),
+		TmuxClient:        tmuxClient,
+		ValidTmuxName:     tmuxcli.ValidName,
 	})
 	if err != nil {
 		log.Fatalf("init services: %v", err)

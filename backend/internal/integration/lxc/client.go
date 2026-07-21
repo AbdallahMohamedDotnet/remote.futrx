@@ -3,7 +3,7 @@ package lxc
 // Thin wrapper around the `lxc` CLI. This package is intentionally policy-free:
 // it knows how to invoke the binary and capture its output, nothing else.
 // Higher-level orchestration (container lifecycle, auth bundles, software
-// provisioning) lives in internal/manager/containers.
+// provisioning) lives in internal/integration/containers.
 
 import (
 	"context"

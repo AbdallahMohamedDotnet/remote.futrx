@@ -10,10 +10,15 @@ import (
 )
 
 type Service struct {
-	repo       Repository
-	containers ContainerManager
-	secrets    SecretsRepository
-	access     AccessRepository
+	repo                 Repository
+	containerLifecycle   ContainerLifecycle
+	containerEnvironment ContainerEnvironment
+	containerInspector   ContainerInspector
+	containerNetwork     ContainerNetwork
+	containerListeners   ContainerListeners
+	containerBrowser     ContainerBrowser
+	secrets              SecretsRepository
+	access               AccessRepository
 
 	agentBrowserMu    sync.Mutex
 	agentBrowserInfo  map[ID]AgentBrowserInfo
@@ -26,17 +31,22 @@ type Service struct {
 
 func New(
 	repo Repository,
-	containers ContainerManager,
+	containers ContainerDependencies,
 	secrets SecretsRepository,
 	access AccessRepository,
 ) *Service {
 	return &Service{
-		repo:              repo,
-		containers:        containers,
-		secrets:           secrets,
-		access:            access,
-		agentBrowserInfo:  make(map[ID]AgentBrowserInfo),
-		agentBrowserStart: make(map[ID]int64),
+		repo:                 repo,
+		containerLifecycle:   containers.Lifecycle,
+		containerEnvironment: containers.Environment,
+		containerInspector:   containers.Inspector,
+		containerNetwork:     containers.Network,
+		containerListeners:   containers.Listeners,
+		containerBrowser:     containers.Browser,
+		secrets:              secrets,
+		access:               access,
+		agentBrowserInfo:     make(map[ID]AgentBrowserInfo),
+		agentBrowserStart:    make(map[ID]int64),
 	}
 }
 
@@ -74,8 +84,8 @@ func (s *Service) SetSecret(ctx context.Context, id ID, key, value string) (Secr
 	if syncErr := s.syncEnvFile(ctx, id, m.Cwd); syncErr != nil {
 		log.Printf("projects: sync .env for %s after set %s: %v", id, key, syncErr)
 	}
-	if s.containers != nil && m.ContainerName != "" {
-		if envErr := s.containers.ApplyContainerEnvDiff(
+	if s.containerEnvironment != nil && m.ContainerName != "" {
+		if envErr := s.containerEnvironment.ApplyDiff(
 			ctx, m.ContainerName,
 			map[string]string{key: value}, nil,
 		); envErr != nil {
@@ -105,8 +115,8 @@ func (s *Service) DeleteSecret(ctx context.Context, id ID, key string) error {
 	if syncErr := s.syncEnvFile(ctx, id, m.Cwd); syncErr != nil {
 		log.Printf("projects: sync .env for %s after delete %s: %v", id, key, syncErr)
 	}
-	if s.containers != nil && m.ContainerName != "" {
-		if envErr := s.containers.ApplyContainerEnvDiff(
+	if s.containerEnvironment != nil && m.ContainerName != "" {
+		if envErr := s.containerEnvironment.ApplyDiff(
 			ctx, m.ContainerName, nil, []string{key},
 		); envErr != nil {
 			log.Printf("projects: unset env %s on %s: %v", key, m.ContainerName, envErr)
@@ -197,8 +207,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput, callerEmail string
 		}
 	}
 
-	if s.containers != nil {
-		if err := s.containers.Launch(ctx, m); err != nil {
+	if s.containerLifecycle != nil {
+		if err := s.containerLifecycle.Launch(ctx, m); err != nil {
 			log.Printf("projects: launch %s failed: %v", m.ContainerName, err)
 			return s.repo.SetStatus(ctx, m.ID, StatusError, err.Error())
 		}
@@ -260,8 +270,8 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 		return err
 	}
 	s.clearAgentBrowserState(id)
-	if s.containers != nil && m.ContainerName != "" {
-		if err := s.containers.Delete(ctx, m.ContainerName); err != nil {
+	if s.containerLifecycle != nil && m.ContainerName != "" {
+		if err := s.containerLifecycle.Delete(ctx, m.ContainerName); err != nil {
 			log.Printf("projects: delete container %s: %v", m.ContainerName, err)
 		}
 	}
@@ -286,20 +296,20 @@ func (s *Service) Start(ctx context.Context, id ID) (Meta, error) {
 	if err != nil {
 		return Meta{}, err
 	}
-	if s.containers != nil {
-		state, err := s.containers.State(ctx, m.ContainerName)
+	if s.containerLifecycle != nil {
+		state, err := s.containerLifecycle.State(ctx, m.ContainerName)
 		if err != nil {
 			return s.repo.SetStatus(ctx, id, StatusError, err.Error())
 		}
 		if state == ContainerStateMissing {
-			if err := s.containers.Launch(ctx, m); err != nil {
+			if err := s.containerLifecycle.Launch(ctx, m); err != nil {
 				return s.repo.SetStatus(ctx, id, StatusError, err.Error())
 			}
 			if syncErr := s.syncContainerEnv(ctx, id, m.ContainerName); syncErr != nil {
 				log.Printf("projects: sync env to %s after relaunch: %v", m.ContainerName, syncErr)
 			}
 		} else if state != ContainerStateRunning {
-			if err := s.containers.Start(ctx, m.ContainerName); err != nil {
+			if err := s.containerLifecycle.Start(ctx, m.ContainerName); err != nil {
 				return s.repo.SetStatus(ctx, id, StatusError, err.Error())
 			}
 		}
@@ -315,8 +325,8 @@ func (s *Service) Stop(ctx context.Context, id ID) (Meta, error) {
 	if err != nil {
 		return Meta{}, err
 	}
-	if s.containers != nil {
-		if err := s.containers.Stop(ctx, m.ContainerName); err != nil {
+	if s.containerLifecycle != nil {
+		if err := s.containerLifecycle.Stop(ctx, m.ContainerName); err != nil {
 			return s.repo.SetStatus(ctx, id, StatusError, err.Error())
 		}
 	}
@@ -331,10 +341,10 @@ func (s *Service) InspectContainer(ctx context.Context, id ID) (ContainerInspect
 	if err != nil {
 		return ContainerInspect{}, err
 	}
-	if s.containers == nil || m.ContainerName == "" {
+	if s.containerInspector == nil || m.ContainerName == "" {
 		return ContainerInspect{Name: m.ContainerName}, nil
 	}
-	return s.containers.Inspect(ctx, m.ContainerName)
+	return s.containerInspector.Inspect(ctx, m.ContainerName)
 }
 
 // RepairNetwork re-runs eth0 configuration inside the project's container
@@ -349,20 +359,20 @@ func (s *Service) RepairNetwork(ctx context.Context, id ID) (ContainerInspect, e
 	if err != nil {
 		return ContainerInspect{}, err
 	}
-	if s.containers == nil || m.ContainerName == "" {
+	if s.containerNetwork == nil || s.containerInspector == nil || m.ContainerName == "" {
 		return ContainerInspect{Name: m.ContainerName}, nil
 	}
-	if err := s.containers.RepairNetwork(ctx, m.ContainerName); err != nil {
+	if err := s.containerNetwork.Repair(ctx, m.ContainerName); err != nil {
 		return ContainerInspect{}, err
 	}
-	info, err := s.containers.Inspect(ctx, m.ContainerName)
+	info, err := s.containerInspector.Inspect(ctx, m.ContainerName)
 	for i := 0; i < 5 && err == nil && !hasIPv4(info); i++ {
 		select {
 		case <-ctx.Done():
 			return info, err
 		case <-time.After(time.Second):
 		}
-		info, err = s.containers.Inspect(ctx, m.ContainerName)
+		info, err = s.containerInspector.Inspect(ctx, m.ContainerName)
 	}
 	return info, err
 }
@@ -386,10 +396,10 @@ func (s *Service) ListContainerApps(ctx context.Context, id ID) ([]ContainerApp,
 	if err != nil {
 		return nil, err
 	}
-	if s.containers == nil || m.ContainerName == "" {
+	if s.containerListeners == nil || m.ContainerName == "" {
 		return nil, nil
 	}
-	return s.containers.ListListeners(ctx, m.ContainerName)
+	return s.containerListeners.List(ctx, m.ContainerName)
 }
 
 // TouchAgentBrowserActivity records a browser-use heartbeat for idle reaping.
@@ -435,20 +445,20 @@ func (s *Service) StartAgentBrowser(ctx context.Context, id ID) (AgentBrowserInf
 	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
-	if s.containers == nil || m.ContainerName == "" {
+	if s.containerBrowser == nil || m.ContainerName == "" {
 		return AgentBrowserInfo{}, errors.New("project has no container to run the browser in")
 	}
 	s.TouchAgentBrowserActivity(ctx, id)
 	if info, ok := s.agentBrowserState(id); ok && info.Status == AgentBrowserStatusStarting {
 		return info, nil
 	}
-	current, err := s.containers.AgentBrowserStatus(ctx, m.ContainerName)
+	current, err := s.containerBrowser.Status(ctx, m.ContainerName)
 	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
 	if current.Status == AgentBrowserStatusReady {
 		current.Slug = m.Slug
-		current.Port = s.containers.AgentBrowserPort()
+		current.Port = s.containerBrowser.Port()
 		current.LastActivity = s.browserLastActivity(id)
 		s.setAgentBrowserState(id, current)
 		return current, nil
@@ -471,17 +481,17 @@ func (s *Service) AgentBrowserStatus(ctx context.Context, id ID) (AgentBrowserIn
 	}
 	s.TouchAgentBrowserActivity(ctx, id)
 	info := s.agentBrowserInfoFor(m, AgentBrowserStatusStopped, "")
-	if s.containers == nil || m.ContainerName == "" {
+	if s.containerBrowser == nil || m.ContainerName == "" {
 		info.LastActivity = s.browserLastActivity(id)
 		return info, nil
 	}
 	stored, hasStored := s.agentBrowserState(id)
-	containerInfo, err := s.containers.AgentBrowserStatus(ctx, m.ContainerName)
+	containerInfo, err := s.containerBrowser.Status(ctx, m.ContainerName)
 	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
 	containerInfo.Slug = m.Slug
-	containerInfo.Port = s.containers.AgentBrowserPort()
+	containerInfo.Port = s.containerBrowser.Port()
 	containerInfo.LastActivity = s.browserLastActivity(id)
 	if containerInfo.Core == "ready" {
 		info = containerInfo
@@ -519,13 +529,13 @@ func (s *Service) StopAgentBrowser(ctx context.Context, id ID) error {
 	if err != nil {
 		return err
 	}
-	if s.containers == nil || m.ContainerName == "" {
+	if s.containerBrowser == nil || m.ContainerName == "" {
 		s.clearAgentBrowserState(id)
 		s.forgetAgentBrowserActivity(id)
 		return nil
 	}
 	s.clearAgentBrowserState(id)
-	if err := s.containers.StopAgentBrowser(ctx, m.ContainerName); err != nil {
+	if err := s.containerBrowser.Stop(ctx, m.ContainerName); err != nil {
 		return err
 	}
 	s.forgetAgentBrowserActivity(id)
@@ -533,7 +543,7 @@ func (s *Service) StopAgentBrowser(ctx context.Context, id ID) error {
 }
 
 func (s *Service) ensureAgentBrowserStarted(id ID, startID int64, m Meta) {
-	if err := s.containers.EnsureAgentBrowser(context.Background(), m.ContainerName); err != nil {
+	if err := s.containerBrowser.Ensure(context.Background(), m.ContainerName); err != nil {
 		log.Printf("projects: start agent browser for %s: %v", id, err)
 		s.finishAgentBrowserStart(id, startID, s.agentBrowserInfoFor(m, AgentBrowserStatusError, err.Error()))
 		return
@@ -547,8 +557,8 @@ func (s *Service) agentBrowserInfoFor(m Meta, status AgentBrowserStatus, errMsg 
 		Slug:   m.Slug,
 		Error:  errMsg,
 	}
-	if s.containers != nil {
-		info.Port = s.containers.AgentBrowserPort()
+	if s.containerBrowser != nil {
+		info.Port = s.containerBrowser.Port()
 	}
 	return info
 }
@@ -614,17 +624,17 @@ func (s *Service) StopAgentBrowserView(ctx context.Context, id ID) error {
 	if err != nil {
 		return err
 	}
-	if s.containers == nil || m.ContainerName == "" {
+	if s.containerBrowser == nil || m.ContainerName == "" {
 		return nil
 	}
-	return s.containers.StopAgentBrowserView(ctx, m.ContainerName)
+	return s.containerBrowser.StopView(ctx, m.ContainerName)
 }
 
 // StartAgentBrowserReaper stops browser stacks that have had no agent or pane
 // activity for ttl. It is safe to call multiple times; only the first call
 // starts a ticker.
 func (s *Service) StartAgentBrowserReaper(ctx context.Context, ttl time.Duration) {
-	if ttl <= 0 || s.containers == nil {
+	if ttl <= 0 || s.containerBrowser == nil {
 		return
 	}
 	s.browserActivityMu.Lock()
@@ -676,7 +686,7 @@ func (s *Service) reapIdleAgentBrowsers(ttl time.Duration) {
 			continue
 		}
 		statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		info, statusErr := s.containers.AgentBrowserStatus(statusCtx, m.ContainerName)
+		info, statusErr := s.containerBrowser.Status(statusCtx, m.ContainerName)
 		statusCancel()
 		if statusErr != nil {
 			continue
@@ -691,7 +701,7 @@ func (s *Service) reapIdleAgentBrowsers(ttl time.Duration) {
 			continue
 		}
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		err := s.containers.StopAgentBrowser(stopCtx, m.ContainerName)
+		err := s.containerBrowser.Stop(stopCtx, m.ContainerName)
 		stopCancel()
 		if err != nil {
 			log.Printf("projects: browser reap %s/%s after %s: %v", m.ID, m.ContainerName, idle.Round(time.Second), err)
@@ -704,7 +714,7 @@ func (s *Service) reapIdleAgentBrowsers(ttl time.Duration) {
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {
-	if s.containers == nil || !s.containers.Available() {
+	if s.containerLifecycle == nil || !s.containerLifecycle.Available() {
 		return nil
 	}
 	metas, err := s.repo.List(ctx)
@@ -712,7 +722,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		return err
 	}
 	for _, m := range metas {
-		state, err := s.containers.State(ctx, m.ContainerName)
+		state, err := s.containerLifecycle.State(ctx, m.ContainerName)
 		if err != nil {
 			continue
 		}
@@ -825,7 +835,7 @@ func statusForContainerState(state ContainerState) Status {
 // syncContainerEnv pushes every stored secret for the project into the
 // container's LXD environment.* config. Best-effort; logs failures.
 func (s *Service) syncContainerEnv(ctx context.Context, id ID, containerName string) error {
-	if s.containers == nil || containerName == "" {
+	if s.containerEnvironment == nil || containerName == "" {
 		return nil
 	}
 	if s.secrets == nil {
@@ -842,5 +852,5 @@ func (s *Service) syncContainerEnv(ctx context.Context, id ID, containerName str
 	for _, sec := range secs {
 		set[sec.Key] = sec.Value
 	}
-	return s.containers.ApplyContainerEnvDiff(ctx, containerName, set, nil)
+	return s.containerEnvironment.ApplyDiff(ctx, containerName, set, nil)
 }

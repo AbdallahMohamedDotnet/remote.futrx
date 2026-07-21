@@ -46,8 +46,7 @@ Rebuilding the image immediately affects **new** containers. Existing containers
 | Path | Effect | Command |
 | --- | --- | --- |
 | **Automatic** | Existing containers repair a missing or stale registered agent CLI on the next prompt. | Nothing — deploy the backend and use the provider. |
-| **Force-recreate (all)** | Rebake, then recycle every idle project container in one shot — busy workspaces are skipped so in-flight chats survive; re-run for stragglers. `--dry-run` previews, `--no-rebake` skips the bake. | `sudo bash infra/upgrade-workspaces.sh` |
-| **Force-recreate (one)** | Wipe an old project container; the next project start re-launches it from the new image. Workspace files are bind-mounted so they survive; anything custom in the rootfs is gone. | `lxc delete --force <project-container>` |
+| **Force-recreate** | Wipe an old project container; the next project start re-launches it from the new image. Workspace files are bind-mounted so they survive; anything custom in the rootfs is gone. | `lxc delete --force <project-container>` |
 | **Manual in-place upgrade** | Upgrade immediately instead of waiting for the next prompt. | `lxc exec <container> -- npm install -g @openai/codex@<pin> @anthropic-ai/claude-code@<pin> @moonshot-ai/kimi-code@0.19.2` |
 
 ## Bootstrap on a fresh host
