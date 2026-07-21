@@ -142,8 +142,7 @@ func (c *Client) Inspect(ctx context.Context, containerName string) (serviceproj
 		osInfo, disks := c.probeInContainer(ctx, containerName)
 		out.OS = osInfo
 		out.Disks = disks
-		out.Claude = c.inspectClaude(ctx, containerName)
-		out.Codex = c.inspectCodex(ctx, containerName)
+		out.SetAgentStatuses(c.inspectAgents(ctx, containerName))
 	}
 
 	out.AuthBundles = c.inspectAuthBundles(ctx, containerName, state)
@@ -266,39 +265,38 @@ func splitSections(raw string) map[string]string {
 	return out
 }
 
-func (c *Client) inspectClaude(ctx context.Context, containerName string) serviceproject.ClaudeContainerStatus {
-	var cs serviceproject.ClaudeContainerStatus
-	if _, err := c.runQuick(ctx, "exec", containerName, "--", "which", "claude"); err == nil {
-		cs.Installed = true
-		if v, err := c.runQuick(ctx, "exec", containerName, "--", "claude", "--version"); err == nil {
-			cs.Version = strings.TrimSpace(v)
+func (c *Client) inspectAgents(ctx context.Context, containerName string) []serviceproject.AgentContainerStatus {
+	profiles := c.AgentProfiles()
+	statuses := make([]serviceproject.AgentContainerStatus, 0, len(profiles))
+	for _, profile := range profiles {
+		status := serviceproject.AgentContainerStatus{ID: profile.ID}
+		if _, err := c.runQuick(ctx, "exec", containerName, "--", "which", profile.CLI.Binary); err == nil {
+			status.Installed = true
+			if version, err := c.runQuick(ctx, "exec", containerName, "--", profile.CLI.Binary, "--version"); err == nil {
+				status.Version = strings.TrimSpace(version)
+			}
 		}
-	}
-
-	if _, err := c.runQuick(ctx, "exec", containerName, "--", "test", "-f", containerClaudeMD); err == nil {
-		cs.ClaudeMDInstalled = true
-	}
-	if got, err := c.runQuick(ctx, "exec", containerName, "--", "cat", containerAgentInstrMDHash); err == nil {
-		cs.ClaudeMDInSync = strings.TrimSpace(got) == templateHash(agentInstructionsTemplate)
-	}
-	return cs
-}
-
-func (c *Client) inspectCodex(ctx context.Context, containerName string) serviceproject.CodexContainerStatus {
-	var cs serviceproject.CodexContainerStatus
-	if _, err := c.runQuick(ctx, "exec", containerName, "--", "which", "codex"); err == nil {
-		cs.Installed = true
-		if v, err := c.runQuick(ctx, "exec", containerName, "--", "codex", "--version"); err == nil {
-			cs.Version = strings.TrimSpace(v)
+		if profile.Instructions != nil {
+			if _, err := c.runQuick(ctx, "exec", containerName, "--", "test", "-f", profile.Instructions.Path); err == nil {
+				status.InstructionsInstalled = true
+			}
+			if hash, err := c.runQuick(ctx, "exec", containerName, "--", "cat", profile.Instructions.HashPath); err == nil {
+				status.InstructionsInSync = strings.TrimSpace(hash) == templateHash(agentInstructionsTemplate)
+			}
 		}
+		statuses = append(statuses, status)
 	}
-	return cs
+	return statuses
 }
 
 func (c *Client) inspectAuthBundles(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {
-	bundles := c.AuthBundles()
-	out := make([]serviceproject.AuthBundleStatus, 0, len(bundles))
-	for _, b := range bundles {
+	profiles := c.AgentProfiles()
+	out := make([]serviceproject.AuthBundleStatus, 0, len(profiles))
+	for _, profile := range profiles {
+		b := profile.Credentials
+		if len(b.Files) == 0 {
+			continue
+		}
 		st := serviceproject.AuthBundleStatus{Name: b.Name}
 		for _, f := range b.Files {
 			fs := serviceproject.AuthBundleFileStatus{

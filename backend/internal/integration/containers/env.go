@@ -2,8 +2,8 @@ package containers
 
 // ApplyContainerEnvDiff drives LXD's built-in environment.* config keys.
 // Used by the project-secrets flow to push per-project secrets into the
-// project's container, so any subsequent `lxc exec` (every Claude prompt,
-// every interactive shell) inherits the var automatically.
+// project's container, so any subsequent `lxc exec` (agent prompt or
+// interactive shell) inherits the var automatically.
 
 import (
 	"context"

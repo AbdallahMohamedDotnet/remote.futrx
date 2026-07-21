@@ -2,10 +2,8 @@ package containers
 
 // Client adapts LXD container operations for project workspaces.
 // It builds on the thin internal/integration/lxc Client to do the actual
-// `lxc <...>` invocations and layers policy on top: workspace bind mounts,
-// boot-autostart, an auth-bundle pipeline for shipping host-side OAuth
-// credentials into containers, and per-provider provisioning (Claude CLI
-// install, CLAUDE.md template).
+// `lxc <...>` invocations and applies the provider-neutral provisioning
+// profiles supplied by the service composition root.
 
 import (
 	"context"
@@ -49,7 +47,6 @@ type Client struct {
 	image string
 
 	mu       sync.RWMutex
-	bundles  []AuthBundle
 	profiles []provisioning.Profile
 }
 

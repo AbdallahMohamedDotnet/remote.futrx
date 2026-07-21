@@ -20,6 +20,7 @@ type CLISpec struct {
 	Binary             string
 	PackageName        string
 	Version            string
+	ReportVersion      bool
 	CheckVersion       bool
 	VerifyAfterInstall bool
 	InstallMode        InstallMode

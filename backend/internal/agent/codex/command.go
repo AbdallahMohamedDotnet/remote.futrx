@@ -3,7 +3,6 @@ package codex
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -116,10 +115,10 @@ func (p *Provider) buildCmd(
 
 	if p.containers != nil {
 		emitSystem(req, emit, "container_preparing")
-		if err := p.containers.EnsureCodex(ctx, project.ContainerName); err != nil {
+		if err := p.containers.EnsureCLI(ctx, project.ContainerName, p.profile.CLI); err != nil {
 			return nil, "", fmt.Errorf("codex CLI unavailable in container: %w", err)
 		}
-		if err := p.containers.EnsureCodexAuth(ctx, project.ContainerName); err != nil {
+		if err := p.ensureCredentials(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("seed codex auth in container: %w", err)
 		}
 		if err := p.containers.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
@@ -188,7 +187,7 @@ func ensureHostSubscriptionAuth() error {
 	mode = strings.TrimSpace(strings.ToLower(mode))
 	_, hasAPIKey := raw["OPENAI_API_KEY"]
 	if mode == "apikey" || (mode == "" && hasAPIKey) {
-		return errors.New("Codex is logged in with an API key; run codex login with ChatGPT to use subscription limits")
+		return ErrCodexAPIKeyAuth
 	}
 	return nil
 }

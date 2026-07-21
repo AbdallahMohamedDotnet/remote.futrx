@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	agentruntime "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/runtime"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
@@ -16,24 +17,14 @@ type ProjectResolver interface {
 	ListSecrets(ctx context.Context, id serviceproject.ID) ([]serviceproject.Secret, error)
 }
 
-type ContainerPreparer interface {
-	EnsureKimi(ctx context.Context, containerName string) error
-	EnsureKimiAuth(ctx context.Context, containerName string) error
-	EnsureAgentInstructions(ctx context.Context, containerName string) error
-	EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error
-	EnsureBrowserSkill(ctx context.Context, containerName string) error
-	EnsureBrowserScript(ctx context.Context, containerName string) error
-	EnsureBootAutostart(ctx context.Context, containerName string) error
-	SyncKimiAuthFromContainer(ctx context.Context, containerName string) error
-}
-
 type Provider struct {
 	projects   ProjectResolver
-	containers ContainerPreparer
+	containers provisioning.Container
+	profile    provisioning.Profile
 }
 
-func New(projects ProjectResolver, containers ContainerPreparer) *Provider {
-	return &Provider{projects: projects, containers: containers}
+func New(projects ProjectResolver, containers provisioning.Container) *Provider {
+	return &Provider{projects: projects, containers: containers, profile: Profile()}
 }
 
 func (p *Provider) ID() agent.ProviderID {
@@ -69,7 +60,7 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 	if err == nil && containerName != "" && p.containers != nil {
 		syncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if syncErr := p.containers.SyncKimiAuthFromContainer(syncCtx, containerName); syncErr != nil {
+		if syncErr := p.containers.SyncCredentialsFromContainer(syncCtx, containerName, p.profile.Credentials); syncErr != nil {
 			log.Printf("kimi[%s] sync auth from %s: %v", req.ConversationID, containerName, syncErr)
 		}
 	}

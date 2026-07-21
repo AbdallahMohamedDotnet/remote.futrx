@@ -174,7 +174,7 @@ delivers **B1, B2, B3**. Mostly config + playbook — small and high-leverage.
 
 | Where | What |
 |---|---|
-| [templates/mcp-claude.json](../backend/internal/integration/containers/templates/mcp-claude.json) | `"args": ["@playwright/mcp", "--cdp-endpoint", "http://127.0.0.1:9222", "--caps=vision"]` |
+| [agent/claude/assets/mcp.json](../backend/internal/agent/claude/assets/mcp.json) | `"args": ["@playwright/mcp", "--cdp-endpoint", "http://127.0.0.1:9222", "--caps=vision"]` |
 | [codex/command.go](../backend/internal/agent/codex/command.go) | Mirror the same arg in the inline `mcp_servers.browser.args` flag. Keep the two configs byte-equivalent in intent — they are the same server. |
 | [SKILL.md](../backend/internal/integration/containers/templates/skills/browser/SKILL.md) | Rewrite the "How to work" playbook as a **hybrid perception loop** (below). |
 

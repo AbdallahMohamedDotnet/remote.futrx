@@ -21,6 +21,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 )
 
 func main() {
@@ -35,6 +36,7 @@ func main() {
 		log.Fatalf("lxc CLI not found on PATH - install LXD on the host first")
 	}
 	containerClient := containers.New(lxcClient)
+	containerClient.ConfigureAgentProfiles(service.AgentProfiles())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()

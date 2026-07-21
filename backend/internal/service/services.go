@@ -3,12 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	claudeagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/claude"
-	codexagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/codex"
-	kimiagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/kimi"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
@@ -33,9 +32,8 @@ type TmuxCwdClient interface {
 
 type ContainerManager interface {
 	serviceproject.ContainerManager
-	claudeagent.ContainerPreparer
-	codexagent.ContainerPreparer
-	kimiagent.ContainerPreparer
+	provisioning.Container
+	provisioning.Configurator
 }
 
 type Dependencies struct {
@@ -56,27 +54,13 @@ type Services struct {
 	Chats        *servicechat.Service
 	Projects     *serviceproject.Service
 	Prompt       *prompt.Service
-	AgentAuth    AgentAuthServices
+	AgentAuth    AgentAuthCallers
 	Runs         *runhub.Hub
 	Workspace    *workspacehub.Hub
 	Auth         *serviceauth.Service
 	Users        *serviceuser.Service
 	UserSettings *serviceusersettings.Service
 	Skills       *serviceskills.Service
-}
-
-// AgentAuthServices are the shared auth lifecycles configured by each
-// registered agent. Provider packages supply policy; service/agent/auth owns
-// the process and subscription behavior.
-type AgentAuthServices struct {
-	Claude *claudeagent.Auth
-	Codex  *codexagent.Auth
-	Kimi   *kimiagent.Auth
-}
-
-type agentRegistration struct {
-	provider      agent.Provider
-	configureAuth func(*AgentAuthServices)
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -90,6 +74,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		},
 	}
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
+	definitions := agentDefinitions()
+	profiles := profilesFromDefinitions(definitions)
+	deps.Containers.ConfigureAgentProfiles(profiles)
 	projectService := serviceproject.New(projects, deps.Containers, deps.ProjectSecrets, deps.ProjectAccess)
 	projectService.StartAgentBrowserReaper(ctx, 20*time.Minute)
 	runs = runhub.New(chats)
@@ -109,31 +96,19 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		runs,
 	)
 	agents := agent.NewRegistry()
-	agentAuth := AgentAuthServices{}
-	for _, registration := range []agentRegistration{
-		{
-			provider: claudeagent.New(projectService, deps.Containers),
-			configureAuth: func(auth *AgentAuthServices) {
-				auth.Claude = claudeagent.NewAuth()
-			},
-		},
-		{
-			provider: codexagent.New(projectService, deps.Containers),
-			configureAuth: func(auth *AgentAuthServices) {
-				auth.Codex = codexagent.NewAuth()
-			},
-		},
-		{
-			provider: kimiagent.New(projectService, deps.Containers),
-			configureAuth: func(auth *AgentAuthServices) {
-				auth.Kimi = kimiagent.NewAuth()
-			},
-		},
-	} {
-		if err := agents.Register(registration.provider); err != nil {
+	agentAuth := AgentAuthCallers{}
+	for index, definition := range definitions {
+		provider := definition.provider(projectService, deps.Containers)
+		if string(provider.ID()) != profiles[index].ID {
+			return Services{}, fmt.Errorf(
+				"agent registration mismatch: provider %q has profile %q",
+				provider.ID(), profiles[index].ID,
+			)
+		}
+		if err := agents.Register(provider); err != nil {
 			return Services{}, err
 		}
-		registration.configureAuth(&agentAuth)
+		definition.configureAuth(&agentAuth)
 	}
 	promptService := prompt.New(
 		chats,

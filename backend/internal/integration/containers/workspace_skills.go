@@ -1,20 +1,25 @@
 package containers
 
-// Project skills live in /workspace/.agents/skills. Claude and legacy Codex
-// locations are compatibility links so users only edit one source of truth.
+// Project skills live in /workspace/.agents/skills. Agent-specific workspace
+// homes declared by profiles are compatibility links to that source of truth.
 
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path"
+	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 )
 
 const ensureWorkspaceSymlinksTimeout = 10 * time.Second
 
 // EnsureWorkspaceSkillLinks creates the canonical .agents skills directory,
-// migrates legacy .claude/.codex skill children when possible, and points both
-// compatibility paths at .agents/skills. Cheap and idempotent, so providers can
-// call it before every prompt.
+// migrates legacy skill children when possible, and points each configured
+// compatibility path at .agents/skills. Cheap and idempotent.
 func (c *Client) EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error {
 	if !c.Available() {
 		return errors.New("lxc not available")
@@ -22,10 +27,41 @@ func (c *Client) EnsureWorkspaceSkillLinks(ctx context.Context, containerName st
 	qctx, cancel := context.WithTimeout(ctx, ensureWorkspaceSymlinksTimeout)
 	defer cancel()
 
-	script := `set -eu
+	script := workspaceSkillLinksScript(c.AgentProfiles())
+	if _, err := c.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
+		return err
+	}
+	return nil
+}
+
+func workspaceSkillLinksScript(profiles []provisioning.Profile) string {
+	workspaceHomes := make([]string, 0, len(profiles))
+	homeSkillDirs := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		if profile.WorkspaceSkills == nil {
+			continue
+		}
+		workspaceHomes = appendUnique(workspaceHomes, profile.WorkspaceSkills.WorkspaceHome)
+		if profile.WorkspaceSkills.HomeSkillsDir != "" {
+			homeSkillDirs = appendUnique(homeSkillDirs, profile.WorkspaceSkills.HomeSkillsDir)
+		}
+	}
+
+	var script strings.Builder
+	script.WriteString(`set -eu
 canonical=/workspace/.agents/skills
-mkdir -p /workspace/.agents "$canonical" /workspace/.claude /workspace/.codex
-chmod 755 /workspace/.agents "$canonical" /workspace/.claude /workspace/.codex
+mkdir -p /workspace/.agents "$canonical"`)
+	for _, home := range workspaceHomes {
+		script.WriteByte(' ')
+		script.WriteString(shellQuote(home))
+	}
+	script.WriteString(`
+chmod 755 /workspace/.agents "$canonical"`)
+	for _, home := range workspaceHomes {
+		script.WriteByte(' ')
+		script.WriteString(shellQuote(home))
+	}
+	script.WriteString(`
 
 migrate_skills_dir() {
   src="$1"
@@ -47,8 +83,8 @@ migrate_skills_dir() {
 
 link_skills_dir() {
   base="$1"
+  target="$2"
   link="$base/skills"
-  target="../.agents/skills"
   if [ -L "$link" ]; then
     current=$(readlink "$link")
     if [ "$current" != "$target" ]; then
@@ -60,20 +96,11 @@ link_skills_dir() {
   fi
 }
 
-migrate_skills_dir /workspace/.claude/skills
-migrate_skills_dir /workspace/.codex/skills
-link_skills_dir /workspace/.claude
-link_skills_dir /workspace/.codex
-
-# Codex (unlike Claude) loads skills from its HOME registry ($CODEX_HOME/skills
-# = /root/.codex/skills), not from the cwd-relative workspace link above. So we
-# also mirror each project skill into the Codex home as a per-skill symlink,
-# leaving Codex's bundled ".system" skills and any real installed dirs intact,
-# and pruning stale/dangling project links from a previous layout.
-codex_home_skills=/root/.codex/skills
-if [ -d /root/.codex ]; then
-  mkdir -p "$codex_home_skills"
-  for entry in "$codex_home_skills"/* ; do
+mirror_home_skills() {
+  home_skills="$1"
+  [ -d "$(dirname "$home_skills")" ] || return 0
+  mkdir -p "$home_skills"
+  for entry in "$home_skills"/* ; do
     [ -e "$entry" ] && continue            # resolves fine (real dir or live link) → keep
     [ -L "$entry" ] && rm -f "$entry"      # dangling symlink → prune
   done
@@ -82,13 +109,40 @@ if [ -d /root/.codex ]; then
       [ -d "$d" ] || continue
       name=$(basename "$d")
       [ "$name" = ".system" ] && continue
-      ln -sfn "$canonical/$name" "$codex_home_skills/$name"
+      ln -sfn "$canonical/$name" "$home_skills/$name"
     done
   fi
-fi
-`
-	if _, err := c.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
-		return err
+}
+`)
+	for _, home := range workspaceHomes {
+		fmt.Fprintf(&script, "migrate_skills_dir %s\n", shellQuote(path.Join(home, "skills")))
 	}
-	return nil
+	for _, home := range workspaceHomes {
+		relativeTarget, err := filepath.Rel(home, "/workspace/.agents/skills")
+		if err != nil {
+			relativeTarget = "/workspace/.agents/skills"
+		}
+		relativeTarget = filepath.ToSlash(relativeTarget)
+		fmt.Fprintf(&script, "link_skills_dir %s %s\n", shellQuote(home), shellQuote(relativeTarget))
+	}
+	for _, homeSkills := range homeSkillDirs {
+		fmt.Fprintf(&script, "mirror_home_skills %s\n", shellQuote(homeSkills))
+	}
+	return script.String()
+}
+
+func appendUnique(values []string, value string) []string {
+	if value == "" {
+		return values
+	}
+	for _, current := range values {
+		if current == value {
+			return values
+		}
+	}
+	return append(values, value)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }

@@ -3,22 +3,37 @@ package containers
 import (
 	"strings"
 	"testing"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 )
 
-func TestPinnedAgentCLIVersions(t *testing.T) {
-	if pinnedClaudeCodeVersion != "2.1.206" {
-		t.Fatalf("Claude Code pin = %q", pinnedClaudeCodeVersion)
+func TestBaseImageRecipeUsesConfiguredProfiles(t *testing.T) {
+	profiles := []provisioning.Profile{
+		{ID: "alpha", CLI: provisioning.CLISpec{ImageLabel: "alpha-cli", Binary: "alpha", PackageName: "@example/alpha", Version: "1.2.3"}},
+		{ID: "beta", CLI: provisioning.CLISpec{ImageLabel: "beta-cli", Binary: "beta", PackageName: "@example/beta", Version: "4.5.6"}},
 	}
-	if pinnedCodexCLIVersion != "0.144.1" {
-		t.Fatalf("Codex pin = %q", pinnedCodexCLIVersion)
+	script, err := baseImageInstallScript(profiles)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, packageSpec := range []string{
-		"@anthropic-ai/claude-code@" + pinnedClaudeCodeVersion,
-		"@openai/codex@" + pinnedCodexCLIVersion,
-	} {
-		if !strings.Contains(BaseImageInstallScript, packageSpec) {
-			t.Fatalf("base image install script is missing %q", packageSpec)
+	for _, want := range []string{"@example/alpha@1.2.3", "@example/beta@4.5.6", "which alpha beta", "alpha --version", "beta --version"} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("base image install script is missing %q", want)
 		}
+	}
+	if got, want := baseImageDescription(profiles), "futrx remote dev base: ubuntu 24.04 + node 22 + alpha-cli + beta-cli"; got != want {
+		t.Fatalf("description = %q, want %q", got, want)
+	}
+}
+
+func TestCLIInstallLabelReportsVersionOnlyWhenRequested(t *testing.T) {
+	spec := provisioning.CLISpec{Name: "agent", Version: "1.2.3"}
+	if got := cliInstallLabel(spec); got != "agent" {
+		t.Fatalf("label without version = %q", got)
+	}
+	spec.ReportVersion = true
+	if got := cliInstallLabel(spec); got != "agent 1.2.3" {
+		t.Fatalf("label with version = %q", got)
 	}
 }
 
@@ -29,12 +44,12 @@ func TestSemanticVersionAtLeast(t *testing.T) {
 		minimum string
 		want    bool
 	}{
-		{name: "Codex output at pin", actual: "codex-cli 0.144.1", minimum: "0.144.1", want: true},
-		{name: "Claude output above pin", actual: "2.1.207 (Claude Code)", minimum: "2.1.206", want: true},
-		{name: "older patch", actual: "codex-cli 0.144.0", minimum: "0.144.1", want: false},
-		{name: "same-core prerelease", actual: "codex-cli 0.144.1-alpha.2", minimum: "0.144.1", want: false},
-		{name: "newer prerelease core", actual: "codex-cli 0.145.0-alpha.2", minimum: "0.144.1", want: true},
-		{name: "unparseable", actual: "codex unknown", minimum: "0.144.1", want: false},
+		{name: "output at pin", actual: "agent-cli 0.144.1", minimum: "0.144.1", want: true},
+		{name: "output above pin", actual: "2.1.207 (Agent CLI)", minimum: "2.1.206", want: true},
+		{name: "older patch", actual: "agent-cli 0.144.0", minimum: "0.144.1", want: false},
+		{name: "same-core prerelease", actual: "agent-cli 0.144.1-alpha.2", minimum: "0.144.1", want: false},
+		{name: "newer prerelease core", actual: "agent-cli 0.145.0-alpha.2", minimum: "0.144.1", want: true},
+		{name: "unparseable", actual: "agent unknown", minimum: "0.144.1", want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

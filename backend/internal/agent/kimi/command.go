@@ -75,10 +75,10 @@ func (p *Provider) buildCmd(
 
 	if p.containers != nil {
 		emitSystem(req, emit, "container_preparing")
-		if err := p.containers.EnsureKimi(ctx, project.ContainerName); err != nil {
+		if err := p.containers.EnsureCLI(ctx, project.ContainerName, p.profile.CLI); err != nil {
 			return nil, "", fmt.Errorf("install kimi in container: %w", err)
 		}
-		if err := p.containers.EnsureKimiAuth(ctx, project.ContainerName); err != nil {
+		if err := p.containers.EnsureCredentials(ctx, project.ContainerName, p.profile.Credentials); err != nil {
 			return nil, "", fmt.Errorf("seed kimi auth in container: %w", err)
 		}
 		if err := p.containers.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {

@@ -1,9 +1,8 @@
 package containers
 
 // Container lifecycle: Launch / Start / Stop / Delete / State plus the
-// one-time boot configuration. Provider-agnostic. Auth seeding at launch
-// time is dispatched through the AuthBundle registry, so adding a new
-// credential provider does not require changes to this file.
+// one-time boot configuration. Provider-agnostic credential seeding is
+// dispatched through the configured agent profiles.
 
 import (
 	"context"
@@ -52,7 +51,7 @@ func (c *Client) Launch(ctx context.Context, p serviceproject.Meta) error {
 	// should not block the container from coming up. Both are idempotent
 	// and will be retried on the next prompt.
 	_ = c.EnsureBootAutostart(ctx, p.ContainerName)
-	_ = c.EnsureRegisteredAuth(ctx, p.ContainerName)
+	_ = c.EnsureRegisteredCredentials(ctx, p.ContainerName)
 	_ = c.EnsureWorkspaceSkillLinks(ctx, p.ContainerName)
 	_ = c.EnsureBrowserScript(ctx, p.ContainerName)
 	_ = c.EnsureBrowserSkill(ctx, p.ContainerName)

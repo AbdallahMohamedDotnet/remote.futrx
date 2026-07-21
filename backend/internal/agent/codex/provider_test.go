@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
@@ -109,6 +111,41 @@ func TestEnsureHostSubscriptionAuthRejectsAPIKeyAuth(t *testing.T) {
 	}
 }
 
+func TestContainerCredentialsRejectAPIKeyAuthBeforeProvisioning(t *testing.T) {
+	authPath := filepath.Join(t.TempDir(), "auth.json")
+	if err := os.WriteFile(authPath, []byte(`{"auth_mode":"apikey","OPENAI_API_KEY":"sk-test"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	containers := &fakeCodexContainers{}
+	provider := New(nil, containers)
+	provider.profile.Credentials.Files[0].HostPath = authPath
+
+	err := provider.ensureCredentials(context.Background(), "project")
+	if !errors.Is(err, ErrCodexAPIKeyAuth) {
+		t.Fatalf("ensure credentials error = %v, want %v", err, ErrCodexAPIKeyAuth)
+	}
+	if containers.ensureCredentialsCalls != 0 {
+		t.Fatalf("credentials provisioned despite API-key auth: %d", containers.ensureCredentialsCalls)
+	}
+}
+
+func TestProfileReturnsIndependentProvisioningPolicy(t *testing.T) {
+	first := Profile()
+	first.Credentials.Files[0].HostPath = "/changed"
+
+	second := Profile()
+	if second.ID != "codex" {
+		t.Fatalf("profile ID = %q, want codex", second.ID)
+	}
+	if second.CLI.NPMPackage() != "@openai/codex@"+provisioning.MustCLIVersion("CODEX_CLI_VERSION") {
+		t.Fatalf("CLI package = %q", second.CLI.NPMPackage())
+	}
+	if second.Credentials.Files[0].HostPath != hostCodexAuth {
+		t.Fatalf("profile mutation escaped clone: %q", second.Credentials.Files[0].HostPath)
+	}
+}
+
 func TestArgsResumeThread(t *testing.T) {
 	provider := New(nil, nil)
 	args := provider.args(agent.RunRequest{ResumeID: "thread-123"})
@@ -180,13 +217,19 @@ func (f fakeCodexProjects) ListSecrets(context.Context, serviceproject.ID) ([]se
 }
 
 type fakeCodexContainers struct {
-	agentBrowserMCPCalls  int
-	agentBrowserCoreCalls int
+	agentBrowserMCPCalls   int
+	agentBrowserCoreCalls  int
+	ensureCredentialsCalls int
 }
 
-func (f *fakeCodexContainers) EnsureCodex(context.Context, string) error { return nil }
+func (f *fakeCodexContainers) EnsureCLI(context.Context, string, provisioning.CLISpec) error {
+	return nil
+}
 
-func (f *fakeCodexContainers) EnsureCodexAuth(context.Context, string) error { return nil }
+func (f *fakeCodexContainers) EnsureCredentials(context.Context, string, provisioning.CredentialSpec) error {
+	f.ensureCredentialsCalls++
+	return nil
+}
 
 func (f *fakeCodexContainers) EnsureAgentInstructions(context.Context, string) error { return nil }
 
@@ -208,4 +251,6 @@ func (f *fakeCodexContainers) EnsureAgentBrowserCore(context.Context, string) er
 
 func (f *fakeCodexContainers) EnsureBootAutostart(context.Context, string) error { return nil }
 
-func (f *fakeCodexContainers) SyncCodexAuthFromContainer(context.Context, string) error { return nil }
+func (f *fakeCodexContainers) SyncCredentialsFromContainer(context.Context, string, provisioning.CredentialSpec) error {
+	return nil
+}

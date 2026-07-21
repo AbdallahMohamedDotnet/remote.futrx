@@ -1,10 +1,9 @@
 package containers
 
-// Generic OAuth/credential bundle pipeline. The host holds the canonical
-// copy of each bundle's files; the client pushes them into containers
+// Generic credential pipeline. The host holds the canonical copy of each
+// profile's files; the client pushes them into containers
 // before use and pulls any rotations back afterwards so the host stays
-// current. Nothing in this file knows about Claude — bundle definitions
-// live with their providers (see claude.go).
+// current. Provider packages own every path and credential rule.
 
 import (
 	"context"
@@ -21,55 +20,26 @@ import (
 
 const authPushTimeout = 30 * time.Second
 
-// AuthBundle describes one provider's credential set on disk. Register an
-// instance via Client.RegisterAuthBundle to have it auto-seeded on every
-// fresh container launch; call EnsureAuthBundle / SyncAuthBundleFromContainer
-// directly to drive the push/pull pipeline at other points (e.g. before and
-// after each prompt).
-type AuthBundle = provisioning.CredentialSpec
-
-// AuthFile is one credential file inside a bundle.
-type AuthFile = provisioning.CredentialFile
-
-// RegisterAuthBundle adds a bundle to the seed list used by Launch. Safe to
-// call from main during wiring; not intended to be called concurrently with
-// Launch.
-func (c *Client) RegisterAuthBundle(b AuthBundle) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.bundles = append(c.bundles, b)
-}
-
-// AuthBundles returns a snapshot of the registered bundles. Useful for tests
-// and diagnostics.
-func (c *Client) AuthBundles() []AuthBundle {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	out := make([]AuthBundle, len(c.bundles))
-	copy(out, c.bundles)
-	return out
-}
-
-// EnsureRegisteredAuth seeds every registered bundle into the container.
-// Errors from individual bundles are joined so a single bad bundle doesn't
-// hide problems in the others.
-func (c *Client) EnsureRegisteredAuth(ctx context.Context, containerName string) error {
+// EnsureRegisteredCredentials seeds every profile that opts into launch-time
+// credential provisioning. Errors are joined so one provider does not hide
+// another provider's failure.
+func (c *Client) EnsureRegisteredCredentials(ctx context.Context, containerName string) error {
 	var errs []error
-	for _, b := range c.AuthBundles() {
-		if err := c.EnsureAuthBundle(ctx, containerName, b); err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", b.Name, err))
+	for _, profile := range c.AgentProfiles() {
+		credentials := profile.Credentials
+		if credentials.Empty() || !credentials.SeedOnLaunch {
+			continue
+		}
+		if err := c.EnsureCredentials(ctx, containerName, credentials); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", credentials.Name, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// EnsureAuthBundle pushes the bundle's files into the container. Each file is
-// only pushed when its host mtime is newer than the container copy, so this
-// is cheap to call on every prompt.
-func (c *Client) EnsureAuthBundle(ctx context.Context, containerName string, b AuthBundle) error {
-	return c.ensureCredentialFiles(ctx, containerName, b)
-}
-
+// EnsureCredentials pushes a profile's credential files into the container.
+// Each file is only pushed when its host mtime is newer than the container
+// copy, so this is cheap to call on every prompt.
 func (c *Client) EnsureCredentials(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
 	if spec.Directory != nil {
 		return c.ensureCredentialDirectory(ctx, containerName, spec)
@@ -127,14 +97,8 @@ func (c *Client) ensureCredentialFiles(ctx context.Context, containerName string
 	return nil
 }
 
-// SyncAuthBundleFromContainer pulls the bundle's files back to the host.
-// Necessary when the in-container process rotates credentials (OAuth refresh
-// tokens, etc.) — without this, the next push would overwrite the rotation
-// with stale host data.
-func (c *Client) SyncAuthBundleFromContainer(ctx context.Context, containerName string, b AuthBundle) error {
-	return c.syncCredentialFilesFromContainer(ctx, containerName, b)
-}
-
+// SyncCredentialsFromContainer pulls credentials back to the host after a
+// provider rotates them inside the container.
 func (c *Client) SyncCredentialsFromContainer(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
 	if spec.Directory != nil {
 		return c.syncCredentialDirectoryFromContainer(ctx, containerName, spec)

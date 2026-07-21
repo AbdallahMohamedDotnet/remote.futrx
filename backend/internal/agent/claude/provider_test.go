@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
@@ -104,9 +105,13 @@ type fakeClaudeContainers struct {
 	agentBrowserCoreCalls int
 }
 
-func (f *fakeClaudeContainers) EnsureClaude(context.Context, string) error { return nil }
+func (f *fakeClaudeContainers) EnsureCLI(context.Context, string, provisioning.CLISpec) error {
+	return nil
+}
 
-func (f *fakeClaudeContainers) EnsureClaudeAuth(context.Context, string) error { return nil }
+func (f *fakeClaudeContainers) EnsureCredentials(context.Context, string, provisioning.CredentialSpec) error {
+	return nil
+}
 
 func (f *fakeClaudeContainers) EnsureAgentInstructions(context.Context, string) error { return nil }
 
@@ -128,6 +133,6 @@ func (f *fakeClaudeContainers) EnsureAgentBrowserCore(context.Context, string) e
 
 func (f *fakeClaudeContainers) EnsureBootAutostart(context.Context, string) error { return nil }
 
-func (f *fakeClaudeContainers) SyncClaudeAuthFromContainer(context.Context, string) error {
+func (f *fakeClaudeContainers) SyncCredentialsFromContainer(context.Context, string, provisioning.CredentialSpec) error {
 	return nil
 }

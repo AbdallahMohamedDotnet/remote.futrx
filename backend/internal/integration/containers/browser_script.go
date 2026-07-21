@@ -9,7 +9,7 @@ package containers
 // The script reads .agents/browser-auth.json to know which cookie to
 // attach per host; the agent edits that file when adding a new site, and
 // the user pastes the cookie value into the Secrets UI under the named
-// env var. See templates/AGENTS.md for the user-facing recipe.
+// env var. See agent/provisioning/assets/AGENTS.md for the user-facing recipe.
 
 import (
 	"context"

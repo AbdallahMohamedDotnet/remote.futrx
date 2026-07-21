@@ -35,8 +35,6 @@ func main() {
 	}
 	lxcClient := lxc.New()
 	containerClient := containers.New(lxcClient)
-	containerClient.RegisterAuthBundle(containers.ClaudeAuthBundle())
-	containerClient.RegisterAuthBundle(containers.CodexAuthBundle())
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:          storeSet.Chats,

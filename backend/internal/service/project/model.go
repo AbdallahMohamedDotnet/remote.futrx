@@ -150,6 +150,36 @@ type CodexContainerStatus struct {
 	Version   string `json:"version,omitempty"`
 }
 
+// AgentContainerStatus is the provider-neutral diagnostic shape returned by
+// container integrations. SetAgentStatuses adapts it to the legacy HTTP fields
+// without making the integration depend on individual agent names or paths.
+type AgentContainerStatus struct {
+	ID                    string
+	Installed             bool
+	Version               string
+	InstructionsInstalled bool
+	InstructionsInSync    bool
+}
+
+func (i *ContainerInspect) SetAgentStatuses(statuses []AgentContainerStatus) {
+	for _, status := range statuses {
+		switch status.ID {
+		case "claude":
+			i.Claude = ClaudeContainerStatus{
+				Installed:         status.Installed,
+				Version:           status.Version,
+				ClaudeMDInstalled: status.InstructionsInstalled,
+				ClaudeMDInSync:    status.InstructionsInSync,
+			}
+		case "codex":
+			i.Codex = CodexContainerStatus{
+				Installed: status.Installed,
+				Version:   status.Version,
+			}
+		}
+	}
+}
+
 type AuthBundleStatus struct {
 	Name  string                 `json:"name"`
 	Files []AuthBundleFileStatus `json:"files"`

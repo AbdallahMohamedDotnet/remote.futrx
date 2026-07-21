@@ -4,14 +4,17 @@ package containers
 //   1. As the recipe baked into the published futrx-remote-dev-base LXD image
 //      (run once by cmd/build-base-image on a fresh ubuntu:24.04 builder).
 //   2. As the fallback when an already-running container predates Node/npm.
-// Claude and Codex versions come from the embedded agent CLI manifest, so
-// image builds and runtime repair use the same tested pins.
+// Agent packages supply CLI definitions through provisioning profiles, so
+// image builds and runtime repair use the same tested pins as prompt startup.
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 )
 
 const (
@@ -21,9 +24,6 @@ const (
 	// BaseImageSourceImage is the upstream image used as the builder rootfs
 	// when (re)building BaseImageAlias.
 	BaseImageSourceImage = "ubuntu:24.04"
-
-	// BaseImageDescription is attached to the published image.
-	BaseImageDescription = "futrx remote dev base: ubuntu 24.04 + node 22 + claude-code + codex + kimi-code"
 
 	// baseImageBuilderName is the name used for the throwaway builder
 	// container. Kept stable so a retry can clean up a leftover builder
@@ -35,10 +35,9 @@ const (
 	baseImageNetworkWarmup  = 3 * time.Second
 )
 
-// BaseImageInstallScript is the shell recipe that turns a fresh
-// ubuntu:24.04 rootfs into the futrx-remote-dev-base image. It also repairs
-// very old containers that do not have npm available for a targeted update.
-var BaseImageInstallScript = `set -e
+// baseImageInstallPreamble is the provider-neutral part of the shell recipe.
+// Agent packages contribute the npm packages and binaries appended below.
+const baseImageInstallPreamble = `set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 
@@ -50,7 +49,7 @@ apt-get install -y -qq \
     git openssh-client \
     jq build-essential python3-pip
 
-# Node 22 (provides node + npm + npx for the Claude CLI and any JS tooling).
+# Node 22 (provides node + npm + npx for agent CLIs and JS tooling).
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null 2>&1
 apt-get install -y -qq nodejs
 
@@ -62,23 +61,55 @@ chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
     > /etc/apt/sources.list.d/github-cli.list
 apt-get update -qq
-apt-get install -y -qq gh
+apt-get install -y -qq gh`
 
-# Agent CLIs.
-npm install -g ` + claudeCLISpec.NPMPackage() + ` ` + codexCLISpec.NPMPackage() + ` @moonshot-ai/kimi-code@0.19.2 --silent 2>&1 | tail -8
+func baseImageInstallScript(profiles []provisioning.Profile) (string, error) {
+	packages := make([]string, 0, len(profiles))
+	binaries := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		if profile.CLI.PackageName == "" || profile.CLI.Binary == "" {
+			return "", fmt.Errorf("agent profile %q has an incomplete CLI definition", profile.ID)
+		}
+		packages = append(packages, profile.CLI.NPMPackage())
+		binaries = append(binaries, profile.CLI.Binary)
+	}
+	if len(packages) == 0 {
+		return "", errors.New("no agent profiles configured")
+	}
 
-# Sanity check the full toolchain.
-which claude codex kimi git gh jq node npm python3 ssh
-claude --version
-codex --version
-kimi --version
-node --version
-gh --version | head -1`
+	var script strings.Builder
+	script.WriteString(baseImageInstallPreamble)
+	script.WriteString("\n\n# Agent CLIs.\nnpm install -g ")
+	script.WriteString(strings.Join(packages, " "))
+	script.WriteString(" --silent 2>&1 | tail -8\n\n# Sanity check the full toolchain.\nwhich ")
+	script.WriteString(strings.Join(binaries, " "))
+	script.WriteString(" git gh jq node npm python3 ssh\n")
+	for _, binary := range binaries {
+		script.WriteString(binary)
+		script.WriteString(" --version\n")
+	}
+	script.WriteString("node --version\ngh --version | head -1")
+	return script.String(), nil
+}
+
+func baseImageDescription(profiles []provisioning.Profile) string {
+	labels := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		if profile.CLI.ImageLabel != "" {
+			labels = append(labels, profile.CLI.ImageLabel)
+		}
+	}
+	description := "futrx remote dev base: ubuntu 24.04 + node 22"
+	if len(labels) > 0 {
+		description += " + " + strings.Join(labels, " + ")
+	}
+	return description
+}
 
 // AgentBrowserInstallScript installs the headed-browser stack used by the
 // Agent Browser feature: a real Google Chrome rendered on a virtual display
 // (Xvfb), shared with the user over noVNC and driven by the agent over CDP.
-// Like BaseImageInstallScript it runs in two places so the two paths cannot
+// Like the generated base-image recipe it runs in two places so the paths cannot
 // drift:
 //  1. Layered onto the published base image by BuildBaseImage.
 //  2. As the on-demand fallback in EnsureAgentBrowser, for containers that
@@ -141,6 +172,11 @@ func (c *Client) BuildBaseImage(ctx context.Context, alias string) error {
 	if alias == "" {
 		alias = BaseImageAlias
 	}
+	profiles := c.AgentProfiles()
+	installScript, err := baseImageInstallScript(profiles)
+	if err != nil {
+		return err
+	}
 
 	// Clean up any leftover builder from a previous interrupted run before
 	// we try to launch a fresh one. Best-effort; failures are tolerated
@@ -172,7 +208,7 @@ func (c *Client) BuildBaseImage(ctx context.Context, alias string) error {
 		return bctx.Err()
 	}
 
-	if out, err := c.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", BaseImageInstallScript); err != nil {
+	if out, err := c.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", installScript); err != nil {
 		return fmt.Errorf("install script: %w; output: %s", err, truncateOut(out, 2000))
 	}
 
@@ -194,7 +230,7 @@ func (c *Client) BuildBaseImage(ctx context.Context, alias string) error {
 	defer pcancel()
 	if out, err := c.lxc.Run(pctx, "publish", baseImageBuilderName,
 		"--alias", alias,
-		"description="+BaseImageDescription); err != nil {
+		"description="+baseImageDescription(profiles)); err != nil {
 		return fmt.Errorf("publish: %w; output: %s", err, out)
 	}
 

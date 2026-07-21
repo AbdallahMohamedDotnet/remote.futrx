@@ -12,10 +12,6 @@ import (
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
-// browserMCPConfigPath is the --mcp-config file claude loads when the
-// browser skill is active. Must match containers.ContainerMCPClaudeConfig.
-const browserMCPConfigPath = "/workspace/.browser-gui/mcp-claude.json"
-
 func (p *Provider) args(req agent.RunRequest) []string {
 	args := []string{
 		"-p",
@@ -88,10 +84,10 @@ func (p *Provider) buildCmd(
 
 	if p.containers != nil {
 		emitSystem(req, emit, "container_preparing")
-		if err := p.containers.EnsureClaude(ctx, project.ContainerName); err != nil {
+		if err := p.containers.EnsureCLI(ctx, project.ContainerName, p.profile.CLI); err != nil {
 			return nil, "", fmt.Errorf("install claude in container: %w", err)
 		}
-		if err := p.containers.EnsureClaudeAuth(ctx, project.ContainerName); err != nil {
+		if err := p.containers.EnsureCredentials(ctx, project.ContainerName, p.profile.Credentials); err != nil {
 			return nil, "", fmt.Errorf("seed claude auth in container: %w", err)
 		}
 		if err := p.containers.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
