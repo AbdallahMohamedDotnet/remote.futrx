@@ -21,14 +21,9 @@ export const chatApi = {
     requestJson<{ ok: boolean }>("DELETE", API_ROUTES.chats.item(id)),
   fork: (id: string) =>
     requestJson<ChatMeta>("POST", API_ROUTES.chats.fork(id), {}),
-  fetchFiles: chatFilesApi.fetchFiles,
-  fileDownloadUrl: chatFilesApi.fileDownloadUrl,
-  folderDownloadUrl: chatFilesApi.folderDownloadUrl,
+  ...chatFilesApi,
   fetchEvents: chatEventsApi.fetchEvents,
   rewind: chatEventsApi.rewind,
-  fetchHistoryRepos: chatHistoryApi.fetchHistoryRepos,
-  fetchHistoryCommits: chatHistoryApi.fetchHistoryCommits,
-  fetchHistoryDiff: chatHistoryApi.fetchHistoryDiff,
-  historyCheckout: chatHistoryApi.historyCheckout,
+  ...chatHistoryApi,
   openStream: chatEventsApi.openStream,
 };
