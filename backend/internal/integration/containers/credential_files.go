@@ -104,6 +104,16 @@ func (s *credentialFileSynchronizer) syncFromContainer(ctx context.Context, cont
 	return nil
 }
 
+func validateCredentialSpec(spec provisioning.CredentialSpec) error {
+	if spec.Name == "" {
+		return errors.New("auth bundle: Name is required")
+	}
+	if len(spec.Files) == 0 {
+		return fmt.Errorf("auth bundle %q: at least one file required", spec.Name)
+	}
+	return nil
+}
+
 func (s *credentialFileSynchronizer) pushIfNewer(ctx context.Context, file provisioning.CredentialFile, containerName string) error {
 	hostInfo, err := os.Stat(file.HostPath)
 	if err != nil {

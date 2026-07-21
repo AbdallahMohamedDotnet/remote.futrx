@@ -96,3 +96,17 @@ func (s *credentialDirectorySynchronizer) containerHasFiles(ctx context.Context,
 		"sh", "-c", "ls -1 "+containerPath+" 2>/dev/null | head -1")
 	return err == nil && strings.TrimSpace(out) != ""
 }
+
+func regularCredentialFiles(path string) ([]string, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Type().IsRegular() {
+			files = append(files, entry.Name())
+		}
+	}
+	return files, nil
+}

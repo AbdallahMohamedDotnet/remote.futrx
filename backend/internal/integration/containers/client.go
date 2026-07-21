@@ -72,7 +72,6 @@ func New(client CommandRunner) *Client {
 		states:   containerClient,
 	}
 	containerClient.credentials = credentialSynchronizer{
-		lxc:      client,
 		profiles: &containerClient.profiles,
 		files:    credentialFileSynchronizer{lxc: client},
 	}
