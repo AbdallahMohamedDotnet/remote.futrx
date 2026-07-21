@@ -1,7 +1,7 @@
 import { requestJson } from "./apiRequest";
+import { chatFilesApi } from "./chat/chatFilesApi";
 import { chatHistoryApi } from "./chat/chatHistoryApi";
 import { openChatStream } from "./chat/chatStream";
-import type { FileTreeResponse } from "../models/files";
 import type { ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import type { ChatStream, ChatStreamCallbacks } from "../types/chatApi";
 import { API_ROUTES } from "../config/routes";
@@ -21,12 +21,9 @@ export const chatApi = {
     requestJson<{ ok: boolean }>("DELETE", API_ROUTES.chats.item(id)),
   fork: (id: string) =>
     requestJson<ChatMeta>("POST", API_ROUTES.chats.fork(id), {}),
-  files: (id: string) =>
-    requestJson<FileTreeResponse>("GET", API_ROUTES.chats.files(id)),
-  fileDownloadUrl: (id: string, dir: string, path: string) =>
-    API_ROUTES.chats.fileDownload(id, dir, path),
-  folderDownloadUrl: (id: string, dir: string, path = "") =>
-    API_ROUTES.chats.folderDownload(id, dir, path),
+  files: chatFilesApi.files,
+  fileDownloadUrl: chatFilesApi.fileDownloadUrl,
+  folderDownloadUrl: chatFilesApi.folderDownloadUrl,
   events: (id: string, params: { limit?: number; before?: number } = {}) => {
     const search = new URLSearchParams();
     if (params.limit) search.set("limit", String(params.limit));
