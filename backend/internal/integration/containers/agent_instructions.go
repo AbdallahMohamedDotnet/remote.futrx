@@ -1,6 +1,6 @@
 package containers
 
-// Container provisioning: ships shared agent instructions to every target
+// Agent-instruction provisioning ships the shared template to every target
 // declared by the configured profiles.
 
 import (
