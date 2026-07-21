@@ -19,7 +19,11 @@ type containerLifecycle struct {
 	lxc         CommandRunner
 	image       string
 	workspace   hostWorkspacePreparer
-	provisioner *containerLaunchProvisioner
+	provisioner launchProvisioner
+}
+
+type launchProvisioner interface {
+	Provision(ctx context.Context, containerName, displayName string)
 }
 
 func (c *Client) Launch(ctx context.Context, p serviceproject.Meta) error {
@@ -60,7 +64,7 @@ func (l *containerLifecycle) launch(ctx context.Context, p serviceproject.Meta) 
 	// not block the container from coming up. These idempotent migrations are
 	// retried on the next prompt.
 	_ = l.ensureBootAutostart(ctx, p.ContainerName)
-	l.provisioner.provision(ctx, p.ContainerName, p.Name)
+	l.provisioner.Provision(ctx, p.ContainerName, p.Name)
 
 	return nil
 }

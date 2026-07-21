@@ -16,6 +16,7 @@ import (
 	containercodeserver "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/codeserver"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
+	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/launch"
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 )
@@ -94,12 +95,12 @@ func New(client CommandRunner) *Client {
 		containerbrowser.InstallScript(),
 		containercodeserver.InstallScript(),
 	)
-	containerClient.lifecycle.provisioner = &containerLaunchProvisioner{
-		credentials: containerClient.credentials,
-		workspace:   containerClient.workspace,
-		browser:     containerClient.browser,
-		codeServer:  containerClient.codeServer,
-	}
+	containerClient.lifecycle.provisioner = containerlaunch.NewProvisioner(
+		containerClient.credentials,
+		containerClient.workspace,
+		containerClient.browser,
+		containerClient.codeServer,
+	)
 	return containerClient
 }
 
