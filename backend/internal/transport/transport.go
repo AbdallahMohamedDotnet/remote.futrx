@@ -67,10 +67,11 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Users,
 			deps.Services.Auth,
 		),
-		Users:      httphandlers.NewUsersHandler(deps.Services.Users, deps.Services.Auth),
-		ClaudeAuth: httphandlers.NewClaudeAuthHandler(claudeLogin, deps.Services.Auth),
-		CodexAuth:  httphandlers.NewCodexAuthHandler(codexLogin, deps.Services.Auth),
-		KimiAuth:   httphandlers.NewKimiAuthHandler(kimiLogin, deps.Services.Auth),
+		Users: httphandlers.NewUsersHandler(deps.Services.Users, deps.Services.Auth),
+		AgentAuth: httphandlers.NewAgentAuthHandler(
+			deps.Services.AgentAuth.Bindings(),
+			deps.Services.Auth,
+		),
 		UserSettings: httphandlers.NewUserSettingsHandler(
 			deps.Services.UserSettings,
 			deps.Services.Auth,
