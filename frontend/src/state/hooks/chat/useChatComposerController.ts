@@ -121,6 +121,11 @@ export function useChatComposerController({
     setTimeout(focusInput, 0);
   }
 
+  function handleAnswerQuestion(answer: string) {
+    const sent = sendPrompt(answer);
+    if (sent) scroll.unlockAutoScroll();
+  }
+
   return {
     text,
     setText,
@@ -132,6 +137,7 @@ export function useChatComposerController({
     queue,
     handlePaste,
     handleSend,
+    handleAnswerQuestion,
     handleRewind,
   };
 }

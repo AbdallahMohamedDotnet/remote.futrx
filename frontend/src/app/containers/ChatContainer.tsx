@@ -99,10 +99,7 @@ export function ChatContainer({
             onHamburger={onHamburger}
             onScroll={composer.scroll.onScroll}
             onJumpToBottom={composer.scroll.jumpToBottom}
-            onAnswerQuestion={(answer) => {
-              const sent = sendPrompt(answer);
-              if (sent) composer.scroll.unlockAutoScroll();
-            }}
+            onAnswerQuestion={composer.handleAnswerQuestion}
             onLoadOlder={loadOlder}
             onRewind={composer.handleRewind}
             onTextChange={composer.setText}
