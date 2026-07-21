@@ -17,7 +17,7 @@ export DEBIAN_FRONTEND=noninteractive
 # ───────────────── base apt deps ─────────────────
 log "apt update + base packages"
 apt-get update -qq
-apt-get install -y -qq git curl ca-certificates gnupg jq tmux build-essential openssl gettext-base
+apt-get install -y -qq git curl ca-certificates gnupg jq tmux gettext-base
 
 # ───────────────── host toolchain pins ─────────────────
 # infra/versions.env declares the exact versions the host must run. Every

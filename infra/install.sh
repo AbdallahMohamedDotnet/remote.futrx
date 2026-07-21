@@ -20,7 +20,6 @@
 #
 # Environment:
 #   GITHUB_TOKEN                                same as --github-token=.
-#   CODE_SERVER_VERSION                         override the pinned code-server version.
 
 set -euo pipefail
 

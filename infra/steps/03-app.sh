@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Repo clone/update + frontend & backend build + auth-secret seed.
+# Repo clone/update + frontend & backend build + Google OAuth config seed.
 #
 # This step is normally a no-op on CI deploy (the repo's already cloned and
 # CI does the pull itself) but stays here so the first-time installer works
