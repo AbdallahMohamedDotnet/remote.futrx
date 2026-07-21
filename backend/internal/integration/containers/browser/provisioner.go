@@ -9,7 +9,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/output"
 )
 
 //go:embed assets/gui-up.sh

@@ -18,8 +18,8 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
 	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/output"
 )
 
 const (

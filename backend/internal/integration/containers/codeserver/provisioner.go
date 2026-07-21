@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/shared/output"
 )
 
 //go:embed assets/code-server-up.sh
