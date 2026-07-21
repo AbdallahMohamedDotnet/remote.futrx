@@ -27,6 +27,27 @@ go_toolchain_version() {
         | sed 's/^go//' || true
 }
 
+go_toolchain_github_url() {
+    local version="$1" go_arch="$2" actions_arch=""
+    case "$go_arch" in
+        amd64) actions_arch=x64 ;;
+        arm64) actions_arch=arm64 ;;
+        *) return 1 ;;
+    esac
+
+    curl --fail --silent --show-error --location \
+        --connect-timeout 20 --retry 3 --retry-delay 2 \
+        'https://raw.githubusercontent.com/actions/go-versions/main/versions-manifest.json' \
+        | jq -r --arg version "$version" --arg arch "$actions_arch" '
+            .[]
+            | select(.version == $version)
+            | .files[]
+            | select(.platform == "linux" and .arch == $arch)
+            | .download_url
+        ' \
+        | head -1
+}
+
 ensure_go_toolchain() {
     local desired="$1"
     local install_root="${GO_INSTALL_ROOT:-/usr/local}"
@@ -78,6 +99,32 @@ ensure_go_toolchain() {
         fi
     done
 
+    # GitHub Actions maintains verified Go distributions for its runners.
+    # This gives servers whose network blocks Google download hosts a fully
+    # automatic third path through GitHub, which the installer already needs
+    # to reach for the application repository.
+    if [ -z "$downloaded" ]; then
+        local github_url=""
+        github_url="$(go_toolchain_github_url "$desired" "$go_arch" || true)"
+        if [ -n "$github_url" ]; then
+            urls+=("$github_url")
+            rm -f "$archive"
+            if curl --fail --silent --show-error --location \
+                --connect-timeout 20 --retry 3 --retry-delay 2 \
+                -o "$archive" "$github_url"; then
+                if [ -s "$archive" ] && tar -tzf "$archive" >/dev/null 2>&1; then
+                    downloaded="$github_url"
+                else
+                    warn "Downloaded an invalid Go archive from GitHub."
+                fi
+            else
+                warn "Go download failed from GitHub."
+            fi
+        else
+            warn "No GitHub-hosted Go ${desired} archive is available for ${go_arch}."
+        fi
+    fi
+
     if [ -z "$downloaded" ]; then
         rm -f "$archive"
         rm -rf "$stage"
@@ -86,7 +133,9 @@ ensure_go_toolchain() {
         return 1
     fi
 
-    if ! tar -C "$stage" -xzf "$archive"; then
+    local unpack="$stage/unpack"
+    mkdir -p "$unpack"
+    if ! tar -C "$unpack" -xzf "$archive"; then
         rm -f "$archive"
         rm -rf "$stage"
         err "Could not extract Go archive downloaded from $downloaded"
@@ -94,8 +143,30 @@ ensure_go_toolchain() {
     fi
     rm -f "$archive"
 
+    # go.dev archives contain go/bin/go; GitHub Actions archives contain
+    # bin/go at their root. Normalize both into stage/ready before replacing
+    # anything on the host.
+    local payload=""
+    if [ -x "$unpack/go/bin/go" ]; then
+        payload="$unpack/go"
+    elif [ -x "$unpack/bin/go" ]; then
+        payload="$unpack"
+    else
+        rm -rf "$stage"
+        err "Downloaded archive does not contain a Go toolchain."
+        return 1
+    fi
+    if ! mv "$payload" "$stage/ready"; then
+        rm -rf "$stage"
+        err "Could not stage the downloaded Go toolchain."
+        return 1
+    fi
+    if [ -d "$unpack" ]; then
+        rmdir "$unpack" 2>/dev/null || true
+    fi
+
     local staged_version
-    staged_version="$(go_toolchain_version "$stage/go/bin/go")"
+    staged_version="$(go_toolchain_version "$stage/ready/bin/go")"
     if [ "$staged_version" != "$desired" ]; then
         rm -rf "$stage"
         err "Downloaded Go version ${staged_version:-unknown}; expected $desired"
@@ -115,7 +186,7 @@ ensure_go_toolchain() {
         fi
     fi
 
-    if ! mv "$stage/go" "$install_dir"; then
+    if ! mv "$stage/ready" "$install_dir"; then
         if [ -n "$backup" ] && [ -e "$backup/go" ]; then
             mv "$backup/go" "$install_dir" || true
         fi

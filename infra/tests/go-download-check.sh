@@ -30,13 +30,28 @@ URLS=(
     "https://go.dev/dl/${FILENAME}"
 )
 
+OFFICIAL_AVAILABLE=0
 for url in "${URLS[@]}"; do
     if curl --fail --silent --show-error --location --head \
         --connect-timeout 20 --retry 3 --retry-delay 2 "$url" >/dev/null; then
-        printf 'PASS: Go %s is available for %s at %s\n' "$GO_VERSION" "$GO_ARCH" "$url"
-        exit 0
+        OFFICIAL_AVAILABLE=1
+        printf 'PASS: Go %s official archive is available for %s at %s\n' "$GO_VERSION" "$GO_ARCH" "$url"
+        break
     fi
 done
 
-printf 'Go %s is unavailable for %s at both official endpoints.\n' "$GO_VERSION" "$GO_ARCH" >&2
-exit 1
+GITHUB_URL="$(go_toolchain_github_url "$GO_VERSION" "$GO_ARCH" || true)"
+if [ -z "$GITHUB_URL" ]; then
+    printf 'GitHub fallback is unavailable for Go %s on %s.\n' "$GO_VERSION" "$GO_ARCH" >&2
+    exit 1
+fi
+if ! curl --fail --silent --show-error --location --head \
+    --connect-timeout 20 --retry 3 --retry-delay 2 "$GITHUB_URL" >/dev/null; then
+    printf 'GitHub fallback URL is unreachable: %s\n' "$GITHUB_URL" >&2
+    exit 1
+fi
+printf 'PASS: Go %s GitHub fallback is available for %s at %s\n' "$GO_VERSION" "$GO_ARCH" "$GITHUB_URL"
+
+if [ "$OFFICIAL_AVAILABLE" -eq 0 ]; then
+    printf 'Official Go endpoints are unavailable; GitHub fallback remains healthy.\n'
+fi

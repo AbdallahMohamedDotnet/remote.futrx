@@ -17,11 +17,12 @@ trap 'command rm -rf "$TEST_ROOT"' EXIT
 
 TEST_ARCH=amd64
 CURL_CALLS=0
-FAIL_FIRST_DOWNLOAD=0
+FAIL_DOWNLOADS_BEFORE_SUCCESS=0
 FAIL_ALL_DOWNLOADS=0
 TEST_GO_VERSION="$GO_VERSION"
 OLD_GO_VERSION=0.0.1
 FAKE_GO_VERSION="$TEST_GO_VERSION"
+FAKE_ARCHIVE_LAYOUT=official
 
 fail() {
     printf 'FAIL: %s\n' "$*" >&2
@@ -53,6 +54,10 @@ dpkg() {
     esac
 }
 
+go_toolchain_github_url() {
+    printf '%s\n' 'https://github.test/actions/go-versions/go-linux.tar.gz'
+}
+
 write_fake_go_tree() {
     local root="$1" version="$2"
     mkdir -p "$root/bin"
@@ -75,23 +80,32 @@ tar() {
         esac
     done
     [ -n "$destination" ] || return 1
-    write_fake_go_tree "$destination/go" "$FAKE_GO_VERSION"
+    if [ "$FAKE_ARCHIVE_LAYOUT" = "github" ]; then
+        write_fake_go_tree "$destination" "$FAKE_GO_VERSION"
+    else
+        write_fake_go_tree "$destination/go" "$FAKE_GO_VERSION"
+    fi
 }
 
 curl() {
     CURL_CALLS=$((CURL_CALLS + 1))
-    local output=""
+    local output="" url=""
     while [ "$#" -gt 0 ]; do
         case "$1" in
             -o) output="$2"; shift 2 ;;
-            *) shift ;;
+            *) url="$1"; shift ;;
         esac
     done
     if [ "$FAIL_ALL_DOWNLOADS" -eq 1 ] \
-        || { [ "$FAIL_FIRST_DOWNLOAD" -eq 1 ] && [ "$CURL_CALLS" -eq 1 ]; }; then
+        || [ "$CURL_CALLS" -le "$FAIL_DOWNLOADS_BEFORE_SUCCESS" ]; then
         return 22
     fi
     [ -n "$output" ] || return 1
+    if [[ "$url" == https://github.test/* ]]; then
+        FAKE_ARCHIVE_LAYOUT=github
+    else
+        FAKE_ARCHIVE_LAYOUT=official
+    fi
     printf 'fixture archive\n' > "$output"
 }
 
@@ -115,7 +129,7 @@ assert_eq ppc64le "$(go_toolchain_arch ppc64el)" "ppc64el mapping"
 # Fresh server: no existing Go installation.
 use_install_root fresh
 CURL_CALLS=0
-FAIL_FIRST_DOWNLOAD=0
+FAIL_DOWNLOADS_BEFORE_SUCCESS=0
 FAIL_ALL_DOWNLOADS=0
 ensure_go_toolchain "$TEST_GO_VERSION"
 assert_eq "$TEST_GO_VERSION" "$(go_toolchain_version "$GO_INSTALL_ROOT/bin/go")" "fresh install"
@@ -149,13 +163,14 @@ CURL_CALLS=0
 ensure_go_toolchain "$TEST_GO_VERSION"
 assert_eq "$TEST_GO_VERSION" "$(go_toolchain_version "$GO_INSTALL_ROOT/bin/go")" "local Go upgrade"
 
-# Primary endpoint failure: automatically use the second official endpoint.
+# Both Google-backed endpoints fail: automatically use the GitHub archive.
 use_install_root fallback
 CURL_CALLS=0
-FAIL_FIRST_DOWNLOAD=1
+FAIL_DOWNLOADS_BEFORE_SUCCESS=2
+FAIL_ALL_DOWNLOADS=0
 ensure_go_toolchain "$TEST_GO_VERSION"
 assert_eq "$TEST_GO_VERSION" "$(go_toolchain_version "$GO_INSTALL_ROOT/bin/go")" "fallback install"
-assert_eq 2 "$CURL_CALLS" "fallback download count"
+assert_eq 3 "$CURL_CALLS" "fallback download count"
 
 # Total download failure must preserve the old working toolchain.
 use_install_root preserve
@@ -164,7 +179,7 @@ ln -sf "$GO_INSTALL_ROOT/go/bin/go" "$GO_INSTALL_ROOT/bin/go"
 ln -sf "$GO_INSTALL_ROOT/go/bin/gofmt" "$GO_INSTALL_ROOT/bin/gofmt"
 hash -r
 CURL_CALLS=0
-FAIL_FIRST_DOWNLOAD=0
+FAIL_DOWNLOADS_BEFORE_SUCCESS=0
 FAIL_ALL_DOWNLOADS=1
 if ensure_go_toolchain "$TEST_GO_VERSION"; then
     fail "download failure unexpectedly succeeded"
