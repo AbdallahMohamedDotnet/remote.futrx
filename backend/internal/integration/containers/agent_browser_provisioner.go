@@ -2,8 +2,26 @@ package containers
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
+	"time"
+)
+
+//go:embed templates/gui-up.sh
+var guiUpScript []byte
+
+//go:embed templates/human-input.sh
+var humanInputScript []byte
+
+const (
+	containerGUIDir           = "/workspace/.browser-gui"
+	containerGUIScript        = containerGUIDir + "/gui-up.sh"
+	containerGUIScriptHash    = containerGUIDir + "/.gui-up.sha256"
+	containerHumanInputScript = containerGUIDir + "/human-input.sh"
+	containerHumanInputHash   = containerGUIDir + "/.human-input.sha256"
+
+	agentBrowserInstallTimeout = 8 * time.Minute
 )
 
 // agentBrowserProvisioner owns browser package installation and the

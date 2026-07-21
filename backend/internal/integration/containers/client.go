@@ -88,8 +88,6 @@ func New(client CommandRunner) *Client {
 		profiles: &containerClient.profiles,
 	}
 	containerClient.browser = agentBrowser{
-		lxc:         client,
-		templates:   &containerClient.templates,
 		provisioner: agentBrowserProvisioner{lxc: client, templates: &containerClient.templates},
 		runtime:     agentBrowserRuntime{lxc: client},
 	}

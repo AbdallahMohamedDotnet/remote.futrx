@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
+
+const agentBrowserReadyTimeout = 60 * time.Second
 
 // agentBrowserRuntime owns launcher commands and translation of the launcher's
 // split core/view status.
@@ -71,10 +74,10 @@ func (r *agentBrowserRuntime) status(ctx context.Context, containerName string) 
 			View:   "off",
 		}, nil
 	}
-	return parseBrowserRuntimeStatus(out), nil
+	return parseAgentBrowserStatus(out), nil
 }
 
-func parseBrowserRuntimeStatus(out string) serviceproject.AgentBrowserInfo {
+func parseAgentBrowserStatus(out string) serviceproject.AgentBrowserInfo {
 	info := serviceproject.AgentBrowserInfo{
 		Status: serviceproject.AgentBrowserStatusStopped,
 		Core:   "off",
