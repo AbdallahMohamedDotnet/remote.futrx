@@ -46,15 +46,22 @@ type Client struct {
 	image     string
 	profiles  profileRegistry
 	templates templatePublisher
+	inspector containerInspector
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
 func New(client CommandRunner) *Client {
-	return &Client{
+	containerClient := &Client{
 		lxc:       client,
 		image:     defaultImage,
 		templates: templatePublisher{lxc: client},
 	}
+	containerClient.inspector = containerInspector{
+		lxc:      client,
+		profiles: &containerClient.profiles,
+		states:   containerClient,
+	}
+	return containerClient
 }
 
 func (c *Client) ConfigureAgentProfiles(profiles []provisioning.Profile) {

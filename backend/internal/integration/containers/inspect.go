@@ -22,6 +22,18 @@ import (
 
 const inspectQuickTimeout = 5 * time.Second
 
+type containerStateReader interface {
+	State(context.Context, string) (serviceproject.ContainerState, error)
+}
+
+// containerInspector owns the best-effort snapshot assembled from LXD, the
+// guest operating system, configured agent profiles, and host credential files.
+type containerInspector struct {
+	lxc      CommandRunner
+	profiles *profileRegistry
+	states   containerStateReader
+}
+
 // instanceConfig mirrors the subset of /1.0/instances/<n> we care about.
 type instanceConfig struct {
 	Architecture string                       `json:"architecture"`
@@ -70,9 +82,13 @@ type instanceState struct {
 }
 
 func (c *Client) Inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
+	return c.inspector.inspect(ctx, containerName)
+}
+
+func (i *containerInspector) inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
 	out := serviceproject.ContainerInspect{Name: containerName}
 
-	state, err := c.State(ctx, containerName)
+	state, err := i.states.State(ctx, containerName)
 	if err != nil {
 		return out, err
 	}
@@ -81,7 +97,7 @@ func (c *Client) Inspect(ctx context.Context, containerName string) (serviceproj
 		return out, nil
 	}
 
-	if cfg, err := c.queryInstance(ctx, containerName); err == nil {
+	if cfg, err := i.queryInstance(ctx, containerName); err == nil {
 		out.Architecture = cfg.Architecture
 		out.Type = cfg.Type
 		out.CreatedAt = cfg.CreatedAt
@@ -104,7 +120,7 @@ func (c *Client) Inspect(ctx context.Context, containerName string) (serviceproj
 	}
 
 	if state == serviceproject.ContainerStateRunning {
-		if st, err := c.queryInstanceState(ctx, containerName); err == nil {
+		if st, err := i.queryInstanceState(ctx, containerName); err == nil {
 			out.PID = st.PID
 			out.Resources = &serviceproject.ResourceInfo{
 				Processes:          st.Processes,
@@ -139,18 +155,18 @@ func (c *Client) Inspect(ctx context.Context, containerName string) (serviceproj
 			}
 		}
 
-		osInfo, disks := c.probeInContainer(ctx, containerName)
+		osInfo, disks := i.probeInContainer(ctx, containerName)
 		out.OS = osInfo
 		out.Disks = disks
-		out.SetAgentStatuses(c.inspectAgents(ctx, containerName))
+		out.SetAgentStatuses(i.inspectAgents(ctx, containerName))
 	}
 
-	out.AuthBundles = c.inspectAuthBundles(ctx, containerName, state)
+	out.AuthBundles = i.inspectAuthBundles(ctx, containerName, state)
 	return out, nil
 }
 
-func (c *Client) queryInstance(ctx context.Context, name string) (*instanceConfig, error) {
-	raw, err := c.runQuick(ctx, "query", "/1.0/instances/"+name)
+func (i *containerInspector) queryInstance(ctx context.Context, name string) (*instanceConfig, error) {
+	raw, err := i.runQuick(ctx, "query", "/1.0/instances/"+name)
 	if err != nil {
 		return nil, err
 	}
@@ -161,8 +177,8 @@ func (c *Client) queryInstance(ctx context.Context, name string) (*instanceConfi
 	return &cfg, nil
 }
 
-func (c *Client) queryInstanceState(ctx context.Context, name string) (*instanceState, error) {
-	raw, err := c.runQuick(ctx, "query", "/1.0/instances/"+name+"/state")
+func (i *containerInspector) queryInstanceState(ctx context.Context, name string) (*instanceState, error) {
+	raw, err := i.runQuick(ctx, "query", "/1.0/instances/"+name+"/state")
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +192,7 @@ func (c *Client) queryInstanceState(ctx context.Context, name string) (*instance
 // probeInContainer batches several /proc reads + commands into a single
 // `lxc exec sh -c` round-trip to keep latency in the low 100ms range. The
 // output is split on `=== KEY ===` markers.
-func (c *Client) probeInContainer(ctx context.Context, name string) (*serviceproject.OSInfo, []serviceproject.DiskUsage) {
+func (i *containerInspector) probeInContainer(ctx context.Context, name string) (*serviceproject.OSInfo, []serviceproject.DiskUsage) {
 	script := `
 echo "=== OS_RELEASE ==="
 cat /etc/os-release 2>/dev/null
@@ -192,7 +208,7 @@ echo "=== DF ==="
 df -P -B1 / /workspace 2>/dev/null
 echo "=== END ==="
 `
-	raw, err := c.runQuick(ctx, "exec", name, "--", "sh", "-c", script)
+	raw, err := i.runQuick(ctx, "exec", name, "--", "sh", "-c", script)
 	if err != nil {
 		return nil, nil
 	}
@@ -265,22 +281,22 @@ func splitSections(raw string) map[string]string {
 	return out
 }
 
-func (c *Client) inspectAgents(ctx context.Context, containerName string) []serviceproject.AgentContainerStatus {
-	profiles := c.AgentProfiles()
+func (i *containerInspector) inspectAgents(ctx context.Context, containerName string) []serviceproject.AgentContainerStatus {
+	profiles := i.profiles.snapshot()
 	statuses := make([]serviceproject.AgentContainerStatus, 0, len(profiles))
 	for _, profile := range profiles {
 		status := serviceproject.AgentContainerStatus{ID: profile.ID}
-		if _, err := c.runQuick(ctx, "exec", containerName, "--", "which", profile.CLI.Binary); err == nil {
+		if _, err := i.runQuick(ctx, "exec", containerName, "--", "which", profile.CLI.Binary); err == nil {
 			status.Installed = true
-			if version, err := c.runQuick(ctx, "exec", containerName, "--", profile.CLI.Binary, "--version"); err == nil {
+			if version, err := i.runQuick(ctx, "exec", containerName, "--", profile.CLI.Binary, "--version"); err == nil {
 				status.Version = strings.TrimSpace(version)
 			}
 		}
 		if profile.Instructions != nil {
-			if _, err := c.runQuick(ctx, "exec", containerName, "--", "test", "-f", profile.Instructions.Path); err == nil {
+			if _, err := i.runQuick(ctx, "exec", containerName, "--", "test", "-f", profile.Instructions.Path); err == nil {
 				status.InstructionsInstalled = true
 			}
-			if hash, err := c.runQuick(ctx, "exec", containerName, "--", "cat", profile.Instructions.HashPath); err == nil {
+			if hash, err := i.runQuick(ctx, "exec", containerName, "--", "cat", profile.Instructions.HashPath); err == nil {
 				status.InstructionsInSync = strings.TrimSpace(hash) == templateHash(agentInstructionsTemplate)
 			}
 		}
@@ -289,8 +305,8 @@ func (c *Client) inspectAgents(ctx context.Context, containerName string) []serv
 	return statuses
 }
 
-func (c *Client) inspectAuthBundles(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {
-	profiles := c.AgentProfiles()
+func (i *containerInspector) inspectAuthBundles(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {
+	profiles := i.profiles.snapshot()
 	out := make([]serviceproject.AuthBundleStatus, 0, len(profiles))
 	for _, profile := range profiles {
 		b := profile.Credentials
@@ -308,7 +324,7 @@ func (c *Client) inspectAuthBundles(ctx context.Context, containerName string, s
 				fs.HostMTime = info.ModTime().Unix()
 			}
 			if state == serviceproject.ContainerStateRunning {
-				if raw, err := c.runQuick(ctx,
+				if raw, err := i.runQuick(ctx,
 					"exec", containerName, "--", "stat", "-c", "%Y", f.ContainerPath); err == nil {
 					if mt, perr := strconv.ParseInt(strings.TrimSpace(raw), 10, 64); perr == nil {
 						fs.ContainerExists = true
@@ -332,8 +348,8 @@ func (c *Client) inspectAuthBundles(ctx context.Context, containerName string, s
 	return out
 }
 
-func (c *Client) runQuick(parent context.Context, args ...string) (string, error) {
+func (i *containerInspector) runQuick(parent context.Context, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(parent, inspectQuickTimeout)
 	defer cancel()
-	return c.lxc.Run(ctx, args...)
+	return i.lxc.Run(ctx, args...)
 }
