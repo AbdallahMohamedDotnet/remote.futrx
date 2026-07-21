@@ -18,13 +18,13 @@ import (
 	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
 	containerenvironment "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/environment"
 	containerinspection "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/inspection"
-	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/launch"
 	containerlifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/lifecycle"
 	containerlisteners "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/listeners"
 	containernetwork "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/network"
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	containerresources "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/resources"
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
+	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/launch"
 )
 
 const defaultImage = containerbaseimage.Alias
