@@ -94,9 +94,15 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		runs,
 	)
 	agents := agent.NewRegistry()
-	agents.Register(claudeagent.New(projectService, deps.Containers))
-	agents.Register(codexagent.New(projectService, deps.Containers))
-	agents.Register(kimiagent.New(projectService, deps.Containers))
+	for _, provider := range []agent.Provider{
+		claudeagent.New(projectService, deps.Containers),
+		codexagent.New(projectService, deps.Containers),
+		kimiagent.New(projectService, deps.Containers),
+	} {
+		if err := agents.Register(provider); err != nil {
+			return Services{}, err
+		}
+	}
 	promptService := prompt.New(
 		chats,
 		deps.TmuxClient,
