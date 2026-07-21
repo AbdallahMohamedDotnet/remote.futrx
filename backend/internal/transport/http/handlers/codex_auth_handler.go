@@ -4,17 +4,17 @@ import (
 	"errors"
 	"net/http"
 
+	codexagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/codex"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/codexauth"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
 )
 
 type CodexAuthHandler struct {
-	login *codexauth.Service
+	login *codexagent.Auth
 	auth  *serviceauth.Service
 }
 
-func NewCodexAuthHandler(login *codexauth.Service, auth *serviceauth.Service) *CodexAuthHandler {
+func NewCodexAuthHandler(login *codexagent.Auth, auth *serviceauth.Service) *CodexAuthHandler {
 	return &CodexAuthHandler{login: login, auth: auth}
 }
 
@@ -60,7 +60,7 @@ func (h *CodexAuthHandler) HandleDeviceLogin(w http.ResponseWriter, r *http.Requ
 
 func sendCodexLoginError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, codexauth.ErrCodexNotFound):
+	case errors.Is(err, codexagent.ErrCodexNotFound):
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())

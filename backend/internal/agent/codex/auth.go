@@ -1,4 +1,4 @@
-package codexauth
+package codex
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ var (
 	deviceCodeRE = regexp.MustCompile(`[A-Z0-9]{4}-[A-Z0-9]{5}`)
 )
 
-type Status struct {
+type AuthStatus struct {
 	Authenticated bool             `json:"authenticated"`
 	AuthMode      string           `json:"authMode,omitempty"`
 	UsesAPIKey    bool             `json:"usesApiKey,omitempty"`
@@ -34,13 +34,13 @@ type Status struct {
 }
 
 type DeviceLoginState = agentauth.DeviceState
-type Service = agentauth.DeviceService[Status]
+type Auth = agentauth.DeviceService[AuthStatus]
 
-func New() *Service {
-	return agentauth.NewDeviceService(agentauth.DeviceConfig[Status]{
+func NewAuth() *Auth {
+	return agentauth.NewDeviceService(agentauth.DeviceConfig[AuthStatus]{
 		Command:         "codex",
 		Args:            []string{"login", "--device-auth"},
-		Env:             codexEnv,
+		Env:             codexAuthEnv,
 		NotFound:        ErrCodexNotFound,
 		StartErrorLabel: "codex login",
 		ReadyTimeout:    deviceLoginReadyTimeout,
@@ -52,10 +52,10 @@ func New() *Service {
 			authenticated, _, _ := authenticated()
 			return authenticated
 		},
-		BuildStatus: func() agentauth.DeviceStatusBuilder[Status] {
+		BuildStatus: func() agentauth.DeviceStatusBuilder[AuthStatus] {
 			authenticated, authMode, usesAPIKey := authenticated()
-			return func(state agentauth.DeviceState) Status {
-				return Status{
+			return func(state agentauth.DeviceState) AuthStatus {
+				return AuthStatus{
 					Authenticated: authenticated,
 					AuthMode:      authMode,
 					UsesAPIKey:    usesAPIKey,
@@ -121,7 +121,7 @@ func codexHomeDir() string {
 	return "/root/.codex"
 }
 
-func codexEnv(base []string) []string {
+func codexAuthEnv(base []string) []string {
 	out := make([]string, 0, len(base)+1)
 	hasCodexHome := false
 	for _, env := range base {

@@ -4,15 +4,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/codexauth"
+	codexagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/codex"
 	"github.com/gorilla/websocket"
 )
 
 type CodexAuthSocket struct {
-	login *codexauth.Service
+	login *codexagent.Auth
 }
 
-func NewCodexAuthSocket(login *codexauth.Service) *CodexAuthSocket {
+func NewCodexAuthSocket(login *codexagent.Auth) *CodexAuthSocket {
 	return &CodexAuthSocket{login: login}
 }
 

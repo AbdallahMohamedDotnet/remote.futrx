@@ -5,11 +5,11 @@ import (
 	"io/fs"
 	"net/http"
 
+	codexagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/codex"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/claudeauth"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/codexauth"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/kimiauth"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	httptransport "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/transport/http"
@@ -42,7 +42,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		return nil, err
 	}
 	claudeLogin := claudeauth.New()
-	codexLogin := codexauth.New()
+	codexLogin := codexagent.NewAuth()
 	kimiLogin := kimiauth.New()
 
 	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
