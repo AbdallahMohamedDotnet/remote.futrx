@@ -1,5 +1,4 @@
 import { useEffect, useState } from "preact/hooks";
-import { codexAuthWebSocketUrl } from "../../../transport/websocket";
 import type { CodexAuthStatus, CodexDeviceLogin } from "../../../models/auth";
 import { codexAuthApi } from "../../../api/codexAuthApi";
 
@@ -57,51 +56,8 @@ export function useCodexAuth(enabled: boolean): CodexAuthState {
       return;
     }
 
-    let stopped = false;
-    let attempt = 0;
-    let socket: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
     setLoading(true);
-
-    function scheduleReconnect() {
-      if (stopped) return;
-      const delay = Math.min(5000, 400 * 2 ** attempt);
-      attempt++;
-      reconnectTimer = setTimeout(connect, delay);
-    }
-
-    function connect() {
-      if (stopped) return;
-      socket = new WebSocket(codexAuthWebSocketUrl());
-
-      socket.onopen = () => {
-        attempt = 0;
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          applyStatus(JSON.parse(event.data) as CodexAuthStatus);
-        } catch {}
-      };
-
-      socket.onclose = () => {
-        socket = null;
-        scheduleReconnect();
-      };
-
-      socket.onerror = () => {
-        try { socket?.close(); } catch {}
-      };
-    }
-
-    connect();
-
-    return () => {
-      stopped = true;
-      if (reconnectTimer) window.clearTimeout(reconnectTimer);
-      try { socket?.close(); } catch {}
-    };
+    return codexAuthApi.subscribe(applyStatus);
   }, [enabled]);
 
   return {
