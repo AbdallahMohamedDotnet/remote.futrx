@@ -6,13 +6,15 @@ package containers
 // profiles supplied by the service composition root.
 
 import (
+	"context"
+	"io"
+
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	containerbaseimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/baseimage"
 	containerbrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/browser"
 	containercli "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/cli"
 	containercodeserver "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/codeserver"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
 	containerenvironment "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/environment"
 	containerinspection "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/inspection"
@@ -28,7 +30,11 @@ const defaultImage = containerbaseimage.Alias
 
 // CommandRunner is the transport seam used to invoke the container runtime.
 // The LXC CLI adapter implements it at the application composition root.
-type CommandRunner = command.Runner
+type CommandRunner interface {
+	Available() bool
+	Run(ctx context.Context, args ...string) (string, error)
+	RunStdin(ctx context.Context, stdin io.Reader, args ...string) (string, error)
+}
 
 // Client implements the container ports consumed by project and prompt
 // services. Wire it once at the composition root and share the pointer.
