@@ -49,6 +49,7 @@ type Dependencies struct {
 
 type Services struct {
 	Chats        *servicechat.Service
+	ChatAccess   *servicechat.AccessService
 	Projects     *serviceproject.Service
 	Prompt       *prompt.Service
 	AgentAuth    *agentauth.Registry
@@ -97,6 +98,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxResolver,
 		runs,
 	)
+	chatAccessService := servicechat.NewAccessService(chatService, projectService)
 	agents := agent.NewRegistry()
 	agentAuth := agentauth.NewRegistry()
 	for index, definition := range definitions {
@@ -147,6 +149,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 
 	return Services{
 		Chats:        chatService,
+		ChatAccess:   chatAccessService,
 		Projects:     projectService,
 		Prompt:       promptService,
 		AgentAuth:    agentAuth,

@@ -67,7 +67,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		Sessions: httphandlers.NewTmuxHandler(deps.Services.Tmux),
 		Chats: httphandlers.NewChatHandler(
 			deps.Services.Chats,
-			deps.Services.Projects,
+			deps.Services.ChatAccess,
 			deps.Services.Auth,
 			deps.Files,
 			deps.GitHistory,
