@@ -12,7 +12,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 )
 
 const queryTimeout = 10 * time.Second
@@ -23,7 +23,7 @@ type repairRecipe func([]provisioning.Profile) (string, error)
 // coalescing around installs already running inside a container.
 type Provisioner struct {
 	runner       command.Runner
-	profiles     *profiles.Registry
+	profiles     serviceprofiles.Source
 	repairRecipe repairRecipe
 }
 
@@ -31,10 +31,10 @@ type Provisioner struct {
 // profile registry and full-image repair recipe.
 func NewProvisioner(
 	runner command.Runner,
-	registry *profiles.Registry,
+	profileSource serviceprofiles.Source,
 	recipe func([]provisioning.Profile) (string, error),
 ) *Provisioner {
-	return &Provisioner{runner: runner, profiles: registry, repairRecipe: recipe}
+	return &Provisioner{runner: runner, profiles: profileSource, repairRecipe: recipe}
 }
 
 // EnsureCLI is cheap on the normal path (one local `--version` call).

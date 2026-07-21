@@ -18,7 +18,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
@@ -41,7 +41,7 @@ type StateReader interface {
 
 // NewInspector returns a diagnostic inspector backed by the lifecycle state
 // reader and shared agent profiles.
-func NewInspector(runner command.Runner, registry *profiles.Registry, states StateReader) *Inspector {
+func NewInspector(runner command.Runner, profileSource serviceprofiles.Source, states StateReader) *Inspector {
 	commands := &quickCommandRunner{runner: runner, timeout: inspectQuickTimeout}
 	return &Inspector{
 		states: states,
@@ -49,10 +49,10 @@ func NewInspector(runner command.Runner, registry *profiles.Registry, states Sta
 		guest:  containerGuestInspector{commands: commands},
 		agents: containerAgentInspector{
 			commands:        commands,
-			profiles:        registry,
+			profiles:        profileSource,
 			instructionHash: assets.Hash(provisioning.InstructionsTemplate()),
 		},
-		credentials: containerCredentialInspector{commands: commands, profiles: registry},
+		credentials: containerCredentialInspector{commands: commands, profiles: profileSource},
 	}
 }
 

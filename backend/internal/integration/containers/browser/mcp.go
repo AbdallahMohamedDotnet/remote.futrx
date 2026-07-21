@@ -19,7 +19,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 // for the browser tool server. It is independent of the browser GUI runtime.
 type agentBrowserMCPProvisioner struct {
 	runner    command.Runner
-	profiles  *profiles.Registry
+	profiles  serviceprofiles.Source
 	publisher *assets.Publisher
 }
 

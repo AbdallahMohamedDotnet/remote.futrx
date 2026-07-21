@@ -15,7 +15,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 )
 
 const (
@@ -26,16 +26,16 @@ const (
 // Synchronizer owns bidirectional credential transfer between the
 // host's canonical files and their provider-defined container destinations.
 type Synchronizer struct {
-	profiles    *profiles.Registry
+	profiles    serviceprofiles.Source
 	files       fileSynchronizer
 	directories directorySynchronizer
 }
 
 // NewSynchronizer returns a credential synchronizer backed by the shared
 // profile registry.
-func NewSynchronizer(runner command.Runner, registry *profiles.Registry) *Synchronizer {
+func NewSynchronizer(runner command.Runner, profileSource serviceprofiles.Source) *Synchronizer {
 	synchronizer := &Synchronizer{
-		profiles: registry,
+		profiles: profileSource,
 		files:    fileSynchronizer{runner: runner},
 	}
 	synchronizer.directories = directorySynchronizer{

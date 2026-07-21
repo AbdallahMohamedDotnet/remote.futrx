@@ -18,7 +18,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 )
 
 const (
@@ -44,7 +44,7 @@ const (
 // profile-derived development image consumed by project containers.
 type Builder struct {
 	runner                  command.Runner
-	profiles                *profiles.Registry
+	profiles                serviceprofiles.Source
 	browserInstallScript    string
 	codeServerInstallScript []byte
 }
@@ -53,13 +53,13 @@ type Builder struct {
 // programs layered onto the provider-neutral development image.
 func NewBuilder(
 	runner command.Runner,
-	registry *profiles.Registry,
+	profileSource serviceprofiles.Source,
 	browserInstallScript string,
 	codeServerInstallScript []byte,
 ) *Builder {
 	return &Builder{
 		runner:                  runner,
-		profiles:                registry,
+		profiles:                profileSource,
 		browserInstallScript:    browserInstallScript,
 		codeServerInstallScript: codeServerInstallScript,
 	}

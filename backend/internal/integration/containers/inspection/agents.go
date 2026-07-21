@@ -4,14 +4,14 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
 // containerAgentInspector reports provider CLI and instruction readiness.
 type containerAgentInspector struct {
 	commands        *quickCommandRunner
-	profiles        *profiles.Registry
+	profiles        serviceprofiles.Source
 	instructionHash string
 }
 

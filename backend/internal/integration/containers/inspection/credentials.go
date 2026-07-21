@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
@@ -14,7 +14,7 @@ import (
 // and in-container timestamps.
 type containerCredentialInspector struct {
 	commands *quickCommandRunner
-	profiles *profiles.Registry
+	profiles serviceprofiles.Source
 }
 
 func (i *containerCredentialInspector) inspect(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {

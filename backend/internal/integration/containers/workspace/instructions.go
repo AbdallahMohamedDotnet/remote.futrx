@@ -15,7 +15,7 @@ import (
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 )
 
 var agentInstructionsTemplate = provisioning.InstructionsTemplate()
@@ -24,7 +24,7 @@ var agentInstructionsTemplate = provisioning.InstructionsTemplate()
 // the persistent project workspace.
 type workspaceProvisioner struct {
 	runner    command.Runner
-	profiles  *profiles.Registry
+	profiles  serviceprofiles.Source
 	publisher *assets.Publisher
 }
 
@@ -35,10 +35,10 @@ type Provisioner struct {
 
 // NewProvisioner returns a workspace provisioner backed by shared container
 // dependencies.
-func NewProvisioner(runner command.Runner, registry *profiles.Registry, publisher *assets.Publisher) *Provisioner {
+func NewProvisioner(runner command.Runner, profileSource serviceprofiles.Source, publisher *assets.Publisher) *Provisioner {
 	return &Provisioner{workspaceProvisioner{
 		runner:    runner,
-		profiles:  registry,
+		profiles:  profileSource,
 		publisher: publisher,
 	}}
 }

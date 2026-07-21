@@ -15,7 +15,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
@@ -35,7 +35,7 @@ type Service struct {
 }
 
 // NewService returns a browser service backed by shared container dependencies.
-func NewService(runner command.Runner, registry *profiles.Registry, publisher *assets.Publisher) *Service {
+func NewService(runner command.Runner, profileSource serviceprofiles.Source, publisher *assets.Publisher) *Service {
 	return &Service{
 		runner:    runner,
 		publisher: publisher,
@@ -45,7 +45,7 @@ func NewService(runner command.Runner, registry *profiles.Registry, publisher *a
 		},
 		mcp: agentBrowserMCPProvisioner{
 			runner:    runner,
-			profiles:  registry,
+			profiles:  profileSource,
 			publisher: publisher,
 		},
 		config: agentBrowserConfigurator{runner: runner},
