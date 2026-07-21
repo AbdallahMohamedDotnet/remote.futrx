@@ -8,6 +8,7 @@ import (
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
+	servicegithistory "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/githistory"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
 	serviceworkspacefiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacefiles"
@@ -27,6 +28,7 @@ type Dependencies struct {
 	DataDir    string
 	ServerInfo *serviceserverinfo.Service
 	Files      *serviceworkspacefiles.Service
+	GitHistory *servicegithistory.Service
 }
 
 func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
@@ -63,6 +65,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Projects,
 			deps.Services.Auth,
 			deps.Files,
+			deps.GitHistory,
 		),
 		Projects: httphandlers.NewProjectHandler(
 			deps.Services.Projects,

@@ -17,11 +17,13 @@ import (
 
 	remote "github.com/Kings-Of-The-Web/remote.futrx.dev"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/config"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/gitcli"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostfs"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostinfo"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/lxc"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/tmuxcli"
 	service "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service"
+	servicegithistory "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/githistory"
 	serviceserverinfo "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/serverinfo"
 	serviceworkspacefiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/workspacefiles"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/stores"
@@ -72,6 +74,7 @@ func main() {
 	}
 	serverInfoService := serviceserverinfo.New(hostinfo.New(), cfg.DataDir, fileproject.WorkspaceRoot)
 	workspaceFileService := serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore())
+	gitHistoryService := servicegithistory.New(gitcli.NewHistoryClient())
 
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:   serviceSet,
@@ -80,6 +83,7 @@ func main() {
 		DataDir:    cfg.DataDir,
 		ServerInfo: serverInfoService,
 		Files:      workspaceFileService,
+		GitHistory: gitHistoryService,
 	})
 	if err != nil {
 		log.Fatalf("init http handler: %v", err)
