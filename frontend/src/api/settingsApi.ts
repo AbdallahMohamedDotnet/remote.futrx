@@ -14,12 +14,16 @@ import {
 
 export const settingsApi = {
   get: async () =>
-    normalize(await requestJson<UserSettings>("GET", API_ROUTES.settings)),
+    normalizeUserSettings(
+      await requestJson<UserSettings>("GET", API_ROUTES.settings)
+    ),
   update: async (body: UpdateUserSettingsInput) =>
-    normalize(await requestJson<UserSettings>("PATCH", API_ROUTES.settings, body)),
+    normalizeUserSettings(
+      await requestJson<UserSettings>("PATCH", API_ROUTES.settings, body)
+    ),
 };
 
-function normalize(settings: UserSettings): UserSettings {
+function normalizeUserSettings(settings: UserSettings): UserSettings {
   const theme = settings?.appearance?.theme;
   const provider = settings?.chat?.provider;
   const mode = settings?.chat?.mode;
@@ -40,7 +44,10 @@ function normalize(settings: UserSettings): UserSettings {
       provider: VALID_CHAT_PROVIDERS.has(provider)
         ? provider
         : DEFAULT_USER_SETTINGS.chat.provider,
-      model: typeof settings?.chat?.model === "string" ? settings.chat.model : DEFAULT_USER_SETTINGS.chat.model,
+      model:
+        typeof settings?.chat?.model === "string"
+          ? settings.chat.model
+          : DEFAULT_USER_SETTINGS.chat.model,
       mode: VALID_CHAT_MODES.has(mode) ? mode : DEFAULT_USER_SETTINGS.chat.mode,
       reasoningEffort: VALID_REASONING_EFFORTS.has(reasoningEffort)
         ? reasoningEffort
