@@ -62,9 +62,8 @@ func New(client CommandRunner) *Client {
 		templates: templatePublisher{lxc: client},
 	}
 	containerClient.lifecycle = containerLifecycle{
-		lxc:         client,
-		image:       defaultImage,
-		provisioner: containerClient,
+		lxc:   client,
+		image: defaultImage,
 	}
 	inspectionCommands := &quickCommandRunner{lxc: client, timeout: inspectQuickTimeout}
 	containerClient.inspector = containerInspector{
@@ -104,6 +103,12 @@ func New(client CommandRunner) *Client {
 	containerClient.images = baseImageBuilder{
 		lxc:      client,
 		profiles: &containerClient.profiles,
+	}
+	containerClient.lifecycle.provisioner = &containerLaunchProvisioner{
+		credentials: &containerClient.credentials,
+		workspace:   &containerClient.workspace,
+		browser:     &containerClient.browser,
+		codeServer:  &containerClient.codeServer,
 	}
 	return containerClient
 }

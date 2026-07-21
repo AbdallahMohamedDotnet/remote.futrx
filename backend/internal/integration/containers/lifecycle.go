@@ -14,21 +14,12 @@ import (
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
-type launchProvisioner interface {
-	EnsureRegisteredCredentials(context.Context, string) error
-	EnsureWorkspaceSkillLinks(context.Context, string) error
-	EnsureBrowserScript(context.Context, string) error
-	EnsureBrowserSkill(context.Context, string) error
-	EnsureAgentBrowserLimits(context.Context, string) error
-	EnsureCodeServer(context.Context, string, string) error
-}
-
 // containerLifecycle owns host workspace preparation, container state
 // transitions, workspace attachment, and launch-time capability orchestration.
 type containerLifecycle struct {
 	lxc         CommandRunner
 	image       string
-	provisioner launchProvisioner
+	provisioner *containerLaunchProvisioner
 }
 
 func (c *Client) Launch(ctx context.Context, p serviceproject.Meta) error {
@@ -68,16 +59,11 @@ func (l *containerLifecycle) launch(ctx context.Context, p serviceproject.Meta) 
 		return fmt.Errorf("attach workspace: %w", err)
 	}
 
-	// Best-effort: a missing autostart bit or an unauthenticated provider
-	// should not block the container from coming up. Both are idempotent
-	// and will be retried on the next prompt.
+	// Best-effort: a missing autostart bit or an unavailable capability should
+	// not block the container from coming up. These idempotent migrations are
+	// retried on the next prompt.
 	_ = l.ensureBootAutostart(ctx, p.ContainerName)
-	_ = l.provisioner.EnsureRegisteredCredentials(ctx, p.ContainerName)
-	_ = l.provisioner.EnsureWorkspaceSkillLinks(ctx, p.ContainerName)
-	_ = l.provisioner.EnsureBrowserScript(ctx, p.ContainerName)
-	_ = l.provisioner.EnsureBrowserSkill(ctx, p.ContainerName)
-	_ = l.provisioner.EnsureAgentBrowserLimits(ctx, p.ContainerName)
-	_ = l.provisioner.EnsureCodeServer(ctx, p.ContainerName, p.Name)
+	l.provisioner.provision(ctx, p.ContainerName, p.Name)
 
 	return nil
 }
