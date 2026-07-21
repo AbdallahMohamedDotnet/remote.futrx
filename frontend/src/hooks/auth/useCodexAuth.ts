@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { codexAuthWebSocketUrl } from "../../transport/websocket";
 import type { CodexAuthStatus, CodexDeviceLogin } from "../../models/auth";
-import { codexAuthService } from "../../services/codexAuthService";
+import { codexAuthService } from "../../api/codexAuthService";
 
 export interface CodexAuthState {
   loading: boolean;

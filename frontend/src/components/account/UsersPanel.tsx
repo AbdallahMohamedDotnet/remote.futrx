@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import type { User, UserRole } from "../../models/user";
-import { userService } from "../../services/userService";
+import { userService } from "../../api/userService";
 import { AlertCircle, Check, Loader, X } from "../ui/icons";
 
 interface UsersPanelProps {

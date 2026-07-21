@@ -1,7 +1,7 @@
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { useWorkspaceContext } from "../../context/WorkspaceContext";
-import { chatService } from "../../services/chatService";
+import { chatService } from "../../api/chatService";
 
 export function useWorkspaceCommands() {
   const workspace = useWorkspaceContext();

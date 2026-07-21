@@ -1,5 +1,5 @@
 import type { UpdateChatInput } from "../../models/chat";
-import { chatService } from "../../services/chatService";
+import { chatService } from "../../api/chatService";
 
 export function useChatMetaActions({
   chatId,

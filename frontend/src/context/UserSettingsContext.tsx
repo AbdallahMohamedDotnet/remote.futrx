@@ -8,7 +8,7 @@ import {
   type ChatSettings,
   type UserSettings,
 } from "../models/settings";
-import { settingsService } from "../services/settingsService";
+import { settingsService } from "../api/settingsService";
 
 interface UserSettingsContextValue {
   settings: UserSettings;

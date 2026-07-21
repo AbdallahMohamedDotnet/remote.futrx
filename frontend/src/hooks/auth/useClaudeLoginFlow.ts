@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ClaudeLoginPhase } from "../../models/auth";
-import { claudeAuthService } from "../../services/claudeAuthService";
+import { claudeAuthService } from "../../api/claudeAuthService";
 
 export function useClaudeLoginFlow(onDone: () => void) {
   const [phase, setPhaseState] = useState<ClaudeLoginPhase>("idle");

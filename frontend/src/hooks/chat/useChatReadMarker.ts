@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import type { ChatStatus } from "../../models/chat";
-import { chatService } from "../../services/chatService";
+import { chatService } from "../../api/chatService";
 
 export function useChatReadMarker({
   chatId,

@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import type { FileNode } from "../../../models/files";
-import { chatService } from "../../../services/chatService";
+import { chatService } from "../../../api/chatService";
 import {
   Archive,
   ChevronRight,

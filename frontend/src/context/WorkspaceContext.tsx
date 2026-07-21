@@ -3,8 +3,8 @@ import { createContext } from "preact";
 import { useContext, useEffect, useReducer } from "preact/hooks";
 import type { ChatMeta, CreateChatInput } from "../models/chat";
 import type { ProjectMeta } from "../models/project";
-import { chatService } from "../services/chatService";
-import { projectService } from "../services/projectService";
+import { chatService } from "../api/chatService";
+import { projectService } from "../api/projectService";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
 import { useUserSettingsContext } from "./UserSettingsContext";
 import {

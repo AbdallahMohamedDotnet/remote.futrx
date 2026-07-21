@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { FileTree } from "../../../models/files";
-import { chatService } from "../../../services/chatService";
+import { chatService } from "../../../api/chatService";
 import { ChevronsDownUp, ChevronsUpDown, Download, Folder, Loader, RotateCcw, Search, X } from "../../ui/icons";
 import { FileTreeNodes } from "./FileTree";
 import { collectFolderKeys, filterTree, formatBytes, nodeKey, treeStats } from "./fileMeta";
