@@ -1,16 +1,13 @@
 import { requestJson } from "./apiRequest";
 import { openChatStream } from "./chat/chatStream";
 import { sendHttpRequest } from "../transport/http";
-import { ReconnectingJsonWebSocket } from "../transport/reconnectingJsonSocket";
-import { webSocketUrl } from "../transport/webSocketUrl";
 import type { FileTreeResponse } from "../models/files";
-import type { ChatEvent, ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
+import type { ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
 import type { ChatStream, ChatStreamCallbacks } from "../types/chatApi";
-import { API_ROUTES, WEB_SOCKET_ROUTES } from "../config/routes";
+import { API_ROUTES } from "../config/routes";
 import {
   API_RESPONSE_STATUS,
-  CHAT_STREAM_MESSAGE_TYPES,
   DEFAULT_CHAT_HISTORY_COMMIT_LIMIT,
   DIRTY_WORKING_TREE_FALLBACK_MESSAGE,
 } from "../config/api";
@@ -99,40 +96,3 @@ export const chatApi = {
     callbacks: ChatStreamCallbacks
   ): ChatStream => openChatStream(id, latestSeq, callbacks),
 };
-
-class ReconnectingChatStream implements ChatStream {
-  readonly #connection: ReconnectingJsonWebSocket<ChatEvent>;
-
-  constructor(
-    chatId: string,
-    latestSeq: () => number,
-    callbacks: ChatStreamCallbacks
-  ) {
-    this.#connection = new ReconnectingJsonWebSocket({
-      resolveUrl: () => webSocketUrl(WEB_SOCKET_ROUTES.chat(chatId, latestSeq())),
-      onOpen: callbacks.onOpen,
-      onMessage: callbacks.onEvent,
-      onClose: callbacks.onClose,
-    });
-  }
-
-  get isOpen(): boolean {
-    return this.#connection.isOpen;
-  }
-
-  open(): void {
-    this.#connection.start();
-  }
-
-  sendPrompt(text: string): boolean {
-    return this.#connection.send({ type: CHAT_STREAM_MESSAGE_TYPES.prompt, text });
-  }
-
-  cancel(): boolean {
-    return this.#connection.send({ type: CHAT_STREAM_MESSAGE_TYPES.cancel });
-  }
-
-  close(): void {
-    this.#connection.stop();
-  }
-}
