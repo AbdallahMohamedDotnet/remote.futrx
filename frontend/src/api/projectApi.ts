@@ -1,4 +1,4 @@
-import { json } from "../transport/http";
+import { requestJson } from "../transport/http";
 import type {
   AgentBrowserInfo,
   ContainerApp,
@@ -8,59 +8,59 @@ import type {
 } from "../models/project";
 
 export const projectApi = {
-  list: () => json<ProjectMeta[]>("GET", "/api/projects"),
-  create: (name: string) => json<ProjectMeta>("POST", "/api/projects", { name }),
-  get: (id: string) => json<ProjectMeta>("GET", `/api/projects/${encodeURIComponent(id)}`),
+  list: () => requestJson<ProjectMeta[]>("GET", "/api/projects"),
+  create: (name: string) => requestJson<ProjectMeta>("POST", "/api/projects", { name }),
+  get: (id: string) => requestJson<ProjectMeta>("GET", `/api/projects/${encodeURIComponent(id)}`),
   update: (id: string, body: { name?: string }) =>
-    json<ProjectMeta>("PATCH", `/api/projects/${encodeURIComponent(id)}`, body),
+    requestJson<ProjectMeta>("PATCH", `/api/projects/${encodeURIComponent(id)}`, body),
   reorder: (ids: string[]) =>
-    json<ProjectMeta[]>("POST", "/api/projects/reorder", { ids }),
+    requestJson<ProjectMeta[]>("POST", "/api/projects/reorder", { ids }),
   delete: (id: string) =>
-    json<{ ok: boolean }>("DELETE", `/api/projects/${encodeURIComponent(id)}`),
+    requestJson<{ ok: boolean }>("DELETE", `/api/projects/${encodeURIComponent(id)}`),
   start: (id: string) =>
-    json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/start`, {}),
+    requestJson<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/start`, {}),
   stop: (id: string) =>
-    json<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/stop`, {}),
+    requestJson<ProjectMeta>("POST", `/api/projects/${encodeURIComponent(id)}/stop`, {}),
   containerInfo: (id: string) =>
-    json<ProjectContainerInfo>("GET", `/api/projects/${encodeURIComponent(id)}/container`),
+    requestJson<ProjectContainerInfo>("GET", `/api/projects/${encodeURIComponent(id)}/container`),
   repairNetwork: (id: string) =>
-    json<ProjectContainerInfo>("POST", `/api/projects/${encodeURIComponent(id)}/repair-network`, {}),
+    requestJson<ProjectContainerInfo>("POST", `/api/projects/${encodeURIComponent(id)}/repair-network`, {}),
   listApps: (id: string) =>
-    json<ContainerApp[]>("GET", `/api/projects/${encodeURIComponent(id)}/apps`),
+    requestJson<ContainerApp[]>("GET", `/api/projects/${encodeURIComponent(id)}/apps`),
   agentBrowserStatus: (id: string) =>
-    json<AgentBrowserInfo>("GET", `/api/projects/${encodeURIComponent(id)}/agent-browser`),
+    requestJson<AgentBrowserInfo>("GET", `/api/projects/${encodeURIComponent(id)}/agent-browser`),
   startAgentBrowser: (id: string) =>
-    json<AgentBrowserInfo>("POST", `/api/projects/${encodeURIComponent(id)}/agent-browser/start`, {}),
+    requestJson<AgentBrowserInfo>("POST", `/api/projects/${encodeURIComponent(id)}/agent-browser/start`, {}),
   stopAgentBrowser: (id: string, scope?: "view") => {
     const suffix = scope ? `?scope=${encodeURIComponent(scope)}` : "";
-    return json<AgentBrowserInfo | { status: "stopped" }>(
+    return requestJson<AgentBrowserInfo | { status: "stopped" }>(
       "DELETE",
       `/api/projects/${encodeURIComponent(id)}/agent-browser${suffix}`
     );
   },
   listSecrets: (id: string) =>
-    json<ProjectSecret[]>("GET", `/api/projects/${encodeURIComponent(id)}/secrets`),
+    requestJson<ProjectSecret[]>("GET", `/api/projects/${encodeURIComponent(id)}/secrets`),
   setSecret: (id: string, key: string, value: string) =>
-    json<ProjectSecret>(
+    requestJson<ProjectSecret>(
       "PUT",
       `/api/projects/${encodeURIComponent(id)}/secrets/${encodeURIComponent(key)}`,
       { value }
     ),
   deleteSecret: (id: string, key: string) =>
-    json<{ ok: boolean }>(
+    requestJson<{ ok: boolean }>(
       "DELETE",
       `/api/projects/${encodeURIComponent(id)}/secrets/${encodeURIComponent(key)}`
     ),
   listAccess: (id: string) =>
-    json<string[]>("GET", `/api/projects/${encodeURIComponent(id)}/access`),
+    requestJson<string[]>("GET", `/api/projects/${encodeURIComponent(id)}/access`),
   addAccess: (id: string, email: string) =>
-    json<{ email: string }>(
+    requestJson<{ email: string }>(
       "POST",
       `/api/projects/${encodeURIComponent(id)}/access`,
       { email }
     ),
   removeAccess: (id: string, email: string) =>
-    json<{ ok: boolean }>(
+    requestJson<{ ok: boolean }>(
       "DELETE",
       `/api/projects/${encodeURIComponent(id)}/access/${encodeURIComponent(email)}`
     ),

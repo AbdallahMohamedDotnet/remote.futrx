@@ -1,4 +1,4 @@
-import { json, request } from "../transport/http";
+import { requestJson, sendHttpRequest } from "../transport/http";
 import { ReconnectingJsonWebSocket } from "../transport/ReconnectingJsonWebSocket";
 import { webSocketUrl } from "../transport/websocket";
 import type { FileTreeResponse } from "../models/files";
@@ -19,21 +19,21 @@ export interface ChatStreamCallbacks {
 }
 
 export const chatApi = {
-  list: () => json<ChatMeta[]>("GET", "/api/chats"),
-  create: (body: CreateChatInput = {}) => json<ChatMeta>("POST", "/api/chats", body),
-  get: (id: string) => json<ChatMeta>("GET", `/api/chats/${encodeURIComponent(id)}`),
+  list: () => requestJson<ChatMeta[]>("GET", "/api/chats"),
+  create: (body: CreateChatInput = {}) => requestJson<ChatMeta>("POST", "/api/chats", body),
+  get: (id: string) => requestJson<ChatMeta>("GET", `/api/chats/${encodeURIComponent(id)}`),
   update: (id: string, body: UpdateChatInput) =>
-    json<ChatMeta>("PATCH", `/api/chats/${encodeURIComponent(id)}`, body),
+    requestJson<ChatMeta>("PATCH", `/api/chats/${encodeURIComponent(id)}`, body),
   markRead: (id: string) =>
-    json<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/read`, {}),
+    requestJson<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/read`, {}),
   markUnread: (id: string) =>
-    json<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/unread`, {}),
+    requestJson<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/unread`, {}),
   delete: (id: string) =>
-    json<{ ok: boolean }>("DELETE", `/api/chats/${encodeURIComponent(id)}`),
+    requestJson<{ ok: boolean }>("DELETE", `/api/chats/${encodeURIComponent(id)}`),
   fork: (id: string) =>
-    json<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/fork`, {}),
+    requestJson<ChatMeta>("POST", `/api/chats/${encodeURIComponent(id)}/fork`, {}),
   files: (id: string) =>
-    json<FileTreeResponse>("GET", `/api/chats/${encodeURIComponent(id)}/files`),
+    requestJson<FileTreeResponse>("GET", `/api/chats/${encodeURIComponent(id)}/files`),
   fileDownloadUrl: (id: string, dir: string, path: string) =>
     `/api/chats/${encodeURIComponent(id)}/files/download?dir=${encodeURIComponent(dir)}&path=${encodeURIComponent(path)}`,
   folderDownloadUrl: (id: string, dir: string, path = "") =>
@@ -43,31 +43,31 @@ export const chatApi = {
     if (params.limit) search.set("limit", String(params.limit));
     if (params.before) search.set("before", String(params.before));
     const query = search.toString();
-    return json<ChatEventPage>(
+    return requestJson<ChatEventPage>(
       "GET",
       `/api/chats/${encodeURIComponent(id)}/events${query ? `?${query}` : ""}`
     );
   },
   rewind: (id: string, beforeT: number) =>
-    json<ChatEventPage>("POST", `/api/chats/${encodeURIComponent(id)}/rewind`, { beforeT }),
+    requestJson<ChatEventPage>("POST", `/api/chats/${encodeURIComponent(id)}/rewind`, { beforeT }),
   historyRepos: (id: string) =>
-    json<GitHistoryReposResponse>("GET", `/api/chats/${encodeURIComponent(id)}/history/repos`),
+    requestJson<GitHistoryReposResponse>("GET", `/api/chats/${encodeURIComponent(id)}/history/repos`),
   historyCommits: (id: string, repo: string, limit = 100) => {
     const search = new URLSearchParams({ repo, limit: String(limit) });
-    return json<GitHistoryCommitsResponse>(
+    return requestJson<GitHistoryCommitsResponse>(
       "GET",
       `/api/chats/${encodeURIComponent(id)}/history/commits?${search.toString()}`
     );
   },
   historyDiff: (id: string, repo: string, sha: string) => {
     const search = new URLSearchParams({ repo, sha });
-    return json<GitHistoryDiffResponse>(
+    return requestJson<GitHistoryDiffResponse>(
       "GET",
       `/api/chats/${encodeURIComponent(id)}/history/diff?${search.toString()}`
     );
   },
   historyCheckout: async (id: string, repo: string, sha: string, checkpointMessage = "") => {
-    const response = await request("POST", `/api/chats/${encodeURIComponent(id)}/history/checkout`, {
+    const response = await sendHttpRequest("POST", `/api/chats/${encodeURIComponent(id)}/history/checkout`, {
       repo,
       sha,
       checkpointMessage,

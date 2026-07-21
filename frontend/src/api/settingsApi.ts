@@ -1,4 +1,4 @@
-import { json } from "../transport/http";
+import { requestJson } from "../transport/http";
 import type { ChatMode, ChatProvider, ReasoningEffort } from "../models/chat";
 import {
   DEFAULT_USER_SETTINGS,
@@ -13,9 +13,9 @@ const modes = new Set<ChatMode>(["chat", "plan", "code", "review", "debug", "ful
 const reasoningEfforts = new Set<ReasoningEffort>(["", "low", "medium", "high", "xhigh"]);
 
 export const settingsApi = {
-  get: async () => normalize(await json<UserSettings>("GET", "/api/me/settings")),
+  get: async () => normalize(await requestJson<UserSettings>("GET", "/api/me/settings")),
   update: async (body: UpdateUserSettingsInput) =>
-    normalize(await json<UserSettings>("PATCH", "/api/me/settings", body)),
+    normalize(await requestJson<UserSettings>("PATCH", "/api/me/settings", body)),
 };
 
 function normalize(settings: UserSettings): UserSettings {

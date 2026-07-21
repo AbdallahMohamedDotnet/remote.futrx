@@ -1,4 +1,4 @@
-import { request } from "../transport/http";
+import { sendHttpRequest } from "../transport/http";
 import type { AuthSession } from "../models/auth";
 
 const unauthenticated: AuthSession = {
@@ -13,7 +13,7 @@ const unauthenticated: AuthSession = {
 
 export async function getAuthSession(): Promise<AuthSession> {
   try {
-    const response = await request("GET", "/auth/me");
+    const response = await sendHttpRequest("GET", "/auth/me");
     if (response.status === 404) {
       return {
         ...unauthenticated,
