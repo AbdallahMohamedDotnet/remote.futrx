@@ -1,144 +1,58 @@
-// Package cli provisions and repairs agent command-line tools in project
-// containers.
+// Package cli translates agent CLI operations into LXD commands.
 package cli
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"strings"
 	"time"
 
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
-	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
+	servicecli "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/cli"
 )
 
 const queryTimeout = 10 * time.Second
 
-type repairRecipe func([]provisioning.Profile) (string, error)
-
-// cliProvisioner owns agent CLI readiness checks, installation, repair, and
-// coalescing around installs already running inside a container.
-type Provisioner struct {
-	runner       command.Runner
-	profiles     serviceprofiles.Source
-	repairRecipe repairRecipe
+// Client performs raw CLI queries and mutations inside project containers.
+type Client struct {
+	runner command.Runner
 }
 
-// NewProvisioner returns an agent CLI provisioner backed by the shared
-// profile registry and full-image repair recipe.
-func NewProvisioner(
-	runner command.Runner,
-	profileSource serviceprofiles.Source,
-	recipe func([]provisioning.Profile) (string, error),
-) *Provisioner {
-	return &Provisioner{runner: runner, profiles: profileSource, repairRecipe: recipe}
+var _ servicecli.Runtime = (*Client)(nil)
+
+func NewClient(runner command.Runner) *Client {
+	return &Client{runner: runner}
 }
 
-// EnsureCLI is cheap on the normal path (one local `--version` call).
-// Missing or stale CLIs are upgraded to the repository pin, and concurrent
-// prompt starts coalesce around the npm install already running in the
-// container.
-func (p *Provisioner) Ensure(ctx context.Context, containerName string, spec provisioning.CLISpec) error {
-	if !p.runner.Available() {
-		return errors.New("lxc not available")
-	}
-	if p.ready(ctx, containerName, spec) {
-		return nil
-	}
-	if p.installRunning(ctx, containerName, spec) {
-		waitCtx, cancel := context.WithTimeout(ctx, spec.WaitTimeout)
-		defer cancel()
-		if err := p.waitUntilReady(waitCtx, containerName, spec); err == nil {
-			return nil
-		}
-	}
-
-	installCtx, cancel := context.WithTimeout(ctx, spec.InstallTimeout)
-	defer cancel()
-
-	var out string
-	var err error
-	if spec.InstallMode == provisioning.InstallWithImageRepair {
-		installScript, scriptErr := p.repairRecipe(p.profiles.Snapshot())
-		if scriptErr != nil {
-			return fmt.Errorf("prepare agent CLI repair: %w", scriptErr)
-		}
-		out, err = p.runner.Run(installCtx, "exec", containerName, "--", "bash", "-c", installScript)
-	} else if p.commandExists(installCtx, containerName, "npm") {
-		out, err = p.runner.Run(installCtx, "exec", containerName, "--",
-			"npm", "install", "-g", spec.NPMPackage(), "--silent")
-	} else {
-		// Very old containers may pre-date Node/npm. Reuse the full image recipe
-		// in that case so the runtime still self-heals from a bare rootfs.
-		installScript, scriptErr := p.repairRecipe(p.profiles.Snapshot())
-		if scriptErr != nil {
-			return fmt.Errorf("prepare agent CLI repair: %w", scriptErr)
-		}
-		out, err = p.runner.Run(installCtx, "exec", containerName, "--", "bash", "-c", installScript)
-	}
-	if err != nil {
-		waitCtx, cancelWait := context.WithTimeout(ctx, 90*time.Second)
-		defer cancelWait()
-		if waitErr := p.waitUntilReady(waitCtx, containerName, spec); waitErr == nil {
-			return nil
-		}
-		return fmt.Errorf("install %s in %s: %w; output: %s",
-			cliInstallLabel(spec), containerName, err, output.Truncate(out, 1000))
-	}
-	if spec.VerifyAfterInstall && !p.ready(ctx, containerName, spec) {
-		return fmt.Errorf("install %s in %s completed but the required version is unavailable",
-			cliInstallLabel(spec), containerName)
-	}
-	return nil
+func (c *Client) Available() bool {
+	return c.runner.Available()
 }
 
-func cliInstallLabel(spec provisioning.CLISpec) string {
-	if spec.ReportVersion && spec.Version != "" {
-		return spec.Name + " " + spec.Version
-	}
-	return spec.Name
-}
-
-func (p *Provisioner) ready(ctx context.Context, containerName string, spec provisioning.CLISpec) bool {
+func (c *Client) Version(ctx context.Context, containerName, binary string) (string, error) {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	if !spec.CheckVersion {
-		_, err := p.runner.Run(quickCtx, "exec", containerName, "--", "which", spec.Binary)
-		return err == nil
-	}
-	out, err := p.runner.Run(quickCtx, "exec", containerName, "--", spec.Binary, "--version")
-	return err == nil && semanticVersionAtLeast(out, spec.Version)
+	return c.runner.Run(quickCtx, "exec", containerName, "--", binary, "--version")
 }
 
-func (p *Provisioner) installRunning(ctx context.Context, containerName string, spec provisioning.CLISpec) bool {
+func (c *Client) CommandExists(ctx context.Context, containerName, commandName string) bool {
 	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	out, err := p.runner.Run(quickCtx, "exec", containerName, "--",
-		"pgrep", "-f", "npm install.*"+spec.PackageName)
-	return err == nil && strings.TrimSpace(out) != ""
-}
-
-func (p *Provisioner) commandExists(ctx context.Context, containerName, command string) bool {
-	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	_, err := p.runner.Run(quickCtx, "exec", containerName, "--", "which", command)
+	_, err := c.runner.Run(quickCtx, "exec", containerName, "--", "which", commandName)
 	return err == nil
 }
 
-func (p *Provisioner) waitUntilReady(ctx context.Context, containerName string, spec provisioning.CLISpec) error {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		if p.ready(ctx, containerName, spec) {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-		}
-	}
+func (c *Client) InstallRunning(ctx context.Context, containerName, packageName string) bool {
+	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	out, err := c.runner.Run(quickCtx, "exec", containerName, "--",
+		"pgrep", "-f", "npm install.*"+packageName)
+	return err == nil && strings.TrimSpace(out) != ""
+}
+
+func (c *Client) InstallNPM(ctx context.Context, containerName, npmPackage string) (string, error) {
+	return c.runner.Run(ctx, "exec", containerName, "--",
+		"npm", "install", "-g", npmPackage, "--silent")
+}
+
+func (c *Client) Repair(ctx context.Context, containerName, script string) (string, error) {
+	return c.runner.Run(ctx, "exec", containerName, "--", "bash", "-c", script)
 }

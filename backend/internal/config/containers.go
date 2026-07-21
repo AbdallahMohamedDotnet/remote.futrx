@@ -18,6 +18,7 @@ import (
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostfs"
 	servicebrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/browser"
+	servicecli "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/cli"
 	servicecredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/credentials"
 	serviceimage "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/image"
 	serviceinspection "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/inspection"
@@ -36,7 +37,7 @@ type ContainerStack struct {
 	Inspection  *serviceinspection.Service
 	Credentials *servicecredentials.Service
 	Environment *containerenvironment.Service
-	CLI         *containercli.Provisioner
+	CLI         *servicecli.Provisioner
 	Browser     *servicebrowser.Service
 	Listeners   *containerlisteners.Scanner
 	Network     *containernetwork.Repairer
@@ -78,7 +79,8 @@ func NewContainerStack(runner command.Runner, configuredProfiles []provisioning.
 	environment := containerenvironment.NewService(runner)
 	listeners := containerlisteners.NewScanner(runner)
 	network := containernetwork.NewRepairer(runner)
-	cli := containercli.NewProvisioner(runner, profiles, serviceimage.InstallScript)
+	cliRuntime := containercli.NewClient(runner)
+	cli := servicecli.NewProvisioner(cliRuntime, profiles, serviceimage.InstallScript)
 	browserAdapter := containerbrowser.NewAdapter(runner, profiles, publisher)
 	browser := servicebrowser.NewService(servicebrowser.Dependencies{
 		Provisioner: browserAdapter,
