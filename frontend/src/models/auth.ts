@@ -1,11 +1,19 @@
 export interface AuthSession {
-  noAuth: boolean;
   authenticated: boolean;
   claimed: boolean;
+  localAdminConfigured: boolean;
+  googleOAuthEnabled: boolean;
+  googleClientId: string;
   adminEmail: string;
   email: string;
   isAdmin: boolean;
   isRegistered: boolean;
+}
+
+export interface GoogleOAuthSettings {
+  configured: boolean;
+  clientId: string;
+  redirectUrl: string;
 }
 
 export interface ClaudeAuthStatus {

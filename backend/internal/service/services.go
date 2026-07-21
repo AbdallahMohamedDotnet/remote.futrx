@@ -24,8 +24,6 @@ import (
 
 type AuthStore interface {
 	serviceauth.Store
-	OAuthConfig(context.Context) (serviceauth.OAuthConfig, error)
-	SessionKey(context.Context) ([]byte, error)
 }
 
 type TmuxClient interface {
@@ -228,17 +226,9 @@ func newAuth(
 	baseURL string,
 ) (*serviceauth.Service, error) {
 	if store == nil {
-		return nil, nil
+		return nil, errors.New("authentication store is required")
 	}
-	oauthConfig, err := store.OAuthConfig(ctx)
-	if err != nil {
-		if errors.Is(err, serviceauth.ErrOAuthConfigNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	baseURL, err = serviceauth.NormalizeBaseURL(baseURL)
+	baseURL, err := serviceauth.NormalizeBaseURL(baseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -247,16 +237,20 @@ func newAuth(
 		return nil, err
 	}
 
-	oauthClient := googleoauth.New(
-		oauthConfig.GoogleClientID,
-		oauthConfig.GoogleClientSecret,
-		baseURL+"/auth/google/callback",
-	)
 	var directory serviceauth.UserDirectory
 	if users != nil {
 		directory = userDirectoryAdapter{users: users}
 	}
-	return serviceauth.New(store, directory, oauthClient, baseURL, sessionKey)
+	return serviceauth.New(
+		ctx,
+		store,
+		directory,
+		func(clientID, clientSecret, redirectURL string) serviceauth.OAuthProvider {
+			return googleoauth.New(clientID, clientSecret, redirectURL)
+		},
+		baseURL,
+		sessionKey,
+	)
 }
 
 type chatProjectResolver struct {

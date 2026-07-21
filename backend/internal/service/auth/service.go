@@ -8,12 +8,15 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 )
 
 const sessionDuration = 30 * 24 * time.Hour
+
+var localAdminEmailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 
 // UserDirectory is the interface auth needs into the users store. It's
 // satisfied by *user.Service; declared here as a small port so auth doesn't
@@ -40,13 +43,19 @@ type UserDirectoryEntry struct {
 }
 
 type Service struct {
-	store        Store
-	users        UserDirectory
-	oauth        OAuthProvider
-	baseURL      string
-	cookieDomain string
-	sessionKey   []byte
-	mu           sync.Mutex
+	store             Store
+	users             UserDirectory
+	oauthFactory      OAuthProviderFactory
+	baseURL           string
+	cookieDomain      string
+	sessionKey        []byte
+	dummyPasswordHash string
+
+	mu          sync.RWMutex
+	oauth       OAuthProvider
+	oauthConfig OAuthConfig
+	localAdmin  *LocalAdminCredential
+	claimMu     sync.Mutex
 }
 
 func NormalizeBaseURL(baseURL string) (string, error) {
@@ -57,17 +66,18 @@ func NormalizeBaseURL(baseURL string) (string, error) {
 }
 
 func New(
+	ctx context.Context,
 	store Store,
 	users UserDirectory,
-	oauth OAuthProvider,
+	oauthFactory OAuthProviderFactory,
 	baseURL string,
 	sessionKey []byte,
 ) (*Service, error) {
 	if store == nil {
 		return nil, errors.New("auth store is required")
 	}
-	if oauth == nil {
-		return nil, errors.New("oauth provider is required")
+	if oauthFactory == nil {
+		return nil, errors.New("OAuth provider factory is required")
 	}
 	baseURL, err := NormalizeBaseURL(baseURL)
 	if err != nil {
@@ -76,20 +86,43 @@ func New(
 	if len(sessionKey) == 0 {
 		return nil, errors.New("session key is required")
 	}
+	localAdmin, err := store.LocalAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	oauthConfig, err := store.OAuthConfig(ctx)
+	if err != nil && !errors.Is(err, ErrOAuthConfigNotFound) {
+		return nil, err
+	}
+	dummyHash, err := HashPassword("invalid-password-placeholder")
+	if err != nil {
+		return nil, err
+	}
 
 	cookieDomain := ""
 	if u, err := url.Parse(baseURL); err == nil {
 		cookieDomain = u.Hostname()
 	}
 
-	return &Service{
-		store:        store,
-		users:        users,
-		oauth:        oauth,
-		baseURL:      baseURL,
-		cookieDomain: cookieDomain,
-		sessionKey:   sessionKey,
-	}, nil
+	service := &Service{
+		store:             store,
+		users:             users,
+		oauthFactory:      oauthFactory,
+		baseURL:           baseURL,
+		cookieDomain:      cookieDomain,
+		sessionKey:        sessionKey,
+		localAdmin:        localAdmin,
+		dummyPasswordHash: dummyHash,
+	}
+	if err == nil && oauthConfig.GoogleClientID != "" && oauthConfig.GoogleClientSecret != "" {
+		service.oauthConfig = oauthConfig
+		service.oauth = oauthFactory(
+			oauthConfig.GoogleClientID,
+			oauthConfig.GoogleClientSecret,
+			baseURL+"/auth/google/callback",
+		)
+	}
+	return service, nil
 }
 
 func (s *Service) BaseURL() string {
@@ -100,49 +133,46 @@ func (s *Service) CookieDomain() string {
 	return s.cookieDomain
 }
 
-func (s *Service) AuthCodeURL(state string) string {
-	return s.oauth.AuthCodeURL(state)
+func (s *Service) AuthCodeURL(state string) (string, error) {
+	s.mu.RLock()
+	oauth := s.oauth
+	s.mu.RUnlock()
+	if oauth == nil {
+		return "", ErrGoogleOAuthDisabled
+	}
+	return oauth.AuthCodeURL(state), nil
 }
 
-func (s *Service) Login(ctx context.Context, code string) (User, error) {
-	user, err := s.oauth.ExchangeUser(ctx, code)
+func (s *Service) LoginGoogle(ctx context.Context, code string) (User, error) {
+	s.mu.RLock()
+	oauth := s.oauth
+	s.mu.RUnlock()
+	if oauth == nil {
+		return User{}, ErrGoogleOAuthDisabled
+	}
+	user, err := oauth.ExchangeUser(ctx, code)
 	if err != nil {
 		return User{}, err
 	}
 	if strings.TrimSpace(user.Email) == "" {
 		return User{}, errors.New("OAuth provider returned no email")
 	}
-	if err := s.claimOrAuthorize(ctx, user); err != nil {
+	if err := s.authorizeGoogleUser(ctx, user); err != nil {
 		return User{}, err
 	}
 	return user, nil
 }
 
-// claimOrAuthorize is the post-OAuth membership gate. Three branches:
-//  1. users.json empty       — promote the caller to the first admin.
-//  2. caller is registered   — allow the sign-in.
-//  3. caller not registered  — return NotInvitedError; the handler
-//     redirects them to the "ask an admin to
-//     add your email" screen.
-//
-// Mutex-serialized so concurrent first-time sign-ins can't both seed
-// themselves as the bootstrap admin.
-func (s *Service) claimOrAuthorize(ctx context.Context, u User) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+// Google is only an invited-user login. It can never claim the server or
+// silently promote the first Google account to administrator.
+func (s *Service) authorizeGoogleUser(ctx context.Context, u User) error {
 	if s.users == nil {
 		return errors.New("users directory is not configured")
 	}
-
-	count, err := s.users.Count(ctx)
-	if err != nil {
-		return err
+	if s.IsLocalAdmin(u.Email) {
+		return ErrLocalAdminPasswordOnly
 	}
-	if count == 0 {
-		return s.users.AddBootstrapAdmin(ctx, u.Email)
-	}
-	ok, err := s.users.IsRegistered(ctx, u.Email)
+	ok, err := s.IsRegistered(ctx, u.Email)
 	if err != nil {
 		return err
 	}
@@ -150,6 +180,125 @@ func (s *Service) claimOrAuthorize(ctx context.Context, u User) error {
 		return NotInvitedError{Email: u.Email}
 	}
 	return nil
+}
+
+func (s *Service) ClaimLocalAdmin(ctx context.Context, email, password, authorizedEmail string) (User, error) {
+	email = normalizeEmail(email)
+	if !localAdminEmailPattern.MatchString(email) {
+		return User{}, errors.New("valid admin email is required")
+	}
+
+	s.claimMu.Lock()
+	defer s.claimMu.Unlock()
+	s.mu.RLock()
+	alreadyClaimed := s.localAdmin != nil
+	s.mu.RUnlock()
+	if alreadyClaimed {
+		return User{}, ErrLocalAdminAlreadyClaimed
+	}
+
+	if s.users == nil {
+		return User{}, errors.New("users directory is not configured")
+	}
+	if first, err := s.users.FirstAdmin(ctx); err != nil {
+		return User{}, err
+	} else if first != nil {
+		authorizedEmail = normalizeEmail(authorizedEmail)
+		isAdmin, authErr := s.users.IsAdmin(ctx, authorizedEmail)
+		if authErr != nil {
+			return User{}, authErr
+		}
+		if !isAdmin || authorizedEmail != email || email != normalizeEmail(first.Email) {
+			return User{}, ErrAdminClaimUnauthorized
+		}
+	}
+	passwordHash, err := HashPassword(password)
+	if err != nil {
+		return User{}, err
+	}
+
+	credential := LocalAdminCredential{Email: email, PasswordHash: passwordHash}
+	if err := s.store.CreateLocalAdmin(ctx, credential); err != nil {
+		return User{}, err
+	}
+	s.mu.Lock()
+	s.localAdmin = &credential
+	s.mu.Unlock()
+
+	registered, err := s.users.IsRegistered(ctx, email)
+	if err != nil {
+		return User{}, err
+	}
+	if !registered {
+		if err := s.users.AddBootstrapAdmin(ctx, email); err != nil {
+			return User{}, err
+		}
+	}
+	return localAdminUser(email), nil
+}
+
+func (s *Service) LoginLocal(_ context.Context, email, password string) (User, error) {
+	s.mu.RLock()
+	credential := s.localAdmin
+	hash := s.dummyPasswordHash
+	if credential != nil {
+		copy := *credential
+		credential = &copy
+		hash = copy.PasswordHash
+	}
+	s.mu.RUnlock()
+
+	passwordOK, err := VerifyPassword(hash, password)
+	if err != nil {
+		return User{}, ErrInvalidCredentials
+	}
+	emailOK := credential != nil && normalizeEmail(email) == credential.Email
+	if !emailOK || !passwordOK {
+		return User{}, ErrInvalidCredentials
+	}
+	return localAdminUser(credential.Email), nil
+}
+
+func (s *Service) ConfigureGoogleOAuth(ctx context.Context, cfg OAuthConfig) error {
+	cfg.GoogleClientID = strings.TrimSpace(cfg.GoogleClientID)
+	cfg.GoogleClientSecret = strings.TrimSpace(cfg.GoogleClientSecret)
+	if cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" ||
+		len(cfg.GoogleClientID) > 1024 || len(cfg.GoogleClientSecret) > 4096 {
+		return ErrInvalidOAuthConfig
+	}
+	if err := s.store.SaveOAuthConfig(ctx, cfg); err != nil {
+		return err
+	}
+	provider := s.oauthFactory(cfg.GoogleClientID, cfg.GoogleClientSecret, s.baseURL+"/auth/google/callback")
+	s.mu.Lock()
+	s.oauthConfig = cfg
+	s.oauth = provider
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *Service) GoogleOAuthEnabled() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.oauth != nil
+}
+
+func (s *Service) GoogleClientID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.oauthConfig.GoogleClientID
+}
+
+func (s *Service) LocalAdminConfigured() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.localAdmin != nil
+}
+
+func (s *Service) IsLocalAdmin(email string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.localAdmin != nil && s.localAdmin.Email == normalizeEmail(email)
 }
 
 func (s *Service) SignSession(user User) string {
@@ -166,10 +315,23 @@ func (s *Service) CurrentSession(cookieValue string) (*Session, error) {
 	if cookieValue == "" {
 		return nil, errors.New("missing session cookie")
 	}
-	return s.verify(cookieValue)
+	session, err := s.verify(cookieValue)
+	if err != nil {
+		return nil, err
+	}
+	// Once the local administrator exists, invalidate any older Google-backed
+	// sessions for that email. The owner account must remain password-only;
+	// invited users may continue using Google.
+	if s.IsLocalAdmin(session.Email) && session.Sub != "local-admin" {
+		return nil, ErrLocalAdminPasswordOnly
+	}
+	return session, nil
 }
 
 func (s *Service) IsAdmin(ctx context.Context, email string) (bool, error) {
+	if s.IsLocalAdmin(email) {
+		return true, nil
+	}
 	if s.users == nil {
 		return false, nil
 	}
@@ -179,6 +341,9 @@ func (s *Service) IsAdmin(ctx context.Context, email string) (bool, error) {
 // IsRegistered returns true if email has a row in the users store. Used by
 // the API middleware so members (not just admins) can reach /api/*.
 func (s *Service) IsRegistered(ctx context.Context, email string) (bool, error) {
+	if s.IsLocalAdmin(email) {
+		return true, nil
+	}
 	if s.users == nil {
 		return false, nil
 	}
@@ -186,8 +351,18 @@ func (s *Service) IsRegistered(ctx context.Context, email string) (bool, error) 
 }
 
 func (s *Service) Status(ctx context.Context, cookieValue string) Status {
-	status := Status{}
-	if s.users != nil {
+	status := Status{
+		LocalAdminConfigured: s.LocalAdminConfigured(),
+		GoogleOAuthEnabled:   s.GoogleOAuthEnabled(),
+		GoogleClientID:       s.GoogleClientID(),
+	}
+	s.mu.RLock()
+	if s.localAdmin != nil {
+		status.Claimed = true
+		status.AdminEmail = s.localAdmin.Email
+	}
+	s.mu.RUnlock()
+	if !status.Claimed && s.users != nil {
 		if first, _ := s.users.FirstAdmin(ctx); first != nil {
 			status.Claimed = true
 			status.AdminEmail = first.Email
@@ -204,6 +379,14 @@ func (s *Service) Status(ctx context.Context, cookieValue string) Status {
 	status.IsAdmin, _ = s.IsAdmin(ctx, session.Email)
 	status.IsRegistered, _ = s.IsRegistered(ctx, session.Email)
 	return status
+}
+
+func localAdminUser(email string) User {
+	return User{Email: normalizeEmail(email), Sub: "local-admin"}
+}
+
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 func (s *Service) sign(session Session) string {

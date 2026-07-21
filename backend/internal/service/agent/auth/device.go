@@ -72,6 +72,9 @@ func NewDeviceService[S any](config DeviceConfig[S]) *DeviceService[S] {
 }
 
 func (s *DeviceService[S]) Authenticated() bool {
+	if s.config.Authenticated == nil {
+		return false
+	}
 	return s.config.Authenticated()
 }
 

@@ -21,10 +21,11 @@ var ErrUnsupportedFlow = errors.New("operation is not supported by this agent au
 // It lets inbound adapters expose HTTP or WebSocket protocols without importing
 // a concrete agent package or knowing its CLI policy.
 type Binding struct {
-	id        agent.ProviderID
-	flow      Flow
-	status    func() any
-	subscribe func() Subscription
+	id            agent.ProviderID
+	flow          Flow
+	status        func() any
+	subscribe     func() Subscription
+	authenticated func() bool
 
 	startCode        func(context.Context) (CodeStartResult, error)
 	submitCode       func(context.Context, string) error
@@ -40,6 +41,7 @@ func NewCodeBinding(id agent.ProviderID, service *CodeService) Binding {
 	}
 	binding.status = func() any { return service.Status() }
 	binding.subscribe = statusSubscription(service.Subscribe)
+	binding.authenticated = service.Authenticated
 	binding.startCode = service.Start
 	binding.submitCode = service.SubmitCode
 	binding.cancelCode = service.Cancel
@@ -54,6 +56,7 @@ func NewDeviceBinding[S any](id agent.ProviderID, service *DeviceService[S]) Bin
 	}
 	binding.status = func() any { return service.Status() }
 	binding.subscribe = statusSubscription(service.Subscribe)
+	binding.authenticated = service.Authenticated
 	binding.startDevice = service.StartDeviceLogin
 	return binding
 }
@@ -63,6 +66,10 @@ func (b Binding) ID() agent.ProviderID { return b.id }
 func (b Binding) Flow() Flow { return b.flow }
 
 func (b Binding) Available() bool { return b.status != nil && b.subscribe != nil }
+
+func (b Binding) Authenticated() bool {
+	return b.authenticated != nil && b.authenticated()
+}
 
 func (b Binding) Status() any {
 	if b.status == nil {

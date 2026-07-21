@@ -50,6 +50,10 @@ func (h *UsersHandler) HandleCollection(w http.ResponseWriter, r *http.Request) 
 		httptransport.SendJSON(w, http.StatusOK, list)
 
 	case http.MethodPost:
+		if !h.auth.GoogleOAuthEnabled() {
+			httptransport.SendErr(w, http.StatusConflict, "configure Google sign-in before adding users")
+			return
+		}
 		var body struct {
 			Email string `json:"email"`
 			Role  string `json:"role"`
@@ -110,6 +114,10 @@ func (h *UsersHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 			httptransport.SendErr(w, http.StatusBadRequest, "role must be 'admin' or 'member'")
 			return
 		}
+		if h.auth.IsLocalAdmin(email) && role != serviceuser.RoleAdmin {
+			httptransport.SendErr(w, http.StatusConflict, "the local administrator cannot be demoted")
+			return
+		}
 		u, err := h.users.SetRole(r.Context(), email, role)
 		if err != nil {
 			sendUsersError(w, err)
@@ -121,6 +129,10 @@ func (h *UsersHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodDelete:
+		if h.auth.IsLocalAdmin(email) {
+			httptransport.SendErr(w, http.StatusConflict, "the local administrator cannot be removed")
+			return
+		}
 		if err := h.users.Remove(r.Context(), email); err != nil {
 			sendUsersError(w, err)
 			return

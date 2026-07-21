@@ -3,11 +3,17 @@ import { createContext } from "preact";
 import { useContext } from "preact/hooks";
 import { useAuth, type AuthState } from "../hooks/auth/useAuth";
 import { useClaudeAuth, type ClaudeAuthState } from "../hooks/auth/useClaudeAuth";
+import { useCodexAuth, type CodexAuthState } from "../hooks/auth/useCodexAuth";
+import { useKimiAuth, type KimiAuthState } from "../hooks/auth/useKimiAuth";
 
 interface AuthContextValue {
   auth: AuthState;
   claudeAuth: ClaudeAuthState;
-  googleOk: boolean;
+  codexAuth: CodexAuthState;
+  kimiAuth: KimiAuthState;
+  appAuthOk: boolean;
+  providerAuthChecked: boolean;
+  providerAuthenticated: boolean;
   gateOpen: boolean;
 }
 
@@ -15,14 +21,30 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ComponentChildren }) {
   const auth = useAuth();
-  // Any registered user can use the workspace. Admins are still registered
-  // by definition; noAuth (oauth.json absent) opens the door for solo dev.
-  const googleOk = auth.authenticated && (auth.isRegistered || auth.isAdmin || auth.noAuth);
-  const claudeAuth = useClaudeAuth(googleOk);
-  const gateOpen = googleOk && claudeAuth.authenticated;
+  // A valid local-admin or invited-user session may proceed to provider setup.
+  const appAuthOk = auth.authenticated && (auth.isRegistered || auth.isAdmin);
+  const providerAuthEnabled = appAuthOk && auth.localAdminConfigured;
+  const claudeAuth = useClaudeAuth(providerAuthEnabled);
+  const codexAuth = useCodexAuth(providerAuthEnabled);
+  const kimiAuth = useKimiAuth(providerAuthEnabled);
+  const providerAuthChecked = claudeAuth.checked && codexAuth.checked && kimiAuth.checked;
+  const providerAuthenticated =
+    claudeAuth.authenticated || codexAuth.authenticated || kimiAuth.authenticated;
+  const gateOpen = providerAuthEnabled && providerAuthChecked && providerAuthenticated;
 
   return (
-    <AuthContext.Provider value={{ auth, claudeAuth, googleOk, gateOpen }}>
+    <AuthContext.Provider
+      value={{
+        auth,
+        claudeAuth,
+        codexAuth,
+        kimiAuth,
+        appAuthOk,
+        providerAuthChecked,
+        providerAuthenticated,
+        gateOpen,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

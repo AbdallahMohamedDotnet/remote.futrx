@@ -8,6 +8,7 @@ interface UsersPanelProps {
   users: User[] | null;
   loading: boolean;
   error: string | null;
+  canAddUsers: boolean;
   onAdd: (email: string, role: UserRole) => Promise<void>;
   onRemove: (email: string) => Promise<void>;
   onSetRole: (email: string, role: UserRole) => Promise<void>;
@@ -24,6 +25,7 @@ export function UsersPanel({
   users,
   loading,
   error,
+  canAddUsers,
   onAdd,
   onRemove,
   onSetRole,
@@ -61,7 +63,13 @@ export function UsersPanel({
             <div class="text-accent-red break-words">{error}</div>
           </div>
         )}
-        <AddUserForm onAdd={onAdd} />
+        {canAddUsers ? (
+          <AddUserForm onAdd={onAdd} />
+        ) : (
+          <div class="rounded-md border border-accent-yellow/25 bg-accent-yellow/[0.08] px-3 py-2.5 text-[12.5px] text-accent-yellow">
+            Configure Google sign-in above before adding users.
+          </div>
+        )}
         <UserList
           users={users ?? []}
           loading={loading && users == null}

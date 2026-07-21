@@ -26,14 +26,14 @@ interface UserSettingsContextValue {
 const UserSettingsContext = createContext<UserSettingsContextValue | null>(null);
 
 export function UserSettingsProvider({ children }: { children: ComponentChildren }) {
-  const { googleOk } = useAuthContext();
+  const { gateOpen } = useAuthContext();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!googleOk) {
+    if (!gateOpen) {
       setSettings(DEFAULT_USER_SETTINGS);
       setLoading(false);
       setError(null);
@@ -49,7 +49,7 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
     } finally {
       setLoading(false);
     }
-  }, [googleOk]);
+  }, [gateOpen]);
 
   useEffect(() => {
     void refresh();

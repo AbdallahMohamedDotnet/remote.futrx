@@ -58,3 +58,18 @@ func (r *Registry) Bindings() []Binding {
 	}
 	return append([]Binding(nil), r.bindings...)
 }
+
+// AnyAuthenticated reports whether at least one registered provider has a
+// usable host-side login. The application access gate uses this to keep the
+// workspace closed until initial provider setup is complete.
+func (r *Registry) AnyAuthenticated() bool {
+	if r == nil {
+		return false
+	}
+	for _, binding := range r.bindings {
+		if binding.Authenticated() {
+			return true
+		}
+	}
+	return false
+}

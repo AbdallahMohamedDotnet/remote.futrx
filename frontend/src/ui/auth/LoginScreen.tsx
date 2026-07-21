@@ -1,61 +1,167 @@
-import { MessageSquare } from "../primitives/icons";
+import { useState } from "preact/hooks";
+import { localAuthApi } from "../../api/authApi";
+import { Key, Loader, MessageSquare } from "../primitives/icons";
+
+export type LoginMode = "claim" | "login" | "legacy-setup";
 
 export function LoginScreen({
-  claimed,
+  mode,
   adminEmail,
+  localAdminConfigured,
+  googleOAuthEnabled,
+  onSuccess,
 }: {
-  claimed: boolean;
+  mode: LoginMode;
   adminEmail: string;
+  localAdminConfigured: boolean;
+  googleOAuthEnabled: boolean;
+  onSuccess: () => Promise<void>;
 }) {
   const params = new URLSearchParams(location.search);
-  const error = params.get("error");
+  const oauthError = params.get("error");
   const errorEmail = params.get("email") ?? "";
+  const [email, setEmail] = useState(mode === "legacy-setup" ? adminEmail : "");
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const setup = mode === "claim" || mode === "legacy-setup";
+
+  async function submit(event: Event) {
+    event.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError("Email is required.");
+      return;
+    }
+    if (setup && password !== confirmation) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (setup && password.length < 12) {
+      setError("Use at least 12 characters.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      if (setup) await localAuthApi.claim(normalizedEmail, password);
+      else await localAuthApi.login(normalizedEmail, password);
+      await onSuccess();
+      if (mode === "login" && returnTo) location.assign(returnTo);
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const returnTo = params.get("return_to") ?? "";
+  const googleURL = `/auth/google/login${returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ""}`;
+  const title = mode === "claim"
+    ? "Create your admin account"
+    : mode === "legacy-setup"
+      ? "Secure your admin account"
+      : "Sign in";
+  const description = mode === "claim"
+    ? "This email and password will be the private administrator login for this server."
+    : mode === "legacy-setup"
+      ? "Create a local password so Google is no longer required for administrator access."
+      : !localAdminConfigured
+        ? "The existing administrator must sign in with Google once, then create a local password."
+        : "Administrators use their local password. Invited users sign in with Google.";
 
   return (
-    <div class="app-shell grid place-items-center bg-[#090b0f] text-ink-100 p-5">
-      <div class="w-full max-w-sm space-y-6 text-center">
-        <div class="flex flex-col items-center gap-3">
+    <div class="app-shell overflow-y-auto grid place-items-center bg-[#090b0f] text-ink-100 p-5">
+      <div class="w-full max-w-sm space-y-5 py-6">
+        <div class="flex flex-col items-center gap-3 text-center">
           <div class="w-14 h-14 rounded-lg bg-accent-blue/[0.14] border border-accent-blue/25 grid place-items-center">
-            <MessageSquare class="w-7 h-7 text-accent-blue" />
+            {setup ? <Key class="w-6 h-6 text-accent-blue" /> : <MessageSquare class="w-7 h-7 text-accent-blue" />}
           </div>
           <div>
-            <div class="text-xl font-semibold">remote.futrx</div>
-            <div class="text-xs text-ink-300 mt-1">Self-hosted agent workspace</div>
+            <div class="text-xl font-semibold">{title}</div>
+            <div class="text-xs text-ink-300 mt-1.5 leading-relaxed">{description}</div>
           </div>
         </div>
 
-        {!claimed && (
-          <p class="text-sm text-accent-yellow leading-relaxed rounded-lg border border-accent-yellow/25 bg-accent-yellow/[0.08] p-3">
-            This server is <span class="font-semibold">unclaimed</span>. The first Google
-            account that signs in becomes the admin. Make sure that's you before continuing.
-          </p>
+        {(setup || localAdminConfigured) && (
+          <form onSubmit={submit} class="space-y-3">
+            <label class="block space-y-1.5">
+              <span class="text-xs text-ink-300">Admin email</span>
+              <input
+                type="email"
+                value={email}
+                readOnly={mode === "legacy-setup"}
+                onInput={(event) => setEmail((event.currentTarget as HTMLInputElement).value)}
+                autocomplete="username"
+                class="w-full h-11 rounded-md bg-[#101318] border border-white/10 px-3 text-sm text-ink-100 focus:outline-none focus:border-accent-blue read-only:opacity-70"
+              />
+            </label>
+            <label class="block space-y-1.5">
+              <span class="text-xs text-ink-300">Password</span>
+              <input
+                type="password"
+                value={password}
+                onInput={(event) => setPassword((event.currentTarget as HTMLInputElement).value)}
+                autocomplete={setup ? "new-password" : "current-password"}
+                minlength={setup ? 12 : undefined}
+                class="w-full h-11 rounded-md bg-[#101318] border border-white/10 px-3 text-sm text-ink-100 focus:outline-none focus:border-accent-blue"
+              />
+            </label>
+            {setup && (
+              <label class="block space-y-1.5">
+                <span class="text-xs text-ink-300">Confirm password</span>
+                <input
+                  type="password"
+                  value={confirmation}
+                  onInput={(event) => setConfirmation((event.currentTarget as HTMLInputElement).value)}
+                  autocomplete="new-password"
+                  minlength={12}
+                  class="w-full h-11 rounded-md bg-[#101318] border border-white/10 px-3 text-sm text-ink-100 focus:outline-none focus:border-accent-blue"
+                />
+              </label>
+            )}
+            <button
+              type="submit"
+              disabled={submitting}
+              class="w-full h-11 rounded-md bg-accent-blue hover:bg-accent-blue/85 text-white text-sm font-medium disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            >
+              {submitting && <Loader class="w-4 h-4 animate-spin" />}
+              {setup ? "Create admin account" : "Sign in as administrator"}
+            </button>
+          </form>
         )}
 
-        <a
-          href="/auth/google/login"
-          class="inline-flex items-center justify-center gap-2.5 w-full
-                 bg-white hover:bg-ink-50 text-ink-800 font-medium text-sm
-                 rounded-md px-4 h-11 transition-colors active:scale-[0.99]"
-        >
-          <GoogleG class="w-4 h-4" />
-          Sign in with Google
-        </a>
-
-        {error && (
-          <div class="text-xs text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-left leading-relaxed">
-            {error === "not-invited" ? (
-              <>
-                <div class="font-medium text-sm">Not invited.</div>
-                <div class="mt-1">
-                  {errorEmail ? <span class="font-mono">{errorEmail}</span> : "That account"} isn't
-                  authorized on this server. Ask an admin to add your email, then sign in again.
-                </div>
-              </>
-            ) : error === "not-admin" ? (
-              `This account isn't the admin (${adminEmail || "configured admin"}).`
-            ) : (
-              `Login error: ${error}`
+        {mode === "login" && googleOAuthEnabled && (
+          <>
+            {localAdminConfigured && (
+              <div class="flex items-center gap-3 text-[11px] text-ink-400">
+                <span class="h-px flex-1 bg-white/10" /> invited users <span class="h-px flex-1 bg-white/10" />
+              </div>
             )}
+            <a
+              href={googleURL}
+              class="inline-flex items-center justify-center gap-2.5 w-full bg-white hover:bg-ink-50 text-ink-800 font-medium text-sm rounded-md px-4 h-11"
+            >
+              <GoogleG class="w-4 h-4" /> Sign in with Google
+            </a>
+          </>
+        )}
+
+        {(error || oauthError) && (
+          <div class="text-xs text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 leading-relaxed">
+            {error || (oauthError === "not-invited"
+              ? `${errorEmail || "That account"} is not invited to this server.`
+              : oauthError === "admin-password"
+                ? "The administrator must sign in with the local password."
+                : `Login error: ${oauthError}`)}
+          </div>
+        )}
+
+        {mode === "claim" && (
+          <div class="text-[11px] text-ink-400 text-center leading-relaxed">
+            Your password is stored only as a salted Argon2id hash. It cannot be recovered or displayed.
           </div>
         )}
       </div>

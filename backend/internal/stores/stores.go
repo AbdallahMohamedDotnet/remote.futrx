@@ -1,7 +1,6 @@
 package stores
 
 import (
-	"context"
 	"fmt"
 
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
@@ -20,8 +19,6 @@ import (
 
 type AuthStore interface {
 	serviceauth.Store
-	OAuthConfig(context.Context) (serviceauth.OAuthConfig, error)
-	SessionKey(context.Context) ([]byte, error)
 }
 
 type Stores struct {

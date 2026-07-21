@@ -8,11 +8,27 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
 )
 
 type stubCLIProvisioner struct{}
 
 func (stubCLIProvisioner) Ensure(context.Context, string, provisioning.CLISpec) error { return nil }
+
+func TestNewAuthAllowsLocalAdminWithoutGoogleOAuth(t *testing.T) {
+	auth, err := newAuth(
+		context.Background(),
+		fileauth.New(t.TempDir()),
+		nil,
+		"https://remote.example.com",
+	)
+	if err != nil {
+		t.Fatalf("newAuth: %v", err)
+	}
+	if auth.GoogleOAuthEnabled() {
+		t.Fatal("Google OAuth unexpectedly enabled")
+	}
+}
 
 func TestNewRejectsPartialAgentContainerDependencies(t *testing.T) {
 	_, err := New(context.Background(), Dependencies{

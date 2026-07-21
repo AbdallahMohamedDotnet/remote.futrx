@@ -37,7 +37,7 @@ export function Sidebar({
   collapsed: Record<string, boolean>;
   sidebarCollapsed: boolean;
   activeChatId: string | null;
-  account?: { email: string; authenticated: boolean; noAuth: boolean };
+  account?: { email: string; authenticated: boolean };
   onClose: () => void;
   onQueryChange: (query: string) => void;
   onClearQuery: () => void;
@@ -137,7 +137,7 @@ export function Sidebar({
             >
               <Plus class="w-5 h-5" />
             </button>
-            {onOpenSettings && account && !account.noAuth && account.authenticated && (
+            {onOpenSettings && account?.authenticated && (
               <button
                 type="button"
                 onClick={onOpenSettings}
@@ -232,7 +232,7 @@ export function Sidebar({
           )}
         </div>
 
-        {account && !account.noAuth && account.authenticated && (
+        {account?.authenticated && (
           <div class={expandedOnly}>
             <AccountFooter email={account.email} onOpenSettings={onOpenSettings} />
           </div>

@@ -35,11 +35,26 @@ type Dependencies struct {
 }
 
 func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
+	agentAuthBindings := deps.Services.AgentAuth.Bindings()
 	var auth httptransport.RouteRegistrar
 	var middleware httptransport.Middleware
 	if deps.Services.Auth != nil {
 		auth = httphandlers.NewAuthHandler(deps.Services.Auth, deps.Services.Access)
-		middleware = httpmiddleware.NewAuth(deps.Services.Auth)
+		providerAuthPrefixes := make([]string, 0, len(agentAuthBindings)*2)
+		for _, binding := range agentAuthBindings {
+			provider := string(binding.ID())
+			providerAuthPrefixes = append(
+				providerAuthPrefixes,
+				"/api/"+provider+"/",
+				"/ws/"+provider+"/auth-status",
+			)
+		}
+		middleware = httpmiddleware.NewAuth(deps.Services.Auth).
+			RequireLocalAdminSetup(deps.Services.Auth.LocalAdminConfigured).
+			RequireProviderLogin(
+				deps.Services.AgentAuth.AnyAuthenticated,
+				providerAuthPrefixes...,
+			)
 	}
 
 	gate := newAccessGate(deps.Services.Auth, deps.Services.Projects, deps.Services.Chats)
@@ -48,8 +63,6 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	agentAuthBindings := deps.Services.AgentAuth.Bindings()
-
 	chatSocket := wstransport.NewChatSocket(deps.Services.Chats, deps.Services.Runs, deps.Services.Prompt)
 	terminalSocket := wstransport.NewContainerTerminalSocket(deps.Services.Chats, deps.Services.Projects)
 	workspaceSocket := wstransport.NewWorkspaceSocket(

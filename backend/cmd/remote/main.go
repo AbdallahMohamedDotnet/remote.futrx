@@ -60,11 +60,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("init services: %v", err)
 	}
-	if serviceSet.AuthEnabled() {
-		log.Printf("auth: Google OAuth enabled; BASE_URL=%s", cfg.BaseURL)
-	} else {
-		log.Printf("auth: DISABLED (no data/oauth.json) — server is open to anyone who can reach it")
-	}
+	log.Printf(
+		"auth: local admin enabled; Google OAuth configured=%t; BASE_URL=%s",
+		serviceSet.Auth.GoogleOAuthEnabled(),
+		cfg.BaseURL,
+	)
 	if err := serviceSet.Reconcile(ctx); err != nil {
 		log.Printf("services: reconcile warning: %v", err)
 	}

@@ -50,7 +50,7 @@ flowchart LR
 ### Access and security
 
 - **Self-hosted** — the application and project workspaces run on your server.
-- **Google sign-in** — protect the site and manage registered users.
+- **Separate admin and user sign-in** — the administrator uses a local password; invited users use Google.
 - **Per-project sharing** — choose which users can access each workspace.
 - **Admin and member roles** — keep server management separate from project work.
 - **Managed project secrets** — pass API keys and environment values to agents without adding them to project files.
@@ -121,27 +121,7 @@ curl -fsSL https://raw.githubusercontent.com/futrx-com/remote.futrx.com/main/inf
 
 The installer downloads the app, installs its requirements, builds it, starts the services, and enables HTTPS. The app is installed in `/opt/remote.futrx`.
 
-### 3. Enable Google sign-in
-
-Google sign-in is strongly recommended. Without it, anyone who can reach the website can use the app.
-
-Create a Google OAuth web application with this authorized redirect URL:
-
-```text
-https://remote.example.com/auth/google/callback
-```
-
-Run the installer again with your Google credentials:
-
-```bash
-sudo bash /opt/remote.futrx/infra/install.sh remote.example.com \
-  --google-client-id='YOUR_GOOGLE_CLIENT_ID' \
-  --google-client-secret='YOUR_GOOGLE_CLIENT_SECRET'
-```
-
-The first Google account to sign in becomes the administrator and can invite other users.
-
-### 4. Open remote.futrx
+### 3. Create the administrator
 
 Visit:
 
@@ -149,13 +129,17 @@ Visit:
 https://remote.example.com
 ```
 
-Then open **Settings → Agents** and connect the coding agents you want to use.
+Create the administrator with your email and a password of at least 12 characters. The password is stored only as a secure one-way hash.
+
+Then connect at least one provider: Claude, Codex, or Kimi. You can add the others later from **Settings → Agents**.
+
+To invite users, open **Settings → Users** and add your Google OAuth client ID and secret first. Google sign-in is used only for invited users, not for the administrator.
 
 ```mermaid
 flowchart LR
     A["Prepare the server and DNS"] --> B["Run the installer"]
-    B --> C["Enable Google sign-in"]
-    C --> D["Connect your agents"]
+    B --> C["Create the administrator"]
+    C --> D["Connect at least one AI provider"]
     D --> E["Create your first project"]
 ```
 

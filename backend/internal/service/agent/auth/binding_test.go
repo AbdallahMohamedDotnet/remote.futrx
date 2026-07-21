@@ -15,10 +15,12 @@ type bindingTestStatus struct {
 }
 
 func TestDeviceBindingPreservesConcreteStatus(t *testing.T) {
+	authenticated := true
 	service := NewDeviceService(DeviceConfig[bindingTestStatus]{
+		Authenticated: func() bool { return authenticated },
 		BuildStatus: func() DeviceStatusBuilder[bindingTestStatus] {
 			return func(state DeviceState) bindingTestStatus {
-				return bindingTestStatus{DeviceLogin: state}
+				return bindingTestStatus{Authenticated: authenticated, DeviceLogin: state}
 			}
 		},
 	})
@@ -26,6 +28,9 @@ func TestDeviceBindingPreservesConcreteStatus(t *testing.T) {
 
 	if binding.ID() != agent.ProviderCodex || binding.Flow() != FlowDevice {
 		t.Fatalf("binding identity = (%q, %q)", binding.ID(), binding.Flow())
+	}
+	if !binding.Authenticated() {
+		t.Fatal("authenticated service was reported as unauthenticated")
 	}
 	if _, ok := binding.Status().(bindingTestStatus); !ok {
 		t.Fatalf("status type = %T, want bindingTestStatus", binding.Status())

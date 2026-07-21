@@ -41,7 +41,7 @@ export function ProjectContainersContainer({
       secretsRecord={secrets.record}
       accessRecord={access.record}
       refreshing={controller.refreshing}
-      isAdmin={auth.isAdmin || auth.noAuth}
+      isAdmin={auth.isAdmin}
       serverMemoryTotalBytes={serverInfo.info?.memory.totalBytes}
       serverMemoryLoading={serverInfo.loading}
       onRefresh={() => void controller.refresh()}

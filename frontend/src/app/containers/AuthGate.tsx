@@ -1,15 +1,22 @@
 import type { ComponentType } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { ClaudeAuthWaiting } from "../../ui/auth/ClaudeAuthWaiting";
 import { LoginScreen } from "../../ui/auth/LoginScreen";
+import { AdminSetupWaiting } from "../../ui/auth/AdminSetupWaiting";
+import { ProviderAuthWaiting } from "../../ui/auth/ProviderAuthWaiting";
+import { ProviderLoginScreen } from "../../ui/auth/ProviderLoginScreen";
 import { LoadingScreen } from "../../ui/primitives/LoadingScreen";
 import { useAuthContext } from "../../state/context/AuthContext";
-import { ClaudeLoginContainer } from "./ClaudeLoginContainer";
 
 type WorkspaceRouteComponent = ComponentType<{ enabled: boolean }>;
 
 export function AuthGate() {
-  const { auth, claudeAuth, googleOk, gateOpen } = useAuthContext();
+  const {
+    auth,
+    appAuthOk,
+    providerAuthChecked,
+    providerAuthenticated,
+    gateOpen,
+  } = useAuthContext();
   const [WorkspaceRoute, setWorkspaceRoute] = useState<WorkspaceRouteComponent | null>(null);
 
   useEffect(() => {
@@ -24,17 +31,50 @@ export function AuthGate() {
   }, [gateOpen, WorkspaceRoute]);
 
   if (auth.loading) return <LoadingScreen />;
-  if (!googleOk) {
-    return <LoginScreen claimed={auth.claimed} adminEmail={auth.adminEmail} />;
+  if (!auth.claimed) {
+    return (
+      <LoginScreen
+        mode="claim"
+        adminEmail=""
+        localAdminConfigured={false}
+        googleOAuthEnabled={false}
+        onSuccess={auth.refresh}
+      />
+    );
   }
-  if (!claudeAuth.checked || claudeAuth.loading) return <LoadingScreen />;
-  if (!claudeAuth.authenticated) {
-    // Claude login is admin-only (host-wide credential). Non-admins wait here
-    // until an admin signs in; the live status WS opens the gate for them.
-    if (auth.isAdmin || auth.noAuth) {
-      return <ClaudeLoginContainer onDone={claudeAuth.refresh} />;
+  if (!appAuthOk) {
+    return (
+      <LoginScreen
+        mode="login"
+        adminEmail={auth.adminEmail}
+        localAdminConfigured={auth.localAdminConfigured}
+        googleOAuthEnabled={auth.googleOAuthEnabled}
+        onSuccess={auth.refresh}
+      />
+    );
+  }
+  if (!auth.localAdminConfigured) {
+    if (auth.isAdmin && auth.email.toLowerCase() === auth.adminEmail.toLowerCase()) {
+      return (
+        <LoginScreen
+          mode="legacy-setup"
+          adminEmail={auth.email}
+          localAdminConfigured={false}
+          googleOAuthEnabled={auth.googleOAuthEnabled}
+          onSuccess={auth.refresh}
+        />
+      );
     }
-    return <ClaudeAuthWaiting adminEmail={auth.adminEmail} />;
+    return <AdminSetupWaiting adminEmail={auth.adminEmail} />;
+  }
+  if (!providerAuthChecked) return <LoadingScreen />;
+  if (!providerAuthenticated) {
+    // Provider credentials are host-wide and admin-managed. Members wait while
+    // an admin connects any one of the supported providers.
+    if (auth.isAdmin) {
+      return <ProviderLoginScreen />;
+    }
+    return <ProviderAuthWaiting adminEmail={auth.adminEmail} />;
   }
 
   if (!WorkspaceRoute) return <LoadingScreen />;

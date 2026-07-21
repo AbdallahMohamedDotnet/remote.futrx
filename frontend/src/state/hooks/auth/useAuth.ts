@@ -9,9 +9,11 @@ export interface AuthState extends AuthSession {
 
 const initial: AuthState = {
   loading: true,
-  noAuth: false,
   authenticated: false,
   claimed: false,
+  localAdminConfigured: false,
+  googleOAuthEnabled: false,
+  googleClientId: "",
   adminEmail: "",
   email: "",
   isAdmin: false,

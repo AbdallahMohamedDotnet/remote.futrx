@@ -1,0 +1,125 @@
+import { useEffect, useState } from "preact/hooks";
+import { googleOAuthApi } from "../../api/authApi";
+import { useAuthContext } from "../../state/context/AuthContext";
+import type { GoogleOAuthSettings as GoogleOAuthSettingsModel } from "../../models/auth";
+import { Check, ExternalLink, Key, Loader } from "../primitives/icons";
+
+export function GoogleOAuthSettings() {
+  const { auth } = useAuthContext();
+  const [settings, setSettings] = useState<GoogleOAuthSettingsModel | null>(null);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    googleOAuthApi.get()
+      .then((value) => {
+        if (cancelled) return;
+        setSettings(value);
+        setClientId(value.clientId);
+      })
+      .catch((cause) => !cancelled && setError((cause as Error).message))
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
+  }, []);
+
+  async function save(event: Event) {
+    event.preventDefault();
+    if (!clientId.trim() || !clientSecret.trim()) {
+      setError("Both the Google client ID and client secret are required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const value = await googleOAuthApi.save(clientId.trim(), clientSecret.trim());
+      setSettings(value);
+      setClientId(value.clientId);
+      setClientSecret("");
+      await auth.refresh();
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
+      <header class="px-4 py-3 flex items-start gap-3 border-b border-white/[0.06]">
+        <div class="h-9 w-9 rounded-md bg-white/[0.06] border border-white/10 grid place-items-center flex-none">
+          <Key class="w-4 h-4 text-ink-200" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <div class="text-[14.5px] font-semibold text-ink-50">Google sign-in for users</div>
+            {loading ? (
+              <Loader class="w-3.5 h-3.5 text-ink-300 animate-spin" />
+            ) : settings?.configured ? (
+              <span class="inline-flex items-center gap-1 text-[11px] text-accent-green">
+                <Check class="w-3.5 h-3.5" /> configured
+              </span>
+            ) : (
+              <span class="text-[11px] text-accent-yellow">required before inviting users</span>
+            )}
+          </div>
+          <div class="text-[12px] text-ink-300 mt-1 leading-relaxed">
+            Administrators use the local password. Invited users use these Google OAuth credentials.
+          </div>
+        </div>
+      </header>
+
+      <form onSubmit={save} class="p-3 space-y-3">
+        <div class="rounded-md border border-white/10 bg-white/[0.03] p-2.5 text-[12px] text-ink-300 leading-relaxed">
+          Create an OAuth 2.0 <span class="text-ink-100">Web application</span> in Google Cloud and add this authorized redirect URI:
+          <code class="block mt-2 break-all rounded bg-black/30 border border-white/10 px-2.5 py-2 text-[11.5px] text-ink-100">
+            {settings?.redirectUrl || `${location.origin}/auth/google/callback`}
+          </code>
+          <a
+            href="https://console.cloud.google.com/apis/credentials"
+            target="_blank"
+            rel="noreferrer"
+            class="inline-flex items-center gap-1 mt-2 text-accent-blue hover:underline"
+          >
+            Open Google Cloud credentials <ExternalLink class="w-3.5 h-3.5" />
+          </a>
+        </div>
+
+        <label class="block space-y-1.5">
+          <span class="text-xs text-ink-300">Google client ID</span>
+          <input
+            type="text"
+            value={clientId}
+            onInput={(event) => setClientId((event.currentTarget as HTMLInputElement).value)}
+            autocomplete="off"
+            spellcheck={false}
+            class="w-full h-10 rounded-md bg-black/30 border border-white/10 px-3 text-sm text-ink-100 focus:outline-none focus:border-accent-blue"
+          />
+        </label>
+        <label class="block space-y-1.5">
+          <span class="text-xs text-ink-300">Google client secret</span>
+          <input
+            type="password"
+            value={clientSecret}
+            onInput={(event) => setClientSecret((event.currentTarget as HTMLInputElement).value)}
+            placeholder={settings?.configured ? "Enter a new secret to replace the current one" : "Client secret"}
+            autocomplete="new-password"
+            class="w-full h-10 rounded-md bg-black/30 border border-white/10 px-3 text-sm text-ink-100 placeholder:text-ink-400 focus:outline-none focus:border-accent-blue"
+          />
+        </label>
+        {error && <div class="text-xs text-accent-red">{error}</div>}
+        <button
+          type="submit"
+          disabled={saving || loading}
+          class="h-10 px-3 rounded-md bg-accent-blue/80 hover:bg-accent-blue text-white text-[13px] font-medium disabled:opacity-50 inline-flex items-center gap-2"
+        >
+          {saving && <Loader class="w-3.5 h-3.5 animate-spin" />}
+          {settings?.configured ? "Update Google sign-in" : "Save Google sign-in"}
+        </button>
+      </form>
+    </section>
+  );
+}

@@ -1,9 +1,11 @@
 import type { AuthSession } from "../models/auth";
 
 export const UNAUTHENTICATED_SESSION: AuthSession = {
-  noAuth: false,
   authenticated: false,
   claimed: false,
+  localAdminConfigured: false,
+  googleOAuthEnabled: false,
+  googleClientId: "",
   adminEmail: "",
   email: "",
   isAdmin: false,

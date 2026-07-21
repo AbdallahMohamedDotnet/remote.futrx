@@ -43,3 +43,26 @@ func TestRegistryRejectsInvalidAndDuplicateBindings(t *testing.T) {
 		t.Fatalf("Register(duplicate) error = %v", err)
 	}
 }
+
+func TestRegistryRequiresAtLeastOneAuthenticatedProvider(t *testing.T) {
+	registry := NewRegistry()
+	authenticated := false
+	service := NewDeviceService(DeviceConfig[bindingTestStatus]{
+		Authenticated: func() bool { return authenticated },
+		BuildStatus: func() DeviceStatusBuilder[bindingTestStatus] {
+			return func(state DeviceState) bindingTestStatus {
+				return bindingTestStatus{Authenticated: authenticated, DeviceLogin: state}
+			}
+		},
+	})
+	if err := registry.Register(NewDeviceBinding(agent.ProviderCodex, service)); err != nil {
+		t.Fatalf("Register(codex): %v", err)
+	}
+	if registry.AnyAuthenticated() {
+		t.Fatal("registry opened without a provider login")
+	}
+	authenticated = true
+	if !registry.AnyAuthenticated() {
+		t.Fatal("registry stayed closed after a provider login")
+	}
+}

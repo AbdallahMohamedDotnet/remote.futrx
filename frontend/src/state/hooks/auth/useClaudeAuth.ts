@@ -5,7 +5,7 @@ import { claudeAuthApi } from "../../../api/agents/auth/claudeAuthApi";
 export interface ClaudeAuthState {
   loading: boolean;
   // true once we've received at least one status frame. Lets the gating UI
-  // show a spinner BETWEEN the moment we start listening (googleOk became
+  // show a spinner BETWEEN the moment we start listening (app auth became
   // true) and the moment the first frame lands.
   checked: boolean;
   authenticated: boolean;

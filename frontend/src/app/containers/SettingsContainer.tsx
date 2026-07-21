@@ -5,8 +5,6 @@ import {
 } from "../../ui/settings/SettingsPage";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
-import { useCodexAuth } from "../../state/hooks/auth/useCodexAuth";
-import { useKimiAuth } from "../../state/hooks/auth/useKimiAuth";
 import { useUserDirectory } from "../../state/hooks/users/useUserDirectory";
 import { useServerInfo } from "../../state/hooks/server/useServerInfo";
 
@@ -17,11 +15,9 @@ export function SettingsContainer({
   onBack: () => void;
   onHamburger: () => void;
 }) {
-  const { auth } = useAuthContext();
+  const { auth, codexAuth, kimiAuth } = useAuthContext();
   const userSettings = useUserSettingsContext();
-  const codexAuth = useCodexAuth(true);
-  const kimiAuth = useKimiAuth(true);
-  const userDirectory = useUserDirectory(!auth.noAuth && auth.isAdmin);
+  const userDirectory = useUserDirectory(auth.isAdmin);
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const serverInfo = useServerInfo(activeTab === "info");
 
@@ -30,7 +26,7 @@ export function SettingsContainer({
       activeTab={activeTab}
       currentEmail={auth.email}
       isAdmin={auth.isAdmin}
-      noAuth={auth.noAuth}
+      googleOAuthEnabled={auth.googleOAuthEnabled}
       serverInfo={serverInfo.info}
       serverInfoLoading={serverInfo.loading}
       serverInfoRefreshing={serverInfo.refreshing}

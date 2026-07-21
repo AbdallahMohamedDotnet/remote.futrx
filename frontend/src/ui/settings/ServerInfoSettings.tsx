@@ -14,7 +14,6 @@ import {
 export function ServerInfoSettings({
   currentEmail,
   isAdmin,
-  noAuth,
   info,
   loading,
   refreshing,
@@ -23,7 +22,6 @@ export function ServerInfoSettings({
 }: {
   currentEmail: string;
   isAdmin: boolean;
-  noAuth: boolean;
   info: ServerInfo | null;
   loading: boolean;
   refreshing: boolean;
@@ -57,8 +55,8 @@ export function ServerInfoSettings({
   }
 
   const location = typeof window === "undefined" ? null : window.location;
-  const account = noAuth ? "Local access" : currentEmail || "Signed-in user";
-  const access = noAuth ? "Authentication disabled" : isAdmin ? "Administrator" : "Member";
+  const account = currentEmail || "Signed-in user";
+  const access = isAdmin ? "Administrator" : "Member";
 
   return (
     <div class="space-y-4">

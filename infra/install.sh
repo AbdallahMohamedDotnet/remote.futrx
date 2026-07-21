@@ -15,8 +15,8 @@
 #   --skip-dns-check                            useful on cloud bootstrap where the public
 #                                               A record is set but propagation isn't done.
 #   --github-token=ghp_xxx                      private-repo PAT.
-#   --google-client-id=...
-#   --google-client-secret=...
+#   --google-client-id=...                      optional; can be added in Settings later.
+#   --google-client-secret=...                  optional; can be added in Settings later.
 #
 # Environment:
 #   GITHUB_TOKEN                                same as --github-token=.
@@ -143,6 +143,15 @@ render_template() {
 }
 export -f render_template
 
+# ───────────────── optional Google user authentication ─────────────────
+# The administrator always claims the server with a local email/password.
+# Google OAuth is only for invited users and may be configured later in the UI.
+if { [ -n "$GOOGLE_CLIENT_ID" ] && [ -z "$GOOGLE_CLIENT_SECRET" ]; } || \
+   { [ -z "$GOOGLE_CLIENT_ID" ] && [ -n "$GOOGLE_CLIENT_SECRET" ]; }; then
+    err "Google OAuth requires both a client ID and a client secret."
+    exit 1
+fi
+
 # ───────────────── distro guard ─────────────────
 if [ ! -r /etc/os-release ]; then
     echo "cannot detect distro — /etc/os-release missing" >&2
@@ -215,13 +224,13 @@ cat <<EOF
  ✓ DB viewers:    lazy per project at https://<slug>--18080.dev.$HOSTNAME
  ✓ Base image:    futrx-remote-dev-base (project containers launch from this)
 
- ${AUTH_NOTE:-(no auth note)}
+ $AUTH_NOTE
 
  Next:
-   1. claude login         # interactive — authenticate the Claude CLI
-   2. open Settings and sign in to Codex with ChatGPT if you want Codex
-   3. open Settings and sign in to Kimi if you want Kimi
-   4. open https://$HOSTNAME (Caddy fetches the cert on first hit, ~10s)
+   1. Open https://$HOSTNAME (Caddy fetches the cert on first hit, ~10s)
+   2. Create the administrator email and password
+   3. Connect at least one AI provider: Claude, Codex, or Kimi
+   4. Before inviting users, configure Google sign-in in Settings → Users
 
  If you're on a cloud VPS with its own firewall, open 80/443 in the
  provider's console as well as UFW.

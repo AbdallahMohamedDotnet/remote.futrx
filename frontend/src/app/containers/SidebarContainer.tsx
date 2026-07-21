@@ -32,7 +32,6 @@ export function SidebarContainer() {
       account={{
         email: auth.email,
         authenticated: auth.authenticated,
-        noAuth: auth.noAuth,
       }}
       onClose={workspace.closeSidebar}
       onQueryChange={sidebar.setQuery}

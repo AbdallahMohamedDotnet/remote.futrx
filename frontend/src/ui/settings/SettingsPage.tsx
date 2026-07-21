@@ -8,6 +8,7 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { ClaudeAuthSettings } from "./ClaudeAuthSettings";
 import { CodexAuthSettings } from "./CodexAuthSettings";
 import { KimiAuthSettings } from "./KimiAuthSettings";
+import { GoogleOAuthSettings } from "./GoogleOAuthSettings";
 import { ServerInfoSettings } from "./ServerInfoSettings";
 import { UsersPanel } from "../account/UsersPanel";
 
@@ -49,7 +50,7 @@ export function SettingsPage({
   activeTab,
   currentEmail,
   isAdmin,
-  noAuth,
+  googleOAuthEnabled,
   serverInfo,
   serverInfoLoading,
   serverInfoRefreshing,
@@ -81,7 +82,7 @@ export function SettingsPage({
   activeTab: SettingsTab;
   currentEmail: string;
   isAdmin: boolean;
-  noAuth: boolean;
+  googleOAuthEnabled: boolean;
   serverInfo: ServerInfo | null;
   serverInfoLoading: boolean;
   serverInfoRefreshing: boolean;
@@ -211,29 +212,26 @@ export function SettingsPage({
             )}
 
             {activeTab === "users" && (
-              noAuth ? (
-                <SettingsNotice>
-                  User management is unavailable while authentication is disabled on this server.
-                </SettingsNotice>
-              ) : (
+              <div class="space-y-4">
+                {isAdmin && <GoogleOAuthSettings />}
                 <UsersPanel
                   currentEmail={currentEmail}
                   isAdmin={isAdmin}
                   users={userDirectory.users}
                   loading={userDirectory.loading}
                   error={userDirectory.error}
+                  canAddUsers={googleOAuthEnabled}
                   onAdd={userDirectory.add}
                   onRemove={userDirectory.remove}
                   onSetRole={userDirectory.setRole}
                 />
-              )
+              </div>
             )}
 
             {activeTab === "info" && (
               <ServerInfoSettings
                 currentEmail={currentEmail}
                 isAdmin={isAdmin}
-                noAuth={noAuth}
                 info={serverInfo}
                 loading={serverInfoLoading}
                 refreshing={serverInfoRefreshing}

@@ -78,18 +78,12 @@ if [ -n "${GOOGLE_CLIENT_ID:-}" ] && [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
 }
 EOF
     chmod 0600 "$INSTALL_DIR/data/oauth.json"
-    ok "Google OAuth enabled; first login at https://$HOSTNAME will claim admin"
-    AUTH_NOTE="Google OAuth enabled. First Google login becomes admin."
+    ok "Google sign-in enabled for invited users"
+    AUTH_NOTE="Local admin authentication enabled. Google sign-in is ready for invited users."
+elif [ -s "$INSTALL_DIR/data/oauth.json" ]; then
+    ok "Google sign-in enabled for invited users (using the existing configuration)"
+    AUTH_NOTE="Local admin authentication enabled. Existing Google user sign-in settings were preserved."
 else
-    AUTH_NOTE=$(cat <<EON
-NO AUTH. To enable Google OAuth later:
-  1. Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client ID (Web app):
-       Authorized redirect URI:  https://$HOSTNAME/auth/google/callback
-  2. Re-run with:
-       --google-client-id=YOURID.apps.googleusercontent.com \\
-       --google-client-secret=YOURSECRET
-  3. First Google login then claims admin.
-EON
-)
+    AUTH_NOTE="Local admin authentication enabled. Create the admin password on first visit."
 fi
 export AUTH_NOTE

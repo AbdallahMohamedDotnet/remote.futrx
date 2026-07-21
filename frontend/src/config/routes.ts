@@ -6,6 +6,7 @@ function applicationPath(path: ApplicationPath): ApplicationPath {
 
 export const API_ROUTES = {
   authSession: "/auth/me",
+  googleOAuth: "/api/admin/auth/google",
   chats: {
     collection: "/api/chats",
     item: (id: string) => `/api/chats/${encodeURIComponent(id)}`,
