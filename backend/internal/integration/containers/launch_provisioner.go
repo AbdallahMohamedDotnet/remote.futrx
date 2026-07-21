@@ -16,6 +16,10 @@ type workspaceLaunchProvisioner interface {
 	EnsureSkillLinks(ctx context.Context, containerName string) error
 }
 
+type codeServerLaunchProvisioner interface {
+	Ensure(ctx context.Context, containerName, displayName string) error
+}
+
 // containerLaunchProvisioner applies launch-time capabilities in their stable
 // order. Every step is deliberately best-effort so one unavailable capability
 // cannot block the remaining migrations or the newly launched container.
@@ -23,7 +27,7 @@ type containerLaunchProvisioner struct {
 	credentials registeredCredentialEnsurer
 	workspace   workspaceLaunchProvisioner
 	browser     browserLaunchProvisioner
-	codeServer  *codeServerProvisioner
+	codeServer  codeServerLaunchProvisioner
 }
 
 func (p *containerLaunchProvisioner) provision(ctx context.Context, containerName, displayName string) {
@@ -32,5 +36,5 @@ func (p *containerLaunchProvisioner) provision(ctx context.Context, containerNam
 	_ = p.browser.EnsureScript(ctx, containerName)
 	_ = p.browser.EnsureSkill(ctx, containerName)
 	_ = p.browser.EnsureLimits(ctx, containerName)
-	_ = p.codeServer.ensure(ctx, containerName, displayName)
+	_ = p.codeServer.Ensure(ctx, containerName, displayName)
 }

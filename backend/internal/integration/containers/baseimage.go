@@ -16,6 +16,7 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	containerbrowser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/browser"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/codeserver"
 )
 
 const (
@@ -178,7 +179,7 @@ func (b *baseImageBuilder) build(ctx context.Context, alias string) error {
 	}
 
 	// Layer the on-demand code-server IDE on top (per-container VS Code).
-	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
+	if out, err := b.lxc.Run(bctx, "exec", baseImageBuilderName, "--", "bash", "-c", string(codeserver.InstallScript())); err != nil {
 		return fmt.Errorf("code-server install script: %w; output: %s", err, truncateOut(out, 2000))
 	}
 
