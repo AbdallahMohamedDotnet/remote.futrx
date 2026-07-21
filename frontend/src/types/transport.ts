@@ -1,3 +1,5 @@
+export type ApplicationPath = `/${string}`;
+
 export type HttpMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
 
 export interface ReconnectingJsonWebSocketOptions<TMessage> {
