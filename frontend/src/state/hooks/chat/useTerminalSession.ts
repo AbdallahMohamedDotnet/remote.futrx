@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm, type ITheme } from "@xterm/xterm";
 import { webSocketUrl } from "../../../transport/websocket";
+import { WebSocketConnection } from "../../../transport/webSocketConnection";
 
 export type TerminalStatus = "connecting" | "connected" | "closed" | "error";
 
@@ -52,7 +53,7 @@ export function useTerminalSession({
   const hostRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
+  const connectionRef = useRef<WebSocketConnection | null>(null);
   const titleRef = useRef(title);
   const [status, setStatus] = useState<TerminalStatus>("closed");
   const [error, setError] = useState<string | null>(null);
@@ -64,12 +65,14 @@ export function useTerminalSession({
   const fitAndResize = useCallback(() => {
     const terminal = terminalRef.current;
     const fit = fitRef.current;
-    const socket = socketRef.current;
+    const connection = connectionRef.current;
     if (!terminal || !fit) return;
     try {
       fit.fit();
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows }));
+      if (connection?.isOpen) {
+        connection.send(
+          JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows })
+        );
       }
     } catch {}
   }, []);
@@ -95,47 +98,46 @@ export function useTerminalSession({
     terminalRef.current = terminal;
     fitRef.current = fit;
 
-    const socket = new WebSocket(
-      webSocketUrl(`/ws/terminal?chat=${encodeURIComponent(chatId)}`)
-    );
-    socket.binaryType = "arraybuffer";
-    socketRef.current = socket;
+    const connection = new WebSocketConnection({
+      url: webSocketUrl(`/ws/terminal?chat=${encodeURIComponent(chatId)}`),
+      binaryType: "arraybuffer",
+      onOpen() {
+        if (disposed) return;
+        setStatus("connected");
+        terminal.writeln(`Connected to ${titleRef.current || "workspace"} terminal`);
+        terminal.writeln("");
+        fitAndResize();
+      },
+      onMessage(data) {
+        if (disposed) return;
+        if (data instanceof ArrayBuffer) {
+          terminal.write(new Uint8Array(data));
+          return;
+        }
+        terminal.write(String(data));
+      },
+      onError() {
+        if (disposed) return;
+        setError("Terminal connection failed.");
+        setStatus("error");
+      },
+      onClose() {
+        if (disposed) return;
+        setStatus((current) => current === "error" ? current : "closed");
+      },
+    });
+    connectionRef.current = connection;
     setStatus("connecting");
     setError(null);
 
-    socket.onopen = () => {
-      if (disposed) return;
-      setStatus("connected");
-      terminal.writeln(`Connected to ${titleRef.current || "workspace"} terminal`);
-      terminal.writeln("");
-      fitAndResize();
-    };
-    socket.onmessage = (event) => {
-      if (disposed) return;
-      if (event.data instanceof ArrayBuffer) {
-        terminal.write(new Uint8Array(event.data));
-        return;
-      }
-      terminal.write(String(event.data));
-    };
-    socket.onerror = () => {
-      if (disposed) return;
-      setError("Terminal connection failed.");
-      setStatus("error");
-    };
-    socket.onclose = () => {
-      if (disposed) return;
-      setStatus((current) => current === "error" ? current : "closed");
-    };
-
     const inputSub = terminal.onData((data) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "input", data }));
+      if (connection.isOpen) {
+        connection.send(JSON.stringify({ type: "input", data }));
       }
     });
 
     const resizeObserver = new ResizeObserver(() => {
-      if (socket.readyState === WebSocket.OPEN) fitAndResize();
+      if (connection.isOpen) fitAndResize();
     });
     resizeObserver.observe(hostRef.current);
     window.setTimeout(fitAndResize, 0);
@@ -144,9 +146,9 @@ export function useTerminalSession({
       disposed = true;
       resizeObserver.disconnect();
       inputSub.dispose();
-      try { socket.close(); } catch {}
+      connection.close();
       terminal.dispose();
-      socketRef.current = null;
+      connectionRef.current = null;
       terminalRef.current = null;
       fitRef.current = null;
     };
