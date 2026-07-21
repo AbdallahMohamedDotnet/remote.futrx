@@ -1,5 +1,4 @@
 import { useEffect, useState } from "preact/hooks";
-import { claudeAuthWebSocketUrl } from "../../../transport/websocket";
 import type { ClaudeAuthStatus, ClaudeLoginState } from "../../../models/auth";
 import { claudeAuthApi } from "../../../api/claudeAuthApi";
 
@@ -57,51 +56,8 @@ export function useClaudeAuth(enabled: boolean): ClaudeAuthState {
       return;
     }
 
-    let stopped = false;
-    let attempt = 0;
-    let socket: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
     setLoading(true);
-
-    function scheduleReconnect() {
-      if (stopped) return;
-      const delay = Math.min(5000, 400 * 2 ** attempt);
-      attempt++;
-      reconnectTimer = setTimeout(connect, delay);
-    }
-
-    function connect() {
-      if (stopped) return;
-      socket = new WebSocket(claudeAuthWebSocketUrl());
-
-      socket.onopen = () => {
-        attempt = 0;
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          applyStatus(JSON.parse(event.data) as ClaudeAuthStatus);
-        } catch {}
-      };
-
-      socket.onclose = () => {
-        socket = null;
-        scheduleReconnect();
-      };
-
-      socket.onerror = () => {
-        try { socket?.close(); } catch {}
-      };
-    }
-
-    connect();
-
-    return () => {
-      stopped = true;
-      if (reconnectTimer) window.clearTimeout(reconnectTimer);
-      try { socket?.close(); } catch {}
-    };
+    return claudeAuthApi.subscribe(applyStatus);
   }, [enabled]);
 
   return { loading, checked, authenticated, login, error, refresh };
