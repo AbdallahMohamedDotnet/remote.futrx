@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm, type ITheme } from "@xterm/xterm";
-import { webSocketUrl } from "../../../transport/websocket";
-import { WebSocketConnection } from "../../../transport/webSocketConnection";
+import { terminalApi, type TerminalConnection } from "../../../api/terminalApi";
 
 export type TerminalStatus = "connecting" | "connected" | "closed" | "error";
 
@@ -53,7 +52,7 @@ export function useTerminalSession({
   const hostRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const connectionRef = useRef<WebSocketConnection | null>(null);
+  const connectionRef = useRef<TerminalConnection | null>(null);
   const titleRef = useRef(title);
   const [status, setStatus] = useState<TerminalStatus>("closed");
   const [error, setError] = useState<string | null>(null);
@@ -70,9 +69,7 @@ export function useTerminalSession({
     try {
       fit.fit();
       if (connection?.isOpen) {
-        connection.send(
-          JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows })
-        );
+        connection.resize(terminal.cols, terminal.rows);
       }
     } catch {}
   }, []);
@@ -98,9 +95,7 @@ export function useTerminalSession({
     terminalRef.current = terminal;
     fitRef.current = fit;
 
-    const connection = new WebSocketConnection({
-      url: webSocketUrl(`/ws/terminal?chat=${encodeURIComponent(chatId)}`),
-      binaryType: "arraybuffer",
+    const connection = terminalApi.connect(chatId, {
       onOpen() {
         if (disposed) return;
         setStatus("connected");
@@ -108,13 +103,9 @@ export function useTerminalSession({
         terminal.writeln("");
         fitAndResize();
       },
-      onMessage(data) {
+      onOutput(data) {
         if (disposed) return;
-        if (data instanceof ArrayBuffer) {
-          terminal.write(new Uint8Array(data));
-          return;
-        }
-        terminal.write(String(data));
+        terminal.write(data);
       },
       onError() {
         if (disposed) return;
@@ -132,7 +123,7 @@ export function useTerminalSession({
 
     const inputSub = terminal.onData((data) => {
       if (connection.isOpen) {
-        connection.send(JSON.stringify({ type: "input", data }));
+        connection.sendInput(data);
       }
     });
 
