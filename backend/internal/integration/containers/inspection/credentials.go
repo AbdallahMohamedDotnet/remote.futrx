@@ -1,4 +1,4 @@
-package containers
+package inspection
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
@@ -13,7 +14,7 @@ import (
 // and in-container timestamps.
 type containerCredentialInspector struct {
 	commands *quickCommandRunner
-	profiles *profileRegistry
+	profiles *profiles.Registry
 }
 
 func (i *containerCredentialInspector) inspect(ctx context.Context, containerName string, state serviceproject.ContainerState) []serviceproject.AuthBundleStatus {

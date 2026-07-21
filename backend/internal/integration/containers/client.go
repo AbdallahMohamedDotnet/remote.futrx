@@ -16,6 +16,7 @@ import (
 	containercodeserver "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/codeserver"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
+	containerinspection "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/inspection"
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/launch"
 	containerlifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/lifecycle"
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
@@ -43,7 +44,7 @@ type Client struct {
 	lxc         CommandRunner
 	profiles    *profileRegistry
 	templates   *templatePublisher
-	inspector   containerInspector
+	inspector   *containerinspection.Inspector
 	credentials *containercredentials.Synchronizer
 	clis        *containercli.Provisioner
 	browser     *containerbrowser.Service
@@ -78,14 +79,7 @@ func New(client CommandRunner) *Client {
 		containerClient.codeServer,
 	)
 	containerClient.lifecycle = containerlifecycle.NewService(client, defaultImage, launchProvisioner)
-	inspectionCommands := &quickCommandRunner{lxc: client, timeout: inspectQuickTimeout}
-	containerClient.inspector = containerInspector{
-		states:      containerClient.lifecycle,
-		lxd:         containerLXDInspector{commands: inspectionCommands},
-		guest:       containerGuestInspector{commands: inspectionCommands},
-		agents:      containerAgentInspector{commands: inspectionCommands, profiles: containerClient.profiles},
-		credentials: containerCredentialInspector{commands: inspectionCommands, profiles: containerClient.profiles},
-	}
+	containerClient.inspector = containerinspection.NewInspector(client, containerClient.profiles, containerClient.lifecycle)
 	return containerClient
 }
 

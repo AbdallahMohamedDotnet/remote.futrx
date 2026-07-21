@@ -1,4 +1,6 @@
-package containers
+// Package inspection assembles best-effort diagnostic snapshots of project
+// containers.
+package inspection
 
 // Inspect gathers a rich debugging snapshot of one project's container.
 // Sources, in order:
@@ -13,6 +15,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
@@ -20,7 +24,7 @@ const inspectQuickTimeout = 5 * time.Second
 
 // containerInspector owns the best-effort snapshot assembled from LXD, the
 // guest operating system, configured agent profiles, and host credential files.
-type containerInspector struct {
+type Inspector struct {
 	states      containerStateReader
 	lxd         containerLXDInspector
 	guest       containerGuestInspector
@@ -32,11 +36,20 @@ type containerStateReader interface {
 	State(ctx context.Context, containerName string) (serviceproject.ContainerState, error)
 }
 
-func (c *Client) Inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
-	return c.inspector.inspect(ctx, containerName)
+// NewInspector returns a diagnostic inspector backed by the lifecycle state
+// reader and shared agent profiles.
+func NewInspector(runner command.Runner, registry *profiles.Registry, states containerStateReader) *Inspector {
+	commands := &quickCommandRunner{runner: runner, timeout: inspectQuickTimeout}
+	return &Inspector{
+		states:      states,
+		lxd:         containerLXDInspector{commands: commands},
+		guest:       containerGuestInspector{commands: commands},
+		agents:      containerAgentInspector{commands: commands, profiles: registry},
+		credentials: containerCredentialInspector{commands: commands, profiles: registry},
+	}
 }
 
-func (i *containerInspector) inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
+func (i *Inspector) Inspect(ctx context.Context, containerName string) (serviceproject.ContainerInspect, error) {
 	out := serviceproject.ContainerInspect{Name: containerName}
 
 	state, err := i.states.State(ctx, containerName)

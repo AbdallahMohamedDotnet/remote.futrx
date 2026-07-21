@@ -1,4 +1,4 @@
-package containers
+package inspection
 
 import (
 	"context"
@@ -6,13 +6,14 @@ import (
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
 
 // containerAgentInspector reports provider CLI and instruction readiness.
 type containerAgentInspector struct {
 	commands *quickCommandRunner
-	profiles *profileRegistry
+	profiles *profiles.Registry
 }
 
 func (i *containerAgentInspector) inspect(ctx context.Context, containerName string) []serviceproject.AgentContainerStatus {
