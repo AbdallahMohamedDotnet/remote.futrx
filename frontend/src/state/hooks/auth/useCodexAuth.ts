@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { CodexAuthStatus, CodexDeviceLogin } from "../../../models/auth";
-import { codexAuthApi } from "../../../api/codexAuthApi";
+import { codexAuthApi } from "../../../api/agents/auth/codexAuthApi";
 
 export interface CodexAuthState {
   loading: boolean;

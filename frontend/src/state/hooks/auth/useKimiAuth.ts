@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { KimiAuthStatus, KimiDeviceLogin } from "../../../models/auth";
-import { kimiAuthApi } from "../../../api/kimiAuthApi";
+import { kimiAuthApi } from "../../../api/agents/auth/kimiAuthApi";
 
 export interface KimiAuthState {
   loading: boolean;

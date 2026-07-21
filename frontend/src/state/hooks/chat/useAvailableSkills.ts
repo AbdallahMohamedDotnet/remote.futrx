@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { skillApi } from "../../../api/skillApi";
+import { skillApi } from "../../../api/agents/skillApi";
 import type { ChatProvider } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 

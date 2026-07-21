@@ -1,6 +1,6 @@
-import { requestJson } from "./apiRequest";
-import { subscribeToJsonMessages } from "../transport/jsonMessageSubscription";
-import type { ApplicationPath } from "../types/transport";
+import { requestJson } from "../../apiRequest";
+import { subscribeToJsonMessages } from "../../../transport/jsonMessageSubscription";
+import type { ApplicationPath } from "../../../types/transport";
 
 interface DeviceAuthRoutes {
   readonly status: ApplicationPath;

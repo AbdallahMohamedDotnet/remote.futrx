@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ClaudeAuthStatus, ClaudeLoginState } from "../../../models/auth";
-import { claudeAuthApi } from "../../../api/claudeAuthApi";
+import { claudeAuthApi } from "../../../api/agents/auth/claudeAuthApi";
 
 export interface ClaudeAuthState {
   loading: boolean;

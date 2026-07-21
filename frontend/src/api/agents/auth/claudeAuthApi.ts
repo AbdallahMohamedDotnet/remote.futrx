@@ -1,7 +1,7 @@
-import { requestJson } from "./apiRequest";
-import { subscribeToJsonMessages } from "../transport/jsonMessageSubscription";
-import type { ClaudeAuthStatus, ClaudeLoginStart } from "../models/auth";
-import { API_ROUTES, WEB_SOCKET_ROUTES } from "../config/routes";
+import { requestJson } from "../../apiRequest";
+import { subscribeToJsonMessages } from "../../../transport/jsonMessageSubscription";
+import type { ClaudeAuthStatus, ClaudeLoginStart } from "../../../models/auth";
+import { API_ROUTES, WEB_SOCKET_ROUTES } from "../../../config/routes";
 
 export const claudeAuthApi = {
   fetchStatus: () =>
