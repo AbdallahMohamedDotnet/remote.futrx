@@ -5,6 +5,23 @@ import type {
   ProjectContainerRecord,
   SecretsRecord,
 } from "../../state/projects/projectContainerRecords";
+import {
+  Empty,
+  Field,
+  Grid,
+  Loading,
+  Panel,
+} from "./project-containers/ProjectContainerPrimitives";
+import {
+  formatBytes as fmtBytes,
+  formatDate as fmtDate,
+  formatDuration as fmtDuration,
+  formatRelativeTime as fmtRelative,
+  formatUnixTime as fmtMtime,
+  hasNewlines,
+  lineSummary,
+  truncate,
+} from "./project-containers/projectContainerFormat";
 import type {
   AuthBundleFileStatus,
   AuthBundleStatus,
@@ -1003,132 +1020,4 @@ function AuthFileRow({ f }: { f: AuthBundleFileStatus }) {
       </div>
     </div>
   );
-}
-
-function Loading({ text }: { text: string }) {
-  return (
-    <div class="rounded-md border border-white/10 bg-white/[0.03] px-3 py-4 text-center text-[12.5px] text-ink-300">
-      {text}
-    </div>
-  );
-}
-
-function Empty({ text, compact }: { text: string; compact?: boolean }) {
-  return (
-    <div
-      class={`rounded-lg border border-white/10 bg-[#101318] ${
-        compact ? "px-3 py-2.5" : "px-4 py-5"
-      } text-sm text-ink-300`}
-    >
-      {text}
-    </div>
-  );
-}
-
-function Panel({ title, children }: { title: string; children: JSX.Element | JSX.Element[] }) {
-  return (
-    <section class="rounded-md border border-white/[0.08] bg-white/[0.02] overflow-hidden">
-      <header class="px-3 py-2 border-b border-white/[0.06]">
-        <h3 class="text-[11.5px] font-semibold uppercase tracking-wide text-ink-300">{title}</h3>
-      </header>
-      <div class="p-2.5">{children}</div>
-    </section>
-  );
-}
-
-function Grid({ children }: { children: JSX.Element | JSX.Element[] }) {
-  return <div class="grid gap-2 sm:grid-cols-2">{children}</div>;
-}
-
-function Field({
-  label,
-  value,
-  mono,
-  tone,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-  tone?: "warn";
-}) {
-  return (
-    <div class="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 min-w-0">
-      <div class="text-[11px] text-ink-400">{label}</div>
-      <div
-        class={`mt-0.5 text-[12.5px] truncate ${mono ? "font-mono" : ""} ${
-          tone === "warn" ? "text-accent-orange" : "text-ink-100"
-        }`}
-        title={value}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function fmtBytes(n?: number): string {
-  if (n == null || !isFinite(n)) return "—";
-  if (n < 1024) return `${n} B`;
-  const units = ["KB", "MB", "GB", "TB", "PB"];
-  let v = n / 1024;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(v < 10 ? 2 : v < 100 ? 1 : 0)} ${units[i]}`;
-}
-
-function fmtDate(iso?: string): string {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
-}
-
-function fmtMtime(unix?: number): string {
-  if (!unix) return "—";
-  try {
-    return new Date(unix * 1000).toLocaleString();
-  } catch {
-    return String(unix);
-  }
-}
-
-function fmtDuration(secs: number): string {
-  if (!secs || secs < 0) return "—";
-  const d = Math.floor(secs / 86400);
-  const h = Math.floor((secs % 86400) / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const parts: string[] = [];
-  if (d) parts.push(`${d}d`);
-  if (h) parts.push(`${h}h`);
-  if (m && !d) parts.push(`${m}m`);
-  if (parts.length === 0) parts.push(`${Math.floor(secs)}s`);
-  return parts.join(" ");
-}
-
-function fmtRelative(ts: number): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
-}
-
-function truncate(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n) + "…" : s;
-}
-
-
-function hasNewlines(v: string): boolean {
-  for (let i = 0; i < v.length; i++) if (v.charCodeAt(i) === 10) return true;
-  return false;
-}
-
-function lineSummary(v: string): string {
-  let lines = 1;
-  for (let i = 0; i < v.length; i++) if (v.charCodeAt(i) === 10) lines++;
-  return '• ' + lines + ' lines •';
 }
