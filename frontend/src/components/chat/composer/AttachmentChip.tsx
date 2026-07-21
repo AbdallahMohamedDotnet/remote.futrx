@@ -1,5 +1,5 @@
 import type { Attachment } from "../../../models/upload";
-import { formatBytes } from "../../../lib/files";
+import { formatBytes } from "../../../shared/files";
 import { AlertCircle, File as FileIcon, X } from "../../ui/icons";
 
 export function AttachmentChip({

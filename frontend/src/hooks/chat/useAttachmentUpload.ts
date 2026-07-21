@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { Attachment } from "../../models/upload";
 import { startChatUpload, type UploadHandle } from "../../api/uploadApi";
-import { randomId } from "../../lib/ids";
+import { randomId } from "../../shared/ids";
 
 export function useAttachmentUpload(
   chatId: string,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ChatStatus, QueuedPrompt } from "../../models/chat";
-import { queueId } from "../../lib/ids";
+import { queueId } from "../../shared/ids";
 import { getQueuedPrompts, setQueuedPrompts as persistQueuedPrompts } from "../../state/chat/drafts";
 
 export function usePromptQueue({
