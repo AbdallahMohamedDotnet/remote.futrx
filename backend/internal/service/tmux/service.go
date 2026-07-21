@@ -54,6 +54,11 @@ type Service struct {
 	terminal TerminalClient
 }
 
+type TextSession struct {
+	client SessionClient
+	name   string
+}
+
 func New(client Client) *Service {
 	return &Service{client: client, terminal: client}
 }
@@ -114,16 +119,28 @@ func (s *Service) UploadTarget(name string) (string, error) {
 }
 
 func (s *Service) SendText(name, text string, pressEnter bool) error {
+	session, err := s.TextSession(name)
+	if err != nil {
+		return err
+	}
+	return session.SendText(text, pressEnter)
+}
+
+func (s *Service) TextSession(name string) (*TextSession, error) {
 	if !ValidName(name) {
-		return ErrInvalidName
+		return nil, ErrInvalidName
 	}
 	if !s.client.Has(name) {
-		return ErrSessionNotFound
+		return nil, ErrSessionNotFound
 	}
+	return &TextSession{client: s.client, name: name}, nil
+}
+
+func (s *TextSession) SendText(text string, pressEnter bool) error {
 	if text == "" && !pressEnter {
 		return nil
 	}
-	return s.client.SendText(name, text, pressEnter)
+	return s.client.SendText(s.name, text, pressEnter)
 }
 
 func (s *Service) Attach(name string) (Terminal, error) {

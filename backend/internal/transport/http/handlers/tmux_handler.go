@@ -77,6 +77,15 @@ func (h *TmuxHandler) HandleSessionResource(w http.ResponseWriter, r *http.Reque
 			httptransport.SendErr(w, 405, "method not allowed")
 			return
 		}
+		session, err := h.sessions.TextSession(name)
+		if err != nil {
+			if errors.Is(err, servicetmux.ErrSessionNotFound) {
+				httptransport.SendErr(w, 404, "session not found")
+			} else {
+				httptransport.SendErr(w, 500, err.Error())
+			}
+			return
+		}
 		var body struct {
 			Text       string `json:"text"`
 			PressEnter *bool  `json:"pressEnter,omitempty"`
@@ -89,12 +98,8 @@ func (h *TmuxHandler) HandleSessionResource(w http.ResponseWriter, r *http.Reque
 		if body.PressEnter != nil {
 			pressEnter = *body.PressEnter
 		}
-		if err := h.sessions.SendText(name, body.Text, pressEnter); err != nil {
-			if errors.Is(err, servicetmux.ErrSessionNotFound) {
-				httptransport.SendErr(w, 404, "session not found")
-			} else {
-				httptransport.SendErr(w, 500, err.Error())
-			}
+		if err := session.SendText(body.Text, pressEnter); err != nil {
+			httptransport.SendErr(w, 500, err.Error())
 			return
 		}
 		httptransport.SendJSON(w, 200, map[string]bool{"ok": true})
