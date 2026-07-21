@@ -2,30 +2,21 @@ import { sendHttpRequest } from "../transport/http";
 import type { AuthSession } from "../models/auth";
 import { API_ROUTES } from "../config/routes";
 import { API_RESPONSE_STATUS } from "../config/api";
-
-const unauthenticated: AuthSession = {
-  noAuth: false,
-  authenticated: false,
-  claimed: false,
-  adminEmail: "",
-  email: "",
-  isAdmin: false,
-  isRegistered: false,
-};
+import { UNAUTHENTICATED_SESSION } from "../config/auth";
 
 export async function getAuthSession(): Promise<AuthSession> {
   try {
     const response = await sendHttpRequest("GET", API_ROUTES.authSession);
     if (response.status === API_RESPONSE_STATUS.notFound) {
       return {
-        ...unauthenticated,
+        ...UNAUTHENTICATED_SESSION,
         noAuth: true,
         authenticated: true,
         isAdmin: true,
         isRegistered: true,
       };
     }
-    if (!response.ok) return unauthenticated;
+    if (!response.ok) return UNAUTHENTICATED_SESSION;
     const data = await response.json();
     return {
       noAuth: false,
@@ -37,6 +28,6 @@ export async function getAuthSession(): Promise<AuthSession> {
       isRegistered: !!data.isRegistered,
     };
   } catch {
-    return unauthenticated;
+    return UNAUTHENTICATED_SESSION;
   }
 }
