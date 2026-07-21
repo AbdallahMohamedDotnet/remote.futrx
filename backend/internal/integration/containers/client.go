@@ -48,6 +48,7 @@ type Client struct {
 	credentials credentialSynchronizer
 	clis        cliProvisioner
 	browser     agentBrowser
+	codeServer  codeServerProvisioner
 	lifecycle   containerLifecycle
 	workspace   workspaceProvisioner
 	images      baseImageBuilder
@@ -82,6 +83,7 @@ func New(client CommandRunner) *Client {
 		profiles:  &containerClient.profiles,
 		templates: &containerClient.templates,
 	}
+	containerClient.codeServer = codeServerProvisioner{lxc: client}
 	containerClient.workspace = workspaceProvisioner{
 		lxc:       client,
 		profiles:  &containerClient.profiles,

@@ -17,6 +17,12 @@ import (
 //go:embed templates/code-server-up.sh
 var codeServerUpScript []byte
 
+// codeServerProvisioner owns installation and socket activation for the
+// per-container IDE.
+type codeServerProvisioner struct {
+	lxc CommandRunner
+}
+
 // EnsureCodeServer installs and enables the on-demand code-server stack inside
 // an existing project container. Idempotent and best-effort, mirroring
 // other container migration helpers. It returns early only when the socket is
@@ -25,10 +31,14 @@ var codeServerUpScript []byte
 // it still (re-)enables it, so a present-but-inert socket can't leave IDE
 // routing silently broken.
 func (c *Client) EnsureCodeServer(ctx context.Context, containerName, displayName string) error {
+	return c.codeServer.ensure(ctx, containerName, displayName)
+}
+
+func (p *codeServerProvisioner) ensure(ctx context.Context, containerName, displayName string) error {
 	// Fast path: socket already armed and listening -> nothing to do.
 	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	if _, err := c.lxc.Run(cctx, "exec", containerName, "--", "systemctl", "is-active", "--quiet", "code-server.socket"); err == nil {
+	if _, err := p.lxc.Run(cctx, "exec", containerName, "--", "systemctl", "is-active", "--quiet", "code-server.socket"); err == nil {
 		return nil
 	}
 
@@ -37,10 +47,10 @@ func (c *Client) EnsureCodeServer(ctx context.Context, containerName, displayNam
 	// so skip it when the unit file exists and just (re-)enable below.
 	tctx, tcancel := context.WithTimeout(ctx, 10*time.Second)
 	defer tcancel()
-	if _, err := c.lxc.Run(tctx, "exec", containerName, "--", "test", "-f", "/etc/systemd/system/code-server.socket"); err != nil {
+	if _, err := p.lxc.Run(tctx, "exec", containerName, "--", "test", "-f", "/etc/systemd/system/code-server.socket"); err != nil {
 		ictx, icancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer icancel()
-		if out, err := c.lxc.Run(ictx, "exec", containerName, "--env", "CODE_SERVER_WS_NAME="+displayName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
+		if out, err := p.lxc.Run(ictx, "exec", containerName, "--env", "CODE_SERVER_WS_NAME="+displayName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
 			return fmt.Errorf("install code-server: %w; output: %s", err, truncateOut(out, 2000))
 		}
 	}
@@ -50,7 +60,7 @@ func (c *Client) EnsureCodeServer(ctx context.Context, containerName, displayNam
 	// reported as complete while routing was actually dead.
 	ectx, ecancel := context.WithTimeout(ctx, 20*time.Second)
 	defer ecancel()
-	if out, err := c.lxc.Run(ectx, "exec", containerName, "--", "systemctl", "enable", "--now", "code-server.socket"); err != nil {
+	if out, err := p.lxc.Run(ectx, "exec", containerName, "--", "systemctl", "enable", "--now", "code-server.socket"); err != nil {
 		return fmt.Errorf("enable code-server.socket: %w; output: %s", err, truncateOut(out, 1000))
 	}
 	return nil
