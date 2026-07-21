@@ -65,7 +65,7 @@ two named groups:
 |---|---|
 | `templates/gui-up.sh` | New verbs: `start-core`, `start-view`, `stop-view`, plus `status` reporting each layer separately (e.g. `core=ready view=off clients=0`). Plain `start`/`stop` keep working as "everything" for compatibility. |
 | [agent_browser.go](../backend/internal/integration/containers/agent_browser.go) | `EnsureAgentBrowser(ctx, name, layer)` — or split into `EnsureAgentBrowserCore` / `EnsureAgentBrowserView` + `StopAgentBrowserView`. Readiness for `core` = CDP responds; for `view` = noVNC responds. |
-| Provider launch paths ([claude/command.go](../backend/internal/agent/providers/claude/command.go), [codex/command.go](../backend/internal/agent/providers/codex/command.go)) | When `req.EnableBrowser`: after `EnsureAgentBrowserMCP`, also `EnsureAgentBrowserCore`. **The agent self-starts the browser.** |
+| Provider launch paths ([claude/command.go](../backend/internal/agent/claude/command.go), [codex/command.go](../backend/internal/agent/codex/command.go)) | When `req.EnableBrowser`: after `EnsureAgentBrowserMCP`, also `EnsureAgentBrowserCore`. **The agent self-starts the browser.** |
 | [service.go](../backend/internal/service/project/service.go) | `StartAgentBrowser` (pane) ensures `core` + `view`. New `StopAgentBrowserView` used by the drawer-close path; full `StopAgentBrowser` stays behind the explicit stop button. |
 | REST handler | `DELETE /agent-browser?scope=view` (or `POST …/view/stop`) so the frontend can drop only the view layer. |
 | Frontend ([useAgentBrowserSession.ts](../frontend/src/hooks/chat/useAgentBrowserSession.ts)) | On drawer close (`enabled` → false): call the view-stop endpoint. Status hook keys off the combined status payload. |
@@ -175,7 +175,7 @@ delivers **B1, B2, B3**. Mostly config + playbook — small and high-leverage.
 | Where | What |
 |---|---|
 | [templates/mcp-claude.json](../backend/internal/integration/containers/templates/mcp-claude.json) | `"args": ["@playwright/mcp", "--cdp-endpoint", "http://127.0.0.1:9222", "--caps=vision"]` |
-| [codex/command.go](../backend/internal/agent/providers/codex/command.go) | Mirror the same arg in the inline `mcp_servers.browser.args` flag. Keep the two configs byte-equivalent in intent — they are the same server. |
+| [codex/command.go](../backend/internal/agent/codex/command.go) | Mirror the same arg in the inline `mcp_servers.browser.args` flag. Keep the two configs byte-equivalent in intent — they are the same server. |
 | [SKILL.md](../backend/internal/integration/containers/templates/skills/browser/SKILL.md) | Rewrite the "How to work" playbook as a **hybrid perception loop** (below). |
 
 ### The hybrid perception loop (playbook content)

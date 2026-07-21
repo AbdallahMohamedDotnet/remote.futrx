@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent"
-	claudeagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/claude"
-	codexagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/codex"
-	kimiagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/kimi"
+	claudeagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/claude"
+	codexagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/codex"
+	kimiagent "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/kimi"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
