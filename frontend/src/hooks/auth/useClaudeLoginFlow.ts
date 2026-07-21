@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ClaudeLoginPhase } from "../../models/auth";
-import { claudeAuthService } from "../../api/claudeAuthService";
+import { claudeAuthApi } from "../../api/claudeAuthApi";
 
 export function useClaudeLoginFlow(onDone: () => void) {
   const [phase, setPhaseState] = useState<ClaudeLoginPhase>("idle");
@@ -17,7 +17,7 @@ export function useClaudeLoginFlow(onDone: () => void) {
   useEffect(() => {
     return () => {
       if (phaseRef.current === "starting" || phaseRef.current === "awaiting-code") {
-        claudeAuthService.cancelLogin().catch(() => {});
+        claudeAuthApi.cancelLogin().catch(() => {});
       }
     };
   }, []);
@@ -26,7 +26,7 @@ export function useClaudeLoginFlow(onDone: () => void) {
     setPhase("starting");
     setErrorMessage("");
     try {
-      const response = await claudeAuthService.startLogin();
+      const response = await claudeAuthApi.startLogin();
       setAuthUrl(response.url);
       setPhase("awaiting-code");
     } catch (error) {
@@ -41,7 +41,7 @@ export function useClaudeLoginFlow(onDone: () => void) {
     setPhase("submitting");
     setErrorMessage("");
     try {
-      await claudeAuthService.submitCode(trimmed);
+      await claudeAuthApi.submitCode(trimmed);
       setPhase("done");
       setTimeout(onDone, 700);
     } catch (error) {
@@ -52,7 +52,7 @@ export function useClaudeLoginFlow(onDone: () => void) {
 
   async function cancel() {
     try {
-      await claudeAuthService.cancelLogin();
+      await claudeAuthApi.cancelLogin();
     } catch {}
     reset();
   }

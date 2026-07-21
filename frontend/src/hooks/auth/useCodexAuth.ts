@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { codexAuthWebSocketUrl } from "../../transport/websocket";
 import type { CodexAuthStatus, CodexDeviceLogin } from "../../models/auth";
-import { codexAuthService } from "../../api/codexAuthService";
+import { codexAuthApi } from "../../api/codexAuthApi";
 
 export interface CodexAuthState {
   loading: boolean;
@@ -36,7 +36,7 @@ export function useCodexAuth(enabled: boolean): CodexAuthState {
     setStarting(true);
     setError(null);
     try {
-      const state = await codexAuthService.startDeviceLogin();
+      const state = await codexAuthApi.startDeviceLogin();
       setDeviceLogin(state);
     } catch (e) {
       setError((e as Error).message);

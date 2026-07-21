@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { getAuthSession } from "../../api/authService";
+import { getAuthSession } from "../../api/authApi";
 import type { AuthSession } from "../../models/auth";
 
 export interface AuthState extends AuthSession {

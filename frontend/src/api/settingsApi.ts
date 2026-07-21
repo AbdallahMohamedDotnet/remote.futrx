@@ -12,7 +12,7 @@ const providers = new Set<ChatProvider>(["claude", "codex"]);
 const modes = new Set<ChatMode>(["chat", "plan", "code", "review", "debug", "full-auto"]);
 const reasoningEfforts = new Set<ReasoningEffort>(["", "low", "medium", "high", "xhigh"]);
 
-export const settingsService = {
+export const settingsApi = {
   get: async () => normalize(await json<UserSettings>("GET", "/api/me/settings")),
   update: async (body: UpdateUserSettingsInput) =>
     normalize(await json<UserSettings>("PATCH", "/api/me/settings", body)),

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { kimiAuthWebSocketUrl } from "../../transport/websocket";
 import type { KimiAuthStatus, KimiDeviceLogin } from "../../models/auth";
-import { kimiAuthService } from "../../api/kimiAuthService";
+import { kimiAuthApi } from "../../api/kimiAuthApi";
 
 export interface KimiAuthState {
   loading: boolean;
@@ -33,7 +33,7 @@ export function useKimiAuth(enabled: boolean): KimiAuthState {
     setStarting(true);
     setError(null);
     try {
-      const state = await kimiAuthService.startDeviceLogin();
+      const state = await kimiAuthApi.startDeviceLogin();
       setDeviceLogin(state);
     } catch (e) {
       setError((e as Error).message);

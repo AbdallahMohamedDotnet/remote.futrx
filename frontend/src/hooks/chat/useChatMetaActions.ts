@@ -1,5 +1,5 @@
 import type { UpdateChatInput } from "../../models/chat";
-import { chatService } from "../../api/chatService";
+import { chatApi } from "../../api/chatApi";
 
 export function useChatMetaActions({
   chatId,
@@ -12,7 +12,7 @@ export function useChatMetaActions({
 }) {
   async function applyMeta(patch: UpdateChatInput) {
     try {
-      await chatService.update(chatId, patch);
+      await chatApi.update(chatId, patch);
       await refreshMeta();
       onMetaUpdate();
     } catch (error) {

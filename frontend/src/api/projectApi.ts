@@ -7,7 +7,7 @@ import type {
   ProjectSecret,
 } from "../models/project";
 
-export const projectService = {
+export const projectApi = {
   list: () => json<ProjectMeta[]>("GET", "/api/projects"),
   create: (name: string) => json<ProjectMeta>("POST", "/api/projects", { name }),
   get: (id: string) => json<ProjectMeta>("GET", `/api/projects/${encodeURIComponent(id)}`),

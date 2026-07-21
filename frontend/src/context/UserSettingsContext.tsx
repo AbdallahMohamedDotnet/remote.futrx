@@ -8,7 +8,7 @@ import {
   type ChatSettings,
   type UserSettings,
 } from "../models/settings";
-import { settingsService } from "../api/settingsService";
+import { settingsApi } from "../api/settingsApi";
 
 interface UserSettingsContextValue {
   settings: UserSettings;
@@ -40,7 +40,7 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
 
     setLoading(true);
     try {
-      setSettings(await settingsService.get());
+      setSettings(await settingsApi.get());
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -68,7 +68,7 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
     setSettings({ ...settings, appearance: { ...settings.appearance, theme } });
     setSaving(true);
     try {
-      setSettings(await settingsService.update({ appearance: { theme } }));
+      setSettings(await settingsApi.update({ appearance: { theme } }));
       setError(null);
     } catch (e) {
       setSettings(previous);
@@ -83,7 +83,7 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
     setSettings({ ...settings, chat: { ...settings.chat, ...chat } });
     setSaving(true);
     try {
-      setSettings(await settingsService.update({ chat }));
+      setSettings(await settingsApi.update({ chat }));
       setError(null);
     } catch (e) {
       setSettings(previous);

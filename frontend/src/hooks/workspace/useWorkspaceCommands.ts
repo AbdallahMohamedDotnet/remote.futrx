@@ -1,7 +1,7 @@
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { useWorkspaceContext } from "../../context/WorkspaceContext";
-import { chatService } from "../../api/chatService";
+import { chatApi } from "../../api/chatApi";
 
 export function useWorkspaceCommands() {
   const workspace = useWorkspaceContext();
@@ -38,8 +38,8 @@ export function useWorkspaceCommands() {
     event.stopPropagation();
     const unread = (chat.lastMessageAt || 0) > (chat.lastReadAt || 0);
     try {
-      if (unread) await chatService.markRead(chat.id);
-      else await chatService.markUnread(chat.id);
+      if (unread) await chatApi.markRead(chat.id);
+      else await chatApi.markUnread(chat.id);
     } catch (error) {
       alert("read state update failed: " + (error as Error).message);
     }

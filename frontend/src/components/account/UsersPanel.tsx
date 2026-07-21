@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import type { User, UserRole } from "../../models/user";
-import { userService } from "../../api/userService";
+import { userApi } from "../../api/userApi";
 import { AlertCircle, Check, Loader, X } from "../ui/icons";
 
 interface UsersPanelProps {
@@ -22,7 +22,7 @@ export function UsersPanel({ currentEmail, isAdmin }: UsersPanelProps) {
     setLoading(true);
     setError(null);
     try {
-      const list = await userService.list();
+      const list = await userApi.list();
       setUsers(list);
     } catch (e) {
       setError((e as Error).message);
@@ -36,7 +36,7 @@ export function UsersPanel({ currentEmail, isAdmin }: UsersPanelProps) {
   }, [isAdmin, load]);
 
   const handleAdd = async (email: string, role: UserRole) => {
-    const created = await userService.add({ email, role });
+    const created = await userApi.add({ email, role });
     setUsers((prev) => {
       const next = prev ? [...prev] : [];
       next.push(created);
@@ -47,12 +47,12 @@ export function UsersPanel({ currentEmail, isAdmin }: UsersPanelProps) {
 
   const handleRemove = async (email: string) => {
     if (!confirm(`Remove ${email}? They lose access immediately.`)) return;
-    await userService.remove(email);
+    await userApi.remove(email);
     setUsers((prev) => prev?.filter((u) => u.email !== email) ?? []);
   };
 
   const handleSetRole = async (email: string, role: UserRole) => {
-    const updated = await userService.setRole(email, role);
+    const updated = await userApi.setRole(email, role);
     setUsers((prev) =>
       prev?.map((u) => (u.email === email ? { ...u, role: updated.role } : u)) ?? []
     );

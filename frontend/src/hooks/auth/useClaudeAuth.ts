@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { claudeAuthWebSocketUrl } from "../../transport/websocket";
 import type { ClaudeAuthStatus, ClaudeLoginState } from "../../models/auth";
-import { claudeAuthService } from "../../api/claudeAuthService";
+import { claudeAuthApi } from "../../api/claudeAuthApi";
 
 export interface ClaudeAuthState {
   loading: boolean;
@@ -41,7 +41,7 @@ export function useClaudeAuth(enabled: boolean): ClaudeAuthState {
   // The WS keeps status live, so this is a best-effort one-shot resync.
   async function refresh() {
     try {
-      applyStatus(await claudeAuthService.status());
+      applyStatus(await claudeAuthApi.status());
     } catch (e) {
       setError((e as Error).message);
     }

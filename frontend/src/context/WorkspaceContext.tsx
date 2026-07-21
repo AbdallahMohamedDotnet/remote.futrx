@@ -3,8 +3,8 @@ import { createContext } from "preact";
 import { useContext, useEffect, useReducer } from "preact/hooks";
 import type { ChatMeta, CreateChatInput } from "../models/chat";
 import type { ProjectMeta } from "../models/project";
-import { chatService } from "../api/chatService";
-import { projectService } from "../api/projectService";
+import { chatApi } from "../api/chatApi";
+import { projectApi } from "../api/projectApi";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
 import { useUserSettingsContext } from "./UserSettingsContext";
 import {
@@ -67,7 +67,7 @@ export function WorkspaceProvider({
   }, [data.chats, ui.activeChatId]);
 
   async function createProject(name: string): Promise<ProjectMeta> {
-    const project = await projectService.create(name);
+    const project = await projectApi.create(name);
     return project;
   }
 
@@ -79,36 +79,36 @@ export function WorkspaceProvider({
       reasoningEffort: settings.chat.reasoningEffort,
       ...(projectId ? { projectId } : {}),
     };
-    const chat = await chatService.create(input);
+    const chat = await chatApi.create(input);
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
   }
 
   async function deleteChat(chatId: string) {
-    await chatService.delete(chatId);
+    await chatApi.delete(chatId);
   }
 
   async function forkChat(chatId: string): Promise<ChatMeta> {
-    const chat = await chatService.fork(chatId);
+    const chat = await chatApi.fork(chatId);
     data.refreshChats();
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
   }
 
   async function deleteProject(projectId: string) {
-    await projectService.delete(projectId);
+    await projectApi.delete(projectId);
   }
 
   async function reorderProjects(projectIds: string[]) {
-    await projectService.reorder(projectIds);
+    await projectApi.reorder(projectIds);
   }
 
   async function startProject(projectId: string) {
-    await projectService.start(projectId);
+    await projectApi.start(projectId);
   }
 
   async function stopProject(projectId: string) {
-    await projectService.stop(projectId);
+    await projectApi.stop(projectId);
   }
 
   return (

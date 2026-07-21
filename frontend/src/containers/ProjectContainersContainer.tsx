@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { ProjectContainersPage } from "../components/projects/ProjectContainersPage";
 import type { ProjectContainerInfo, ProjectMeta, ProjectSecret } from "../models/project";
-import { projectService } from "../api/projectService";
+import { projectApi } from "../api/projectApi";
 
 export interface ProjectContainerRecord {
   loading: boolean;
@@ -51,7 +51,7 @@ export function ProjectContainersContainer({
       }
       setInfoRecord((prev) => ({ ...prev, loading: true, error: undefined }));
       try {
-        const data = await projectService.containerInfo(selectedProject.id);
+        const data = await projectApi.containerInfo(selectedProject.id);
         if (signal?.cancelled) return;
         setInfoRecord({ loading: false, data, refreshedAt: Date.now() });
       } catch (error) {
@@ -74,7 +74,7 @@ export function ProjectContainersContainer({
       }
       setSecretsRecord((prev) => ({ ...prev, loading: true, error: undefined }));
       try {
-        const data = await projectService.listSecrets(selectedProject.id);
+        const data = await projectApi.listSecrets(selectedProject.id);
         if (signal?.cancelled) return;
         setSecretsRecord({ loading: false, data });
       } catch (error) {
@@ -93,7 +93,7 @@ export function ProjectContainersContainer({
       }
       setAccessRecord((prev) => ({ ...prev, loading: true, error: undefined }));
       try {
-        const data = await projectService.listAccess(selectedProject.id);
+        const data = await projectApi.listAccess(selectedProject.id);
         if (signal?.cancelled) return;
         setAccessRecord({ loading: false, data });
       } catch (error) {
@@ -117,7 +117,7 @@ export function ProjectContainersContainer({
   const onSaveSecret = useCallback(
     async (key: string, value: string) => {
       if (!selectedProject) return;
-      const saved = await projectService.setSecret(selectedProject.id, key, value);
+      const saved = await projectApi.setSecret(selectedProject.id, key, value);
       setSecretsRecord((prev) => {
         const list = prev.data ? [...prev.data] : [];
         const idx = list.findIndex((s) => s.key === saved.key);
@@ -133,7 +133,7 @@ export function ProjectContainersContainer({
   const onDeleteSecret = useCallback(
     async (key: string) => {
       if (!selectedProject) return;
-      await projectService.deleteSecret(selectedProject.id, key);
+      await projectApi.deleteSecret(selectedProject.id, key);
       setSecretsRecord((prev) => ({
         loading: false,
         data: prev.data?.filter((s) => s.key !== key) ?? [],
@@ -145,7 +145,7 @@ export function ProjectContainersContainer({
   const onAddMember = useCallback(
     async (email: string) => {
       if (!selectedProject) return;
-      const { email: added } = await projectService.addAccess(selectedProject.id, email);
+      const { email: added } = await projectApi.addAccess(selectedProject.id, email);
       setAccessRecord((prev) => {
         const next = prev.data ? [...prev.data] : [];
         if (!next.includes(added)) next.push(added);
@@ -159,7 +159,7 @@ export function ProjectContainersContainer({
   const onRemoveMember = useCallback(
     async (email: string) => {
       if (!selectedProject) return;
-      await projectService.removeAccess(selectedProject.id, email);
+      await projectApi.removeAccess(selectedProject.id, email);
       setAccessRecord((prev) => ({
         loading: false,
         data: prev.data?.filter((m) => m !== email) ?? [],
@@ -170,25 +170,25 @@ export function ProjectContainersContainer({
 
   const onRepairNetwork = useCallback(async () => {
     if (!selectedProject) return;
-    const data = await projectService.repairNetwork(selectedProject.id);
+    const data = await projectApi.repairNetwork(selectedProject.id);
     setInfoRecord({ loading: false, data, refreshedAt: Date.now() });
   }, [selectedProject]);
 
   const onStartProject = useCallback(async () => {
     if (!selectedProject) return;
-    await projectService.start(selectedProject.id);
+    await projectApi.start(selectedProject.id);
     await loadInfo();
   }, [selectedProject, loadInfo]);
 
   const onStopProject = useCallback(async () => {
     if (!selectedProject) return;
-    await projectService.stop(selectedProject.id);
+    await projectApi.stop(selectedProject.id);
     await loadInfo();
   }, [selectedProject, loadInfo]);
 
   const onDeleteProject = useCallback(async () => {
     if (!selectedProject) return;
-    await projectService.delete(selectedProject.id);
+    await projectApi.delete(selectedProject.id);
     onBack();
   }, [selectedProject, onBack]);
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import type { ChatStatus } from "../../models/chat";
-import { chatService } from "../../api/chatService";
+import { chatApi } from "../../api/chatApi";
 
 export function useChatReadMarker({
   chatId,
@@ -20,6 +20,6 @@ export function useChatReadMarker({
     const key = `${chatId}:${eventCount}`;
     if (readMarkerRef.current === key) return;
     readMarkerRef.current = key;
-    void chatService.markRead(chatId).then(onMetaUpdate).catch(() => {});
+    void chatApi.markRead(chatId).then(onMetaUpdate).catch(() => {});
   }, [chatId, eventCount, onMetaUpdate, status]);
 }

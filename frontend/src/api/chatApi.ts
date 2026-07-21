@@ -3,7 +3,7 @@ import type { FileTreeResponse } from "../models/files";
 import type { ChatEventPage, ChatMeta, CreateChatInput, UpdateChatInput } from "../models/chat";
 import { DirtyWorkingTreeError, type GitHistoryCheckoutResponse, type GitHistoryCommitsResponse, type GitHistoryDiffResponse, type GitHistoryReposResponse } from "../models/history";
 
-export const chatService = {
+export const chatApi = {
   list: () => json<ChatMeta[]>("GET", "/api/chats"),
   create: (body: CreateChatInput = {}) => json<ChatMeta>("POST", "/api/chats", body),
   get: (id: string) => json<ChatMeta>("GET", `/api/chats/${encodeURIComponent(id)}`),

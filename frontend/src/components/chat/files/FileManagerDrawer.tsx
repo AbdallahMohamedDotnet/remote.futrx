@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { FileTree } from "../../../models/files";
-import { chatService } from "../../../api/chatService";
+import { chatApi } from "../../../api/chatApi";
 import { ChevronsDownUp, ChevronsUpDown, Download, Folder, Loader, RotateCcw, Search, X } from "../../ui/icons";
 import { FileTreeNodes } from "./FileTree";
 import { collectFolderKeys, filterTree, formatBytes, nodeKey, treeStats } from "./fileMeta";
@@ -33,7 +33,7 @@ export function FileManagerDrawer({
     setLoading(true);
     setError(null);
     try {
-      const response = await chatService.files(chatId);
+      const response = await chatApi.files(chatId);
       const nextTrees = response.trees || [];
       setTrees(nextTrees);
       setTruncated(response.truncated);
@@ -190,7 +190,7 @@ export function FileManagerDrawer({
                 <span class="flex-1" />
                 {tree.exists && tree.children.length > 0 && (
                   <a
-                    href={chatService.folderDownloadUrl(chatId, tree.dir)}
+                    href={chatApi.folderDownloadUrl(chatId, tree.dir)}
                     class="inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] text-ink-300 hover:text-accent-blue hover:bg-white/[0.06]"
                     title={`Download all of ${tree.dir} as zip`}
                   >

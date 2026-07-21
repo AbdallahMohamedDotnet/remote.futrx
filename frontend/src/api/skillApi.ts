@@ -2,7 +2,7 @@ import { json } from "../transport/http";
 import type { ChatProvider } from "../models/chat";
 import type { RegisteredSkill } from "../models/skill";
 
-export const skillService = {
+export const skillApi = {
   list: (provider: ChatProvider, projectId?: string) => {
     const params = new URLSearchParams({ provider });
     if (projectId) params.set("projectId", projectId);

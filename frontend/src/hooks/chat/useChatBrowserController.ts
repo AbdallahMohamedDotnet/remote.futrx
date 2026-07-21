@@ -3,7 +3,7 @@ import type { RefObject } from "preact";
 import type { ChatMeta } from "../../models/chat";
 import type { ContainerApp, ProjectMeta } from "../../models/project";
 import type { Block } from "../../state/chat/messageBlocks";
-import { projectService } from "../../api/projectService";
+import { projectApi } from "../../api/projectApi";
 import type { BrowserElementCapture } from "../../components/chat/browser/BrowserDrawer";
 
 export function useChatBrowserController({
@@ -42,7 +42,7 @@ export function useChatBrowserController({
     }
     setAppsLoading(true);
     try {
-      const apps = await projectService.listApps(chat.projectId);
+      const apps = await projectApi.listApps(chat.projectId);
       setContainerApps(apps);
       setSelectedAppPort((prev) => {
         if (apps.length === 0) return null;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ChatProvider } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
-import { skillService } from "../../../api/skillService";
+import { skillApi } from "../../../api/skillApi";
 import { ChevronDown, Code, Search } from "../../ui/icons";
 
 export function SkillPicker({
@@ -29,7 +29,7 @@ export function SkillPicker({
     setQuery("");
     setError("");
     setLoading(true);
-    skillService.list(provider, projectId)
+    skillApi.list(provider, projectId)
       .then((items) => {
         if (!cancelled) setSkills(items);
       })

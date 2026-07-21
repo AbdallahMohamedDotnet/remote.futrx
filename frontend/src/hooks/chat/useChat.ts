@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatWebSocketUrl } from "../../transport/websocket";
-import { chatService } from "../../api/chatService";
+import { chatApi } from "../../api/chatApi";
 import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../models/chat";
 import { groupEvents, type Block } from "../../state/chat/messageBlocks";
 import {
@@ -174,8 +174,8 @@ export function useChat(chatId: string): UseChatResult {
     (async () => {
       try {
         const [m, page] = await Promise.all([
-          chatService.get(chatId),
-          chatService.events(chatId, { limit: CHAT_EVENT_PAGE_LIMIT }),
+          chatApi.get(chatId),
+          chatApi.events(chatId, { limit: CHAT_EVENT_PAGE_LIMIT }),
         ]);
         if (cancelled) return;
         lastSeqRef.current = Math.max(page.lastSeq, latestSeq(page.events));
@@ -282,7 +282,7 @@ export function useChat(chatId: string): UseChatResult {
   }, []);
 
   const rewind = useCallback(async (beforeT: number) => {
-    const res = await chatService.rewind(chatId, beforeT);
+    const res = await chatApi.rewind(chatId, beforeT);
     clearPendingEvents();
     lastSeqRef.current = Math.max(res.lastSeq, latestSeq(res.events));
     setRenderState(stateFromEvents(res.events, res));
@@ -294,7 +294,7 @@ export function useChat(chatId: string): UseChatResult {
     if (loadingOlder || !renderState.hasOlder || !renderState.nextBefore) return;
     setLoadingOlder(true);
     try {
-      const page = await chatService.events(chatId, {
+      const page = await chatApi.events(chatId, {
         limit: CHAT_EVENT_PAGE_LIMIT,
         before: renderState.nextBefore,
       });
@@ -307,7 +307,7 @@ export function useChat(chatId: string): UseChatResult {
   const refreshMeta = useCallback(async () => {
     if (!chatId) return;
     try {
-      const m = await chatService.get(chatId);
+      const m = await chatApi.get(chatId);
       setMeta(m);
     } catch {}
   }, [chatId]);

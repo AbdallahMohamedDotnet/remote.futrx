@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import type { FileNode } from "../../../models/files";
-import { chatService } from "../../../api/chatService";
+import { chatApi } from "../../../api/chatApi";
 import {
   Archive,
   ChevronRight,
@@ -108,7 +108,7 @@ function FolderRow({
         <span class="flex-1 min-w-0 truncate text-[13px] text-ink-100">{node.name}</span>
         <span class="text-[11px] text-ink-500 tabular-nums flex-none">{fileCount}</span>
         <a
-          href={chatService.folderDownloadUrl(chatId, dir, node.path)}
+          href={chatApi.folderDownloadUrl(chatId, dir, node.path)}
           onClick={(event) => event.stopPropagation()}
           class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
                  opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
@@ -144,7 +144,7 @@ function FileRow({ chatId, dir, node }: { chatId: string; dir: string; node: Fil
           <span class="text-[11px] text-ink-500 tabular-nums flex-none">{formatBytes(node.size)}</span>
         )}
         <a
-          href={chatService.fileDownloadUrl(chatId, dir, node.path)}
+          href={chatApi.fileDownloadUrl(chatId, dir, node.path)}
           download={node.name}
           class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
                  opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
