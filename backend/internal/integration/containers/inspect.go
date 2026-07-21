@@ -29,9 +29,13 @@ type containerStateReader interface {
 // containerInspector owns the best-effort snapshot assembled from LXD, the
 // guest operating system, configured agent profiles, and host credential files.
 type containerInspector struct {
-	lxc      CommandRunner
-	profiles *profileRegistry
-	states   containerStateReader
+	lxc         CommandRunner
+	profiles    *profileRegistry
+	states      containerStateReader
+	lxd         containerLXDInspector
+	guest       containerGuestInspector
+	agents      containerAgentInspector
+	credentials containerCredentialInspector
 }
 
 // instanceConfig mirrors the subset of /1.0/instances/<n> we care about.
@@ -97,71 +101,17 @@ func (i *containerInspector) inspect(ctx context.Context, containerName string) 
 		return out, nil
 	}
 
-	if cfg, err := i.queryInstance(ctx, containerName); err == nil {
-		out.Architecture = cfg.Architecture
-		out.Type = cfg.Type
-		out.CreatedAt = cfg.CreatedAt
-		out.LastUsedAt = cfg.LastUsedAt
-		out.BootAutostart = cfg.Config["boot.autostart"] == "true"
-		if desc := cfg.Config["image.description"]; desc != "" {
-			out.Image = desc
-		} else if alias := cfg.Config["image.alias"]; alias != "" {
-			out.Image = alias
-		}
-		if cpu, mem, disk := cfg.Config["limits.cpu"], cfg.Config["limits.memory"], cfg.Config["limits.disk"]; cpu != "" || mem != "" || disk != "" {
-			out.Limits = &serviceproject.ContainerLimits{CPU: cpu, Memory: mem, Disk: disk}
-		}
-		if ws, ok := cfg.Devices["workspace"]; ok {
-			out.Workspace = &serviceproject.WorkspaceInfo{
-				HostSource:    ws["source"],
-				ContainerPath: ws["path"],
-			}
-		}
-	}
+	i.lxd.inspectConfiguration(ctx, containerName, &out)
 
 	if state == serviceproject.ContainerStateRunning {
-		if st, err := i.queryInstanceState(ctx, containerName); err == nil {
-			out.PID = st.PID
-			out.Resources = &serviceproject.ResourceInfo{
-				Processes:          st.Processes,
-				MemoryCurrentBytes: st.Memory.Usage,
-				MemoryPeakBytes:    st.Memory.UsagePeak,
-				MemoryTotalBytes:   st.Memory.Total,
-				SwapCurrentBytes:   st.Memory.Swap,
-				CPUUsageSeconds:    st.CPU.Usage / 1_000_000_000,
-			}
-			if root, ok := st.Disk["root"]; ok {
-				out.Resources.DiskUsageBytes = root.Usage
-			}
-			for name, n := range st.Network {
-				if name == "lo" {
-					continue
-				}
-				addrs := make([]string, 0, len(n.Addresses))
-				for _, a := range n.Addresses {
-					addrs = append(addrs, a.Address+"/"+a.Netmask)
-				}
-				out.Network = append(out.Network, serviceproject.NetworkInterface{
-					Name:          name,
-					State:         n.State,
-					Type:          n.Type,
-					HostName:      n.HostName,
-					MACAddress:    n.HWAddr,
-					MTU:           n.MTU,
-					Addresses:     addrs,
-					BytesReceived: n.Counters.BytesReceived,
-					BytesSent:     n.Counters.BytesSent,
-				})
-			}
-		}
-
-		osInfo, disks := i.probeInContainer(ctx, containerName)
+		i.lxd.inspectRuntime(ctx, containerName, &out)
+		osInfo, disks := i.guest.inspect(ctx, containerName)
 		out.OS = osInfo
 		out.Disks = disks
-		out.SetAgentStatuses(i.inspectAgents(ctx, containerName))
+		out.SetAgentStatuses(i.agents.inspect(ctx, containerName))
 	}
 
-	out.AuthBundles = i.inspectAuthBundles(ctx, containerName, state)
+	out.AuthBundles = i.credentials.inspect(ctx, containerName, state)
 	return out, nil
 }
 

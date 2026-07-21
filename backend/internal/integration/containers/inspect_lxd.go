@@ -1,0 +1,103 @@
+package containers
+
+import (
+	"context"
+	"encoding/json"
+
+	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+)
+
+// containerLXDInspector translates LXD instance configuration and runtime
+// state into the service's provider-neutral inspection model.
+type containerLXDInspector struct {
+	commands *quickCommandRunner
+}
+
+func (i *containerLXDInspector) inspectConfiguration(ctx context.Context, name string, out *serviceproject.ContainerInspect) {
+	cfg, err := i.queryInstance(ctx, name)
+	if err != nil {
+		return
+	}
+	out.Architecture = cfg.Architecture
+	out.Type = cfg.Type
+	out.CreatedAt = cfg.CreatedAt
+	out.LastUsedAt = cfg.LastUsedAt
+	out.BootAutostart = cfg.Config["boot.autostart"] == "true"
+	if description := cfg.Config["image.description"]; description != "" {
+		out.Image = description
+	} else if alias := cfg.Config["image.alias"]; alias != "" {
+		out.Image = alias
+	}
+	if cpu, memory, disk := cfg.Config["limits.cpu"], cfg.Config["limits.memory"], cfg.Config["limits.disk"]; cpu != "" || memory != "" || disk != "" {
+		out.Limits = &serviceproject.ContainerLimits{CPU: cpu, Memory: memory, Disk: disk}
+	}
+	if workspace, ok := cfg.Devices["workspace"]; ok {
+		out.Workspace = &serviceproject.WorkspaceInfo{
+			HostSource:    workspace["source"],
+			ContainerPath: workspace["path"],
+		}
+	}
+}
+
+func (i *containerLXDInspector) inspectRuntime(ctx context.Context, name string, out *serviceproject.ContainerInspect) {
+	state, err := i.queryInstanceState(ctx, name)
+	if err != nil {
+		return
+	}
+	out.PID = state.PID
+	out.Resources = &serviceproject.ResourceInfo{
+		Processes:          state.Processes,
+		MemoryCurrentBytes: state.Memory.Usage,
+		MemoryPeakBytes:    state.Memory.UsagePeak,
+		MemoryTotalBytes:   state.Memory.Total,
+		SwapCurrentBytes:   state.Memory.Swap,
+		CPUUsageSeconds:    state.CPU.Usage / 1_000_000_000,
+	}
+	if root, ok := state.Disk["root"]; ok {
+		out.Resources.DiskUsageBytes = root.Usage
+	}
+	for name, network := range state.Network {
+		if name == "lo" {
+			continue
+		}
+		addresses := make([]string, 0, len(network.Addresses))
+		for _, address := range network.Addresses {
+			addresses = append(addresses, address.Address+"/"+address.Netmask)
+		}
+		out.Network = append(out.Network, serviceproject.NetworkInterface{
+			Name:          name,
+			State:         network.State,
+			Type:          network.Type,
+			HostName:      network.HostName,
+			MACAddress:    network.HWAddr,
+			MTU:           network.MTU,
+			Addresses:     addresses,
+			BytesReceived: network.Counters.BytesReceived,
+			BytesSent:     network.Counters.BytesSent,
+		})
+	}
+}
+
+func (i *containerLXDInspector) queryInstance(ctx context.Context, name string) (*instanceConfig, error) {
+	raw, err := i.commands.run(ctx, "query", "/1.0/instances/"+name)
+	if err != nil {
+		return nil, err
+	}
+	var config instanceConfig
+	if err := json.Unmarshal([]byte(raw), &config); err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func (i *containerLXDInspector) queryInstanceState(ctx context.Context, name string) (*instanceState, error) {
+	raw, err := i.commands.run(ctx, "query", "/1.0/instances/"+name+"/state")
+	if err != nil {
+		return nil, err
+	}
+	var state instanceState
+	if err := json.Unmarshal([]byte(raw), &state); err != nil {
+		return nil, err
+	}
+	return &state, nil
+}

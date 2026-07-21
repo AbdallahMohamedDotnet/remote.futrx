@@ -66,10 +66,15 @@ func New(client CommandRunner) *Client {
 		image:       defaultImage,
 		provisioner: containerClient,
 	}
+	inspectionCommands := &quickCommandRunner{lxc: client, timeout: inspectQuickTimeout}
 	containerClient.inspector = containerInspector{
-		lxc:      client,
-		profiles: &containerClient.profiles,
-		states:   containerClient,
+		lxc:         client,
+		profiles:    &containerClient.profiles,
+		states:      containerClient,
+		lxd:         containerLXDInspector{commands: inspectionCommands},
+		guest:       containerGuestInspector{commands: inspectionCommands},
+		agents:      containerAgentInspector{commands: inspectionCommands, profiles: &containerClient.profiles},
+		credentials: containerCredentialInspector{commands: inspectionCommands, profiles: &containerClient.profiles},
 	}
 	containerClient.credentials = credentialSynchronizer{
 		profiles: &containerClient.profiles,
