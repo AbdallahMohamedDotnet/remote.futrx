@@ -1,8 +1,8 @@
 import { requestJson } from "./apiRequest";
+import { projectContainerApi } from "./project/projectContainerApi";
 import type {
   AgentBrowserInfo,
   ContainerApp,
-  ProjectContainerInfo,
   ProjectMeta,
   ProjectSecret,
 } from "../models/project";
@@ -20,18 +20,10 @@ export const projectApi = {
     requestJson<ProjectMeta[]>("POST", API_ROUTES.projects.reorder, { ids }),
   delete: (id: string) =>
     requestJson<{ ok: boolean }>("DELETE", API_ROUTES.projects.item(id)),
-  start: (id: string) =>
-    requestJson<ProjectMeta>("POST", API_ROUTES.projects.start(id), {}),
-  stop: (id: string) =>
-    requestJson<ProjectMeta>("POST", API_ROUTES.projects.stop(id), {}),
-  containerInfo: (id: string) =>
-    requestJson<ProjectContainerInfo>("GET", API_ROUTES.projects.container(id)),
-  repairNetwork: (id: string) =>
-    requestJson<ProjectContainerInfo>(
-      "POST",
-      API_ROUTES.projects.repairNetwork(id),
-      {}
-    ),
+  start: projectContainerApi.start,
+  stop: projectContainerApi.stop,
+  containerInfo: projectContainerApi.containerInfo,
+  repairNetwork: projectContainerApi.repairNetwork,
   listApps: (id: string) =>
     requestJson<ContainerApp[]>("GET", API_ROUTES.projects.apps(id)),
   agentBrowserStatus: (id: string) =>
