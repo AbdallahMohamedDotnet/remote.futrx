@@ -1,4 +1,4 @@
-package containers
+package workspace
 
 // Project skills live in /workspace/.agents/skills. Agent-specific workspace
 // homes declared by profiles are compatibility links to that source of truth.
@@ -20,19 +20,19 @@ const ensureWorkspaceSymlinksTimeout = 10 * time.Second
 // EnsureWorkspaceSkillLinks creates the canonical .agents skills directory,
 // migrates legacy skill children when possible, and points each configured
 // compatibility path at .agents/skills. Cheap and idempotent.
-func (c *Client) EnsureWorkspaceSkillLinks(ctx context.Context, containerName string) error {
-	return c.workspace.ensureSkillLinks(ctx, containerName)
+func (p *Provisioner) EnsureSkillLinks(ctx context.Context, containerName string) error {
+	return p.ensureSkillLinks(ctx, containerName)
 }
 
 func (p *workspaceProvisioner) ensureSkillLinks(ctx context.Context, containerName string) error {
-	if !p.lxc.Available() {
+	if !p.runner.Available() {
 		return errors.New("lxc not available")
 	}
 	qctx, cancel := context.WithTimeout(ctx, ensureWorkspaceSymlinksTimeout)
 	defer cancel()
 
 	script := workspaceSkillLinksScript(p.profiles.Snapshot())
-	if _, err := p.lxc.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
+	if _, err := p.runner.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
 		return err
 	}
 	return nil

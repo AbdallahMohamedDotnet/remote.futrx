@@ -15,6 +15,7 @@ import (
 	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/output"
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
+	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 )
 
 const (
@@ -53,7 +54,7 @@ type Client struct {
 	browser     *containerbrowser.Service
 	codeServer  codeServerProvisioner
 	lifecycle   containerLifecycle
-	workspace   workspaceProvisioner
+	workspace   *containerworkspace.Provisioner
 	images      baseImageBuilder
 }
 
@@ -84,18 +85,14 @@ func New(client CommandRunner) *Client {
 	}
 	containerClient.browser = containerbrowser.NewService(client, containerClient.profiles, containerClient.templates)
 	containerClient.codeServer = codeServerProvisioner{lxc: client}
-	containerClient.workspace = workspaceProvisioner{
-		lxc:       client,
-		profiles:  containerClient.profiles,
-		templates: containerClient.templates,
-	}
+	containerClient.workspace = containerworkspace.NewProvisioner(client, containerClient.profiles, containerClient.templates)
 	containerClient.images = baseImageBuilder{
 		lxc:      client,
 		profiles: containerClient.profiles,
 	}
 	containerClient.lifecycle.provisioner = &containerLaunchProvisioner{
 		credentials: containerClient.credentials,
-		workspace:   &containerClient.workspace,
+		workspace:   containerClient.workspace,
 		browser:     containerClient.browser,
 		codeServer:  &containerClient.codeServer,
 	}

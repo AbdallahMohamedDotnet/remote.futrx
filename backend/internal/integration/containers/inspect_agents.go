@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 )
@@ -30,7 +31,7 @@ func (i *containerAgentInspector) inspect(ctx context.Context, containerName str
 				status.InstructionsInstalled = true
 			}
 			if hash, err := i.commands.run(ctx, "exec", containerName, "--", "cat", profile.Instructions.HashPath); err == nil {
-				status.InstructionsInSync = strings.TrimSpace(hash) == assets.Hash(agentInstructionsTemplate)
+				status.InstructionsInSync = strings.TrimSpace(hash) == assets.Hash(provisioning.InstructionsTemplate())
 			}
 		}
 		statuses = append(statuses, status)

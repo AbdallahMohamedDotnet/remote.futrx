@@ -1,4 +1,6 @@
-package containers
+// Package workspace provisions shared agent instructions and workspace skill
+// topology inside project containers.
+package workspace
 
 // Agent-instruction provisioning ships the shared template to every target
 // declared by the configured profiles.
@@ -11,6 +13,9 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/provisioning"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/assets"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 )
 
 var agentInstructionsTemplate = provisioning.InstructionsTemplate()
@@ -18,19 +23,34 @@ var agentInstructionsTemplate = provisioning.InstructionsTemplate()
 // workspaceProvisioner owns provider-defined and embedded assets installed in
 // the persistent project workspace.
 type workspaceProvisioner struct {
-	lxc       CommandRunner
-	profiles  *profileRegistry
-	templates *templatePublisher
+	runner    command.Runner
+	profiles  *profiles.Registry
+	publisher *assets.Publisher
+}
+
+// Provisioner installs shared workspace assets and compatibility links.
+type Provisioner struct {
+	workspaceProvisioner
+}
+
+// NewProvisioner returns a workspace provisioner backed by shared container
+// dependencies.
+func NewProvisioner(runner command.Runner, registry *profiles.Registry, publisher *assets.Publisher) *Provisioner {
+	return &Provisioner{workspaceProvisioner{
+		runner:    runner,
+		profiles:  registry,
+		publisher: publisher,
+	}}
 }
 
 // EnsureAgentInstructions pushes the shared system-instructions template to
 // all configured targets, grouped by hash marker. Idempotent.
-func (c *Client) EnsureAgentInstructions(ctx context.Context, containerName string) error {
-	return c.workspace.ensureAgentInstructions(ctx, containerName)
+func (p *Provisioner) EnsureAgentInstructions(ctx context.Context, containerName string) error {
+	return p.ensureAgentInstructions(ctx, containerName)
 }
 
 func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, containerName string) error {
-	if !p.lxc.Available() {
+	if !p.runner.Available() {
 		return errors.New("lxc not available")
 	}
 	targets := configuredInstructionTargets(p.profiles.Snapshot())
@@ -46,7 +66,7 @@ func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, cont
 		if created[directory] {
 			continue
 		}
-		if out, err := p.lxc.Run(dctx, "exec", containerName, "--",
+		if out, err := p.runner.Run(dctx, "exec", containerName, "--",
 			"install", "-d", "-m", "700", directory); err != nil {
 			return fmt.Errorf("mkdir %s: %w; output: %s", directory, err, out)
 		}
@@ -73,7 +93,7 @@ func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, cont
 		batches[index].paths = append(batches[index].paths, target.Path)
 	}
 	for _, batch := range batches {
-		if err := p.templates.Push(ctx, containerName, agentInstructionsTemplate,
+		if err := p.publisher.Push(ctx, containerName, agentInstructionsTemplate,
 			batch.hashPath, "644", batch.paths...); err != nil {
 			return err
 		}
