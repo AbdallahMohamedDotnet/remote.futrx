@@ -34,7 +34,6 @@ type TmuxCwdClient interface {
 type ContainerManager interface {
 	serviceproject.ContainerManager
 	provisioning.Container
-	provisioning.Configurator
 }
 
 type Dependencies struct {
@@ -77,7 +76,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
 	definitions := agentDefinitions()
 	profiles := profilesFromDefinitions(definitions)
-	deps.Containers.ConfigureAgentProfiles(profiles)
 	projectService := serviceproject.New(projects, deps.Containers, deps.ProjectSecrets, deps.ProjectAccess)
 	projectService.StartAgentBrowserReaper(ctx, 20*time.Minute)
 	runs = runhub.New(chats)

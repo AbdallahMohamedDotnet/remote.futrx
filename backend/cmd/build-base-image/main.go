@@ -35,8 +35,7 @@ func main() {
 	if !lxcClient.Available() {
 		log.Fatalf("lxc CLI not found on PATH - install LXD on the host first")
 	}
-	containerClient := containers.New(lxcClient)
-	containerClient.ConfigureAgentProfiles(service.AgentProfiles())
+	containerClient := containers.New(lxcClient, service.AgentProfiles())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()

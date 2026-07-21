@@ -140,7 +140,3 @@ type Container interface {
 	EnsureAgentBrowserCore(context.Context, string) error
 	EnsureBootAutostart(context.Context, string) error
 }
-
-type Configurator interface {
-	ConfigureAgentProfiles([]Profile)
-}

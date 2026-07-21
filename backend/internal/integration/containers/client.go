@@ -21,12 +21,12 @@ import (
 	containerlifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/lifecycle"
 	containerlisteners "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/listeners"
 	containernetwork "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/network"
-	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	containerresources "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/resources"
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostfs"
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/launch"
 	servicelifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/lifecycle"
+	serviceprofiles "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/profiles"
 )
 
 const (
@@ -46,7 +46,7 @@ type CommandRunner interface {
 // services. Wire it once at the composition root and share the pointer.
 type Client struct {
 	lxc         CommandRunner
-	profiles    *profileconfig.Registry
+	profiles    serviceprofiles.Source
 	templates   *assets.Publisher
 	inspector   *containerinspection.Inspector
 	credentials *containercredentials.Synchronizer
@@ -63,10 +63,10 @@ type Client struct {
 }
 
 // New returns a Client that delegates CLI calls to the supplied runner.
-func New(client CommandRunner) *Client {
+func New(client CommandRunner, configuredProfiles []provisioning.Profile) *Client {
 	containerClient := &Client{
 		lxc:       client,
-		profiles:  profileconfig.NewRegistry(),
+		profiles:  serviceprofiles.NewCatalog(configuredProfiles),
 		templates: assets.NewPublisher(client),
 	}
 	containerClient.credentials = containercredentials.NewSynchronizer(client, containerClient.profiles)
@@ -99,10 +99,6 @@ func New(client CommandRunner) *Client {
 	)
 	containerClient.inspector = containerinspection.NewInspector(client, containerClient.profiles, containerClient.lifecycle)
 	return containerClient
-}
-
-func (c *Client) ConfigureAgentProfiles(profiles []provisioning.Profile) {
-	c.profiles.Replace(profiles)
 }
 
 // Available reports whether the underlying lxc binary is reachable.
