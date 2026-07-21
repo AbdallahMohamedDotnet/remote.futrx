@@ -1,4 +1,6 @@
-package containers
+// Package environment applies project environment-variable configuration to
+// containers.
+package environment
 
 // ApplyContainerEnvDiff drives LXD's built-in environment.* config keys.
 // Used by the project-secrets flow to push per-project secrets into the
@@ -10,7 +12,22 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 )
+
+const queryTimeout = 10 * time.Second
+
+// Service owns container environment configuration.
+type Service struct {
+	runner command.Runner
+}
+
+// NewService returns an environment service backed by runner.
+func NewService(runner command.Runner) *Service {
+	return &Service{runner: runner}
+}
 
 // ApplyContainerEnvDiff sets the values in set and removes the keys in unset.
 // Idempotent: a set that already matches the current value is a no-op (cheap
@@ -19,13 +36,13 @@ import (
 // Either map can be nil/empty. Already-running processes inside the container
 // keep their fork-time environ; only new exec sessions and child processes
 // pick up the new values — unavoidable env-var caveat.
-func (c *Client) ApplyContainerEnvDiff(
+func (s *Service) ApplyDiff(
 	ctx context.Context,
 	container string,
 	set map[string]string,
 	unset []string,
 ) error {
-	if !c.Available() {
+	if !s.runner.Available() {
 		return errors.New("lxc not available")
 	}
 	if strings.TrimSpace(container) == "" {
@@ -34,13 +51,13 @@ func (c *Client) ApplyContainerEnvDiff(
 
 	for k, v := range set {
 		qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
-		cur, _ := c.lxc.Run(qctx, "config", "get", container, "environment."+k)
+		cur, _ := s.runner.Run(qctx, "config", "get", container, "environment."+k)
 		cancelQ()
 		if strings.TrimSpace(cur) == v {
 			continue
 		}
 		sctx, cancelS := context.WithTimeout(ctx, queryTimeout)
-		out, err := c.lxc.Run(sctx, "config", "set", container, "environment."+k, v)
+		out, err := s.runner.Run(sctx, "config", "set", container, "environment."+k, v)
 		cancelS()
 		if err != nil {
 			return fmt.Errorf("set environment.%s on %s: %w; output: %s", k, container, err, out)
@@ -49,7 +66,7 @@ func (c *Client) ApplyContainerEnvDiff(
 
 	for _, k := range unset {
 		uctx, cancelU := context.WithTimeout(ctx, queryTimeout)
-		out, err := c.lxc.Run(uctx, "config", "unset", container, "environment."+k)
+		out, err := s.runner.Run(uctx, "config", "unset", container, "environment."+k)
 		cancelU()
 		if err != nil {
 			// `lxc config unset` on a missing key still exits non-zero;

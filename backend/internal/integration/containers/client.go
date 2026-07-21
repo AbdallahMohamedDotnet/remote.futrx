@@ -16,6 +16,7 @@ import (
 	containercodeserver "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/codeserver"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/command"
 	containercredentials "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/credentials"
+	containerenvironment "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/environment"
 	containerinspection "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/inspection"
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/launch"
 	containerlifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/lifecycle"
@@ -46,6 +47,7 @@ type Client struct {
 	templates   *templatePublisher
 	inspector   *containerinspection.Inspector
 	credentials *containercredentials.Synchronizer
+	environment *containerenvironment.Service
 	clis        *containercli.Provisioner
 	browser     *containerbrowser.Service
 	codeServer  *containercodeserver.Provisioner
@@ -62,6 +64,7 @@ func New(client CommandRunner) *Client {
 		templates: assets.NewPublisher(client),
 	}
 	containerClient.credentials = containercredentials.NewSynchronizer(client, containerClient.profiles)
+	containerClient.environment = containerenvironment.NewService(client)
 	containerClient.clis = containercli.NewProvisioner(client, containerClient.profiles, containerbaseimage.InstallScript)
 	containerClient.browser = containerbrowser.NewService(client, containerClient.profiles, containerClient.templates)
 	containerClient.codeServer = containercodeserver.NewProvisioner(client)
