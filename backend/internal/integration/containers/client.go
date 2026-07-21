@@ -24,10 +24,15 @@ import (
 	profileconfig "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/profiles"
 	containerresources "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/resources"
 	containerworkspace "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/containers/workspace"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/hostfs"
 	containerlaunch "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/launch"
+	servicelifecycle "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/container/lifecycle"
 )
 
-const defaultImage = containerbaseimage.Alias
+const (
+	defaultImage  = containerbaseimage.Alias
+	hostMappedUID = 1000000
+)
 
 // CommandRunner is the transport seam used to invoke the container runtime.
 // The LXC CLI adapter implements it at the application composition root.
@@ -49,7 +54,7 @@ type Client struct {
 	clis        *containercli.Provisioner
 	browser     *containerbrowser.Service
 	codeServer  *containercodeserver.Provisioner
-	lifecycle   *containerlifecycle.Service
+	lifecycle   *servicelifecycle.Service
 	listeners   *containerlisteners.Scanner
 	network     *containernetwork.Repairer
 	resources   *containerresources.Manager
@@ -85,7 +90,13 @@ func New(client CommandRunner) *Client {
 		containerClient.codeServer,
 	)
 	containerClient.resources = containerresources.NewManager(client)
-	containerClient.lifecycle = containerlifecycle.NewService(client, defaultImage, containerClient.resources, launchProvisioner)
+	containerClient.lifecycle = servicelifecycle.NewService(
+		containerlifecycle.NewClient(client),
+		defaultImage,
+		hostfs.NewWorkspacePreparer(hostMappedUID, hostMappedUID),
+		containerClient.resources,
+		launchProvisioner,
+	)
 	containerClient.inspector = containerinspection.NewInspector(client, containerClient.profiles, containerClient.lifecycle)
 	return containerClient
 }
