@@ -1,10 +1,10 @@
 import * as tus from "tus-js-client";
 
-export interface ResumableUploadHandle {
+interface ResumableUploadHandle {
   abort: () => Promise<void>;
 }
 
-export interface ResumableUploadOptions {
+interface ResumableUploadOptions {
   endpoint: string;
   fingerprint: () => Promise<string>;
   metadata: Record<string, string>;
