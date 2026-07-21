@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import type { User, UserRole } from "../../models/user";
-import { userApi } from "../../api/userApi";
 import { AlertCircle, Check, Loader, X } from "../primitives/icons";
 
 interface UsersPanelProps {
   currentEmail: string;
   isAdmin: boolean;
+  users: User[] | null;
+  loading: boolean;
+  error: string | null;
+  onAdd: (email: string, role: UserRole) => Promise<void>;
+  onRemove: (email: string) => Promise<void>;
+  onSetRole: (email: string, role: UserRole) => Promise<void>;
 }
 
 // UsersPanel is the admin-only directory for sign-in eligibility. Mirrors
@@ -13,49 +18,19 @@ interface UsersPanelProps {
 // on the right. Renders a friendly notice (instead of hard-failing) when
 // the caller isn't an admin so non-admins who reach the account page still
 // see something sensible.
-export function UsersPanel({ currentEmail, isAdmin }: UsersPanelProps) {
-  const [users, setUsers] = useState<User[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const list = await userApi.list();
-      setUsers(list);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isAdmin) void load();
-  }, [isAdmin, load]);
-
-  const handleAdd = async (email: string, role: UserRole) => {
-    const created = await userApi.add({ email, role });
-    setUsers((prev) => {
-      const next = prev ? [...prev] : [];
-      next.push(created);
-      next.sort((a, b) => a.email.localeCompare(b.email));
-      return next;
-    });
-  };
-
-  const handleRemove = async (email: string) => {
+export function UsersPanel({
+  currentEmail,
+  isAdmin,
+  users,
+  loading,
+  error,
+  onAdd,
+  onRemove,
+  onSetRole,
+}: UsersPanelProps) {
+  const removeUser = async (email: string) => {
     if (!confirm(`Remove ${email}? They lose access immediately.`)) return;
-    await userApi.remove(email);
-    setUsers((prev) => prev?.filter((u) => u.email !== email) ?? []);
-  };
-
-  const handleSetRole = async (email: string, role: UserRole) => {
-    const updated = await userApi.setRole(email, role);
-    setUsers((prev) =>
-      prev?.map((u) => (u.email === email ? { ...u, role: updated.role } : u)) ?? []
-    );
+    await onRemove(email);
   };
 
   if (!isAdmin) {
@@ -86,13 +61,13 @@ export function UsersPanel({ currentEmail, isAdmin }: UsersPanelProps) {
             <div class="text-accent-red break-words">{error}</div>
           </div>
         )}
-        <AddUserForm onAdd={handleAdd} />
+        <AddUserForm onAdd={onAdd} />
         <UserList
           users={users ?? []}
           loading={loading && users == null}
           currentEmail={currentEmail}
-          onRemove={handleRemove}
-          onSetRole={handleSetRole}
+          onRemove={removeUser}
+          onSetRole={onSetRole}
         />
       </div>
     </section>

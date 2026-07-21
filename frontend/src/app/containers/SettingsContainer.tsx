@@ -3,6 +3,7 @@ import { useAuthContext } from "../../state/context/AuthContext";
 import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
 import { useCodexAuth } from "../../state/hooks/auth/useCodexAuth";
 import { useKimiAuth } from "../../state/hooks/auth/useKimiAuth";
+import { useUserDirectory } from "../../state/hooks/users/useUserDirectory";
 
 export function SettingsContainer({
   onBack,
@@ -15,12 +16,14 @@ export function SettingsContainer({
   const userSettings = useUserSettingsContext();
   const codexAuth = useCodexAuth(true);
   const kimiAuth = useKimiAuth(true);
+  const userDirectory = useUserDirectory(!auth.noAuth && auth.isAdmin);
 
   return (
     <SettingsPage
       currentEmail={auth.email}
       isAdmin={auth.isAdmin}
       noAuth={auth.noAuth}
+      userDirectory={userDirectory}
       appearanceTheme={userSettings.settings.appearance.theme}
       appearanceLoading={userSettings.loading}
       appearanceSaving={userSettings.saving}

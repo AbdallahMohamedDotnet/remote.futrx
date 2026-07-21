@@ -1,5 +1,6 @@
 import type { AppearanceTheme } from "../../models/settings";
 import type { CodexDeviceLogin, KimiDeviceLogin } from "../../models/auth";
+import type { UserDirectory } from "../../state/hooks/users/useUserDirectory";
 import { ChevronLeft, Menu } from "../primitives/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ClaudeAuthSettings } from "./ClaudeAuthSettings";
@@ -11,6 +12,7 @@ export function SettingsPage({
   currentEmail,
   isAdmin,
   noAuth,
+  userDirectory,
   appearanceTheme,
   appearanceLoading,
   appearanceSaving,
@@ -35,6 +37,7 @@ export function SettingsPage({
   currentEmail: string;
   isAdmin: boolean;
   noAuth: boolean;
+  userDirectory: UserDirectory;
   appearanceTheme: AppearanceTheme;
   appearanceLoading: boolean;
   appearanceSaving: boolean;
@@ -117,7 +120,16 @@ export function SettingsPage({
           )}
 
           {!noAuth && (
-            <UsersPanel currentEmail={currentEmail} isAdmin={isAdmin} />
+            <UsersPanel
+              currentEmail={currentEmail}
+              isAdmin={isAdmin}
+              users={userDirectory.users}
+              loading={userDirectory.loading}
+              error={userDirectory.error}
+              onAdd={userDirectory.add}
+              onRemove={userDirectory.remove}
+              onSetRole={userDirectory.setRole}
+            />
           )}
 
           <p class="text-[13px] leading-relaxed text-ink-300">
