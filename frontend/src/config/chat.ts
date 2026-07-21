@@ -26,16 +26,10 @@ export const KIMI_MODEL_OPTIONS: Array<{ value: string; label: string; sub: stri
   { value: "", label: "Auto", sub: "kimi default" },
 ];
 
-export const MODEL_OPTIONS = CLAUDE_MODEL_OPTIONS;
-
 export function modelOptionsForProvider(provider?: ChatProvider) {
   if (provider === "codex") return CODEX_MODEL_OPTIONS;
   if (provider === "kimi") return KIMI_MODEL_OPTIONS;
   return CLAUDE_MODEL_OPTIONS;
-}
-
-export function composerModelOptionsForProvider(provider?: ChatProvider) {
-  return modelOptionsForProvider(provider).map(({ value, label }) => ({ value, label }));
 }
 
 export const MODE_OPTIONS: Array<{ value: ChatMode; label: string }> = [
