@@ -231,14 +231,44 @@ func TestClientLifecycleCommandsAndErrorMappings(t *testing.T) {
 			wantCalls: [][]string{{"stop", "project-1"}},
 		},
 		{
-			name:      "stop error",
+			name:      "stop escalates to force on graceful failure",
 			available: true,
-			responses: []runnerResponse{{out: "daemon unavailable", err: exitError}},
+			responses: []runnerResponse{{out: "context deadline exceeded", err: exitError}},
 			invoke: func(client *Client) error {
 				return client.Stop(context.Background(), "project-1")
 			},
-			wantCalls: [][]string{{"stop", "project-1"}},
-			wantErr:   "lxc stop: exit 1; output: daemon unavailable",
+			wantCalls: [][]string{{"stop", "project-1"}, {"stop", "--force", "project-1"}},
+		},
+		{
+			name:      "stop error when force also fails",
+			available: true,
+			responses: []runnerResponse{
+				{out: "daemon unavailable", err: exitError},
+				{out: "daemon unavailable", err: exitError},
+			},
+			invoke: func(client *Client) error {
+				return client.Stop(context.Background(), "project-1")
+			},
+			wantCalls: [][]string{{"stop", "project-1"}, {"stop", "--force", "project-1"}},
+			wantErr:   "lxc stop: exit 1; output: daemon unavailable (force follow-up: daemon unavailable)",
+		},
+		{
+			name:      "restart forces",
+			available: true,
+			invoke: func(client *Client) error {
+				return client.Restart(context.Background(), "project-1")
+			},
+			wantCalls: [][]string{{"restart", "--force", "project-1"}},
+		},
+		{
+			name:      "restart error",
+			available: true,
+			responses: []runnerResponse{{out: "daemon unavailable", err: exitError}},
+			invoke: func(client *Client) error {
+				return client.Restart(context.Background(), "project-1")
+			},
+			wantCalls: [][]string{{"restart", "--force", "project-1"}},
+			wantErr:   "lxc restart --force: exit 1; output: daemon unavailable",
 		},
 		{
 			name: "delete unavailable",

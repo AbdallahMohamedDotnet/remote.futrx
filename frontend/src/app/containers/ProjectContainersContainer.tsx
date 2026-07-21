@@ -42,6 +42,7 @@ export function ProjectContainersContainer({
       onRepairNetwork={info.repairNetwork}
       onStartProject={info.start}
       onStopProject={info.stop}
+      onRestartProject={info.restart}
       onDeleteProject={deleteSelectedProject}
     />
   );

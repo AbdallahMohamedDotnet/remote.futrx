@@ -49,6 +49,7 @@ export const API_ROUTES = {
     reorder: "/api/projects/reorder",
     start: (id: string) => `/api/projects/${encodeURIComponent(id)}/start`,
     stop: (id: string) => `/api/projects/${encodeURIComponent(id)}/stop`,
+    restart: (id: string) => `/api/projects/${encodeURIComponent(id)}/restart`,
     container: (id: string) =>
       `/api/projects/${encodeURIComponent(id)}/container`,
     repairNetwork: (id: string) =>

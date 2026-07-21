@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	launchTimeout = 90 * time.Second
-	startTimeout  = 30 * time.Second
-	stopTimeout   = 30 * time.Second
-	deleteTimeout = 30 * time.Second
-	queryTimeout  = 10 * time.Second
+	launchTimeout  = 90 * time.Second
+	startTimeout   = 30 * time.Second
+	stopTimeout    = 30 * time.Second
+	restartTimeout = 60 * time.Second
+	deleteTimeout  = 30 * time.Second
+	queryTimeout   = 10 * time.Second
 )
 
 // Client translates lifecycle operations into LXD CLI calls.
@@ -89,7 +90,26 @@ func (c *Client) Stop(ctx context.Context, containerName string) error {
 		if strings.Contains(out, "not found") || strings.Contains(out, "is already stopped") {
 			return nil
 		}
-		return fmt.Errorf("lxc stop: %w; output: %s", err, out)
+		// Graceful shutdown needs the container's init to cooperate — a
+		// workspace thrashing at its resource caps may never respond.
+		// Escalate to a host-side kill so Stop always regains control.
+		fctx, fcancel := context.WithTimeout(ctx, stopTimeout)
+		defer fcancel()
+		if fout, ferr := c.runner.Run(fctx, "stop", "--force", containerName); ferr != nil {
+			return fmt.Errorf("lxc stop: %w; output: %s (force follow-up: %s)", err, out, fout)
+		}
+	}
+	return nil
+}
+
+// Restart force-restarts the container: a host-kernel kill of the process
+// tree plus a fresh boot, requiring no cooperation from inside. This is the
+// regain-control path for a workspace wedged at its resource limits.
+func (c *Client) Restart(ctx context.Context, containerName string) error {
+	lctx, cancel := context.WithTimeout(ctx, restartTimeout)
+	defer cancel()
+	if out, err := c.runner.Run(lctx, "restart", "--force", containerName); err != nil {
+		return fmt.Errorf("lxc restart --force: %w; output: %s", err, out)
 	}
 	return nil
 }

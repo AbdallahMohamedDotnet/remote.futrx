@@ -333,6 +333,34 @@ func (s *Service) Stop(ctx context.Context, id ID) (Meta, error) {
 	return s.repo.SetStatus(ctx, id, StatusStopped, "")
 }
 
+// Restart force-restarts the project's container. Unlike Stop, this works
+// even when the workspace is wedged at its resource limits: the kill comes
+// from the host kernel and needs no cooperation from processes inside. A
+// missing container is launched instead, so Restart always converges on a
+// running workspace.
+func (s *Service) Restart(ctx context.Context, id ID) (Meta, error) {
+	if !ValidID(id) {
+		return Meta{}, ErrInvalidID
+	}
+	m, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Meta{}, err
+	}
+	if s.containerLifecycle != nil {
+		state, err := s.containerLifecycle.State(ctx, m.ContainerName)
+		if err != nil {
+			return s.repo.SetStatus(ctx, id, StatusError, err.Error())
+		}
+		if state == ContainerStateMissing {
+			return s.Start(ctx, id)
+		}
+		if err := s.containerLifecycle.Restart(ctx, m.ContainerName); err != nil {
+			return s.repo.SetStatus(ctx, id, StatusError, err.Error())
+		}
+	}
+	return s.repo.SetStatus(ctx, id, StatusRunning, "")
+}
+
 func (s *Service) InspectContainer(ctx context.Context, id ID) (ContainerInspect, error) {
 	if !ValidID(id) {
 		return ContainerInspect{}, ErrInvalidID

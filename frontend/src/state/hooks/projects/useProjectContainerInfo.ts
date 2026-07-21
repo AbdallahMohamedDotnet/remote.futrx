@@ -50,5 +50,11 @@ export function useProjectContainerInfo(project: ProjectMeta | null) {
     await load();
   }, [project, load]);
 
-  return { record, load, repairNetwork, start, stop };
+  const restart = useCallback(async () => {
+    if (!project) return;
+    await projectApi.restart(project.id);
+    await load();
+  }, [project, load]);
+
+  return { record, load, repairNetwork, start, stop, restart };
 }

@@ -20,6 +20,9 @@ type ContainerLifecycle interface {
 	Launch(ctx context.Context, p Meta) error
 	Start(ctx context.Context, containerName string) error
 	Stop(ctx context.Context, containerName string) error
+	// Restart force-restarts the container from the host, killing any
+	// wedged processes inside without needing their cooperation.
+	Restart(ctx context.Context, containerName string) error
 	Delete(ctx context.Context, containerName string) error
 	State(ctx context.Context, containerName string) (ContainerState, error)
 	// EnsureResources converges the fleet-default resource envelope (the

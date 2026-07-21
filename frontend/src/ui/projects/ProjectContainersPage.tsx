@@ -44,6 +44,7 @@ export function ProjectContainersPage({
   onRepairNetwork,
   onStartProject,
   onStopProject,
+  onRestartProject,
   onDeleteProject,
 }: {
   project: ProjectMeta | null;
@@ -61,6 +62,7 @@ export function ProjectContainersPage({
   onRepairNetwork: () => Promise<void>;
   onStartProject: () => Promise<void>;
   onStopProject: () => Promise<void>;
+  onRestartProject: () => Promise<void>;
   onDeleteProject: () => Promise<void>;
 }) {
   return (
@@ -120,6 +122,7 @@ export function ProjectContainersPage({
                   project={project}
                   onStart={onStartProject}
                   onStop={onStopProject}
+                  onRestart={onRestartProject}
                   onDelete={onDeleteProject}
                 />
               </CollapsibleSection>

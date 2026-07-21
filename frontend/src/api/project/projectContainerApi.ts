@@ -9,6 +9,9 @@ export const projectContainerApi = {
   stop: (id: string) =>
     requestJson<ProjectMeta>("POST", API_ROUTES.projects.stop(id), {}),
 
+  restart: (id: string) =>
+    requestJson<ProjectMeta>("POST", API_ROUTES.projects.restart(id), {}),
+
   fetchContainerInfo: (id: string) =>
     requestJson<ProjectContainerInfo>(
       "GET",

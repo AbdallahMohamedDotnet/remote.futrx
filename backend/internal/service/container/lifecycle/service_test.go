@@ -61,6 +61,11 @@ func (r recordingRuntime) Stop(_ context.Context, containerName string) error {
 	return nil
 }
 
+func (r recordingRuntime) Restart(_ context.Context, containerName string) error {
+	*r.events = append(*r.events, "runtime restart "+containerName)
+	return nil
+}
+
 func (r recordingRuntime) Delete(_ context.Context, containerName string) error {
 	*r.events = append(*r.events, "runtime delete "+containerName)
 	return nil

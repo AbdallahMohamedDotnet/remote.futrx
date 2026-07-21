@@ -19,6 +19,7 @@ type Runtime interface {
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	Start(ctx context.Context, containerName string) error
 	Stop(ctx context.Context, containerName string) error
+	Restart(ctx context.Context, containerName string) error
 	Delete(ctx context.Context, containerName string) error
 	State(ctx context.Context, containerName string) (serviceproject.ContainerState, error)
 }
@@ -135,6 +136,21 @@ func (s *Service) Start(ctx context.Context, containerName string) error {
 
 func (s *Service) Stop(ctx context.Context, containerName string) error {
 	return s.runtime.Stop(ctx, containerName)
+}
+
+// Restart force-restarts a container from the host — the regain-control
+// path for a workspace wedged at its resource limits (a host-kernel kill
+// needs no cooperation from processes inside). Converges the resource
+// envelope after the fresh boot.
+func (s *Service) Restart(ctx context.Context, containerName string) error {
+	if !s.runtime.Available() {
+		return errors.New("lxc not available")
+	}
+	if err := s.runtime.Restart(ctx, containerName); err != nil {
+		return err
+	}
+	_ = s.resources.Ensure(ctx, containerName)
+	return nil
 }
 
 func (s *Service) Delete(ctx context.Context, containerName string) error {
