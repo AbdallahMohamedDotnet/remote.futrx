@@ -11,9 +11,9 @@ import (
 	claudeprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/claude"
 	codexprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/codex"
 	kimiprovider "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/agent/providers/kimi"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/runhub"
 )
 
 type ChatEvent = servicechat.Event

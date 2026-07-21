@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/integration/googleoauth"
-	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/manager/runhub"
 	serviceauth "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/auth"
 	servicechat "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/chat"
 	serviceproject "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/project"
 	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/prompt"
+	"github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/runhub"
 	serviceskills "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/skills"
 	serviceuser "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/user"
 	serviceusersettings "github.com/Kings-Of-The-Web/remote.futrx.dev/internal/service/usersettings"
