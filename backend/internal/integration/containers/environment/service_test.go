@@ -10,7 +10,7 @@ import (
 )
 
 func TestApplyDiffEndsFlagParsingBeforeSecretValue(t *testing.T) {
-	const secret = "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret\n-----END OPENSSH PRIVATE KEY-----"
+	const secret = "-----secret-that-starts-like-a-flag"
 	runner := &environmentTestRunner{}
 	service := NewService(runner)
 
@@ -27,8 +27,22 @@ func TestApplyDiffEndsFlagParsingBeforeSecretValue(t *testing.T) {
 	}
 }
 
+func TestApplyDiffSkipsMultilineValues(t *testing.T) {
+	runner := &environmentTestRunner{}
+	service := NewService(runner)
+
+	if err := service.ApplyDiff(context.Background(), "project", map[string]string{
+		"SSH_KEY": "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret\n-----END OPENSSH PRIVATE KEY-----",
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("multiline value reached LXD config: %#v", runner.calls)
+	}
+}
+
 func TestApplyDiffDoesNotIncludeSecretInSetError(t *testing.T) {
-	const secret = "-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----"
+	const secret = "-----BEGIN-PRIVATE-KEY-secret"
 	runner := &environmentTestRunner{setOut: secret, setErr: errors.New("exit status 1")}
 	service := NewService(runner)
 
@@ -36,7 +50,7 @@ func TestApplyDiffDoesNotIncludeSecretInSetError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected set failure")
 	}
-	if strings.Contains(err.Error(), secret) || strings.Contains(err.Error(), "BEGIN PRIVATE KEY") {
+	if strings.Contains(err.Error(), secret) || strings.Contains(err.Error(), "BEGIN-PRIVATE-KEY") {
 		t.Fatalf("error exposed secret: %v", err)
 	}
 	if !strings.Contains(err.Error(), "environment.PRIVATE_KEY") {
