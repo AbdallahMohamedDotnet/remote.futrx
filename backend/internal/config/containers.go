@@ -45,6 +45,13 @@ type ContainerStack struct {
 	Images      *serviceimage.Builder
 }
 
+// ContainerStackOptions supplies presentation and installation-specific
+// dependencies to the container composition root.
+type ContainerStackOptions struct {
+	AgentInstructions  []byte
+	ImageBuildProgress serviceimage.ProgressReporter
+}
+
 // ProjectDependencies exposes only the capabilities consumed by project
 // policy. Each capability can be replaced independently in tests or by a
 // different runtime adapter.
@@ -74,7 +81,7 @@ func (s ContainerStack) AgentDependencies() provisioning.ContainerDependencies {
 func NewContainerStack(
 	runner command.Runner,
 	configuredProfiles []provisioning.Profile,
-	imageBuildProgress serviceimage.ProgressReporter,
+	options ContainerStackOptions,
 ) ContainerStack {
 	profiles := serviceprofiles.NewCatalog(configuredProfiles)
 	publisher := assets.NewPublisher(runner)
@@ -92,13 +99,18 @@ func NewContainerStack(
 		Tooling:     browserAdapter,
 	}, containerbrowser.VNCPort)
 	codeServer := containercodeserver.NewProvisioner(runner)
-	workspace := containerworkspace.NewProvisioner(runner, profiles, publisher)
+	workspace := containerworkspace.NewProvisioner(
+		runner,
+		profiles,
+		publisher,
+		options.AgentInstructions,
+	)
 	images := serviceimage.NewBuilder(
 		containerbaseimage.NewClient(runner),
 		profiles,
 		containerbrowser.InstallScript(),
 		containercodeserver.InstallScript(),
-		imageBuildProgress,
+		options.ImageBuildProgress,
 	)
 	launchProvisioner := containerlaunch.NewProvisioner(
 		credentials,
@@ -114,7 +126,11 @@ func NewContainerStack(
 		resources,
 		launchProvisioner,
 	)
-	inspectionAdapter := containerinspection.NewAdapter(runner, profiles)
+	inspectionAdapter := containerinspection.NewAdapter(
+		runner,
+		profiles,
+		options.AgentInstructions,
+	)
 	inspection := serviceinspection.NewService(serviceinspection.Dependencies{
 		States:        lifecycle,
 		Configuration: inspectionAdapter,

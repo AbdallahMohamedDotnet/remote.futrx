@@ -26,3 +26,13 @@ func TestCodeServerBaseURLRejectsInvalidBaseURL(t *testing.T) {
 		t.Fatal("CodeServerBaseURL accepted a URL without scheme")
 	}
 }
+
+func TestPublicHostnameUsesInstalledDomain(t *testing.T) {
+	got, err := PublicHostname("https://remote.example.com:8443/path")
+	if err != nil {
+		t.Fatalf("PublicHostname: %v", err)
+	}
+	if got != "remote.example.com" {
+		t.Fatalf("PublicHostname = %q, want remote.example.com", got)
+	}
+}

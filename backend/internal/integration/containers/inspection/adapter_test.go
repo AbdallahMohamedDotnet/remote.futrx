@@ -17,6 +17,8 @@ import (
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
+var testAgentInstructions = provisioning.InstructionsTemplate("remote.futrx.com")
+
 func TestAdapterLXDProbesPopulateProviderNeutralSnapshot(t *testing.T) {
 	runner := &inspectionRecordingRunner{responses: map[string]inspectionResponse{
 		"query /1.0/instances/c1": {output: `{
@@ -53,7 +55,7 @@ func TestAdapterLXDProbesPopulateProviderNeutralSnapshot(t *testing.T) {
 			}}
 		}`},
 	}}
-	adapter := NewAdapter(runner, serviceprofiles.NewCatalog(nil))
+	adapter := NewAdapter(runner, serviceprofiles.NewCatalog(nil), testAgentInstructions)
 	out := serviceproject.ContainerInspect{Name: "c1"}
 
 	adapter.InspectConfiguration(context.Background(), "c1", &out)
@@ -78,7 +80,7 @@ func TestAdapterLXDProbesPopulateProviderNeutralSnapshot(t *testing.T) {
 
 func TestAdapterLXDProbeFailuresLeaveExistingSnapshotUntouched(t *testing.T) {
 	runner := &inspectionRecordingRunner{fallback: inspectionResponse{err: errors.New("query failed")}}
-	adapter := NewAdapter(runner, serviceprofiles.NewCatalog(nil))
+	adapter := NewAdapter(runner, serviceprofiles.NewCatalog(nil), testAgentInstructions)
 	want := serviceproject.ContainerInspect{Name: "c1", State: serviceproject.ContainerStateRunning}
 	got := want
 
@@ -91,7 +93,7 @@ func TestAdapterLXDProbeFailuresLeaveExistingSnapshotUntouched(t *testing.T) {
 }
 
 func TestAdapterGuestAndAgentProbesTranslateCommandOutput(t *testing.T) {
-	instructionHash := assets.Hash(provisioning.InstructionsTemplate())
+	instructionHash := assets.Hash(testAgentInstructions)
 	runner := &inspectionRecordingRunner{respond: func(args []string) inspectionResponse {
 		joined := strings.Join(args, " ")
 		switch joined {
@@ -131,7 +133,7 @@ Filesystem 1B-blocks Used Available Capacity MountedOn
 			HashPath: "/workspace/.claude.hash",
 		},
 	}})
-	adapter := NewAdapter(runner, profiles)
+	adapter := NewAdapter(runner, profiles, testAgentInstructions)
 
 	osInfo, disks := adapter.InspectGuest(context.Background(), "c1")
 	agents := adapter.InspectAgents(context.Background(), "c1")
@@ -186,7 +188,7 @@ func TestAdapterCredentialProbeGatesGuestStatsByState(t *testing.T) {
 			}},
 		},
 	}})
-	adapter := NewAdapter(runner, profiles)
+	adapter := NewAdapter(runner, profiles, testAgentInstructions)
 
 	stopped := adapter.InspectCredentials(context.Background(), "c1", serviceproject.ContainerStateStopped)
 	if len(runner.calls) != 0 {

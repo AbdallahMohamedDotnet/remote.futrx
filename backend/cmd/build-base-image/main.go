@@ -39,7 +39,9 @@ func main() {
 	containerStack := config.NewContainerStack(
 		lxcClient,
 		service.AgentProfiles(),
-		newLogBuildProgressReporter(log.Default()),
+		config.ContainerStackOptions{
+			ImageBuildProgress: newLogBuildProgressReporter(log.Default()),
+		},
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)

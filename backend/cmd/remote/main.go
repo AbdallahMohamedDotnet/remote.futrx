@@ -16,6 +16,7 @@ import (
 	"net/http"
 
 	remote "github.com/futrx-com/remote.futrx.com"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/config"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/gitcli"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/hostfs"
@@ -41,7 +42,17 @@ func main() {
 		log.Fatalf("init stores: %v", err)
 	}
 	lxcClient := lxc.New()
-	containerStack := config.NewContainerStack(lxcClient, service.AgentProfiles(), nil)
+	publicHostname, err := config.PublicHostname(cfg.BaseURL)
+	if err != nil {
+		log.Fatalf("configure public hostname: %v", err)
+	}
+	containerStack := config.NewContainerStack(
+		lxcClient,
+		service.AgentProfiles(),
+		config.ContainerStackOptions{
+			AgentInstructions: provisioning.InstructionsTemplate(publicHostname),
+		},
+	)
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:             storeSet.Chats,

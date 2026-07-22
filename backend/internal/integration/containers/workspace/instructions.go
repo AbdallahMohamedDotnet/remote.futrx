@@ -18,14 +18,13 @@ import (
 	serviceprofiles "github.com/futrx-com/remote.futrx.com/internal/service/container/profiles"
 )
 
-var agentInstructionsTemplate = provisioning.InstructionsTemplate()
-
 // workspaceProvisioner owns provider-defined and embedded assets installed in
 // the persistent project workspace.
 type workspaceProvisioner struct {
-	runner    command.Runner
-	profiles  serviceprofiles.Source
-	publisher *assets.Publisher
+	runner       command.Runner
+	profiles     serviceprofiles.Source
+	publisher    *assets.Publisher
+	instructions []byte
 }
 
 // Provisioner installs shared workspace assets and compatibility links.
@@ -35,11 +34,17 @@ type Provisioner struct {
 
 // NewProvisioner returns a workspace provisioner backed by shared container
 // dependencies.
-func NewProvisioner(runner command.Runner, profileSource serviceprofiles.Source, publisher *assets.Publisher) *Provisioner {
+func NewProvisioner(
+	runner command.Runner,
+	profileSource serviceprofiles.Source,
+	publisher *assets.Publisher,
+	instructions []byte,
+) *Provisioner {
 	return &Provisioner{workspaceProvisioner{
-		runner:    runner,
-		profiles:  profileSource,
-		publisher: publisher,
+		runner:       runner,
+		profiles:     profileSource,
+		publisher:    publisher,
+		instructions: append([]byte(nil), instructions...),
 	}}
 }
 
@@ -56,6 +61,9 @@ func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, cont
 	targets := configuredInstructionTargets(p.profiles.Snapshot())
 	if len(targets) == 0 {
 		return nil
+	}
+	if len(p.instructions) == 0 {
+		return errors.New("agent instructions not configured")
 	}
 
 	dctx, cancelD := context.WithTimeout(ctx, 30*time.Second)
@@ -93,7 +101,7 @@ func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, cont
 		batches[index].paths = append(batches[index].paths, target.Path)
 	}
 	for _, batch := range batches {
-		if err := p.publisher.Push(ctx, containerName, agentInstructionsTemplate,
+		if err := p.publisher.Push(ctx, containerName, p.instructions,
 			batch.hashPath, "644", batch.paths...); err != nil {
 			return err
 		}

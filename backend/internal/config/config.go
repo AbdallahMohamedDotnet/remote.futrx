@@ -31,9 +31,9 @@ func (c Config) Addr() string {
 // during installation. For example, https://remote.example.com becomes
 // https://code.remote.example.com/.
 func CodeServerBaseURL(baseURL string) (string, error) {
-	parsed, err := url.Parse(baseURL)
-	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
-		return "", errors.New("BASE_URL must be an absolute URL")
+	parsed, err := parseBaseURL(baseURL)
+	if err != nil {
+		return "", err
 	}
 	host := "code." + parsed.Hostname()
 	if port := parsed.Port(); port != "" {
@@ -45,6 +45,23 @@ func CodeServerBaseURL(baseURL string) (string, error) {
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 	return parsed.String(), nil
+}
+
+// PublicHostname returns the hostname selected during installation.
+func PublicHostname(baseURL string) (string, error) {
+	parsed, err := parseBaseURL(baseURL)
+	if err != nil {
+		return "", err
+	}
+	return parsed.Hostname(), nil
+}
+
+func parseBaseURL(baseURL string) (*url.URL, error) {
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+		return nil, errors.New("BASE_URL must be an absolute URL")
+	}
+	return parsed, nil
 }
 
 func envDefault(key, def string) string {

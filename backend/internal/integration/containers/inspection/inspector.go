@@ -6,7 +6,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 	serviceprofiles "github.com/futrx-com/remote.futrx.com/internal/service/container/profiles"
@@ -28,7 +27,11 @@ type Adapter struct {
 
 // NewAdapter returns independent diagnostic probes backed by the shared
 // runtime and agent profiles.
-func NewAdapter(runner command.Runner, profileSource serviceprofiles.Source) *Adapter {
+func NewAdapter(
+	runner command.Runner,
+	profileSource serviceprofiles.Source,
+	agentInstructions []byte,
+) *Adapter {
 	commands := &quickCommandRunner{runner: runner, timeout: inspectQuickTimeout}
 	return &Adapter{
 		lxd:   containerLXDInspector{commands: commands},
@@ -36,7 +39,7 @@ func NewAdapter(runner command.Runner, profileSource serviceprofiles.Source) *Ad
 		agents: containerAgentInspector{
 			commands:        commands,
 			profiles:        profileSource,
-			instructionHash: assets.Hash(provisioning.InstructionsTemplate()),
+			instructionHash: assets.Hash(agentInstructions),
 		},
 		credentials: containerCredentialInspector{commands: commands, profiles: profileSource},
 	}
