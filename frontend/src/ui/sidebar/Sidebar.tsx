@@ -1,5 +1,5 @@
 import type { ChatMeta } from "../../models/chat";
-import type { WorkspaceSidebarModel } from "../../state/workspace/selectors";
+import type { WorkspaceSidebarModel } from "../../state/workspace/workspaceSidebarState";
 import { ChatRow } from "./ChatRow";
 import { ProjectGroup } from "./ProjectGroup";
 import { SidebarEmptyState, SidebarNoMatches } from "./SidebarEmptyState";

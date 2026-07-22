@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatMeta } from "../../models/chat.ts";
 import type { ProjectMeta } from "../../models/project.ts";
-import { initialWorkspaceUiState, workspaceUiReducer } from "./reducer.ts";
-import { buildWorkspaceSidebarModel } from "./selectors.ts";
+import { workspaceSidebarState } from "./workspaceSidebarState.ts";
+import { workspaceUiState } from "./workspaceUiState.ts";
 
 const projects: ProjectMeta[] = [
   {
@@ -37,15 +37,15 @@ const chats: ChatMeta[] = [
 ];
 
 test("preserves workspace UI transitions and sidebar ordering", () => {
-  const open = workspaceUiReducer(initialWorkspaceUiState, { type: "open-sidebar" });
-  assert.deepEqual(workspaceUiReducer(open, { type: "select-chat", chatId: "new-chat" }), {
+  const open = workspaceUiState.reduce(workspaceUiState.createInitial(), { type: "open-sidebar" });
+  assert.deepEqual(workspaceUiState.reduce(open, { type: "select-chat", chatId: "new-chat" }), {
     activeChatId: "new-chat",
     containerProjectId: null,
     sidebarOpen: false,
     view: "chat",
   });
 
-  const model = buildWorkspaceSidebarModel(chats, projects, "");
+  const model = workspaceSidebarState.model(chats, projects, "");
   assert.deepEqual(model.visibleProjects.map((node) => node.project.id), ["newer", "older"]);
   assert.deepEqual(model.visibleProjects[0].chats.map((chat) => chat.id), ["new-chat", "old-chat"]);
   assert.deepEqual(model.visibleLooseChats.map((chat) => chat.id), ["loose"]);

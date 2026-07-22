@@ -1,8 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
-
-const sidebarCollapsedKey = "remote.futrx.sidebarCollapsed";
+import { workspaceSidebarState } from "../../workspace/workspaceSidebarState";
 
 export function useSidebarState(
   open: boolean,
@@ -12,7 +11,9 @@ export function useSidebarState(
 ) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
+    workspaceSidebarState.readCollapsed()
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -25,18 +26,13 @@ export function useSidebarState(
 
   useEffect(() => {
     setCollapsed((current) => {
-      const next: Record<string, boolean> = {};
-      for (const project of projects) {
-        next[project.id] = !projectHasUnreadChat(project.id, chats);
-      }
-      return sameCollapsedState(current, next) ? current : next;
+      const next = workspaceSidebarState.collapsedProjects(projects, chats);
+      return workspaceSidebarState.hasSameCollapsedProjects(current, next) ? current : next;
     });
   }, [projects, chats]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(sidebarCollapsedKey, sidebarCollapsed ? "true" : "false");
-    } catch {}
+    workspaceSidebarState.writeCollapsed(sidebarCollapsed);
   }, [sidebarCollapsed]);
 
   function toggleCollapsed(id: string) {
@@ -55,27 +51,4 @@ export function useSidebarState(
     sidebarCollapsed,
     toggleSidebarCollapsed,
   };
-}
-
-function projectHasUnreadChat(projectId: string, chats: ChatMeta[]): boolean {
-  return chats.some((chat) => chat.projectId === projectId && isUnread(chat));
-}
-
-function isUnread(chat: ChatMeta): boolean {
-  return (chat.lastMessageAt || 0) > (chat.lastReadAt || 0);
-}
-
-function sameCollapsedState(a: Record<string, boolean>, b: Record<string, boolean>): boolean {
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  return bKeys.every((key) => a[key] === b[key]);
-}
-
-function readSidebarCollapsed(): boolean {
-  try {
-    return localStorage.getItem(sidebarCollapsedKey) === "true";
-  } catch {
-    return false;
-  }
 }

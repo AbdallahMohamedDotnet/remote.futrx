@@ -8,15 +8,10 @@ import { projectApi } from "../../api/projectApi";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
 import { useUserSettingsContext } from "./UserSettingsContext";
 import {
-  initialWorkspaceUiState,
-  workspaceUiReducer,
+  workspaceUiState,
   type WorkspaceUiState,
-} from "../workspace/reducer";
-import {
-  isActiveChatMissing,
-  selectActiveChat,
-  shouldSelectInitialChat,
-} from "../workspace/selectors";
+} from "../workspace/workspaceUiState";
+import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];
@@ -50,16 +45,16 @@ export function WorkspaceProvider({
 }) {
   const data = useWorkspaceData(enabled);
   const { settings } = useUserSettingsContext();
-  const [ui, dispatch] = useReducer(workspaceUiReducer, initialWorkspaceUiState);
-  const activeChat = selectActiveChat(data.chats, ui.activeChatId);
+  const [ui, dispatch] = useReducer(workspaceUiState.reduce, workspaceUiState.createInitial());
+  const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
 
   useEffect(() => {
-    const chatId = shouldSelectInitialChat(enabled, ui.activeChatId, data.chats);
+    const chatId = workspaceSidebarState.initialChatId(enabled, ui.activeChatId, data.chats);
     if (chatId) dispatch({ type: "select-chat", chatId });
   }, [data.chats, enabled, ui.activeChatId]);
 
   useEffect(() => {
-    if (isActiveChatMissing(data.chats, ui.activeChatId)) {
+    if (workspaceSidebarState.isActiveChatMissing(data.chats, ui.activeChatId)) {
       dispatch({ type: "select-chat", chatId: null });
     }
   }, [data.chats, ui.activeChatId]);
