@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import type { RefObject } from "preact";
+import { PUBLIC_HOSTNAME } from "../../../config/runtime";
 import type { BrowserElementCapture } from "../../../models/browser";
 import type { ChatMeta } from "../../../models/chat";
 import type { ContainerApp, ProjectMeta } from "../../../models/project";
@@ -105,8 +106,8 @@ function latestPublicDevUrl(blocks: ChatMessageBlock[], slug: string): string {
   let latest = "";
   for (const block of blocks) {
     for (const text of blockTexts(block)) {
-      for (const candidate of projectPreviewUrlsInText(text)) {
-        if (isProjectPreviewUrl(candidate, slug)) latest = candidate;
+      for (const candidate of projectPreviewUrlsInText(text, PUBLIC_HOSTNAME)) {
+        if (isProjectPreviewUrl(candidate, slug, PUBLIC_HOSTNAME)) latest = candidate;
       }
     }
   }

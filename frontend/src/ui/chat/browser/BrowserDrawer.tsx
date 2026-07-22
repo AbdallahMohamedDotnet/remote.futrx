@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { PUBLIC_HOSTNAME } from "../../../config/runtime";
 import type { BrowserElementCapture } from "../../../models/browser";
 import type { ContainerApp } from "../../../models/project";
 import { buildProjectPreviewUrl } from "../../../shared/projectPreviewUrls";
@@ -62,7 +63,10 @@ export function BrowserDrawer({
 
   const gui = useAgentBrowserSession({ projectId, enabled: open && guiMode });
 
-  const url = useMemo(() => buildProjectPreviewUrl(projectSlug, selectedPort), [projectSlug, selectedPort]);
+  const url = useMemo(
+    () => buildProjectPreviewUrl(projectSlug, selectedPort, PUBLIC_HOSTNAME),
+    [projectSlug, selectedPort],
+  );
   const inspectorUrl = useMemo(() => buildInspectorUrl(url), [url]);
   const iframeUrl = useInspectorFrame && inspectorUrl ? inspectorUrl : url;
   const frameOrigin = useMemo(() => {
