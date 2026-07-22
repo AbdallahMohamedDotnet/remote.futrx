@@ -85,13 +85,21 @@ prepare_legacy_service_migration() {
 
     echo "==> Pausing legacy service $legacy_service"
     if [ "$FUTRX_LEGACY_SERVICE_WAS_ACTIVE" -eq 1 ]; then
-        systemctl stop "$legacy_service"
+        if ! systemctl stop "$legacy_service"; then
+            echo "could not stop legacy service $legacy_service" >&2
+            return 1
+        fi
     fi
     if [ "$FUTRX_LEGACY_SERVICE_WAS_ENABLED" -eq 1 ]; then
         if ! systemctl disable "$legacy_service"; then
-            systemctl enable "$legacy_service" || true
+            echo "could not disable legacy service $legacy_service; restoring its prior state" >&2
+            if ! systemctl enable "$legacy_service"; then
+                echo "could not re-enable legacy service $legacy_service" >&2
+            fi
             if [ "$FUTRX_LEGACY_SERVICE_WAS_ACTIVE" -eq 1 ]; then
-                systemctl start "$legacy_service" || true
+                if ! systemctl start "$legacy_service"; then
+                    echo "could not restart legacy service $legacy_service" >&2
+                fi
             fi
             return 1
         fi
@@ -100,27 +108,50 @@ prepare_legacy_service_migration() {
 
 rollback_legacy_service_migration() {
     local canonical_service="$1" legacy_service="$2"
+    local failed=0
 
     [ "${FUTRX_LEGACY_SERVICE_PRESENT:-0}" -eq 1 ] || return 0
     echo "==> Restoring legacy service $legacy_service" >&2
-    systemctl disable --now "$canonical_service" >/dev/null 2>&1 || true
-    systemctl daemon-reload
+    if ! systemctl disable --now "$canonical_service" >/dev/null 2>&1; then
+        echo "could not stop and disable replacement service $canonical_service" >&2
+        failed=1
+    fi
+    if ! systemctl daemon-reload; then
+        echo "could not reload systemd before restoring $legacy_service" >&2
+        failed=1
+    fi
     if [ "${FUTRX_LEGACY_SERVICE_WAS_ENABLED:-0}" -eq 1 ]; then
-        systemctl enable "$legacy_service"
+        if ! systemctl enable "$legacy_service"; then
+            echo "could not re-enable legacy service $legacy_service" >&2
+            failed=1
+        fi
     fi
     if [ "${FUTRX_LEGACY_SERVICE_WAS_ACTIVE:-0}" -eq 1 ]; then
-        systemctl start "$legacy_service"
+        if ! systemctl start "$legacy_service"; then
+            echo "could not restart legacy service $legacy_service" >&2
+            failed=1
+        fi
     fi
+    [ "$failed" -eq 0 ]
 }
 
 complete_legacy_service_migration() {
     local legacy_service="$1" legacy_unit_path="$2"
 
     [ "${FUTRX_LEGACY_SERVICE_PRESENT:-0}" -eq 1 ] || return 0
-    systemctl disable --now "$legacy_service" >/dev/null 2>&1 || true
-    if [ -e "$legacy_unit_path" ] || [ -L "$legacy_unit_path" ]; then
-        rm -f -- "$legacy_unit_path"
+    if ! systemctl disable --now "$legacy_service" >/dev/null 2>&1; then
+        echo "could not stop and disable legacy service $legacy_service" >&2
+        return 1
     fi
-    systemctl daemon-reload
+    if [ -e "$legacy_unit_path" ] || [ -L "$legacy_unit_path" ]; then
+        if ! rm -f -- "$legacy_unit_path"; then
+            echo "could not remove legacy unit $legacy_unit_path" >&2
+            return 1
+        fi
+    fi
+    if ! systemctl daemon-reload; then
+        echo "could not reload systemd after removing $legacy_service" >&2
+        return 1
+    fi
     echo "==> Removed legacy service $legacy_service"
 }

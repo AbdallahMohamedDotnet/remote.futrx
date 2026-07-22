@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TEST_DIR="$(mktemp -d)"
-trap 'rm -rf -- "$TEST_DIR"' EXIT
+trap 'command rm -rf -- "$TEST_DIR"' EXIT
 
 # shellcheck source=../lib/install-migration.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/install-migration.sh"
@@ -44,27 +44,63 @@ rm -f -- "$CANONICAL_UNIT"
 SYSTEMCTL_LOG="$TEST_DIR/systemctl.log"
 LEGACY_ACTIVE=1
 LEGACY_ENABLED=1
+FAIL_STOP=0
 FAIL_DISABLE=0
+FAIL_CANONICAL_DISABLE=0
+FAIL_ENABLE=0
+FAIL_START=0
+FAIL_DAEMON_RELOAD=0
+FAIL_UNIT_REMOVE=0
+
+rm() {
+    local target="${!#}"
+    if [ "$FAIL_UNIT_REMOVE" -eq 1 ] && [ "$target" = "$LEGACY_UNIT" ]; then
+        return 1
+    fi
+    command rm "$@"
+}
+
 systemctl() {
     local command="$1" service="${!#}"
     printf '%s\n' "$*" >> "$SYSTEMCTL_LOG"
     case "$command" in
         is-active)  [ "$service" = "remote.futrx.dev.service" ] && [ "$LEGACY_ACTIVE" -eq 1 ] ;;
         is-enabled) [ "$service" = "remote.futrx.dev.service" ] && [ "$LEGACY_ENABLED" -eq 1 ] ;;
-        stop)        [ "$service" != "remote.futrx.dev.service" ] || LEGACY_ACTIVE=0 ;;
+        stop)
+            if [ "$service" = "remote.futrx.dev.service" ]; then
+                [ "$FAIL_STOP" -eq 0 ] || return 1
+                LEGACY_ACTIVE=0
+            fi
+            ;;
         disable)
             if [ "$service" = "remote.futrx.dev.service" ]; then
                 LEGACY_ENABLED=0
                 [ "$2" != "--now" ] || LEGACY_ACTIVE=0
                 [ "$FAIL_DISABLE" -eq 0 ] || return 1
+            elif [ "$service" = "remote.futrx.service" ]; then
+                [ "$FAIL_CANONICAL_DISABLE" -eq 0 ] || return 1
             fi
             ;;
-        enable)      [ "$service" != "remote.futrx.dev.service" ] || LEGACY_ENABLED=1 ;;
-        start)       [ "$service" != "remote.futrx.dev.service" ] || LEGACY_ACTIVE=1 ;;
-        daemon-reload) ;;
+        enable)
+            [ "$FAIL_ENABLE" -eq 0 ] || return 1
+            [ "$service" != "remote.futrx.dev.service" ] || LEGACY_ENABLED=1
+            ;;
+        start)
+            [ "$FAIL_START" -eq 0 ] || return 1
+            [ "$service" != "remote.futrx.dev.service" ] || LEGACY_ACTIVE=1
+            ;;
+        daemon-reload) [ "$FAIL_DAEMON_RELOAD" -eq 0 ] ;;
         *) fail "unexpected systemctl command: $*" ;;
     esac
 }
+
+FAIL_STOP=1
+if prepare_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT" 2>/dev/null; then
+    fail "legacy service stop failure was ignored"
+fi
+[ "$LEGACY_ACTIVE" -eq 1 ] || fail "stop failure changed the active state"
+[ "$LEGACY_ENABLED" -eq 1 ] || fail "stop failure disabled the legacy service"
+FAIL_STOP=0
 
 prepare_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT"
 [ "$LEGACY_ACTIVE" -eq 0 ] || fail "legacy service was not stopped"
@@ -72,6 +108,15 @@ prepare_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT"
 rollback_legacy_service_migration "remote.futrx.service" "remote.futrx.dev.service"
 [ "$LEGACY_ACTIVE" -eq 1 ] || fail "legacy service was not restarted during rollback"
 [ "$LEGACY_ENABLED" -eq 1 ] || fail "legacy service was not re-enabled during rollback"
+
+prepare_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT"
+FAIL_ENABLE=1
+if rollback_legacy_service_migration "remote.futrx.service" "remote.futrx.dev.service" 2>/dev/null; then
+    fail "legacy service restore-enable failure was masked by a successful start"
+fi
+FAIL_ENABLE=0
+LEGACY_ACTIVE=1
+LEGACY_ENABLED=1
 
 FAIL_DISABLE=1
 if prepare_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT"; then
@@ -82,6 +127,38 @@ fi
 FAIL_DISABLE=0
 
 prepare_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT"
+FAIL_CANONICAL_DISABLE=1
+if rollback_legacy_service_migration "remote.futrx.service" "remote.futrx.dev.service" 2>/dev/null; then
+    fail "replacement service disable failure was ignored during rollback"
+fi
+FAIL_CANONICAL_DISABLE=0
+LEGACY_ACTIVE=1
+LEGACY_ENABLED=1
+
+prepare_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT"
+FAIL_DAEMON_RELOAD=1
+if rollback_legacy_service_migration "remote.futrx.service" "remote.futrx.dev.service" 2>/dev/null; then
+    fail "daemon-reload failure was masked by successful legacy service restoration"
+fi
+FAIL_DAEMON_RELOAD=0
+LEGACY_ACTIVE=1
+LEGACY_ENABLED=1
+
+prepare_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT"
+FAIL_DISABLE=1
+if complete_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT" 2>/dev/null; then
+    fail "legacy service cleanup-disable failure was ignored"
+fi
+[ -e "$LEGACY_UNIT" ] || fail "unit was removed after cleanup-disable failure"
+FAIL_DISABLE=0
+
+FAIL_UNIT_REMOVE=1
+if complete_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT" 2>/dev/null; then
+    fail "legacy unit removal failure was ignored"
+fi
+[ -e "$LEGACY_UNIT" ] || fail "failed unit removal deleted the unit"
+FAIL_UNIT_REMOVE=0
+
 complete_legacy_service_migration "remote.futrx.dev.service" "$LEGACY_UNIT"
 [ ! -e "$LEGACY_UNIT" ] || fail "legacy unit file was not removed after success"
 [ "$LEGACY_ACTIVE" -eq 0 ] || fail "legacy service remained active after success"
