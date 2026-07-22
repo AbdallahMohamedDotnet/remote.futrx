@@ -6,6 +6,7 @@ import { ProviderAuthWaiting } from "../../ui/auth/ProviderAuthWaiting";
 import { ProviderLoginScreen } from "../../ui/auth/ProviderLoginScreen";
 import { LoadingScreen } from "../../ui/primitives/LoadingScreen";
 import { useAuthContext } from "../../state/context/AuthContext";
+import { useAdminSetupPolling } from "../../state/hooks/auth/useAdminSetupPolling";
 
 type WorkspaceRouteComponent = ComponentType<{ enabled: boolean }>;
 
@@ -18,6 +19,13 @@ export function AuthGate() {
     gateOpen,
   } = useAuthContext();
   const [WorkspaceRoute, setWorkspaceRoute] = useState<WorkspaceRouteComponent | null>(null);
+  const currentUserCanSetupLocalAdmin =
+    auth.isAdmin && auth.email.toLowerCase() === auth.adminEmail.toLowerCase();
+  const waitingForAdminSetup =
+    !auth.loading && auth.claimed && appAuthOk &&
+    !auth.localAdminConfigured && !currentUserCanSetupLocalAdmin;
+
+  useAdminSetupPolling(auth.refresh, waitingForAdminSetup);
 
   useEffect(() => {
     if (!gateOpen || WorkspaceRoute) return;
@@ -54,7 +62,7 @@ export function AuthGate() {
     );
   }
   if (!auth.localAdminConfigured) {
-    if (auth.isAdmin && auth.email.toLowerCase() === auth.adminEmail.toLowerCase()) {
+    if (currentUserCanSetupLocalAdmin) {
       return (
         <LoginScreen
           mode="legacy-setup"
