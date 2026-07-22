@@ -18,18 +18,14 @@ import (
 	serviceprofiles "github.com/futrx-com/remote.futrx.com/internal/service/container/profiles"
 )
 
-// workspaceProvisioner owns provider-defined and embedded assets installed in
-// the persistent project workspace.
-type workspaceProvisioner struct {
+// Provisioner installs provider-defined and embedded assets — shared agent
+// instructions and skill compatibility links — in the persistent project
+// workspace.
+type Provisioner struct {
 	runner       command.Runner
 	profiles     serviceprofiles.Source
 	publisher    *assets.Publisher
 	instructions []byte
-}
-
-// Provisioner installs shared workspace assets and compatibility links.
-type Provisioner struct {
-	workspaceProvisioner
 }
 
 // NewProvisioner returns a workspace provisioner backed by shared container
@@ -40,21 +36,17 @@ func NewProvisioner(
 	publisher *assets.Publisher,
 	instructions []byte,
 ) *Provisioner {
-	return &Provisioner{workspaceProvisioner{
+	return &Provisioner{
 		runner:       runner,
 		profiles:     profileSource,
 		publisher:    publisher,
 		instructions: append([]byte(nil), instructions...),
-	}}
+	}
 }
 
 // EnsureAgentInstructions pushes the shared system-instructions template to
 // all configured targets, grouped by hash marker. Idempotent.
 func (p *Provisioner) EnsureAgentInstructions(ctx context.Context, containerName string) error {
-	return p.ensureAgentInstructions(ctx, containerName)
-}
-
-func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, containerName string) error {
 	if !p.runner.Available() {
 		return command.ErrUnavailable
 	}

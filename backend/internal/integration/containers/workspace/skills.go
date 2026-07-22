@@ -17,14 +17,10 @@ import (
 
 const ensureWorkspaceSymlinksTimeout = 10 * time.Second
 
-// EnsureWorkspaceSkillLinks creates the canonical .agents skills directory,
-// migrates legacy skill children when possible, and points each configured
+// EnsureSkillLinks creates the canonical .agents skills directory, migrates
+// legacy skill children when possible, and points each configured
 // compatibility path at .agents/skills. Cheap and idempotent.
 func (p *Provisioner) EnsureSkillLinks(ctx context.Context, containerName string) error {
-	return p.ensureSkillLinks(ctx, containerName)
-}
-
-func (p *workspaceProvisioner) ensureSkillLinks(ctx context.Context, containerName string) error {
 	if !p.runner.Available() {
 		return command.ErrUnavailable
 	}
