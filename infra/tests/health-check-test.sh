@@ -9,6 +9,12 @@ fail() {
     exit 1
 }
 
+REAL_NOW_MS="$(health_check_now_ms)"
+case "$REAL_NOW_MS" in
+    ''|*[!0-9]*) fail "real clock is not an integer: $REAL_NOW_MS" ;;
+esac
+[ "$REAL_NOW_MS" -ge 1000000000000 ] || fail "real clock is not milliseconds: $REAL_NOW_MS"
+
 FAKE_NOW_MS=0
 REQUEST_COUNT=0
 LAST_REQUEST_TIMEOUT=""

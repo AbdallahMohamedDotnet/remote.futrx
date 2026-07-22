@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 health_check_now_ms() {
-    date +%s%3N
+    # `%3N` is not portable: some date implementations ignore the width and
+    # append all nine nanosecond digits, overflowing Bash's integer arithmetic.
+    printf '%s000\n' "$(date +%s)"
 }
 
 health_check_request() {
