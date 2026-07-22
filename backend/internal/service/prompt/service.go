@@ -158,9 +158,9 @@ func (rnr *Service) runPrompt(
 		ResumeID:       resumeID,
 		ProjectID:      string(meta.ProjectID),
 		Fork:           meta.ForkPending,
-		Config: map[string]any{
-			"reasoningEffort": meta.ReasoningEffort,
-			"serviceTier":     meta.ServiceTier,
+		Preferences: agent.RunPreferences{
+			ReasoningEffort: agent.ReasoningEffort(meta.ReasoningEffort),
+			ServiceTier:     agent.ServiceTier(meta.ServiceTier),
 		},
 		EnableBrowser: enableBrowser,
 	}, func(ev agent.Event) {

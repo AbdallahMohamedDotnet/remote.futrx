@@ -23,7 +23,7 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	if model := sanitizeModel(req.Model); model != "" {
 		args = append(args, "--model", model)
 	}
-	if effort := reasoningEffortFromConfig(req.Config); effort != "" {
+	if effort := reasoningEffortArg(req.Preferences.ReasoningEffort); effort != "" {
 		args = append(args, "--effort", effort)
 	}
 	if req.ResumeID != "" {
@@ -46,15 +46,11 @@ func sanitizeModel(model string) string {
 	return model
 }
 
-// reasoningEffortFromConfig maps the conversation's reasoning effort onto the
-// `claude --effort` levels (low, medium, high, xhigh, max). Unknown or empty
+// reasoningEffortArg maps the conversation's reasoning effort onto the
+// `claude --effort` levels (low, medium, high, xhigh, max, ultra). Unknown or empty
 // values yield "" so the flag is omitted and the CLI picks its default.
-func reasoningEffortFromConfig(config map[string]any) string {
-	if len(config) == 0 {
-		return ""
-	}
-	effort, _ := config["reasoningEffort"].(string)
-	switch strings.ToLower(strings.TrimSpace(effort)) {
+func reasoningEffortArg(effort agent.ReasoningEffort) string {
+	switch strings.ToLower(strings.TrimSpace(string(effort))) {
 	case "low":
 		return "low"
 	case "medium":

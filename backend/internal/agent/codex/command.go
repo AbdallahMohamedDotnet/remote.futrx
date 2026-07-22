@@ -23,10 +23,10 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	if model := sanitizeModel(req.Model); model != "" {
 		common = append(common, "--model", model)
 	}
-	if effort := reasoningEffortFromConfig(req.Config); effort != "" {
+	if effort := reasoningEffortArg(req.Preferences.ReasoningEffort); effort != "" {
 		common = append(common, "-c", "model_reasoning_effort="+effort)
 	}
-	if tier := serviceTierFromConfig(req.Config); tier != "" {
+	if tier := serviceTierArg(req.Preferences.ServiceTier); tier != "" {
 		common = append(common, "-c", "service_tier="+tier)
 	}
 	if req.EnableBrowser {
@@ -57,14 +57,10 @@ func sanitizeModel(model string) string {
 	return model
 }
 
-func reasoningEffortFromConfig(config map[string]any) string {
-	if len(config) == 0 {
-		return ""
-	}
-	effort, _ := config["reasoningEffort"].(string)
+func reasoningEffortArg(effort agent.ReasoningEffort) string {
 	// Valid `model_reasoning_effort` values for the codex CLI, per its own
-	// reasoning.effort validation: none, minimal, low, medium, high, xhigh, max.
-	switch strings.ToLower(strings.TrimSpace(effort)) {
+	// reasoning.effort validation: none, minimal, low, medium, high, xhigh, max, ultra.
+	switch strings.ToLower(strings.TrimSpace(string(effort))) {
 	case "none":
 		return "none"
 	case "minimal":
@@ -86,15 +82,11 @@ func reasoningEffortFromConfig(config map[string]any) string {
 	}
 }
 
-// serviceTierFromConfig maps the conversation's speed selection onto codex's
-// `-c service_tier=` values we expose (default, priority). Unsupported tiers are
+// serviceTierArg maps the conversation's speed selection onto codex's
+// `-c service_tier=` values we expose (default, priority, fast). Unsupported tiers are
 // warned-and-omitted by codex itself, so we only forward the ones we surface.
-func serviceTierFromConfig(config map[string]any) string {
-	if len(config) == 0 {
-		return ""
-	}
-	tier, _ := config["serviceTier"].(string)
-	switch strings.ToLower(strings.TrimSpace(tier)) {
+func serviceTierArg(tier agent.ServiceTier) string {
+	switch strings.ToLower(strings.TrimSpace(string(tier))) {
 	case "default":
 		return "default"
 	case "priority":

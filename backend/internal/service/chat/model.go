@@ -140,7 +140,7 @@ func NormalizeReasoningEffort(effort string) string {
 }
 
 // NormalizeServiceTier maps codex service_tier values we expose (default,
-// priority). "" = Auto (omit the flag). Unknown values collapse to "".
+// priority, fast). "" = Auto (omit the flag). Unknown values collapse to "".
 func NormalizeServiceTier(tier string) string {
 	switch strings.ToLower(strings.TrimSpace(tier)) {
 	case "default":

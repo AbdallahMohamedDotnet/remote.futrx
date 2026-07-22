@@ -41,6 +41,16 @@ const (
 	ItemSystem    ItemKind = "system"
 )
 
+type ReasoningEffort string
+type ServiceTier string
+
+// RunPreferences contains provider-neutral launch preferences. Provider
+// adapters remain responsible for accepting only the values their CLI supports.
+type RunPreferences struct {
+	ReasoningEffort ReasoningEffort
+	ServiceTier     ServiceTier
+}
+
 // RunRequest is provider-neutral. Provider adapters translate it into the
 // concrete CLI flags and runtime setup required by Claude Code, Codex, etc.
 type RunRequest struct {
@@ -53,7 +63,7 @@ type RunRequest struct {
 	ResumeID       string
 	ProjectID      string
 	Fork           bool
-	Config         map[string]any
+	Preferences    RunPreferences
 	// EnableBrowser wires the Agent Browser MCP tools into the agent launch.
 	// Set when the `browser` skill is selected for the prompt.
 	EnableBrowser bool

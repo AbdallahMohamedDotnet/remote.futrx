@@ -51,8 +51,10 @@ func TestArgsIncludeBrowserMCPConfigOnlyWhenEnabled(t *testing.T) {
 func TestArgsIncludeReasoningEffort(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
-		Model:  "opus",
-		Config: map[string]any{"reasoningEffort": "max"},
+		Model: "opus",
+		Preferences: agent.RunPreferences{
+			ReasoningEffort: "max",
+		},
 	})
 
 	effortIndex := slices.Index(args, "--effort")
@@ -67,8 +69,10 @@ func TestArgsIncludeReasoningEffort(t *testing.T) {
 func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
-		Model:  "opus",
-		Config: map[string]any{"reasoningEffort": "extreme"},
+		Model: "opus",
+		Preferences: agent.RunPreferences{
+			ReasoningEffort: "extreme",
+		},
 	})
 	if slices.Contains(args, "--effort") {
 		t.Fatalf("unexpected --effort for invalid effort: %#v", args)

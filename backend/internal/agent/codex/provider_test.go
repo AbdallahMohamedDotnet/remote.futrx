@@ -50,7 +50,7 @@ func TestCodexEnvStripsOpenAIAPIKey(t *testing.T) {
 func TestArgsIncludeReasoningEffort(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
-		Config: map[string]any{"reasoningEffort": "high"},
+		Preferences: agent.RunPreferences{ReasoningEffort: "high"},
 	})
 
 	want := []string{
@@ -69,7 +69,7 @@ func TestArgsIncludeReasoningEffort(t *testing.T) {
 func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
-		Config: map[string]any{"reasoningEffort": "extreme"},
+		Preferences: agent.RunPreferences{ReasoningEffort: "extreme"},
 	})
 
 	if slices.Contains(args, "-c") {
@@ -80,7 +80,7 @@ func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 func TestArgsIncludeServiceTier(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
-		Config: map[string]any{"serviceTier": "priority"},
+		Preferences: agent.RunPreferences{ServiceTier: "priority"},
 	})
 
 	want := []string{
@@ -99,7 +99,10 @@ func TestArgsIncludeServiceTier(t *testing.T) {
 func TestArgsIncludeReasoningEffortAndServiceTier(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
-		Config: map[string]any{"reasoningEffort": "xhigh", "serviceTier": "default"},
+		Preferences: agent.RunPreferences{
+			ReasoningEffort: "xhigh",
+			ServiceTier:     "default",
+		},
 	})
 
 	want := []string{
@@ -119,7 +122,7 @@ func TestArgsIncludeReasoningEffortAndServiceTier(t *testing.T) {
 func TestArgsIgnoreInvalidServiceTier(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
-		Config: map[string]any{"serviceTier": "turbo"},
+		Preferences: agent.RunPreferences{ServiceTier: "turbo"},
 	})
 
 	if slices.Contains(args, "-c") {
