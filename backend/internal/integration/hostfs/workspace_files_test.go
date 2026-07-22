@@ -7,7 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // setupWorkspace builds a workspace tree plus an out-of-workspace secret and
@@ -210,6 +212,52 @@ func TestWriteArchiveIncludesAbsoluteSymlinkWithinWorkspace(t *testing.T) {
 	t.Fatal("archive omitted in-workspace absolute symlink")
 }
 
+func TestOpenFileRejectsNamedPipeWithoutBlocking(t *testing.T) {
+	root, _ := setupWorkspace(t)
+	pipePath := filepath.Join(root, "events.pipe")
+	if err := syscall.Mkfifo(pipePath, 0o600); err != nil {
+		t.Fatalf("mkfifo: %v", err)
+	}
+	store := NewWorkspaceFileStore()
+
+	err := awaitPipeOperation(t, pipePath, func() error {
+		file, _, _, err := store.OpenFile(root, "events.pipe")
+		if file != nil {
+			_ = file.Close()
+		}
+		return err
+	})
+	if err == nil {
+		t.Fatal("OpenFile accepted a named pipe")
+	}
+}
+
+func TestWriteArchiveSkipsNamedPipeWithoutBlocking(t *testing.T) {
+	root, _ := setupWorkspace(t)
+	pipePath := filepath.Join(root, "events.pipe")
+	if err := syscall.Mkfifo(pipePath, 0o600); err != nil {
+		t.Fatalf("mkfifo: %v", err)
+	}
+	store := NewWorkspaceFileStore()
+	var destination bytes.Buffer
+
+	err := awaitPipeOperation(t, pipePath, func() error {
+		return store.WriteArchive(root, "", &destination)
+	})
+	if err != nil {
+		t.Fatalf("WriteArchive: %v", err)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(destination.Bytes()), int64(destination.Len()))
+	if err != nil {
+		t.Fatalf("open archive: %v", err)
+	}
+	for _, file := range archive.File {
+		if file.Name == "events.pipe" {
+			t.Fatal("archive included a named pipe")
+		}
+	}
+}
+
 func TestWriteArchiveReturnsDestinationFailure(t *testing.T) {
 	root, _ := setupWorkspace(t)
 	store := NewWorkspaceFileStore()
@@ -227,4 +275,32 @@ type failingWriter struct {
 
 func (w failingWriter) Write([]byte) (int, error) {
 	return 0, w.err
+}
+
+func awaitPipeOperation(t *testing.T, pipePath string, operation func() error) error {
+	t.Helper()
+	done := make(chan error, 1)
+	go func() {
+		done <- operation()
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(time.Second):
+		// Pair with an accidentally blocking reader so the test can clean up before
+		// reporting the regression instead of leaking a stuck goroutine.
+		writerDone := make(chan struct{})
+		go func() {
+			writer, _ := os.OpenFile(pipePath, os.O_WRONLY, 0)
+			if writer != nil {
+				_ = writer.Close()
+			}
+			close(writerDone)
+		}()
+		<-done
+		<-writerDone
+		t.Fatal("filesystem operation blocked while opening a named pipe")
+		return nil
+	}
 }

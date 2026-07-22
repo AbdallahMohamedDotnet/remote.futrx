@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
@@ -20,7 +21,10 @@ import (
 // before giving up, so searching a repo with a huge node_modules stays bounded.
 const maxSearchVisits = 200000
 
-var errOutsideWorkspace = errors.New("path escapes workspace")
+var (
+	errOutsideWorkspace = errors.New("path escapes workspace")
+	errNotRegularFile   = errors.New("not a regular file")
+)
 
 type WorkspaceFileStore struct{}
 
@@ -98,14 +102,12 @@ func (s *WorkspaceFileStore) OpenFile(root, relative string) (io.ReadSeekCloser,
 	if err != nil {
 		return nil, "", time.Time{}, err
 	}
-	file, err := workspace.root.Open(resolved)
+	file, info, err := workspace.openRegular(resolved)
 	if err != nil {
+		if errors.Is(err, errNotRegularFile) {
+			return nil, "", time.Time{}, os.ErrNotExist
+		}
 		return nil, "", time.Time{}, err
-	}
-	info, err := file.Stat()
-	if err != nil || info.IsDir() {
-		_ = file.Close()
-		return nil, "", time.Time{}, os.ErrNotExist
 	}
 	return file, info.Name(), info.ModTime(), nil
 }
@@ -195,27 +197,23 @@ func (w secureWorkspace) writeArchiveEntry(
 			// usable file inside the workspace boundary.
 			return nil
 		}
-		info, err := w.root.Stat(target)
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
 		openPath = target
 	}
 
+	source, _, err := w.openRegular(openPath)
+	if err != nil {
+		if errors.Is(err, errNotRegularFile) {
+			return nil
+		}
+		return err
+	}
 	relative, err := filepath.Rel(base, walkPath)
 	if err != nil {
-		return err
+		return errors.Join(err, source.Close())
 	}
 	destination, err := archive.Create(filepath.ToSlash(relative))
 	if err != nil {
-		return err
-	}
-	source, err := w.root.Open(openPath)
-	if err != nil {
-		return err
+		return errors.Join(err, source.Close())
 	}
 	_, copyErr := io.Copy(destination, source)
 	return errors.Join(copyErr, source.Close())
@@ -283,6 +281,35 @@ func newSecureWorkspace(root string) (secureWorkspace, error) {
 
 func (w secureWorkspace) close() {
 	_ = w.root.Close()
+}
+
+// openRegular checks before opening to avoid touching known special files, then
+// opens nonblocking and verifies the resulting descriptor. The second check
+// closes the race where a regular path is swapped for a FIFO or device between
+// Stat and OpenFile.
+func (w secureWorkspace) openRegular(name string) (*os.File, os.FileInfo, error) {
+	info, err := w.root.Stat(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, nil, errNotRegularFile
+	}
+
+	file, err := w.root.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	openedInfo, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, nil, err
+	}
+	if !openedInfo.Mode().IsRegular() {
+		_ = file.Close()
+		return nil, nil, errNotRegularFile
+	}
+	return file, openedInfo, nil
 }
 
 // resolve joins relative under root, collapses traversal, then resolves
