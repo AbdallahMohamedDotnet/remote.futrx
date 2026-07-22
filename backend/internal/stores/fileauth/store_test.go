@@ -31,6 +31,36 @@ func TestLocalAdminCredentialIsPrivateAndCreateOnly(t *testing.T) {
 	}
 }
 
+func TestDeleteLocalAdminRequiresExpectedCredential(t *testing.T) {
+	dir := t.TempDir()
+	store := New(dir)
+	credential := serviceauth.LocalAdminCredential{
+		Email: "admin@example.com", PasswordHash: "$argon2id$hash",
+	}
+	if err := store.CreateLocalAdmin(context.Background(), credential); err != nil {
+		t.Fatalf("CreateLocalAdmin: %v", err)
+	}
+
+	changed := credential
+	changed.PasswordHash = "$argon2id$different"
+	if err := store.DeleteLocalAdmin(context.Background(), changed); !errors.Is(err, serviceauth.ErrLocalAdminCredentialChanged) {
+		t.Fatalf("DeleteLocalAdmin changed credential error = %v", err)
+	}
+	if persisted, err := store.LocalAdmin(context.Background()); err != nil || persisted == nil {
+		t.Fatalf("credential after refused delete = %#v, %v", persisted, err)
+	}
+
+	if err := store.DeleteLocalAdmin(context.Background(), credential); err != nil {
+		t.Fatalf("DeleteLocalAdmin: %v", err)
+	}
+	if persisted, err := store.LocalAdmin(context.Background()); err != nil || persisted != nil {
+		t.Fatalf("credential after delete = %#v, %v", persisted, err)
+	}
+	if err := store.DeleteLocalAdmin(context.Background(), credential); err != nil {
+		t.Fatalf("idempotent DeleteLocalAdmin: %v", err)
+	}
+}
+
 func TestOAuthSecretIsPrivate(t *testing.T) {
 	dir := t.TempDir()
 	store := New(dir)

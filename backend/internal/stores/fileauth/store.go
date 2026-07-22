@@ -77,6 +77,10 @@ func (s *Store) LocalAdmin(ctx context.Context) (*serviceauth.LocalAdminCredenti
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.localAdminLocked()
+}
+
+func (s *Store) localAdminLocked() (*serviceauth.LocalAdminCredential, error) {
 	data, err := os.ReadFile(filepath.Join(s.dataDir, "local-admin.json"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -113,6 +117,35 @@ func (s *Store) CreateLocalAdmin(ctx context.Context, credential serviceauth.Loc
 		return err
 	}
 	return s.writeJSONLocked("local-admin.json", credential)
+}
+
+func (s *Store) DeleteLocalAdmin(ctx context.Context, expected serviceauth.LocalAdminCredential) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	expected.Email = strings.ToLower(strings.TrimSpace(expected.Email))
+	if expected.Email == "" || expected.PasswordHash == "" {
+		return errors.New("expected local admin credential is incomplete")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := s.localAdminLocked()
+	if err != nil {
+		return err
+	}
+	if current == nil {
+		return nil
+	}
+	if current.Email != expected.Email || current.PasswordHash != expected.PasswordHash {
+		return serviceauth.ErrLocalAdminCredentialChanged
+	}
+	if err := os.Remove(filepath.Join(s.dataDir, "local-admin.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("delete local-admin.json: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) SessionKey(ctx context.Context) ([]byte, error) {

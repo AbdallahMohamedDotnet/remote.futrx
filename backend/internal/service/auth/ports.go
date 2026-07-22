@@ -10,6 +10,9 @@ type OAuthConfigStore interface {
 type LocalAdminStore interface {
 	LocalAdmin(context.Context) (*LocalAdminCredential, error)
 	CreateLocalAdmin(context.Context, LocalAdminCredential) error
+	// DeleteLocalAdmin removes only the credential that exactly matches the
+	// expected value. It is reserved for compensating a failed claim.
+	DeleteLocalAdmin(context.Context, LocalAdminCredential) error
 }
 
 type Store interface {

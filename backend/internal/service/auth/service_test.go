@@ -9,9 +9,10 @@ import (
 )
 
 type authTestStore struct {
-	local *LocalAdminCredential
-	oauth OAuthConfig
-	key   []byte
+	local     *LocalAdminCredential
+	oauth     OAuthConfig
+	key       []byte
+	deleteErr error
 }
 
 func (s *authTestStore) OAuthConfig(context.Context) (OAuthConfig, error) {
@@ -39,10 +40,29 @@ func (s *authTestStore) CreateLocalAdmin(_ context.Context, credential LocalAdmi
 	s.local = &copy
 	return nil
 }
+func (s *authTestStore) DeleteLocalAdmin(ctx context.Context, expected LocalAdminCredential) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
+	if s.local == nil {
+		return nil
+	}
+	if *s.local != expected {
+		return ErrLocalAdminCredentialChanged
+	}
+	s.local = nil
+	return nil
+}
 func (s *authTestStore) SessionKey(context.Context) ([]byte, error) { return s.key, nil }
 
 type authTestUsers struct {
-	roles map[string]bool
+	roles                map[string]bool
+	isRegisteredErr      error
+	addBootstrapAdminErr error
+	cancelOnIsRegistered context.CancelFunc
 }
 
 func newAuthTestUsers() *authTestUsers { return &authTestUsers{roles: make(map[string]bool)} }
@@ -50,10 +70,20 @@ func (u *authTestUsers) IsAdmin(_ context.Context, email string) (bool, error) {
 	return u.roles[normalizeEmail(email)], nil
 }
 func (u *authTestUsers) IsRegistered(_ context.Context, email string) (bool, error) {
+	if u.cancelOnIsRegistered != nil {
+		u.cancelOnIsRegistered()
+		u.cancelOnIsRegistered = nil
+	}
+	if u.isRegisteredErr != nil {
+		return false, u.isRegisteredErr
+	}
 	_, ok := u.roles[normalizeEmail(email)]
 	return ok, nil
 }
 func (u *authTestUsers) AddBootstrapAdmin(_ context.Context, email string) error {
+	if u.addBootstrapAdminErr != nil {
+		return u.addBootstrapAdminErr
+	}
 	u.roles[normalizeEmail(email)] = true
 	return nil
 }
@@ -115,6 +145,67 @@ func TestLocalAdminClaimAndLogin(t *testing.T) {
 	}
 	if _, err := service.ClaimLocalAdmin(context.Background(), "other@example.com", "another secure password", ""); !errors.Is(err, ErrLocalAdminAlreadyClaimed) {
 		t.Fatalf("second claim error = %v", err)
+	}
+}
+
+func TestLocalAdminClaimRollsBackAfterDirectoryLookupFailure(t *testing.T) {
+	store := &authTestStore{}
+	users := newAuthTestUsers()
+	service := newAuthTestService(t, store, users, User{})
+	ctx, cancel := context.WithCancel(context.Background())
+	users.cancelOnIsRegistered = cancel
+	users.isRegisteredErr = context.Canceled
+
+	if _, err := service.ClaimLocalAdmin(ctx, "admin@example.com", "correct horse battery staple", ""); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ClaimLocalAdmin error = %v, want context cancellation", err)
+	}
+	if store.local != nil || service.LocalAdminConfigured() {
+		t.Fatal("failed claim left a durable or cached local credential")
+	}
+
+	users.isRegisteredErr = nil
+	if _, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", ""); err != nil {
+		t.Fatalf("retry ClaimLocalAdmin: %v", err)
+	}
+}
+
+func TestLocalAdminClaimRollsBackAfterBootstrapFailure(t *testing.T) {
+	store := &authTestStore{}
+	users := newAuthTestUsers()
+	bootstrapErr := errors.New("write users directory")
+	users.addBootstrapAdminErr = bootstrapErr
+	service := newAuthTestService(t, store, users, User{})
+
+	if _, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", ""); !errors.Is(err, bootstrapErr) {
+		t.Fatalf("ClaimLocalAdmin error = %v, want %v", err, bootstrapErr)
+	}
+	if store.local != nil || service.LocalAdminConfigured() {
+		t.Fatal("failed bootstrap left a durable or cached local credential")
+	}
+	if len(users.roles) != 0 {
+		t.Fatalf("failed bootstrap created users: %#v", users.roles)
+	}
+
+	users.addBootstrapAdminErr = nil
+	if _, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", ""); err != nil {
+		t.Fatalf("retry ClaimLocalAdmin: %v", err)
+	}
+}
+
+func TestLocalAdminClaimReconcilesAfterRollbackFailure(t *testing.T) {
+	directoryErr := errors.New("read users directory")
+	rollbackErr := errors.New("delete local credential")
+	store := &authTestStore{deleteErr: rollbackErr}
+	users := newAuthTestUsers()
+	users.isRegisteredErr = directoryErr
+	service := newAuthTestService(t, store, users, User{})
+
+	_, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", "")
+	if !errors.Is(err, directoryErr) || !errors.Is(err, rollbackErr) {
+		t.Fatalf("ClaimLocalAdmin error = %v, want directory and rollback errors", err)
+	}
+	if store.local == nil || !service.LocalAdminConfigured() {
+		t.Fatal("rollback failure was not reconciled with the durable credential")
 	}
 }
 

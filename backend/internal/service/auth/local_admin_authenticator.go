@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -80,20 +81,60 @@ func (a *LocalAdminAuthenticator) claim(
 	if err := a.store.CreateLocalAdmin(ctx, credential); err != nil {
 		return User{}, err
 	}
-	a.mu.Lock()
-	a.credential = &credential
-	a.mu.Unlock()
 
 	registered, err := a.users.IsRegistered(ctx, email)
 	if err != nil {
-		return User{}, err
+		return User{}, a.abortClaim(ctx, credential, err)
 	}
 	if !registered {
 		if err := a.users.AddBootstrapAdmin(ctx, email); err != nil {
-			return User{}, err
+			return User{}, a.abortClaim(ctx, credential, err)
 		}
 	}
+	a.setCredential(&credential)
 	return localAdminUser(email), nil
+}
+
+func (a *LocalAdminAuthenticator) abortClaim(
+	ctx context.Context,
+	credential LocalAdminCredential,
+	claimErr error,
+) error {
+	rollbackCtx := context.WithoutCancel(ctx)
+	rollbackErr := a.store.DeleteLocalAdmin(rollbackCtx, credential)
+	if rollbackErr == nil {
+		return claimErr
+	}
+
+	// A failed compare-and-delete means the durable state is uncertain. Reload
+	// it so this process cannot advertise an unclaimed state that a restart
+	// would interpret as configured.
+	persisted, reconcileErr := a.store.LocalAdmin(rollbackCtx)
+	if reconcileErr == nil {
+		a.setCredential(persisted)
+	} else {
+		a.setCredential(&credential)
+	}
+
+	errs := []error{
+		claimErr,
+		fmt.Errorf("roll back local admin credential: %w", rollbackErr),
+	}
+	if reconcileErr != nil {
+		errs = append(errs, fmt.Errorf("reload local admin credential: %w", reconcileErr))
+	}
+	return errors.Join(errs...)
+}
+
+func (a *LocalAdminAuthenticator) setCredential(credential *LocalAdminCredential) {
+	var copy *LocalAdminCredential
+	if credential != nil {
+		value := *credential
+		copy = &value
+	}
+	a.mu.Lock()
+	a.credential = copy
+	a.mu.Unlock()
 }
 
 func (a *LocalAdminAuthenticator) login(email, password string) (User, error) {
