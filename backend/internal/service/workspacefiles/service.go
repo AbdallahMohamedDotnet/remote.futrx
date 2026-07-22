@@ -28,6 +28,7 @@ var (
 	ErrFileNotFound     = errors.New("file not found")
 	ErrFolderNotFound   = errors.New("folder not found")
 	ErrUnsupportedMedia = errors.New("file type cannot be opened in browser")
+	ErrArchiveTooLarge  = errors.New("workspace archive exceeds download size limit")
 )
 
 // Store is the filesystem boundary. Every method takes the workspace root plus a

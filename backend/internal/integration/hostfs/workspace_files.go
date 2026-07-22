@@ -18,9 +18,26 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/shared/workspacepath"
 )
 
-// maxSearchVisits bounds how many entries a workspace-wide name search will walk
-// before giving up, so searching a repo with a huge node_modules stays bounded.
-const maxSearchVisits = 200000
+const (
+	// maxSearchVisits bounds how many entries a workspace-wide name search will
+	// walk before giving up, so searching a huge node_modules stays bounded.
+	maxSearchVisits = 200000
+	// Archive limits apply to source data before compression. This prevents a
+	// sparse or highly compressible workspace from consuming unbounded CPU and
+	// read I/O while remaining below the compressed spool-file limit.
+	maxArchiveSourceBytes int64 = 1 << 30
+	maxArchiveEntries           = 200000
+)
+
+type archiveLimits struct {
+	maxSourceBytes int64
+	maxEntries     int
+}
+
+var defaultArchiveLimits = archiveLimits{
+	maxSourceBytes: maxArchiveSourceBytes,
+	maxEntries:     maxArchiveEntries,
+}
 
 var (
 	errOutsideWorkspace = errors.New("path escapes workspace")
@@ -114,6 +131,16 @@ func (s *WorkspaceFileStore) OpenFile(root, relative string) (io.ReadSeekCloser,
 }
 
 func (s *WorkspaceFileStore) WriteArchive(ctx context.Context, root, relative string, destination io.Writer) error {
+	return s.writeArchive(ctx, root, relative, destination, defaultArchiveLimits)
+}
+
+func (s *WorkspaceFileStore) writeArchive(
+	ctx context.Context,
+	root string,
+	relative string,
+	destination io.Writer,
+	limits archiveLimits,
+) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -128,6 +155,10 @@ func (s *WorkspaceFileStore) WriteArchive(ctx context.Context, root, relative st
 	}
 
 	archive := zip.NewWriter(destination)
+	budget := archiveBudget{
+		remainingBytes:   limits.maxSourceBytes,
+		remainingEntries: limits.maxEntries,
+	}
 
 	// WalkDir does not descend into symlinked directories, so directory-symlink
 	// loops are impossible. Symlinked files are included only if they still
@@ -142,7 +173,7 @@ func (s *WorkspaceFileStore) WriteArchive(ctx context.Context, root, relative st
 		if entry.IsDir() {
 			return nil
 		}
-		return workspace.writeArchiveEntry(ctx, archive, base, walkPath, entry)
+		return workspace.writeArchiveEntry(ctx, archive, &budget, base, walkPath, entry)
 	})
 	closeErr := archive.Close()
 	return errors.Join(walkErr, closeErr, ctx.Err())
@@ -194,6 +225,7 @@ func (s *WorkspaceFileStore) Search(root, query string, limit int) ([]*servicewo
 func (w secureWorkspace) writeArchiveEntry(
 	ctx context.Context,
 	archive *zip.Writer,
+	budget *archiveBudget,
 	base string,
 	walkPath string,
 	entry fs.DirEntry,
@@ -209,12 +241,15 @@ func (w secureWorkspace) writeArchiveEntry(
 		openPath = target
 	}
 
-	source, _, err := w.openRegular(openPath)
+	source, info, err := w.openRegular(openPath)
 	if err != nil {
 		if errors.Is(err, errNotRegularFile) {
 			return nil
 		}
 		return err
+	}
+	if err := budget.acceptEntry(info.Size()); err != nil {
+		return errors.Join(err, source.Close())
 	}
 	relative, err := filepath.Rel(base, walkPath)
 	if err != nil {
@@ -224,8 +259,32 @@ func (w secureWorkspace) writeArchiveEntry(
 	if err != nil {
 		return errors.Join(err, source.Close())
 	}
-	_, copyErr := io.Copy(destination, contextReader{ctx: ctx, reader: source})
+	copyErr := budget.copy(ctx, destination, source)
 	return errors.Join(copyErr, source.Close())
+}
+
+type archiveBudget struct {
+	remainingBytes   int64
+	remainingEntries int
+}
+
+func (b *archiveBudget) acceptEntry(size int64) error {
+	if b.remainingEntries <= 0 || size > b.remainingBytes {
+		return serviceworkspacefiles.ErrArchiveTooLarge
+	}
+	b.remainingEntries--
+	return nil
+}
+
+func (b *archiveBudget) copy(ctx context.Context, destination io.Writer, source io.Reader) error {
+	reader := contextReader{ctx: ctx, reader: source}
+	written, copyErr := io.Copy(destination, io.LimitReader(reader, b.remainingBytes+1))
+	if written > b.remainingBytes {
+		b.remainingBytes = 0
+		return errors.Join(copyErr, serviceworkspacefiles.ErrArchiveTooLarge)
+	}
+	b.remainingBytes -= written
+	return copyErr
 }
 
 type contextReader struct {

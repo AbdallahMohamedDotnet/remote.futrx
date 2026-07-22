@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
 )
 
 // setupWorkspace builds a workspace tree plus an out-of-workspace secret and
@@ -338,6 +340,50 @@ func TestWriteArchiveReturnsDestinationFailure(t *testing.T) {
 	err := store.WriteArchive(context.Background(), root, "", failingWriter{err: wantErr})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("WriteArchive error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestWriteArchiveRejectsCumulativeUncompressedBytes(t *testing.T) {
+	root := t.TempDir()
+	for name, content := range map[string]string{"a.txt": "123", "b.txt": "456"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store := NewWorkspaceFileStore()
+	var destination bytes.Buffer
+
+	err := store.writeArchive(
+		context.Background(),
+		root,
+		"",
+		&destination,
+		archiveLimits{maxSourceBytes: 5, maxEntries: 10},
+	)
+	if !errors.Is(err, serviceworkspacefiles.ErrArchiveTooLarge) {
+		t.Fatalf("WriteArchive error = %v, want %v", err, serviceworkspacefiles.ErrArchiveTooLarge)
+	}
+}
+
+func TestWriteArchiveRejectsTooManyEntries(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"a.txt", "b.txt"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store := NewWorkspaceFileStore()
+	var destination bytes.Buffer
+
+	err := store.writeArchive(
+		context.Background(),
+		root,
+		"",
+		&destination,
+		archiveLimits{maxSourceBytes: 100, maxEntries: 1},
+	)
+	if !errors.Is(err, serviceworkspacefiles.ErrArchiveTooLarge) {
+		t.Fatalf("WriteArchive error = %v, want %v", err, serviceworkspacefiles.ErrArchiveTooLarge)
 	}
 }
 

@@ -2,10 +2,11 @@ package httphandlers
 
 import (
 	"context"
-	"errors"
 	"io"
 	"os"
 	"sync"
+
+	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
 )
 
 const (
@@ -13,7 +14,7 @@ const (
 	maxConcurrentWorkspaceArchives       = 2       // At most 2 GiB in aggregate temporary archives.
 )
 
-var errWorkspaceArchiveTooLarge = errors.New("workspace archive exceeds download size limit")
+var errWorkspaceArchiveTooLarge = serviceworkspacefiles.ErrArchiveTooLarge
 
 type archiveSpooler struct {
 	slots    chan struct{}
