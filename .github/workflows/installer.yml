@@ -41,6 +41,7 @@ jobs:
           bash infra/tests/go-toolchain-test.sh
           bash infra/tests/go-download-check.sh
           bash infra/tests/install-migration-test.sh
+          bash infra/tests/health-check-test.sh
 
       - name: Prepare SSH
         env:

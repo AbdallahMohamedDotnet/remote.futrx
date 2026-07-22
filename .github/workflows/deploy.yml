@@ -35,6 +35,7 @@ jobs:
           bash infra/tests/go-toolchain-test.sh
           bash infra/tests/go-download-check.sh
           bash infra/tests/install-migration-test.sh
+          bash infra/tests/health-check-test.sh
 
       - name: Prepare SSH
         env:
@@ -87,7 +88,6 @@ jobs:
 
           echo "==> restart backend"
           systemctl restart remote.futrx
-          sleep 1
           systemctl is-active --quiet remote.futrx || {
               echo "✗ service failed to start"
               journalctl -u remote.futrx -n 30 --no-pager
@@ -95,18 +95,16 @@ jobs:
           }
 
           # Cold start binds the port only after converging container resource
-          # envelopes (~13s with 16 projects), so poll up to 30s, not 5.
+          # envelopes (~13s with 16 projects), so allow a real 30s deadline.
           echo "==> health check"
-          for _ in $(seq 1 30); do
-              if curl -fsS --max-time 3 http://127.0.0.1:7682/ >/dev/null 2>&1; then
-                  echo "✓ backend responding"
-                  exit 0
-              fi
-              sleep 1
-          done
-          echo "✗ backend did not respond on 127.0.0.1:7682 within 30s"
-          journalctl -u remote.futrx -n 30 --no-pager
-          exit 1
+          . infra/lib/health-check.sh
+          if wait_for_http_health http://127.0.0.1:7682/ 30; then
+              echo "✓ backend responding"
+          else
+              echo "✗ backend did not respond on 127.0.0.1:7682 within 30s"
+              journalctl -u remote.futrx -n 30 --no-pager
+              exit 1
+          fi
           REMOTE
 
       - name: Summary

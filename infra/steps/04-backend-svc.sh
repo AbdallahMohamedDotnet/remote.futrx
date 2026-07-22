@@ -17,6 +17,8 @@ LEGACY_SERVICE_UNIT_PATH="/etc/systemd/system/$LEGACY_SERVICE_NAME"
 
 # shellcheck source=../lib/install-migration.sh
 . "$INFRA_DIR/lib/install-migration.sh"
+# shellcheck source=../lib/health-check.sh
+. "$INFRA_DIR/lib/health-check.sh"
 
 # ───────────────── systemd unit ─────────────────
 log "Rendering $SERVICE_UNIT_PATH"
@@ -47,7 +49,6 @@ if { [ "$SERVICE_ACTION" = "restart" ] && ! systemctl restart "$SERVICE_NAME"; }
 fi
 
 # ───────────────── health check ─────────────────
-sleep 1
 if ! systemctl is-active --quiet "$SERVICE_NAME"; then
     err "Service failed to start. Recent logs:"
     if ! rollback_legacy_service_migration "$SERVICE_NAME" "$LEGACY_SERVICE_NAME"; then
@@ -58,17 +59,9 @@ if ! systemctl is-active --quiet "$SERVICE_NAME"; then
 fi
 
 log "Health-checking backend on 127.0.0.1:${SERVICE_PORT}"
-HEALTH_OK=0
 # Cold start binds the port only after converging container resource envelopes
-# (~13s with 16 projects), so poll up to 30s, not 5.
-for _ in $(seq 1 30); do
-    if curl -fsS --max-time 3 "http://127.0.0.1:${SERVICE_PORT}/" >/dev/null 2>&1; then
-        HEALTH_OK=1
-        break
-    fi
-    sleep 1
-done
-if [ "$HEALTH_OK" -eq 0 ]; then
+# (~13s with 16 projects), so allow a real 30-second wall-clock deadline.
+if ! wait_for_http_health "http://127.0.0.1:${SERVICE_PORT}/" 30; then
     err "Backend did not respond on 127.0.0.1:${SERVICE_PORT} within 30s"
     if ! rollback_legacy_service_migration "$SERVICE_NAME" "$LEGACY_SERVICE_NAME"; then
         err "Automatic rollback to $LEGACY_SERVICE_NAME also failed."
