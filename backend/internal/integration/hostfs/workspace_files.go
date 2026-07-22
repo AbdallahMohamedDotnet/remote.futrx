@@ -112,43 +112,20 @@ func (s *WorkspaceFileStore) WriteArchive(root, relative string, destination io.
 	}
 
 	archive := zip.NewWriter(destination)
-	defer archive.Close()
 
 	// WalkDir does not descend into symlinked directories, so directory-symlink
 	// loops are impossible. Symlinked files are included only if they still
 	// resolve inside the workspace.
-	return filepath.WalkDir(base, func(walkPath string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
+	walkErr := filepath.WalkDir(base, func(walkPath string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
 			return nil
 		}
-		openPath := walkPath
-		if entry.Type()&os.ModeSymlink != 0 {
-			target, resolveErr := filepath.EvalSymlinks(walkPath)
-			if resolveErr != nil || !workspacepath.Contains(target, workspace.realRoot) {
-				return nil
-			}
-			info, statErr := os.Stat(target)
-			if statErr != nil || info.IsDir() {
-				return nil
-			}
-			openPath = target
-		}
-		relative, relErr := filepath.Rel(base, walkPath)
-		if relErr != nil {
-			return nil
-		}
-		writer, createErr := archive.Create(filepath.ToSlash(relative))
-		if createErr != nil {
-			return nil
-		}
-		source, openErr := os.Open(openPath)
-		if openErr != nil {
-			return nil
-		}
-		defer source.Close()
-		_, _ = io.Copy(writer, source)
-		return nil
+		return workspace.writeArchiveEntry(archive, base, walkPath, entry)
 	})
+	return errors.Join(walkErr, archive.Close())
 }
 
 func (s *WorkspaceFileStore) Search(root, query string, limit int) ([]*serviceworkspacefiles.Node, bool, error) {
@@ -180,16 +157,10 @@ func (s *WorkspaceFileStore) Search(root, query string, limit int) ([]*servicewo
 		if relErr != nil {
 			return nil
 		}
-		node := &serviceworkspacefiles.Node{
-			Name:  entry.Name(),
-			Path:  filepath.ToSlash(relative),
-			IsDir: entry.IsDir(),
-		}
-		if !entry.IsDir() {
-			if info, infoErr := entry.Info(); infoErr == nil {
-				node.Size = info.Size()
-				node.ModTime = info.ModTime().UnixMilli()
-			}
+		workspaceRelative := filepath.ToSlash(relative)
+		node, ok := workspace.nodeFor(path.Dir(workspaceRelative), entry)
+		if !ok {
+			return nil
 		}
 		results = append(results, node)
 		if len(results) >= limit {
@@ -202,6 +173,46 @@ func (s *WorkspaceFileStore) Search(root, query string, limit int) ([]*servicewo
 		return nil, false, walkErr
 	}
 	return results, truncated, nil
+}
+
+func (w secureWorkspace) writeArchiveEntry(
+	archive *zip.Writer,
+	base string,
+	walkPath string,
+	entry os.DirEntry,
+) error {
+	openPath := walkPath
+	if entry.Type()&os.ModeSymlink != 0 {
+		target, err := filepath.EvalSymlinks(walkPath)
+		if err != nil || !workspacepath.Contains(target, w.realRoot) {
+			// Broken and escaping symlinks are intentionally omitted: neither is a
+			// usable file inside the workspace boundary.
+			return nil
+		}
+		info, err := os.Stat(target)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		openPath = target
+	}
+
+	relative, err := filepath.Rel(base, walkPath)
+	if err != nil {
+		return err
+	}
+	destination, err := archive.Create(filepath.ToSlash(relative))
+	if err != nil {
+		return err
+	}
+	source, err := os.Open(openPath)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(destination, source)
+	return errors.Join(copyErr, source.Close())
 }
 
 // nodeFor builds a listing node for a directory entry. Symlinks are resolved and

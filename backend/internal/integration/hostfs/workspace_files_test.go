@@ -1,6 +1,9 @@
 package hostfs
 
 import (
+	"archive/zip"
+	"bytes"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -124,4 +127,68 @@ func TestSearchFindsNestedFile(t *testing.T) {
 	if !found {
 		t.Fatalf("expected to find src/app.go, got %v", results)
 	}
+}
+
+func TestSearchDropsSymlinkThatEscapesWorkspace(t *testing.T) {
+	root, secret := setupWorkspace(t)
+	store := NewWorkspaceFileStore()
+	if err := os.Symlink(secret, filepath.Join(root, "outside-match.txt")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	results, _, err := store.Search(root, "outside", 100)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	for _, result := range results {
+		if result.Name == "outside-match.txt" {
+			t.Fatal("escaping symlink appeared in search results")
+		}
+	}
+}
+
+func TestWriteArchiveIncludesWorkspaceFilesAndDropsEscapingSymlinks(t *testing.T) {
+	root, secret := setupWorkspace(t)
+	store := NewWorkspaceFileStore()
+	if err := os.Symlink(secret, filepath.Join(root, "escape.txt")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	var destination bytes.Buffer
+	if err := store.WriteArchive(root, "", &destination); err != nil {
+		t.Fatalf("WriteArchive: %v", err)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(destination.Bytes()), int64(destination.Len()))
+	if err != nil {
+		t.Fatalf("open archive: %v", err)
+	}
+	names := make(map[string]bool, len(archive.File))
+	for _, file := range archive.File {
+		names[file.Name] = true
+	}
+	if !names[".env"] || !names["src/app.go"] {
+		t.Fatalf("archive is missing workspace files: %v", names)
+	}
+	if names["escape.txt"] {
+		t.Fatal("archive included symlink that escapes the workspace")
+	}
+}
+
+func TestWriteArchiveReturnsDestinationFailure(t *testing.T) {
+	root, _ := setupWorkspace(t)
+	store := NewWorkspaceFileStore()
+	wantErr := errors.New("destination failed")
+
+	err := store.WriteArchive(root, "", failingWriter{err: wantErr})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("WriteArchive error = %v, want %v", err, wantErr)
+	}
+}
+
+type failingWriter struct {
+	err error
+}
+
+func (w failingWriter) Write([]byte) (int, error) {
+	return 0, w.err
 }
