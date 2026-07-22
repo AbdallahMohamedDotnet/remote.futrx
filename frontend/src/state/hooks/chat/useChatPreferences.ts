@@ -8,6 +8,7 @@ import type {
 } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import { useUserSettingsContext } from "../../context/UserSettingsContext";
+import { chatPreferenceState } from "../../chat/chatPreferenceState";
 import { useChatMetaActions } from "./useChatMetaActions";
 
 export function useChatPreferences({
@@ -20,17 +21,9 @@ export function useChatPreferences({
   refreshMeta: () => Promise<void>;
 }) {
   const { settings, setChatSettings } = useUserSettingsContext();
-  const baseMeta = loadedMeta ?? chat;
-  const displayProvider = baseMeta.provider || settings.chat.provider;
-  const displayMode = baseMeta.mode || settings.chat.mode;
-  const displayMeta: ChatMeta = {
-    ...baseMeta,
-    provider: displayProvider,
-    model: baseMeta.model ?? settings.chat.model,
-    mode: displayMode,
-    reasoningEffort: baseMeta.reasoningEffort ?? settings.chat.reasoningEffort,
-    serviceTier: baseMeta.serviceTier ?? settings.chat.serviceTier,
-  };
+  const displayMeta = chatPreferenceState.resolveMeta(chat, loadedMeta, settings.chat);
+  const displayProvider = displayMeta.provider;
+  const displayMode = displayMeta.mode;
   const selectedSkills = displayMeta.selectedSkills || [];
   const metaActions = useChatMetaActions({ chatId: chat.id, refreshMeta });
 
@@ -41,22 +34,18 @@ export function useChatPreferences({
   }
 
   function selectSkill(skill: RegisteredSkill) {
-    const next: SelectedSkill = {
-      name: skill.name,
-      command: skill.command || skill.name,
-      provider: skill.provider || displayProvider,
-      source: skill.source,
-    };
-    if (selectedSkills.some((selected) => skillKey(selected, displayProvider) === skillKey(next, displayProvider))) {
-      return;
-    }
+    const next = chatPreferenceState.selectedSkill(skill, displayProvider);
+    if (chatPreferenceState.includesSkill(selectedSkills, next, displayProvider)) return;
     metaActions.applyMeta({ selectedSkills: [...selectedSkills, next] });
   }
 
   function removeSelectedSkill(skill: SelectedSkill) {
-    const key = skillKey(skill, displayProvider);
     metaActions.applyMeta({
-      selectedSkills: selectedSkills.filter((selected) => skillKey(selected, displayProvider) !== key),
+      selectedSkills: chatPreferenceState.withoutSkill(
+        selectedSkills,
+        skill,
+        displayProvider
+      ),
     });
   }
 
@@ -92,11 +81,4 @@ export function useChatPreferences({
     selectSkill,
     removeSelectedSkill,
   };
-}
-
-function skillKey(skill: SelectedSkill | RegisteredSkill, defaultProvider: ChatProvider) {
-  const provider = skill.provider || defaultProvider;
-  const source = skill.source || "";
-  const command = (skill.command || skill.name).trim().toLowerCase();
-  return `${provider}:${source.toLowerCase()}:${command}`;
 }
