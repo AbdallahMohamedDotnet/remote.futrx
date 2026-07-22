@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import type { FileNode } from "../../../models/files";
-import { chatApi } from "../../../api/chatApi";
+import type { WorkspaceFileTreeState } from "../../../state/hooks/chat/useWorkspaceFileBrowser";
 import {
   Archive,
   ChevronRight,
@@ -29,16 +29,6 @@ const CATEGORY_META: Record<FileCategory, { Icon: IconComponent; color: string }
   text: { Icon: FileText, color: "text-ink-300" },
 };
 
-/** Shared state + callbacks threaded through the lazily-loaded tree. */
-export interface TreeState {
-  chatId: string;
-  expanded: Set<string>;
-  loading: Set<string>;
-  childrenByDir: Map<string, FileNode[]>;
-  errorByDir: Map<string, string>;
-  onToggle: (path: string) => void;
-}
-
 export function FileTreeNodes({
   nodes,
   depth,
@@ -46,7 +36,7 @@ export function FileTreeNodes({
 }: {
   nodes: FileNode[];
   depth: number;
-  state: TreeState;
+  state: WorkspaceFileTreeState;
 }) {
   return (
     <ul class={depth > 0 ? "ml-3 border-l border-white/[0.07] pl-1" : ""}>
@@ -54,7 +44,7 @@ export function FileTreeNodes({
         node.isDir ? (
           <FolderRow key={node.path} node={node} depth={depth} state={state} />
         ) : (
-          <FileRow key={node.path} chatId={state.chatId} node={node} />
+          <FileRow key={node.path} node={node} downloadUrl={state.downloadUrl} />
         )
       )}
     </ul>
@@ -68,7 +58,7 @@ function FolderRow({
 }: {
   node: FileNode;
   depth: number;
-  state: TreeState;
+  state: WorkspaceFileTreeState;
 }) {
   const isOpen = state.expanded.has(node.path);
   const isLoading = state.loading.has(node.path);
@@ -106,7 +96,7 @@ function FolderRow({
           <span class="text-[11px] text-ink-500 tabular-nums flex-none">{children.length}</span>
         )}
         <a
-          href={chatApi.folderDownloadUrl(state.chatId, node.path)}
+          href={state.downloadUrl(node)}
           onClick={(event) => event.stopPropagation()}
           class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
                  opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
@@ -129,7 +119,13 @@ function FolderRow({
   );
 }
 
-function FileRow({ chatId, node }: { chatId: string; node: FileNode }) {
+function FileRow({
+  node,
+  downloadUrl,
+}: {
+  node: FileNode;
+  downloadUrl: (node: FileNode) => string;
+}) {
   const { Icon, color } = CATEGORY_META[categorize(node.name)];
   return (
     <li>
@@ -141,7 +137,7 @@ function FileRow({ chatId, node }: { chatId: string; node: FileNode }) {
           <span class="text-[11px] text-ink-500 tabular-nums flex-none">{formatBytes(node.size)}</span>
         )}
         <a
-          href={chatApi.fileDownloadUrl(chatId, node.path)}
+          href={downloadUrl(node)}
           download={node.name}
           class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
                  opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
@@ -156,14 +152,17 @@ function FileRow({ chatId, node }: { chatId: string; node: FileNode }) {
 }
 
 /** Flat row used to render server-side search results, showing the full path. */
-export function SearchResultRow({ chatId, node }: { chatId: string; node: FileNode }) {
+export function SearchResultRow({
+  node,
+  downloadUrl,
+}: {
+  node: FileNode;
+  downloadUrl: (node: FileNode) => string;
+}) {
   const dir = parentDir(node.path);
   const { Icon, color } = node.isDir
     ? { Icon: Folder as IconComponent, color: "text-accent-blue" }
     : CATEGORY_META[categorize(node.name)];
-  const href = node.isDir
-    ? chatApi.folderDownloadUrl(chatId, node.path)
-    : chatApi.fileDownloadUrl(chatId, node.path);
   return (
     <li>
       <div class="group flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-white/[0.05]">
@@ -176,7 +175,7 @@ export function SearchResultRow({ chatId, node }: { chatId: string; node: FileNo
           <span class="text-[11px] text-ink-500 tabular-nums flex-none">{formatBytes(node.size)}</span>
         )}
         <a
-          href={href}
+          href={downloadUrl(node)}
           download={node.isDir ? undefined : node.name}
           class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
                  opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
