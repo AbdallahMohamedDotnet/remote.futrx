@@ -8,10 +8,8 @@ import {
   type UserSettings,
 } from "../../models/settings";
 import { settingsApi } from "../../api/settingsApi";
-import {
-  DEFAULT_USER_SETTINGS,
-  SYSTEM_LIGHT_MEDIA_QUERY,
-} from "../../config/settings";
+import { DEFAULT_USER_SETTINGS } from "../../config/settings";
+import { appearanceThemeState } from "../settings/appearanceThemeState";
 
 interface UserSettingsContextValue {
   settings: UserSettings;
@@ -56,13 +54,8 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
   }, [refresh]);
 
   useEffect(() => {
-    applyTheme(settings.appearance.theme);
-    if (settings.appearance.theme !== "system" || typeof window === "undefined") return;
-
-    const query = window.matchMedia(SYSTEM_LIGHT_MEDIA_QUERY);
-    const onChange = () => applyTheme("system");
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
+    appearanceThemeState.apply(settings.appearance.theme);
+    return appearanceThemeState.observeSystemChanges(settings.appearance.theme);
   }, [settings.appearance.theme]);
 
   const setTheme = useCallback(async (theme: AppearanceTheme) => {
@@ -116,21 +109,4 @@ export function useUserSettingsContext(): UserSettingsContextValue {
   const value = useContext(UserSettingsContext);
   if (!value) throw new Error("useUserSettingsContext must be used inside UserSettingsProvider");
   return value;
-}
-
-function applyTheme(theme: AppearanceTheme) {
-  if (typeof document === "undefined") return;
-  const resolved = resolveTheme(theme);
-  const root = document.documentElement;
-  root.dataset.theme = resolved;
-  root.dataset.themeChoice = theme;
-  root.classList.toggle("light", resolved === "light");
-  root.classList.toggle("dark", resolved === "dark");
-  root.style.colorScheme = resolved;
-}
-
-function resolveTheme(theme: AppearanceTheme): "dark" | "light" {
-  if (theme === "light" || theme === "dark") return theme;
-  if (typeof window === "undefined") return "dark";
-  return window.matchMedia(SYSTEM_LIGHT_MEDIA_QUERY).matches ? "light" : "dark";
 }
