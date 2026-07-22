@@ -19,14 +19,14 @@ import (
 
 const queryTimeout = 10 * time.Second
 
-// Service owns container environment configuration.
-type Service struct {
+// Client owns container environment configuration.
+type Client struct {
 	runner command.Runner
 }
 
-// NewService returns an environment service backed by runner.
-func NewService(runner command.Runner) *Service {
-	return &Service{runner: runner}
+// NewClient returns an environment client backed by runner.
+func NewClient(runner command.Runner) *Client {
+	return &Client{runner: runner}
 }
 
 // ApplyContainerEnvDiff sets the values in set and removes the keys in unset.
@@ -36,7 +36,7 @@ func NewService(runner command.Runner) *Service {
 // Either map can be nil/empty. Already-running processes inside the container
 // keep their fork-time environ; only new exec sessions and child processes
 // pick up the new values — unavoidable env-var caveat.
-func (s *Service) ApplyDiff(
+func (s *Client) ApplyDiff(
 	ctx context.Context,
 	container string,
 	set map[string]string,

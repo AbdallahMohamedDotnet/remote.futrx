@@ -12,9 +12,9 @@ import (
 func TestApplyDiffEndsFlagParsingBeforeSecretValue(t *testing.T) {
 	const secret = "-----secret-that-starts-like-a-flag"
 	runner := &environmentTestRunner{}
-	service := NewService(runner)
+	client := NewClient(runner)
 
-	if err := service.ApplyDiff(context.Background(), "project", map[string]string{"SSH_KEY": secret}, nil); err != nil {
+	if err := client.ApplyDiff(context.Background(), "project", map[string]string{"SSH_KEY": secret}, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -29,9 +29,9 @@ func TestApplyDiffEndsFlagParsingBeforeSecretValue(t *testing.T) {
 
 func TestApplyDiffRemovesPersistentValueWhenReplacementIsMultiline(t *testing.T) {
 	runner := &environmentTestRunner{}
-	service := NewService(runner)
+	client := NewClient(runner)
 
-	if err := service.ApplyDiff(context.Background(), "project", map[string]string{
+	if err := client.ApplyDiff(context.Background(), "project", map[string]string{
 		"SSH_KEY": "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret\n-----END OPENSSH PRIVATE KEY-----",
 	}, nil); err != nil {
 		t.Fatal(err)
@@ -47,9 +47,9 @@ func TestApplyDiffRemovesPersistentValueWhenReplacementIsMultiline(t *testing.T)
 func TestApplyDiffDoesNotIncludeSecretInSetError(t *testing.T) {
 	const secret = "-----BEGIN-PRIVATE-KEY-secret"
 	runner := &environmentTestRunner{setOut: secret, setErr: errors.New("exit status 1")}
-	service := NewService(runner)
+	client := NewClient(runner)
 
-	err := service.ApplyDiff(context.Background(), "project", map[string]string{"PRIVATE_KEY": secret}, nil)
+	err := client.ApplyDiff(context.Background(), "project", map[string]string{"PRIVATE_KEY": secret}, nil)
 	if err == nil {
 		t.Fatal("expected set failure")
 	}

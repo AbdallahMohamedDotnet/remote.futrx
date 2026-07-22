@@ -36,7 +36,7 @@ type ContainerStack struct {
 	Lifecycle   *servicelifecycle.Service
 	Inspection  *serviceinspection.Service
 	Credentials *servicecredentials.Service
-	Environment *containerenvironment.Service
+	Environment *containerenvironment.Client
 	CLI         *servicecli.Provisioner
 	Browser     *servicebrowser.Service
 	Listeners   *containerlisteners.Scanner
@@ -87,7 +87,7 @@ func NewContainerStack(
 	publisher := assets.NewPublisher(runner)
 	credentialTransfer := containercredentials.NewAdapter(runner)
 	credentials := servicecredentials.NewService(profiles, credentialTransfer)
-	environment := containerenvironment.NewService(runner)
+	environment := containerenvironment.NewClient(runner)
 	listeners := containerlisteners.NewScanner(runner)
 	network := containernetwork.NewRepairer(runner)
 	cliRuntime := containercli.NewClient(runner)
