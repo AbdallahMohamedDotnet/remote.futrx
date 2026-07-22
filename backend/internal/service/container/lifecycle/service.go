@@ -98,7 +98,9 @@ func (s *Service) Launch(ctx context.Context, project serviceproject.Meta) error
 	}
 
 	if err := s.runtime.Launch(ctx, s.image, project.ContainerName); err != nil {
-		return err
+		// A canceled or failed `lxc launch` may still have created the instance.
+		// Restore MISSING so the next recovery retries the complete sequence.
+		return s.rollbackNewContainer(ctx, project.ContainerName, err)
 	}
 
 	_ = s.resources.Ensure(ctx, project.ContainerName)

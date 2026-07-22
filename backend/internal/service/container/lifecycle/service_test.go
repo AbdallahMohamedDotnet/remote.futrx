@@ -276,6 +276,41 @@ func TestLaunchRollsBackNewContainerWhenWorkspaceAttachmentFails(t *testing.T) {
 	}
 }
 
+func TestLaunchCleansUpAfterFailedRuntimeLaunch(t *testing.T) {
+	var events []string
+	wantErr := errors.New("launch failed after creating instance")
+	service := NewService(
+		recordingRuntime{
+			events:    &events,
+			available: true,
+			state:     serviceproject.ContainerStateMissing,
+			launchErr: wantErr,
+		},
+		"local:remote-base",
+		recordingWorkspace{events: &events},
+		recordingResources{events: &events},
+		recordingProvisioner{events: &events},
+	)
+
+	err := service.Launch(context.Background(), serviceproject.Meta{
+		Cwd:           "/host/workspaces/project-1",
+		ContainerName: "project-1",
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Launch() error = %v, want %v", err, wantErr)
+	}
+	want := []string{
+		"runtime available",
+		"workspace prepare /host/workspaces/project-1",
+		"runtime state project-1",
+		"runtime launch local:remote-base project-1",
+		"runtime delete project-1",
+	}
+	if !slices.Equal(events, want) {
+		t.Fatalf("events:\n got: %q\nwant: %q", events, want)
+	}
+}
+
 func TestLaunchReportsProvisioningAndRollbackFailures(t *testing.T) {
 	var events []string
 	attachErr := errors.New("attach failed")
