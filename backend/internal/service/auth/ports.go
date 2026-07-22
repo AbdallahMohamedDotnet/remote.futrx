@@ -7,10 +7,14 @@ type OAuthConfigStore interface {
 	SaveOAuthConfig(context.Context, OAuthConfig) error
 }
 
-type Store interface {
-	OAuthConfigStore
+type LocalAdminStore interface {
 	LocalAdmin(context.Context) (*LocalAdminCredential, error)
 	CreateLocalAdmin(context.Context, LocalAdminCredential) error
+}
+
+type Store interface {
+	OAuthConfigStore
+	LocalAdminStore
 	SessionKey(context.Context) ([]byte, error)
 }
 
