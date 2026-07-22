@@ -110,7 +110,11 @@ func (s *Service) Launch(ctx context.Context, project serviceproject.Meta) error
 			project.ResourceLimits.Memory,
 			project.ResourceLimits.Disk,
 		); err != nil {
-			return fmt.Errorf("apply resource limits: %w", err)
+			return s.rollbackNewContainer(
+				ctx,
+				project.ContainerName,
+				fmt.Errorf("apply resource limits: %w", err),
+			)
 		}
 	}
 
@@ -122,12 +126,27 @@ func (s *Service) Launch(ctx context.Context, project serviceproject.Meta) error
 		containerWorkspacePath,
 		false,
 	); err != nil {
-		return fmt.Errorf("attach workspace: %w", err)
+		return s.rollbackNewContainer(
+			ctx,
+			project.ContainerName,
+			fmt.Errorf("attach workspace: %w", err),
+		)
 	}
 
 	_ = s.EnsureBootAutostart(ctx, project.ContainerName)
 	s.provisioner.Provision(ctx, project.ContainerName, project.Name)
 	return nil
+}
+
+// rollbackNewContainer restores the pre-launch invariant: when provisioning a
+// new instance fails, the next Start must observe MISSING and retry the complete
+// launch sequence. Cleanup deliberately outlives request cancellation; the
+// runtime's own delete deadline keeps it bounded.
+func (s *Service) rollbackNewContainer(ctx context.Context, containerName string, cause error) error {
+	if rollbackErr := s.runtime.Delete(context.WithoutCancel(ctx), containerName); rollbackErr != nil {
+		return errors.Join(cause, fmt.Errorf("rollback launched container: %w", rollbackErr))
+	}
+	return cause
 }
 
 func (s *Service) EnsureBootAutostart(ctx context.Context, containerName string) error {

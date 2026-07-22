@@ -18,6 +18,7 @@ type recordingRuntime struct {
 	attachErr    error
 	autostartErr error
 	startErr     error
+	deleteErr    error
 }
 
 func (r recordingRuntime) Available() bool {
@@ -68,7 +69,7 @@ func (r recordingRuntime) Restart(_ context.Context, containerName string) error
 
 func (r recordingRuntime) Delete(_ context.Context, containerName string) error {
 	*r.events = append(*r.events, "runtime delete "+containerName)
-	return nil
+	return r.deleteErr
 }
 
 func (r recordingRuntime) State(_ context.Context, containerName string) (serviceproject.ContainerState, error) {
@@ -233,5 +234,71 @@ func TestLaunchAppliesProjectResourceLimitsBeforeStarting(t *testing.T) {
 	}
 	if !slices.Equal(events, want) {
 		t.Fatalf("events:\n got: %q\nwant: %q", events, want)
+	}
+}
+
+func TestLaunchRollsBackNewContainerWhenWorkspaceAttachmentFails(t *testing.T) {
+	var events []string
+	wantErr := errors.New("attach failed")
+	service := NewService(
+		recordingRuntime{
+			events:    &events,
+			available: true,
+			state:     serviceproject.ContainerStateMissing,
+			attachErr: wantErr,
+		},
+		"local:remote-base",
+		recordingWorkspace{events: &events},
+		recordingResources{events: &events},
+		recordingProvisioner{events: &events},
+	)
+
+	err := service.Launch(context.Background(), serviceproject.Meta{
+		Name:          "My Project",
+		Cwd:           "/host/workspaces/project-1",
+		ContainerName: "project-1",
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Launch() error = %v, want %v", err, wantErr)
+	}
+
+	want := []string{
+		"runtime available",
+		"workspace prepare /host/workspaces/project-1",
+		"runtime state project-1",
+		"runtime launch local:remote-base project-1",
+		"resources ensure project-1",
+		"runtime attach project-1 workspace /host/workspaces/project-1 /workspace read-write",
+		"runtime delete project-1",
+	}
+	if !slices.Equal(events, want) {
+		t.Fatalf("events:\n got: %q\nwant: %q", events, want)
+	}
+}
+
+func TestLaunchReportsProvisioningAndRollbackFailures(t *testing.T) {
+	var events []string
+	attachErr := errors.New("attach failed")
+	deleteErr := errors.New("delete failed")
+	service := NewService(
+		recordingRuntime{
+			events:    &events,
+			available: true,
+			state:     serviceproject.ContainerStateMissing,
+			attachErr: attachErr,
+			deleteErr: deleteErr,
+		},
+		"local:remote-base",
+		recordingWorkspace{events: &events},
+		recordingResources{events: &events},
+		recordingProvisioner{events: &events},
+	)
+
+	err := service.Launch(context.Background(), serviceproject.Meta{
+		Cwd:           "/host/workspaces/project-1",
+		ContainerName: "project-1",
+	})
+	if !errors.Is(err, attachErr) || !errors.Is(err, deleteErr) {
+		t.Fatalf("Launch() error = %v, want joined attach and rollback failures", err)
 	}
 }
