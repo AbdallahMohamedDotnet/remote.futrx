@@ -36,12 +36,21 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Test installer compatibility
         run: |
           bash infra/tests/go-toolchain-test.sh
           bash infra/tests/go-download-check.sh
           bash infra/tests/install-migration-test.sh
           bash infra/tests/health-check-test.sh
+          npm --prefix frontend ci --no-audit --no-fund
+          npm --prefix frontend test
 
       - name: Prepare SSH
         env:
