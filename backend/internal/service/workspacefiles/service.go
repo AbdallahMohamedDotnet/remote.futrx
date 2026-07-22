@@ -1,6 +1,7 @@
 package workspacefiles
 
 import (
+	"context"
 	"errors"
 	"io"
 	"path"
@@ -36,7 +37,7 @@ type Store interface {
 	DirectoryExists(root, relative string) bool
 	ListDir(root, relative string, maxEntries int) ([]*Node, bool, error)
 	OpenFile(root, relative string) (io.ReadSeekCloser, string, time.Time, error)
-	WriteArchive(root, relative string, destination io.Writer) error
+	WriteArchive(ctx context.Context, root, relative string, destination io.Writer) error
 	Search(root, query string, limit int) ([]*Node, bool, error)
 }
 
@@ -125,8 +126,8 @@ func (s *Service) PrepareArchive(cwd, relativePath string) (Archive, error) {
 	return Archive{Name: name + ".zip", root: root, relative: rel}, nil
 }
 
-func (s *Service) WriteArchive(archive Archive, destination io.Writer) error {
-	return s.store.WriteArchive(archive.root, archive.relative, destination)
+func (s *Service) WriteArchive(ctx context.Context, archive Archive, destination io.Writer) error {
+	return s.store.WriteArchive(ctx, archive.root, archive.relative, destination)
 }
 
 func (s *Service) Search(cwd, query string) (SearchResult, error) {

@@ -66,10 +66,13 @@ func (h *ChatHandler) handleFilesDownloadFolder(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	spooled, err := workspaceArchiveSpooler.prepare(func(destination io.Writer) error {
-		return h.files.WriteArchive(archive, destination)
+	spooled, err := workspaceArchiveSpooler.prepare(r.Context(), func(destination io.Writer) error {
+		return h.files.WriteArchive(r.Context(), archive, destination)
 	})
 	if err != nil {
+		if r.Context().Err() != nil {
+			return
+		}
 		sendWorkspaceFileError(w, err)
 		return
 	}
@@ -83,6 +86,8 @@ func (h *ChatHandler) handleFilesDownloadFolder(w http.ResponseWriter, r *http.R
 
 func sendWorkspaceFileError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, errWorkspaceArchiveTooLarge):
+		httptransport.SendErr(w, http.StatusRequestEntityTooLarge, err.Error())
 	case errors.Is(err, serviceworkspacefiles.ErrInvalidPath):
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, serviceworkspacefiles.ErrFileNotFound),

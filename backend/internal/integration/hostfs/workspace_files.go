@@ -2,6 +2,7 @@ package hostfs
 
 import (
 	"archive/zip"
+	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -112,7 +113,10 @@ func (s *WorkspaceFileStore) OpenFile(root, relative string) (io.ReadSeekCloser,
 	return file, info.Name(), info.ModTime(), nil
 }
 
-func (s *WorkspaceFileStore) WriteArchive(root, relative string, destination io.Writer) error {
+func (s *WorkspaceFileStore) WriteArchive(ctx context.Context, root, relative string, destination io.Writer) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	workspace, err := newSecureWorkspace(root)
 	if err != nil {
 		return err
@@ -129,15 +133,19 @@ func (s *WorkspaceFileStore) WriteArchive(root, relative string, destination io.
 	// loops are impossible. Symlinked files are included only if they still
 	// resolve inside the workspace.
 	walkErr := fs.WalkDir(workspace.root.FS(), base, func(walkPath string, entry fs.DirEntry, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil {
 			return walkErr
 		}
 		if entry.IsDir() {
 			return nil
 		}
-		return workspace.writeArchiveEntry(archive, base, walkPath, entry)
+		return workspace.writeArchiveEntry(ctx, archive, base, walkPath, entry)
 	})
-	return errors.Join(walkErr, archive.Close())
+	closeErr := archive.Close()
+	return errors.Join(walkErr, closeErr, ctx.Err())
 }
 
 func (s *WorkspaceFileStore) Search(root, query string, limit int) ([]*serviceworkspacefiles.Node, bool, error) {
@@ -184,6 +192,7 @@ func (s *WorkspaceFileStore) Search(root, query string, limit int) ([]*servicewo
 }
 
 func (w secureWorkspace) writeArchiveEntry(
+	ctx context.Context,
 	archive *zip.Writer,
 	base string,
 	walkPath string,
@@ -215,8 +224,20 @@ func (w secureWorkspace) writeArchiveEntry(
 	if err != nil {
 		return errors.Join(err, source.Close())
 	}
-	_, copyErr := io.Copy(destination, source)
+	_, copyErr := io.Copy(destination, contextReader{ctx: ctx, reader: source})
 	return errors.Join(copyErr, source.Close())
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r contextReader) Read(buffer []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(buffer)
 }
 
 // nodeFor builds a listing node for a directory entry. Symlinks are resolved and

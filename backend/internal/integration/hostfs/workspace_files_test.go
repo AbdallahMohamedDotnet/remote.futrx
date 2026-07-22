@@ -3,6 +3,7 @@ package hostfs
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -112,6 +113,49 @@ func TestSymlinkInsideWorkspaceIsAllowed(t *testing.T) {
 	}
 }
 
+func TestRootedOpenRejectsParentSymlinkSwapAfterResolve(t *testing.T) {
+	root, _ := setupWorkspace(t)
+	checkedParent := filepath.Join(root, "checked")
+	if err := os.MkdirAll(checkedParent, 0o755); err != nil {
+		t.Fatalf("mkdir checked parent: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(checkedParent, "secret.txt"), []byte("inside"), 0o644); err != nil {
+		t.Fatalf("write checked file: %v", err)
+	}
+	outside := filepath.Join(filepath.Dir(root), "outside")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatalf("mkdir outside: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("outside"), 0o644); err != nil {
+		t.Fatalf("write outside file: %v", err)
+	}
+
+	workspace, err := newSecureWorkspace(root)
+	if err != nil {
+		t.Fatalf("open secure workspace: %v", err)
+	}
+	defer workspace.close()
+	resolved, err := workspace.resolve("checked/secret.txt")
+	if err != nil {
+		t.Fatalf("resolve checked file: %v", err)
+	}
+	if err := os.Rename(checkedParent, filepath.Join(root, "checked-original")); err != nil {
+		t.Fatalf("rename checked parent: %v", err)
+	}
+	if err := os.Symlink(outside, checkedParent); err != nil {
+		t.Fatalf("replace checked parent with symlink: %v", err)
+	}
+
+	file, err := workspace.root.Open(resolved)
+	if file != nil {
+		_ = file.Close()
+		t.Fatal("rooted open followed swapped parent outside workspace")
+	}
+	if err == nil {
+		t.Fatal("rooted open unexpectedly succeeded after parent symlink swap")
+	}
+}
+
 func TestSearchFindsNestedFile(t *testing.T) {
 	root, _ := setupWorkspace(t)
 	store := NewWorkspaceFileStore()
@@ -157,7 +201,7 @@ func TestWriteArchiveIncludesWorkspaceFilesAndDropsEscapingSymlinks(t *testing.T
 	}
 
 	var destination bytes.Buffer
-	if err := store.WriteArchive(root, "", &destination); err != nil {
+	if err := store.WriteArchive(context.Background(), root, "", &destination); err != nil {
 		t.Fatalf("WriteArchive: %v", err)
 	}
 	archive, err := zip.NewReader(bytes.NewReader(destination.Bytes()), int64(destination.Len()))
@@ -184,7 +228,7 @@ func TestWriteArchiveIncludesAbsoluteSymlinkWithinWorkspace(t *testing.T) {
 	}
 
 	var destination bytes.Buffer
-	if err := store.WriteArchive(root, "", &destination); err != nil {
+	if err := store.WriteArchive(context.Background(), root, "", &destination); err != nil {
 		t.Fatalf("WriteArchive: %v", err)
 	}
 	archive, err := zip.NewReader(bytes.NewReader(destination.Bytes()), int64(destination.Len()))
@@ -242,7 +286,7 @@ func TestWriteArchiveSkipsNamedPipeWithoutBlocking(t *testing.T) {
 	var destination bytes.Buffer
 
 	err := awaitPipeOperation(t, pipePath, func() error {
-		return store.WriteArchive(root, "", &destination)
+		return store.WriteArchive(context.Background(), root, "", &destination)
 	})
 	if err != nil {
 		t.Fatalf("WriteArchive: %v", err)
@@ -258,12 +302,40 @@ func TestWriteArchiveSkipsNamedPipeWithoutBlocking(t *testing.T) {
 	}
 }
 
+func TestWriteArchiveHonorsCanceledContext(t *testing.T) {
+	root, _ := setupWorkspace(t)
+	store := NewWorkspaceFileStore()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var destination bytes.Buffer
+
+	err := store.WriteArchive(ctx, root, "", &destination)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("WriteArchive error = %v, want %v", err, context.Canceled)
+	}
+	if destination.Len() != 0 {
+		t.Fatalf("canceled archive wrote %d bytes", destination.Len())
+	}
+}
+
+func TestWriteArchiveStopsWhenContextIsCanceledDuringBuild(t *testing.T) {
+	root, _ := setupWorkspace(t)
+	store := NewWorkspaceFileStore()
+	ctx, cancel := context.WithCancel(context.Background())
+	destination := &cancelAfterFirstWrite{cancel: cancel}
+
+	err := store.WriteArchive(ctx, root, "", destination)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("WriteArchive error = %v, want %v", err, context.Canceled)
+	}
+}
+
 func TestWriteArchiveReturnsDestinationFailure(t *testing.T) {
 	root, _ := setupWorkspace(t)
 	store := NewWorkspaceFileStore()
 	wantErr := errors.New("destination failed")
 
-	err := store.WriteArchive(root, "", failingWriter{err: wantErr})
+	err := store.WriteArchive(context.Background(), root, "", failingWriter{err: wantErr})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("WriteArchive error = %v, want %v", err, wantErr)
 	}
@@ -275,6 +347,19 @@ type failingWriter struct {
 
 func (w failingWriter) Write([]byte) (int, error) {
 	return 0, w.err
+}
+
+type cancelAfterFirstWrite struct {
+	cancel context.CancelFunc
+	wrote  bool
+}
+
+func (w *cancelAfterFirstWrite) Write(buffer []byte) (int, error) {
+	if !w.wrote {
+		w.wrote = true
+		w.cancel()
+	}
+	return len(buffer), nil
 }
 
 func awaitPipeOperation(t *testing.T, pipePath string, operation func() error) error {
