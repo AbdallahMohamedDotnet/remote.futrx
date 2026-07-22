@@ -54,7 +54,7 @@ dpkg() {
     esac
 }
 
-go_toolchain_github_url() {
+fetch_go_toolchain_github_url() {
     printf '%s\n' 'https://github.test/actions/go-versions/go-linux.tar.gz'
 }
 

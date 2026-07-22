@@ -27,7 +27,15 @@ go_toolchain_version() {
         | sed 's/^go//' || true
 }
 
-go_toolchain_github_url() {
+go_toolchain_official_urls() {
+    local version="$1" go_arch="$2"
+    local filename="go${version}.linux-${go_arch}.tar.gz"
+    printf '%s\n' \
+        "https://dl.google.com/go/${filename}" \
+        "https://go.dev/dl/${filename}"
+}
+
+fetch_go_toolchain_github_url() {
     local version="$1" go_arch="$2" actions_arch=""
     case "$go_arch" in
         amd64) actions_arch=x64 ;;
@@ -48,97 +56,27 @@ go_toolchain_github_url() {
         | head -1
 }
 
-ensure_go_toolchain() {
-    local desired="$1"
-    local install_root="${GO_INSTALL_ROOT:-/usr/local}"
-    local install_dir="$install_root/go"
-    local bin_dir="$install_root/bin"
-    local current_binary="" current=""
-    current_binary="$(command -v go 2>/dev/null || true)"
-    current="$(go_toolchain_version "$current_binary")"
-
-    if [ "$current" = "$desired" ]; then
-        ok "$($current_binary version)"
-        return 0
-    fi
-
-    log "Installing Go ${desired} (was ${current:-missing})"
-
-    local deb_arch go_arch filename
-    deb_arch="$(dpkg --print-architecture)"
-    if ! go_arch="$(go_toolchain_arch "$deb_arch")"; then
-        err "Unsupported CPU architecture for Go: $deb_arch"
+download_go_toolchain_archive() {
+    local archive="$1" url="$2"
+    rm -f "$archive"
+    if ! curl --fail --silent --show-error --location \
+        --connect-timeout 20 --retry 3 --retry-delay 2 \
+        -o "$archive" "$url"; then
         return 1
     fi
-    filename="go${desired}.linux-${go_arch}.tar.gz"
-
-    # Use the direct official download host first. go.dev normally redirects
-    # there, but some fresh-server networks have returned a transient 404 for
-    # the redirect endpoint. The canonical go.dev URL remains a fallback.
-    local urls=(
-        "https://dl.google.com/go/${filename}"
-        "https://go.dev/dl/${filename}"
-    )
-    local archive stage url downloaded=""
-    archive="$(mktemp --suffix=.tgz)"
-    mkdir -p "$install_root" "$bin_dir"
-    stage="$(mktemp -d "${install_root}/.go-stage.XXXXXX")"
-
-    for url in "${urls[@]}"; do
-        rm -f "$archive"
-        if curl --fail --silent --show-error --location \
-            --connect-timeout 20 --retry 3 --retry-delay 2 \
-            -o "$archive" "$url"; then
-            if [ -s "$archive" ] && tar -tzf "$archive" >/dev/null 2>&1; then
-                downloaded="$url"
-                break
-            fi
-            warn "Downloaded an invalid Go archive from $url; trying the next official source."
-        else
-            warn "Go download failed from $url; trying the next official source."
-        fi
-    done
-
-    # GitHub Actions maintains verified Go distributions for its runners.
-    # This gives servers whose network blocks Google download hosts a fully
-    # automatic third path through GitHub, which the installer already needs
-    # to reach for the application repository.
-    if [ -z "$downloaded" ]; then
-        local github_url=""
-        github_url="$(go_toolchain_github_url "$desired" "$go_arch" || true)"
-        if [ -n "$github_url" ]; then
-            urls+=("$github_url")
-            rm -f "$archive"
-            if curl --fail --silent --show-error --location \
-                --connect-timeout 20 --retry 3 --retry-delay 2 \
-                -o "$archive" "$github_url"; then
-                if [ -s "$archive" ] && tar -tzf "$archive" >/dev/null 2>&1; then
-                    downloaded="$github_url"
-                else
-                    warn "Downloaded an invalid Go archive from GitHub."
-                fi
-            else
-                warn "Go download failed from GitHub."
-            fi
-        else
-            warn "No GitHub-hosted Go ${desired} archive is available for ${go_arch}."
-        fi
+    if [ ! -s "$archive" ] || ! tar -tzf "$archive" >/dev/null 2>&1; then
+        return 2
     fi
+}
 
-    if [ -z "$downloaded" ]; then
-        rm -f "$archive"
-        rm -rf "$stage"
-        err "Could not download Go ${desired} for Debian ${deb_arch} (Go ${go_arch})."
-        err "Tried: ${urls[*]}"
-        return 1
-    fi
-
+stage_go_toolchain_archive() {
+    local archive="$1" stage="$2" source_url="$3" desired="$4"
     local unpack="$stage/unpack"
     mkdir -p "$unpack"
     if ! tar -C "$unpack" -xzf "$archive"; then
         rm -f "$archive"
         rm -rf "$stage"
-        err "Could not extract Go archive downloaded from $downloaded"
+        err "Could not extract Go archive downloaded from $source_url"
         return 1
     fi
     rm -f "$archive"
@@ -172,11 +110,15 @@ ensure_go_toolchain() {
         err "Downloaded Go version ${staged_version:-unknown}; expected $desired"
         return 1
     fi
+}
+
+install_staged_go_toolchain() {
+    local stage="$1" install_root="$2" install_dir="$3" desired="$4"
+    local backup=""
 
     # Stage and verify before replacing an existing Go directory. If the
     # final move or verification fails, restore the previous toolchain so an
     # update can never leave an existing server without a working Go binary.
-    local backup=""
     if [ -e "$install_dir" ] || [ -L "$install_dir" ]; then
         backup="$(mktemp -d "${install_root}/.go-backup.XXXXXX")"
         if ! mv "$install_dir" "$backup/go"; then
@@ -216,6 +158,85 @@ ensure_go_toolchain() {
     if [ -n "$backup" ]; then
         rm -rf "$backup"
     fi
+}
+
+ensure_go_toolchain() {
+    local desired="$1"
+    local install_root="${GO_INSTALL_ROOT:-/usr/local}"
+    local install_dir="$install_root/go"
+    local bin_dir="$install_root/bin"
+    local current_binary="" current=""
+    current_binary="$(command -v go 2>/dev/null || true)"
+    current="$(go_toolchain_version "$current_binary")"
+
+    if [ "$current" = "$desired" ]; then
+        ok "$($current_binary version)"
+        return 0
+    fi
+
+    log "Installing Go ${desired} (was ${current:-missing})"
+
+    local deb_arch go_arch
+    deb_arch="$(dpkg --print-architecture)"
+    if ! go_arch="$(go_toolchain_arch "$deb_arch")"; then
+        err "Unsupported CPU architecture for Go: $deb_arch"
+        return 1
+    fi
+    # Use the direct official download host first. go.dev normally redirects
+    # there, but some fresh-server networks have returned a transient 404 for
+    # the redirect endpoint. The canonical go.dev URL remains a fallback.
+    local official_urls urls=() url
+    official_urls="$(go_toolchain_official_urls "$desired" "$go_arch")"
+    while IFS= read -r url; do
+        [ -n "$url" ] && urls+=("$url")
+    done <<< "$official_urls"
+
+    local archive stage downloaded="" download_status
+    archive="$(mktemp --suffix=.tgz)"
+    mkdir -p "$install_root" "$bin_dir"
+    stage="$(mktemp -d "${install_root}/.go-stage.XXXXXX")"
+
+    for url in "${urls[@]}"; do
+        download_status=0
+        download_go_toolchain_archive "$archive" "$url" || download_status=$?
+        case "$download_status" in
+            0) downloaded="$url"; break ;;
+            1) warn "Go download failed from $url; trying the next official source." ;;
+            2) warn "Downloaded an invalid Go archive from $url; trying the next official source." ;;
+        esac
+    done
+
+    # GitHub Actions maintains verified Go distributions for its runners.
+    # This gives servers whose network blocks Google download hosts a fully
+    # automatic third path through GitHub, which the installer already needs
+    # to reach for the application repository.
+    if [ -z "$downloaded" ]; then
+        local github_url=""
+        github_url="$(fetch_go_toolchain_github_url "$desired" "$go_arch" || true)"
+        if [ -n "$github_url" ]; then
+            urls+=("$github_url")
+            download_status=0
+            download_go_toolchain_archive "$archive" "$github_url" || download_status=$?
+            case "$download_status" in
+                0) downloaded="$github_url" ;;
+                1) warn "Go download failed from GitHub." ;;
+                2) warn "Downloaded an invalid Go archive from GitHub." ;;
+            esac
+        else
+            warn "No GitHub-hosted Go ${desired} archive is available for ${go_arch}."
+        fi
+    fi
+
+    if [ -z "$downloaded" ]; then
+        rm -f "$archive"
+        rm -rf "$stage"
+        err "Could not download Go ${desired} for Debian ${deb_arch} (Go ${go_arch})."
+        err "Tried: ${urls[*]}"
+        return 1
+    fi
+
+    stage_go_toolchain_archive "$archive" "$stage" "$downloaded" "$desired" || return 1
+    install_staged_go_toolchain "$stage" "$install_root" "$install_dir" "$desired" || return 1
     ln -sf "$install_dir/bin/go" "$bin_dir/go"
     ln -sf "$install_dir/bin/gofmt" "$bin_dir/gofmt"
     hash -r

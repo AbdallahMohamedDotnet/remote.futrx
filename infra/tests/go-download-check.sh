@@ -24,23 +24,20 @@ if ! GO_ARCH="$(go_toolchain_arch "$DEB_ARCH")"; then
     exit 1
 fi
 
-FILENAME="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
-URLS=(
-    "https://dl.google.com/go/${FILENAME}"
-    "https://go.dev/dl/${FILENAME}"
-)
+OFFICIAL_URLS="$(go_toolchain_official_urls "$GO_VERSION" "$GO_ARCH")"
 
 OFFICIAL_AVAILABLE=0
-for url in "${URLS[@]}"; do
+while IFS= read -r url; do
+    [ -n "$url" ] || continue
     if curl --fail --silent --show-error --location --head \
         --connect-timeout 20 --retry 3 --retry-delay 2 "$url" >/dev/null; then
         OFFICIAL_AVAILABLE=1
         printf 'PASS: Go %s official archive is available for %s at %s\n' "$GO_VERSION" "$GO_ARCH" "$url"
         break
     fi
-done
+done <<< "$OFFICIAL_URLS"
 
-GITHUB_URL="$(go_toolchain_github_url "$GO_VERSION" "$GO_ARCH" || true)"
+GITHUB_URL="$(fetch_go_toolchain_github_url "$GO_VERSION" "$GO_ARCH" || true)"
 if [ -z "$GITHUB_URL" ]; then
     printf 'GitHub fallback is unavailable for Go %s on %s.\n' "$GO_VERSION" "$GO_ARCH" >&2
     exit 1
