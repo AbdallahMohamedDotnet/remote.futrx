@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "preact/hooks";
 import { fetchAuthSession } from "../../../api/authApi";
 import type { AuthSession } from "../../../models/auth";
 
@@ -7,7 +7,7 @@ export interface AuthState extends AuthSession {
   refresh: () => Promise<void>;
 }
 
-const initial: AuthState = {
+const initial: Omit<AuthState, "refresh"> = {
   loading: true,
   authenticated: false,
   claimed: false,
@@ -18,18 +18,17 @@ const initial: AuthState = {
   email: "",
   isAdmin: false,
   isRegistered: false,
-  refresh: async () => {},
 };
 
 export function useAuth(): AuthState {
-  const [state, setState] = useState<AuthState>(initial);
+  const [state, setState] = useState<Omit<AuthState, "refresh">>(initial);
 
-  async function load() {
+  const refresh = useCallback(async () => {
     const session = await fetchAuthSession();
-    setState({ ...session, loading: false, refresh: load });
-  }
+    setState({ ...session, loading: false });
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
 
-  return { ...state, refresh: load };
+  return { ...state, refresh };
 }
