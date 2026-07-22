@@ -2,9 +2,13 @@ package auth
 
 import "context"
 
-type Store interface {
+type OAuthConfigStore interface {
 	OAuthConfig(context.Context) (OAuthConfig, error)
 	SaveOAuthConfig(context.Context, OAuthConfig) error
+}
+
+type Store interface {
+	OAuthConfigStore
 	LocalAdmin(context.Context) (*LocalAdminCredential, error)
 	CreateLocalAdmin(context.Context, LocalAdminCredential) error
 	SessionKey(context.Context) ([]byte, error)

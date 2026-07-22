@@ -36,19 +36,17 @@ type UserDirectoryEntry struct {
 }
 
 type Service struct {
-	store             Store
-	users             UserDirectory
-	oauthFactory      OAuthProviderFactory
-	baseURL           string
-	cookieDomain      string
-	sessions          *SessionCodec
-	dummyPasswordHash string
+	store        Store
+	users        UserDirectory
+	google       *GoogleAuthenticator
+	baseURL      string
+	cookieDomain string
+	sessions     *SessionCodec
 
-	mu          sync.RWMutex
-	oauth       OAuthProvider
-	oauthConfig OAuthConfig
-	localAdmin  *LocalAdminCredential
-	claimMu     sync.Mutex
+	localMu           sync.RWMutex
+	localAdmin        *LocalAdminCredential
+	dummyPasswordHash string
+	claimMu           sync.Mutex
 }
 
 func NormalizeBaseURL(baseURL string) (string, error) {
@@ -83,8 +81,11 @@ func New(
 	if err != nil {
 		return nil, err
 	}
-	oauthConfig, err := store.OAuthConfig(ctx)
-	if err != nil && !errors.Is(err, ErrOAuthConfigNotFound) {
+	var service *Service
+	google, err := newGoogleAuthenticator(ctx, store, users, oauthFactory, baseURL, func(email string) bool {
+		return service != nil && service.IsLocalAdmin(email)
+	})
+	if err != nil {
 		return nil, err
 	}
 	dummyHash, err := HashPassword("invalid-password-placeholder")
@@ -97,23 +98,15 @@ func New(
 		cookieDomain = u.Hostname()
 	}
 
-	service := &Service{
+	service = &Service{
 		store:             store,
 		users:             users,
-		oauthFactory:      oauthFactory,
+		google:            google,
 		baseURL:           baseURL,
 		cookieDomain:      cookieDomain,
 		sessions:          newSessionCodec(sessionKey),
 		localAdmin:        localAdmin,
 		dummyPasswordHash: dummyHash,
-	}
-	if err == nil && oauthConfig.GoogleClientID != "" && oauthConfig.GoogleClientSecret != "" {
-		service.oauthConfig = oauthConfig
-		service.oauth = oauthFactory(
-			oauthConfig.GoogleClientID,
-			oauthConfig.GoogleClientSecret,
-			baseURL+"/auth/google/callback",
-		)
 	}
 	return service, nil
 }
@@ -127,52 +120,11 @@ func (s *Service) CookieDomain() string {
 }
 
 func (s *Service) AuthCodeURL(state string) (string, error) {
-	s.mu.RLock()
-	oauth := s.oauth
-	s.mu.RUnlock()
-	if oauth == nil {
-		return "", ErrGoogleOAuthDisabled
-	}
-	return oauth.AuthCodeURL(state), nil
+	return s.google.authCodeURL(state)
 }
 
 func (s *Service) LoginGoogle(ctx context.Context, code string) (User, error) {
-	s.mu.RLock()
-	oauth := s.oauth
-	s.mu.RUnlock()
-	if oauth == nil {
-		return User{}, ErrGoogleOAuthDisabled
-	}
-	user, err := oauth.ExchangeUser(ctx, code)
-	if err != nil {
-		return User{}, err
-	}
-	if strings.TrimSpace(user.Email) == "" {
-		return User{}, errors.New("OAuth provider returned no email")
-	}
-	if err := s.authorizeGoogleUser(ctx, user); err != nil {
-		return User{}, err
-	}
-	return user, nil
-}
-
-// Google is only an invited-user login. It can never claim the server or
-// silently promote the first Google account to administrator.
-func (s *Service) authorizeGoogleUser(ctx context.Context, u User) error {
-	if s.users == nil {
-		return errors.New("users directory is not configured")
-	}
-	if s.IsLocalAdmin(u.Email) {
-		return ErrLocalAdminPasswordOnly
-	}
-	ok, err := s.IsRegistered(ctx, u.Email)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return NotInvitedError{Email: u.Email}
-	}
-	return nil
+	return s.google.login(ctx, code)
 }
 
 func (s *Service) ClaimLocalAdmin(ctx context.Context, email, password, authorizedEmail string) (User, error) {
@@ -183,9 +135,9 @@ func (s *Service) ClaimLocalAdmin(ctx context.Context, email, password, authoriz
 
 	s.claimMu.Lock()
 	defer s.claimMu.Unlock()
-	s.mu.RLock()
+	s.localMu.RLock()
 	alreadyClaimed := s.localAdmin != nil
-	s.mu.RUnlock()
+	s.localMu.RUnlock()
 	if alreadyClaimed {
 		return User{}, ErrLocalAdminAlreadyClaimed
 	}
@@ -214,9 +166,9 @@ func (s *Service) ClaimLocalAdmin(ctx context.Context, email, password, authoriz
 	if err := s.store.CreateLocalAdmin(ctx, credential); err != nil {
 		return User{}, err
 	}
-	s.mu.Lock()
+	s.localMu.Lock()
 	s.localAdmin = &credential
-	s.mu.Unlock()
+	s.localMu.Unlock()
 
 	registered, err := s.users.IsRegistered(ctx, email)
 	if err != nil {
@@ -231,7 +183,7 @@ func (s *Service) ClaimLocalAdmin(ctx context.Context, email, password, authoriz
 }
 
 func (s *Service) LoginLocal(_ context.Context, email, password string) (User, error) {
-	s.mu.RLock()
+	s.localMu.RLock()
 	credential := s.localAdmin
 	hash := s.dummyPasswordHash
 	if credential != nil {
@@ -239,7 +191,7 @@ func (s *Service) LoginLocal(_ context.Context, email, password string) (User, e
 		credential = &copy
 		hash = copy.PasswordHash
 	}
-	s.mu.RUnlock()
+	s.localMu.RUnlock()
 
 	passwordOK, err := VerifyPassword(hash, password)
 	if err != nil {
@@ -253,44 +205,26 @@ func (s *Service) LoginLocal(_ context.Context, email, password string) (User, e
 }
 
 func (s *Service) ConfigureGoogleOAuth(ctx context.Context, cfg OAuthConfig) error {
-	cfg.GoogleClientID = strings.TrimSpace(cfg.GoogleClientID)
-	cfg.GoogleClientSecret = strings.TrimSpace(cfg.GoogleClientSecret)
-	if cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" ||
-		len(cfg.GoogleClientID) > 1024 || len(cfg.GoogleClientSecret) > 4096 {
-		return ErrInvalidOAuthConfig
-	}
-	if err := s.store.SaveOAuthConfig(ctx, cfg); err != nil {
-		return err
-	}
-	provider := s.oauthFactory(cfg.GoogleClientID, cfg.GoogleClientSecret, s.baseURL+"/auth/google/callback")
-	s.mu.Lock()
-	s.oauthConfig = cfg
-	s.oauth = provider
-	s.mu.Unlock()
-	return nil
+	return s.google.configure(ctx, cfg)
 }
 
 func (s *Service) GoogleOAuthEnabled() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.oauth != nil
+	return s.google.enabled()
 }
 
 func (s *Service) GoogleClientID() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.oauthConfig.GoogleClientID
+	return s.google.clientID()
 }
 
 func (s *Service) LocalAdminConfigured() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.localMu.RLock()
+	defer s.localMu.RUnlock()
 	return s.localAdmin != nil
 }
 
 func (s *Service) IsLocalAdmin(email string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.localMu.RLock()
+	defer s.localMu.RUnlock()
 	return s.localAdmin != nil && s.localAdmin.Email == normalizeEmail(email)
 }
 
@@ -343,12 +277,12 @@ func (s *Service) Status(ctx context.Context, cookieValue string) Status {
 		GoogleOAuthEnabled:   s.GoogleOAuthEnabled(),
 		GoogleClientID:       s.GoogleClientID(),
 	}
-	s.mu.RLock()
+	s.localMu.RLock()
 	if s.localAdmin != nil {
 		status.Claimed = true
 		status.AdminEmail = s.localAdmin.Email
 	}
-	s.mu.RUnlock()
+	s.localMu.RUnlock()
 	if !status.Claimed && s.users != nil {
 		if first, _ := s.users.FirstAdmin(ctx); first != nil {
 			status.Claimed = true
