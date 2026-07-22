@@ -46,13 +46,9 @@ func (p *agentBrowserMCPProvisioner) ensure(ctx context.Context, containerName s
 		return errors.New("lxc not available")
 	}
 
-	cctx, cancelC := context.WithTimeout(ctx, queryTimeout)
-	_, missing := p.runner.Run(cctx, "exec", containerName, "--", "sh", "-c", "npm ls -g @playwright/mcp >/dev/null 2>&1")
-	cancelC()
+	_, missing := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "sh", "-c", "npm ls -g @playwright/mcp >/dev/null 2>&1")
 	if missing != nil {
-		ictx, cancelI := context.WithTimeout(ctx, browserMCPInstallTimeout)
-		out, err := p.runner.Run(ictx, "exec", containerName, "--", "sh", "-c", "npm install -g @playwright/mcp 2>&1 | tail -3")
-		cancelI()
+		out, err := command.RunWithTimeout(ctx, p.runner, browserMCPInstallTimeout, "exec", containerName, "--", "sh", "-c", "npm install -g @playwright/mcp 2>&1 | tail -3")
 		if err != nil {
 			return fmt.Errorf("install @playwright/mcp: %w; output: %s", err, output.Truncate(out, 1000))
 		}
@@ -68,10 +64,8 @@ func (p *agentBrowserMCPProvisioner) ensure(ctx context.Context, containerName s
 			if directoryMode == "" {
 				directoryMode = "755"
 			}
-			dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-			out, err := p.runner.Run(dctx, "exec", containerName, "--",
+			out, err := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--",
 				"install", "-d", "-m", directoryMode, directory)
-			cancelD()
 			if err != nil {
 				return fmt.Errorf("mkdir %s: %w; output: %s", directory, err, out)
 			}

@@ -47,21 +47,15 @@ func NewProvisioner(runner command.Runner) *Provisioner {
 // routing silently broken.
 func (p *Provisioner) Ensure(ctx context.Context, containerName, displayName string) error {
 	// Fast path: socket already armed and listening -> nothing to do.
-	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	if _, err := p.runner.Run(cctx, "exec", containerName, "--", "systemctl", "is-active", "--quiet", "code-server.socket"); err == nil {
+	if _, err := command.RunWithTimeout(ctx, p.runner, 10*time.Second, "exec", containerName, "--", "systemctl", "is-active", "--quiet", "code-server.socket"); err == nil {
 		return nil
 	}
 
 	// Install the units only when they're not present yet. The base image may
 	// already ship them; re-running the install script is harmless but slow,
 	// so skip it when the unit file exists and just (re-)enable below.
-	tctx, tcancel := context.WithTimeout(ctx, 10*time.Second)
-	defer tcancel()
-	if _, err := p.runner.Run(tctx, "exec", containerName, "--", "test", "-f", "/etc/systemd/system/code-server.socket"); err != nil {
-		ictx, icancel := context.WithTimeout(ctx, 5*time.Minute)
-		defer icancel()
-		if out, err := p.runner.Run(ictx, "exec", containerName, "--env", "CODE_SERVER_WS_NAME="+displayName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
+	if _, err := command.RunWithTimeout(ctx, p.runner, 10*time.Second, "exec", containerName, "--", "test", "-f", "/etc/systemd/system/code-server.socket"); err != nil {
+		if out, err := command.RunWithTimeout(ctx, p.runner, 5*time.Minute, "exec", containerName, "--env", "CODE_SERVER_WS_NAME="+displayName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
 			return fmt.Errorf("install code-server: %w; output: %s", err, output.Truncate(out, 2000))
 		}
 	}
@@ -69,9 +63,7 @@ func (p *Provisioner) Ensure(ctx context.Context, containerName, displayName str
 	// Always enable --now: arms a freshly-installed socket, and recovers a
 	// baked-but-disabled/stopped one -- the case the old file-exists check
 	// reported as complete while routing was actually dead.
-	ectx, ecancel := context.WithTimeout(ctx, 20*time.Second)
-	defer ecancel()
-	if out, err := p.runner.Run(ectx, "exec", containerName, "--", "systemctl", "enable", "--now", "code-server.socket"); err != nil {
+	if out, err := command.RunWithTimeout(ctx, p.runner, 20*time.Second, "exec", containerName, "--", "systemctl", "enable", "--now", "code-server.socket"); err != nil {
 		return fmt.Errorf("enable code-server.socket: %w; output: %s", err, output.Truncate(out, 1000))
 	}
 	return nil

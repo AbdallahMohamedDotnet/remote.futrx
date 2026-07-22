@@ -60,17 +60,13 @@ func (s *Service) ApplyDiff(
 			keysToUnset = append(keysToUnset, k)
 			continue
 		}
-		qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
-		cur, _ := s.runner.Run(qctx, "config", "get", container, "environment."+k)
-		cancelQ()
+		cur, _ := command.RunWithTimeout(ctx, s.runner, queryTimeout, "config", "get", container, "environment."+k)
 		if strings.TrimSpace(cur) == v {
 			continue
 		}
-		sctx, cancelS := context.WithTimeout(ctx, queryTimeout)
 		// End flag parsing before the value. PEM/OpenSSH secrets commonly start
 		// with "-----BEGIN", which LXC otherwise interprets as a CLI flag.
-		_, err := s.runner.Run(sctx, "config", "set", container, "environment."+k, "--", v)
-		cancelS()
+		_, err := command.RunWithTimeout(ctx, s.runner, queryTimeout, "config", "set", container, "environment."+k, "--", v)
 		if err != nil {
 			// LXC can echo an invalid argument in its output. Never attach that
 			// output here because the argument is the secret value itself.
@@ -79,9 +75,7 @@ func (s *Service) ApplyDiff(
 	}
 
 	for _, k := range keysToUnset {
-		uctx, cancelU := context.WithTimeout(ctx, queryTimeout)
-		out, err := s.runner.Run(uctx, "config", "unset", container, "environment."+k)
-		cancelU()
+		out, err := command.RunWithTimeout(ctx, s.runner, queryTimeout, "config", "unset", container, "environment."+k)
 		if err != nil {
 			// `lxc config unset` on a missing key still exits non-zero;
 			// treat that as success.

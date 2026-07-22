@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 )
 
 const ensureWorkspaceSymlinksTimeout = 10 * time.Second
@@ -28,11 +29,8 @@ func (p *workspaceProvisioner) ensureSkillLinks(ctx context.Context, containerNa
 	if !p.runner.Available() {
 		return errors.New("lxc not available")
 	}
-	qctx, cancel := context.WithTimeout(ctx, ensureWorkspaceSymlinksTimeout)
-	defer cancel()
-
 	script := workspaceSkillLinksScript(p.profiles.Snapshot())
-	if _, err := p.runner.Run(qctx, "exec", containerName, "--", "sh", "-c", script); err != nil {
+	if _, err := command.RunWithTimeout(ctx, p.runner, ensureWorkspaceSymlinksTimeout, "exec", containerName, "--", "sh", "-c", script); err != nil {
 		return err
 	}
 	return nil

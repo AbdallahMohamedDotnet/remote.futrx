@@ -25,9 +25,7 @@ type agentBrowserRuntime struct {
 }
 
 func (r *agentBrowserRuntime) start(ctx context.Context, containerName, verb, label string) error {
-	sctx, cancel := context.WithTimeout(ctx, agentBrowserReadyTimeout)
-	defer cancel()
-	if out, err := r.runner.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, verb); err != nil {
+	if out, err := command.RunWithTimeout(ctx, r.runner, agentBrowserReadyTimeout, "exec", containerName, "--", "sh", containerGUIScript, verb); err != nil {
 		return fmt.Errorf("%s: %w; output: %s", label, err, output.Truncate(out, 1000))
 	}
 	return nil
@@ -37,9 +35,7 @@ func (r *agentBrowserRuntime) stop(ctx context.Context, containerName string) er
 	if !r.runner.Available() {
 		return errors.New("lxc not available")
 	}
-	sctx, cancel := context.WithTimeout(ctx, stopTimeout)
-	defer cancel()
-	if out, err := r.runner.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop"); err != nil {
+	if out, err := command.RunWithTimeout(ctx, r.runner, stopTimeout, "exec", containerName, "--", "sh", containerGUIScript, "stop"); err != nil {
 		return fmt.Errorf("stop agent browser: %w; output: %s", err, output.Truncate(out, 1000))
 	}
 	return nil
@@ -49,9 +45,7 @@ func (r *agentBrowserRuntime) stopView(ctx context.Context, containerName string
 	if !r.runner.Available() {
 		return errors.New("lxc not available")
 	}
-	sctx, cancel := context.WithTimeout(ctx, stopTimeout)
-	defer cancel()
-	if out, err := r.runner.Run(sctx, "exec", containerName, "--", "sh", containerGUIScript, "stop-view"); err != nil {
+	if out, err := command.RunWithTimeout(ctx, r.runner, stopTimeout, "exec", containerName, "--", "sh", containerGUIScript, "stop-view"); err != nil {
 		return fmt.Errorf("stop agent browser view: %w; output: %s", err, output.Truncate(out, 1000))
 	}
 	return nil
@@ -69,9 +63,7 @@ func (r *agentBrowserRuntime) status(ctx context.Context, containerName string) 
 	if !r.runner.Available() {
 		return serviceproject.AgentBrowserInfo{}, errors.New("lxc not available")
 	}
-	qctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	out, err := r.runner.Run(qctx, "exec", containerName, "--", "sh", containerGUIScript, "status")
+	out, err := command.RunWithTimeout(ctx, r.runner, queryTimeout, "exec", containerName, "--", "sh", containerGUIScript, "status")
 	if err != nil {
 		return serviceproject.AgentBrowserInfo{
 			Status: serviceproject.AgentBrowserStatusStopped,

@@ -40,13 +40,9 @@ func (p *agentBrowserProvisioner) ensure(ctx context.Context, containerName stri
 		return errors.New("lxc not available")
 	}
 
-	cctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	_, stackErr := p.runner.Run(cctx, "exec", containerName, "--", "sh", "-c", "command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1")
-	cancel()
+	_, stackErr := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "sh", "-c", "command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1")
 	if stackErr != nil {
-		ictx, cancel := context.WithTimeout(ctx, agentBrowserInstallTimeout)
-		out, err := p.runner.Run(ictx, "exec", containerName, "--", "bash", "-c", InstallScript())
-		cancel()
+		out, err := command.RunWithTimeout(ctx, p.runner, agentBrowserInstallTimeout, "exec", containerName, "--", "bash", "-c", InstallScript())
 		if err != nil {
 			return fmt.Errorf("install agent browser stack: %w; output: %s", err, output.Truncate(out, 2000))
 		}
@@ -56,9 +52,7 @@ func (p *agentBrowserProvisioner) ensure(ctx context.Context, containerName stri
 }
 
 func (p *agentBrowserProvisioner) pushTemplates(ctx context.Context, containerName string) error {
-	dctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	out, err := p.runner.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
-	cancel()
+	out, err := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "install", "-d", "-m", "755", containerGUIDir)
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerGUIDir, err, out)
 	}

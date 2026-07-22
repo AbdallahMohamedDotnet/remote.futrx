@@ -28,22 +28,16 @@ func (c *Client) Available() bool {
 }
 
 func (c *Client) Version(ctx context.Context, containerName, binary string) (string, error) {
-	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	return c.runner.Run(quickCtx, "exec", containerName, "--", binary, "--version")
+	return command.RunWithTimeout(ctx, c.runner, queryTimeout, "exec", containerName, "--", binary, "--version")
 }
 
 func (c *Client) CommandExists(ctx context.Context, containerName, commandName string) bool {
-	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	_, err := c.runner.Run(quickCtx, "exec", containerName, "--", "which", commandName)
+	_, err := command.RunWithTimeout(ctx, c.runner, queryTimeout, "exec", containerName, "--", "which", commandName)
 	return err == nil
 }
 
 func (c *Client) InstallRunning(ctx context.Context, containerName, packageName string) bool {
-	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	out, err := c.runner.Run(quickCtx, "exec", containerName, "--",
+	out, err := command.RunWithTimeout(ctx, c.runner, queryTimeout, "exec", containerName, "--",
 		"pgrep", "-f", "npm install.*"+packageName)
 	return err == nil && strings.TrimSpace(out) != ""
 }

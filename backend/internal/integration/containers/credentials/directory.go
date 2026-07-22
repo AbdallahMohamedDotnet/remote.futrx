@@ -91,9 +91,7 @@ func (s *directorySynchronizer) syncFromContainer(ctx context.Context, container
 }
 
 func (s *directorySynchronizer) containerHasFiles(ctx context.Context, containerName, containerPath string) bool {
-	quickCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	out, err := s.runner.Run(quickCtx, "exec", containerName, "--",
+	out, err := command.RunWithTimeout(ctx, s.runner, queryTimeout, "exec", containerName, "--",
 		"sh", "-c", "ls -1 "+containerPath+" 2>/dev/null | head -1")
 	return err == nil && strings.TrimSpace(out) != ""
 }

@@ -12,6 +12,8 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 )
 
 //go:embed assets/skills/browser/SKILL.md
@@ -29,9 +31,7 @@ func (s *Adapter) EnsureSkill(ctx context.Context, containerName string) error {
 	if !s.runner.Available() {
 		return errors.New("lxc not available")
 	}
-	dctx, cancelD := context.WithTimeout(ctx, queryTimeout)
-	out, err := s.runner.Run(dctx, "exec", containerName, "--", "install", "-d", "-m", "755", containerBrowserSkillDir)
-	cancelD()
+	out, err := command.RunWithTimeout(ctx, s.runner, queryTimeout, "exec", containerName, "--", "install", "-d", "-m", "755", containerBrowserSkillDir)
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerBrowserSkillDir, err, out)
 	}

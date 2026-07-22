@@ -87,36 +87,28 @@ func (m *Manager) SetLimits(ctx context.Context, containerName, cpu, memory, dis
 		if limit.value == "" {
 			args = []string{"config", "unset", containerName, limit.key}
 		}
-		limitCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-		out, err := m.runner.Run(limitCtx, args...)
-		cancel()
+		out, err := command.RunWithTimeout(ctx, m.runner, queryTimeout, args...)
 		if err != nil {
 			return fmt.Errorf("%s: %w; output: %s", strings.Join(args, " "), err, out)
 		}
 	}
 
 	if disk == "" {
-		diskCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-		out, err := m.runner.Run(diskCtx, "config", "device", "unset", containerName, "root", "size")
-		cancel()
+		out, err := command.RunWithTimeout(ctx, m.runner, queryTimeout, "config", "device", "unset", containerName, "root", "size")
 		if err != nil && !missingDeviceOutput(out+" "+err.Error()) {
 			return fmt.Errorf("config device unset %s root size: %w; output: %s", containerName, err, out)
 		}
 		return nil
 	}
 
-	diskCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-	out, err := m.runner.Run(diskCtx, "config", "device", "override", containerName, "root", "size="+disk)
-	cancel()
+	out, err := command.RunWithTimeout(ctx, m.runner, queryTimeout, "config", "device", "override", containerName, "root", "size="+disk)
 	if err == nil {
 		return nil
 	}
 	if !strings.Contains(strings.ToLower(out+" "+err.Error()), "already exists") {
 		return fmt.Errorf("config device override %s root: %w; output: %s", containerName, err, out)
 	}
-	diskCtx, cancel = context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	out, err = m.runner.Run(diskCtx, "config", "device", "set", containerName, "root", "size", disk)
+	out, err = command.RunWithTimeout(ctx, m.runner, queryTimeout, "config", "device", "set", containerName, "root", "size", disk)
 	if err != nil {
 		return fmt.Errorf("config device set %s root size: %w; output: %s", containerName, err, out)
 	}
@@ -135,13 +127,9 @@ func (m *Manager) ensureProfile(ctx context.Context) error {
 	if !m.runner.Available() {
 		return errors.New("lxc not available")
 	}
-	qctx, qcancel := context.WithTimeout(ctx, queryTimeout)
-	_, showErr := m.runner.Run(qctx, "profile", "show", ProfileName)
-	qcancel()
+	_, showErr := command.RunWithTimeout(ctx, m.runner, queryTimeout, "profile", "show", ProfileName)
 	if showErr != nil {
-		cctx, ccancel := context.WithTimeout(ctx, queryTimeout)
-		out, err := m.runner.Run(cctx, "profile", "create", ProfileName)
-		ccancel()
+		out, err := command.RunWithTimeout(ctx, m.runner, queryTimeout, "profile", "create", ProfileName)
 		// A concurrent Launch may have created it between show and create.
 		if err != nil && !strings.Contains(out, "already exists") {
 			return fmt.Errorf("profile create %s: %w; output: %s", ProfileName, err, out)
@@ -149,15 +137,11 @@ func (m *Manager) ensureProfile(ctx context.Context) error {
 	}
 	for _, kv := range profileConfig {
 		key, want := kv[0], kv[1]
-		gctx, gcancel := context.WithTimeout(ctx, queryTimeout)
-		current, _ := m.runner.Run(gctx, "profile", "get", ProfileName, key)
-		gcancel()
+		current, _ := command.RunWithTimeout(ctx, m.runner, queryTimeout, "profile", "get", ProfileName, key)
 		if strings.TrimSpace(current) == want {
 			continue
 		}
-		sctx, scancel := context.WithTimeout(ctx, queryTimeout)
-		out, err := m.runner.Run(sctx, "profile", "set", ProfileName, key, want)
-		scancel()
+		out, err := command.RunWithTimeout(ctx, m.runner, queryTimeout, "profile", "set", ProfileName, key, want)
 		if err != nil {
 			return fmt.Errorf("profile set %s %s: %w; output: %s", ProfileName, key, err, out)
 		}
@@ -166,9 +150,7 @@ func (m *Manager) ensureProfile(ctx context.Context) error {
 }
 
 func (m *Manager) ensureAttached(ctx context.Context, containerName string) error {
-	qctx, qcancel := context.WithTimeout(ctx, queryTimeout)
-	shown, err := m.runner.Run(qctx, "config", "show", containerName)
-	qcancel()
+	shown, err := command.RunWithTimeout(ctx, m.runner, queryTimeout, "config", "show", containerName)
 	if err != nil {
 		return fmt.Errorf("config show %s: %w; output: %s", containerName, err, shown)
 	}
@@ -176,9 +158,7 @@ func (m *Manager) ensureAttached(ctx context.Context, containerName string) erro
 	if strings.Contains(shown, "- "+ProfileName) {
 		return nil
 	}
-	actx, acancel := context.WithTimeout(ctx, queryTimeout)
-	defer acancel()
-	out, err := m.runner.Run(actx, "profile", "add", containerName, ProfileName)
+	out, err := command.RunWithTimeout(ctx, m.runner, queryTimeout, "profile", "add", containerName, ProfileName)
 	if err != nil {
 		return fmt.Errorf("profile add %s %s: %w; output: %s", containerName, ProfileName, err, out)
 	}

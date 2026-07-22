@@ -27,9 +27,7 @@ func (s *fileSynchronizer) ensure(ctx context.Context, containerName string, spe
 	}
 
 	for _, device := range spec.LegacyDevices {
-		dctx, cancel := context.WithTimeout(ctx, queryTimeout)
-		_, _ = s.runner.Run(dctx, "config", "device", "remove", containerName, device)
-		cancel()
+		_, _ = command.RunWithTimeout(ctx, s.runner, queryTimeout, "config", "device", "remove", containerName, device)
 	}
 
 	// Gate: every PushRequired host file must exist before we touch the

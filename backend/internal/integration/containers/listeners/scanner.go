@@ -37,13 +37,10 @@ func (s *Scanner) List(ctx context.Context, containerName string) ([]serviceproj
 	if !s.runner.Available() {
 		return nil, errors.New("lxc not available")
 	}
-	qctx, cancel := context.WithTimeout(ctx, listenersTimeout)
-	defer cancel()
-
 	// -t TCP, -l listening, -n numeric, -H no header, -p process info.
 	// We accept the inevitable non-zero exit if ss isn't installed (the
 	// base image always has iproute2, but a stripped derivative might not).
-	out, err := s.runner.Run(qctx, "exec", containerName, "--", "ss", "-tlnHp")
+	out, err := command.RunWithTimeout(ctx, s.runner, listenersTimeout, "exec", containerName, "--", "ss", "-tlnHp")
 	if err != nil {
 		return nil, fmt.Errorf("ss in container: %w; output: %s", err, out)
 	}

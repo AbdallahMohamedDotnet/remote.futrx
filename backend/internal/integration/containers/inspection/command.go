@@ -15,7 +15,5 @@ type quickCommandRunner struct {
 }
 
 func (r *quickCommandRunner) run(parent context.Context, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(parent, r.timeout)
-	defer cancel()
-	return r.runner.Run(ctx, args...)
+	return command.RunWithTimeout(parent, r.runner, r.timeout, args...)
 }

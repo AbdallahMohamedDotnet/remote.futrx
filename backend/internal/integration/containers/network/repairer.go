@@ -35,9 +35,7 @@ func (r *Repairer) Repair(ctx context.Context, containerName string) error {
 	if !r.runner.Available() {
 		return errors.New("lxc not available")
 	}
-	rctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	if out, err := r.runner.Run(rctx, "exec", containerName, "--", "networkctl", "reconfigure", "eth0"); err != nil {
+	if out, err := command.RunWithTimeout(ctx, r.runner, queryTimeout, "exec", containerName, "--", "networkctl", "reconfigure", "eth0"); err != nil {
 		return fmt.Errorf("networkctl reconfigure eth0: %w; output: %s", err, out)
 	}
 	return nil

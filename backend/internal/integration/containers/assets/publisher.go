@@ -44,9 +44,7 @@ func (p *Publisher) Push(
 ) error {
 	want := Hash(content)
 
-	qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
-	got, err := p.runner.Run(qctx, "exec", containerName, "--", "cat", hashPath)
-	cancelQ()
+	got, err := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "cat", hashPath)
 	if err == nil && strings.TrimSpace(got) == want {
 		return nil
 	}

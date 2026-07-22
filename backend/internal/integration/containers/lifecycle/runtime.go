@@ -40,18 +40,14 @@ func (c *Client) Available() bool {
 // Init creates a stopped container. Project storage is attached before Start,
 // so a container can never become RUNNING without its durable mounts.
 func (c *Client) Init(ctx context.Context, image, containerName string) error {
-	lctx, cancel := context.WithTimeout(ctx, launchTimeout)
-	defer cancel()
-	if out, err := c.runner.Run(lctx, "init", image, containerName); err != nil {
+	if out, err := command.RunWithTimeout(ctx, c.runner, launchTimeout, "init", image, containerName); err != nil {
 		return fmt.Errorf("lxc init: %w; output: %s", err, out)
 	}
 	return nil
 }
 
 func (c *Client) Disk(ctx context.Context, container, deviceName string) (string, string, bool, error) {
-	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	out, err := c.runner.Run(lctx, "query", "/1.0/instances/"+container)
+	out, err := command.RunWithTimeout(ctx, c.runner, queryTimeout, "query", "/1.0/instances/"+container)
 	if err != nil {
 		return "", "", false, fmt.Errorf("show container devices: %w; output: %s", err, out)
 	}
@@ -69,8 +65,6 @@ func (c *Client) Disk(ctx context.Context, container, deviceName string) (string
 }
 
 func (c *Client) AttachDisk(ctx context.Context, container, deviceName, hostSrc, containerPath string, readonly bool) error {
-	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
 	args := []string{
 		"config", "device", "add", container, deviceName, "disk",
 		"source=" + hostSrc,
@@ -79,16 +73,14 @@ func (c *Client) AttachDisk(ctx context.Context, container, deviceName, hostSrc,
 	if readonly {
 		args = append(args, "readonly=true")
 	}
-	if out, err := c.runner.Run(lctx, args...); err != nil {
+	if out, err := command.RunWithTimeout(ctx, c.runner, queryTimeout, args...); err != nil {
 		return fmt.Errorf("lxc config device add %s: %w; output: %s", deviceName, err, out)
 	}
 	return nil
 }
 
 func (c *Client) RemoveDevice(ctx context.Context, container, deviceName string) error {
-	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	if out, err := c.runner.Run(lctx, "config", "device", "remove", container, deviceName); err != nil {
+	if out, err := command.RunWithTimeout(ctx, c.runner, queryTimeout, "config", "device", "remove", container, deviceName); err != nil {
 		if strings.Contains(strings.ToLower(out), "not found") {
 			return nil
 		}
@@ -100,9 +92,7 @@ func (c *Client) RemoveDevice(ctx context.Context, container, deviceName string)
 // PullDirectory copies a legacy container directory to a local staging
 // directory. A missing source is normal for providers the project never used.
 func (c *Client) PullDirectory(ctx context.Context, container, source, hostTarget string) (bool, error) {
-	lctx, cancel := context.WithTimeout(ctx, migrateTimeout)
-	defer cancel()
-	out, err := c.runner.Run(lctx, "file", "pull", "--recursive", container+source, hostTarget)
+	out, err := command.RunWithTimeout(ctx, c.runner, migrateTimeout, "file", "pull", "--recursive", container+source, hostTarget)
 	if err == nil {
 		return true, nil
 	}
@@ -114,9 +104,7 @@ func (c *Client) PullDirectory(ctx context.Context, container, source, hostTarge
 }
 
 func (c *Client) Mounted(ctx context.Context, container, containerPath string) (bool, error) {
-	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	out, err := c.runner.Run(lctx, "exec", container, "--", "mountpoint", "-q", containerPath)
+	out, err := command.RunWithTimeout(ctx, c.runner, queryTimeout, "exec", container, "--", "mountpoint", "-q", containerPath)
 	if err == nil {
 		return true, nil
 	}
@@ -156,9 +144,7 @@ func (c *Client) EnsureBootAutostart(ctx context.Context, containerName string) 
 }
 
 func (c *Client) Start(ctx context.Context, containerName string) error {
-	lctx, cancel := context.WithTimeout(ctx, startTimeout)
-	defer cancel()
-	if out, err := c.runner.Run(lctx, "start", containerName); err != nil {
+	if out, err := command.RunWithTimeout(ctx, c.runner, startTimeout, "start", containerName); err != nil {
 		if strings.Contains(out, "is already running") {
 			return nil
 		}
@@ -168,18 +154,14 @@ func (c *Client) Start(ctx context.Context, containerName string) error {
 }
 
 func (c *Client) Stop(ctx context.Context, containerName string) error {
-	lctx, cancel := context.WithTimeout(ctx, stopTimeout)
-	defer cancel()
-	if out, err := c.runner.Run(lctx, "stop", containerName); err != nil {
+	if out, err := command.RunWithTimeout(ctx, c.runner, stopTimeout, "stop", containerName); err != nil {
 		if strings.Contains(out, "not found") || strings.Contains(out, "is already stopped") {
 			return nil
 		}
 		// Graceful shutdown needs the container's init to cooperate — a
 		// workspace thrashing at its resource caps may never respond.
 		// Escalate to a host-side kill so Stop always regains control.
-		fctx, fcancel := context.WithTimeout(ctx, stopTimeout)
-		defer fcancel()
-		if fout, ferr := c.runner.Run(fctx, "stop", "--force", containerName); ferr != nil {
+		if fout, ferr := command.RunWithTimeout(ctx, c.runner, stopTimeout, "stop", "--force", containerName); ferr != nil {
 			return fmt.Errorf("lxc stop: %w; output: %s (force follow-up: %s)", err, out, fout)
 		}
 	}
@@ -190,9 +172,7 @@ func (c *Client) Stop(ctx context.Context, containerName string) error {
 // tree plus a fresh boot, requiring no cooperation from inside. This is the
 // regain-control path for a workspace wedged at its resource limits.
 func (c *Client) Restart(ctx context.Context, containerName string) error {
-	lctx, cancel := context.WithTimeout(ctx, restartTimeout)
-	defer cancel()
-	if out, err := c.runner.Run(lctx, "restart", "--force", containerName); err != nil {
+	if out, err := command.RunWithTimeout(ctx, c.runner, restartTimeout, "restart", "--force", containerName); err != nil {
 		return fmt.Errorf("lxc restart --force: %w; output: %s", err, out)
 	}
 	return nil
@@ -202,9 +182,7 @@ func (c *Client) Delete(ctx context.Context, containerName string) error {
 	if !c.runner.Available() {
 		return nil
 	}
-	lctx, cancel := context.WithTimeout(ctx, deleteTimeout)
-	defer cancel()
-	if out, err := c.runner.Run(lctx, "delete", "--force", containerName); err != nil {
+	if out, err := command.RunWithTimeout(ctx, c.runner, deleteTimeout, "delete", "--force", containerName); err != nil {
 		if strings.Contains(out, "not found") {
 			return nil
 		}
@@ -217,9 +195,7 @@ func (c *Client) State(ctx context.Context, containerName string) (serviceprojec
 	if !c.runner.Available() {
 		return serviceproject.ContainerStateUnknown, nil
 	}
-	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	out, err := c.runner.Run(lctx, "info", containerName)
+	out, err := command.RunWithTimeout(ctx, c.runner, queryTimeout, "info", containerName)
 	if err != nil {
 		if strings.Contains(out, "not found") || strings.Contains(out, "doesn't exist") {
 			return serviceproject.ContainerStateMissing, nil

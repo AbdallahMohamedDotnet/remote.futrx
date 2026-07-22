@@ -17,6 +17,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 )
 
 //go:embed assets/browser.mjs
@@ -40,15 +42,13 @@ func (s *Adapter) EnsureScript(ctx context.Context, containerName string) error 
 	// Always ensure the directories + config file exist (cheap, idempotent).
 	// We chmod 755 on dirs so the unprivileged container-root user can
 	// traverse them; the host bind-mount preserves the uid 1000000 owner.
-	dctx, cancelD := context.WithTimeout(ctx, 30*time.Second)
-	_, err := s.runner.Run(dctx, "exec", containerName, "--", "sh", "-c", `set -eu
+	_, err := command.RunWithTimeout(ctx, s.runner, 30*time.Second, "exec", containerName, "--", "sh", "-c", `set -eu
 mkdir -p /workspace/scripts /workspace/.agents /workspace/.browser
 chmod 755 /workspace/scripts /workspace/.agents /workspace/.browser
 if [ ! -f /workspace/.agents/browser-auth.json ]; then
   printf '{}\n' > /workspace/.agents/browser-auth.json
   chmod 644 /workspace/.agents/browser-auth.json
 fi`)
-	cancelD()
 	if err != nil {
 		return fmt.Errorf("seed browser dirs: %w", err)
 	}
