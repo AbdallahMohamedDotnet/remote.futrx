@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { BrowserElementCapture } from "../../../models/browser";
 import type { ContainerApp } from "../../../models/project";
+import { buildProjectPreviewUrl } from "../../../shared/projectPreviewUrls";
 import { useAgentBrowserSession } from "../../../state/hooks/chat/useAgentBrowserSession";
 import { BrowserDrawerHeader } from "./BrowserDrawerHeader";
 import { BrowserFrame } from "./BrowserFrame";
 import { BrowserGuiView } from "./BrowserGuiView";
 import { BrowserResizeHandle } from "./BrowserResizeHandle";
-import { buildBrowserUrl, buildInspectorUrl } from "./browserUrls";
+import { buildInspectorUrl } from "./browserUrls";
 
 const browserWidthKey = "remote.futrx.browserDrawerWidth";
 const defaultBrowserWidth = 720;
@@ -61,7 +62,7 @@ export function BrowserDrawer({
 
   const gui = useAgentBrowserSession({ projectId, enabled: open && guiMode });
 
-  const url = useMemo(() => buildBrowserUrl(projectSlug, selectedPort), [projectSlug, selectedPort]);
+  const url = useMemo(() => buildProjectPreviewUrl(projectSlug, selectedPort), [projectSlug, selectedPort]);
   const inspectorUrl = useMemo(() => buildInspectorUrl(url), [url]);
   const iframeUrl = useInspectorFrame && inspectorUrl ? inspectorUrl : url;
   const frameOrigin = useMemo(() => {

@@ -5,6 +5,11 @@ import type { ChatMeta } from "../../../models/chat";
 import type { ContainerApp, ProjectMeta } from "../../../models/project";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { projectApi } from "../../../api/projectApi";
+import {
+  isProjectPreviewUrl,
+  projectPreviewPort,
+  projectPreviewUrlsInText,
+} from "../../../shared/projectPreviewUrls";
 
 export function useChatBrowserController({
   chat,
@@ -47,7 +52,7 @@ export function useChatBrowserController({
       setSelectedAppPort((prev) => {
         if (apps.length === 0) return null;
         if (prev != null && apps.some((app) => app.port === prev)) return prev;
-        const hinted = portFromChatUrl(browserUrl);
+        const hinted = projectPreviewPort(browserUrl);
         if (hinted != null && apps.some((app) => app.port === hinted)) return hinted;
         return apps[apps.length - 1].port;
       });
@@ -100,8 +105,8 @@ function latestPublicDevUrl(blocks: ChatMessageBlock[], slug: string): string {
   let latest = "";
   for (const block of blocks) {
     for (const text of blockTexts(block)) {
-      for (const candidate of publicDevUrls(text)) {
-        if (isProjectDevUrl(candidate, slug)) latest = candidate;
+      for (const candidate of projectPreviewUrlsInText(text)) {
+        if (isProjectPreviewUrl(candidate, slug)) latest = candidate;
       }
     }
   }
@@ -115,32 +120,6 @@ function blockTexts(block: ChatMessageBlock): string[] {
     if (part.kind === "text" || part.kind === "thinking") return [part.text];
     return part.output ? [part.output] : [];
   });
-}
-
-function publicDevUrls(text: string): string[] {
-  return [...text.matchAll(/https:\/\/[a-z0-9][a-z0-9-]*--\d{4,5}\.dev\.remote\.futrx\.com[^\s<>)\]]*/g)]
-    .map((match) => match[0].replace(/[.,;:!?]+$/, ""));
-}
-
-function isProjectDevUrl(raw: string, slug: string): boolean {
-  try {
-    const url = new URL(raw);
-    const suffix = ".dev.remote.futrx.com";
-    const portStart = `${slug}--`;
-    return (
-      url.protocol === "https:" &&
-      url.hostname.startsWith(portStart) &&
-      url.hostname.endsWith(suffix) &&
-      validDevPort(url.hostname.slice(portStart.length, -suffix.length))
-    );
-  } catch {
-    return false;
-  }
-}
-
-function validDevPort(port: string): boolean {
-  const value = Number(port);
-  return Number.isInteger(value) && value >= 1024 && value <= 65535;
 }
 
 function formatBrowserElementCapture(capture: BrowserElementCapture): string {
@@ -174,9 +153,4 @@ function formatBrowserElementCapture(capture: BrowserElementCapture): string {
   if (capture.html) lines.push(`HTML: ${capture.html}`);
   lines.push("[/Browser element]");
   return lines.join("\n");
-}
-
-function portFromChatUrl(url: string): number | null {
-  const match = /--(\d{4,5})\./.exec(url);
-  return match ? Number(match[1]) : null;
 }
