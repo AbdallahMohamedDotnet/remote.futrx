@@ -2,10 +2,6 @@ package auth
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/url"
 	"regexp"
@@ -13,8 +9,6 @@ import (
 	"sync"
 	"time"
 )
-
-const sessionDuration = 30 * 24 * time.Hour
 
 var localAdminEmailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 
@@ -47,7 +41,7 @@ type Service struct {
 	oauthFactory      OAuthProviderFactory
 	baseURL           string
 	cookieDomain      string
-	sessionKey        []byte
+	sessions          *SessionCodec
 	dummyPasswordHash string
 
 	mu          sync.RWMutex
@@ -109,7 +103,7 @@ func New(
 		oauthFactory:      oauthFactory,
 		baseURL:           baseURL,
 		cookieDomain:      cookieDomain,
-		sessionKey:        sessionKey,
+		sessions:          newSessionCodec(sessionKey),
 		localAdmin:        localAdmin,
 		dummyPasswordHash: dummyHash,
 	}
@@ -301,20 +295,14 @@ func (s *Service) IsLocalAdmin(email string) bool {
 }
 
 func (s *Service) SignSession(user User) string {
-	now := time.Now()
-	return s.sign(Session{
-		Email: user.Email,
-		Sub:   user.Sub,
-		Iat:   now.Unix(),
-		Exp:   now.Add(sessionDuration).Unix(),
-	})
+	return s.sessions.sign(user)
 }
 
 func (s *Service) CurrentSession(cookieValue string) (*Session, error) {
 	if cookieValue == "" {
 		return nil, errors.New("missing session cookie")
 	}
-	session, err := s.verify(cookieValue)
+	session, err := s.sessions.verify(cookieValue)
 	if err != nil {
 		return nil, err
 	}
@@ -386,40 +374,6 @@ func localAdminUser(email string) User {
 
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
-}
-
-func (s *Service) sign(session Session) string {
-	body, _ := json.Marshal(session)
-	b64 := base64.RawURLEncoding.EncodeToString(body)
-	mac := hmac.New(sha256.New, s.sessionKey)
-	mac.Write([]byte(b64))
-	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return b64 + "." + sig
-}
-
-func (s *Service) verify(value string) (*Session, error) {
-	parts := strings.SplitN(value, ".", 2)
-	if len(parts) != 2 {
-		return nil, errors.New("malformed")
-	}
-	mac := hmac.New(sha256.New, s.sessionKey)
-	mac.Write([]byte(parts[0]))
-	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(parts[1]), []byte(want)) {
-		return nil, errors.New("bad signature")
-	}
-	body, err := base64.RawURLEncoding.DecodeString(parts[0])
-	if err != nil {
-		return nil, err
-	}
-	var session Session
-	if err := json.Unmarshal(body, &session); err != nil {
-		return nil, err
-	}
-	if time.Now().Unix() > session.Exp {
-		return nil, errors.New("expired")
-	}
-	return &session, nil
 }
 
 func SessionDuration() time.Duration {
