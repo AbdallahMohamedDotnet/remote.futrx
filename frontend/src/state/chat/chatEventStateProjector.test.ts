@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatEvent } from "../../models/chat.ts";
-import { buildChatMessageBlocks } from "./messageBlocks.ts";
-import { addUsageFromEvent, EMPTY_USAGE_TOTALS } from "./usage.ts";
+import { chatEventStateProjector } from "./chatEventStateProjector.ts";
 
 test("projects chat events into the existing message and usage model", () => {
   const events: ChatEvent[] = [
@@ -14,7 +13,12 @@ test("projects chat events into the existing message and usage model", () => {
     { type: "complete", usage: { input_tokens: 3, output_tokens: 5 }, t: 6 },
   ];
 
-  assert.deepEqual(buildChatMessageBlocks(events), [
+  const state = chatEventStateProjector.fromEvents(events, {
+    hasMore: false,
+    lastSeq: 0,
+  });
+
+  assert.deepEqual(state.blocks, [
     { type: "user", text: "hello", t: 1 },
     {
       type: "assistant",
@@ -35,7 +39,7 @@ test("projects chat events into the existing message and usage model", () => {
     },
   ]);
 
-  assert.deepEqual(events.reduce(addUsageFromEvent, EMPTY_USAGE_TOTALS), {
+  assert.deepEqual(state.usageTotals, {
     inputTokens: 3,
     outputTokens: 5,
     cacheReadTokens: 0,

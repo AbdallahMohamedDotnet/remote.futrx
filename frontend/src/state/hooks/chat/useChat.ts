@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
 import type { ChatStream } from "../../../types/chatApi";
 import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../../models/chat";
+import {
+  chatEventStateProjector,
+  type ChatRenderState,
+} from "../../chat/chatEventStateProjector";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 import type { ChatUsageTotals } from "../../../models/chatUsage";
-import { buildChatMessageBlocks } from "../../chat/messageBlocks";
-import { addUsageFromEvent, EMPTY_USAGE_TOTALS } from "../../chat/usage";
 
 const CHAT_EVENT_PAGE_LIMIT = 240;
 
@@ -26,95 +28,6 @@ interface UseChatResult {
   refreshMeta: () => Promise<void>;
 }
 
-interface ChatRenderState {
-  events: ChatEvent[];
-  blocks: ChatMessageBlock[];
-  usageTotals: ChatUsageTotals;
-  eventCount: number;
-  hasOlder: boolean;
-  nextBefore: number;
-  lastSeq: number;
-}
-
-function emptyChatRenderState(): ChatRenderState {
-  return {
-    events: [],
-    blocks: [],
-    usageTotals: EMPTY_USAGE_TOTALS,
-    eventCount: 0,
-    hasOlder: false,
-    nextBefore: 0,
-    lastSeq: 0,
-  };
-}
-
-function stateFromEvents(
-  events: ChatEvent[],
-  page: Pick<ChatEventPage, "hasMore" | "nextBefore" | "lastSeq">
-): ChatRenderState {
-  let usageTotals = EMPTY_USAGE_TOTALS;
-
-  for (const event of events) {
-    usageTotals = addUsageFromEvent(usageTotals, event);
-  }
-
-  return {
-    events,
-    blocks: buildChatMessageBlocks(events),
-    usageTotals,
-    eventCount: events.length,
-    hasOlder: page.hasMore,
-    nextBefore: page.nextBefore ?? 0,
-    lastSeq: Math.max(page.lastSeq, latestSeq(events)),
-  };
-}
-
-function appendChatEvents(state: ChatRenderState, events: ChatEvent[]): ChatRenderState {
-  if (events.length === 0) return state;
-  const merged = mergeEvents(state.events, events);
-  return stateFromEvents(merged, {
-    hasMore: state.hasOlder,
-    nextBefore: state.nextBefore,
-    lastSeq: Math.max(state.lastSeq, latestSeq(events)),
-  });
-}
-
-function prependChatPage(state: ChatRenderState, page: ChatEventPage): ChatRenderState {
-  const merged = mergeEvents(page.events, state.events);
-  return stateFromEvents(merged, page);
-}
-
-function mergeEvents(a: ChatEvent[], b: ChatEvent[]): ChatEvent[] {
-  const merged = [...a];
-  const seenSeqs = new Set<number>();
-  for (const event of merged) {
-    if (event.seq) seenSeqs.add(event.seq);
-  }
-  for (const event of b) {
-    if (event.seq && seenSeqs.has(event.seq)) continue;
-    merged.push(event);
-    if (event.seq) seenSeqs.add(event.seq);
-  }
-  return merged.sort((left, right) => eventOrder(left) - eventOrder(right));
-}
-
-function eventOrder(event: ChatEvent): number {
-  return event.seq || event.t;
-}
-
-function latestSeq(events: ChatEvent[]): number {
-  return events.reduce((max, event) => Math.max(max, event.seq || 0), 0);
-}
-
-function statusAfterEvent(event: ChatEvent, current: ChatStatus): ChatStatus {
-  if (event.type === "complete" || event.type === "error") {
-    // The backend clears the run lock in a later sync event. Keep streaming
-    // until sync running=false so queued prompts are not sent into a locked run.
-    return current === "streaming" ? "streaming" : "ready";
-  }
-  return "streaming";
-}
-
 /**
  * useChat — load chat metadata, then open a streaming WS. The server replays
  * history over the socket before live events, which avoids gaps between an
@@ -122,7 +35,9 @@ function statusAfterEvent(event: ChatEvent, current: ChatStatus): ChatStatus {
  */
 export function useChat(chatId: string): UseChatResult {
   const [meta, setMeta] = useState<ChatMeta | null>(null);
-  const [renderState, setRenderState] = useState<ChatRenderState>(() => emptyChatRenderState());
+  const [renderState, setRenderState] = useState<ChatRenderState>(() =>
+    chatEventStateProjector.empty()
+  );
   const [status, setStatus] = useState<ChatStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [wsReady, setWsReady] = useState(false);
@@ -145,9 +60,12 @@ export function useChat(chatId: string): UseChatResult {
     const events = pendingEventsRef.current;
     if (events.length === 0) return;
     pendingEventsRef.current = [];
-    lastSeqRef.current = Math.max(lastSeqRef.current, latestSeq(events));
-    setRenderState((current) => appendChatEvents(current, events));
-    setStatus((current) => statusAfterEvent(events[events.length - 1], current));
+    lastSeqRef.current = Math.max(
+      lastSeqRef.current,
+      chatEventStateProjector.latestSequence(events)
+    );
+    setRenderState((current) => chatEventStateProjector.append(current, events));
+    setStatus((current) => chatEventStateProjector.statusAfter(events[events.length - 1], current));
   }
 
   function enqueueEvent(event: ChatEvent) {
@@ -162,7 +80,7 @@ export function useChat(chatId: string): UseChatResult {
     let cancelled = false;
     setStatus("loading");
     clearPendingEvents();
-    setRenderState(emptyChatRenderState());
+    setRenderState(chatEventStateProjector.empty());
     setMeta(null);
     setError(null);
     setWsReady(false);
@@ -176,8 +94,11 @@ export function useChat(chatId: string): UseChatResult {
           chatApi.fetchEvents(chatId, { limit: CHAT_EVENT_PAGE_LIMIT }),
         ]);
         if (cancelled) return;
-        lastSeqRef.current = Math.max(page.lastSeq, latestSeq(page.events));
-        setRenderState(stateFromEvents(page.events, page));
+        lastSeqRef.current = Math.max(
+          page.lastSeq,
+          chatEventStateProjector.latestSequence(page.events)
+        );
+        setRenderState(chatEventStateProjector.fromEvents(page.events, page));
         setMeta(m);
         setStatus("ready");
       } catch (e) {
@@ -248,8 +169,11 @@ export function useChat(chatId: string): UseChatResult {
   const rewind = useCallback(async (beforeT: number) => {
     const res = await chatApi.rewind(chatId, beforeT);
     clearPendingEvents();
-    lastSeqRef.current = Math.max(res.lastSeq, latestSeq(res.events));
-    setRenderState(stateFromEvents(res.events, res));
+    lastSeqRef.current = Math.max(
+      res.lastSeq,
+      chatEventStateProjector.latestSequence(res.events)
+    );
+    setRenderState(chatEventStateProjector.fromEvents(res.events, res));
     setStatus("ready");
     return res;
   }, [chatId]);
@@ -262,7 +186,7 @@ export function useChat(chatId: string): UseChatResult {
         limit: CHAT_EVENT_PAGE_LIMIT,
         before: renderState.nextBefore,
       });
-      setRenderState((current) => prependChatPage(current, page));
+      setRenderState((current) => chatEventStateProjector.prepend(current, page));
     } finally {
       setLoadingOlder(false);
     }
