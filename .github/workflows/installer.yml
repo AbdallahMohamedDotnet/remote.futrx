@@ -40,6 +40,7 @@ jobs:
         run: |
           bash infra/tests/go-toolchain-test.sh
           bash infra/tests/go-download-check.sh
+          bash infra/tests/install-migration-test.sh
 
       - name: Prepare SSH
         env:
@@ -67,7 +68,14 @@ jobs:
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
               "PUBLIC_HOSTNAME=${PUBLIC_HOSTNAME} bash -se" <<'REMOTE'
           set -euo pipefail
-          cd /opt/remote.futrx
+          if [ -d /opt/remote.futrx/.git ]; then
+              cd /opt/remote.futrx
+          elif [ -d /opt/remote.futrx.dev/.git ]; then
+              cd /opt/remote.futrx.dev
+          else
+              echo "no installed checkout found under /opt" >&2
+              exit 1
+          fi
 
           echo "==> git fetch + fast-forward to origin/main"
           git fetch --quiet --tags origin

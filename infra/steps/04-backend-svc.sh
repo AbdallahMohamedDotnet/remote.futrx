@@ -10,25 +10,50 @@
 #   - $INFRA_DIR, $INSTALL_DIR, $HOSTNAME, $SERVICE_PORT
 set -euo pipefail
 
+SERVICE_NAME="remote.futrx.service"
+SERVICE_UNIT_PATH="/etc/systemd/system/$SERVICE_NAME"
+LEGACY_SERVICE_NAME="remote.futrx.dev.service"
+LEGACY_SERVICE_UNIT_PATH="/etc/systemd/system/$LEGACY_SERVICE_NAME"
+
+# shellcheck source=../lib/install-migration.sh
+. "$INFRA_DIR/lib/install-migration.sh"
+
 # ───────────────── systemd unit ─────────────────
-log "Rendering /etc/systemd/system/remote.futrx.service"
+log "Rendering $SERVICE_UNIT_PATH"
 render_template "${INFRA_DIR}/templates/remote.futrx.service.tmpl" \
-                /etc/systemd/system/remote.futrx.service
+                "$SERVICE_UNIT_PATH"
 systemctl daemon-reload
 
-if systemctl is-active --quiet remote.futrx.service; then
-    log "Restarting remote.futrx.service"
-    systemctl restart remote.futrx.service
+if ! prepare_legacy_service_migration "$LEGACY_SERVICE_NAME" "$LEGACY_SERVICE_UNIT_PATH"; then
+    err "Could not pause $LEGACY_SERVICE_NAME; the existing service was left in place."
+    exit 1
+fi
+
+if systemctl is-active --quiet "$SERVICE_NAME"; then
+    log "Restarting $SERVICE_NAME"
+    SERVICE_ACTION="restart"
 else
-    log "Starting remote.futrx.service"
-    systemctl enable --now remote.futrx.service
+    log "Starting $SERVICE_NAME"
+    SERVICE_ACTION="enable"
+fi
+if { [ "$SERVICE_ACTION" = "restart" ] && ! systemctl restart "$SERVICE_NAME"; } || \
+   { [ "$SERVICE_ACTION" = "enable" ] && ! systemctl enable --now "$SERVICE_NAME"; }; then
+    err "$SERVICE_NAME failed to $SERVICE_ACTION."
+    if ! rollback_legacy_service_migration "$SERVICE_NAME" "$LEGACY_SERVICE_NAME"; then
+        err "Automatic rollback to $LEGACY_SERVICE_NAME also failed."
+    fi
+    journalctl -u "$SERVICE_NAME" -n 30 --no-pager >&2 || true
+    exit 1
 fi
 
 # ───────────────── health check ─────────────────
 sleep 1
-if ! systemctl is-active --quiet remote.futrx.service; then
+if ! systemctl is-active --quiet "$SERVICE_NAME"; then
     err "Service failed to start. Recent logs:"
-    journalctl -u remote.futrx.service -n 30 --no-pager >&2
+    if ! rollback_legacy_service_migration "$SERVICE_NAME" "$LEGACY_SERVICE_NAME"; then
+        err "Automatic rollback to $LEGACY_SERVICE_NAME also failed."
+    fi
+    journalctl -u "$SERVICE_NAME" -n 30 --no-pager >&2 || true
     exit 1
 fi
 
@@ -45,10 +70,18 @@ for _ in $(seq 1 30); do
 done
 if [ "$HEALTH_OK" -eq 0 ]; then
     err "Backend did not respond on 127.0.0.1:${SERVICE_PORT} within 30s"
-    journalctl -u remote.futrx.service -n 30 --no-pager >&2
+    if ! rollback_legacy_service_migration "$SERVICE_NAME" "$LEGACY_SERVICE_NAME"; then
+        err "Automatic rollback to $LEGACY_SERVICE_NAME also failed."
+    fi
+    journalctl -u "$SERVICE_NAME" -n 30 --no-pager >&2 || true
     exit 1
 fi
 ok "backend responding"
+
+if ! complete_legacy_service_migration "$LEGACY_SERVICE_NAME" "$LEGACY_SERVICE_UNIT_PATH"; then
+    err "Backend is healthy, but cleanup of $LEGACY_SERVICE_NAME failed."
+    exit 1
+fi
 
 # ───────────────── UFW ─────────────────
 if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then

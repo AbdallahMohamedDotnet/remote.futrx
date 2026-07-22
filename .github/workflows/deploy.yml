@@ -34,6 +34,7 @@ jobs:
         run: |
           bash infra/tests/go-toolchain-test.sh
           bash infra/tests/go-download-check.sh
+          bash infra/tests/install-migration-test.sh
 
       - name: Prepare SSH
         env:
@@ -60,6 +61,18 @@ jobs:
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
               "bash -se" <<'REMOTE'
           set -euo pipefail
+
+          # The first deploy after the project rename needs the full updater:
+          # it moves the checkout/data and swaps systemd units with rollback.
+          if [ ! -d /opt/remote.futrx/.git ] && [ -d /opt/remote.futrx.dev/.git ]; then
+              cd /opt/remote.futrx.dev
+              echo "==> updating legacy checkout before one-time migration"
+              git fetch --quiet --tags origin
+              git reset --hard origin/main
+              bash infra/update.sh --skip-workspaces
+              exit 0
+          fi
+
           cd /opt/remote.futrx
 
           echo "==> git fetch + fast-forward to origin/main"

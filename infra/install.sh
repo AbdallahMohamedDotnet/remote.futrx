@@ -40,7 +40,23 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
         apt-get install -y -qq git ca-certificates
     fi
 
-    TARGET="/opt/remote.futrx"
+    TARGET="${FUTRX_INSTALL_DIR:-/opt/remote.futrx}"
+    LEGACY_TARGET="${FUTRX_LEGACY_INSTALL_DIR:-/opt/remote.futrx.dev}"
+
+    # A pre-rename checkout can update itself in place, then the checked-out
+    # installer below performs the guarded path migration with rollback.
+    if [ -d "$LEGACY_TARGET/.git" ] && [ ! -L "$LEGACY_TARGET" ]; then
+        if [ -d "$TARGET/.git" ]; then
+            echo "both $LEGACY_TARGET and $TARGET contain installations; refusing to overwrite either" >&2
+            exit 1
+        fi
+        if [ ! -e "$TARGET" ] || { [ -d "$TARGET" ] && [ -z "$(ls -A "$TARGET" 2>/dev/null)" ]; }; then
+            echo "==> bootstrapping from legacy checkout at $LEGACY_TARGET"
+            git -C "$LEGACY_TARGET" fetch --quiet --tags origin
+            git -C "$LEGACY_TARGET" reset --hard origin/main
+            exec bash "$LEGACY_TARGET/infra/install.sh" "$@"
+        fi
+    fi
 
     # Honor --github-token / GITHUB_TOKEN for the bootstrap clone of a private
     # repo. The full arg loop later re-parses everything.
@@ -115,7 +131,8 @@ export HOSTNAME GITHUB_TOKEN GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
 
 # ───────────────── globals ─────────────────
 INFRA_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-INSTALL_DIR="/opt/remote.futrx"
+INSTALL_DIR="${FUTRX_INSTALL_DIR:-/opt/remote.futrx}"
+LEGACY_INSTALL_DIR="${FUTRX_LEGACY_INSTALL_DIR:-/opt/remote.futrx.dev}"
 REPO_URL="https://github.com/futrx-com/remote.futrx.com.git"
 SERVICE_PORT="${SERVICE_PORT:-7682}"
 
@@ -123,7 +140,7 @@ SERVICE_PORT="${SERVICE_PORT:-7682}"
 # want literal matches).
 HOSTNAME_RE="$(printf '%s' "$HOSTNAME" | sed 's/\./\\./g')"
 
-export INFRA_DIR INSTALL_DIR REPO_URL SERVICE_PORT HOSTNAME_RE
+export INFRA_DIR INSTALL_DIR LEGACY_INSTALL_DIR REPO_URL SERVICE_PORT HOSTNAME_RE
 
 # ───────────────── helpers (sourced by steps) ─────────────────
 log()  { printf "\n\033[1;36m==> %s\033[0m\n" "$*"; }
@@ -142,6 +159,15 @@ render_template() {
         < "$tmpl" > "$dest"
 }
 export -f render_template
+
+# ───────────────── pre-rename installation migration ─────────────────
+# shellcheck source=lib/install-migration.sh
+. "$INFRA_DIR/lib/install-migration.sh"
+migrate_legacy_install_dir "$INSTALL_DIR" "$LEGACY_INSTALL_DIR"
+if [ "$FUTRX_INSTALL_PATH_MIGRATED" -eq 1 ]; then
+    INFRA_DIR="$INSTALL_DIR/infra"
+    export INFRA_DIR
+fi
 
 # ───────────────── optional Google user authentication ─────────────────
 # The administrator always claims the server with a local email/password.

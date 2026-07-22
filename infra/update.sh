@@ -24,8 +24,10 @@
 #                      image or recycling workspace containers
 set -euo pipefail
 
-INSTALL_DIR="/opt/remote.futrx"
-UNIT="/etc/systemd/system/remote.futrx.service"
+INSTALL_DIR="${FUTRX_INSTALL_DIR:-/opt/remote.futrx}"
+LEGACY_INSTALL_DIR="${FUTRX_LEGACY_INSTALL_DIR:-/opt/remote.futrx.dev}"
+UNIT="${FUTRX_SERVICE_UNIT_PATH:-/etc/systemd/system/remote.futrx.service}"
+LEGACY_UNIT="${FUTRX_LEGACY_SERVICE_UNIT_PATH:-/etc/systemd/system/remote.futrx.dev.service}"
 
 usage() {
     sed -n '2,25s/^# \{0,1\}//p' "$0"
@@ -54,6 +56,12 @@ if [ "$EUID" -ne 0 ]; then
     echo "this updater needs root; rerun with sudo" >&2
     exit 1
 fi
+
+SCRIPT_INFRA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=lib/install-migration.sh
+. "$SCRIPT_INFRA_DIR/lib/install-migration.sh"
+migrate_legacy_install_dir "$INSTALL_DIR" "$LEGACY_INSTALL_DIR"
+
 if [ ! -d "$INSTALL_DIR/.git" ]; then
     echo "$INSTALL_DIR is not an installed git checkout; run infra/install.sh first" >&2
     exit 1
@@ -70,12 +78,13 @@ if [ "${FUTRX_UPDATE_REEXECED:-0}" != "1" ]; then
 fi
 
 INFRA_DIR="$INSTALL_DIR/infra"
-if [ -z "$HOSTNAME" ] && [ -r "$UNIT" ]; then
-    # The installer renders BASE_URL=https://<hostname> into the unit.
-    HOSTNAME="$(sed -n 's|^Environment=BASE_URL=https://||p' "$UNIT" | head -1)"
+if [ -z "$HOSTNAME" ]; then
+    # The installer renders BASE_URL=https://<hostname> into the unit. During
+    # a rename migration, only the legacy unit may exist yet.
+    HOSTNAME="$(installed_hostname_from_units "$UNIT" "$LEGACY_UNIT" || true)"
 fi
 if [ -z "$HOSTNAME" ]; then
-    echo "could not detect hostname from $UNIT — pass it explicitly:" >&2
+    echo "could not detect hostname from $UNIT or $LEGACY_UNIT — pass it explicitly:" >&2
     echo "  sudo bash $0 <hostname>" >&2
     exit 1
 fi
