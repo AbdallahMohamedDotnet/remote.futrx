@@ -1,4 +1,3 @@
-import type { ChatMode, ChatProvider, ReasoningEffort, ServiceTier } from "../../../models/chat";
 import {
   MODE_OPTIONS,
   reasoningEffortOptionsForProvider,
@@ -6,28 +5,19 @@ import {
 } from "../../../config/chat";
 import { Activity, Cpu, MessageSquare } from "../../primitives/icons";
 import { ComposerOptionDropdown } from "./ComposerOptionDropdown";
+import type { ComposerPreferenceActions, ComposerPreferences } from "./preferences";
 
 export function ComposerOptionsRow({
-  provider,
-  mode,
-  reasoningEffort,
-  serviceTier,
+  preferences,
+  preferenceActions,
   streaming,
-  onModeChange,
-  onReasoningEffortChange,
-  onServiceTierChange,
 }: {
-  provider: ChatProvider;
-  mode: ChatMode;
-  reasoningEffort: ReasoningEffort;
-  serviceTier: ServiceTier;
+  preferences: ComposerPreferences;
+  preferenceActions: ComposerPreferenceActions;
   streaming: boolean;
-  onModeChange: (mode: ChatMode) => void;
-  onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
-  onServiceTierChange: (serviceTier: ServiceTier) => void;
 }) {
-  const reasoningEffortOptions = reasoningEffortOptionsForProvider(provider);
-  const serviceTierOptions = serviceTierOptionsForProvider(provider);
+  const reasoningEffortOptions = reasoningEffortOptionsForProvider(preferences.provider);
+  const serviceTierOptions = serviceTierOptionsForProvider(preferences.provider);
 
   return (
     <div class="codex-composer-secondary-controls px-3 pt-1.5 pb-2">
@@ -35,31 +25,31 @@ export function ComposerOptionsRow({
         {reasoningEffortOptions.length > 0 && (
           <ComposerOptionDropdown
             label="Thinking"
-            value={reasoningEffort}
+            value={preferences.reasoningEffort}
             options={reasoningEffortOptions}
             disabled={streaming}
             Icon={Activity}
-            onChange={onReasoningEffortChange}
+            onChange={preferenceActions.changeReasoningEffort}
           />
         )}
 
         {serviceTierOptions.length > 0 && (
           <ComposerOptionDropdown
             label="Speed"
-            value={serviceTier}
+            value={preferences.serviceTier}
             options={serviceTierOptions}
             disabled={streaming}
             Icon={Cpu}
-            onChange={onServiceTierChange}
+            onChange={preferenceActions.changeServiceTier}
           />
         )}
 
         <ComposerOptionDropdown
           label="Mode"
-          value={mode}
+          value={preferences.mode}
           options={MODE_OPTIONS}
           Icon={MessageSquare}
-          onChange={onModeChange}
+          onChange={preferenceActions.changeMode}
         />
       </div>
     </div>

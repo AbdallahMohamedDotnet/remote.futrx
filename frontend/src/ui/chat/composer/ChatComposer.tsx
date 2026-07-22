@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import type { ChatMode, ChatProvider, QueuedPrompt, ReasoningEffort, SelectedSkill, ServiceTier } from "../../../models/chat";
+import type { QueuedPrompt, SelectedSkill } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import type { Attachment } from "../../../models/upload";
 import { AttachmentTray } from "./AttachmentTray";
@@ -11,16 +11,14 @@ import { PromptTextarea } from "./PromptTextarea";
 import { QueuedPromptList } from "./QueuedPromptList";
 import { SelectedSkillChips } from "./SelectedSkillChips";
 import { SendControls } from "./SendControls";
+import type { ComposerPreferenceActions, ComposerPreferences } from "./preferences";
 
 export function ChatComposer({
   projectId,
   streaming,
   canSendPrompt,
-  model,
-  provider,
-  mode,
-  reasoningEffort,
-  serviceTier,
+  preferences,
+  preferenceActions,
   queuedPrompts,
   selectedSkills,
   attachments,
@@ -36,23 +34,15 @@ export function ChatComposer({
   onCancel,
   onRemoveQueued,
   onRemoveAttachment,
-  onProviderChange,
-  onModelChange,
-  onModeChange,
   onSelectSkill,
   onRemoveSelectedSkill,
-  onReasoningEffortChange,
-  onServiceTierChange,
 }: {
   chatId: string;
   projectId?: string;
   streaming: boolean;
   canSendPrompt: boolean;
-  model: string;
-  provider: ChatProvider;
-  mode: ChatMode;
-  reasoningEffort: ReasoningEffort;
-  serviceTier: ServiceTier;
+  preferences: ComposerPreferences;
+  preferenceActions: ComposerPreferenceActions;
   queuedPrompts: QueuedPrompt[];
   selectedSkills: SelectedSkill[];
   draftText?: string;
@@ -70,13 +60,8 @@ export function ChatComposer({
   onCancel: () => void;
   onRemoveQueued: (id: string) => void;
   onRemoveAttachment: (id: string) => void;
-  onProviderChange: (provider: ChatProvider) => void;
-  onModelChange: (model: string) => void;
-  onModeChange: (mode: ChatMode) => void;
   onSelectSkill: (skill: RegisteredSkill) => void;
   onRemoveSelectedSkill: (skill: SelectedSkill) => void;
-  onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
-  onServiceTierChange: (serviceTier: ServiceTier) => void;
 }) {
   const disconnected = !canSendPrompt && !streaming;
   const hasContent = text.trim().length > 0 || attachments.some((attachment) => attachment.serverPath);
@@ -88,13 +73,13 @@ export function ChatComposer({
 
       <ComposerToolbar
         projectId={projectId}
-        model={model}
-        provider={provider}
+        model={preferences.model}
+        provider={preferences.provider}
         streaming={streaming}
         selectedSkills={selectedSkills}
         onSelectSkill={onSelectSkill}
-        onProviderChange={onProviderChange}
-        onModelChange={onModelChange}
+        onProviderChange={preferenceActions.changeProvider}
+        onModelChange={preferenceActions.changeModel}
       />
 
       <SelectedSkillChips skills={selectedSkills} onRemove={onRemoveSelectedSkill} />
@@ -133,14 +118,9 @@ export function ChatComposer({
       </form>
 
       <ComposerOptionsRow
-        provider={provider}
-        mode={mode}
-        reasoningEffort={reasoningEffort}
-        serviceTier={serviceTier}
+        preferences={preferences}
+        preferenceActions={preferenceActions}
         streaming={streaming}
-        onModeChange={onModeChange}
-        onReasoningEffortChange={onReasoningEffortChange}
-        onServiceTierChange={onServiceTierChange}
       />
     </div>
   );

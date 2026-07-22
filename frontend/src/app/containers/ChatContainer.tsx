@@ -109,11 +109,13 @@ export function ChatContainer({
             onCancel={cancel}
             onRemoveQueued={composer.queue.removeQueuedPrompt}
             onRemoveAttachment={composer.upload.removeAttachment}
-            onProviderChange={preferences.changeProvider}
-            onModelChange={preferences.changeModel}
-            onModeChange={preferences.changeMode}
-            onReasoningEffortChange={preferences.changeReasoningEffort}
-            onServiceTierChange={preferences.changeServiceTier}
+            composerPreferenceActions={{
+              changeProvider: preferences.changeProvider,
+              changeModel: preferences.changeModel,
+              changeMode: preferences.changeMode,
+              changeReasoningEffort: preferences.changeReasoningEffort,
+              changeServiceTier: preferences.changeServiceTier,
+            }}
             onSelectSkill={preferences.selectSkill}
             onRemoveSelectedSkill={preferences.removeSelectedSkill}
             onOpenTerminal={terminal.openTerminal}

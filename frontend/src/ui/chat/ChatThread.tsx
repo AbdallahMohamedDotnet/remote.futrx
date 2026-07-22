@@ -1,9 +1,10 @@
 import type { RefObject } from "preact";
-import type { ChatMeta, ChatMode, ChatProvider, ChatStatus, QueuedPrompt, ReasoningEffort, SelectedSkill, ServiceTier } from "../../models/chat";
+import type { ChatMeta, ChatMode, ChatStatus, QueuedPrompt, SelectedSkill } from "../../models/chat";
 import type { ChatMessageBlock } from "../../models/chatMessage";
 import type { Attachment } from "../../models/upload";
 import type { RegisteredSkill } from "../../models/skill";
 import { ChatComposer } from "./composer/ChatComposer";
+import type { ComposerPreferenceActions, ComposerPreferences } from "./composer/preferences";
 import { JumpToLatestButton } from "./messages/JumpToLatestButton";
 import { MessageList } from "./messages/MessageList";
 import { ThreadHeader } from "./header/ThreadHeader";
@@ -45,11 +46,7 @@ export function ChatThread({
   onCancel,
   onRemoveQueued,
   onRemoveAttachment,
-  onProviderChange,
-  onModelChange,
-  onModeChange,
-  onReasoningEffortChange,
-  onServiceTierChange,
+  composerPreferenceActions,
   onSelectSkill,
   onRemoveSelectedSkill,
   onOpenTerminal,
@@ -93,11 +90,7 @@ export function ChatThread({
   onCancel: () => void;
   onRemoveQueued: (id: string) => void;
   onRemoveAttachment: (id: string) => void;
-  onProviderChange: (provider: ChatProvider) => void;
-  onModelChange: (model: string) => void;
-  onModeChange: (mode: ChatMode) => void;
-  onReasoningEffortChange: (reasoningEffort: ReasoningEffort) => void;
-  onServiceTierChange: (serviceTier: ServiceTier) => void;
+  composerPreferenceActions: ComposerPreferenceActions;
   onSelectSkill: (skill: RegisteredSkill) => void;
   onRemoveSelectedSkill: (skill: SelectedSkill) => void;
   onOpenTerminal: () => void;
@@ -105,6 +98,14 @@ export function ChatThread({
   onOpenHistory: () => void;
   onOpenFiles: () => void;
 }) {
+  const composerPreferences: ComposerPreferences = {
+    provider: chat.provider || "codex",
+    model: chat.model || "",
+    mode,
+    reasoningEffort: chat.reasoningEffort || "",
+    serviceTier: chat.serviceTier || "",
+  };
+
   return (
     <div class="codex-thread flex-1 h-full flex flex-col min-h-0 overflow-hidden bg-[#0b0d11]">
       <ThreadHeader
@@ -142,11 +143,8 @@ export function ChatThread({
         projectId={chat.projectId}
         streaming={streaming}
         canSendPrompt={canSendPrompt}
-        model={chat.model || ""}
-        provider={chat.provider || "codex"}
-        mode={mode}
-        reasoningEffort={chat.reasoningEffort || ""}
-        serviceTier={chat.serviceTier || ""}
+        preferences={composerPreferences}
+        preferenceActions={composerPreferenceActions}
         queuedPrompts={queuedPrompts}
         selectedSkills={selectedSkills}
         draftText={draftText}
@@ -164,11 +162,6 @@ export function ChatThread({
         onCancel={onCancel}
         onRemoveQueued={onRemoveQueued}
         onRemoveAttachment={onRemoveAttachment}
-        onProviderChange={onProviderChange}
-        onModelChange={onModelChange}
-        onModeChange={onModeChange}
-        onReasoningEffortChange={onReasoningEffortChange}
-        onServiceTierChange={onServiceTierChange}
         onSelectSkill={onSelectSkill}
         onRemoveSelectedSkill={onRemoveSelectedSkill}
       />
