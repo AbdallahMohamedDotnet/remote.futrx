@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 var projectVerifyHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.(.+)$`)
@@ -31,7 +32,7 @@ func (h *authVerifyHandler) verify(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err := h.access.Verify(r.Context(), sessionCookieValue(r), matchedSlug)
+	err := h.access.Verify(r.Context(), httptransport.SessionCookieValue(r), matchedSlug)
 	switch {
 	case errors.Is(err, serviceauth.ErrAuthenticationRequired):
 		h.redirectToLogin(w, r)

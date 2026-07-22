@@ -5,10 +5,12 @@ import (
 	"strings"
 
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 type Auth struct {
 	auth                  *serviceauth.Service
+	principal             *httptransport.PrincipalResolver
 	localAdminConfigured  func() bool
 	providerAuthenticated func() bool
 	providerAuthPrefixes  []string
@@ -20,7 +22,7 @@ func (m *Auth) RequireLocalAdminSetup(configured func() bool) *Auth {
 }
 
 func NewAuth(auth *serviceauth.Service) *Auth {
-	return &Auth{auth: auth}
+	return &Auth{auth: auth, principal: httptransport.NewPrincipalResolver(auth)}
 }
 
 // RequireProviderLogin keeps application APIs closed until at least one AI
@@ -44,7 +46,7 @@ func (m *Auth) Wrap(next http.Handler) http.Handler {
 			return
 		}
 
-		session, err := m.auth.CurrentSession(sessionCookieValue(r))
+		session, err := m.principal.Session(r)
 		if err != nil {
 			http.Error(w, "authentication required", http.StatusUnauthorized)
 			return
@@ -73,12 +75,4 @@ func (m *Auth) isProviderAuthPath(path string) bool {
 		}
 	}
 	return false
-}
-
-func sessionCookieValue(r *http.Request) string {
-	cookie, err := r.Cookie(serviceauth.SessionCookieName)
-	if err != nil {
-		return ""
-	}
-	return cookie.Value
 }

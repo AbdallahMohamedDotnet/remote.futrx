@@ -35,7 +35,7 @@ func (h *SkillHandler) HandleCollection(w http.ResponseWriter, r *http.Request) 
 	items, err := h.skills.List(r.Context(), serviceskills.ListQuery{
 		Provider:      serviceskills.Provider(strings.TrimSpace(r.URL.Query().Get("provider"))),
 		ProjectID:     serviceproject.ID(strings.TrimSpace(r.URL.Query().Get("projectId"))),
-		SessionCookie: sessionCookieValue(r),
+		SessionCookie: httptransport.SessionCookieValue(r),
 	})
 	if err != nil {
 		sendSkillError(w, err)

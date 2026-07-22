@@ -168,29 +168,14 @@ func (h *UsersHandler) requireAdmin(w http.ResponseWriter, r *http.Request) (str
 // authenticates. Useful from any handler that needs to know "who is asking
 // right now" without baking auth into its parameter list.
 func callerEmailFromRequest(r *http.Request, auth *serviceauth.Service) (string, error) {
-	if auth == nil {
-		return "", errors.New("no auth service")
-	}
-	session, err := auth.CurrentSession(sessionCookieValue(r))
-	if err != nil || session == nil {
-		return "", err
-	}
-	return strings.ToLower(strings.TrimSpace(session.Email)), nil
+	return httptransport.NewPrincipalResolver(auth).Email(r)
 }
 
 // callerStateFromRequest returns the caller email and their isAdmin flag.
 // Used by per-project handlers that need both bits and don't want to call
 // the auth service twice.
 func callerStateFromRequest(ctx context.Context, r *http.Request, auth *serviceauth.Service) (string, bool, error) {
-	email, err := callerEmailFromRequest(r, auth)
-	if err != nil || email == "" {
-		return "", false, err
-	}
-	isAdmin, err := auth.IsAdmin(ctx, email)
-	if err != nil {
-		return email, false, err
-	}
-	return email, isAdmin, nil
+	return httptransport.NewPrincipalResolver(auth).EmailAndAdmin(ctx, r)
 }
 
 func sendUsersError(w http.ResponseWriter, err error) {

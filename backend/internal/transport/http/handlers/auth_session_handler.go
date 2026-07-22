@@ -29,5 +29,5 @@ func (h *authSessionHandler) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *authSessionHandler) me(w http.ResponseWriter, r *http.Request) {
-	httptransport.SendJSON(w, http.StatusOK, h.auth.Status(r.Context(), sessionCookieValue(r)))
+	httptransport.SendJSON(w, http.StatusOK, h.auth.Status(r.Context(), httptransport.SessionCookieValue(r)))
 }

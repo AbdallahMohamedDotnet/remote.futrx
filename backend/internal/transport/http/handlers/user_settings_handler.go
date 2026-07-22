@@ -71,11 +71,7 @@ func (h *UserSettingsHandler) key(r *http.Request) (serviceusersettings.Key, err
 		return serviceusersettings.LocalAdminKey, nil
 	}
 
-	cookie, err := r.Cookie(serviceauth.SessionCookieName)
-	if err != nil {
-		return "", err
-	}
-	session, err := h.auth.CurrentSession(cookie.Value)
+	session, err := httptransport.NewPrincipalResolver(h.auth).Session(r)
 	if err != nil {
 		return "", err
 	}

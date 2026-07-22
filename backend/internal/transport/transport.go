@@ -124,9 +124,10 @@ func NewHTTPServer(addr string, handler http.Handler) *http.Server {
 // reach this project?" lookups so each socket / upload site doesn't have
 // to wire up the auth + project + chat services itself.
 type accessGate struct {
-	auth     *serviceauth.Service
-	projects *serviceproject.Service
-	chats    chatProjectFinder
+	auth      *serviceauth.Service
+	principal *httptransport.PrincipalResolver
+	projects  *serviceproject.Service
+	chats     chatProjectFinder
 }
 
 type chatProjectFinder interface {
@@ -137,18 +138,17 @@ func newAccessGate(auth *serviceauth.Service, projects *serviceproject.Service, 
 	if auth == nil {
 		return nil
 	}
-	return &accessGate{auth: auth, projects: projects, chats: chats}
+	return &accessGate{
+		auth: auth, principal: httptransport.NewPrincipalResolver(auth),
+		projects: projects, chats: chats,
+	}
 }
 
 func (g *accessGate) CallerAndAdmin(ctx context.Context, r *http.Request) (string, bool, error) {
 	if g == nil || g.auth == nil {
 		return "", true, nil
 	}
-	cookie, err := r.Cookie(serviceauth.SessionCookieName)
-	if err != nil {
-		return "", false, err
-	}
-	session, err := g.auth.CurrentSession(cookie.Value)
+	session, err := g.principal.Session(r)
 	if err != nil || session == nil {
 		return "", false, err
 	}

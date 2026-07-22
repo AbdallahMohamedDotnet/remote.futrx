@@ -14,11 +14,3 @@ func setSessionCookie(w http.ResponseWriter, auth *serviceauth.Service, user ser
 		MaxAge: int(serviceauth.SessionDuration().Seconds()),
 	})
 }
-
-func sessionCookieValue(r *http.Request) string {
-	cookie, err := r.Cookie(serviceauth.SessionCookieName)
-	if err != nil {
-		return ""
-	}
-	return cookie.Value
-}
