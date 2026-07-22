@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test src/shared/projectPreviewUrls.test.ts src/state/chat/chatEventStateProjector.test.ts src/state/chat/workspaceFileBrowserState.test.ts src/state/hooks/auth/safeReturnTo.test.ts src/state/workspace/workspaceState.test.ts",
+    "test": "node --experimental-strip-types --test src/shared/projectPreviewUrls.test.ts src/state/chat/chatAttachmentState.test.ts src/state/chat/chatEventStateProjector.test.ts src/state/chat/workspaceFileBrowserState.test.ts src/state/hooks/auth/safeReturnTo.test.ts src/state/workspace/workspaceState.test.ts",
     "test:project-preview-urls": "node --experimental-strip-types --test src/shared/projectPreviewUrls.test.ts"
   },
   "dependencies": {

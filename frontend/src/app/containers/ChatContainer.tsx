@@ -5,7 +5,7 @@ import { ChatThread } from "../../ui/chat/ChatThread";
 import type { ChatComposerProps } from "../../ui/chat/composer/ChatComposer";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
-import { attachmentBasePathForChat } from "../../state/chat/attachmentPaths";
+import { chatAttachmentState } from "../../state/chat/chatAttachmentState";
 import { useChat } from "../../state/hooks/chat/useChat";
 import { useChatBrowserController } from "../../state/hooks/chat/useChatBrowserController";
 import { useChatComposerController } from "../../state/hooks/chat/useChatComposerController";
@@ -41,7 +41,7 @@ export function ChatContainer({
   } = useChat(chat.id);
   const preferences = useChatPreferences({ chat, loadedMeta: meta, refreshMeta });
   const { displayMeta, displayMode, selectedSkills } = preferences;
-  const attachmentBasePath = attachmentBasePathForChat(displayMeta, projects);
+  const attachmentBasePath = chatAttachmentState.basePath(displayMeta, projects);
   const composer = useChatComposerController({
     chatId: chat.id,
     eventCount,

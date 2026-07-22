@@ -3,6 +3,7 @@ import type { Attachment } from "../../../models/upload";
 import { startChatUpload } from "../../../api/uploadApi";
 import type { UploadHandle } from "../../../types/uploadApi";
 import { randomId } from "../../../shared/ids";
+import { chatAttachmentState } from "../../chat/chatAttachmentState";
 
 export function useAttachmentUpload(
   chatId: string,
@@ -42,7 +43,7 @@ export function useAttachmentUpload(
       // friendly label shown in the composer chip.
       const items = files.map((file) => {
         const id = randomId();
-        const uploadName = uniqueUploadName(file.name, id);
+        const uploadName = chatAttachmentState.uniqueUploadName(file.name, id);
         const uploadFile =
           uploadName === file.name
             ? file
@@ -88,7 +89,7 @@ export function useAttachmentUpload(
                     ? {
                         ...a,
                         progress: 1,
-                        serverPath: absoluteUploadPath(
+                        serverPath: chatAttachmentState.absoluteUploadPath(
                           attachmentBasePathRef.current,
                           uploadFile.name
                         ),
@@ -128,7 +129,7 @@ export function useAttachmentUpload(
     }
     setAttachments((prev) => {
       const target = prev.find((attachment) => attachment.id === id);
-      if (target) revokeAttachment(target);
+      if (target) chatAttachmentState.revoke(target);
       return prev.filter((attachment) => attachment.id !== id);
     });
   }
@@ -137,7 +138,7 @@ export function useAttachmentUpload(
     for (const handle of handlesRef.current.values()) void handle.abort();
     handlesRef.current.clear();
     setAttachments((prev) => {
-      prev.forEach(revokeAttachment);
+      prev.forEach((attachment) => chatAttachmentState.revoke(attachment));
       return [];
     });
   }
@@ -149,30 +150,4 @@ export function useAttachmentUpload(
     removeAttachment,
     clearAttachments,
   };
-}
-
-function revokeAttachment(attachment: Attachment) {
-  if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
-}
-
-// Insert a unique token before the extension so concurrent or repeated uploads
-// of identically-named files (e.g. pasted "image.png" screenshots) never
-// collide on disk. Strips any path the browser left on the name first.
-function uniqueUploadName(name: string, token: string): string {
-  const cleaned = name.split(/[\\/]/).pop()?.trim() || name.trim();
-  if (!cleaned) return `file-${token}`;
-  const dot = cleaned.lastIndexOf(".");
-  // dot <= 0 covers "no extension" and dotfiles like ".env".
-  if (dot <= 0) return `${cleaned}-${token}`;
-  return `${cleaned.slice(0, dot)}-${token}${cleaned.slice(dot)}`;
-}
-
-function absoluteUploadPath(basePath: string, fileName: string) {
-  const safeName = fileName.split(/[\\/]/).pop()?.trim() || fileName.trim();
-  if (!safeName) return "";
-  if (safeName.startsWith("/")) return safeName;
-
-  const base = basePath.trim().replace(/\/+$/, "");
-  if (!base) return safeName;
-  return `${base}/${safeName}`;
 }
