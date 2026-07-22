@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import type { RefObject } from "preact";
-import { PUBLIC_HOSTNAME } from "../../../config/runtime";
 import type { BrowserElementCapture } from "../../../models/browser";
 import type { ChatMeta } from "../../../models/chat";
 import type { ContainerApp, ProjectMeta } from "../../../models/project";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { projectApi } from "../../../api/projectApi";
-import {
-  isProjectPreviewUrl,
-  projectPreviewPort,
-  projectPreviewUrlsInText,
-} from "../../../shared/projectPreviewUrls";
+import { projectPreviewPort } from "../../../shared/projectPreviewUrls";
+import { chatBrowserState } from "../../chat/chatBrowserState";
 
 export function useChatBrowserController({
   chat,
@@ -34,7 +30,9 @@ export function useChatBrowserController({
   const browserProject = chat.projectId
     ? projects.find((project) => project.id === chat.projectId) ?? null
     : null;
-  const browserUrl = browserProject ? latestPublicDevUrl(blocks, browserProject.slug) : "";
+  const browserUrl = browserProject
+    ? chatBrowserState.latestPublicDevUrl(blocks, browserProject.slug)
+    : "";
 
   useEffect(() => {
     setBrowserOpen(false);
@@ -75,7 +73,7 @@ export function useChatBrowserController({
   }
 
   function insertBrowserElementContext(capture: BrowserElementCapture) {
-    const insertion = `\n\n${formatBrowserElementCapture(capture)}\n\n`;
+    const insertion = `\n\n${chatBrowserState.formatElementCapture(capture)}\n\n`;
     const textarea = textareaRef.current;
     const start = textarea?.selectionStart ?? text.length;
     const end = textarea?.selectionEnd ?? start;
@@ -100,58 +98,4 @@ export function useChatBrowserController({
     loadContainerApps,
     insertBrowserElementContext,
   };
-}
-
-function latestPublicDevUrl(blocks: ChatMessageBlock[], slug: string): string {
-  let latest = "";
-  for (const block of blocks) {
-    for (const text of blockTexts(block)) {
-      for (const candidate of projectPreviewUrlsInText(text, PUBLIC_HOSTNAME)) {
-        if (isProjectPreviewUrl(candidate, slug, PUBLIC_HOSTNAME)) latest = candidate;
-      }
-    }
-  }
-  return latest;
-}
-
-function blockTexts(block: ChatMessageBlock): string[] {
-  if (block.type === "user") return [block.text];
-  if (block.type === "error") return [block.message];
-  return block.parts.flatMap((part) => {
-    if (part.kind === "text" || part.kind === "thinking") return [part.text];
-    return part.output ? [part.output] : [];
-  });
-}
-
-function formatBrowserElementCapture(capture: BrowserElementCapture): string {
-  const lines = [
-    "[Browser element]",
-    `URL: ${capture.url || ""}`,
-  ];
-  if (capture.title) lines.push(`Title: ${capture.title}`);
-  lines.push(`Selector: ${capture.selector || ""}`);
-  lines.push(`Tag: ${capture.tag || ""}`);
-  if (capture.id) lines.push(`ID: ${capture.id}`);
-  if (capture.classes?.length) lines.push(`Classes: ${capture.classes.join(" ")}`);
-  if (capture.role) lines.push(`Role: ${capture.role}`);
-  if (capture.ariaLabel) lines.push(`ARIA label: ${capture.ariaLabel}`);
-  if (capture.rect) {
-    lines.push(`Box: x=${capture.rect.x} y=${capture.rect.y} w=${capture.rect.width} h=${capture.rect.height}`);
-  }
-  if (capture.viewport) {
-    lines.push(`Viewport: ${capture.viewport.width}x${capture.viewport.height}`);
-  }
-  if (capture.parents?.length) {
-    lines.push(`Parents: ${capture.parents.join(" > ")}`);
-  }
-  if (capture.styles && Object.keys(capture.styles).length) {
-    lines.push("Styles:");
-    for (const [key, value] of Object.entries(capture.styles)) {
-      if (value) lines.push(`- ${key}: ${value}`);
-    }
-  }
-  if (capture.text) lines.push(`Text: ${capture.text}`);
-  if (capture.html) lines.push(`HTML: ${capture.html}`);
-  lines.push("[/Browser element]");
-  return lines.join("\n");
 }
