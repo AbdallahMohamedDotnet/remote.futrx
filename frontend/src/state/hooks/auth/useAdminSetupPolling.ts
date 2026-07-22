@@ -14,6 +14,8 @@ export function useAdminSetupPolling(
     const poll = async () => {
       try {
         await refresh();
+      } catch {
+        // A transient request failure should not stop setup discovery.
       } finally {
         if (!cancelled) timer = window.setTimeout(poll, adminSetupPollIntervalMs);
       }
