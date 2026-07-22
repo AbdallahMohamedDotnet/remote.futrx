@@ -104,11 +104,15 @@ func (p *Provider) buildCmd(
 		return nil, "", fmt.Errorf("project %s has no container - recreate the project", project.ID)
 	}
 
+	// The container can be deleted out-of-band (e.g. a workspace recycle onto a
+	// new base image), leaving the cached Status stale. Always reconcile via
+	// Start — it relaunches a missing instance from the base image and is a
+	// no-op when already running; the cached Status only gates the indicator.
 	if project.Status != serviceproject.StatusRunning {
 		emitSystem(req, emit, "container_starting")
-		if _, err := p.projects.Start(ctx, project.ID); err != nil {
-			return nil, "", fmt.Errorf("start container: %w", err)
-		}
+	}
+	if _, err := p.projects.Start(ctx, project.ID); err != nil {
+		return nil, "", fmt.Errorf("start container: %w", err)
 	}
 
 	if err := p.containerDeps.Validate(); err != nil {

@@ -29,6 +29,12 @@ type Service struct {
 	browserActivityMu sync.Mutex
 	browserSeen       map[ID]time.Time
 	reaperOn          bool
+
+	// runStateLocks serializes container run-state transitions per project so a
+	// container deleted out-of-band (e.g. a workspace recycle onto a new base
+	// image) is relaunched exactly once even under concurrent prompts.
+	runStateMu    sync.Mutex
+	runStateLocks map[ID]*sync.Mutex
 }
 
 func New(
@@ -367,10 +373,29 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	return s.repo.Delete(ctx, id)
 }
 
+// lockRunState serializes run-state transitions for a single project, preventing
+// a concurrent double-launch of a container that was deleted out-of-band. The
+// per-project mutex means one project's (re)launch never blocks another's.
+func (s *Service) lockRunState(id ID) func() {
+	s.runStateMu.Lock()
+	if s.runStateLocks == nil {
+		s.runStateLocks = make(map[ID]*sync.Mutex)
+	}
+	mu := s.runStateLocks[id]
+	if mu == nil {
+		mu = &sync.Mutex{}
+		s.runStateLocks[id] = mu
+	}
+	s.runStateMu.Unlock()
+	mu.Lock()
+	return mu.Unlock
+}
+
 func (s *Service) Start(ctx context.Context, id ID) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
 	}
+	defer s.lockRunState(id)()
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return Meta{}, err
@@ -378,22 +403,34 @@ func (s *Service) Start(ctx context.Context, id ID) (Meta, error) {
 	if s.containerLifecycle != nil {
 		state, err := s.containerLifecycle.State(ctx, m.ContainerName)
 		if err != nil {
-			return s.repo.SetStatus(ctx, id, StatusError, err.Error())
+			return s.setStartError(ctx, id, err)
 		}
 		if state == ContainerStateMissing {
 			if err := s.containerLifecycle.Launch(ctx, m); err != nil {
-				return s.repo.SetStatus(ctx, id, StatusError, err.Error())
+				return s.setStartError(ctx, id, err)
 			}
 			if syncErr := s.syncContainerEnv(ctx, id, m.ContainerName); syncErr != nil {
 				log.Printf("projects: sync env to %s after relaunch: %v", m.ContainerName, syncErr)
 			}
 		} else if state != ContainerStateRunning {
 			if err := s.containerLifecycle.Start(ctx, m.ContainerName); err != nil {
-				return s.repo.SetStatus(ctx, id, StatusError, err.Error())
+				return s.setStartError(ctx, id, err)
 			}
 		}
 	}
 	return s.repo.SetStatus(ctx, id, StatusRunning, "")
+}
+
+// setStartError keeps the persisted project status useful for the UI while
+// returning the operational failure to callers. Agent providers must stop here
+// instead of attempting CLI provisioning against a container that never
+// started and masking the real cause with a later "instance not found" error.
+func (s *Service) setStartError(ctx context.Context, id ID, cause error) (Meta, error) {
+	m, statusErr := s.repo.SetStatus(ctx, id, StatusError, cause.Error())
+	if statusErr != nil {
+		return Meta{}, errors.Join(cause, statusErr)
+	}
+	return m, cause
 }
 
 func (s *Service) Stop(ctx context.Context, id ID) (Meta, error) {

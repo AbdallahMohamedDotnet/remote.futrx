@@ -250,8 +250,27 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestBuildCmdReconcilesContainerEvenWhenCachedStatusIsRunning(t *testing.T) {
+	project := serviceproject.Meta{
+		ID:            serviceproject.ID("abcd"),
+		ContainerName: "recycled-project",
+		Status:        serviceproject.StatusRunning,
+	}
+	startCalls := 0
+	provider := New(fakeCodexProjects{project: project, startCalls: &startCalls}, provisioning.ContainerDependencies{})
+	req := agent.RunRequest{ProjectID: string(project.ID)}
+
+	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if startCalls != 1 {
+		t.Fatalf("Start() calls = %d, want 1", startCalls)
+	}
+}
+
 type fakeCodexProjects struct {
-	project serviceproject.Meta
+	project    serviceproject.Meta
+	startCalls *int
 }
 
 func (f fakeCodexProjects) Get(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
@@ -259,6 +278,9 @@ func (f fakeCodexProjects) Get(context.Context, serviceproject.ID) (serviceproje
 }
 
 func (f fakeCodexProjects) Start(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
+	if f.startCalls != nil {
+		(*f.startCalls)++
+	}
 	return f.project, nil
 }
 
