@@ -27,7 +27,7 @@ func InstallScript() []byte {
 	return append([]byte(nil), codeServerUpScript...)
 }
 
-// codeServerProvisioner owns installation and socket activation for the
+// Provisioner owns installation and socket activation for the
 // per-container IDE.
 type Provisioner struct {
 	runner command.Runner

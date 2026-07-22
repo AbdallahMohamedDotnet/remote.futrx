@@ -21,8 +21,8 @@ type agentBrowserConfigurator struct {
 // EnsureNesting applies the security.nesting config Chrome's sandbox needs.
 // The key also lives in the workspace profile; this container-local set
 // remains as a belt-and-braces for containers whose profile attach failed.
-func (s *Adapter) EnsureNesting(ctx context.Context, containerName string) error {
-	return s.config.ensure(ctx, containerName)
+func (a *Adapter) EnsureNesting(ctx context.Context, containerName string) error {
+	return a.config.ensure(ctx, containerName)
 }
 
 func (c *agentBrowserConfigurator) ensure(ctx context.Context, containerName string) error {

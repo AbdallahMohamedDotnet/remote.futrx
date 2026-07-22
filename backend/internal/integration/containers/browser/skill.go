@@ -26,13 +26,13 @@ const (
 
 // EnsureBrowserSkill provisions the `browser` skill into the workspace skills
 // directory. Idempotent: re-pushed only when the embedded SKILL.md changes.
-func (s *Adapter) EnsureSkill(ctx context.Context, containerName string) error {
-	if !s.runner.Available() {
+func (a *Adapter) EnsureSkill(ctx context.Context, containerName string) error {
+	if !a.runner.Available() {
 		return command.ErrUnavailable
 	}
-	out, err := command.RunWithTimeout(ctx, s.runner, queryTimeout, "exec", containerName, "--", "install", "-d", "-m", "755", containerBrowserSkillDir)
+	out, err := command.RunWithTimeout(ctx, a.runner, queryTimeout, "exec", containerName, "--", "install", "-d", "-m", "755", containerBrowserSkillDir)
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerBrowserSkillDir, err, out)
 	}
-	return s.publisher.Push(ctx, containerName, browserSkillTemplate, containerBrowserSkillHash, "644", containerBrowserSkillMD)
+	return a.publisher.Push(ctx, containerName, browserSkillTemplate, containerBrowserSkillHash, "644", containerBrowserSkillMD)
 }

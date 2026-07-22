@@ -129,7 +129,7 @@ func (*recordingRuntime) Status(context.Context, string) (serviceproject.AgentBr
 
 type stubTooling struct{}
 
-func (stubTooling) EnsureSkill(context.Context, string) error  { return nil }
-func (stubTooling) EnsureScript(context.Context, string) error { return nil }
-func (stubTooling) EnsureMCP(context.Context, string) error    { return nil }
+func (stubTooling) EnsureSkill(context.Context, string) error   { return nil }
+func (stubTooling) EnsureScript(context.Context, string) error  { return nil }
+func (stubTooling) EnsureMCP(context.Context, string) error     { return nil }
 func (stubTooling) EnsureNesting(context.Context, string) error { return nil }

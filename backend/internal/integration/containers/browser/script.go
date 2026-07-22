@@ -33,15 +33,15 @@ const (
 // workspace and seeds an empty .agents/browser-auth.json if missing.
 // Idempotent: the script is only re-pushed when its embedded content
 // changes (sha256 marker stored alongside the config).
-func (s *Adapter) EnsureScript(ctx context.Context, containerName string) error {
-	if !s.runner.Available() {
+func (a *Adapter) EnsureScript(ctx context.Context, containerName string) error {
+	if !a.runner.Available() {
 		return command.ErrUnavailable
 	}
 
 	// Always ensure the directories + config file exist (cheap, idempotent).
 	// We chmod 755 on dirs so the unprivileged container-root user can
 	// traverse them; the host bind-mount preserves the uid 1000000 owner.
-	_, err := command.RunWithTimeout(ctx, s.runner, 30*time.Second, "exec", containerName, "--", "sh", "-c", `set -eu
+	_, err := command.RunWithTimeout(ctx, a.runner, 30*time.Second, "exec", containerName, "--", "sh", "-c", `set -eu
 mkdir -p /workspace/scripts /workspace/.agents /workspace/.browser
 chmod 755 /workspace/scripts /workspace/.agents /workspace/.browser
 if [ ! -f /workspace/.agents/browser-auth.json ]; then
@@ -52,5 +52,5 @@ fi`)
 		return fmt.Errorf("seed browser dirs: %w", err)
 	}
 
-	return s.publisher.Push(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
+	return a.publisher.Push(ctx, containerName, browserScriptTemplate, containerBrowserScriptHash, "755", containerBrowserScript)
 }
