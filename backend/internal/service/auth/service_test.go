@@ -57,7 +57,6 @@ func (u *authTestUsers) AddBootstrapAdmin(_ context.Context, email string) error
 	u.roles[normalizeEmail(email)] = true
 	return nil
 }
-func (u *authTestUsers) Count(context.Context) (int, error) { return len(u.roles), nil }
 func (u *authTestUsers) FirstAdmin(context.Context) (*UserDirectoryEntry, error) {
 	admins := make([]string, 0)
 	for email, admin := range u.roles {

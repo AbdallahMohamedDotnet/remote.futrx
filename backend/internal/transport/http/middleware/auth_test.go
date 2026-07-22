@@ -15,7 +15,6 @@ type authTestDirectory struct{}
 func (authTestDirectory) IsAdmin(context.Context, string) (bool, error)      { return true, nil }
 func (authTestDirectory) IsRegistered(context.Context, string) (bool, error) { return true, nil }
 func (authTestDirectory) AddBootstrapAdmin(context.Context, string) error    { return nil }
-func (authTestDirectory) Count(context.Context) (int, error)                 { return 1, nil }
 func (authTestDirectory) FirstAdmin(context.Context) (*serviceauth.UserDirectoryEntry, error) {
 	return &serviceauth.UserDirectoryEntry{Email: "admin@example.com"}, nil
 }

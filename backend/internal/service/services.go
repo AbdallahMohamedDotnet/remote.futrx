@@ -189,10 +189,6 @@ func (a userDirectoryAdapter) IsRegistered(ctx context.Context, email string) (b
 	return a.users.IsRegistered(ctx, email)
 }
 
-func (a userDirectoryAdapter) Count(ctx context.Context) (int, error) {
-	return a.users.Count(ctx)
-}
-
 func (a userDirectoryAdapter) AddBootstrapAdmin(ctx context.Context, email string) error {
 	_, err := a.users.Add(ctx, email, serviceuser.RoleAdmin, "")
 	return err

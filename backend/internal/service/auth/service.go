@@ -28,7 +28,6 @@ type UserDirectory interface {
 	// users.json is empty (no admins exist yet); subsequent sign-ins go
 	// through IsRegistered.
 	AddBootstrapAdmin(ctx context.Context, email string) error
-	Count(ctx context.Context) (int, error)
 	FirstAdmin(ctx context.Context) (*UserDirectoryEntry, error)
 }
 
