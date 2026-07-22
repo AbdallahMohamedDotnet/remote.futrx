@@ -27,7 +27,7 @@ func TestApplyDiffEndsFlagParsingBeforeSecretValue(t *testing.T) {
 	}
 }
 
-func TestApplyDiffSkipsMultilineValues(t *testing.T) {
+func TestApplyDiffRemovesPersistentValueWhenReplacementIsMultiline(t *testing.T) {
 	runner := &environmentTestRunner{}
 	service := NewService(runner)
 
@@ -36,8 +36,11 @@ func TestApplyDiffSkipsMultilineValues(t *testing.T) {
 	}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if len(runner.calls) != 0 {
-		t.Fatalf("multiline value reached LXD config: %#v", runner.calls)
+	want := [][]string{
+		{"config", "unset", "project", "environment.SSH_KEY"},
+	}
+	if !slices.EqualFunc(runner.calls, want, slices.Equal[[]string]) {
+		t.Fatalf("calls = %#v, want %#v", runner.calls, want)
 	}
 }
 

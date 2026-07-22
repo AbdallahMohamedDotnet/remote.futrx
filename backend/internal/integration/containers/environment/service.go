@@ -49,12 +49,15 @@ func (s *Service) ApplyDiff(
 		return errors.New("container name required")
 	}
 
+	keysToUnset := make([]string, 0, len(unset)+len(set))
+	keysToUnset = append(keysToUnset, unset...)
 	for k, v := range set {
 		// LXD rejects line breaks in persistent environment.* config. Agent
 		// sessions still receive multiline project secrets through `lxc exec
-		// --env`; skip them here so one PEM/JSON value does not prevent the
-		// remaining single-line terminal environment from being synchronized.
+		// --env`. Remove any previously persisted single-line value so rotating a
+		// secret to PEM/JSON cannot leave stale credentials in terminal sessions.
 		if strings.ContainsAny(v, "\r\n") {
+			keysToUnset = append(keysToUnset, k)
 			continue
 		}
 		qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
@@ -75,7 +78,7 @@ func (s *Service) ApplyDiff(
 		}
 	}
 
-	for _, k := range unset {
+	for _, k := range keysToUnset {
 		uctx, cancelU := context.WithTimeout(ctx, queryTimeout)
 		out, err := s.runner.Run(uctx, "config", "unset", container, "environment."+k)
 		cancelU()
