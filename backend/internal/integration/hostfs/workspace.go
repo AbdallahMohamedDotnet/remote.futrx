@@ -32,27 +32,31 @@ func (p *WorkspacePreparer) Prepare(path string) error {
 }
 
 func chownRecursively(path string, uid, gid int) error {
-	root := filepath.Clean(path)
-	return filepath.WalkDir(root, func(current string, _ fs.DirEntry, walkErr error) error {
+	root, err := os.OpenRoot(filepath.Clean(path))
+	if err != nil {
+		return err
+	}
+	walkErr := fs.WalkDir(root.FS(), ".", func(current string, _ fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Browser profiles contain short-lived lock entries. A concurrent
 			// browser shutdown may remove one between reading the directory and
 			// visiting it; that must not prevent the workspace from launching.
-			if current != root && errors.Is(walkErr, fs.ErrNotExist) {
+			if current != "." && errors.Is(walkErr, fs.ErrNotExist) {
 				return nil
 			}
 			return walkErr
 		}
 
-		// Lchown changes a symlink itself instead of following it. Chromium's
-		// Singleton* locks intentionally point at ephemeral files and sockets,
-		// which are commonly dangling after a container recycle.
-		if err := os.Lchown(current, uid, gid); err != nil {
-			if current != root && errors.Is(err, fs.ErrNotExist) {
+		// Root.Lchown changes the final symlink itself and resolves every parent
+		// relative to the opened workspace descriptor. A concurrent directory to
+		// symlink swap therefore cannot redirect ownership changes outside it.
+		if err := root.Lchown(current, uid, gid); err != nil {
+			if current != "." && errors.Is(err, fs.ErrNotExist) {
 				return nil
 			}
 			return err
 		}
 		return nil
 	})
+	return errors.Join(walkErr, root.Close())
 }
