@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,11 +25,11 @@ var errOutsideWorkspace = errors.New("path escapes workspace")
 type WorkspaceFileStore struct{}
 
 // secureWorkspace owns the workspace containment boundary for one store
-// operation. Resolving the real root once keeps every path decision within the
-// same trusted context and avoids scattering containment checks across file
-// operations.
+// operation. The os.Root handle makes the final filesystem operation relative
+// to an opened directory, so a concurrent symlink swap cannot redirect it
+// outside the workspace after path validation.
 type secureWorkspace struct {
-	root     string
+	root     *os.Root
 	realRoot string
 }
 
@@ -41,11 +42,12 @@ func (s *WorkspaceFileStore) DirectoryExists(root, relative string) bool {
 	if err != nil {
 		return false
 	}
+	defer workspace.close()
 	resolved, err := workspace.resolve(relative)
 	if err != nil {
 		return false
 	}
-	info, err := os.Stat(resolved)
+	info, err := workspace.root.Stat(resolved)
 	return err == nil && info.IsDir()
 }
 
@@ -54,11 +56,17 @@ func (s *WorkspaceFileStore) ListDir(root, relative string, maxEntries int) ([]*
 	if err != nil {
 		return nil, false, err
 	}
+	defer workspace.close()
 	resolved, err := workspace.resolve(relative)
 	if err != nil {
 		return nil, false, err
 	}
-	entries, err := os.ReadDir(resolved)
+	directory, err := workspace.root.Open(resolved)
+	if err != nil {
+		return nil, false, err
+	}
+	entries, err := directory.ReadDir(-1)
+	_ = directory.Close()
 	if err != nil {
 		return nil, false, err
 	}
@@ -85,11 +93,12 @@ func (s *WorkspaceFileStore) OpenFile(root, relative string) (io.ReadSeekCloser,
 	if err != nil {
 		return nil, "", time.Time{}, err
 	}
+	defer workspace.close()
 	resolved, err := workspace.resolve(relative)
 	if err != nil {
 		return nil, "", time.Time{}, err
 	}
-	file, err := os.Open(resolved)
+	file, err := workspace.root.Open(resolved)
 	if err != nil {
 		return nil, "", time.Time{}, err
 	}
@@ -106,6 +115,7 @@ func (s *WorkspaceFileStore) WriteArchive(root, relative string, destination io.
 	if err != nil {
 		return err
 	}
+	defer workspace.close()
 	base, err := workspace.resolve(relative)
 	if err != nil {
 		return err
@@ -116,7 +126,7 @@ func (s *WorkspaceFileStore) WriteArchive(root, relative string, destination io.
 	// WalkDir does not descend into symlinked directories, so directory-symlink
 	// loops are impossible. Symlinked files are included only if they still
 	// resolve inside the workspace.
-	walkErr := filepath.WalkDir(base, func(walkPath string, entry os.DirEntry, walkErr error) error {
+	walkErr := fs.WalkDir(workspace.root.FS(), base, func(walkPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -133,16 +143,17 @@ func (s *WorkspaceFileStore) Search(root, query string, limit int) ([]*servicewo
 	if err != nil {
 		return nil, false, err
 	}
+	defer workspace.close()
 	needle := strings.ToLower(query)
 
 	var results []*serviceworkspacefiles.Node
 	truncated := false
 	visits := 0
-	walkErr := filepath.WalkDir(workspace.realRoot, func(walkPath string, entry os.DirEntry, err error) error {
+	walkErr := fs.WalkDir(workspace.root.FS(), ".", func(walkPath string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if walkPath == workspace.realRoot {
+		if walkPath == "." {
 			return nil
 		}
 		visits++
@@ -153,12 +164,7 @@ func (s *WorkspaceFileStore) Search(root, query string, limit int) ([]*servicewo
 		if !strings.Contains(strings.ToLower(entry.Name()), needle) {
 			return nil
 		}
-		relative, relErr := filepath.Rel(workspace.realRoot, walkPath)
-		if relErr != nil {
-			return nil
-		}
-		workspaceRelative := filepath.ToSlash(relative)
-		node, ok := workspace.nodeFor(path.Dir(workspaceRelative), entry)
+		node, ok := workspace.nodeFor(path.Dir(walkPath), entry)
 		if !ok {
 			return nil
 		}
@@ -179,17 +185,17 @@ func (w secureWorkspace) writeArchiveEntry(
 	archive *zip.Writer,
 	base string,
 	walkPath string,
-	entry os.DirEntry,
+	entry fs.DirEntry,
 ) error {
 	openPath := walkPath
 	if entry.Type()&os.ModeSymlink != 0 {
-		target, err := filepath.EvalSymlinks(walkPath)
-		if err != nil || !workspacepath.Contains(target, w.realRoot) {
+		target, err := w.resolve(walkPath)
+		if err != nil {
 			// Broken and escaping symlinks are intentionally omitted: neither is a
 			// usable file inside the workspace boundary.
 			return nil
 		}
-		info, err := os.Stat(target)
+		info, err := w.root.Stat(target)
 		if err != nil {
 			return err
 		}
@@ -207,7 +213,7 @@ func (w secureWorkspace) writeArchiveEntry(
 	if err != nil {
 		return err
 	}
-	source, err := os.Open(openPath)
+	source, err := w.root.Open(openPath)
 	if err != nil {
 		return err
 	}
@@ -218,7 +224,7 @@ func (w secureWorkspace) writeArchiveEntry(
 // nodeFor builds a listing node for a directory entry. Symlinks are resolved and
 // dropped if they escape the workspace; the returned Path is always the entry's
 // workspace-relative path so the client can request it back safely.
-func (w secureWorkspace) nodeFor(parentRelative string, entry os.DirEntry) (*serviceworkspacefiles.Node, bool) {
+func (w secureWorkspace) nodeFor(parentRelative string, entry fs.DirEntry) (*serviceworkspacefiles.Node, bool) {
 	name := entry.Name()
 	childRelative := path.Join(parentRelative, name)
 
@@ -230,7 +236,7 @@ func (w secureWorkspace) nodeFor(parentRelative string, entry os.DirEntry) (*ser
 		if err != nil {
 			return nil, false
 		}
-		info, err := os.Stat(resolved)
+		info, err := w.root.Stat(resolved)
 		if err != nil {
 			return nil, false
 		}
@@ -253,7 +259,7 @@ func (w secureWorkspace) nodeFor(parentRelative string, entry os.DirEntry) (*ser
 	return node, true
 }
 
-func sortEntries(entries []os.DirEntry) {
+func sortEntries(entries []fs.DirEntry) {
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].IsDir() != entries[j].IsDir() {
 			return entries[i].IsDir()
@@ -268,17 +274,27 @@ func newSecureWorkspace(root string) (secureWorkspace, error) {
 	if err != nil {
 		return secureWorkspace{}, err
 	}
-	return secureWorkspace{root: cleanRoot, realRoot: realRoot}, nil
+	rootHandle, err := os.OpenRoot(realRoot)
+	if err != nil {
+		return secureWorkspace{}, err
+	}
+	return secureWorkspace{root: rootHandle, realRoot: realRoot}, nil
+}
+
+func (w secureWorkspace) close() {
+	_ = w.root.Close()
 }
 
 // resolve joins relative under root, collapses traversal, then resolves
-// symlinks and verifies the final real path is still inside the real workspace
-// root. It is the single gate that keeps file access from escaping the
-// workspace even when the container has planted symlinks into it.
+// symlinks and translates the result to an os.Root-relative name. The final
+// open/stat still goes through os.Root, which enforces containment if the path
+// changes after this resolution. Resolving here preserves support for absolute
+// symlinks whose targets remain inside the workspace; os.Root intentionally
+// rejects absolute symlinks when asked to follow them directly.
 func (w secureWorkspace) resolve(relative string) (string, error) {
 	rel := filepath.Join(string(filepath.Separator), filepath.FromSlash(relative))
-	target := filepath.Join(w.root, rel)
-	if !workspacepath.Contains(target, w.root) {
+	target := filepath.Join(w.realRoot, rel)
+	if !workspacepath.Contains(target, w.realRoot) {
 		return "", errOutsideWorkspace
 	}
 	resolved, err := filepath.EvalSymlinks(target)
@@ -288,5 +304,9 @@ func (w secureWorkspace) resolve(relative string) (string, error) {
 	if !workspacepath.Contains(resolved, w.realRoot) {
 		return "", errOutsideWorkspace
 	}
-	return resolved, nil
+	resolvedRelative, err := filepath.Rel(w.realRoot, resolved)
+	if err != nil {
+		return "", err
+	}
+	return filepath.ToSlash(resolvedRelative), nil
 }

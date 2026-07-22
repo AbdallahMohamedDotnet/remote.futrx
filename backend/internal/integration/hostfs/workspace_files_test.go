@@ -174,6 +174,42 @@ func TestWriteArchiveIncludesWorkspaceFilesAndDropsEscapingSymlinks(t *testing.T
 	}
 }
 
+func TestWriteArchiveIncludesAbsoluteSymlinkWithinWorkspace(t *testing.T) {
+	root, _ := setupWorkspace(t)
+	store := NewWorkspaceFileStore()
+	if err := os.Symlink(filepath.Join(root, "src", "app.go"), filepath.Join(root, "alias.go")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	var destination bytes.Buffer
+	if err := store.WriteArchive(root, "", &destination); err != nil {
+		t.Fatalf("WriteArchive: %v", err)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(destination.Bytes()), int64(destination.Len()))
+	if err != nil {
+		t.Fatalf("open archive: %v", err)
+	}
+	for _, file := range archive.File {
+		if file.Name != "alias.go" {
+			continue
+		}
+		content, err := file.Open()
+		if err != nil {
+			t.Fatalf("open alias.go: %v", err)
+		}
+		data, readErr := io.ReadAll(content)
+		closeErr := content.Close()
+		if err := errors.Join(readErr, closeErr); err != nil {
+			t.Fatalf("read alias.go: %v", err)
+		}
+		if string(data) != "package main" {
+			t.Fatalf("alias.go content = %q", data)
+		}
+		return
+	}
+	t.Fatal("archive omitted in-workspace absolute symlink")
+}
+
 func TestWriteArchiveReturnsDestinationFailure(t *testing.T) {
 	root, _ := setupWorkspace(t)
 	store := NewWorkspaceFileStore()
