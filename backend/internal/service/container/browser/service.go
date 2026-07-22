@@ -31,7 +31,7 @@ type Tooling interface {
 	EnsureSkill(ctx context.Context, containerName string) error
 	EnsureScript(ctx context.Context, containerName string) error
 	EnsureMCP(ctx context.Context, containerName string) error
-	EnsureLimits(ctx context.Context, containerName string) error
+	EnsureNesting(ctx context.Context, containerName string) error
 }
 
 // Dependencies groups the independently replaceable browser adapters.
@@ -116,6 +116,6 @@ func (s *Service) EnsureMCP(ctx context.Context, containerName string) error {
 	return s.tooling.EnsureMCP(ctx, containerName)
 }
 
-func (s *Service) EnsureLimits(ctx context.Context, containerName string) error {
-	return s.tooling.EnsureLimits(ctx, containerName)
+func (s *Service) EnsureNesting(ctx context.Context, containerName string) error {
+	return s.tooling.EnsureNesting(ctx, containerName)
 }

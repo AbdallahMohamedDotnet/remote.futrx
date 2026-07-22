@@ -132,4 +132,4 @@ type stubTooling struct{}
 func (stubTooling) EnsureSkill(context.Context, string) error  { return nil }
 func (stubTooling) EnsureScript(context.Context, string) error { return nil }
 func (stubTooling) EnsureMCP(context.Context, string) error    { return nil }
-func (stubTooling) EnsureLimits(context.Context, string) error { return nil }
+func (stubTooling) EnsureNesting(context.Context, string) error { return nil }

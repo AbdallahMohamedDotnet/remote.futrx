@@ -11,7 +11,7 @@ type RegisteredCredentialEnsurer interface {
 type BrowserProvisioner interface {
 	EnsureScript(ctx context.Context, containerName string) error
 	EnsureSkill(ctx context.Context, containerName string) error
-	EnsureLimits(ctx context.Context, containerName string) error
+	EnsureNesting(ctx context.Context, containerName string) error
 }
 
 type WorkspaceProvisioner interface {
@@ -52,6 +52,6 @@ func (p *Provisioner) Provision(ctx context.Context, containerName, displayName 
 	_ = p.workspace.EnsureSkillLinks(ctx, containerName)
 	_ = p.browser.EnsureScript(ctx, containerName)
 	_ = p.browser.EnsureSkill(ctx, containerName)
-	_ = p.browser.EnsureLimits(ctx, containerName)
+	_ = p.browser.EnsureNesting(ctx, containerName)
 	_ = p.codeServer.Ensure(ctx, containerName, displayName)
 }

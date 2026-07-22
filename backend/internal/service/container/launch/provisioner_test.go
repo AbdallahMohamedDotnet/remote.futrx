@@ -35,9 +35,9 @@ func (f failingBrowser) EnsureSkill(_ context.Context, containerName string) err
 	return errors.New("browser skill failed")
 }
 
-func (f failingBrowser) EnsureLimits(_ context.Context, containerName string) error {
-	f.recorder.calls = append(f.recorder.calls, "browser limits "+containerName)
-	return errors.New("browser limits failed")
+func (f failingBrowser) EnsureNesting(_ context.Context, containerName string) error {
+	f.recorder.calls = append(f.recorder.calls, "browser nesting "+containerName)
+	return errors.New("browser nesting failed")
 }
 
 type failingCodeServer struct{ recorder *callRecorder }
@@ -63,7 +63,7 @@ func TestProvisionKeepsBestEffortCapabilityOrder(t *testing.T) {
 		"workspace project-1",
 		"browser script project-1",
 		"browser skill project-1",
-		"browser limits project-1",
+		"browser nesting project-1",
 		"code-server project-1 My Project",
 	}
 	if !slices.Equal(recorder.calls, want) {

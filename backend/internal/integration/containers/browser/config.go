@@ -18,10 +18,10 @@ type agentBrowserConfigurator struct {
 	runner command.Runner
 }
 
-// EnsureLimits applies the container config Chrome needs. security.nesting
-// also lives in the workspace profile; this container-local set remains as
-// a belt-and-braces for containers whose profile attach failed.
-func (s *Adapter) EnsureLimits(ctx context.Context, containerName string) error {
+// EnsureNesting applies the security.nesting config Chrome's sandbox needs.
+// The key also lives in the workspace profile; this container-local set
+// remains as a belt-and-braces for containers whose profile attach failed.
+func (s *Adapter) EnsureNesting(ctx context.Context, containerName string) error {
 	return s.config.ensure(ctx, containerName)
 }
 
