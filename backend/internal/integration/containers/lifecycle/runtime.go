@@ -2,7 +2,11 @@ package lifecycle
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -12,6 +16,7 @@ import (
 
 const (
 	launchTimeout  = 90 * time.Second
+	migrateTimeout = 5 * time.Minute
 	startTimeout   = 30 * time.Second
 	stopTimeout    = 30 * time.Second
 	restartTimeout = 60 * time.Second
@@ -32,13 +37,35 @@ func (c *Client) Available() bool {
 	return c.runner.Available()
 }
 
-func (c *Client) Launch(ctx context.Context, image, containerName string) error {
+// Init creates a stopped container. Project storage is attached before Start,
+// so a container can never become RUNNING without its durable mounts.
+func (c *Client) Init(ctx context.Context, image, containerName string) error {
 	lctx, cancel := context.WithTimeout(ctx, launchTimeout)
 	defer cancel()
-	if out, err := c.runner.Run(lctx, "launch", image, containerName); err != nil {
-		return fmt.Errorf("lxc launch: %w; output: %s", err, out)
+	if out, err := c.runner.Run(lctx, "init", image, containerName); err != nil {
+		return fmt.Errorf("lxc init: %w; output: %s", err, out)
 	}
 	return nil
+}
+
+func (c *Client) Disk(ctx context.Context, container, deviceName string) (string, string, bool, error) {
+	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	out, err := c.runner.Run(lctx, "query", "/1.0/instances/"+container)
+	if err != nil {
+		return "", "", false, fmt.Errorf("show container devices: %w; output: %s", err, out)
+	}
+	var config struct {
+		Devices map[string]map[string]string `json:"devices"`
+	}
+	if err := json.Unmarshal([]byte(out), &config); err != nil {
+		return "", "", false, fmt.Errorf("decode container devices: %w", err)
+	}
+	device, ok := config.Devices[deviceName]
+	if !ok {
+		return "", "", false, nil
+	}
+	return device["source"], device["path"], true, nil
 }
 
 func (c *Client) AttachDisk(ctx context.Context, container, deviceName, hostSrc, containerPath string, readonly bool) error {
@@ -56,6 +83,63 @@ func (c *Client) AttachDisk(ctx context.Context, container, deviceName, hostSrc,
 		return fmt.Errorf("lxc config device add %s: %w; output: %s", deviceName, err, out)
 	}
 	return nil
+}
+
+func (c *Client) RemoveDevice(ctx context.Context, container, deviceName string) error {
+	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	if out, err := c.runner.Run(lctx, "config", "device", "remove", container, deviceName); err != nil {
+		if strings.Contains(strings.ToLower(out), "not found") {
+			return nil
+		}
+		return fmt.Errorf("remove device %s: %w; output: %s", deviceName, err, out)
+	}
+	return nil
+}
+
+// PullDirectory copies a legacy container directory to a local staging
+// directory. A missing source is normal for providers the project never used.
+func (c *Client) PullDirectory(ctx context.Context, container, source, hostTarget string) (bool, error) {
+	lctx, cancel := context.WithTimeout(ctx, migrateTimeout)
+	defer cancel()
+	out, err := c.runner.Run(lctx, "file", "pull", "--recursive", container+source, hostTarget)
+	if err == nil {
+		return true, nil
+	}
+	lower := strings.ToLower(out)
+	if strings.Contains(lower, "file does not exist") || strings.Contains(lower, "no such file") {
+		return false, nil
+	}
+	return false, fmt.Errorf("pull %s from %s: %w; output: %s", source, container, err, out)
+}
+
+func (c *Client) Mounted(ctx context.Context, container, containerPath string) (bool, error) {
+	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	out, err := c.runner.Run(lctx, "exec", container, "--", "mountpoint", "-q", containerPath)
+	if err == nil {
+		return true, nil
+	}
+	if strings.TrimSpace(out) == "" {
+		return false, nil
+	}
+	return false, fmt.Errorf("verify mount %s: %w; output: %s", containerPath, err, out)
+}
+
+// Busy reports whether a host-side agent invocation is currently executing in
+// the project. This is the same signal the legacy shell upgrader used.
+func (c *Client) Busy(ctx context.Context, container string) (bool, error) {
+	pattern := regexp.QuoteMeta("lxc exec " + container + " --")
+	cmd := exec.CommandContext(ctx, "pgrep", "-f", "--", pattern)
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return false, nil
+	}
+	return false, fmt.Errorf("detect active agent process: %w", err)
 }
 
 func (c *Client) EnsureBootAutostart(ctx context.Context, containerName string) error {

@@ -232,7 +232,9 @@ func (fakeProjectBrowser) Port() int { return 6080 }
 
 func (f *fakeProjectContainers) Available() bool { return true }
 
-func (f *fakeProjectContainers) Launch(context.Context, serviceproject.Meta) error { return nil }
+func (f *fakeProjectContainers) Ensure(context.Context, serviceproject.Meta) error { return nil }
+
+func (f *fakeProjectContainers) Busy(context.Context, string) (bool, error) { return false, nil }
 
 func (f *fakeProjectContainers) Start(context.Context, string) error { return nil }
 

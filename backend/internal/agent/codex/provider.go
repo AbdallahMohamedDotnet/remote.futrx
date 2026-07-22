@@ -74,6 +74,9 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 		Provider:       agent.ProviderCodex,
 		ConversationID: req.ConversationID,
 	})
+	if err != nil && req.ResumeID != "" && strings.Contains(strings.ToLower(agentruntime.ErrorStderr(err)), "no rollout found") {
+		return fmt.Errorf("%w: %s", agent.ErrSessionNotFound, strings.TrimSpace(agentruntime.ErrorStderr(err)))
+	}
 	if err == nil && containerName != "" && p.containerDeps.Credentials != nil {
 		syncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

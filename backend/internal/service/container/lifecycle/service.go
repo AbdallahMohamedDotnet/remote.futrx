@@ -6,16 +6,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
-const containerWorkspacePath = "/workspace"
+const (
+	containerWorkspacePath = "/workspace"
+	agentHomeDirName       = "agent-home"
+)
+
+var ErrContainerBusy = errors.New("container has an active agent process")
 
 type Runtime interface {
 	Available() bool
-	Launch(ctx context.Context, image, containerName string) error
+	Init(ctx context.Context, image, containerName string) error
+	Disk(ctx context.Context, container, deviceName string) (hostSource, containerPath string, exists bool, err error)
 	AttachDisk(ctx context.Context, container, deviceName, hostSource, containerPath string, readonly bool) error
+	RemoveDevice(ctx context.Context, container, deviceName string) error
+	PullDirectory(ctx context.Context, container, source, hostTarget string) (bool, error)
+	Mounted(ctx context.Context, container, containerPath string) (bool, error)
+	Busy(ctx context.Context, container string) (bool, error)
 	EnsureBootAutostart(ctx context.Context, containerName string) error
 	Start(ctx context.Context, containerName string) error
 	Stop(ctx context.Context, containerName string) error
@@ -65,12 +78,30 @@ func (s *Service) Available() bool {
 	return s.runtime.Available()
 }
 
-func (s *Service) Launch(ctx context.Context, project serviceproject.Meta) error {
+func (s *Service) Busy(ctx context.Context, containerName string) (bool, error) {
+	if !s.runtime.Available() {
+		return false, errors.New("lxc not available")
+	}
+	return s.runtime.Busy(ctx, containerName)
+}
+
+type durableMount struct {
+	device        string
+	hostPath      string
+	containerPath string
+	legacyHome    bool
+}
+
+// Ensure converges a project to one complete, running container. Project
+// creation, ordinary starts, recovery, and workspace upgrades all use this
+// single path.
+func (s *Service) Ensure(ctx context.Context, project serviceproject.Meta) error {
 	if !s.runtime.Available() {
 		return errors.New("lxc CLI not found on PATH - install LXD on the host first")
 	}
 
-	if err := s.workspace.Prepare(project.Cwd); err != nil {
+	mounts, agentRoot, err := persistentMounts(project)
+	if err != nil {
 		return err
 	}
 
@@ -78,29 +109,102 @@ func (s *Service) Launch(ctx context.Context, project serviceproject.Meta) error
 	if err != nil {
 		return err
 	}
-	if state != serviceproject.ContainerStateMissing {
-		_ = s.resources.Ensure(ctx, project.ContainerName)
-		if project.ResourceLimits != nil {
-			if err := s.resources.SetLimits(
-				ctx,
-				project.ContainerName,
-				project.ResourceLimits.CPU,
-				project.ResourceLimits.Memory,
-				project.ResourceLimits.Disk,
-			); err != nil {
-				return fmt.Errorf("apply resource limits: %w", err)
+	if state == serviceproject.ContainerStateUnknown {
+		return errors.New("container state is unknown")
+	}
+	created := state == serviceproject.ContainerStateMissing
+	if created {
+		if err := s.workspace.Prepare(project.Cwd); err != nil {
+			return err
+		}
+		if err := s.preparePrivateDirectory(agentRoot); err != nil {
+			return fmt.Errorf("prepare agent home: %w", err)
+		}
+		for _, mount := range mounts {
+			if !mount.legacyHome {
+				continue
+			}
+			if err := s.preparePrivateDirectory(mount.hostPath); err != nil {
+				return fmt.Errorf("prepare %s: %w", mount.device, err)
 			}
 		}
-		if state == serviceproject.ContainerStateStopped {
-			return s.runtime.Start(ctx, project.ContainerName)
+		if err := s.runtime.Init(ctx, s.image, project.ContainerName); err != nil {
+			// A canceled or failed `lxc init` may still have created the instance.
+			return s.rollbackNewContainer(ctx, project.ContainerName, err)
 		}
-		return nil
+		state = serviceproject.ContainerStateStopped
 	}
 
-	if err := s.runtime.Launch(ctx, s.image, project.ContainerName); err != nil {
-		// A canceled or failed `lxc launch` may still have created the instance.
-		// Restore MISSING so the next recovery retries the complete sequence.
-		return s.rollbackNewContainer(ctx, project.ContainerName, err)
+	changes, err := s.mountChanges(ctx, project.ContainerName, mounts)
+	if err != nil {
+		return s.launchError(ctx, project.ContainerName, created, err)
+	}
+	if !created && len(changes) > 0 {
+		busy, err := s.runtime.Busy(ctx, project.ContainerName)
+		if err != nil {
+			return err
+		}
+		if busy {
+			return ErrContainerBusy
+		}
+		for _, mount := range changes {
+			if mount.legacyHome {
+				if err := s.preparePrivateDirectory(agentRoot); err != nil {
+					return fmt.Errorf("prepare agent home: %w", err)
+				}
+				break
+			}
+		}
+		for _, mount := range changes {
+			if !mount.legacyHome {
+				if err := s.workspace.Prepare(mount.hostPath); err != nil {
+					return fmt.Errorf("prepare %s: %w", mount.device, err)
+				}
+			}
+		}
+		if state == serviceproject.ContainerStateFrozen {
+			if err := s.runtime.Restart(ctx, project.ContainerName); err != nil {
+				return err
+			}
+			state = serviceproject.ContainerStateRunning
+		}
+		if state == serviceproject.ContainerStateStopped {
+			if err := s.runtime.Start(ctx, project.ContainerName); err != nil {
+				return err
+			}
+			state = serviceproject.ContainerStateRunning
+		}
+		if err := s.migrateLegacyHomes(ctx, project.ContainerName, changes); err != nil {
+			return err
+		}
+	}
+
+	if len(changes) > 0 && state == serviceproject.ContainerStateRunning {
+		if err := s.runtime.Stop(ctx, project.ContainerName); err != nil {
+			return s.launchError(ctx, project.ContainerName, created, err)
+		}
+		state = serviceproject.ContainerStateStopped
+	}
+	for _, mount := range changes {
+		_, _, exists, err := s.runtime.Disk(ctx, project.ContainerName, mount.device)
+		if err != nil {
+			return s.launchError(ctx, project.ContainerName, created, err)
+		}
+		if exists {
+			if err := s.runtime.RemoveDevice(ctx, project.ContainerName, mount.device); err != nil {
+				return s.launchError(ctx, project.ContainerName, created, err)
+			}
+		}
+		if err := s.runtime.AttachDisk(
+			ctx,
+			project.ContainerName,
+			mount.device,
+			mount.hostPath,
+			mount.containerPath,
+			false,
+		); err != nil {
+			return s.launchError(ctx, project.ContainerName, created, fmt.Errorf("attach %s: %w", mount.device, err))
+		}
 	}
 
 	_ = s.resources.Ensure(ctx, project.ContainerName)
@@ -112,37 +216,160 @@ func (s *Service) Launch(ctx context.Context, project serviceproject.Meta) error
 			project.ResourceLimits.Memory,
 			project.ResourceLimits.Disk,
 		); err != nil {
-			return s.rollbackNewContainer(
-				ctx,
-				project.ContainerName,
-				fmt.Errorf("apply resource limits: %w", err),
-			)
+			return s.launchError(ctx, project.ContainerName, created, fmt.Errorf("apply resource limits: %w", err))
 		}
 	}
 
-	if err := s.runtime.AttachDisk(
-		ctx,
-		project.ContainerName,
-		"workspace",
-		project.Cwd,
-		containerWorkspacePath,
-		false,
-	); err != nil {
-		return s.rollbackNewContainer(
-			ctx,
-			project.ContainerName,
-			fmt.Errorf("attach workspace: %w", err),
-		)
-	}
-
 	_ = s.EnsureBootAutostart(ctx, project.ContainerName)
-	s.provisioner.Provision(ctx, project.ContainerName, project.Name)
+	if state == serviceproject.ContainerStateFrozen {
+		if err := s.runtime.Restart(ctx, project.ContainerName); err != nil {
+			return s.launchError(ctx, project.ContainerName, created, err)
+		}
+		state = serviceproject.ContainerStateRunning
+	}
+	if state != serviceproject.ContainerStateRunning {
+		if err := s.runtime.Start(ctx, project.ContainerName); err != nil {
+			return s.launchError(ctx, project.ContainerName, created, err)
+		}
+	}
+	if err := s.verifyMounts(ctx, project.ContainerName, mounts); err != nil {
+		if created {
+			return s.rollbackNewContainer(ctx, project.ContainerName, err)
+		}
+		busy, busyErr := s.runtime.Busy(ctx, project.ContainerName)
+		if busyErr != nil {
+			return errors.Join(err, busyErr)
+		}
+		if busy {
+			return errors.Join(err, ErrContainerBusy)
+		}
+		// Device configuration can be correct while a stale running instance
+		// has not activated it. One host-side restart converges that case.
+		if restartErr := s.runtime.Restart(ctx, project.ContainerName); restartErr != nil {
+			return errors.Join(err, restartErr)
+		}
+		if retryErr := s.verifyMounts(ctx, project.ContainerName, mounts); retryErr != nil {
+			return retryErr
+		}
+	}
+	if created || len(changes) > 0 {
+		s.provisioner.Provision(ctx, project.ContainerName, project.Name)
+	}
 	return nil
 }
 
-// rollbackNewContainer restores the pre-launch invariant: when provisioning a
+func persistentMounts(project serviceproject.Meta) ([]durableMount, string, error) {
+	workspace := filepath.Clean(project.Cwd)
+	if !filepath.IsAbs(workspace) || filepath.Base(workspace) != "workspace" {
+		return nil, "", fmt.Errorf("invalid project workspace %q", project.Cwd)
+	}
+	if project.ContainerName == "" {
+		return nil, "", errors.New("project has no container name")
+	}
+	agentRoot := filepath.Join(filepath.Dir(workspace), agentHomeDirName)
+	return []durableMount{
+		{device: "workspace", hostPath: workspace, containerPath: containerWorkspacePath},
+		{device: "codex-home", hostPath: filepath.Join(agentRoot, "codex"), containerPath: "/root/.codex", legacyHome: true},
+		{device: "claude-home", hostPath: filepath.Join(agentRoot, "claude"), containerPath: "/root/.claude", legacyHome: true},
+		{device: "kimi-home", hostPath: filepath.Join(agentRoot, "kimi"), containerPath: "/root/.kimi-code", legacyHome: true},
+	}, agentRoot, nil
+}
+
+func (s *Service) mountChanges(ctx context.Context, container string, mounts []durableMount) ([]durableMount, error) {
+	changes := make([]durableMount, 0, len(mounts))
+	for _, mount := range mounts {
+		source, path, exists, err := s.runtime.Disk(ctx, container, mount.device)
+		if err != nil {
+			return nil, err
+		}
+		if !exists || filepath.Clean(source) != filepath.Clean(mount.hostPath) || filepath.Clean(path) != filepath.Clean(mount.containerPath) {
+			changes = append(changes, mount)
+		}
+	}
+	return changes, nil
+}
+
+func (s *Service) migrateLegacyHomes(ctx context.Context, container string, changes []durableMount) error {
+	for _, mount := range changes {
+		if !mount.legacyHome {
+			continue
+		}
+		empty, err := directoryEmpty(mount.hostPath)
+		if err != nil {
+			return fmt.Errorf("inspect %s: %w", mount.hostPath, err)
+		}
+		if !empty {
+			if err := s.preparePrivateDirectory(mount.hostPath); err != nil {
+				return fmt.Errorf("prepare migrated %s: %w", mount.device, err)
+			}
+			continue
+		}
+		staging, err := os.MkdirTemp(filepath.Dir(mount.hostPath), ".migration-")
+		if err != nil {
+			return fmt.Errorf("stage %s migration: %w", mount.device, err)
+		}
+		pulled, pullErr := s.runtime.PullDirectory(ctx, container, mount.containerPath, staging)
+		if pullErr == nil && pulled {
+			source := filepath.Join(staging, filepath.Base(mount.containerPath))
+			if err := os.Remove(mount.hostPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				pullErr = fmt.Errorf("replace empty %s: %w", mount.hostPath, err)
+			} else if err := os.Rename(source, mount.hostPath); err != nil {
+				pullErr = fmt.Errorf("install migrated %s: %w", mount.device, err)
+			}
+		}
+		_ = os.RemoveAll(staging)
+		if pullErr != nil {
+			return pullErr
+		}
+		if err := s.preparePrivateDirectory(mount.hostPath); err != nil {
+			return fmt.Errorf("prepare migrated %s: %w", mount.device, err)
+		}
+	}
+	return nil
+}
+
+func (s *Service) preparePrivateDirectory(path string) error {
+	if err := s.workspace.Prepare(path); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o700)
+}
+
+func directoryEmpty(path string) (bool, error) {
+	entries, err := os.ReadDir(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return len(entries) == 0, nil
+}
+
+func (s *Service) verifyMounts(ctx context.Context, container string, mounts []durableMount) error {
+	for _, mount := range mounts {
+		mounted, err := s.runtime.Mounted(ctx, container, mount.containerPath)
+		if err != nil {
+			return err
+		}
+		if !mounted {
+			return fmt.Errorf("required mount %s is not active at %s", mount.device, mount.containerPath)
+		}
+	}
+	return nil
+}
+
+func (s *Service) launchError(ctx context.Context, containerName string, created bool, cause error) error {
+	if created {
+		// Restore MISSING so the next recovery retries the complete sequence.
+		return s.rollbackNewContainer(ctx, containerName, cause)
+	}
+	return cause
+}
+
+// rollbackNewContainer restores the pre-create invariant: when provisioning a
 // new instance fails, the next Start must observe MISSING and retry the complete
-// launch sequence. Cleanup deliberately outlives request cancellation; the
+// convergence sequence. Cleanup deliberately outlives request cancellation; the
 // runtime's own delete deadline keeps it bounded.
 func (s *Service) rollbackNewContainer(ctx context.Context, containerName string, cause error) error {
 	if rollbackErr := s.runtime.Delete(context.WithoutCancel(ctx), containerName); rollbackErr != nil {

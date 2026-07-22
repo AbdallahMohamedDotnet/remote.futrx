@@ -216,8 +216,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput, callerEmail string
 	}
 
 	if s.containerLifecycle != nil {
-		if err := s.containerLifecycle.Launch(ctx, m); err != nil {
-			log.Printf("projects: launch %s failed: %v", m.ContainerName, err)
+		if err := s.containerLifecycle.Ensure(ctx, m); err != nil {
+			log.Printf("projects: ensure %s failed: %v", m.ContainerName, err)
 			return s.repo.SetStatus(ctx, m.ID, StatusError, err.Error())
 		}
 		// Push any pre-existing project secrets into the freshly launched
@@ -415,22 +415,64 @@ func (s *Service) startLocked(ctx context.Context, id ID) (Meta, error) {
 		if err != nil {
 			return s.setStartError(ctx, id, err)
 		}
+		if err := s.containerLifecycle.Ensure(ctx, m); err != nil {
+			return s.setStartError(ctx, id, err)
+		}
 		if state == ContainerStateMissing {
-			if err := s.containerLifecycle.Launch(ctx, m); err != nil {
-				return s.setStartError(ctx, id, err)
-			}
 			if syncErr := s.syncContainerEnv(ctx, id, m.ContainerName); syncErr != nil {
-				log.Printf("projects: sync env to %s after relaunch: %v", m.ContainerName, syncErr)
+				log.Printf("projects: sync env to %s after ensure: %v", m.ContainerName, syncErr)
 			}
-		} else if state == ContainerStateFrozen {
-			if err := s.containerLifecycle.Restart(ctx, m.ContainerName); err != nil {
-				return s.setStartError(ctx, id, err)
-			}
-		} else if state != ContainerStateRunning {
-			if err := s.containerLifecycle.Start(ctx, m.ContainerName); err != nil {
+		}
+	}
+	return s.repo.SetStatus(ctx, id, StatusRunning, "")
+}
+
+var ErrProjectBusy = errors.New("project has an active agent process")
+
+// Upgrade replaces one project container through the same convergence path
+// used by normal starts. Legacy agent homes are migrated before deletion.
+func (s *Service) Upgrade(ctx context.Context, id ID, includeBusy bool) (Meta, error) {
+	if !ValidID(id) {
+		return Meta{}, ErrInvalidID
+	}
+	unlock := s.lockRunState(id)
+	defer unlock()
+	m, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Meta{}, err
+	}
+	if s.containerLifecycle == nil {
+		return m, nil
+	}
+	state, err := s.containerLifecycle.State(ctx, m.ContainerName)
+	if err != nil {
+		return s.setStartError(ctx, id, err)
+	}
+	if state != ContainerStateMissing {
+		busy, err := s.containerLifecycle.Busy(ctx, m.ContainerName)
+		if err != nil {
+			return s.setStartError(ctx, id, err)
+		}
+		if busy && !includeBusy {
+			return m, ErrProjectBusy
+		}
+		if busy {
+			if err := s.containerLifecycle.Stop(ctx, m.ContainerName); err != nil {
 				return s.setStartError(ctx, id, err)
 			}
 		}
+		if err := s.containerLifecycle.Ensure(ctx, m); err != nil {
+			return s.setStartError(ctx, id, err)
+		}
+		if err := s.containerLifecycle.Delete(ctx, m.ContainerName); err != nil {
+			return s.setStartError(ctx, id, err)
+		}
+	}
+	if err := s.containerLifecycle.Ensure(ctx, m); err != nil {
+		return s.setStartError(ctx, id, err)
+	}
+	if syncErr := s.syncContainerEnv(ctx, id, m.ContainerName); syncErr != nil {
+		log.Printf("projects: sync env to %s after upgrade: %v", m.ContainerName, syncErr)
 	}
 	return s.repo.SetStatus(ctx, id, StatusRunning, "")
 }

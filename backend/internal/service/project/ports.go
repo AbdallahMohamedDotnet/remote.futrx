@@ -17,7 +17,10 @@ type Repository interface {
 // on these lifecycle operations.
 type ContainerLifecycle interface {
 	Available() bool
-	Launch(ctx context.Context, p Meta) error
+	// Ensure converges a project to one complete, running container with all
+	// durable mounts attached.
+	Ensure(ctx context.Context, p Meta) error
+	Busy(ctx context.Context, containerName string) (bool, error)
 	Start(ctx context.Context, containerName string) error
 	Stop(ctx context.Context, containerName string) error
 	// Restart force-restarts the container from the host, killing any

@@ -3,337 +3,321 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
+type testDisk struct{ source, path string }
+
 type recordingRuntime struct {
-	events       *[]string
-	available    bool
-	state        serviceproject.ContainerState
-	stateErr     error
-	launchErr    error
-	attachErr    error
-	autostartErr error
-	startErr     error
-	deleteErr    error
+	events    *[]string
+	available bool
+	state     serviceproject.ContainerState
+	devices   map[string]testDisk
+	busy      bool
+	initErr   error
+	attachErr error
+	deleteErr error
+	mountMiss int
 }
 
-func (r recordingRuntime) Available() bool {
+func (r *recordingRuntime) Available() bool {
 	*r.events = append(*r.events, "runtime available")
 	return r.available
 }
-
-func (r recordingRuntime) Launch(_ context.Context, image, containerName string) error {
-	*r.events = append(*r.events, "runtime launch "+image+" "+containerName)
-	return r.launchErr
-}
-
-func (r recordingRuntime) AttachDisk(
-	_ context.Context,
-	container,
-	deviceName,
-	hostSource,
-	containerPath string,
-	readonly bool,
-) error {
-	mode := "read-write"
-	if readonly {
-		mode = "read-only"
+func (r *recordingRuntime) Init(_ context.Context, image, container string) error {
+	*r.events = append(*r.events, "runtime init "+image+" "+container)
+	if r.initErr == nil {
+		r.state = serviceproject.ContainerStateStopped
 	}
-	*r.events = append(*r.events, "runtime attach "+container+" "+deviceName+" "+hostSource+" "+containerPath+" "+mode)
+	return r.initErr
+}
+func (r *recordingRuntime) Disk(_ context.Context, container, name string) (string, string, bool, error) {
+	*r.events = append(*r.events, "runtime disk "+container+" "+name)
+	disk, ok := r.devices[name]
+	return disk.source, disk.path, ok, nil
+}
+func (r *recordingRuntime) AttachDisk(_ context.Context, container, name, source, path string, _ bool) error {
+	*r.events = append(*r.events, "runtime attach "+container+" "+name+" "+source+" "+path)
+	if r.attachErr == nil {
+		if r.devices == nil {
+			r.devices = make(map[string]testDisk)
+		}
+		r.devices[name] = testDisk{source: source, path: path}
+	}
 	return r.attachErr
 }
-
-func (r recordingRuntime) EnsureBootAutostart(_ context.Context, containerName string) error {
-	*r.events = append(*r.events, "runtime autostart "+containerName)
-	return r.autostartErr
-}
-
-func (r recordingRuntime) Start(_ context.Context, containerName string) error {
-	*r.events = append(*r.events, "runtime start "+containerName)
-	return r.startErr
-}
-
-func (r recordingRuntime) Stop(_ context.Context, containerName string) error {
-	*r.events = append(*r.events, "runtime stop "+containerName)
+func (r *recordingRuntime) RemoveDevice(_ context.Context, container, name string) error {
+	*r.events = append(*r.events, "runtime remove "+container+" "+name)
+	delete(r.devices, name)
 	return nil
 }
-
-func (r recordingRuntime) Restart(_ context.Context, containerName string) error {
-	*r.events = append(*r.events, "runtime restart "+containerName)
+func (r *recordingRuntime) PullDirectory(_ context.Context, container, source, target string) (bool, error) {
+	*r.events = append(*r.events, "runtime pull "+container+" "+source)
+	dir := filepath.Join(target, filepath.Base(source))
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "legacy-session"), []byte("state"), 0o600); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+func (r *recordingRuntime) Mounted(_ context.Context, container, path string) (bool, error) {
+	*r.events = append(*r.events, "runtime mounted "+container+" "+path)
+	if r.mountMiss > 0 {
+		r.mountMiss--
+		return false, nil
+	}
+	for _, disk := range r.devices {
+		if disk.path == path {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (r *recordingRuntime) Busy(context.Context, string) (bool, error) { return r.busy, nil }
+func (r *recordingRuntime) EnsureBootAutostart(_ context.Context, container string) error {
+	*r.events = append(*r.events, "runtime autostart "+container)
 	return nil
 }
-
-func (r recordingRuntime) Delete(_ context.Context, containerName string) error {
-	*r.events = append(*r.events, "runtime delete "+containerName)
+func (r *recordingRuntime) Start(_ context.Context, container string) error {
+	*r.events = append(*r.events, "runtime start "+container)
+	r.state = serviceproject.ContainerStateRunning
+	return nil
+}
+func (r *recordingRuntime) Stop(_ context.Context, container string) error {
+	*r.events = append(*r.events, "runtime stop "+container)
+	r.state = serviceproject.ContainerStateStopped
+	return nil
+}
+func (r *recordingRuntime) Restart(_ context.Context, container string) error {
+	*r.events = append(*r.events, "runtime restart "+container)
+	r.state = serviceproject.ContainerStateRunning
+	return nil
+}
+func (r *recordingRuntime) Delete(_ context.Context, container string) error {
+	*r.events = append(*r.events, "runtime delete "+container)
+	if r.deleteErr == nil {
+		r.state = serviceproject.ContainerStateMissing
+	}
 	return r.deleteErr
 }
-
-func (r recordingRuntime) State(_ context.Context, containerName string) (serviceproject.ContainerState, error) {
-	*r.events = append(*r.events, "runtime state "+containerName)
-	return r.state, r.stateErr
+func (r *recordingRuntime) State(_ context.Context, container string) (serviceproject.ContainerState, error) {
+	*r.events = append(*r.events, "runtime state "+container)
+	return r.state, nil
 }
 
-type recordingWorkspace struct {
-	events *[]string
-	err    error
-}
+type recordingWorkspace struct{ events *[]string }
 
 func (w recordingWorkspace) Prepare(path string) error {
-	*w.events = append(*w.events, "workspace prepare "+path)
-	return w.err
+	*w.events = append(*w.events, "prepare "+path)
+	return os.MkdirAll(path, 0o755)
 }
 
-type recordingResources struct {
-	events *[]string
-	err    error
-}
+type recordingResources struct{ events *[]string }
 
-func (r recordingResources) Ensure(_ context.Context, containerName string) error {
-	*r.events = append(*r.events, "resources ensure "+containerName)
-	return r.err
+func (r recordingResources) Ensure(_ context.Context, container string) error {
+	*r.events = append(*r.events, "resources "+container)
+	return nil
 }
-
-func (r recordingResources) SetLimits(_ context.Context, containerName, cpu, memory, disk string) error {
-	*r.events = append(*r.events, "resources limits "+containerName+" "+cpu+" "+memory+" "+disk)
-	return r.err
+func (r recordingResources) SetLimits(_ context.Context, container, cpu, memory, disk string) error {
+	*r.events = append(*r.events, "limits "+container+" "+cpu+" "+memory+" "+disk)
+	return nil
 }
 
 type recordingProvisioner struct{ events *[]string }
 
-func (p recordingProvisioner) Provision(_ context.Context, containerName, displayName string) {
-	*p.events = append(*p.events, "provision "+containerName+" "+displayName)
+func (p recordingProvisioner) Provision(_ context.Context, container, name string) {
+	*p.events = append(*p.events, "provision "+container+" "+name)
 }
 
-func TestLaunchNewContainerKeepsApplicationOrderAndBestEffortResources(t *testing.T) {
-	var events []string
-	runtime := recordingRuntime{
-		events:       &events,
-		available:    true,
-		state:        serviceproject.ContainerStateMissing,
-		autostartErr: errors.New("autostart migration failed"),
+func testProject(t *testing.T) serviceproject.Meta {
+	t.Helper()
+	return serviceproject.Meta{
+		Name:          "My Project",
+		Cwd:           filepath.Join(t.TempDir(), "project", "workspace"),
+		ContainerName: "project-1",
 	}
-	service := NewService(
+}
+
+func newTestService(runtime *recordingRuntime, events *[]string) *Service {
+	return NewService(
 		runtime,
 		"local:remote-base",
-		recordingWorkspace{events: &events},
-		recordingResources{events: &events, err: errors.New("resource migration failed")},
-		recordingProvisioner{events: &events},
+		recordingWorkspace{events: events},
+		recordingResources{events: events},
+		recordingProvisioner{events: events},
 	)
-
-	err := service.Launch(context.Background(), serviceproject.Meta{
-		Name:          "My Project",
-		Cwd:           "/host/workspaces/project-1",
-		ContainerName: "project-1",
-	})
-	if err != nil {
-		t.Fatalf("Launch: %v", err)
-	}
-
-	want := []string{
-		"runtime available",
-		"workspace prepare /host/workspaces/project-1",
-		"runtime state project-1",
-		"runtime launch local:remote-base project-1",
-		"resources ensure project-1",
-		"runtime attach project-1 workspace /host/workspaces/project-1 /workspace read-write",
-		"runtime available",
-		"runtime autostart project-1",
-		"provision project-1 My Project",
-	}
-	if !slices.Equal(events, want) {
-		t.Fatalf("events:\n got: %q\nwant: %q", events, want)
-	}
 }
 
-func TestLaunchExistingContainerEnsuresResourcesBeforeStart(t *testing.T) {
-	tests := []struct {
-		name  string
-		state serviceproject.ContainerState
-		want  []string
-	}{
-		{
-			name:  "running",
-			state: serviceproject.ContainerStateRunning,
-			want: []string{
-				"runtime available",
-				"workspace prepare /host/workspaces/project-1",
-				"runtime state project-1",
-				"resources ensure project-1",
-			},
-		},
-		{
-			name:  "stopped",
-			state: serviceproject.ContainerStateStopped,
-			want: []string{
-				"runtime available",
-				"workspace prepare /host/workspaces/project-1",
-				"runtime state project-1",
-				"resources ensure project-1",
-				"runtime start project-1",
-			},
-		},
+func expectedDisks(project serviceproject.Meta) map[string]testDisk {
+	mounts, _, _ := persistentMounts(project)
+	out := make(map[string]testDisk, len(mounts))
+	for _, mount := range mounts {
+		out[mount.device] = testDisk{source: mount.hostPath, path: mount.containerPath}
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var events []string
-			service := NewService(
-				recordingRuntime{events: &events, available: true, state: tt.state},
-				"unused",
-				recordingWorkspace{events: &events},
-				recordingResources{events: &events, err: errors.New("resource migration failed")},
-				recordingProvisioner{events: &events},
-			)
-
-			err := service.Launch(context.Background(), serviceproject.Meta{
-				Cwd:           "/host/workspaces/project-1",
-				ContainerName: "project-1",
-			})
-			if err != nil {
-				t.Fatalf("Launch: %v", err)
-			}
-			if !slices.Equal(events, tt.want) {
-				t.Fatalf("events:\n got: %q\nwant: %q", events, tt.want)
-			}
-		})
-	}
+	return out
 }
 
-func TestLaunchAppliesProjectResourceLimitsBeforeStarting(t *testing.T) {
+func TestEnsureCreatesStoppedContainerThenAttachesAndValidatesAllDurableMounts(t *testing.T) {
 	var events []string
-	service := NewService(
-		recordingRuntime{events: &events, available: true, state: serviceproject.ContainerStateStopped},
-		"unused",
-		recordingWorkspace{events: &events},
-		recordingResources{events: &events},
-		recordingProvisioner{events: &events},
-	)
+	runtime := &recordingRuntime{events: &events, available: true, state: serviceproject.ContainerStateMissing}
+	project := testProject(t)
 
-	err := service.Launch(context.Background(), serviceproject.Meta{
-		Cwd:           "/host/workspaces/project-1",
-		ContainerName: "project-1",
-		ResourceLimits: &serviceproject.ContainerLimits{
-			CPU: "4", Memory: "8GiB", Disk: "40GiB",
-		},
-	})
-	if err != nil {
-		t.Fatalf("Launch: %v", err)
+	if err := newTestService(runtime, &events).Ensure(context.Background(), project); err != nil {
+		t.Fatal(err)
 	}
-
-	want := []string{
-		"runtime available",
-		"workspace prepare /host/workspaces/project-1",
-		"runtime state project-1",
-		"resources ensure project-1",
-		"resources limits project-1 4 8GiB 40GiB",
-		"runtime start project-1",
+	if runtime.state != serviceproject.ContainerStateRunning {
+		t.Fatalf("state = %q, want running", runtime.state)
 	}
-	if !slices.Equal(events, want) {
-		t.Fatalf("events:\n got: %q\nwant: %q", events, want)
+	if len(runtime.devices) != 4 {
+		t.Fatalf("devices = %#v, want four durable mounts", runtime.devices)
+	}
+	initAt := slices.Index(events, "runtime init local:remote-base project-1")
+	startAt := slices.Index(events, "runtime start project-1")
+	attachAt := slices.Index(events, "runtime attach project-1 workspace "+project.Cwd+" /workspace")
+	if initAt < 0 || attachAt < initAt || startAt < attachAt {
+		t.Fatalf("container was not initialized, mounted, then started: %q", events)
+	}
+	if !slices.Contains(events, "provision project-1 My Project") {
+		t.Fatalf("launch provisioning missing: %q", events)
 	}
 }
 
-func TestLaunchRollsBackNewContainerWhenWorkspaceAttachmentFails(t *testing.T) {
+func TestEnsureRunningHealthyContainerDoesNotRestart(t *testing.T) {
+	var events []string
+	project := testProject(t)
+	runtime := &recordingRuntime{
+		events: &events, available: true, state: serviceproject.ContainerStateRunning,
+		devices: expectedDisks(project),
+	}
+
+	if err := newTestService(runtime, &events).Ensure(context.Background(), project); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(events, "runtime stop project-1") || slices.Contains(events, "runtime start project-1") {
+		t.Fatalf("healthy container restarted: %q", events)
+	}
+}
+
+func TestEnsureRestartsConfiguredButInactiveMountWhenProjectIsIdle(t *testing.T) {
+	var events []string
+	project := testProject(t)
+	runtime := &recordingRuntime{
+		events: &events, available: true, state: serviceproject.ContainerStateRunning,
+		devices: expectedDisks(project), mountMiss: 1,
+	}
+
+	if err := newTestService(runtime, &events).Ensure(context.Background(), project); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(events, "runtime restart project-1") {
+		t.Fatalf("inactive mount was not repaired: %q", events)
+	}
+}
+
+func TestEnsureDoesNotRestartConfiguredButInactiveMountWhileAgentIsBusy(t *testing.T) {
+	var events []string
+	project := testProject(t)
+	runtime := &recordingRuntime{
+		events: &events, available: true, state: serviceproject.ContainerStateRunning,
+		devices: expectedDisks(project), mountMiss: 1, busy: true,
+	}
+
+	err := newTestService(runtime, &events).Ensure(context.Background(), project)
+	if !errors.Is(err, ErrContainerBusy) {
+		t.Fatalf("error = %v, want busy", err)
+	}
+	if slices.Contains(events, "runtime restart project-1") {
+		t.Fatalf("busy container was restarted: %q", events)
+	}
+}
+
+func TestEnsureRepairsRunningContainerWithMissingWorkspaceMount(t *testing.T) {
+	var events []string
+	project := testProject(t)
+	devices := expectedDisks(project)
+	delete(devices, "workspace")
+	runtime := &recordingRuntime{events: &events, available: true, state: serviceproject.ContainerStateRunning, devices: devices}
+
+	if err := newTestService(runtime, &events).Ensure(context.Background(), project); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.devices["workspace"].source != project.Cwd {
+		t.Fatalf("workspace device = %#v", runtime.devices["workspace"])
+	}
+	if !slices.Contains(events, "runtime stop project-1") || !slices.Contains(events, "runtime start project-1") {
+		t.Fatalf("repair did not restart container: %q", events)
+	}
+}
+
+func TestEnsureMigratesLegacyAgentHomeBeforeAttachingPersistentDisk(t *testing.T) {
+	var events []string
+	project := testProject(t)
+	devices := expectedDisks(project)
+	delete(devices, "codex-home")
+	runtime := &recordingRuntime{events: &events, available: true, state: serviceproject.ContainerStateRunning, devices: devices}
+
+	if err := newTestService(runtime, &events).Ensure(context.Background(), project); err != nil {
+		t.Fatal(err)
+	}
+	codexHome := runtime.devices["codex-home"].source
+	if data, err := os.ReadFile(filepath.Join(codexHome, "legacy-session")); err != nil || string(data) != "state" {
+		t.Fatalf("migrated session = %q, %v", data, err)
+	}
+	pullAt := slices.Index(events, "runtime pull project-1 /root/.codex")
+	attachAt := slices.Index(events, "runtime attach project-1 codex-home "+codexHome+" /root/.codex")
+	if pullAt < 0 || attachAt < pullAt {
+		t.Fatalf("agent home was not migrated before attachment: %q", events)
+	}
+}
+
+func TestEnsureDoesNotMutateLegacyContainerWhileAgentIsBusy(t *testing.T) {
+	var events []string
+	project := testProject(t)
+	runtime := &recordingRuntime{events: &events, available: true, state: serviceproject.ContainerStateRunning, busy: true}
+
+	err := newTestService(runtime, &events).Ensure(context.Background(), project)
+	if !errors.Is(err, ErrContainerBusy) {
+		t.Fatalf("error = %v, want busy", err)
+	}
+	if slices.Contains(events, "runtime stop project-1") {
+		t.Fatalf("busy container was stopped: %q", events)
+	}
+}
+
+func TestEnsureRollsBackNewContainerWhenAttachmentFails(t *testing.T) {
 	var events []string
 	wantErr := errors.New("attach failed")
-	service := NewService(
-		recordingRuntime{
-			events:    &events,
-			available: true,
-			state:     serviceproject.ContainerStateMissing,
-			attachErr: wantErr,
-		},
-		"local:remote-base",
-		recordingWorkspace{events: &events},
-		recordingResources{events: &events},
-		recordingProvisioner{events: &events},
-	)
+	runtime := &recordingRuntime{
+		events: &events, available: true, state: serviceproject.ContainerStateMissing, attachErr: wantErr,
+	}
 
-	err := service.Launch(context.Background(), serviceproject.Meta{
-		Name:          "My Project",
-		Cwd:           "/host/workspaces/project-1",
-		ContainerName: "project-1",
-	})
+	err := newTestService(runtime, &events).Ensure(context.Background(), testProject(t))
 	if !errors.Is(err, wantErr) {
-		t.Fatalf("Launch() error = %v, want %v", err, wantErr)
+		t.Fatalf("error = %v, want %v", err, wantErr)
 	}
-
-	want := []string{
-		"runtime available",
-		"workspace prepare /host/workspaces/project-1",
-		"runtime state project-1",
-		"runtime launch local:remote-base project-1",
-		"resources ensure project-1",
-		"runtime attach project-1 workspace /host/workspaces/project-1 /workspace read-write",
-		"runtime delete project-1",
-	}
-	if !slices.Equal(events, want) {
-		t.Fatalf("events:\n got: %q\nwant: %q", events, want)
+	if runtime.state != serviceproject.ContainerStateMissing {
+		t.Fatalf("state = %q, want missing after rollback", runtime.state)
 	}
 }
 
-func TestLaunchCleansUpAfterFailedRuntimeLaunch(t *testing.T) {
-	var events []string
-	wantErr := errors.New("launch failed after creating instance")
-	service := NewService(
-		recordingRuntime{
-			events:    &events,
-			available: true,
-			state:     serviceproject.ContainerStateMissing,
-			launchErr: wantErr,
-		},
-		"local:remote-base",
-		recordingWorkspace{events: &events},
-		recordingResources{events: &events},
-		recordingProvisioner{events: &events},
-	)
-
-	err := service.Launch(context.Background(), serviceproject.Meta{
-		Cwd:           "/host/workspaces/project-1",
-		ContainerName: "project-1",
-	})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("Launch() error = %v, want %v", err, wantErr)
-	}
-	want := []string{
-		"runtime available",
-		"workspace prepare /host/workspaces/project-1",
-		"runtime state project-1",
-		"runtime launch local:remote-base project-1",
-		"runtime delete project-1",
-	}
-	if !slices.Equal(events, want) {
-		t.Fatalf("events:\n got: %q\nwant: %q", events, want)
-	}
-}
-
-func TestLaunchReportsProvisioningAndRollbackFailures(t *testing.T) {
+func TestEnsureReportsProvisioningAndRollbackFailures(t *testing.T) {
 	var events []string
 	attachErr := errors.New("attach failed")
 	deleteErr := errors.New("delete failed")
-	service := NewService(
-		recordingRuntime{
-			events:    &events,
-			available: true,
-			state:     serviceproject.ContainerStateMissing,
-			attachErr: attachErr,
-			deleteErr: deleteErr,
-		},
-		"local:remote-base",
-		recordingWorkspace{events: &events},
-		recordingResources{events: &events},
-		recordingProvisioner{events: &events},
-	)
+	runtime := &recordingRuntime{
+		events: &events, available: true, state: serviceproject.ContainerStateMissing,
+		attachErr: attachErr, deleteErr: deleteErr,
+	}
 
-	err := service.Launch(context.Background(), serviceproject.Meta{
-		Cwd:           "/host/workspaces/project-1",
-		ContainerName: "project-1",
-	})
+	err := newTestService(runtime, &events).Ensure(context.Background(), testProject(t))
 	if !errors.Is(err, attachErr) || !errors.Is(err, deleteErr) {
-		t.Fatalf("Launch() error = %v, want joined attach and rollback failures", err)
+		t.Fatalf("error = %v, want joined attachment and rollback failures", err)
 	}
 }

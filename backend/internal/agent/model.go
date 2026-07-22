@@ -7,6 +7,7 @@ import (
 )
 
 var ErrRunFailed = errors.New("agent run failed")
+var ErrSessionNotFound = errors.New("agent session not found")
 
 type ProviderID string
 

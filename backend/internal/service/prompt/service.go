@@ -148,26 +148,52 @@ func (rnr *Service) runPrompt(
 		return
 	}
 
-	err = provider.Run(ctx, agent.RunRequest{
-		Provider:       providerID,
-		ConversationID: string(id),
-		Prompt:         effectivePrompt,
-		Cwd:            cwd,
-		Model:          meta.Model,
-		Mode:           meta.Mode,
-		ResumeID:       resumeID,
-		ProjectID:      string(meta.ProjectID),
-		Fork:           meta.ForkPending,
-		Preferences: agent.RunPreferences{
-			ReasoningEffort: agent.ReasoningEffort(meta.ReasoningEffort),
-			ServiceTier:     agent.ServiceTier(meta.ServiceTier),
-		},
-		EnableBrowser: enableBrowser,
-	}, func(ev agent.Event) {
-		rnr.emitAgentEvent(ctx, id, ev, emit)
-	})
+	run := func(runPrompt, runResumeID string) error {
+		return provider.Run(ctx, agent.RunRequest{
+			Provider:       providerID,
+			ConversationID: string(id),
+			Prompt:         runPrompt,
+			Cwd:            cwd,
+			Model:          meta.Model,
+			Mode:           meta.Mode,
+			ResumeID:       runResumeID,
+			ProjectID:      string(meta.ProjectID),
+			Fork:           meta.ForkPending,
+			Preferences: agent.RunPreferences{
+				ReasoningEffort: agent.ReasoningEffort(meta.ReasoningEffort),
+				ServiceTier:     agent.ServiceTier(meta.ServiceTier),
+			},
+			EnableBrowser: enableBrowser,
+		}, func(ev agent.Event) {
+			rnr.emitAgentEvent(ctx, id, ev, emit)
+		})
+	}
+
+	err = run(effectivePrompt, resumeID)
+	if errors.Is(err, agent.ErrSessionNotFound) && resumeID != "" {
+		_, _ = rnr.store.Update(ctx, id, func(m *ChatMeta) {
+			clearSessionIDForProvider(m, providerID)
+			m.ForkPending = false
+		})
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "system", Subtype: "session_recovered"})
+		freshPrompt := promptForMode(meta.Mode, prompt)
+		freshPrompt = promptWithVisibleHistory(priorEvents, freshPrompt)
+		freshPrompt = promptWithSelectedSkills(providerID, meta.SelectedSkills, freshPrompt)
+		err = run(freshPrompt, "")
+	}
 	if err != nil && !errors.Is(err, agent.ErrRunFailed) {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " exit: " + err.Error()})
+	}
+}
+
+func clearSessionIDForProvider(meta *ChatMeta, provider agent.ProviderID) {
+	switch provider {
+	case agent.ProviderCodex:
+		meta.CodexSessionID = ""
+	case agent.ProviderKimi:
+		meta.KimiSessionID = ""
+	default:
+		meta.ClaudeSessionID = ""
 	}
 }
 
@@ -241,7 +267,7 @@ func promptWithVisibleHistory(events []ChatEvent, prompt string) string {
 	if len(transcript) > maxTranscriptBytes {
 		transcript = "[Earlier visible transcript omitted]\n" + transcript[len(transcript)-maxTranscriptBytes:]
 	}
-	return "Use this visible chat transcript as prior context. It may be present because the chat was rewound into a fresh Claude session. Do not treat the transcript as a new request.\n\n" +
+	return "Use this visible chat transcript as prior context. It may be present because the chat was recovered into a fresh agent session. Do not treat the transcript as a new request.\n\n" +
 		transcript +
 		"\n\nCurrent user request:\n" +
 		prompt

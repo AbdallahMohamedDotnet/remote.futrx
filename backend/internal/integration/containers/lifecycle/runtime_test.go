@@ -80,6 +80,42 @@ func TestClientStateMapsLXCOutput(t *testing.T) {
 	}
 }
 
+func TestClientReadsLocalDiskDeviceFromLXDQuery(t *testing.T) {
+	runner := &recordingRunner{available: true, responses: []runnerResponse{{out: `{
+        "devices":{"workspace":{"type":"disk","source":"/host/project","path":"/workspace"}}
+    }`}}}
+	source, path, exists, err := NewClient(runner).Disk(context.Background(), "project-1", "workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists || source != "/host/project" || path != "/workspace" {
+		t.Fatalf("Disk() = %q, %q, %t", source, path, exists)
+	}
+	assertArgv(t, runner.calls, [][]string{{"query", "/1.0/instances/project-1"}})
+}
+
+func TestClientPullDirectoryTreatsMissingProviderHomeAsEmpty(t *testing.T) {
+	runner := &recordingRunner{available: true, responses: []runnerResponse{{
+		out: "Error: file does not exist", err: errors.New("exit 1"),
+	}}}
+	pulled, err := NewClient(runner).PullDirectory(context.Background(), "project-1", "/root/.kimi-code", "/host/staging")
+	if err != nil || pulled {
+		t.Fatalf("PullDirectory() = %t, %v", pulled, err)
+	}
+	assertArgv(t, runner.calls, [][]string{{
+		"file", "pull", "--recursive", "project-1/root/.kimi-code", "/host/staging",
+	}})
+}
+
+func TestClientMountedDistinguishesAnOrdinaryDirectory(t *testing.T) {
+	runner := &recordingRunner{available: true, responses: []runnerResponse{{err: errors.New("exit 1")}}}
+	mounted, err := NewClient(runner).Mounted(context.Background(), "project-1", "/workspace")
+	if err != nil || mounted {
+		t.Fatalf("Mounted() = %t, %v", mounted, err)
+	}
+	assertArgv(t, runner.calls, [][]string{{"exec", "project-1", "--", "mountpoint", "-q", "/workspace"}})
+}
+
 func TestClientLifecycleCommandsAndErrorMappings(t *testing.T) {
 	exitError := errors.New("exit 1")
 	tests := []struct {
@@ -91,22 +127,22 @@ func TestClientLifecycleCommandsAndErrorMappings(t *testing.T) {
 		wantErr   string
 	}{
 		{
-			name:      "launch",
+			name:      "init",
 			available: true,
 			invoke: func(client *Client) error {
-				return client.Launch(context.Background(), "local:remote-base", "project-1")
+				return client.Init(context.Background(), "local:remote-base", "project-1")
 			},
-			wantCalls: [][]string{{"launch", "local:remote-base", "project-1"}},
+			wantCalls: [][]string{{"init", "local:remote-base", "project-1"}},
 		},
 		{
-			name:      "launch error",
+			name:      "init error",
 			available: true,
 			responses: []runnerResponse{{out: "launch failed", err: exitError}},
 			invoke: func(client *Client) error {
-				return client.Launch(context.Background(), "local:remote-base", "project-1")
+				return client.Init(context.Background(), "local:remote-base", "project-1")
 			},
-			wantCalls: [][]string{{"launch", "local:remote-base", "project-1"}},
-			wantErr:   "lxc launch: exit 1; output: launch failed",
+			wantCalls: [][]string{{"init", "local:remote-base", "project-1"}},
+			wantErr:   "lxc init: exit 1; output: launch failed",
 		},
 		{
 			name:      "attach read-write disk",

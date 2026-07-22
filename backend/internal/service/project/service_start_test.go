@@ -31,7 +31,7 @@ func TestStartPersistsAndReturnsLaunchError(t *testing.T) {
 	}
 }
 
-func TestConcurrentStartLaunchesMissingContainerOnce(t *testing.T) {
+func TestConcurrentStartSerializesContainerEnsure(t *testing.T) {
 	repo := &startTestRepository{meta: Meta{
 		ID:            ID("abcd"),
 		Name:          "project",
@@ -59,12 +59,12 @@ func TestConcurrentStartLaunchesMissingContainerOnce(t *testing.T) {
 
 	lifecycle.mu.Lock()
 	defer lifecycle.mu.Unlock()
-	if lifecycle.launchCalls != 1 {
-		t.Fatalf("Launch() calls = %d, want 1", lifecycle.launchCalls)
+	if lifecycle.launchCalls != 2 {
+		t.Fatalf("Ensure() calls = %d, want 2 serialized idempotent checks", lifecycle.launchCalls)
 	}
 }
 
-func TestStartRestartsFrozenContainer(t *testing.T) {
+func TestStartDelegatesFrozenRecoveryToContainerEnsure(t *testing.T) {
 	repo := &startTestRepository{meta: Meta{
 		ID:            ID("abcd"),
 		Name:          "project",
@@ -84,14 +84,39 @@ func TestStartRestartsFrozenContainer(t *testing.T) {
 
 	lifecycle.mu.Lock()
 	defer lifecycle.mu.Unlock()
-	if lifecycle.restartCalls != 1 {
-		t.Fatalf("Restart() calls = %d, want 1", lifecycle.restartCalls)
+	if lifecycle.launchCalls != 1 {
+		t.Fatalf("Ensure() calls = %d, want 1", lifecycle.launchCalls)
 	}
-	if lifecycle.startCalls != 0 {
-		t.Fatalf("Start() calls = %d, want 0", lifecycle.startCalls)
+	if lifecycle.restartCalls != 0 || lifecycle.startCalls != 0 {
+		t.Fatalf("project service bypassed Ensure: restart=%d start=%d", lifecycle.restartCalls, lifecycle.startCalls)
 	}
 	if lifecycle.state != ContainerStateRunning {
 		t.Fatalf("container state = %q, want %q", lifecycle.state, ContainerStateRunning)
+	}
+}
+
+func TestUpgradeSkipsBusyProjectUnlessExplicitlyIncluded(t *testing.T) {
+	repo := &startTestRepository{meta: Meta{
+		ID: ID("abcd"), Name: "project", ContainerName: "project", Status: StatusRunning,
+	}}
+	lifecycle := &startTestLifecycle{state: ContainerStateRunning, busy: true}
+	service := New(repo, ContainerDependencies{Lifecycle: lifecycle}, nil, nil)
+
+	if _, err := service.Upgrade(context.Background(), repo.meta.ID, false); !errors.Is(err, ErrProjectBusy) {
+		t.Fatalf("Upgrade() error = %v, want busy", err)
+	}
+	if lifecycle.launchCalls != 0 {
+		t.Fatalf("busy project was changed: ensure calls = %d", lifecycle.launchCalls)
+	}
+
+	if _, err := service.Upgrade(context.Background(), repo.meta.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if lifecycle.launchCalls != 2 {
+		t.Fatalf("Ensure() calls = %d, want legacy migration and fresh-container validation", lifecycle.launchCalls)
+	}
+	if lifecycle.state != ContainerStateRunning {
+		t.Fatalf("state = %q, want running", lifecycle.state)
 	}
 }
 
@@ -237,6 +262,7 @@ type startTestLifecycle struct {
 	launchStarted   chan struct{}
 	releaseLaunch   <-chan struct{}
 	transitionCalls chan<- string
+	busy            bool
 }
 
 func (l *startTestLifecycle) Available() bool { return true }
@@ -247,7 +273,7 @@ func (l *startTestLifecycle) State(context.Context, string) (ContainerState, err
 	return l.state, nil
 }
 
-func (l *startTestLifecycle) Launch(context.Context, Meta) error {
+func (l *startTestLifecycle) Ensure(context.Context, Meta) error {
 	l.mu.Lock()
 	l.launchCalls++
 	launchErr := l.launchErr
@@ -270,6 +296,12 @@ func (l *startTestLifecycle) Launch(context.Context, Meta) error {
 	return nil
 }
 
+func (l *startTestLifecycle) Busy(context.Context, string) (bool, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.busy, nil
+}
+
 func (l *startTestLifecycle) Start(context.Context, string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -280,6 +312,9 @@ func (l *startTestLifecycle) Start(context.Context, string) error {
 
 func (l *startTestLifecycle) Stop(context.Context, string) error {
 	l.recordTransition("stop", ContainerStateStopped)
+	l.mu.Lock()
+	l.busy = false
+	l.mu.Unlock()
 	return nil
 }
 func (l *startTestLifecycle) Restart(context.Context, string) error {

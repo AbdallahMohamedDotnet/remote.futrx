@@ -151,6 +151,6 @@ Run this command on the server:
 sudo bash /opt/remote.futrx/infra/update.sh
 ```
 
-The updater downloads the newest version, rebuilds the app, restarts it, and refreshes idle project workspaces. Active projects are skipped, and project files are preserved.
+The updater downloads the newest version, rebuilds the app and base image, then asks the Go workspace lifecycle to migrate agent state and replace each idle project container. Project files and Codex, Claude, and Kimi homes are persistent; active projects are skipped by default.
 
 Run the same command again later to refresh any projects that were busy during the update.

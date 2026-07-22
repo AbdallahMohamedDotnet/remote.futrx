@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -19,6 +20,22 @@ type ProcessOptions struct {
 	ConversationID     string
 	StdoutMaxLineBytes int
 	StderrMaxLineBytes int
+}
+
+type ProcessError struct {
+	Err    error
+	Stderr string
+}
+
+func (e *ProcessError) Error() string { return e.Err.Error() }
+func (e *ProcessError) Unwrap() error { return e.Err }
+
+func ErrorStderr(err error) string {
+	var processErr *ProcessError
+	if errors.As(err, &processErr) {
+		return processErr.Stderr
+	}
+	return ""
 }
 
 func RunProcess(
@@ -55,12 +72,20 @@ func RunProcess(
 		return fmt.Errorf("spawn %s: %w", name, err)
 	}
 
+	stderrDone := make(chan string, 1)
 	go func() {
 		sc := bufio.NewScanner(stderr)
 		sc.Buffer(make([]byte, 0, 8192), maxBytes(opts.StderrMaxLineBytes, 1<<20))
+		var captured strings.Builder
 		for sc.Scan() {
-			log.Printf("%s[%s] stderr: %s", name, logID, sc.Text())
+			line := sc.Text()
+			log.Printf("%s[%s] stderr: %s", name, logID, line)
+			if captured.Len() < 64<<10 {
+				captured.WriteString(line)
+				captured.WriteByte('\n')
+			}
 		}
+		stderrDone <- captured.String()
 	}()
 
 	sc := bufio.NewScanner(stdout)
@@ -94,13 +119,17 @@ func RunProcess(
 	}
 
 	err = cmd.Wait()
+	stderrText := <-stderrDone
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return nil
 	}
 	if err != nil && runFailed {
-		return agent.ErrRunFailed
+		return &ProcessError{Err: agent.ErrRunFailed, Stderr: stderrText}
 	}
-	return err
+	if err != nil {
+		return &ProcessError{Err: err, Stderr: stderrText}
+	}
+	return nil
 }
 
 func maxBytes(value, fallback int) int {
