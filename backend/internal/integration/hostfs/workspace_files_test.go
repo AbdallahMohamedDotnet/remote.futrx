@@ -421,6 +421,28 @@ func TestWriteArchiveRejectsTooManyEntries(t *testing.T) {
 	}
 }
 
+func TestWriteArchiveEntryLimitIncludesDirectories(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"a", "b"} {
+		if err := os.Mkdir(filepath.Join(root, name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store := NewWorkspaceFileStore()
+	var destination bytes.Buffer
+
+	err := store.writeArchive(
+		context.Background(),
+		root,
+		"",
+		&destination,
+		archiveLimits{maxSourceBytes: 100, maxEntries: 1},
+	)
+	if !errors.Is(err, serviceworkspacefiles.ErrArchiveTooLarge) {
+		t.Fatalf("WriteArchive error = %v, want %v", err, serviceworkspacefiles.ErrArchiveTooLarge)
+	}
+}
+
 type failingWriter struct {
 	err error
 }

@@ -169,6 +169,11 @@ func (s *WorkspaceFileStore) writeArchive(
 		if walkErr != nil {
 			return walkErr
 		}
+		if walkPath != base {
+			if err := budget.visitEntry(); err != nil {
+				return err
+			}
+		}
 		if entry.IsDir() {
 			return nil
 		}
@@ -247,7 +252,7 @@ func (w secureWorkspace) writeArchiveEntry(
 		}
 		return err
 	}
-	if err := budget.acceptEntry(info.Size()); err != nil {
+	if err := budget.acceptFile(info.Size()); err != nil {
 		return errors.Join(err, source.Close())
 	}
 	relative, err := filepath.Rel(base, walkPath)
@@ -267,11 +272,18 @@ type archiveBudget struct {
 	remainingEntries int
 }
 
-func (b *archiveBudget) acceptEntry(size int64) error {
-	if b.remainingEntries <= 0 || size > b.remainingBytes {
+func (b *archiveBudget) visitEntry() error {
+	if b.remainingEntries <= 0 {
 		return serviceworkspacefiles.ErrArchiveTooLarge
 	}
 	b.remainingEntries--
+	return nil
+}
+
+func (b *archiveBudget) acceptFile(size int64) error {
+	if size > b.remainingBytes {
+		return serviceworkspacefiles.ErrArchiveTooLarge
+	}
 	return nil
 }
 
