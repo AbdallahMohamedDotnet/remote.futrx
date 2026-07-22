@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { localAuthApi } from "../../../api/authApi";
-import { safeReturnTo } from "./safeReturnTo";
+import { returnUrlPolicy } from "../../auth/returnUrlPolicy";
 
 export type LoginMode = "claim" | "login" | "legacy-setup";
 
@@ -18,7 +18,7 @@ export function useLocalAuthController({
   const params = new URLSearchParams(location.search);
   const oauthError = params.get("error");
   const errorEmail = params.get("email") ?? "";
-  const returnTo = safeReturnTo(params.get("return_to") ?? "", location.origin);
+  const returnTo = returnUrlPolicy.safeTarget(params.get("return_to") ?? "", location.origin);
   const [email, setEmail] = useState(mode === "legacy-setup" ? adminEmail : "");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
