@@ -1,0 +1,186 @@
+# Data and frontend state
+
+The application does not use a database. Durable metadata is stored as JSON files; chat events use append-only JSONL. Project source files live in a separate host workspace tree.
+
+## Host storage layout
+
+```text
+/opt/remote.futrx/data/                 DATA_DIR
+├── chats/<chat-id>/
+│   ├── meta.json
+│   └── events.jsonl
+├── projects/<project-id>/meta.json
+├── projectaccess/<project-id>.json
+├── projectsecrets/<project-id>.json
+├── user-settings/sha256-<identity>.json
+├── users.json
+├── local-admin.json
+├── oauth.json
+├── session.key
+└── uploads/tmp/                        tus chunks and sidecars
+
+/var/lib/remote/projects/<slug>/
+└── workspace/                          durable project files
+    ├── .env                             generated project secrets
+    ├── .uploads/                        chat attachments
+    ├── .browser-gui/                    browser launch assets and profile data
+    └── ...                              user source and generated files
+```
+
+The exact agent credential locations are provider-owned paths in the host user's home. Credential synchronizers copy configured bundles into containers.
+
+## Entity relationships
+
+```mermaid
+erDiagram
+    USER ||--o{ PROJECT_ACCESS : "is listed in"
+    PROJECT ||--o{ PROJECT_ACCESS : "grants"
+    PROJECT ||--o{ PROJECT_SECRET : "owns"
+    PROJECT ||--o{ CHAT : "contains"
+    PROJECT ||--|| WORKSPACE : "maps to"
+    PROJECT ||--o| CONTAINER : "runs as"
+    CHAT ||--o{ CHAT_EVENT : "records"
+    USER ||--|| USER_SETTINGS : "has"
+
+    USER {
+        string email PK
+        string role
+        int addedAt
+    }
+    PROJECT {
+        string id PK
+        string slug
+        string cwd
+        string status
+        string containerName
+    }
+    CHAT {
+        string id PK
+        string projectId FK
+        string provider
+        string cwd
+        string sessionIds
+    }
+    CHAT_EVENT {
+        int seq
+        int timestamp
+        string type
+        json payload
+    }
+    PROJECT_ACCESS {
+        string projectId FK
+        string email FK
+    }
+    PROJECT_SECRET {
+        string projectId FK
+        string key
+        string value
+    }
+```
+
+A chat's project relationship is optional. Project membership is stored as normalized email strings rather than a database foreign key.
+
+## Chat persistence
+
+```mermaid
+flowchart LR
+    Run["Prompt run"] --> Append["Append event to events.jsonl"]
+    Append --> Seq["Assign next monotonic seq"]
+    Seq --> Meta["Update lastMessageAt for visible events"]
+    Meta --> Cache["Refresh in-memory metadata index"]
+    Append --> Replay["Replay pages or events after seq"]
+    Replay --> Client["Chat UI"]
+```
+
+Chat metadata includes title, provider, provider session IDs, working directory, project ID, read markers, model/mode controls, selected skills, and fork state. The `running` flag is computed from the in-memory run hub and is not persisted.
+
+Rewind rewrites `events.jsonl` atomically with only events before the selected timestamp. Chat deletion removes that chat directory.
+
+## Project persistence
+
+Project metadata and workspaces are separate:
+
+- `data/projects/<id>/meta.json` stores identity, slug, container name, status, order, resource overrides, and timestamps.
+- `/var/lib/remote/projects/<slug>/workspace` stores durable project content.
+- Access and secrets use separate mode-`0600` files.
+- Metadata writes use a temporary file and rename where implemented.
+
+## Authentication and settings persistence
+
+| File | Content |
+| --- | --- |
+| `local-admin.json` | Local administrator email and password hash |
+| `oauth.json` | Google OAuth client ID and secret |
+| `session.key` | Random key used to sign platform sessions |
+| `users.json` | Registered emails, roles, inviter, and timestamps |
+| `user-settings/sha256-*.json` | Theme and default chat provider/model/mode/reasoning/tier |
+
+The user-settings filename hashes the authenticated identity key so an email or subject is not used directly as a path.
+
+## Frontend state ownership
+
+```mermaid
+flowchart TD
+    App["App"] --> Auth["AuthContext"]
+    Auth --> Settings["UserSettingsContext"]
+    Settings --> Gate["AuthGate"]
+    Gate -->|"gate open"| Workspace["WorkspaceContext"]
+
+    Workspace --> Data["Workspace WebSocket data"]
+    Workspace --> UI["View, active chat, sidebar reducer"]
+    Workspace --> Commands["Project and chat commands"]
+
+    ActiveChat["Active ChatContainer"] --> ChatHook["useChat metadata, history, stream"]
+    ActiveChat --> Composer["draft, queue, attachments"]
+    ActiveChat --> Drawers["files, history, browser, terminal"]
+```
+
+| State | Lifetime |
+| --- | --- |
+| Authentication and user settings | React context; reloaded from HTTP after page reload |
+| Projects and chat summaries | Workspace WebSocket; server is authoritative |
+| Active view, selected chat, sidebar open state | In-memory reducer |
+| Chat events | Initial HTTP page plus reconnecting WebSocket updates |
+| Composer drafts and queued prompts | In-memory map keyed by chat ID |
+| Browser drawer width | Browser `localStorage` |
+| Answered interactive question state | Browser storage used by the question renderer |
+
+## Workspace synchronization
+
+```mermaid
+sequenceDiagram
+    participant UI
+    participant WS as /ws/workspace
+    participant Hub as Workspace hub
+    participant Store as Repositories
+
+    UI->>WS: Connect after auth gate opens
+    WS->>Store: List chats and projects
+    WS-->>UI: workspace.snapshot
+    Hub-->>WS: chat.upsert or chat.delete
+    Hub-->>WS: project.upsert or project.delete
+    WS-->>UI: Incremental event
+    UI->>UI: Upsert, remove, and sort local arrays
+```
+
+The initial snapshot is filtered to permitted projects for members. Current live workspace hub events are broadcast to every connected workspace subscriber without another per-event membership filter; protected resource reads still perform their own access check.
+
+## Current deletion behavior
+
+| Delete action | Data removed |
+| --- | --- |
+| Delete chat | Chat metadata and event log; active run is canceled first |
+| Delete project | Container, project metadata, workspace directory, access list, and secrets |
+| Delete project | Does not currently cascade to separate chat records that reference it |
+| Delete secret | Secret entry, generated `.env` value, and LXD environment key |
+| Delete user | User-directory entry; project access records are not globally swept |
+| Stop Agent Browser | Processes stop; persistent profile remains in the workspace |
+
+## Code map
+
+- Store composition: [`backend/internal/stores/stores.go`](../../backend/internal/stores/stores.go)
+- Chat store: [`backend/internal/stores/filechat/store.go`](../../backend/internal/stores/filechat/store.go)
+- Project store: [`backend/internal/stores/fileproject/store.go`](../../backend/internal/stores/fileproject/store.go)
+- Workspace context: [`frontend/src/state/context/WorkspaceContext.tsx`](../../frontend/src/state/context/WorkspaceContext.tsx)
+- Workspace data hook: [`frontend/src/state/hooks/workspace/useWorkspaceData.ts`](../../frontend/src/state/hooks/workspace/useWorkspaceData.ts)
+
