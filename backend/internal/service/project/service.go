@@ -350,6 +350,8 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if !ValidID(id) {
 		return ErrInvalidID
 	}
+	unlock := s.lockRunState(id)
+	defer unlock()
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return err
@@ -373,9 +375,9 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// lockRunState serializes run-state transitions for a single project, preventing
-// a concurrent double-launch of a container that was deleted out-of-band. The
-// per-project mutex means one project's (re)launch never blocks another's.
+// lockRunState serializes container lifecycle transitions for a single project.
+// This prevents double-launches and keeps an explicit stop, restart, or delete
+// from racing an agent-triggered recovery. Different projects remain independent.
 func (s *Service) lockRunState(id ID) func() {
 	s.runStateMu.Lock()
 	if s.runStateLocks == nil {
@@ -395,7 +397,15 @@ func (s *Service) Start(ctx context.Context, id ID) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
 	}
-	defer s.lockRunState(id)()
+	unlock := s.lockRunState(id)
+	defer unlock()
+	return s.startLocked(ctx, id)
+}
+
+// startLocked converges one project to RUNNING while the caller owns its
+// run-state lock. Restart uses this directly for a missing instance to avoid
+// recursively acquiring the same non-reentrant mutex.
+func (s *Service) startLocked(ctx context.Context, id ID) (Meta, error) {
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return Meta{}, err
@@ -441,6 +451,8 @@ func (s *Service) Stop(ctx context.Context, id ID) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
 	}
+	unlock := s.lockRunState(id)
+	defer unlock()
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return Meta{}, err
@@ -462,6 +474,8 @@ func (s *Service) Restart(ctx context.Context, id ID) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
 	}
+	unlock := s.lockRunState(id)
+	defer unlock()
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return Meta{}, err
@@ -472,7 +486,7 @@ func (s *Service) Restart(ctx context.Context, id ID) (Meta, error) {
 			return s.repo.SetStatus(ctx, id, StatusError, err.Error())
 		}
 		if state == ContainerStateMissing {
-			return s.Start(ctx, id)
+			return s.startLocked(ctx, id)
 		}
 		if err := s.containerLifecycle.Restart(ctx, m.ContainerName); err != nil {
 			return s.repo.SetStatus(ctx, id, StatusError, err.Error())
