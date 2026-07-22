@@ -1,4 +1,4 @@
-import type { QueuedPrompt } from "../../models/chat";
+import type { ChatStatus, QueuedPrompt } from "../../models/chat";
 
 class ChatComposerSessionStore {
   private readonly drafts = new Map<string, string>();
@@ -20,6 +20,15 @@ class ChatComposerSessionStore {
   setQueuedPrompts(chatId: string, prompts: QueuedPrompt[]): void {
     if (prompts.length) this.promptQueues.set(chatId, prompts);
     else this.promptQueues.delete(chatId);
+  }
+
+  allowsQueue(status: ChatStatus): boolean {
+    return status === "streaming";
+  }
+
+  promptWithAttachments(userText: string, paths: string[]): string {
+    const attachmentText = `Attached files:\n${paths.map((path) => `- ${path}`).join("\n")}`;
+    return userText ? `${userText}\n\n${attachmentText}` : attachmentText;
   }
 }
 

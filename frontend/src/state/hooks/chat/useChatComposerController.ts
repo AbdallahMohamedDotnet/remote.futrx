@@ -98,14 +98,14 @@ export function useChatComposerController({
   }
 
   function handleSend() {
-    if (upload.uploading || (!statusAllowsQueue(status) && !canSendPrompt)) return;
+    if (upload.uploading || (!chatComposerSessionStore.allowsQueue(status) && !canSendPrompt)) return;
     const userText = text.trim();
     const paths = upload.attachments
       .filter((attachment) => attachment.serverPath)
       .map((attachment) => attachment.serverPath);
     if (!userText && paths.length === 0) return;
     const finalText = paths.length
-      ? appendAttachmentPaths(userText, paths)
+      ? chatComposerSessionStore.promptWithAttachments(userText, paths)
       : userText;
 
     if (status === "streaming") {
@@ -140,13 +140,4 @@ export function useChatComposerController({
     handleAnswerQuestion,
     handleRewind,
   };
-}
-
-function statusAllowsQueue(status: ChatStatus): boolean {
-  return status === "streaming";
-}
-
-function appendAttachmentPaths(userText: string, paths: string[]) {
-  const attachmentText = `Attached files:\n${paths.map((path) => `- ${path}`).join("\n")}`;
-  return userText ? `${userText}\n\n${attachmentText}` : attachmentText;
 }
