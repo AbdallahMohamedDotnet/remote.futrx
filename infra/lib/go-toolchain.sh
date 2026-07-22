@@ -112,6 +112,28 @@ stage_go_toolchain_archive() {
     fi
 }
 
+restore_go_toolchain_backup() {
+    local backup="$1" install_dir="$2"
+    local backup_dir="$backup/go"
+
+    if [ ! -e "$backup_dir" ] && [ ! -L "$backup_dir" ]; then
+        err "Could not restore the previous Go toolchain; expected backup at $backup_dir"
+        return 1
+    fi
+    if [ -e "$install_dir" ] || [ -L "$install_dir" ]; then
+        err "Could not restore the previous Go toolchain because $install_dir still exists; backup preserved at $backup_dir"
+        return 1
+    fi
+    if ! mv "$backup_dir" "$install_dir"; then
+        err "Could not restore the previous Go toolchain; backup preserved at $backup_dir"
+        return 1
+    fi
+    if ! rmdir "$backup" 2>/dev/null; then
+        warn "Restored the previous Go toolchain, but could not remove backup directory $backup"
+    fi
+    return 0
+}
+
 install_staged_go_toolchain() {
     local stage="$1" install_root="$2" install_dir="$3" desired="$4"
     local backup=""
@@ -129,11 +151,10 @@ install_staged_go_toolchain() {
     fi
 
     if ! mv "$stage/ready" "$install_dir"; then
-        if [ -n "$backup" ] && [ -e "$backup/go" ]; then
-            mv "$backup/go" "$install_dir" || true
-        fi
         if [ -n "$backup" ]; then
-            rm -rf "$backup"
+            if ! restore_go_toolchain_backup "$backup" "$install_dir"; then
+                err "Could not install Go into $install_dir and could not restore the previous toolchain."
+            fi
         fi
         rm -rf "$stage"
         err "Could not install Go into $install_dir"
@@ -144,14 +165,23 @@ install_staged_go_toolchain() {
     local installed_version
     installed_version="$(go_toolchain_version "$install_dir/bin/go")"
     if [ "$installed_version" != "$desired" ]; then
-        rm -rf "$install_dir"
-        if [ -n "$backup" ] && [ -e "$backup/go" ]; then
-            mv "$backup/go" "$install_dir" || true
+        if ! rm -rf "$install_dir"; then
+            if [ -n "$backup" ]; then
+                err "Go verification failed and the invalid installation could not be removed; backup preserved at $backup/go"
+            else
+                err "Go verification failed and the invalid installation could not be removed."
+            fi
+            return 1
         fi
         if [ -n "$backup" ]; then
-            rm -rf "$backup"
+            if restore_go_toolchain_backup "$backup" "$install_dir"; then
+                err "Go verification failed after install; restored the previous toolchain."
+            else
+                err "Go verification failed after install and the previous toolchain could not be restored."
+            fi
+        else
+            err "Go verification failed after install."
         fi
-        err "Go verification failed after install; restored the previous toolchain."
         return 1
     fi
 

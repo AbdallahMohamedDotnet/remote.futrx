@@ -10,7 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 log()  { :; }
 warn() { :; }
 ok()   { :; }
-err()  { :; }
+ERROR_LOG=""
+err()  { ERROR_LOG="${ERROR_LOG}${*}"$'\n'; }
 
 TEST_ROOT="$(command mktemp -d "${TMPDIR:-/tmp}/remote-go-toolchain-test.XXXXXX")"
 trap 'command rm -rf "$TEST_ROOT"' EXIT
@@ -23,6 +24,9 @@ TEST_GO_VERSION="$GO_VERSION"
 OLD_GO_VERSION=0.0.1
 FAKE_GO_VERSION="$TEST_GO_VERSION"
 FAKE_ARCHIVE_LAYOUT=official
+FAIL_GO_INSTALL_MOVE=0
+FAIL_GO_RESTORE_MOVE=0
+LAST_GO_BACKUP=""
 
 fail() {
     printf 'FAIL: %s\n' "$*" >&2
@@ -44,6 +48,22 @@ mktemp() {
         return
     fi
     command mktemp "$@"
+}
+
+mv() {
+    local source="${1:-}" destination="${2:-}"
+    case "$source" in
+        "$GO_INSTALL_ROOT"/.go-backup.*/go)
+            LAST_GO_BACKUP="$source"
+            [ "$FAIL_GO_RESTORE_MOVE" -eq 0 ] || return 1
+            ;;
+        */ready)
+            if [ "$destination" = "$GO_INSTALL_ROOT/go" ]; then
+                [ "$FAIL_GO_INSTALL_MOVE" -eq 0 ] || return 1
+            fi
+            ;;
+    esac
+    command mv "$@"
 }
 
 dpkg() {
@@ -119,6 +139,13 @@ use_install_root() {
     hash -r
 }
 
+stage_fake_go_toolchain() {
+    local version="$1"
+    STAGED_GO_TOOLCHAIN="$GO_INSTALL_ROOT/.test-stage"
+    mkdir -p "$STAGED_GO_TOOLCHAIN"
+    write_fake_go_tree "$STAGED_GO_TOOLCHAIN/ready" "$version"
+}
+
 # Debian-to-Go architecture aliases.
 assert_eq amd64 "$(go_toolchain_arch amd64)" "amd64 mapping"
 assert_eq arm64 "$(go_toolchain_arch arm64)" "arm64 mapping"
@@ -192,5 +219,48 @@ if ensure_go_toolchain "$TEST_GO_VERSION"; then
     fail "unsupported architecture unexpectedly succeeded"
 fi
 assert_eq "$OLD_GO_VERSION" "$(go_toolchain_version "$GO_INSTALL_ROOT/bin/go")" "unsupported architecture preservation"
+
+# A failed final install move followed by a failed restore must leave the old
+# toolchain in its backup and report the exact recovery location.
+use_install_root failed-install-restore
+write_fake_go_tree "$GO_INSTALL_ROOT/go" "$OLD_GO_VERSION"
+stage_fake_go_toolchain "$TEST_GO_VERSION"
+FAIL_GO_INSTALL_MOVE=1
+FAIL_GO_RESTORE_MOVE=1
+LAST_GO_BACKUP=""
+ERROR_LOG=""
+if install_staged_go_toolchain \
+    "$STAGED_GO_TOOLCHAIN" "$GO_INSTALL_ROOT" "$GO_INSTALL_ROOT/go" "$TEST_GO_VERSION"; then
+    fail "failed install and restore unexpectedly succeeded"
+fi
+[ -n "$LAST_GO_BACKUP" ] || fail "failed restore did not expose the backup path"
+[ -d "$LAST_GO_BACKUP" ] || fail "failed restore deleted the Go backup"
+assert_eq "$OLD_GO_VERSION" \
+    "$(go_toolchain_version "$LAST_GO_BACKUP/bin/go")" \
+    "backup after failed install restore"
+[[ "$ERROR_LOG" == *"backup preserved at $LAST_GO_BACKUP"* ]] || \
+    fail "failed install restore did not report the preserved backup path"
+FAIL_GO_INSTALL_MOVE=0
+FAIL_GO_RESTORE_MOVE=0
+
+# A post-install verification failure uses the same safe restore path.
+use_install_root failed-verification-restore
+write_fake_go_tree "$GO_INSTALL_ROOT/go" "$OLD_GO_VERSION"
+stage_fake_go_toolchain 9.9.9
+FAIL_GO_RESTORE_MOVE=1
+LAST_GO_BACKUP=""
+ERROR_LOG=""
+if install_staged_go_toolchain \
+    "$STAGED_GO_TOOLCHAIN" "$GO_INSTALL_ROOT" "$GO_INSTALL_ROOT/go" "$TEST_GO_VERSION"; then
+    fail "verification and restore failure unexpectedly succeeded"
+fi
+[ -n "$LAST_GO_BACKUP" ] || fail "verification restore failure did not expose the backup path"
+[ -d "$LAST_GO_BACKUP" ] || fail "verification restore failure deleted the Go backup"
+assert_eq "$OLD_GO_VERSION" \
+    "$(go_toolchain_version "$LAST_GO_BACKUP/bin/go")" \
+    "backup after failed verification restore"
+[[ "$ERROR_LOG" == *"backup preserved at $LAST_GO_BACKUP"* ]] || \
+    fail "verification restore failure did not report the preserved backup path"
+FAIL_GO_RESTORE_MOVE=0
 
 printf 'PASS: Go toolchain fresh install, upgrade, rerun, fallback, and preservation\n'
