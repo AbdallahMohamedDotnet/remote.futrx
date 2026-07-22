@@ -94,14 +94,15 @@ func main() {
 	workspaceIDEService := serviceworkspaceide.New(codeServerBaseURL, fileproject.WorkspaceRoot)
 
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
-		Services:   serviceSet,
-		TmuxClient: tmuxClient,
-		Static:     static,
-		DataDir:    cfg.DataDir,
-		ServerInfo: serverInfoService,
-		Files:      workspaceFileService,
-		GitHistory: gitHistoryService,
-		IDE:        workspaceIDEService,
+		Services:       serviceSet,
+		TmuxClient:     tmuxClient,
+		Static:         static,
+		DataDir:        cfg.DataDir,
+		PublicHostname: publicHostname,
+		ServerInfo:     serverInfoService,
+		Files:          workspaceFileService,
+		GitHistory:     gitHistoryService,
+		IDE:            workspaceIDEService,
 	})
 	if err != nil {
 		log.Fatalf("init http handler: %v", err)

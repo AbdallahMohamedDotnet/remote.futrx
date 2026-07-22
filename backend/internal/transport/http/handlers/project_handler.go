@@ -20,17 +20,32 @@ import (
 )
 
 type ProjectHandler struct {
-	projects *serviceproject.Service
-	users    *serviceuser.Service
-	auth     *serviceauth.Service
+	projects           *serviceproject.Service
+	users              *serviceuser.Service
+	auth               *serviceauth.Service
+	projectHostPattern *regexp.Regexp
+	codeHostPattern    *regexp.Regexp
 }
 
 func NewProjectHandler(
 	projects *serviceproject.Service,
 	users *serviceuser.Service,
 	auth *serviceauth.Service,
+	publicHostname string,
 ) *ProjectHandler {
-	return &ProjectHandler{projects: projects, users: users, auth: auth}
+	publicHostname = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(publicHostname)), ".")
+	escapedHostname := regexp.QuoteMeta(publicHostname)
+	return &ProjectHandler{
+		projects: projects,
+		users:    users,
+		auth:     auth,
+		projectHostPattern: regexp.MustCompile(
+			`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.` + escapedHostname + `$`,
+		),
+		codeHostPattern: regexp.MustCompile(
+			`^([a-z0-9][a-z0-9-]*)\.code\.` + escapedHostname + `$`,
+		),
+	}
 }
 
 func (h *ProjectHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -409,13 +424,8 @@ func buildAgentBrowserURL(r *http.Request, slug string, port int) string {
 	return fmt.Sprintf("%s://%s--%d.dev.%s/vnc.html?autoconnect=1&resize=scale&reconnect=1", scheme, slug, port, host)
 }
 
-var projectHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.remote\.futrx\.com$`)
-
-// codeHostPattern matches the per-project IDE host <slug>.code.remote.futrx.com
-// (no port segment). Used by HandleTLSAsk so Caddy's on-demand TLS will issue
-// certs for code subdomains of real projects only.
-var codeHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)\.code\.remote\.futrx\.com$`)
-
+// HandleTLSAsk lets Caddy issue on-demand certificates only for preview and
+// code subdomains belonging to projects that currently exist.
 func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -427,14 +437,14 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var slug string
-	if mm := projectHostPattern.FindStringSubmatch(domain); mm != nil {
+	if mm := h.projectHostPattern.FindStringSubmatch(domain); mm != nil {
 		slug = mm[1]
 		port, err := strconv.Atoi(mm[2])
 		if err != nil || port < 1024 || port > 65535 {
 			http.Error(w, "port out of range", http.StatusNotFound)
 			return
 		}
-	} else if mm := codeHostPattern.FindStringSubmatch(domain); mm != nil {
+	} else if mm := h.codeHostPattern.FindStringSubmatch(domain); mm != nil {
 		slug = mm[1]
 	} else {
 		http.Error(w, "host not a recognized project domain", http.StatusNotFound)
