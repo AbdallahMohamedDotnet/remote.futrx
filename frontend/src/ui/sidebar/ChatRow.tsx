@@ -1,5 +1,6 @@
 import type { ChatMeta } from "../../models/chat";
-import { formatModelShortLabel, timeAgo } from "../../shared/format";
+import { modelShortLabel } from "../../config/chat";
+import { timeAgo } from "../../shared/format";
 import { Clock, Eye, EyeOff, GitFork, Loader, MessageSquare, X } from "../primitives/icons";
 
 export function ChatRow({
@@ -50,7 +51,7 @@ export function ChatRow({
             </div>
             <div class="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-400">
               <span class={`px-1 py-0.5 rounded bg-white/[0.06] text-[10px] leading-none whitespace-nowrap flex-none ${active ? "text-accent-blue" : ""}`}>
-                {formatModelShortLabel(chat.model)}
+                {modelShortLabel(chat.model)}
               </span>
               <Clock class="w-3 h-3 flex-none" />
               <span class="truncate">{timeAgo(chat.lastMessageAt)}</span>

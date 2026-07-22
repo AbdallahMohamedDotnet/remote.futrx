@@ -1,3 +1,17 @@
+import type {
+  ChatMode,
+  ChatProvider,
+  ReasoningEffort,
+  ServiceTier,
+} from "../config/chatCatalog";
+
+export type {
+  ChatMode,
+  ChatProvider,
+  ReasoningEffort,
+  ServiceTier,
+} from "../config/chatCatalog";
+
 export interface ChatMeta {
   id: string;
   title: string;
@@ -18,12 +32,6 @@ export interface ChatMeta {
   projectId?: string;
   selectedSkills?: SelectedSkill[];
 }
-
-export type ChatProvider = "claude" | "codex" | "kimi";
-export type ChatMode = "chat" | "plan" | "code" | "review" | "debug" | "full-auto";
-export type ReasoningEffort = "" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
-// Codex `service_tier` (speed/cost lever). "" = Auto (omit; server default).
-export type ServiceTier = "" | "default" | "priority" | "fast";
 
 export interface SelectedSkill {
   name: string;

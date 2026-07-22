@@ -13,7 +13,7 @@ export function ComposerModelPicker({
   provider: ChatProvider;
   model: string;
   streaming: boolean;
-  options: Array<{ value: string; label: string; sub: string }>;
+  options: readonly { value: string; label: string; sub: string }[];
   onChange: (model: string) => void;
 }) {
   const [open, setOpen] = useState(false);

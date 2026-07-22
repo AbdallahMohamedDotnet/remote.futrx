@@ -39,7 +39,7 @@ export function ComposerOptionsRow({
             options={reasoningEffortOptions}
             disabled={streaming}
             Icon={Activity}
-            onChange={(value) => onReasoningEffortChange(value as ReasoningEffort)}
+            onChange={onReasoningEffortChange}
           />
         )}
 
@@ -50,7 +50,7 @@ export function ComposerOptionsRow({
             options={serviceTierOptions}
             disabled={streaming}
             Icon={Cpu}
-            onChange={(value) => onServiceTierChange(value as ServiceTier)}
+            onChange={onServiceTierChange}
           />
         )}
 
@@ -59,7 +59,7 @@ export function ComposerOptionsRow({
           value={mode}
           options={MODE_OPTIONS}
           Icon={MessageSquare}
-          onChange={(value) => onModeChange(value as ChatMode)}
+          onChange={onModeChange}
         />
       </div>
     </div>

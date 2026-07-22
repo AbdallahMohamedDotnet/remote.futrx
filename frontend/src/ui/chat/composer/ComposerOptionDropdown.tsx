@@ -2,12 +2,12 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ChevronDown } from "../../primitives/icons";
 
-export interface ComposerOption {
-  value: string;
+export interface ComposerOption<T extends string> {
+  value: T;
   label: string;
 }
 
-export function ComposerOptionDropdown({
+export function ComposerOptionDropdown<T extends string>({
   label,
   value,
   options,
@@ -16,11 +16,11 @@ export function ComposerOptionDropdown({
   onChange,
 }: {
   label: string;
-  value: string;
-  options: ComposerOption[];
+  value: T;
+  options: readonly ComposerOption<T>[];
   disabled?: boolean;
   Icon: (props: JSX.SVGAttributes<SVGSVGElement>) => JSX.Element;
-  onChange: (value: string) => void;
+  onChange: (value: T) => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -36,7 +36,7 @@ export function ComposerOptionDropdown({
     return () => window.removeEventListener("mousedown", closeOnOutsideClick);
   }, [open]);
 
-  function pick(nextValue: string) {
+  function pick(nextValue: T) {
     setOpen(false);
     if (nextValue !== value) onChange(nextValue);
   }
