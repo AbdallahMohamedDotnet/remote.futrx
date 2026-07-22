@@ -50,6 +50,13 @@ func (s *Service) ApplyDiff(
 	}
 
 	for k, v := range set {
+		// LXD rejects line breaks in persistent environment.* config. Agent
+		// sessions still receive multiline project secrets through `lxc exec
+		// --env`; skip them here so one PEM/JSON value does not prevent the
+		// remaining single-line terminal environment from being synchronized.
+		if strings.ContainsAny(v, "\r\n") {
+			continue
+		}
 		qctx, cancelQ := context.WithTimeout(ctx, queryTimeout)
 		cur, _ := s.runner.Run(qctx, "config", "get", container, "environment."+k)
 		cancelQ()
@@ -57,10 +64,14 @@ func (s *Service) ApplyDiff(
 			continue
 		}
 		sctx, cancelS := context.WithTimeout(ctx, queryTimeout)
-		out, err := s.runner.Run(sctx, "config", "set", container, "environment."+k, v)
+		// End flag parsing before the value. PEM/OpenSSH secrets commonly start
+		// with "-----BEGIN", which LXC otherwise interprets as a CLI flag.
+		_, err := s.runner.Run(sctx, "config", "set", container, "environment."+k, "--", v)
 		cancelS()
 		if err != nil {
-			return fmt.Errorf("set environment.%s on %s: %w; output: %s", k, container, err, out)
+			// LXC can echo an invalid argument in its output. Never attach that
+			// output here because the argument is the secret value itself.
+			return fmt.Errorf("set environment.%s on %s: %w", k, container, err)
 		}
 	}
 

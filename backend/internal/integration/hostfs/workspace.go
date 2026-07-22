@@ -3,8 +3,11 @@
 package hostfs
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 )
 
 // WorkspacePreparer creates and remaps a host workspace for an unprivileged
@@ -29,24 +32,27 @@ func (p *WorkspacePreparer) Prepare(path string) error {
 }
 
 func chownRecursively(path string, uid, gid int) error {
-	if err := os.Chown(path, uid, gid); err != nil {
-		return err
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() {
-		return nil
-	}
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		if err := chownRecursively(path+"/"+entry.Name(), uid, gid); err != nil {
+	root := filepath.Clean(path)
+	return filepath.WalkDir(root, func(current string, _ fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			// Browser profiles contain short-lived lock entries. A concurrent
+			// browser shutdown may remove one between reading the directory and
+			// visiting it; that must not prevent the workspace from launching.
+			if current != root && errors.Is(walkErr, fs.ErrNotExist) {
+				return nil
+			}
+			return walkErr
+		}
+
+		// Lchown changes a symlink itself instead of following it. Chromium's
+		// Singleton* locks intentionally point at ephemeral files and sockets,
+		// which are commonly dangling after a container recycle.
+		if err := os.Lchown(current, uid, gid); err != nil {
+			if current != root && errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			return err
 		}
-	}
-	return nil
+		return nil
+	})
 }
