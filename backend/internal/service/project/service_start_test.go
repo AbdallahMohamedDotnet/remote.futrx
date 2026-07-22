@@ -63,6 +63,37 @@ func TestConcurrentStartLaunchesMissingContainerOnce(t *testing.T) {
 	}
 }
 
+func TestStartRestartsFrozenContainer(t *testing.T) {
+	repo := &startTestRepository{meta: Meta{
+		ID:            ID("abcd"),
+		Name:          "project",
+		ContainerName: "project",
+		Status:        StatusRunning,
+	}}
+	lifecycle := &startTestLifecycle{state: ContainerStateFrozen}
+	service := New(repo, ContainerDependencies{Lifecycle: lifecycle}, nil, nil)
+
+	got, err := service.Start(context.Background(), repo.meta.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != StatusRunning {
+		t.Fatalf("Start() status = %q, want %q", got.Status, StatusRunning)
+	}
+
+	lifecycle.mu.Lock()
+	defer lifecycle.mu.Unlock()
+	if lifecycle.restartCalls != 1 {
+		t.Fatalf("Restart() calls = %d, want 1", lifecycle.restartCalls)
+	}
+	if lifecycle.startCalls != 0 {
+		t.Fatalf("Start() calls = %d, want 0", lifecycle.startCalls)
+	}
+	if lifecycle.state != ContainerStateRunning {
+		t.Fatalf("container state = %q, want %q", lifecycle.state, ContainerStateRunning)
+	}
+}
+
 type startTestRepository struct {
 	mu   sync.Mutex
 	meta Meta
@@ -109,10 +140,12 @@ func (r *startTestRepository) SetStatus(_ context.Context, _ ID, status Status, 
 func (r *startTestRepository) Delete(context.Context, ID) error { return nil }
 
 type startTestLifecycle struct {
-	mu          sync.Mutex
-	state       ContainerState
-	launchErr   error
-	launchCalls int
+	mu           sync.Mutex
+	state        ContainerState
+	launchErr    error
+	launchCalls  int
+	startCalls   int
+	restartCalls int
 }
 
 func (l *startTestLifecycle) Available() bool { return true }
@@ -137,12 +170,19 @@ func (l *startTestLifecycle) Launch(context.Context, Meta) error {
 func (l *startTestLifecycle) Start(context.Context, string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.startCalls++
 	l.state = ContainerStateRunning
 	return nil
 }
 
-func (l *startTestLifecycle) Stop(context.Context, string) error            { return nil }
-func (l *startTestLifecycle) Restart(context.Context, string) error         { return nil }
+func (l *startTestLifecycle) Stop(context.Context, string) error { return nil }
+func (l *startTestLifecycle) Restart(context.Context, string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.restartCalls++
+	l.state = ContainerStateRunning
+	return nil
+}
 func (l *startTestLifecycle) Delete(context.Context, string) error          { return nil }
 func (l *startTestLifecycle) EnsureResources(context.Context, string) error { return nil }
 func (l *startTestLifecycle) SetResourceLimits(context.Context, string, ContainerLimits) error {

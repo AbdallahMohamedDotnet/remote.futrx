@@ -412,6 +412,10 @@ func (s *Service) Start(ctx context.Context, id ID) (Meta, error) {
 			if syncErr := s.syncContainerEnv(ctx, id, m.ContainerName); syncErr != nil {
 				log.Printf("projects: sync env to %s after relaunch: %v", m.ContainerName, syncErr)
 			}
+		} else if state == ContainerStateFrozen {
+			if err := s.containerLifecycle.Restart(ctx, m.ContainerName); err != nil {
+				return s.setStartError(ctx, id, err)
+			}
 		} else if state != ContainerStateRunning {
 			if err := s.containerLifecycle.Start(ctx, m.ContainerName); err != nil {
 				return s.setStartError(ctx, id, err)
