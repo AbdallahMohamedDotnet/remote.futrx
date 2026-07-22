@@ -1,8 +1,8 @@
-import { useState } from "preact/hooks";
-import { localAuthApi } from "../../api/authApi";
+import { useLocalAuthController } from "../../state/hooks/auth/useLocalAuthController";
+import type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
 import { Key, Loader, MessageSquare } from "../primitives/icons";
 
-export type LoginMode = "claim" | "login" | "legacy-setup";
+export type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
 
 export function LoginScreen({
   mode,
@@ -17,48 +17,21 @@ export function LoginScreen({
   googleOAuthEnabled: boolean;
   onSuccess: () => Promise<void>;
 }) {
-  const params = new URLSearchParams(location.search);
-  const oauthError = params.get("error");
-  const errorEmail = params.get("email") ?? "";
-  const [email, setEmail] = useState(mode === "legacy-setup" ? adminEmail : "");
-  const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const setup = mode === "claim" || mode === "legacy-setup";
-
-  async function submit(event: Event) {
-    event.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      setError("Email is required.");
-      return;
-    }
-    if (setup && password !== confirmation) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (setup && password.length < 12) {
-      setError("Use at least 12 characters.");
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-    try {
-      if (setup) await localAuthApi.claim(normalizedEmail, password);
-      else await localAuthApi.login(normalizedEmail, password);
-      await onSuccess();
-      if (mode === "login" && returnTo) location.assign(returnTo);
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const returnTo = params.get("return_to") ?? "";
-  const googleURL = `/auth/google/login${returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ""}`;
+  const {
+    confirmation,
+    email,
+    error,
+    errorEmail,
+    googleURL,
+    oauthError,
+    password,
+    setConfirmation,
+    setEmail,
+    setPassword,
+    setup,
+    submit,
+    submitting,
+  } = useLocalAuthController({ mode, adminEmail, onSuccess });
   const title = mode === "claim"
     ? "Create your admin account"
     : mode === "legacy-setup"
