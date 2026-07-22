@@ -1,51 +1,18 @@
-import { useEffect, useState } from "preact/hooks";
-import { googleOAuthApi } from "../../api/authApi";
-import { useAuthContext } from "../../state/context/AuthContext";
-import type { GoogleOAuthSettings as GoogleOAuthSettingsModel } from "../../models/auth";
+import { useGoogleOAuthSettingsController } from "../../state/hooks/auth/useGoogleOAuthSettingsController";
 import { Check, ExternalLink, Key, Loader } from "../primitives/icons";
 
 export function GoogleOAuthSettings() {
-  const { auth } = useAuthContext();
-  const [settings, setSettings] = useState<GoogleOAuthSettingsModel | null>(null);
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    googleOAuthApi.get()
-      .then((value) => {
-        if (cancelled) return;
-        setSettings(value);
-        setClientId(value.clientId);
-      })
-      .catch((cause) => !cancelled && setError((cause as Error).message))
-      .finally(() => !cancelled && setLoading(false));
-    return () => { cancelled = true; };
-  }, []);
-
-  async function save(event: Event) {
-    event.preventDefault();
-    if (!clientId.trim() || !clientSecret.trim()) {
-      setError("Both the Google client ID and client secret are required.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const value = await googleOAuthApi.save(clientId.trim(), clientSecret.trim());
-      setSettings(value);
-      setClientId(value.clientId);
-      setClientSecret("");
-      await auth.refresh();
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
+  const {
+    clientId,
+    clientSecret,
+    error,
+    loading,
+    save,
+    saving,
+    setClientId,
+    setClientSecret,
+    settings,
+  } = useGoogleOAuthSettingsController();
 
   return (
     <section class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
