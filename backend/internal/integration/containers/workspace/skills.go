@@ -5,7 +5,6 @@ package workspace
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -27,7 +26,7 @@ func (p *Provisioner) EnsureSkillLinks(ctx context.Context, containerName string
 
 func (p *workspaceProvisioner) ensureSkillLinks(ctx context.Context, containerName string) error {
 	if !p.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	script := workspaceSkillLinksScript(p.profiles.Snapshot())
 	if _, err := command.RunWithTimeout(ctx, p.runner, ensureWorkspaceSymlinksTimeout, "exec", containerName, "--", "sh", "-c", script); err != nil {

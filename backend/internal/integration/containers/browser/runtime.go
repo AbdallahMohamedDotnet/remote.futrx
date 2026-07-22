@@ -2,7 +2,6 @@ package browser
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -33,7 +32,7 @@ func (r *agentBrowserRuntime) start(ctx context.Context, containerName, verb, la
 
 func (r *agentBrowserRuntime) stop(ctx context.Context, containerName string) error {
 	if !r.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	if out, err := command.RunWithTimeout(ctx, r.runner, stopTimeout, "exec", containerName, "--", "sh", containerGUIScript, "stop"); err != nil {
 		return fmt.Errorf("stop agent browser: %w; output: %s", err, output.Truncate(out, 1000))
@@ -43,7 +42,7 @@ func (r *agentBrowserRuntime) stop(ctx context.Context, containerName string) er
 
 func (r *agentBrowserRuntime) stopView(ctx context.Context, containerName string) error {
 	if !r.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	if out, err := command.RunWithTimeout(ctx, r.runner, stopTimeout, "exec", containerName, "--", "sh", containerGUIScript, "stop-view"); err != nil {
 		return fmt.Errorf("stop agent browser view: %w; output: %s", err, output.Truncate(out, 1000))
@@ -61,7 +60,7 @@ func (r *agentBrowserRuntime) running(ctx context.Context, containerName string)
 
 func (r *agentBrowserRuntime) status(ctx context.Context, containerName string) (serviceproject.AgentBrowserInfo, error) {
 	if !r.runner.Available() {
-		return serviceproject.AgentBrowserInfo{}, errors.New("lxc not available")
+		return serviceproject.AgentBrowserInfo{}, command.ErrUnavailable
 	}
 	out, err := command.RunWithTimeout(ctx, r.runner, queryTimeout, "exec", containerName, "--", "sh", containerGUIScript, "status")
 	if err != nil {

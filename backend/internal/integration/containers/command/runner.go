@@ -3,9 +3,13 @@ package command
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 )
+
+// ErrUnavailable reports that the container runtime CLI is not on PATH.
+var ErrUnavailable = errors.New("lxc not available")
 
 // Runner invokes the underlying container runtime.
 type Runner interface {

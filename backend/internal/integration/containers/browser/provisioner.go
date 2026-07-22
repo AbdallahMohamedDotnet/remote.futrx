@@ -3,7 +3,6 @@ package browser
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"fmt"
 	"time"
 
@@ -37,7 +36,7 @@ type agentBrowserProvisioner struct {
 
 func (p *agentBrowserProvisioner) ensure(ctx context.Context, containerName string) error {
 	if !p.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 
 	_, stackErr := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "sh", "-c", "command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1")

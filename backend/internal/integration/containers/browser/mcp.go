@@ -11,7 +11,6 @@ package browser
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path"
 	"time"
@@ -43,7 +42,7 @@ func (s *Adapter) EnsureMCP(ctx context.Context, containerName string) error {
 
 func (p *agentBrowserMCPProvisioner) ensure(ctx context.Context, containerName string) error {
 	if !p.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 
 	_, missing := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "sh", "-c", "npm ls -g @playwright/mcp >/dev/null 2>&1")

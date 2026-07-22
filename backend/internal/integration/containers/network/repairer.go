@@ -10,7 +10,6 @@ package network
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -33,7 +32,7 @@ func NewRepairer(runner command.Runner) *Repairer {
 // Safe on a healthy container: reconfigure just refreshes the same lease.
 func (r *Repairer) Repair(ctx context.Context, containerName string) error {
 	if !r.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	if out, err := command.RunWithTimeout(ctx, r.runner, queryTimeout, "exec", containerName, "--", "networkctl", "reconfigure", "eth0"); err != nil {
 		return fmt.Errorf("networkctl reconfigure eth0: %w; output: %s", err, out)

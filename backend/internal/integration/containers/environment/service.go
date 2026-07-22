@@ -43,7 +43,7 @@ func (s *Service) ApplyDiff(
 	unset []string,
 ) error {
 	if !s.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	if strings.TrimSpace(container) == "" {
 		return errors.New("container name required")

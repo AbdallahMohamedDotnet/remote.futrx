@@ -14,7 +14,6 @@ package browser
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"fmt"
 	"time"
 
@@ -36,7 +35,7 @@ const (
 // changes (sha256 marker stored alongside the config).
 func (s *Adapter) EnsureScript(ctx context.Context, containerName string) error {
 	if !s.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 
 	// Always ensure the directories + config file exist (cheap, idempotent).

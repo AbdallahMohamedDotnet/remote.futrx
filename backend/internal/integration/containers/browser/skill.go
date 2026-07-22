@@ -10,7 +10,6 @@ package browser
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"fmt"
 
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
@@ -29,7 +28,7 @@ const (
 // directory. Idempotent: re-pushed only when the embedded SKILL.md changes.
 func (s *Adapter) EnsureSkill(ctx context.Context, containerName string) error {
 	if !s.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	out, err := command.RunWithTimeout(ctx, s.runner, queryTimeout, "exec", containerName, "--", "install", "-d", "-m", "755", containerBrowserSkillDir)
 	if err != nil {

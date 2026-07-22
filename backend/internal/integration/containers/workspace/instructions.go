@@ -56,7 +56,7 @@ func (p *Provisioner) EnsureAgentInstructions(ctx context.Context, containerName
 
 func (p *workspaceProvisioner) ensureAgentInstructions(ctx context.Context, containerName string) error {
 	if !p.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	targets := configuredInstructionTargets(p.profiles.Snapshot())
 	if len(targets) == 0 {

@@ -2,7 +2,6 @@ package browser
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -28,7 +27,7 @@ func (s *Adapter) EnsureLimits(ctx context.Context, containerName string) error 
 
 func (c *agentBrowserConfigurator) ensure(ctx context.Context, containerName string) error {
 	if !c.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	lctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()

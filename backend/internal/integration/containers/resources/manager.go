@@ -8,7 +8,6 @@ package resources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -125,7 +124,7 @@ func missingDeviceOutput(output string) bool {
 
 func (m *Manager) ensureProfile(ctx context.Context) error {
 	if !m.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	_, showErr := command.RunWithTimeout(ctx, m.runner, queryTimeout, "profile", "show", ProfileName)
 	if showErr != nil {

@@ -10,7 +10,6 @@ package listeners
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -35,7 +34,7 @@ func NewScanner(runner command.Runner) *Scanner {
 
 func (s *Scanner) List(ctx context.Context, containerName string) ([]serviceproject.ContainerApp, error) {
 	if !s.runner.Available() {
-		return nil, errors.New("lxc not available")
+		return nil, command.ErrUnavailable
 	}
 	// -t TCP, -l listening, -n numeric, -H no header, -p process info.
 	// We accept the inevitable non-zero exit if ss isn't installed (the

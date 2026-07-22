@@ -20,7 +20,7 @@ type fileSynchronizer struct {
 
 func (s *fileSynchronizer) ensure(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
 	if !s.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	if err := validateCredentialSpec(spec); err != nil {
 		return err
@@ -68,7 +68,7 @@ func (s *fileSynchronizer) ensure(ctx context.Context, containerName string, spe
 
 func (s *fileSynchronizer) syncFromContainer(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
 	if !s.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	if err := validateCredentialSpec(spec); err != nil {
 		return err

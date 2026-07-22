@@ -22,7 +22,7 @@ type directorySynchronizer struct {
 
 func (s *directorySynchronizer) ensure(ctx context.Context, containerName string, spec provisioning.CredentialSpec) error {
 	if !s.runner.Available() {
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	directory := spec.Directory
 	files, err := regularCredentialFiles(directory.HostPath)
@@ -62,7 +62,7 @@ func (s *directorySynchronizer) syncFromContainer(ctx context.Context, container
 		if directory.SyncUnavailableIsNoop {
 			return nil
 		}
-		return errors.New("lxc not available")
+		return command.ErrUnavailable
 	}
 	if directory.SyncOnlyWhenHostHasFiles {
 		if files, err := regularCredentialFiles(directory.HostPath); err != nil || len(files) == 0 {
