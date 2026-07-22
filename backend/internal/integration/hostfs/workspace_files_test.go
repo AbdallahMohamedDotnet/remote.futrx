@@ -5,9 +5,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"syscall"
 	"testing"
 	"time"
@@ -54,6 +56,38 @@ func TestListDirShowsDotfiles(t *testing.T) {
 	}
 	if !names["src"] {
 		t.Fatalf("expected src dir to be listed, got %v", names)
+	}
+}
+
+func TestListDirPreservesGlobalOrderAcrossReadBatches(t *testing.T) {
+	root := t.TempDir()
+	for index := directoryReadBatchSize + 20; index >= 0; index-- {
+		name := fmt.Sprintf("file-%03d.txt", index)
+		if err := os.WriteFile(filepath.Join(root, name), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"dir-b", "dir-a"} {
+		if err := os.Mkdir(filepath.Join(root, name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store := NewWorkspaceFileStore()
+
+	nodes, truncated, err := store.ListDir(root, "", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !truncated {
+		t.Fatal("ListDir() did not report truncation")
+	}
+	want := []string{"dir-a", "dir-b", "file-000.txt"}
+	got := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		got = append(got, node.Name)
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("ListDir() names = %q, want %q", got, want)
 	}
 }
 

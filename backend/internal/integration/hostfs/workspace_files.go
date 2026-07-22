@@ -2,6 +2,7 @@ package hostfs
 
 import (
 	"archive/zip"
+	"container/heap"
 	"context"
 	"errors"
 	"io"
@@ -25,8 +26,9 @@ const (
 	// Archive limits apply to source data before compression. This prevents a
 	// sparse or highly compressible workspace from consuming unbounded CPU and
 	// read I/O while remaining below the compressed spool-file limit.
-	maxArchiveSourceBytes int64 = 1 << 30
-	maxArchiveEntries           = 200000
+	maxArchiveSourceBytes  int64 = 1 << 30
+	maxArchiveEntries            = 200000
+	directoryReadBatchSize       = 256
 )
 
 type archiveLimits struct {
@@ -87,27 +89,24 @@ func (s *WorkspaceFileStore) ListDir(root, relative string, maxEntries int) ([]*
 	if err != nil {
 		return nil, false, err
 	}
-	entries, err := directory.ReadDir(-1)
-	_ = directory.Close()
-	if err != nil {
+	listing := newBoundedDirectoryListing(maxEntries)
+	for {
+		entries, readErr := directory.ReadDir(directoryReadBatchSize)
+		for _, entry := range entries {
+			listing.consider(workspace, relative, entry)
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			_ = directory.Close()
+			return nil, false, readErr
+		}
+	}
+	if err := directory.Close(); err != nil {
 		return nil, false, err
 	}
-	sortEntries(entries)
-
-	nodes := make([]*serviceworkspacefiles.Node, 0, len(entries))
-	truncated := false
-	for _, entry := range entries {
-		if len(nodes) >= maxEntries {
-			truncated = true
-			break
-		}
-		node, ok := workspace.nodeFor(relative, entry)
-		if !ok {
-			continue
-		}
-		nodes = append(nodes, node)
-	}
-	return nodes, truncated, nil
+	return listing.result(workspace, relative)
 }
 
 func (s *WorkspaceFileStore) OpenFile(root, relative string) (io.ReadSeekCloser, string, time.Time, error) {
@@ -337,13 +336,124 @@ func (w secureWorkspace) nodeFor(parentRelative string, entry fs.DirEntry) (*ser
 	return node, true
 }
 
-func sortEntries(entries []fs.DirEntry) {
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].IsDir() != entries[j].IsDir() {
-			return entries[i].IsDir()
-		}
-		return strings.ToLower(entries[i].Name()) < strings.ToLower(entries[j].Name())
+type listCandidate struct {
+	entry     fs.DirEntry
+	node      *serviceworkspacefiles.Node
+	directory bool
+	sortName  string
+}
+
+func newListCandidate(
+	workspace secureWorkspace,
+	parentRelative string,
+	entry fs.DirEntry,
+) (listCandidate, bool) {
+	candidate := listCandidate{
+		entry:     entry,
+		directory: entry.IsDir(),
+		sortName:  strings.ToLower(entry.Name()),
+	}
+	if entry.Type()&os.ModeSymlink == 0 {
+		return candidate, true
+	}
+	node, ok := workspace.nodeFor(parentRelative, entry)
+	if !ok {
+		return listCandidate{}, false
+	}
+	candidate.node = node
+	return candidate, true
+}
+
+func listCandidateBefore(left, right listCandidate) bool {
+	if left.directory != right.directory {
+		return left.directory
+	}
+	if left.sortName != right.sortName {
+		return left.sortName < right.sortName
+	}
+	return left.entry.Name() < right.entry.Name()
+}
+
+// listCandidateHeap keeps the worst retained entry at index zero, allowing a
+// complete directory scan to preserve global sort order with O(limit) memory.
+type listCandidateHeap []listCandidate
+
+func (h listCandidateHeap) Len() int { return len(h) }
+func (h listCandidateHeap) Less(i, j int) bool {
+	return listCandidateBefore(h[j], h[i])
+}
+func (h listCandidateHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h *listCandidateHeap) Push(value any) {
+	*h = append(*h, value.(listCandidate))
+}
+func (h *listCandidateHeap) Pop() any {
+	last := len(*h) - 1
+	value := (*h)[last]
+	(*h)[last] = listCandidate{}
+	*h = (*h)[:last]
+	return value
+}
+
+type boundedDirectoryListing struct {
+	limit      int
+	validCount int
+	candidates listCandidateHeap
+}
+
+func newBoundedDirectoryListing(limit int) *boundedDirectoryListing {
+	if limit < 0 {
+		limit = 0
+	}
+	capacity := min(limit, directoryReadBatchSize)
+	return &boundedDirectoryListing{
+		limit:      limit,
+		candidates: make(listCandidateHeap, 0, capacity),
+	}
+}
+
+func (l *boundedDirectoryListing) consider(
+	workspace secureWorkspace,
+	parentRelative string,
+	entry fs.DirEntry,
+) {
+	candidate, ok := newListCandidate(workspace, parentRelative, entry)
+	if !ok {
+		return
+	}
+	l.validCount++
+	if l.limit == 0 {
+		return
+	}
+	if len(l.candidates) < l.limit {
+		heap.Push(&l.candidates, candidate)
+		return
+	}
+	if listCandidateBefore(candidate, l.candidates[0]) {
+		l.candidates[0] = candidate
+		heap.Fix(&l.candidates, 0)
+	}
+}
+
+func (l *boundedDirectoryListing) result(
+	workspace secureWorkspace,
+	parentRelative string,
+) ([]*serviceworkspacefiles.Node, bool, error) {
+	sort.Slice(l.candidates, func(i, j int) bool {
+		return listCandidateBefore(l.candidates[i], l.candidates[j])
 	})
+	nodes := make([]*serviceworkspacefiles.Node, 0, len(l.candidates))
+	for _, candidate := range l.candidates {
+		node := candidate.node
+		if node == nil {
+			var ok bool
+			node, ok = workspace.nodeFor(parentRelative, candidate.entry)
+			if !ok {
+				continue
+			}
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes, l.validCount > l.limit, nil
 }
 
 func newSecureWorkspace(root string) (secureWorkspace, error) {
