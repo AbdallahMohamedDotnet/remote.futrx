@@ -41,7 +41,7 @@ func main() {
 		log.Fatalf("init stores: %v", err)
 	}
 	lxcClient := lxc.New()
-	containerStack := config.NewContainerStack(lxcClient, service.AgentProfiles())
+	containerStack := config.NewContainerStack(lxcClient, service.AgentProfiles(), nil)
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:             storeSet.Chats,

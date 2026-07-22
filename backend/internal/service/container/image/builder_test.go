@@ -88,7 +88,7 @@ func configuredProfiles() []provisioning.Profile {
 func TestBuildPreservesImageWorkflowOrder(t *testing.T) {
 	runtime := &recordingRuntime{available: true}
 	profiles := &recordingProfileSource{profiles: configuredProfiles()}
-	builder := NewBuilder(runtime, profiles, "browser-install", []byte("code-server-install"))
+	builder := NewBuilder(runtime, profiles, "browser-install", []byte("code-server-install"), nil)
 	builder.networkWarmup = 0
 
 	if err := builder.Build(context.Background(), ""); err != nil {
@@ -128,6 +128,7 @@ func TestBuildPreservesErrorOutputAndDeferredCleanup(t *testing.T) {
 		&recordingProfileSource{profiles: configuredProfiles()},
 		"browser-install",
 		[]byte("code-server-install"),
+		nil,
 	)
 	builder.networkWarmup = 0
 
@@ -148,6 +149,7 @@ func TestBuildUnavailablePreservesErrorAndDoesNotMutateRuntime(t *testing.T) {
 		&recordingProfileSource{profiles: configuredProfiles()},
 		"browser-install",
 		[]byte("code-server-install"),
+		nil,
 	)
 
 	err := builder.Build(context.Background(), "custom-alias")

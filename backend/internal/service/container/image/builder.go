@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
@@ -33,11 +32,12 @@ const (
 	// from a previous failed run.
 	baseImageBuilderName = "futrx-remote-dev-builder"
 
-	baseImageBuildTimeout   = 15 * time.Minute
-	baseImagePublishTimeout = 5 * time.Minute
-	baseImageNetworkWarmup  = 3 * time.Second
-	baseImageProgressTick   = 30 * time.Second
-	deleteTimeout           = 30 * time.Second
+	baseImageBuildTimeout    = 15 * time.Minute
+	baseImagePublishTimeout  = 5 * time.Minute
+	baseImageNetworkWarmup   = 3 * time.Second
+	baseImageProgressTick    = 30 * time.Second
+	baseImageBuildStageCount = 6
+	deleteTimeout            = 30 * time.Second
 )
 
 type buildStageResult struct {
@@ -45,9 +45,14 @@ type buildStageResult struct {
 	err    error
 }
 
-func runBuildStage(label string, run func() (string, error)) (string, error) {
+func (b *Builder) runBuildStage(stage int, description string, run func() (string, error)) (string, error) {
 	started := time.Now()
-	log.Printf("%s...", label)
+	b.reportProgress(Progress{
+		Stage:       stage,
+		StageCount:  baseImageBuildStageCount,
+		Description: description,
+		State:       ProgressStarted,
+	})
 
 	done := make(chan buildStageResult, 1)
 	go func() {
@@ -62,15 +67,39 @@ func runBuildStage(label string, run func() (string, error)) (string, error) {
 		case result := <-done:
 			elapsed := time.Since(started).Round(time.Second)
 			if result.err != nil {
-				log.Printf("%s failed after %s", label, elapsed)
+				b.reportProgress(Progress{
+					Stage:       stage,
+					StageCount:  baseImageBuildStageCount,
+					Description: description,
+					State:       ProgressFailed,
+					Elapsed:     elapsed,
+				})
 			} else {
-				log.Printf("%s finished in %s", label, elapsed)
+				b.reportProgress(Progress{
+					Stage:       stage,
+					StageCount:  baseImageBuildStageCount,
+					Description: description,
+					State:       ProgressSucceeded,
+					Elapsed:     elapsed,
+				})
 			}
 			return result.output, result.err
 		case <-ticker.C:
 			elapsed := time.Since(started).Round(time.Second)
-			log.Printf("%s still running (%s elapsed)", label, elapsed)
+			b.reportProgress(Progress{
+				Stage:       stage,
+				StageCount:  baseImageBuildStageCount,
+				Description: description,
+				State:       ProgressRunning,
+				Elapsed:     elapsed,
+			})
 		}
+	}
+}
+
+func (b *Builder) reportProgress(progress Progress) {
+	if b.progress != nil {
+		b.progress.ReportImageBuildProgress(progress)
 	}
 }
 
@@ -82,6 +111,7 @@ type Builder struct {
 	browserInstallScript    string
 	codeServerInstallScript []byte
 	networkWarmup           time.Duration
+	progress                ProgressReporter
 }
 
 // NewBuilder returns an image builder configured with the feature install
@@ -91,6 +121,7 @@ func NewBuilder(
 	profileSource ProfileSource,
 	browserInstallScript string,
 	codeServerInstallScript []byte,
+	progress ProgressReporter,
 ) *Builder {
 	return &Builder{
 		runtime:                 runtime,
@@ -98,6 +129,7 @@ func NewBuilder(
 		browserInstallScript:    browserInstallScript,
 		codeServerInstallScript: codeServerInstallScript,
 		networkWarmup:           baseImageNetworkWarmup,
+		progress:                progress,
 	}
 }
 
@@ -137,7 +169,7 @@ func (b *Builder) Build(ctx context.Context, alias string) error {
 		_, _ = b.runtime.DeleteContainer(dctx, baseImageBuilderName)
 	}()
 
-	out, err := runBuildStage("[1/6] Downloading Ubuntu 24.04 and starting the builder", func() (string, error) {
+	out, err := b.runBuildStage(1, "Downloading Ubuntu 24.04 and starting the builder", func() (string, error) {
 		return b.runtime.LaunchContainer(bctx, SourceImage, baseImageBuilderName)
 	})
 	if err != nil {
@@ -152,28 +184,28 @@ func (b *Builder) Build(ctx context.Context, alias string) error {
 		return bctx.Err()
 	}
 
-	out, err = runBuildStage("[2/6] Installing system tools, Node.js, and agent CLIs", func() (string, error) {
+	out, err = b.runBuildStage(2, "Installing system tools, Node.js, and agent CLIs", func() (string, error) {
 		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, installScript)
 	})
 	if err != nil {
 		return fmt.Errorf("install script: %w; output: %s", err, output.Truncate(out, 2000))
 	}
 
-	out, err = runBuildStage("[3/6] Installing the agent browser and Chromium", func() (string, error) {
+	out, err = b.runBuildStage(3, "Installing the agent browser and Chromium", func() (string, error) {
 		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, b.browserInstallScript)
 	})
 	if err != nil {
 		return fmt.Errorf("agent browser install script: %w; output: %s", err, output.Truncate(out, 2000))
 	}
 
-	out, err = runBuildStage("[4/6] Installing the browser IDE", func() (string, error) {
+	out, err = b.runBuildStage(4, "Installing the browser IDE", func() (string, error) {
 		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, string(b.codeServerInstallScript))
 	})
 	if err != nil {
 		return fmt.Errorf("code-server install script: %w; output: %s", err, output.Truncate(out, 2000))
 	}
 
-	out, err = runBuildStage("[5/6] Finalizing the builder container", func() (string, error) {
+	out, err = b.runBuildStage(5, "Finalizing the builder container", func() (string, error) {
 		return b.runtime.StopContainer(bctx, baseImageBuilderName)
 	})
 	if err != nil {
@@ -182,7 +214,7 @@ func (b *Builder) Build(ctx context.Context, alias string) error {
 
 	pctx, pcancel := context.WithTimeout(ctx, baseImagePublishTimeout)
 	defer pcancel()
-	out, err = runBuildStage("[6/6] Publishing the reusable workspace image", func() (string, error) {
+	out, err = b.runBuildStage(6, "Publishing the reusable workspace image", func() (string, error) {
 		return b.runtime.PublishImage(
 			pctx,
 			baseImageBuilderName,

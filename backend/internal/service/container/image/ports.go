@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
@@ -20,4 +21,27 @@ type Runtime interface {
 // ProfileSource supplies immutable snapshots for recipe generation.
 type ProfileSource interface {
 	Snapshot() []provisioning.Profile
+}
+
+type ProgressState uint8
+
+const (
+	ProgressStarted ProgressState = iota
+	ProgressRunning
+	ProgressSucceeded
+	ProgressFailed
+)
+
+// Progress describes one observable transition in the base-image workflow.
+// Delivery adapters decide how, or whether, to present it to a user.
+type Progress struct {
+	Stage       int
+	StageCount  int
+	Description string
+	State       ProgressState
+	Elapsed     time.Duration
+}
+
+type ProgressReporter interface {
+	ReportImageBuildProgress(Progress)
 }

@@ -17,7 +17,7 @@ func (stubContainerRunner) RunStdin(context.Context, io.Reader, ...string) (stri
 }
 
 func TestContainerStackExposesCompleteCapabilityBundles(t *testing.T) {
-	stack := NewContainerStack(stubContainerRunner{}, nil)
+	stack := NewContainerStack(stubContainerRunner{}, nil, nil)
 
 	projects := stack.ProjectDependencies()
 	if projects.Lifecycle != stack.Lifecycle ||

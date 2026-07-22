@@ -71,7 +71,11 @@ func (s ContainerStack) AgentDependencies() provisioning.ContainerDependencies {
 	}
 }
 
-func NewContainerStack(runner command.Runner, configuredProfiles []provisioning.Profile) ContainerStack {
+func NewContainerStack(
+	runner command.Runner,
+	configuredProfiles []provisioning.Profile,
+	imageBuildProgress serviceimage.ProgressReporter,
+) ContainerStack {
 	profiles := serviceprofiles.NewCatalog(configuredProfiles)
 	publisher := assets.NewPublisher(runner)
 	credentialTransfer := containercredentials.NewAdapter(runner)
@@ -94,6 +98,7 @@ func NewContainerStack(runner command.Runner, configuredProfiles []provisioning.
 		profiles,
 		containerbrowser.InstallScript(),
 		containercodeserver.InstallScript(),
+		imageBuildProgress,
 	)
 	launchProvisioner := containerlaunch.NewProvisioner(
 		credentials,
