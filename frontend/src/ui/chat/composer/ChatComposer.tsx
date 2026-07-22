@@ -13,6 +13,31 @@ import { SelectedSkillChips } from "./SelectedSkillChips";
 import { SendControls } from "./SendControls";
 import type { ComposerPreferenceActions, ComposerPreferences } from "./preferences";
 
+export interface ChatComposerProps {
+  projectId?: string;
+  streaming: boolean;
+  canSendPrompt: boolean;
+  preferences: ComposerPreferences;
+  preferenceActions: ComposerPreferenceActions;
+  queuedPrompts: QueuedPrompt[];
+  selectedSkills: SelectedSkill[];
+  attachments: Attachment[];
+  uploading: boolean;
+  dragging: boolean;
+  text: string;
+  textareaRef: RefObject<HTMLTextAreaElement>;
+  fileInputRef: RefObject<HTMLInputElement>;
+  onTextChange: (text: string) => void;
+  onFilesSelected: (files: File[]) => void;
+  onPaste: (event: ClipboardEvent) => void;
+  onSend: () => void;
+  onCancel: () => void;
+  onRemoveQueued: (id: string) => void;
+  onRemoveAttachment: (id: string) => void;
+  onSelectSkill: (skill: RegisteredSkill) => void;
+  onRemoveSelectedSkill: (skill: SelectedSkill) => void;
+}
+
 export function ChatComposer({
   projectId,
   streaming,
@@ -36,33 +61,7 @@ export function ChatComposer({
   onRemoveAttachment,
   onSelectSkill,
   onRemoveSelectedSkill,
-}: {
-  chatId: string;
-  projectId?: string;
-  streaming: boolean;
-  canSendPrompt: boolean;
-  preferences: ComposerPreferences;
-  preferenceActions: ComposerPreferenceActions;
-  queuedPrompts: QueuedPrompt[];
-  selectedSkills: SelectedSkill[];
-  draftText?: string;
-  draftKey?: number;
-  attachments: Attachment[];
-  uploading: boolean;
-  dragging: boolean;
-  text: string;
-  textareaRef: RefObject<HTMLTextAreaElement>;
-  fileInputRef: RefObject<HTMLInputElement>;
-  onTextChange: (text: string) => void;
-  onFilesSelected: (files: File[]) => void;
-  onPaste: (event: ClipboardEvent) => void;
-  onSend: () => void;
-  onCancel: () => void;
-  onRemoveQueued: (id: string) => void;
-  onRemoveAttachment: (id: string) => void;
-  onSelectSkill: (skill: RegisteredSkill) => void;
-  onRemoveSelectedSkill: (skill: SelectedSkill) => void;
-}) {
+}: ChatComposerProps) {
   const disconnected = !canSendPrompt && !streaming;
   const hasContent = text.trim().length > 0 || attachments.some((attachment) => attachment.serverPath);
   const canSend = !uploading && !disconnected && hasContent;

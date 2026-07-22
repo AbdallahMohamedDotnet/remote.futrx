@@ -1,10 +1,7 @@
 import type { RefObject } from "preact";
-import type { ChatMeta, ChatMode, ChatStatus, QueuedPrompt, SelectedSkill } from "../../models/chat";
+import type { ChatMeta, ChatStatus } from "../../models/chat";
 import type { ChatMessageBlock } from "../../models/chatMessage";
-import type { Attachment } from "../../models/upload";
-import type { RegisteredSkill } from "../../models/skill";
-import { ChatComposer } from "./composer/ChatComposer";
-import type { ComposerPreferenceActions, ComposerPreferences } from "./composer/preferences";
+import { ChatComposer, type ChatComposerProps } from "./composer/ChatComposer";
 import { JumpToLatestButton } from "./messages/JumpToLatestButton";
 import { MessageList } from "./messages/MessageList";
 import { ThreadHeader } from "./header/ThreadHeader";
@@ -16,19 +13,7 @@ export function ChatThread({
   loadingOlder,
   status,
   error,
-  canSendPrompt,
-  streaming,
-  mode,
-  queuedPrompts,
-  selectedSkills,
-  draftText,
-  draftKey,
-  attachments,
-  uploading,
-  dragging,
-  text,
-  textareaRef,
-  fileInputRef,
+  composer,
   showJump,
   scrollRef,
   contentRef,
@@ -39,16 +24,6 @@ export function ChatThread({
   onAnswerQuestion,
   onLoadOlder,
   onRewind,
-  onTextChange,
-  onFilesSelected,
-  onPaste,
-  onSend,
-  onCancel,
-  onRemoveQueued,
-  onRemoveAttachment,
-  composerPreferenceActions,
-  onSelectSkill,
-  onRemoveSelectedSkill,
   onOpenTerminal,
   onOpenBrowser,
   onOpenHistory,
@@ -60,19 +35,7 @@ export function ChatThread({
   loadingOlder: boolean;
   status: ChatStatus;
   error: string | null;
-  canSendPrompt: boolean;
-  streaming: boolean;
-  mode: ChatMode;
-  queuedPrompts: QueuedPrompt[];
-  selectedSkills: SelectedSkill[];
-  draftText?: string;
-  draftKey?: number;
-  attachments: Attachment[];
-  uploading: boolean;
-  dragging: boolean;
-  text: string;
-  textareaRef: RefObject<HTMLTextAreaElement>;
-  fileInputRef: RefObject<HTMLInputElement>;
+  composer: ChatComposerProps;
   showJump: boolean;
   scrollRef: RefObject<HTMLDivElement>;
   contentRef: RefObject<HTMLDivElement>;
@@ -83,34 +46,16 @@ export function ChatThread({
   onAnswerQuestion: (text: string) => void;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
-  onTextChange: (text: string) => void;
-  onFilesSelected: (files: File[]) => void;
-  onPaste: (event: ClipboardEvent) => void;
-  onSend: () => void;
-  onCancel: () => void;
-  onRemoveQueued: (id: string) => void;
-  onRemoveAttachment: (id: string) => void;
-  composerPreferenceActions: ComposerPreferenceActions;
-  onSelectSkill: (skill: RegisteredSkill) => void;
-  onRemoveSelectedSkill: (skill: SelectedSkill) => void;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
   onOpenHistory: () => void;
   onOpenFiles: () => void;
 }) {
-  const composerPreferences: ComposerPreferences = {
-    provider: chat.provider || "codex",
-    model: chat.model || "",
-    mode,
-    reasoningEffort: chat.reasoningEffort || "",
-    serviceTier: chat.serviceTier || "",
-  };
-
   return (
     <div class="codex-thread flex-1 h-full flex flex-col min-h-0 overflow-hidden bg-[#0b0d11]">
       <ThreadHeader
         chat={chat}
-        streaming={streaming}
+        streaming={composer.streaming}
         onOpenTerminal={onOpenTerminal}
         onOpenBrowser={onOpenBrowser}
         onOpenHistory={onOpenHistory}
@@ -138,33 +83,7 @@ export function ChatThread({
         {showJump && <JumpToLatestButton onClick={onJumpToBottom} />}
       </div>
 
-      <ChatComposer
-        chatId={chat.id}
-        projectId={chat.projectId}
-        streaming={streaming}
-        canSendPrompt={canSendPrompt}
-        preferences={composerPreferences}
-        preferenceActions={composerPreferenceActions}
-        queuedPrompts={queuedPrompts}
-        selectedSkills={selectedSkills}
-        draftText={draftText}
-        draftKey={draftKey}
-        attachments={attachments}
-        uploading={uploading}
-        dragging={dragging}
-        text={text}
-        textareaRef={textareaRef}
-        fileInputRef={fileInputRef}
-        onTextChange={onTextChange}
-        onFilesSelected={onFilesSelected}
-        onPaste={onPaste}
-        onSend={onSend}
-        onCancel={onCancel}
-        onRemoveQueued={onRemoveQueued}
-        onRemoveAttachment={onRemoveAttachment}
-        onSelectSkill={onSelectSkill}
-        onRemoveSelectedSkill={onRemoveSelectedSkill}
-      />
+      <ChatComposer {...composer} />
     </div>
   );
 }

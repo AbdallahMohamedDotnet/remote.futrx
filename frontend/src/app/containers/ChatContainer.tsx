@@ -2,6 +2,7 @@ import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { BrowserDrawer } from "../../ui/chat/browser/BrowserDrawer";
 import { ChatThread } from "../../ui/chat/ChatThread";
+import type { ChatComposerProps } from "../../ui/chat/composer/ChatComposer";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
 import { attachmentBasePathForChat } from "../../state/chat/attachmentPaths";
@@ -70,6 +71,43 @@ export function ChatContainer({
   useChatReadMarker({ chatId: chat.id, eventCount, status });
   useChatKeyboardShortcuts({ status, onCancel: cancel });
 
+  const composerView: ChatComposerProps = {
+    projectId: displayMeta.projectId,
+    streaming: status === "streaming",
+    canSendPrompt,
+    preferences: {
+      provider: displayMeta.provider || "codex",
+      model: displayMeta.model || "",
+      mode: displayMode,
+      reasoningEffort: displayMeta.reasoningEffort || "",
+      serviceTier: displayMeta.serviceTier || "",
+    },
+    preferenceActions: {
+      changeProvider: preferences.changeProvider,
+      changeModel: preferences.changeModel,
+      changeMode: preferences.changeMode,
+      changeReasoningEffort: preferences.changeReasoningEffort,
+      changeServiceTier: preferences.changeServiceTier,
+    },
+    queuedPrompts: composer.queue.queuedPrompts,
+    selectedSkills,
+    attachments: composer.upload.attachments,
+    uploading: composer.upload.uploading,
+    dragging: composer.drag.dragging,
+    text: composer.text,
+    textareaRef: composer.textareaRef,
+    fileInputRef: composer.fileInputRef,
+    onTextChange: composer.setText,
+    onFilesSelected: composer.upload.doUpload,
+    onPaste: composer.handlePaste,
+    onSend: composer.handleSend,
+    onCancel: cancel,
+    onRemoveQueued: composer.queue.removeQueuedPrompt,
+    onRemoveAttachment: composer.upload.removeAttachment,
+    onSelectSkill: preferences.selectSkill,
+    onRemoveSelectedSkill: preferences.removeSelectedSkill,
+  };
+
   return (
     <div class="relative flex-1 h-full min-h-0 overflow-hidden">
       <div class="flex h-full min-h-0 w-full overflow-hidden">
@@ -81,17 +119,7 @@ export function ChatContainer({
             loadingOlder={loadingOlder}
             status={status}
             error={error}
-            canSendPrompt={canSendPrompt}
-            streaming={status === "streaming"}
-            mode={displayMode}
-            queuedPrompts={composer.queue.queuedPrompts}
-            selectedSkills={selectedSkills}
-            attachments={composer.upload.attachments}
-            uploading={composer.upload.uploading}
-            dragging={composer.drag.dragging}
-            text={composer.text}
-            textareaRef={composer.textareaRef}
-            fileInputRef={composer.fileInputRef}
+            composer={composerView}
             showJump={composer.scroll.showJump}
             scrollRef={composer.scroll.scrollRef}
             contentRef={composer.scroll.contentRef}
@@ -102,22 +130,6 @@ export function ChatContainer({
             onAnswerQuestion={composer.handleAnswerQuestion}
             onLoadOlder={loadOlder}
             onRewind={composer.handleRewind}
-            onTextChange={composer.setText}
-            onFilesSelected={composer.upload.doUpload}
-            onPaste={composer.handlePaste}
-            onSend={composer.handleSend}
-            onCancel={cancel}
-            onRemoveQueued={composer.queue.removeQueuedPrompt}
-            onRemoveAttachment={composer.upload.removeAttachment}
-            composerPreferenceActions={{
-              changeProvider: preferences.changeProvider,
-              changeModel: preferences.changeModel,
-              changeMode: preferences.changeMode,
-              changeReasoningEffort: preferences.changeReasoningEffort,
-              changeServiceTier: preferences.changeServiceTier,
-            }}
-            onSelectSkill={preferences.selectSkill}
-            onRemoveSelectedSkill={preferences.removeSelectedSkill}
             onOpenTerminal={terminal.openTerminal}
             onOpenBrowser={drawers.openBrowser}
             onOpenHistory={drawers.openHistory}
