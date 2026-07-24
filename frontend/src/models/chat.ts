@@ -72,7 +72,7 @@ export interface ChatEventPage {
 }
 
 export type ClientToServer =
-  | { type: "prompt"; text: string }
+  | { type: "prompt"; text: string; clientId?: string }
   | { type: "cancel" }
   | { type: "permission"; id: string; approved: boolean };
 
@@ -81,6 +81,13 @@ export type ChatStatus = "loading" | "ready" | "streaming" | "error";
 export interface QueuedPrompt {
   id: string;
   text: string;
+}
+
+// Server verdict on a prompt sent with a clientId: accepted means a run
+// started from it; rejected means the run lock was held and it was discarded.
+export interface PromptOutcome {
+  clientId: string;
+  accepted: boolean;
 }
 
 export interface CreateChatInput {

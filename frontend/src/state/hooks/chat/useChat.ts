@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
 import type { ChatStream } from "../../../types/chatApi";
-import type { ChatEvent, ChatEventPage, ChatMeta, ChatStatus } from "../../../models/chat";
+import type {
+  ChatEvent,
+  ChatEventPage,
+  ChatMeta,
+  ChatStatus,
+  PromptOutcome,
+} from "../../../models/chat";
 import {
   chatEventStateProjector,
   type ChatRenderState,
@@ -21,7 +27,8 @@ interface UseChatResult {
   status: ChatStatus;
   error: string | null;
   canSendPrompt: boolean;
-  sendPrompt: (text: string) => boolean;
+  sendPrompt: (text: string, clientId?: string) => boolean;
+  promptOutcome: PromptOutcome | null;
   cancel: () => void;
   rewind: (beforeT: number) => Promise<ChatEventPage>;
   loadOlder: () => Promise<void>;
@@ -41,6 +48,10 @@ export function useChat(chatId: string): UseChatResult {
   const [status, setStatus] = useState<ChatStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [wsReady, setWsReady] = useState(false);
+  // True once this connection has received its sync event. Until then the run
+  // state is unknown (the HTTP snapshot may be stale), so sends are held.
+  const [synced, setSynced] = useState(false);
+  const [promptOutcome, setPromptOutcome] = useState<PromptOutcome | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const streamRef = useRef<ChatStream | null>(null);
   const pendingEventsRef = useRef<ChatEvent[]>([]);
@@ -84,6 +95,8 @@ export function useChat(chatId: string): UseChatResult {
     setMeta(null);
     setError(null);
     setWsReady(false);
+    setSynced(false);
+    setPromptOutcome(null);
     setLoadingOlder(false);
     lastSeqRef.current = 0;
 
@@ -100,7 +113,10 @@ export function useChat(chatId: string): UseChatResult {
         );
         setRenderState(chatEventStateProjector.fromEvents(page.events, page));
         setMeta(m);
-        setStatus("ready");
+        // The server reports whether a run holds the lock right now. Seeding
+        // from it keeps queued prompts from firing into a mid-run chat before
+        // the socket's sync event corrects the status.
+        setStatus(m.running ? "streaming" : "ready");
       } catch (e) {
         if (!cancelled) {
           setError((e as Error).message);
@@ -127,18 +143,35 @@ export function useChat(chatId: string): UseChatResult {
           if (streamRef.current !== stream) return;
           setError(null);
           clearPendingEvents();
+          setSynced(false);
           setWsReady(true);
         },
         onEvent: (event) => {
           if (streamRef.current !== stream) return;
           if (event.type === "sync") {
+            setSynced(true);
             setStatus(event.running ? "streaming" : "ready");
+            return;
+          }
+          if (
+            event.type === "system" &&
+            (event.subtype === "prompt_accepted" || event.subtype === "prompt_rejected")
+          ) {
+            // Transient per-connection ack for a tracked prompt. Routed to the
+            // queue instead of the projector: it is not transcript content and
+            // must not influence the streaming status.
+            const clientId = event.data?.clientId;
+            if (typeof clientId === "string" && clientId) {
+              setPromptOutcome({ clientId, accepted: event.subtype === "prompt_accepted" });
+            }
             return;
           }
           enqueueEvent(event);
         },
         onClose: () => {
-          if (streamRef.current === stream) setWsReady(false);
+          if (streamRef.current !== stream) return;
+          setWsReady(false);
+          setSynced(false);
         },
       }
     );
@@ -147,19 +180,20 @@ export function useChat(chatId: string): UseChatResult {
     return () => {
       if (streamRef.current === stream) streamRef.current = null;
       setWsReady(false);
+      setSynced(false);
       clearPendingEvents();
       stream.close();
     };
   }, [meta?.id, chatId]);
 
-  const sendPrompt = useCallback((text: string) => {
+  const sendPrompt = useCallback((text: string, clientId?: string) => {
     const stream = streamRef.current;
-    if (!wsReady || !stream?.isOpen) return false;
+    if (!wsReady || !synced || !stream?.isOpen) return false;
     if (status !== "ready") return false;
     setStatus("streaming");
-    stream.sendPrompt(text);
+    stream.sendPrompt(text, clientId);
     return true;
-  }, [status, wsReady]);
+  }, [status, wsReady, synced]);
 
   const cancel = useCallback(() => {
     const stream = streamRef.current;
@@ -209,8 +243,9 @@ export function useChat(chatId: string): UseChatResult {
     loadingOlder,
     status,
     error,
-    canSendPrompt: wsReady && status === "ready",
+    canSendPrompt: wsReady && synced && status === "ready",
     sendPrompt,
+    promptOutcome,
     cancel,
     rewind,
     loadOlder,

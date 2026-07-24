@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import type { ChatStatus } from "../../../models/chat";
+import type { ChatStatus, PromptOutcome } from "../../../models/chat";
 import { chatComposerSessionStore } from "../../chat/composerSessionStore";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
@@ -14,6 +14,7 @@ export function useChatComposerController({
   status,
   canSendPrompt,
   sendPrompt,
+  promptOutcome,
   rewind,
   refreshMeta,
   attachmentBasePath,
@@ -23,7 +24,8 @@ export function useChatComposerController({
   blockCount: number;
   status: ChatStatus;
   canSendPrompt: boolean;
-  sendPrompt: (text: string) => boolean;
+  sendPrompt: (text: string, clientId?: string) => boolean;
+  promptOutcome: PromptOutcome | null;
   rewind: (beforeT: number) => Promise<unknown>;
   refreshMeta: () => Promise<void>;
   attachmentBasePath: string;
@@ -52,6 +54,7 @@ export function useChatComposerController({
     status,
     canSendPrompt,
     sendPrompt,
+    promptOutcome,
     onSent: scroll.unlockAutoScroll,
   });
 

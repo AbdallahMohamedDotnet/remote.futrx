@@ -39,8 +39,8 @@ class ReconnectingChatStream implements ChatStream {
     this.#connection.start();
   }
 
-  sendPrompt(text: string): boolean {
-    return this.#connection.send({ type: CHAT_STREAM_MESSAGE_TYPES.prompt, text });
+  sendPrompt(text: string, clientId?: string): boolean {
+    return this.#connection.send({ type: CHAT_STREAM_MESSAGE_TYPES.prompt, text, clientId });
   }
 
   cancel(): boolean {

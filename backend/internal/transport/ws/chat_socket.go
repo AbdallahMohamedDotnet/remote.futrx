@@ -140,15 +140,16 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 			return
 		}
 		var msg struct {
-			Type string `json:"type"`
-			Text string `json:"text,omitempty"`
+			Type     string `json:"type"`
+			Text     string `json:"text,omitempty"`
+			ClientID string `json:"clientId,omitempty"`
 		}
 		if err := json.Unmarshal(raw, &msg); err != nil {
 			continue
 		}
 		switch msg.Type {
 		case "prompt":
-			_, _ = s.runner.Start(serviceprompt.StartInput{
+			_, err := s.runner.Start(serviceprompt.StartInput{
 				ChatID: id,
 				Prompt: msg.Text,
 				Actor: serviceprompt.Actor{
@@ -156,6 +157,9 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 					IsAdmin: isAdmin,
 				},
 			}, sub.SendTransient)
+			if msg.ClientID != "" {
+				sub.SendTransient(promptAckEvent(msg.ClientID, err == nil))
+			}
 		case "cancel":
 			if !s.runner.CancelPrompt(id) {
 				sub.SendTransient(servicechat.Event{
@@ -165,6 +169,23 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 				})
 			}
 		}
+	}
+}
+
+// promptAckEvent tells the sending client what happened to its prompt, so a
+// queued message is only dropped client-side once a run has actually accepted
+// it. Connection-scoped and transient — never persisted or broadcast.
+func promptAckEvent(clientID string, accepted bool) servicechat.Event {
+	subtype := "prompt_rejected"
+	if accepted {
+		subtype = "prompt_accepted"
+	}
+	data, _ := json.Marshal(map[string]string{"clientId": clientID})
+	return servicechat.Event{
+		T:       time.Now().UnixMilli(),
+		Type:    "system",
+		Subtype: subtype,
+		Data:    data,
 	}
 }
 

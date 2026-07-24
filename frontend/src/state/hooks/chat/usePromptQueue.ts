@@ -1,19 +1,22 @@
 import { useEffect, useState } from "preact/hooks";
-import type { ChatStatus, QueuedPrompt } from "../../../models/chat";
+import type { ChatStatus, PromptOutcome, QueuedPrompt } from "../../../models/chat";
 import { queueId } from "../../../shared/ids";
 import { chatComposerSessionStore } from "../../chat/composerSessionStore";
+import { promptQueueState } from "../../chat/promptQueueState";
 
 export function usePromptQueue({
   chatId,
   status,
   canSendPrompt,
   sendPrompt,
+  promptOutcome,
   onSent,
 }: {
   chatId: string;
   status: ChatStatus;
   canSendPrompt: boolean;
-  sendPrompt: (text: string) => boolean;
+  sendPrompt: (text: string, clientId?: string) => boolean;
+  promptOutcome: PromptOutcome | null;
   onSent: () => void;
 }) {
   // Retained per chat in the session store so queued prompts survive the
@@ -23,6 +26,10 @@ export function usePromptQueue({
   const [queuedPrompts, setQueuedPromptsState] = useState<QueuedPrompt[]>(() =>
     chatComposerSessionStore.getQueuedPrompts(chatId),
   );
+  // Dispatch latch: the queued prompt currently on the wire awaiting the
+  // server's verdict. Deliberately not persisted — the prompt itself stays
+  // queued until accepted, so losing the latch can at worst re-send it.
+  const [inflightId, setInflightId] = useState<string | null>(null);
 
   function commitQueuedPrompts(updater: QueuedPrompt[] | ((prev: QueuedPrompt[]) => QueuedPrompt[])) {
     setQueuedPromptsState((prev) => {
@@ -32,14 +39,29 @@ export function usePromptQueue({
     });
   }
 
+  // A dispatched prompt is removed only when the server accepts it; a
+  // rejection (run lock still held) keeps it queued for the next window.
   useEffect(() => {
-    if (status !== "ready" || !canSendPrompt || queuedPrompts.length === 0) return;
-    const next = queuedPrompts[0];
-    const sent = sendPrompt(next.text);
-    if (!sent) return;
-    commitQueuedPrompts((prev) => prev.filter((prompt) => prompt.id !== next.id));
-    onSent();
-  }, [status, canSendPrompt, queuedPrompts, sendPrompt, onSent]);
+    if (!promptOutcome) return;
+    setInflightId((current) => promptQueueState.inflightAfterOutcome(current, promptOutcome));
+    if (promptOutcome.accepted) {
+      commitQueuedPrompts((prev) => promptQueueState.promptsAfterOutcome(prev, promptOutcome));
+      onSent();
+    }
+  }, [promptOutcome]);
+
+  // The send window closing resolves any dispatch: its verdict either already
+  // arrived or will never arrive on this connection, so free the latch.
+  useEffect(() => {
+    if (status !== "ready" || !canSendPrompt) setInflightId(null);
+  }, [status, canSendPrompt]);
+
+  useEffect(() => {
+    const next = promptQueueState.nextDispatch(queuedPrompts, inflightId, status, canSendPrompt);
+    if (!next) return;
+    if (!sendPrompt(next.text, next.id)) return;
+    setInflightId(next.id);
+  }, [status, canSendPrompt, queuedPrompts, inflightId, sendPrompt]);
 
   return {
     queuedPrompts,
