@@ -10,6 +10,7 @@ export function ThreadHeader({
   onOpenBrowser,
   onOpenHistory,
   onOpenFiles,
+  onOpenSchedules,
   onHamburger,
 }: {
   chat: ChatMeta;
@@ -18,6 +19,7 @@ export function ThreadHeader({
   onOpenBrowser: () => void;
   onOpenHistory: () => void;
   onOpenFiles: () => void;
+  onOpenSchedules: () => void;
   onHamburger: () => void;
 }) {
   return (
@@ -60,6 +62,8 @@ export function ThreadHeader({
           onOpenBrowser={onOpenBrowser}
           onOpenHistory={onOpenHistory}
           onOpenFiles={onOpenFiles}
+          onOpenSchedules={onOpenSchedules}
+          showSchedules={!!chat.projectId}
         />
       </div>
     </header>

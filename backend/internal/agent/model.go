@@ -68,6 +68,12 @@ type RunRequest struct {
 	// EnableBrowser wires the Agent Browser MCP tools into the agent launch.
 	// Set when the `browser` skill is selected for the prompt.
 	EnableBrowser bool
+	// EnableScheduleTools ensures the provider-neutral remote-schedule CLI and
+	// its skill are present for this run.
+	EnableScheduleTools bool
+	// RuntimeEnv carries short-lived, backend-issued capabilities into a run.
+	// Provider adapters must not persist these values in project configuration.
+	RuntimeEnv map[string]string
 }
 
 // Event is the normalized backend event shape emitted by headless agent

@@ -33,6 +33,12 @@ type BrowserProvisioner interface {
 	EnsureCore(context.Context, string) error
 }
 
+// ScheduleToolsProvisioner publishes the provider-neutral schedule CLI and
+// its selected skill into a project workspace.
+type ScheduleToolsProvisioner interface {
+	Ensure(context.Context, string) error
+}
+
 // ContainerLifecycle owns lifecycle settings needed by agent runs.
 type ContainerLifecycle interface {
 	EnsureBootAutostart(context.Context, string) error
@@ -41,11 +47,12 @@ type ContainerLifecycle interface {
 // ContainerDependencies groups the focused container ports used by agent
 // providers. A zero value disables container preparation for host-only runs.
 type ContainerDependencies struct {
-	CLI         CLIProvisioner
-	Credentials CredentialSynchronizer
-	Workspace   WorkspaceProvisioner
-	Browser     BrowserProvisioner
-	Lifecycle   ContainerLifecycle
+	CLI           CLIProvisioner
+	Credentials   CredentialSynchronizer
+	Workspace     WorkspaceProvisioner
+	Browser       BrowserProvisioner
+	ScheduleTools ScheduleToolsProvisioner
+	Lifecycle     ContainerLifecycle
 }
 
 // IsZero reports whether no container provisioning ports were supplied.
@@ -54,6 +61,7 @@ func (d ContainerDependencies) IsZero() bool {
 		d.Credentials == nil &&
 		d.Workspace == nil &&
 		d.Browser == nil &&
+		d.ScheduleTools == nil &&
 		d.Lifecycle == nil
 }
 
@@ -65,7 +73,7 @@ func (d ContainerDependencies) Validate() error {
 		return nil
 	}
 
-	missing := make([]string, 0, 5)
+	missing := make([]string, 0, 6)
 	if d.CLI == nil {
 		missing = append(missing, "CLI")
 	}
@@ -77,6 +85,9 @@ func (d ContainerDependencies) Validate() error {
 	}
 	if d.Browser == nil {
 		missing = append(missing, "browser")
+	}
+	if d.ScheduleTools == nil {
+		missing = append(missing, "schedule tools")
 	}
 	if d.Lifecycle == nil {
 		missing = append(missing, "lifecycle")

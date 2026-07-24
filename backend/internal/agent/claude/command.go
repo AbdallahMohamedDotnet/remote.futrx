@@ -88,6 +88,7 @@ func (p *Provider) buildCmd(
 		// IS_SANDBOX=1 lets `claude --dangerously-skip-permissions` run under
 		// uid 0. The box is single-user and the UI is auto-approve.
 		cmd.Env = append(os.Environ(), "IS_SANDBOX=1")
+		cmd.Env = agent.WithRuntimeEnvironment(cmd.Env, req.RuntimeEnv)
 		cmd.Stdin = strings.NewReader(req.Prompt)
 		return cmd, "", nil
 	}
@@ -147,6 +148,11 @@ func (p *Provider) buildCmd(
 				return nil, "", fmt.Errorf("start browser core: %w", err)
 			}
 		}
+		if req.EnableScheduleTools {
+			if err := p.containerDeps.ScheduleTools.Ensure(ctx, project.ContainerName); err != nil {
+				return nil, "", fmt.Errorf("provision scheduled-task tools: %w", err)
+			}
+		}
 		if err := p.containerDeps.Lifecycle.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
 		}
@@ -161,9 +167,15 @@ func (p *Provider) buildCmd(
 	if p.projects != nil {
 		if secrets, err := p.projects.ListSecrets(ctx, project.ID); err == nil {
 			for _, sec := range secrets {
+				if _, backendIssued := req.RuntimeEnv[sec.Key]; backendIssued {
+					continue
+				}
 				lxcArgs = append(lxcArgs, "--env", sec.Key+"="+sec.Value)
 			}
 		}
+	}
+	for _, entry := range agent.RuntimeEnvironment(req.RuntimeEnv) {
+		lxcArgs = append(lxcArgs, "--env", entry)
 	}
 	lxcArgs = append(lxcArgs, project.ContainerName, "--", "claude")
 	lxcArgs = append(lxcArgs, args...)

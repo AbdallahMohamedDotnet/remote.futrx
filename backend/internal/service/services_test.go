@@ -2,18 +2,60 @@ package service
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	"github.com/futrx-com/remote.futrx.com/internal/service/prompt"
+	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
+	serviceschedule "github.com/futrx-com/remote.futrx.com/internal/service/schedule"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/filechat"
 )
 
 type stubCLIProvisioner struct{}
 
 func (stubCLIProvisioner) Ensure(context.Context, string, provisioning.CLISpec) error { return nil }
+
+type contextAwareScheduleProvider struct {
+	started chan struct{}
+}
+
+func (p *contextAwareScheduleProvider) ID() agent.ProviderID {
+	return agent.ProviderCodex
+}
+
+func (p *contextAwareScheduleProvider) Parser(agent.RunRequest) agent.LineParser {
+	return nil
+}
+
+func (p *contextAwareScheduleProvider) Run(
+	ctx context.Context,
+	_ agent.RunRequest,
+	_ func(agent.Event),
+) error {
+	close(p.started)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+type staticScheduleToolIssuer struct{}
+
+func (staticScheduleToolIssuer) IssueScheduleTool(
+	context.Context,
+	prompt.ScheduleToolRequest,
+) (prompt.ScheduleToolAccess, error) {
+	return prompt.ScheduleToolAccess{
+		APIURL: "https://remote.example.com/agent-api/schedules",
+		Token:  "test-token",
+	}, nil
+}
 
 func TestNewAuthAllowsLocalAdminWithoutGoogleOAuth(t *testing.T) {
 	auth, err := newAuth(
@@ -93,5 +135,61 @@ func TestAgentProfilesReturnsDefensiveCopies(t *testing.T) {
 	}
 	if second[0].BrowserMCPTemplates[0].Content[0] == 'x' {
 		t.Fatal("template mutation escaped the catalog")
+	}
+}
+
+func TestScheduledPromptExecutorPropagatesSchedulerCancellation(t *testing.T) {
+	t.Parallel()
+	store, err := filechat.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	chat, err := store.Create(context.Background(), servicechat.Meta{
+		ID:        "aabbcc55",
+		Provider:  servicechat.ProviderCodex,
+		Cwd:       t.TempDir(),
+		ProjectID: "project-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := &contextAwareScheduleProvider{started: make(chan struct{})}
+	agents := agent.NewRegistry()
+	if err := agents.Register(provider); err != nil {
+		t.Fatal(err)
+	}
+	prompts := prompt.New(
+		store,
+		nil,
+		nil,
+		runhub.New(store),
+		agents,
+		prompt.WithScheduleToolIssuer(staticScheduleToolIssuer{}),
+	)
+	executor := scheduledPromptExecutor{prompts: prompts}
+	ctx, cancel := context.WithCancel(context.Background())
+	handle, err := executor.StartScheduledPrompt(ctx, serviceschedule.Task{
+		ID:          "0123456789abcdef01234567",
+		OwnerEmail:  "owner@example.com",
+		ChatID:      chat.ID,
+		ActiveRunID: "schedule-run-1",
+	}, "continue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-provider.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("scheduled provider did not start")
+	}
+
+	cancel()
+	select {
+	case result := <-handle.Done():
+		if !errors.Is(result.Err, context.Canceled) {
+			t.Fatalf("run error = %v, want context canceled", result.Err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("scheduled prompt ignored scheduler cancellation")
 	}
 }

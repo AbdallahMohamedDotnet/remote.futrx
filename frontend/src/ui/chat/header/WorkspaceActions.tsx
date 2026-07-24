@@ -1,4 +1,4 @@
-import { Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
+import { CalendarClock, Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
 
 export function WorkspaceActions({
@@ -7,12 +7,16 @@ export function WorkspaceActions({
   onOpenBrowser,
   onOpenHistory,
   onOpenFiles,
+  onOpenSchedules,
+  showSchedules,
 }: {
   cwd: string;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
   onOpenHistory: () => void;
   onOpenFiles: () => void;
+  onOpenSchedules: () => void;
+  showSchedules: boolean;
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = buildIdeUrl(workspacePath);
@@ -64,6 +68,19 @@ export function WorkspaceActions({
         <Folder class="w-4 h-4 text-accent-blue flex-none" />
         <span class="text-[12.5px] font-medium">Files</span>
       </button>
+      {showSchedules && (
+        <button
+          type="button"
+          onClick={onOpenSchedules}
+          class="h-9 inline-flex items-center gap-2 px-3 rounded-md
+                 bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
+          title="View scheduled tasks"
+          aria-label="Open scheduled tasks"
+        >
+          <CalendarClock class="w-4 h-4 text-accent-blue flex-none" />
+          <span class="text-[12.5px] font-medium">Schedules</span>
+        </button>
+      )}
       <button
         type="button"
         onClick={onOpenBrowser}

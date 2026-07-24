@@ -5,6 +5,7 @@ import { ChatThread } from "../../ui/chat/ChatThread";
 import type { ChatComposerProps } from "../../ui/chat/composer/ChatComposer";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
+import { ScheduleDrawer } from "../../ui/chat/schedules/ScheduleDrawer";
 import { chatAttachmentState } from "../../state/chat/chatAttachmentState";
 import { useChat } from "../../state/hooks/chat/useChat";
 import { useChatBrowserController } from "../../state/hooks/chat/useChatBrowserController";
@@ -134,6 +135,7 @@ export function ChatContainer({
             onOpenBrowser={drawers.openBrowser}
             onOpenHistory={drawers.openHistory}
             onOpenFiles={drawers.openFiles}
+            onOpenSchedules={drawers.openSchedules}
           />
         </div>
         <HistoryDrawer
@@ -145,6 +147,11 @@ export function ChatContainer({
           chatId={chat.id}
           open={drawers.filesOpen}
           onClose={drawers.closeFiles}
+        />
+        <ScheduleDrawer
+          chatId={chat.id}
+          open={drawers.schedulesOpen}
+          onClose={drawers.closeSchedules}
         />
         <BrowserDrawer
           open={browser.browserOpen}

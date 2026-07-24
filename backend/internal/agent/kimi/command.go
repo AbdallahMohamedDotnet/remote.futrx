@@ -55,6 +55,7 @@ func (p *Provider) buildCmd(
 		cmd := exec.CommandContext(ctx, "kimi", args...)
 		cmd.Dir = cwd
 		cmd.Env = append(os.Environ(), "KIMI_CODE_HOME="+hostKimiHome())
+		cmd.Env = agent.WithRuntimeEnvironment(cmd.Env, req.RuntimeEnv)
 		return cmd, "", nil
 	}
 
@@ -103,6 +104,11 @@ func (p *Provider) buildCmd(
 			// Best-effort: only matters if the agent runs scripts/browser.mjs.
 			_ = err
 		}
+		if req.EnableScheduleTools {
+			if err := p.containerDeps.ScheduleTools.Ensure(ctx, project.ContainerName); err != nil {
+				return nil, "", fmt.Errorf("provision scheduled-task tools: %w", err)
+			}
+		}
 		if err := p.containerDeps.Lifecycle.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
 		}
@@ -117,9 +123,15 @@ func (p *Provider) buildCmd(
 	if p.projects != nil {
 		if secrets, err := p.projects.ListSecrets(ctx, project.ID); err == nil {
 			for _, sec := range secrets {
+				if _, backendIssued := req.RuntimeEnv[sec.Key]; backendIssued {
+					continue
+				}
 				lxcArgs = append(lxcArgs, "--env", sec.Key+"="+sec.Value)
 			}
 		}
+	}
+	for _, entry := range agent.RuntimeEnvironment(req.RuntimeEnv) {
+		lxcArgs = append(lxcArgs, "--env", entry)
 	}
 	lxcArgs = append(lxcArgs, project.ContainerName, "--", "kimi")
 	lxcArgs = append(lxcArgs, args...)

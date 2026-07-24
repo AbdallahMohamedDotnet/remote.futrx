@@ -66,8 +66,11 @@ class ChatPreferenceState {
     defaultProvider: ChatProvider
   ): string {
     const provider = skill.provider || defaultProvider;
-    const source = skill.source || "";
     const command = (skill.command || skill.name).trim().toLowerCase();
+    // Remote initially advertises this reserved skill from its built-in
+    // catalog, then provisions the same skill into the project workspace.
+    // Keep its identity stable across that source transition.
+    const source = command === "scheduled-tasks" ? "remote" : skill.source || "";
     return `${provider}:${source.toLowerCase()}:${command}`;
   }
 }

@@ -43,6 +43,21 @@ func TestPromptWithSelectedSkillsFiltersOtherProviders(t *testing.T) {
 	}
 }
 
+func TestPromptWithSelectedSkillsLoadsScheduledTasksForKimi(t *testing.T) {
+	got := promptWithSelectedSkills(agent.ProviderKimi, []servicechat.SkillRef{{
+		Name:     "Scheduled Tasks",
+		Command:  "scheduled-tasks",
+		Provider: servicechat.ProviderKimi,
+	}}, "watch the deploy")
+
+	if !strings.Contains(got, "/workspace/.agents/skills/scheduled-tasks/SKILL.md") {
+		t.Fatalf("Kimi prompt missing scheduled-task skill path: %q", got)
+	}
+	if !strings.HasSuffix(got, "watch the deploy") {
+		t.Fatalf("Kimi prompt missing user request: %q", got)
+	}
+}
+
 func TestSkillTriggerNameFallsBackToSingleToken(t *testing.T) {
 	got := promptWithSelectedSkills(agent.ProviderCodex, []servicechat.SkillRef{
 		{Name: "Frontend Design", Provider: servicechat.ProviderCodex},

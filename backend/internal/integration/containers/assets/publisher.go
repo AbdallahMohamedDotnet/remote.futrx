@@ -34,6 +34,7 @@ func Hash(content []byte) string {
 }
 
 // Push publishes content to each destination when its shared marker is stale.
+// It is suitable for ordinary workspace assets whose marker is trusted.
 func (p *Publisher) Push(
 	ctx context.Context,
 	containerName string,
@@ -42,10 +43,39 @@ func (p *Publisher) Push(
 	fileMode string,
 	destPaths ...string,
 ) error {
+	return p.push(ctx, containerName, content, hashPath, fileMode, false, destPaths...)
+}
+
+// PushVerified publishes content like Push, but only treats a current marker as
+// authoritative after pulling every destination through LXD and hashing the
+// actual bytes on the host. Use it for capability-bearing tooling: both the
+// destination and its sidecar marker may be writable from inside the container.
+func (p *Publisher) PushVerified(
+	ctx context.Context,
+	containerName string,
+	content []byte,
+	hashPath string,
+	fileMode string,
+	destPaths ...string,
+) error {
+	return p.push(ctx, containerName, content, hashPath, fileMode, true, destPaths...)
+}
+
+func (p *Publisher) push(
+	ctx context.Context,
+	containerName string,
+	content []byte,
+	hashPath string,
+	fileMode string,
+	verifyDestinations bool,
+	destPaths ...string,
+) error {
 	want := Hash(content)
 
 	got, err := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "cat", hashPath)
-	if err == nil && strings.TrimSpace(got) == want {
+	if err == nil &&
+		strings.TrimSpace(got) == want &&
+		(!verifyDestinations || p.destinationsMatch(ctx, containerName, want, destPaths)) {
 		return nil
 	}
 
@@ -72,4 +102,30 @@ func (p *Publisher) Push(
 		return fmt.Errorf("write %s hash marker: %w; output: %s", hashPath, err, out)
 	}
 	return nil
+}
+
+func (p *Publisher) destinationsMatch(
+	ctx context.Context,
+	containerName string,
+	want string,
+	destPaths []string,
+) bool {
+	if len(destPaths) == 0 {
+		return false
+	}
+	for _, destPath := range destPaths {
+		content, err := command.RunWithTimeout(
+			ctx,
+			p.runner,
+			queryTimeout,
+			"file",
+			"pull",
+			containerName+destPath,
+			"-",
+		)
+		if err != nil || Hash([]byte(content)) != want {
+			return false
+		}
+	}
+	return true
 }

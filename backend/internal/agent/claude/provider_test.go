@@ -115,6 +115,72 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
+	runtimeEnv := map[string]string{
+		"REMOTE_SCHEDULE_API":   "https://remote.test/agent-api/schedules",
+		"REMOTE_SCHEDULE_GRANT": "short-lived-grant",
+	}
+
+	hostProvider := New(nil, provisioning.ContainerDependencies{})
+	hostRequest := agent.RunRequest{Cwd: t.TempDir(), RuntimeEnv: runtimeEnv}
+	hostCmd, containerName, err := hostProvider.buildCmd(
+		context.Background(),
+		hostRequest,
+		hostProvider.args(hostRequest),
+		func(agent.Event) {},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containerName != "" {
+		t.Fatalf("host command container = %q", containerName)
+	}
+	for key, value := range runtimeEnv {
+		if !slices.Contains(hostCmd.Env, key+"="+value) {
+			t.Fatalf("host command env missing %s: %#v", key, hostCmd.Env)
+		}
+	}
+
+	project := serviceproject.Meta{
+		ID:            serviceproject.ID("abcd"),
+		ContainerName: "schedule-project",
+		Status:        serviceproject.StatusRunning,
+	}
+	containerProvider := New(
+		fakeClaudeProjects{
+			project: project,
+			secrets: []serviceproject.Secret{{
+				Key:   "REMOTE_SCHEDULE_API",
+				Value: "https://attacker.invalid",
+			}},
+		},
+		claudeContainerDependencies(&fakeClaudeBrowser{}),
+	)
+	containerRequest := agent.RunRequest{
+		ProjectID:           string(project.ID),
+		RuntimeEnv:          runtimeEnv,
+		EnableScheduleTools: true,
+	}
+	containerCmd, containerName, err := containerProvider.buildCmd(
+		context.Background(),
+		containerRequest,
+		containerProvider.args(containerRequest),
+		func(agent.Event) {},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containerName != project.ContainerName {
+		t.Fatalf("container name = %q, want %q", containerName, project.ContainerName)
+	}
+	for key, value := range runtimeEnv {
+		requireClaudeArgPair(t, containerCmd.Args, "--env", key+"="+value)
+	}
+	if slices.Contains(containerCmd.Args, "REMOTE_SCHEDULE_API=https://attacker.invalid") {
+		t.Fatal("project secret overrode the backend-issued schedule API")
+	}
+}
+
 func TestBuildCmdRejectsPartialContainerDependencies(t *testing.T) {
 	project := serviceproject.Meta{
 		ID:            serviceproject.ID("abcd"),
@@ -131,7 +197,7 @@ func TestBuildCmdRejectsPartialContainerDependencies(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected partial container dependencies to fail")
 	}
-	const want = "incomplete container dependencies: missing credentials, workspace, browser, lifecycle"
+	const want = "incomplete container dependencies: missing credentials, workspace, browser, schedule tools, lifecycle"
 	if err.Error() != want {
 		t.Fatalf("buildCmd error = %q, want %q", err, want)
 	}
@@ -139,6 +205,7 @@ func TestBuildCmdRejectsPartialContainerDependencies(t *testing.T) {
 
 type fakeClaudeProjects struct {
 	project serviceproject.Meta
+	secrets []serviceproject.Secret
 }
 
 func (f fakeClaudeProjects) Get(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
@@ -150,7 +217,7 @@ func (f fakeClaudeProjects) Start(context.Context, serviceproject.ID) (servicepr
 }
 
 func (f fakeClaudeProjects) ListSecrets(context.Context, serviceproject.ID) ([]serviceproject.Secret, error) {
-	return nil, nil
+	return f.secrets, nil
 }
 
 type fakeClaudeCLI struct{}
@@ -196,12 +263,27 @@ type fakeClaudeLifecycle struct{}
 
 func (fakeClaudeLifecycle) EnsureBootAutostart(context.Context, string) error { return nil }
 
+type fakeClaudeScheduleTools struct{}
+
+func (fakeClaudeScheduleTools) Ensure(context.Context, string) error { return nil }
+
 func claudeContainerDependencies(browser provisioning.BrowserProvisioner) provisioning.ContainerDependencies {
 	return provisioning.ContainerDependencies{
-		CLI:         fakeClaudeCLI{},
-		Credentials: fakeClaudeCredentials{},
-		Workspace:   fakeClaudeWorkspace{},
-		Browser:     browser,
-		Lifecycle:   fakeClaudeLifecycle{},
+		CLI:           fakeClaudeCLI{},
+		Credentials:   fakeClaudeCredentials{},
+		Workspace:     fakeClaudeWorkspace{},
+		Browser:       browser,
+		ScheduleTools: fakeClaudeScheduleTools{},
+		Lifecycle:     fakeClaudeLifecycle{},
 	}
+}
+
+func requireClaudeArgPair(t *testing.T, args []string, first, second string) {
+	t.Helper()
+	for index := 0; index+1 < len(args); index++ {
+		if args[index] == first && args[index+1] == second {
+			return
+		}
+	}
+	t.Fatalf("command args missing pair %q %q: %#v", first, second, args)
 }

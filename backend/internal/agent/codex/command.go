@@ -118,7 +118,7 @@ func (p *Provider) buildCmd(
 		}
 		cmd := exec.CommandContext(ctx, "codex", args...)
 		cmd.Dir = cwd
-		cmd.Env = codexEnv(os.Environ())
+		cmd.Env = agent.WithRuntimeEnvironment(codexEnv(os.Environ()), req.RuntimeEnv)
 		cmd.Stdin = strings.NewReader(req.Prompt)
 		return cmd, "", nil
 	}
@@ -176,6 +176,11 @@ func (p *Provider) buildCmd(
 				return nil, "", fmt.Errorf("start browser core: %w", err)
 			}
 		}
+		if req.EnableScheduleTools {
+			if err := p.containerDeps.ScheduleTools.Ensure(ctx, project.ContainerName); err != nil {
+				return nil, "", fmt.Errorf("provision scheduled-task tools: %w", err)
+			}
+		}
 		if err := p.containerDeps.Lifecycle.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
 			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
 		}
@@ -193,11 +198,17 @@ func (p *Provider) buildCmd(
 				if sec.Key == "OPENAI_API_KEY" {
 					continue
 				}
+				if _, backendIssued := req.RuntimeEnv[sec.Key]; backendIssued {
+					continue
+				}
 				lxcArgs = append(lxcArgs, "--env", sec.Key+"="+sec.Value)
 			}
 		}
 	}
 	lxcArgs = append(lxcArgs, "--env", "OPENAI_API_KEY=")
+	for _, entry := range agent.RuntimeEnvironment(req.RuntimeEnv) {
+		lxcArgs = append(lxcArgs, "--env", entry)
+	}
 	lxcArgs = append(lxcArgs, project.ContainerName, "--", "codex")
 	lxcArgs = append(lxcArgs, args...)
 	cmd := exec.CommandContext(ctx, "lxc", lxcArgs...)

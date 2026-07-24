@@ -12,6 +12,7 @@ import (
 
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
+	serviceprompt "github.com/futrx-com/remote.futrx.com/internal/service/prompt"
 	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
 	"github.com/gorilla/websocket"
 )
@@ -21,7 +22,7 @@ type ChatLookup interface {
 }
 
 type PromptRunner interface {
-	StartPrompt(id servicechat.ID, prompt string, emitTransient func(servicechat.Event))
+	Start(serviceprompt.StartInput, func(servicechat.Event)) (serviceprompt.RunHandle, error)
 	CancelPrompt(id servicechat.ID) bool
 }
 
@@ -75,13 +76,14 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 		}
 		return
 	}
-	if s.access != nil && meta.ProjectID != "" {
-		email, isAdmin, err := s.access.CallerAndAdmin(r.Context(), r)
+	email, isAdmin := "", true
+	if s.access != nil {
+		email, isAdmin, err = s.access.CallerAndAdmin(r.Context(), r)
 		if err != nil || email == "" {
 			http.Error(w, "authentication required", http.StatusUnauthorized)
 			return
 		}
-		if !isAdmin {
+		if meta.ProjectID != "" && !isAdmin {
 			ok, err := s.access.HasAccess(r.Context(), serviceproject.ID(meta.ProjectID), email)
 			if err != nil {
 				http.Error(w, "access check failed", http.StatusInternalServerError)
@@ -146,7 +148,14 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 		}
 		switch msg.Type {
 		case "prompt":
-			s.runner.StartPrompt(id, msg.Text, sub.SendTransient)
+			_, _ = s.runner.Start(serviceprompt.StartInput{
+				ChatID: id,
+				Prompt: msg.Text,
+				Actor: serviceprompt.Actor{
+					Email:   email,
+					IsAdmin: isAdmin,
+				},
+			}, sub.SendTransient)
 		case "cancel":
 			if !s.runner.CancelPrompt(id) {
 				sub.SendTransient(servicechat.Event{

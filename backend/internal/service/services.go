@@ -15,6 +15,8 @@ import (
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/futrx-com/remote.futrx.com/internal/service/prompt"
 	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
+	serviceschedule "github.com/futrx-com/remote.futrx.com/internal/service/schedule"
+	"github.com/futrx-com/remote.futrx.com/internal/service/schedulecapability"
 	serviceskills "github.com/futrx-com/remote.futrx.com/internal/service/skills"
 	servicetmux "github.com/futrx-com/remote.futrx.com/internal/service/tmux"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
@@ -35,6 +37,7 @@ type Dependencies struct {
 	Projects          serviceproject.Repository
 	ProjectSecrets    serviceproject.SecretsRepository
 	ProjectAccess     serviceproject.AccessRepository
+	Schedules         serviceschedule.Repository
 	Auth              AuthStore
 	Users             serviceuser.Repository
 	UserSettings      serviceusersettings.Repository
@@ -50,6 +53,8 @@ type Services struct {
 	ChatAccess   *servicechat.AccessService
 	Projects     *serviceproject.Service
 	Prompt       *prompt.Service
+	Schedules    *serviceschedule.Service
+	ScheduleCaps *schedulecapability.Registry
 	AgentAuth    *agentauth.Registry
 	Runs         *runhub.Hub
 	Workspace    *workspacehub.Hub
@@ -64,6 +69,9 @@ type Services struct {
 func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if err := deps.AgentContainers.Validate(); err != nil {
 		return Services{}, fmt.Errorf("agent container dependencies: %w", err)
+	}
+	if deps.Schedules == nil {
+		return Services{}, errors.New("scheduled task repository is required")
 	}
 
 	workspace := workspacehub.New()
@@ -121,17 +129,29 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			return Services{}, err
 		}
 	}
+	userService := serviceuser.New(deps.Users)
+	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
+	if err != nil {
+		return Services{}, err
+	}
+	scheduleCaps := schedulecapability.New(deps.AuthBaseURL)
 	promptService := prompt.New(
 		chats,
 		deps.TmuxClient,
 		projectService,
 		runs,
 		agents,
+		prompt.WithScheduleToolIssuer(scheduleCaps),
 	)
-	userService := serviceuser.New(deps.Users)
-	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
-	if err != nil {
-		return Services{}, err
+	scheduleService := serviceschedule.New(
+		deps.Schedules,
+		chatService,
+		projectService,
+		authService,
+		scheduledPromptExecutor{prompts: promptService},
+	)
+	if err := scheduleService.Start(ctx); err != nil {
+		return Services{}, fmt.Errorf("start scheduled tasks: %w", err)
 	}
 	userSettingsService := serviceusersettings.New(deps.UserSettings)
 	skillService := serviceskills.New()
@@ -150,6 +170,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		ChatAccess:   chatAccessService,
 		Projects:     projectService,
 		Prompt:       promptService,
+		Schedules:    scheduleService,
+		ScheduleCaps: scheduleCaps,
 		AgentAuth:    agentAuth,
 		Runs:         runs,
 		Workspace:    workspace,
@@ -171,6 +193,61 @@ func (s Services) Reconcile(ctx context.Context) error {
 		return nil
 	}
 	return s.Projects.Reconcile(ctx)
+}
+
+type scheduledPromptExecutor struct {
+	prompts *prompt.Service
+}
+
+func (e scheduledPromptExecutor) StartScheduledPrompt(
+	ctx context.Context,
+	task serviceschedule.Task,
+	text string,
+) (serviceschedule.RunHandle, error) {
+	if e.prompts == nil {
+		return nil, errors.New("prompt service is unavailable")
+	}
+	run, err := e.prompts.Start(prompt.StartInput{
+		ChatID: task.ChatID,
+		Prompt: text,
+		Actor: prompt.Actor{
+			Email: task.OwnerEmail,
+		},
+		ScheduledTaskID: string(task.ID),
+		ScheduledRunID:  task.ActiveRunID,
+		ParentContext:   ctx,
+	}, nil)
+	if errors.Is(err, prompt.ErrPromptAlreadyRunning) {
+		return nil, serviceschedule.ErrExecutorBusy
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	done := make(chan serviceschedule.RunResult, 1)
+	go func() {
+		defer close(done)
+		result, ok := <-run.Done
+		if !ok {
+			done <- serviceschedule.RunResult{
+				Err: errors.New("prompt completion channel closed without a result"),
+			}
+			return
+		}
+		done <- serviceschedule.RunResult{
+			Output: result.Output,
+			Err:    result.Err,
+		}
+	}()
+	return scheduledPromptHandle{done: done}, nil
+}
+
+type scheduledPromptHandle struct {
+	done <-chan serviceschedule.RunResult
+}
+
+func (h scheduledPromptHandle) Done() <-chan serviceschedule.RunResult {
+	return h.done
 }
 
 // userDirectoryAdapter wraps *serviceuser.Service to satisfy

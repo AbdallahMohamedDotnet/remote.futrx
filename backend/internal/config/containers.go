@@ -15,6 +15,7 @@ import (
 	containerlisteners "github.com/futrx-com/remote.futrx.com/internal/integration/containers/listeners"
 	containernetwork "github.com/futrx-com/remote.futrx.com/internal/integration/containers/network"
 	containerresources "github.com/futrx-com/remote.futrx.com/internal/integration/containers/resources"
+	containerscheduletools "github.com/futrx-com/remote.futrx.com/internal/integration/containers/scheduletools"
 	containerworkspace "github.com/futrx-com/remote.futrx.com/internal/integration/containers/workspace"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/hostfs"
 	servicebrowser "github.com/futrx-com/remote.futrx.com/internal/service/container/browser"
@@ -33,16 +34,17 @@ const hostMappedUID = 1000000
 // ContainerStack is the composition root for container application services
 // and their LXD/host-filesystem adapters.
 type ContainerStack struct {
-	Lifecycle   *servicelifecycle.Service
-	Inspection  *serviceinspection.Service
-	Credentials *servicecredentials.Service
-	Environment *containerenvironment.Client
-	CLI         *servicecli.Provisioner
-	Browser     *servicebrowser.Service
-	Listeners   *containerlisteners.Scanner
-	Network     *containernetwork.Repairer
-	Workspace   *containerworkspace.Provisioner
-	Images      *serviceimage.Builder
+	Lifecycle     *servicelifecycle.Service
+	Inspection    *serviceinspection.Service
+	Credentials   *servicecredentials.Service
+	Environment   *containerenvironment.Client
+	CLI           *servicecli.Provisioner
+	Browser       *servicebrowser.Service
+	ScheduleTools *containerscheduletools.Adapter
+	Listeners     *containerlisteners.Scanner
+	Network       *containernetwork.Repairer
+	Workspace     *containerworkspace.Provisioner
+	Images        *serviceimage.Builder
 }
 
 // ContainerStackOptions supplies presentation and installation-specific
@@ -70,11 +72,12 @@ func (s ContainerStack) ProjectDependencies() serviceproject.ContainerDependenci
 // container for an agent provider.
 func (s ContainerStack) AgentDependencies() provisioning.ContainerDependencies {
 	return provisioning.ContainerDependencies{
-		CLI:         s.CLI,
-		Credentials: s.Credentials,
-		Workspace:   s.Workspace,
-		Browser:     s.Browser,
-		Lifecycle:   s.Lifecycle,
+		CLI:           s.CLI,
+		Credentials:   s.Credentials,
+		Workspace:     s.Workspace,
+		Browser:       s.Browser,
+		ScheduleTools: s.ScheduleTools,
+		Lifecycle:     s.Lifecycle,
 	}
 }
 
@@ -99,6 +102,7 @@ func NewContainerStack(
 		Tooling:     browserAdapter,
 	}, containerbrowser.VNCPort)
 	codeServer := containercodeserver.NewProvisioner(runner)
+	scheduleTools := containerscheduletools.NewAdapter(runner, publisher)
 	workspace := containerworkspace.NewProvisioner(
 		runner,
 		profiles,
@@ -117,6 +121,7 @@ func NewContainerStack(
 		workspace,
 		browser,
 		codeServer,
+		scheduleTools,
 	)
 	resources := containerresources.NewManager(runner)
 	lifecycle := servicelifecycle.NewService(
@@ -141,15 +146,16 @@ func NewContainerStack(
 	})
 
 	return ContainerStack{
-		Lifecycle:   lifecycle,
-		Inspection:  inspection,
-		Credentials: credentials,
-		Environment: environment,
-		CLI:         cli,
-		Browser:     browser,
-		Listeners:   listeners,
-		Network:     network,
-		Workspace:   workspace,
-		Images:      images,
+		Lifecycle:     lifecycle,
+		Inspection:    inspection,
+		Credentials:   credentials,
+		Environment:   environment,
+		CLI:           cli,
+		Browser:       browser,
+		ScheduleTools: scheduleTools,
+		Listeners:     listeners,
+		Network:       network,
+		Workspace:     workspace,
+		Images:        images,
 	}
 }

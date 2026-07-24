@@ -37,6 +37,10 @@ export const Loader = (p: P) => (<svg {...base} {...p}><path d="M12 2v4M12 18v4M
 export const Check = (p: P) => (<svg {...base} {...p}><path d="M20 6 9 17l-5-5"/></svg>);
 export const LogOut = (p: P) => (<svg {...base} {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg>);
 export const Clock = (p: P) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>);
+export const CalendarClock = (p: P) => (<svg {...base} {...p}><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v5M12 21H5a2 2 0 0 1-2-2V6"/><circle cx="17" cy="17" r="4"/><path d="M17 15v2l1.5 1"/></svg>);
+export const Play = (p: P) => (<svg {...base} {...p}><path d="m7 4 13 8-13 8z"/></svg>);
+export const Pause = (p: P) => (<svg {...base} {...p}><path d="M9 5v14M15 5v14"/></svg>);
+export const Trash = (p: P) => (<svg {...base} {...p}><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/></svg>);
 export const Activity = (p: P) => (<svg {...base} {...p}><path d="M22 12h-4l-3 8L9 4l-3 8H2"/></svg>);
 export const ArrowDown = (p: P) => (<svg {...base} {...p}><path d="M12 5v14M19 12l-7 7-7-7"/></svg>);
 export const RotateCcw = (p: P) => (<svg {...base} {...p}><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>);

@@ -32,12 +32,65 @@ type agentBrowserActivityRecorder interface {
 	TouchAgentBrowserActivity(ctx context.Context, id serviceproject.ID)
 }
 
+var ErrPromptAlreadyRunning = errors.New("a previous prompt is still running")
+
+type Actor struct {
+	Email   string
+	IsAdmin bool
+}
+
+type StartInput struct {
+	ChatID          servicechat.ID
+	Prompt          string
+	Actor           Actor
+	ScheduledTaskID string
+	ScheduledRunID  string
+	ParentContext   context.Context
+}
+
+type RunResult struct {
+	Output string
+	Err    error
+}
+
+type RunHandle struct {
+	ID   uint64
+	Done <-chan RunResult
+}
+
+type ScheduleToolRequest struct {
+	Actor           Actor
+	ChatID          servicechat.ID
+	ProjectID       serviceproject.ID
+	ScheduledTaskID string
+	ScheduledRunID  string
+}
+
+type ScheduleToolAccess struct {
+	APIURL string
+	Token  string
+	Revoke func()
+}
+
+type ScheduleToolIssuer interface {
+	IssueScheduleTool(context.Context, ScheduleToolRequest) (ScheduleToolAccess, error)
+}
+
+type Option func(*Service)
+
+func WithScheduleToolIssuer(issuer ScheduleToolIssuer) Option {
+	return func(service *Service) {
+		service.scheduleTools = issuer
+	}
+}
+
 type Service struct {
-	store    servicechat.Repository
-	tmux     TmuxClient
-	projects ProjectResolver
-	hub      *runhub.Hub
-	agents   *agent.Registry
+	store         servicechat.Repository
+	tmux          TmuxClient
+	projects      ProjectResolver
+	hub           *runhub.Hub
+	agents        *agent.Registry
+	scheduleTools ScheduleToolIssuer
 }
 
 func New(
@@ -46,44 +99,68 @@ func New(
 	projects ProjectResolver,
 	hub *runhub.Hub,
 	agents *agent.Registry,
+	options ...Option,
 ) *Service {
 	if hub == nil {
 		hub = runhub.New(store)
 	}
-	return &Service{
+	service := &Service{
 		store:    store,
 		tmux:     tmux,
 		projects: projects,
 		hub:      hub,
 		agents:   agents,
 	}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
 }
 
 func (rnr *Service) StartPrompt(id servicechat.ID, prompt string, emitTransient func(ChatEvent)) {
+	_, _ = rnr.Start(StartInput{ChatID: id, Prompt: prompt}, emitTransient)
+}
+
+func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunHandle, error) {
 	if emitTransient == nil {
 		emitTransient = func(ChatEvent) {}
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	runID, ok := rnr.hub.StartRun(id, cancel)
+	parentCtx := input.ParentContext
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parentCtx)
+	runID, ok := rnr.hub.StartRun(input.ChatID, cancel)
 	if !ok {
 		cancel()
 		emitTransient(ChatEvent{
 			T: time.Now().UnixMilli(), Type: "error",
 			Message: "a previous prompt is still running — cancel first",
 		})
-		return
+		return RunHandle{}, ErrPromptAlreadyRunning
 	}
 
+	done := make(chan RunResult, 1)
 	go func() {
-		defer rnr.hub.FinishRun(id, runID)
-		rnr.runPrompt(
+		defer close(done)
+		defer rnr.hub.FinishRun(input.ChatID, runID)
+		var output strings.Builder
+		err := rnr.runPromptAs(
 			ctx,
-			id,
-			prompt,
-			func(ev ChatEvent) { rnr.hub.Emit(id, ev) },
+			input,
+			func(ev ChatEvent) {
+				rnr.hub.Emit(input.ChatID, ev)
+				if ev.Type == "assistant_text" {
+					output.WriteString(ev.Text)
+				}
+			},
 			emitTransient,
 		)
+		done <- RunResult{Output: output.String(), Err: err}
 	}()
+	return RunHandle{ID: runID, Done: done}, nil
 }
 
 func (rnr *Service) CancelPrompt(id servicechat.ID) bool {
@@ -96,11 +173,22 @@ func (rnr *Service) runPrompt(
 	prompt string,
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
-) {
+) error {
+	return rnr.runPromptAs(ctx, StartInput{ChatID: id, Prompt: prompt}, emit, emitTransient)
+}
+
+func (rnr *Service) runPromptAs(
+	ctx context.Context,
+	input StartInput,
+	emit func(ChatEvent),
+	emitTransient func(ChatEvent),
+) error {
+	id := input.ChatID
+	prompt := input.Prompt
 	meta, err := rnr.store.Get(ctx, id)
 	if err != nil {
 		emitTransient(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
-		return
+		return err
 	}
 
 	// Auto-title from first user prompt if still default.
@@ -130,6 +218,18 @@ func (rnr *Service) runPrompt(
 	emit(ChatEvent{T: time.Now().UnixMilli(), Type: "user", Text: prompt})
 
 	providerID := providerIDFromChatProvider(meta.Provider)
+	promptSkills := meta.SelectedSkills
+	if input.ScheduledTaskID != "" && !hasScheduledTasksSkill(promptSkills) {
+		promptSkills = append(
+			append([]servicechat.SkillRef(nil), promptSkills...),
+			servicechat.SkillRef{
+				Name:     "Scheduled Tasks",
+				Command:  scheduledTasksSkillName,
+				Provider: servicechat.Provider(providerID),
+				Source:   "remote",
+			},
+		)
+	}
 	resumeID := sessionIDForProvider(meta, providerID)
 	effectivePrompt := promptForMode(meta.Mode, prompt)
 	enableBrowser := hasBrowserSkill(meta.SelectedSkills)
@@ -140,12 +240,46 @@ func (rnr *Service) runPrompt(
 	if resumeID == "" {
 		effectivePrompt = promptWithVisibleHistory(priorEvents, effectivePrompt)
 	}
-	effectivePrompt = promptWithSelectedSkills(providerID, meta.SelectedSkills, effectivePrompt)
+	effectivePrompt = promptWithSelectedSkills(providerID, promptSkills, effectivePrompt)
 
 	provider := rnr.agents.Lookup(providerID)
 	if provider == nil {
-		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " provider not configured"})
-		return
+		err := errors.New(string(providerID) + " provider not configured")
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
+		return err
+	}
+
+	enableScheduleTools := hasScheduledTasksSkill(meta.SelectedSkills) || input.ScheduledTaskID != ""
+	runtimeEnv := map[string]string(nil)
+	if enableScheduleTools {
+		if meta.ProjectID == "" {
+			err := errors.New("scheduled tasks are only available in project chats")
+			emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
+			return err
+		}
+		if rnr.scheduleTools == nil {
+			err := errors.New("scheduled task tools are unavailable")
+			emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
+			return err
+		}
+		access, accessErr := rnr.scheduleTools.IssueScheduleTool(ctx, ScheduleToolRequest{
+			Actor:           input.Actor,
+			ChatID:          id,
+			ProjectID:       serviceproject.ID(meta.ProjectID),
+			ScheduledTaskID: input.ScheduledTaskID,
+			ScheduledRunID:  input.ScheduledRunID,
+		})
+		if accessErr != nil {
+			emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: accessErr.Error()})
+			return accessErr
+		}
+		if access.Revoke != nil {
+			defer access.Revoke()
+		}
+		runtimeEnv = map[string]string{
+			"REMOTE_SCHEDULE_API":   access.APIURL,
+			"REMOTE_SCHEDULE_GRANT": access.Token,
+		}
 	}
 
 	run := func(runPrompt, runResumeID string) error {
@@ -163,7 +297,9 @@ func (rnr *Service) runPrompt(
 				ReasoningEffort: agent.ReasoningEffort(meta.ReasoningEffort),
 				ServiceTier:     agent.ServiceTier(meta.ServiceTier),
 			},
-			EnableBrowser: enableBrowser,
+			EnableBrowser:       enableBrowser,
+			EnableScheduleTools: enableScheduleTools,
+			RuntimeEnv:          runtimeEnv,
 		}, func(ev agent.Event) {
 			rnr.emitAgentEvent(ctx, id, ev, emit)
 		})
@@ -178,12 +314,13 @@ func (rnr *Service) runPrompt(
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "system", Subtype: "session_recovered"})
 		freshPrompt := promptForMode(meta.Mode, prompt)
 		freshPrompt = promptWithVisibleHistory(priorEvents, freshPrompt)
-		freshPrompt = promptWithSelectedSkills(providerID, meta.SelectedSkills, freshPrompt)
+		freshPrompt = promptWithSelectedSkills(providerID, promptSkills, freshPrompt)
 		err = run(freshPrompt, "")
 	}
 	if err != nil && !errors.Is(err, agent.ErrRunFailed) {
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " exit: " + err.Error()})
 	}
+	return err
 }
 
 func clearSessionIDForProvider(meta *ChatMeta, provider agent.ProviderID) {
@@ -274,12 +411,23 @@ func promptWithVisibleHistory(events []ChatEvent, prompt string) string {
 }
 
 const browserSkillName = "browser"
+const scheduledTasksSkillName = "scheduled-tasks"
 
 // hasBrowserSkill reports whether the user selected the `browser` skill for
 // this prompt — the signal to wire the @playwright/mcp browser tools.
 func hasBrowserSkill(skills []servicechat.SkillRef) bool {
 	for _, s := range skills {
 		if skillTriggerName(s.Command) == browserSkillName || skillTriggerName(s.Name) == browserSkillName {
+			return true
+		}
+	}
+	return false
+}
+
+func hasScheduledTasksSkill(skills []servicechat.SkillRef) bool {
+	for _, skill := range skills {
+		if skillTriggerName(skill.Command) == scheduledTasksSkillName ||
+			skillTriggerName(skill.Name) == scheduledTasksSkillName {
 			return true
 		}
 	}
@@ -309,6 +457,13 @@ func promptWithSelectedSkills(provider agent.ProviderID, skills []servicechat.Sk
 			triggers = append(triggers, "/"+name)
 		case agent.ProviderCodex:
 			triggers = append(triggers, "$"+name)
+		case agent.ProviderKimi:
+			if name == scheduledTasksSkillName {
+				triggers = append(
+					triggers,
+					"/workspace/.agents/skills/scheduled-tasks/SKILL.md",
+				)
+			}
 		}
 	}
 	if len(triggers) == 0 {
@@ -320,6 +475,9 @@ func promptWithSelectedSkills(provider agent.ProviderID, skills []servicechat.Sk
 		return strings.Join(triggers, "\n") + "\n\n" + prompt
 	case agent.ProviderCodex:
 		return "Use these Codex skills for this request: " + strings.Join(triggers, " ") + "\n\n" + prompt
+	case agent.ProviderKimi:
+		return "Read and follow the selected skill instructions at " +
+			strings.Join(triggers, ", ") + ".\n\n" + prompt
 	default:
 		return prompt
 	}

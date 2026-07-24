@@ -33,3 +33,21 @@ test("preserves normalized skill identity and chat defaults", () => {
     }
   );
 });
+
+test("keeps the scheduled-tasks skill identity stable after workspace provisioning", () => {
+  const selected = [{
+    name: "Scheduled Tasks",
+    command: "scheduled-tasks",
+    provider: "codex" as const,
+    source: "remote",
+  }];
+  const provisioned = {
+    name: "Scheduled Tasks",
+    command: "scheduled-tasks",
+    provider: "codex" as const,
+    source: "project",
+  };
+
+  assert.equal(chatPreferenceState.includesSkill(selected, provisioned, "claude"), true);
+  assert.deepEqual(chatPreferenceState.withoutSkill(selected, provisioned, "claude"), []);
+});

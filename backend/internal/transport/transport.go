@@ -76,17 +76,23 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		terminalSocket = terminalSocket.WithAccessChecker(gate)
 		workspaceSocket = workspaceSocket.WithVisibility(gate)
 	}
+	scheduleHandler := httphandlers.NewScheduleHandler(
+		deps.Services.Schedules,
+		deps.Services.ScheduleCaps,
+		deps.Services.Auth,
+	)
+	chatHandler := httphandlers.NewChatHandler(
+		deps.Services.Chats,
+		deps.Services.ChatAccess,
+		deps.Services.Auth,
+		deps.Files,
+		deps.GitHistory,
+		deps.IDE,
+	).WithSchedules(scheduleHandler)
 
 	return httptransport.NewHandler(httptransport.Handlers{
 		Sessions: httphandlers.NewTmuxHandler(deps.Services.Tmux),
-		Chats: httphandlers.NewChatHandler(
-			deps.Services.Chats,
-			deps.Services.ChatAccess,
-			deps.Services.Auth,
-			deps.Files,
-			deps.GitHistory,
-			deps.IDE,
-		),
+		Chats:    chatHandler,
 		Projects: httphandlers.NewProjectHandler(
 			deps.Services.Projects,
 			deps.Services.Users,
@@ -105,6 +111,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		ServerInfo:       httphandlers.NewServerInfoHandler(deps.ServerInfo),
 		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills),
 		BrowserInspector: httphandlers.NewBrowserInspectorHandler(),
+		Schedules:        scheduleHandler,
 		Uploads:          uploads,
 		TmuxWS:           wstransport.NewTmuxSocket(deps.TmuxClient),
 		TerminalWS:       terminalSocket,

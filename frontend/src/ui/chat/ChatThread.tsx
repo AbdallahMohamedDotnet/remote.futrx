@@ -28,6 +28,7 @@ export function ChatThread({
   onOpenBrowser,
   onOpenHistory,
   onOpenFiles,
+  onOpenSchedules,
 }: {
   chat: ChatMeta;
   blocks: ChatMessageBlock[];
@@ -50,6 +51,7 @@ export function ChatThread({
   onOpenBrowser: () => void;
   onOpenHistory: () => void;
   onOpenFiles: () => void;
+  onOpenSchedules: () => void;
 }) {
   return (
     <div class="codex-thread flex-1 h-full flex flex-col min-h-0 overflow-hidden bg-[#0b0d11]">
@@ -60,6 +62,7 @@ export function ChatThread({
         onOpenBrowser={onOpenBrowser}
         onOpenHistory={onOpenHistory}
         onOpenFiles={onOpenFiles}
+        onOpenSchedules={onOpenSchedules}
         onHamburger={onHamburger}
       />
 

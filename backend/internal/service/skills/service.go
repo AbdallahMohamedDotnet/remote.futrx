@@ -62,6 +62,15 @@ func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace 
 				return nil, err
 			}
 		}
+		if !hasSkillCommand(skills, "scheduled-tasks") {
+			skills = append(skills, Skill{
+				Name:        "Scheduled Tasks",
+				Command:     "scheduled-tasks",
+				Description: "Create and manage persistent one-time or recurring tasks that return to this chat.",
+				Provider:    provider,
+				Source:      "remote",
+			})
+		}
 	}
 	if skills == nil {
 		skills = []Skill{}
@@ -77,6 +86,16 @@ func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace 
 		return left < right
 	})
 	return skills, nil
+}
+
+func hasSkillCommand(skills []Skill, command string) bool {
+	command = strings.ToLower(strings.TrimSpace(command))
+	for _, skill := range skills {
+		if strings.ToLower(strings.TrimSpace(skill.Command)) == command {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) roots(provider Provider) []rootSpec {
