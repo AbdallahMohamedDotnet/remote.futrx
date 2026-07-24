@@ -8,6 +8,7 @@ export function WorkspaceActions({
   onOpenHistory,
   onOpenFiles,
   onOpenSchedules,
+  showHistory,
   showSchedules,
 }: {
   cwd: string;
@@ -16,6 +17,7 @@ export function WorkspaceActions({
   onOpenHistory: () => void;
   onOpenFiles: () => void;
   onOpenSchedules: () => void;
+  showHistory: boolean;
   showSchedules: boolean;
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
@@ -46,22 +48,24 @@ export function WorkspaceActions({
         <Terminal class="w-4 h-4 text-accent-blue flex-none" />
         <span class="text-[12.5px] font-medium">Open Terminal</span>
       </button>
-      <button
-        type="button"
-        onClick={onOpenHistory}
-        class="h-9 inline-flex items-center gap-2 px-3 rounded-md
-               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none ml-auto"
-        title="Review git history"
-        aria-label="Review history"
-      >
-        <Clock class="w-4 h-4 text-accent-blue flex-none" />
-        <span class="text-[12.5px] font-medium">History</span>
-      </button>
+      {showHistory && (
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          class="h-9 inline-flex items-center gap-2 px-3 rounded-md
+                 bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none ml-auto"
+          title="Review git history"
+          aria-label="Review history"
+        >
+          <Clock class="w-4 h-4 text-accent-blue flex-none" />
+          <span class="text-[12.5px] font-medium">History</span>
+        </button>
+      )}
       <button
         type="button"
         onClick={onOpenFiles}
-        class="h-9 inline-flex items-center gap-2 px-3 rounded-md
-               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
+        class={`h-9 inline-flex items-center gap-2 px-3 rounded-md
+               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none ${showHistory ? "" : "ml-auto"}`}
         title="Browse uploads and media files"
         aria-label="Open file manager"
       >

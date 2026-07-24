@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 import { DirtyWorkingTreeError, type GitHistoryCommit, type GitHistoryRepo } from "../../../models/history";
 import { chatApi } from "../../../api/chatApi";
 import { Check, Clock, Loader, RotateCcw, X } from "../../primitives/icons";
+import { DiffView } from "./DiffView";
 
 export function HistoryDrawer({
   chatId,
@@ -319,7 +320,7 @@ export function HistoryDrawer({
               {diffLoading ? (
                 <div class="h-full grid place-items-center text-ink-300 text-[13px]">Loading diff...</div>
               ) : diff ? (
-                <pre class="min-h-full w-max min-w-full p-4 text-[12px] leading-5 text-ink-100 font-mono whitespace-pre">{diff}</pre>
+                <DiffView diff={diff} />
               ) : (
                 <div class="h-full grid place-items-center text-ink-300 text-[13px]">No diff</div>
               )}

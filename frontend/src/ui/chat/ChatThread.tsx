@@ -14,6 +14,7 @@ export function ChatThread({
   status,
   error,
   composer,
+  showHistory,
   showJump,
   scrollRef,
   contentRef,
@@ -37,6 +38,7 @@ export function ChatThread({
   status: ChatStatus;
   error: string | null;
   composer: ChatComposerProps;
+  showHistory: boolean;
   showJump: boolean;
   scrollRef: RefObject<HTMLDivElement>;
   contentRef: RefObject<HTMLDivElement>;
@@ -58,6 +60,7 @@ export function ChatThread({
       <ThreadHeader
         chat={chat}
         streaming={composer.streaming}
+        showHistory={showHistory}
         onOpenTerminal={onOpenTerminal}
         onOpenBrowser={onOpenBrowser}
         onOpenHistory={onOpenHistory}

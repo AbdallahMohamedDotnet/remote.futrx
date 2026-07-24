@@ -16,6 +16,7 @@ import { useChatKeyboardShortcuts } from "../../state/hooks/chat/useChatKeyboard
 import { useChatPreferences } from "../../state/hooks/chat/useChatPreferences";
 import { useChatReadMarker } from "../../state/hooks/chat/useChatReadMarker";
 import { useTerminalOverlayController } from "../../state/hooks/chat/useTerminalOverlayController";
+import { useWorkspaceGitRepos } from "../../state/hooks/chat/useWorkspaceGitRepos";
 
 export function ChatContainer({
   chat,
@@ -74,6 +75,7 @@ export function ChatContainer({
 
   useChatReadMarker({ chatId: chat.id, eventCount, status });
   useChatKeyboardShortcuts({ status, onCancel: cancel });
+  const { hasRepos } = useWorkspaceGitRepos({ chatId: chat.id, status });
 
   const composerView: ChatComposerProps = {
     projectId: displayMeta.projectId,
@@ -124,6 +126,7 @@ export function ChatContainer({
             status={status}
             error={error}
             composer={composerView}
+            showHistory={hasRepos}
             showJump={composer.scroll.showJump}
             scrollRef={composer.scroll.scrollRef}
             contentRef={composer.scroll.contentRef}

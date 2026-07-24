@@ -6,6 +6,7 @@ import { WorkspaceActions } from "./WorkspaceActions";
 export function ThreadHeader({
   chat,
   streaming,
+  showHistory,
   onOpenTerminal,
   onOpenBrowser,
   onOpenHistory,
@@ -15,6 +16,7 @@ export function ThreadHeader({
 }: {
   chat: ChatMeta;
   streaming: boolean;
+  showHistory: boolean;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
   onOpenHistory: () => void;
@@ -63,6 +65,7 @@ export function ThreadHeader({
           onOpenHistory={onOpenHistory}
           onOpenFiles={onOpenFiles}
           onOpenSchedules={onOpenSchedules}
+          showHistory={showHistory}
           showSchedules={!!chat.projectId}
         />
       </div>
