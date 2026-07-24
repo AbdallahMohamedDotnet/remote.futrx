@@ -95,6 +95,7 @@ export function FileManagerDrawer({
               searching={files.searching}
               error={files.searchError}
               downloadUrl={files.downloadUrl}
+              onOpen={files.openFile}
             />
           ) : (
             <BrowseView
@@ -151,12 +152,14 @@ function SearchView({
   searching,
   error,
   downloadUrl,
+  onOpen,
 }: {
   results: FileNode[];
   truncated: boolean;
   searching: boolean;
   error: string | null;
   downloadUrl: (node: FileNode) => string;
+  onOpen: (node: FileNode) => void;
 }) {
   return (
     <>
@@ -175,7 +178,7 @@ function SearchView({
       ) : (
         <ul>
           {results.map((node) => (
-            <SearchResultRow key={node.path} node={node} downloadUrl={downloadUrl} />
+            <SearchResultRow key={node.path} node={node} downloadUrl={downloadUrl} onOpen={onOpen} />
           ))}
         </ul>
       )}

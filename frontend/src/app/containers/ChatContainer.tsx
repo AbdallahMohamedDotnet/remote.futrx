@@ -2,6 +2,7 @@ import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { BrowserDrawer } from "../../ui/chat/browser/BrowserDrawer";
 import { ChatThread } from "../../ui/chat/ChatThread";
+import { MediaViewerOverlay } from "../../ui/chat/files/MediaViewerOverlay";
 import type { ChatComposerProps } from "../../ui/chat/composer/ChatComposer";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
@@ -176,6 +177,7 @@ export function ChatContainer({
           onClose={terminal.closeTerminal}
         />
       )}
+      <MediaViewerOverlay />
     </div>
   );
 }

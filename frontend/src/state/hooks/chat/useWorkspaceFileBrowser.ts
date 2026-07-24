@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "preact/hooks";
 import { chatFilesApi } from "../../../api/chat/chatFilesApi";
+import { API_ROUTES } from "../../../config/routes";
 import type { FileNode } from "../../../models/files";
+import { mediaViewerState } from "../../chat/mediaViewerState";
 import { workspaceFileBrowserState } from "../../chat/workspaceFileBrowserState";
+import { fileOpenAction } from "../../../ui/chat/files/fileMeta";
 
 export interface WorkspaceFileTreeState {
   expanded: Set<string>;
@@ -9,6 +12,7 @@ export interface WorkspaceFileTreeState {
   childrenByDir: Map<string, FileNode[]>;
   errorByDir: Map<string, string>;
   onToggle: (path: string) => void;
+  onOpenFile: (node: FileNode) => void;
   downloadUrl: (node: FileNode) => string;
 }
 
@@ -104,6 +108,31 @@ export function useWorkspaceFileBrowser({ chatId, active }: { chatId: string; ac
         : chatFilesApi.fileDownloadUrl(chatId, node.path),
     [chatId]
   );
+
+  // Click-to-open: viewable media renders in the in-app viewer, archives and
+  // unsupported media fall back to a download, everything else opens in the
+  // per-workspace IDE. Paths are sent in container form (/workspace/<rel>),
+  // which the backend resolves for project and host workspaces alike.
+  const openFile = useCallback(
+    (node: FileNode) => {
+      if (node.isDir) return;
+      const target = fileOpenAction(node.name);
+      const containerPath = `/workspace/${node.path}`;
+      if (target.action === "media") {
+        mediaViewerState.open({
+          url: API_ROUTES.chats.mediaOpen(chatId, containerPath),
+          name: node.name,
+          kind: target.kind,
+        });
+      } else if (target.action === "ide") {
+        window.open(API_ROUTES.chats.ideOpen(chatId, containerPath), "_blank", "noopener");
+      } else {
+        window.location.assign(chatFilesApi.fileDownloadUrl(chatId, node.path));
+      }
+    },
+    [chatId]
+  );
+
   const treeState = useMemo<WorkspaceFileTreeState>(
     () => ({
       expanded: state.expanded,
@@ -111,6 +140,7 @@ export function useWorkspaceFileBrowser({ chatId, active }: { chatId: string; ac
       childrenByDir: state.childrenByDir,
       errorByDir: state.errorByDir,
       onToggle: toggleDirectory,
+      onOpenFile: openFile,
       downloadUrl,
     }),
     [
@@ -119,6 +149,7 @@ export function useWorkspaceFileBrowser({ chatId, active }: { chatId: string; ac
       state.childrenByDir,
       state.errorByDir,
       toggleDirectory,
+      openFile,
       downloadUrl,
     ]
   );
@@ -137,5 +168,6 @@ export function useWorkspaceFileBrowser({ chatId, active }: { chatId: string; ac
     searchError: state.searchError,
     treeState,
     downloadUrl,
+    openFile,
   };
 }

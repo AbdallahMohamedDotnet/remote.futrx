@@ -1,3 +1,5 @@
+import { viewableMediaKind } from "./files/fileMeta";
+
 export const defaultWorkspacePath = "/opt/remote.futrx";
 
 const containerWorkspacePath = "/workspace";
@@ -117,40 +119,8 @@ export interface IdeLinkContext {
   cwd?: string;
 }
 
-const browserMediaExtensions = new Set([
-  ".aac",
-  ".avif",
-  ".bmp",
-  ".flac",
-  ".gif",
-  ".ico",
-  ".jpeg",
-  ".jpg",
-  ".m4a",
-  ".m4v",
-  ".mov",
-  ".mp3",
-  ".mp4",
-  ".oga",
-  ".ogg",
-  ".ogv",
-  ".opus",
-  ".pdf",
-  ".png",
-  ".svg",
-  ".tif",
-  ".tiff",
-  ".wav",
-  ".webm",
-  ".webp",
-]);
-
 function isBrowserMediaPath(path: string): boolean {
-  const lower = path.toLowerCase();
-  for (const extension of browserMediaExtensions) {
-    if (lower.endsWith(extension)) return true;
-  }
-  return false;
+  return viewableMediaKind(path) !== null;
 }
 
 function workspaceRootFromCwd(cwd?: string): string {

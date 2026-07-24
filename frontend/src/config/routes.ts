@@ -21,6 +21,10 @@ export const API_ROUTES = {
       `/api/chats/${encodeURIComponent(id)}/files/download?path=${encodeURIComponent(path)}`,
     folderDownload: (id: string, path = "") =>
       `/api/chats/${encodeURIComponent(id)}/files/download-folder${path ? `?path=${encodeURIComponent(path)}` : ""}`,
+    mediaOpen: (id: string, path: string) =>
+      `/api/chats/${encodeURIComponent(id)}/media-open?path=${encodeURIComponent(path)}`,
+    ideOpen: (id: string, path: string) =>
+      `/api/chats/${encodeURIComponent(id)}/ide-open?path=${encodeURIComponent(path)}`,
     events: (id: string, query: string) =>
       `/api/chats/${encodeURIComponent(id)}/events${query ? `?${query}` : ""}`,
     rewind: (id: string) => `/api/chats/${encodeURIComponent(id)}/rewind`,

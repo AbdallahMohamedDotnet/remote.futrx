@@ -1,4 +1,6 @@
 import type { ComponentChildren } from "preact";
+import { mediaViewerState } from "../../../state/chat/mediaViewerState";
+import { viewableMediaKind } from "../files/fileMeta";
 import { internalPathOpenUrl } from "../ideLinks";
 
 const urlPattern = /^https?:\/\/[^\s<]+/;
@@ -75,7 +77,14 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
             flush();
             const key = `${keyPrefix}-${nodes.length}`;
             nodes.push(
-              <a key={key} href={href} target="_blank" rel="noopener noreferrer" class="text-accent-blue hover:underline">
+              <a
+                key={key}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-accent-blue hover:underline"
+                onClick={(event) => maybeOpenMediaViewer(event, href)}
+              >
                 {renderInline(text.slice(index + 1, labelEnd), key, context)}
               </a>
             );
@@ -130,4 +139,30 @@ function safeHref(raw: string, context: InlineRenderContext): string | null {
 
 function trimTrailingUrlPunctuation(url: string): string {
   return url.replace(/[),.;:!?]+$/, "");
+}
+
+// Media links produced by internalPathOpenUrl point at the inline media-open
+// endpoint; render those in the in-app viewer instead of a new tab. Modified
+// clicks (cmd/ctrl/shift/middle) keep the browser's default behavior.
+function maybeOpenMediaViewer(event: MouseEvent, href: string): void {
+  if (event.defaultPrevented) return;
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  if (!href.includes("/media-open?")) return;
+  const name = mediaOpenFileName(href);
+  const kind = name ? viewableMediaKind(name) : null;
+  if (!name || !kind) return;
+  event.preventDefault();
+  mediaViewerState.open({ url: href, name, kind });
+}
+
+function mediaOpenFileName(href: string): string {
+  try {
+    const url = new URL(href, window.location.origin);
+    const path = url.searchParams.get("path") || "";
+    const base = path.split("/").pop() || "";
+    // Paths may carry :line or :line:column suffixes — strip them for display.
+    return base.replace(/(:\d+){1,2}$/, "");
+  } catch {
+    return "";
+  }
 }

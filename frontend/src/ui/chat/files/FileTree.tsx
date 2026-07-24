@@ -14,7 +14,7 @@ import {
   Loader,
   Music,
 } from "../../primitives/icons";
-import { categorize, formatBytes, parentDir, type FileCategory } from "./fileMeta";
+import { categorize, fileOpenAction, formatBytes, parentDir, type FileCategory } from "./fileMeta";
 
 type IconComponent = (props: JSX.SVGAttributes<SVGSVGElement>) => JSX.Element;
 
@@ -44,7 +44,12 @@ export function FileTreeNodes({
         node.isDir ? (
           <FolderRow key={node.path} node={node} depth={depth} state={state} />
         ) : (
-          <FileRow key={node.path} node={node} downloadUrl={state.downloadUrl} />
+          <FileRow
+            key={node.path}
+            node={node}
+            downloadUrl={state.downloadUrl}
+            onOpen={state.onOpenFile}
+          />
         )
       )}
     </ul>
@@ -122,14 +127,28 @@ function FolderRow({
 function FileRow({
   node,
   downloadUrl,
+  onOpen,
 }: {
   node: FileNode;
   downloadUrl: (node: FileNode) => string;
+  onOpen: (node: FileNode) => void;
 }) {
   const { Icon, color } = CATEGORY_META[categorize(node.name)];
   return (
     <li>
-      <div class="group flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-white/[0.05]">
+      <div
+        class="group flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-white/[0.05] cursor-pointer select-none"
+        role="button"
+        tabIndex={0}
+        title={openTitle(node.name)}
+        onClick={() => onOpen(node)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onOpen(node);
+          }
+        }}
+      >
         <span class="w-3.5 flex-none" aria-hidden="true" />
         <Icon class={`w-4 h-4 flex-none ${color}`} />
         <span class="flex-1 min-w-0 truncate text-[13px] text-ink-100">{node.name}</span>
@@ -139,6 +158,7 @@ function FileRow({
         <a
           href={downloadUrl(node)}
           download={node.name}
+          onClick={(event) => event.stopPropagation()}
           class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
                  opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
           title={`Download ${node.name}`}
@@ -155,17 +175,36 @@ function FileRow({
 export function SearchResultRow({
   node,
   downloadUrl,
+  onOpen,
 }: {
   node: FileNode;
   downloadUrl: (node: FileNode) => string;
+  onOpen: (node: FileNode) => void;
 }) {
   const dir = parentDir(node.path);
   const { Icon, color } = node.isDir
     ? { Icon: Folder as IconComponent, color: "text-accent-blue" }
     : CATEGORY_META[categorize(node.name)];
+  const openable = !node.isDir;
   return (
     <li>
-      <div class="group flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-white/[0.05]">
+      <div
+        class={`group flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-white/[0.05] ${openable ? "cursor-pointer select-none" : ""}`}
+        role={openable ? "button" : undefined}
+        tabIndex={openable ? 0 : undefined}
+        title={openable ? openTitle(node.name) : undefined}
+        onClick={openable ? () => onOpen(node) : undefined}
+        onKeyDown={
+          openable
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onOpen(node);
+                }
+              }
+            : undefined
+        }
+      >
         <Icon class={`w-4 h-4 flex-none ${color}`} />
         <div class="flex-1 min-w-0">
           <div class="truncate text-[13px] text-ink-100">{node.name}</div>
@@ -177,6 +216,7 @@ export function SearchResultRow({
         <a
           href={downloadUrl(node)}
           download={node.isDir ? undefined : node.name}
+          onClick={(event) => event.stopPropagation()}
           class="h-6 w-6 grid place-items-center rounded text-ink-400 hover:text-accent-blue hover:bg-white/[0.08]
                  opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex-none"
           title={node.isDir ? `Download ${node.name} as zip` : `Download ${node.name}`}
@@ -187,4 +227,12 @@ export function SearchResultRow({
       </div>
     </li>
   );
+}
+
+// Hover hint describing what a click will do for this file.
+function openTitle(name: string): string {
+  const target = fileOpenAction(name);
+  if (target.action === "media") return `View ${name}`;
+  if (target.action === "ide") return `Open ${name} in IDE`;
+  return `Download ${name}`;
 }

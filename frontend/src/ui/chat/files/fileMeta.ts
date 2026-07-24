@@ -28,6 +28,45 @@ export function categorize(name: string): FileCategory {
   return EXT_CATEGORY[name.slice(dot + 1).toLowerCase()] ?? "text";
 }
 
+export type MediaKind = "image" | "video" | "audio" | "pdf";
+
+// Mirrors the backend's supported inline media types (workspacefiles
+// mediaTypes): only these extensions render through the media-open endpoint.
+const VIEWABLE_MEDIA: Record<string, MediaKind> = {
+  avif: "image", bmp: "image", gif: "image", ico: "image", jpeg: "image",
+  jpg: "image", png: "image", svg: "image", tif: "image", tiff: "image", webp: "image",
+  m4v: "video", mov: "video", mp4: "video", ogv: "video", webm: "video",
+  aac: "audio", flac: "audio", m4a: "audio", mp3: "audio", oga: "audio",
+  ogg: "audio", opus: "audio", wav: "audio",
+  pdf: "pdf",
+};
+
+// The in-app viewer kind for a filename, or null when the browser (and the
+// media-open endpoint) cannot render it inline.
+export function viewableMediaKind(name: string): MediaKind | null {
+  const dot = name.lastIndexOf(".");
+  if (dot < 0) return null;
+  return VIEWABLE_MEDIA[name.slice(dot + 1).toLowerCase()] ?? null;
+}
+
+export type FileOpenAction =
+  | { action: "media"; kind: MediaKind }
+  | { action: "ide" }
+  | { action: "download" };
+
+// What a click on a file should do: render viewable media in the in-app
+// viewer, download what neither the browser nor the IDE can display
+// (archives, unsupported media), and open everything else in the IDE.
+export function fileOpenAction(name: string): FileOpenAction {
+  const kind = viewableMediaKind(name);
+  if (kind) return { action: "media", kind };
+  const category = categorize(name);
+  if (category === "archive" || category === "image" || category === "video" || category === "audio") {
+    return { action: "download" };
+  }
+  return { action: "ide" };
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];
