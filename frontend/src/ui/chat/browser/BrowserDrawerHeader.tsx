@@ -22,11 +22,10 @@ export function BrowserDrawerHeader({
   guiMode,
   guiStatus,
   onSelectPort,
-  onRefreshApps,
   onToggleInspectMode,
   onToggleGuiMode,
   onStopGui,
-  onReload,
+  onRefresh,
   onClose,
 }: {
   projectName: string;
@@ -39,11 +38,10 @@ export function BrowserDrawerHeader({
   guiMode: boolean;
   guiStatus: AgentBrowserStatus;
   onSelectPort: (port: number | null) => void;
-  onRefreshApps: () => void;
   onToggleInspectMode: () => void;
   onToggleGuiMode: () => void;
   onStopGui: () => void;
-  onReload: () => void;
+  onRefresh: () => void;
   onClose: () => void;
 }) {
   return (
@@ -107,7 +105,7 @@ export function BrowserDrawerHeader({
         <Key class="w-4 h-4" />
       </button>
 
-      {guiMode ? (
+      {guiMode && (
         <button
           type="button"
           onClick={onStopGui}
@@ -118,66 +116,49 @@ export function BrowserDrawerHeader({
         >
           <Square class="w-4 h-4" />
         </button>
-      ) : (
+      )}
+
+      {!guiMode && (
         <button
           type="button"
-          onClick={onRefreshApps}
-          disabled={appsLoading}
-          class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:cursor-wait"
-          title="Refresh running apps"
-          aria-label="Refresh running apps"
+          onClick={onToggleInspectMode}
+          disabled={!canLoad}
+          class={`h-9 w-9 rounded-md border grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed
+                  ${inspectMode
+                    ? "bg-accent-blue/[0.18] border-accent-blue/35 text-accent-blue"
+                    : "bg-white/5 hover:bg-white/[0.09] border-white/10 text-ink-200"}`}
+          title="Inspect element"
+          aria-label="Inspect element"
+          aria-pressed={inspectMode}
         >
-          {appsLoading ? <Loader class="w-4 h-4 animate-spin" /> : <RotateCcw class="w-4 h-4" />}
+          <Crosshair class="w-4 h-4" />
         </button>
       )}
 
       <button
         type="button"
-        onClick={onToggleInspectMode}
-        disabled={!canLoad || guiMode}
-        class={`h-9 w-9 rounded-md border grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed
-                ${inspectMode
-                  ? "bg-accent-blue/[0.18] border-accent-blue/35 text-accent-blue"
-                  : "bg-white/5 hover:bg-white/[0.09] border-white/10 text-ink-200"}`}
-        title="Inspect element"
-        aria-label="Inspect element"
-        aria-pressed={inspectMode}
+        onClick={onRefresh}
+        disabled={guiMode ? guiStatus !== "ready" : appsLoading}
+        class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:opacity-50 disabled:cursor-wait"
+        title={guiMode ? "Reload the agent browser" : "Refresh apps and reload preview"}
+        aria-label={guiMode ? "Reload the agent browser" : "Refresh apps and reload preview"}
       >
-        <Crosshair class="w-4 h-4" />
+        {appsLoading && !guiMode ? <Loader class="w-4 h-4 animate-spin" /> : <RotateCcw class="w-4 h-4" />}
       </button>
 
-      <button
-        type="button"
-        onClick={onReload}
-        disabled={guiMode ? guiStatus !== "ready" : !canLoad}
-        class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed"
-        title="Reload"
-        aria-label="Reload"
-      >
-        <RotateCcw class="w-4 h-4" />
-      </button>
-
-      {canLoad && !guiMode ? (
+      {!guiMode && (
         <a
-          href={url}
+          href={canLoad ? url : undefined}
           target="_blank"
           rel="noopener noreferrer"
-          class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center"
+          aria-disabled={!canLoad}
+          class={`h-9 w-9 rounded-md bg-white/5 border border-white/10 text-ink-200 grid place-items-center
+                  ${canLoad ? "hover:bg-white/[0.09]" : "opacity-50 cursor-not-allowed pointer-events-none"}`}
           title="Open in new tab"
           aria-label="Open browser in new tab"
         >
           <ExternalLink class="w-4 h-4" />
         </a>
-      ) : (
-        <button
-          type="button"
-          disabled
-          class="h-9 w-9 rounded-md bg-white/5 border border-white/10 text-ink-200 grid place-items-center opacity-50 cursor-not-allowed"
-          title="Open in new tab"
-          aria-label="Open browser in new tab"
-        >
-          <ExternalLink class="w-4 h-4" />
-        </button>
       )}
 
       <button

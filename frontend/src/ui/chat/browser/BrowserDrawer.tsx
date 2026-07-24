@@ -193,6 +193,14 @@ export function BrowserDrawer({
     });
   }
 
+  // One refresh action for the toolbar: re-scan the container's listening
+  // apps and reload the active frame together, so there is a single refresh
+  // control instead of two look-alike buttons.
+  function handleRefresh() {
+    if (!guiMode) onRefreshApps();
+    setReloadKey((value) => value + 1);
+  }
+
   // Agent Browser is mutually exclusive with the app preview's inspect mode.
   function toggleGuiMode() {
     setGuiMode((on) => {
@@ -234,11 +242,10 @@ export function BrowserDrawer({
           guiMode={guiMode}
           guiStatus={gui.status}
           onSelectPort={onSelectPort}
-          onRefreshApps={onRefreshApps}
           onToggleInspectMode={toggleInspectMode}
           onToggleGuiMode={toggleGuiMode}
           onStopGui={gui.stop}
-          onReload={() => setReloadKey((value) => value + 1)}
+          onRefresh={handleRefresh}
           onClose={onClose}
         />
         {guiMode ? (
