@@ -43,7 +43,7 @@ func NewWithSkillHomes(agentsHome, claudeHome, codexHome string) *Service {
 
 func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace string) ([]Skill, error) {
 	switch provider {
-	case ProviderClaude, ProviderCodex, ProviderKimi:
+	case ProviderClaude, ProviderCodex, ProviderKimi, ProviderAntigravity:
 	default:
 		return nil, ErrInvalidProvider
 	}
@@ -111,7 +111,7 @@ func (s *Service) roots(provider Provider) []rootSpec {
 		return append(roots, rootSpec{path: filepath.Join(s.claudeHome, "skills"), source: "user"})
 	case ProviderCodex:
 		return append(roots, rootSpec{path: filepath.Join(s.codexHome, "skills"), source: "user"})
-	case ProviderKimi:
+	case ProviderKimi, ProviderAntigravity:
 		return roots
 	default:
 		return nil

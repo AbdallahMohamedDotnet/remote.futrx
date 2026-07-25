@@ -12,31 +12,33 @@ type ProjectID string
 type Provider string
 
 const (
-	ProviderClaude Provider = "claude"
-	ProviderCodex  Provider = "codex"
-	ProviderKimi   Provider = "kimi"
+	ProviderClaude      Provider = "claude"
+	ProviderCodex       Provider = "codex"
+	ProviderKimi        Provider = "kimi"
+	ProviderAntigravity Provider = "antigravity"
 )
 
 type Meta struct {
-	ID              ID         `json:"id"`
-	Title           string     `json:"title"`
-	Provider        Provider   `json:"provider,omitempty"`
-	ClaudeSessionID string     `json:"claudeSessionId,omitempty"`
-	CodexSessionID  string     `json:"codexSessionId,omitempty"`
-	KimiSessionID   string     `json:"kimiSessionId,omitempty"`
-	TmuxSession     string     `json:"tmuxSession,omitempty"`
-	Cwd             string     `json:"cwd,omitempty"`
-	CreatedAt       int64      `json:"createdAt"`
-	LastMessageAt   int64      `json:"lastMessageAt"`
-	LastReadAt      int64      `json:"lastReadAt,omitempty"`
-	Running         bool       `json:"running,omitempty"`
-	Model           string     `json:"model,omitempty"`
-	Mode            string     `json:"mode,omitempty"`
-	ReasoningEffort string     `json:"reasoningEffort,omitempty"`
-	ServiceTier     string     `json:"serviceTier,omitempty"`
-	ProjectID       ProjectID  `json:"projectId,omitempty"`
-	ForkPending     bool       `json:"forkPending,omitempty"`
-	SelectedSkills  []SkillRef `json:"selectedSkills,omitempty"`
+	ID                   ID         `json:"id"`
+	Title                string     `json:"title"`
+	Provider             Provider   `json:"provider,omitempty"`
+	ClaudeSessionID      string     `json:"claudeSessionId,omitempty"`
+	CodexSessionID       string     `json:"codexSessionId,omitempty"`
+	KimiSessionID        string     `json:"kimiSessionId,omitempty"`
+	AntigravitySessionID string     `json:"antigravitySessionId,omitempty"`
+	TmuxSession          string     `json:"tmuxSession,omitempty"`
+	Cwd                  string     `json:"cwd,omitempty"`
+	CreatedAt            int64      `json:"createdAt"`
+	LastMessageAt        int64      `json:"lastMessageAt"`
+	LastReadAt           int64      `json:"lastReadAt,omitempty"`
+	Running              bool       `json:"running,omitempty"`
+	Model                string     `json:"model,omitempty"`
+	Mode                 string     `json:"mode,omitempty"`
+	ReasoningEffort      string     `json:"reasoningEffort,omitempty"`
+	ServiceTier          string     `json:"serviceTier,omitempty"`
+	ProjectID            ProjectID  `json:"projectId,omitempty"`
+	ForkPending          bool       `json:"forkPending,omitempty"`
+	SelectedSkills       []SkillRef `json:"selectedSkills,omitempty"`
 }
 
 type SkillRef struct {
@@ -47,26 +49,27 @@ type SkillRef struct {
 }
 
 type Event struct {
-	Seq             int64           `json:"seq,omitempty"`
-	T               int64           `json:"t"`
-	Type            string          `json:"type"`
-	Text            string          `json:"text,omitempty"`
-	MessageID       string          `json:"messageId,omitempty"`
-	ID              string          `json:"id,omitempty"`
-	Name            string          `json:"name,omitempty"`
-	Input           json.RawMessage `json:"input,omitempty"`
-	Output          string          `json:"output,omitempty"`
-	IsError         bool            `json:"isError,omitempty"`
-	ToolName        string          `json:"toolName,omitempty"`
-	Subtype         string          `json:"subtype,omitempty"`
-	Data            json.RawMessage `json:"data,omitempty"`
-	ClaudeSessionID string          `json:"claudeSessionId,omitempty"`
-	CodexSessionID  string          `json:"codexSessionId,omitempty"`
-	KimiSessionID   string          `json:"kimiSessionId,omitempty"`
-	Provider        Provider        `json:"provider,omitempty"`
-	Usage           json.RawMessage `json:"usage,omitempty"`
-	Message         string          `json:"message,omitempty"`
-	Running         bool            `json:"running,omitempty"`
+	Seq                  int64           `json:"seq,omitempty"`
+	T                    int64           `json:"t"`
+	Type                 string          `json:"type"`
+	Text                 string          `json:"text,omitempty"`
+	MessageID            string          `json:"messageId,omitempty"`
+	ID                   string          `json:"id,omitempty"`
+	Name                 string          `json:"name,omitempty"`
+	Input                json.RawMessage `json:"input,omitempty"`
+	Output               string          `json:"output,omitempty"`
+	IsError              bool            `json:"isError,omitempty"`
+	ToolName             string          `json:"toolName,omitempty"`
+	Subtype              string          `json:"subtype,omitempty"`
+	Data                 json.RawMessage `json:"data,omitempty"`
+	ClaudeSessionID      string          `json:"claudeSessionId,omitempty"`
+	CodexSessionID       string          `json:"codexSessionId,omitempty"`
+	KimiSessionID        string          `json:"kimiSessionId,omitempty"`
+	AntigravitySessionID string          `json:"antigravitySessionId,omitempty"`
+	Provider             Provider        `json:"provider,omitempty"`
+	Usage                json.RawMessage `json:"usage,omitempty"`
+	Message              string          `json:"message,omitempty"`
+	Running              bool            `json:"running,omitempty"`
 }
 
 type EventPageQuery struct {
@@ -111,6 +114,8 @@ func NormalizeProvider(provider Provider) Provider {
 		return ProviderClaude
 	case ProviderKimi:
 		return ProviderKimi
+	case ProviderAntigravity:
+		return ProviderAntigravity
 	default:
 		return ProviderCodex
 	}

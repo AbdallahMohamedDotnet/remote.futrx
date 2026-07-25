@@ -7,9 +7,10 @@ var ErrInvalidProvider = errors.New("invalid skill provider")
 type Provider string
 
 const (
-	ProviderClaude Provider = "claude"
-	ProviderCodex  Provider = "codex"
-	ProviderKimi   Provider = "kimi"
+	ProviderClaude      Provider = "claude"
+	ProviderCodex       Provider = "codex"
+	ProviderKimi        Provider = "kimi"
+	ProviderAntigravity Provider = "antigravity"
 )
 
 type Skill struct {

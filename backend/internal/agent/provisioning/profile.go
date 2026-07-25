@@ -7,6 +7,9 @@ type InstallMode string
 const (
 	InstallWithNPM         InstallMode = "npm"
 	InstallWithImageRepair InstallMode = "image-repair"
+	// InstallWithScript runs the spec's InstallScript inside the container.
+	// For CLIs that ship as standalone binaries rather than npm packages.
+	InstallWithScript InstallMode = "script"
 )
 
 // CLISpec is the provider-owned description of a CLI installed in project
@@ -21,8 +24,11 @@ type CLISpec struct {
 	CheckVersion       bool
 	VerifyAfterInstall bool
 	InstallMode        InstallMode
-	InstallTimeout     time.Duration
-	WaitTimeout        time.Duration
+	// InstallScript is the bash program used by InstallWithScript. It must be
+	// self-contained, idempotent, and pinned to Version.
+	InstallScript  string
+	InstallTimeout time.Duration
+	WaitTimeout    time.Duration
 }
 
 func (s CLISpec) NPMPackage() string {

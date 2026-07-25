@@ -55,7 +55,7 @@ func (p *Provisioner) Ensure(ctx context.Context, containerName string, spec pro
 	if p.ready(ctx, containerName, spec) {
 		return nil
 	}
-	if p.runtime.InstallRunning(ctx, containerName, spec.PackageName) {
+	if spec.PackageName != "" && p.runtime.InstallRunning(ctx, containerName, spec.PackageName) {
 		waitCtx, cancel := context.WithTimeout(ctx, spec.WaitTimeout)
 		defer cancel()
 		if err := p.waitUntilReady(waitCtx, containerName, spec); err == nil {
@@ -68,7 +68,12 @@ func (p *Provisioner) Ensure(ctx context.Context, containerName string, spec pro
 
 	var out string
 	var err error
-	if spec.InstallMode == provisioning.InstallWithImageRepair {
+	if spec.InstallMode == provisioning.InstallWithScript {
+		if spec.InstallScript == "" {
+			return fmt.Errorf("agent CLI %s uses script install but has no install script", spec.Name)
+		}
+		out, err = p.runtime.Repair(installCtx, containerName, spec.InstallScript)
+	} else if spec.InstallMode == provisioning.InstallWithImageRepair {
 		installScript, scriptErr := p.repairRecipe(p.profiles.Snapshot())
 		if scriptErr != nil {
 			return fmt.Errorf("prepare agent CLI repair: %w", scriptErr)

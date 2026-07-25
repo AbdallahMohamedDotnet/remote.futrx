@@ -37,9 +37,10 @@ type Appearance struct {
 type ChatProvider string
 
 const (
-	ChatProviderClaude ChatProvider = "claude"
-	ChatProviderCodex  ChatProvider = "codex"
-	ChatProviderKimi   ChatProvider = "kimi"
+	ChatProviderClaude      ChatProvider = "claude"
+	ChatProviderCodex       ChatProvider = "codex"
+	ChatProviderKimi        ChatProvider = "kimi"
+	ChatProviderAntigravity ChatProvider = "antigravity"
 )
 
 type ChatMode string
@@ -125,7 +126,7 @@ func ValidTheme(theme Theme) bool {
 
 func ValidChatProvider(provider ChatProvider) bool {
 	switch provider {
-	case ChatProviderClaude, ChatProviderCodex, ChatProviderKimi:
+	case ChatProviderClaude, ChatProviderCodex, ChatProviderKimi, ChatProviderAntigravity:
 		return true
 	default:
 		return false

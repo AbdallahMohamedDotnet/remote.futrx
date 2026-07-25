@@ -21,6 +21,8 @@ func (rnr *Service) emitAgentEvent(
 				m.CodexSessionID = ev.SessionID
 			case agent.ProviderKimi:
 				m.KimiSessionID = ev.SessionID
+			case agent.ProviderAntigravity:
+				m.AntigravitySessionID = ev.SessionID
 			default:
 				m.ClaudeSessionID = ev.SessionID
 			}
@@ -53,6 +55,8 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 			out.CodexSessionID = ev.SessionID
 		case agent.ProviderKimi:
 			out.KimiSessionID = ev.SessionID
+		case agent.ProviderAntigravity:
+			out.AntigravitySessionID = ev.SessionID
 		default:
 			out.ClaudeSessionID = ev.SessionID
 		}
@@ -94,6 +98,8 @@ func chatProviderFromAgentProvider(provider agent.ProviderID) servicechat.Provid
 		return servicechat.ProviderCodex
 	case agent.ProviderKimi:
 		return servicechat.ProviderKimi
+	case agent.ProviderAntigravity:
+		return servicechat.ProviderAntigravity
 	default:
 		return servicechat.ProviderClaude
 	}

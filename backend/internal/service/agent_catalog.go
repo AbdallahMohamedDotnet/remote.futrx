@@ -2,6 +2,7 @@ package service
 
 import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	antigravityagent "github.com/futrx-com/remote.futrx.com/internal/agent/antigravity"
 	claudeagent "github.com/futrx-com/remote.futrx.com/internal/agent/claude"
 	codexagent "github.com/futrx-com/remote.futrx.com/internal/agent/codex"
 	kimiagent "github.com/futrx-com/remote.futrx.com/internal/agent/kimi"
@@ -46,6 +47,19 @@ func agentDefinitions() []agentDefinition {
 			},
 			authBinding: func() agentauth.Binding {
 				return agentauth.NewDeviceBinding(agent.ProviderKimi, kimiagent.NewAuth())
+			},
+		},
+		{
+			profile: antigravityagent.Profile,
+			provider: func(projects *serviceproject.Service, containerDeps provisioning.ContainerDependencies) agent.Provider {
+				return antigravityagent.New(projects, containerDeps)
+			},
+			// agy's bare-launch sign-in never exits its TUI, so it cannot run
+			// under the shared code/device auth services. The binding is
+			// registered without a service (reports unavailable); sign-in is a
+			// one-time `agy` run in the chat terminal per workspace.
+			authBinding: func() agentauth.Binding {
+				return agentauth.NewCodeBinding(agent.ProviderAntigravity, nil)
 			},
 		},
 	}

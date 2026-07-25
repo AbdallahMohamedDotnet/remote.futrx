@@ -12,9 +12,10 @@ var ErrSessionNotFound = errors.New("agent session not found")
 type ProviderID string
 
 const (
-	ProviderClaude ProviderID = "claude"
-	ProviderCodex  ProviderID = "codex"
-	ProviderKimi   ProviderID = "kimi"
+	ProviderClaude      ProviderID = "claude"
+	ProviderCodex       ProviderID = "codex"
+	ProviderKimi        ProviderID = "kimi"
+	ProviderAntigravity ProviderID = "antigravity"
 )
 
 type EventType string

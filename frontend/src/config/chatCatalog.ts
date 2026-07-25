@@ -11,6 +11,7 @@ export const CHAT_PROVIDER_OPTIONS = [
   { value: "codex", label: "Codex", validInUserSettings: true },
   { value: "claude", label: "Claude", validInUserSettings: true },
   { value: "kimi", label: "Kimi", validInUserSettings: false },
+  { value: "antigravity", label: "Antigravity", validInUserSettings: false },
 ] as const;
 
 export type ChatProvider = (typeof CHAT_PROVIDER_OPTIONS)[number]["value"];
@@ -30,12 +31,12 @@ export type ChatMode = (typeof CHAT_MODE_OPTIONS)[number]["value"];
 // --help / config validation). "Auto" ("") omits the flag so the CLI/server
 // picks its own default.
 export const REASONING_EFFORT_OPTIONS = [
-  { value: "", label: "Auto", providers: ["claude", "codex"] },
+  { value: "", label: "Auto", providers: ["claude", "codex", "antigravity"] },
   { value: "none", label: "None", providers: ["codex"] },
   { value: "minimal", label: "Minimal", providers: ["codex"] },
-  { value: "low", label: "Low", providers: ["claude", "codex"] },
-  { value: "medium", label: "Medium", providers: ["claude", "codex"] },
-  { value: "high", label: "High", providers: ["claude", "codex"] },
+  { value: "low", label: "Low", providers: ["claude", "codex", "antigravity"] },
+  { value: "medium", label: "Medium", providers: ["claude", "codex", "antigravity"] },
+  { value: "high", label: "High", providers: ["claude", "codex", "antigravity"] },
   { value: "xhigh", label: "XHigh", providers: ["claude", "codex"] },
   { value: "max", label: "Max", providers: ["claude", "codex"] },
   { value: "ultra", label: "Ultra", providers: ["claude", "codex"] },
@@ -71,11 +72,15 @@ const MODEL_OPTIONS_BY_PROVIDER = {
     { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", sub: "coding optimized" },
   ],
   kimi: [{ value: "", label: "Auto", sub: "kimi default" }],
+  // agy picks its own Gemini engine; the CLI accepts --model but publishes no
+  // stable headless id list, so Auto is the only safe catalog entry.
+  antigravity: [{ value: "", label: "Auto", sub: "antigravity default" }],
 } as const satisfies Record<ChatProvider, readonly ModelOption[]>;
 
 export function modelOptionsForProvider(provider?: ChatProvider): readonly ModelOption[] {
   if (provider === "codex") return MODEL_OPTIONS_BY_PROVIDER.codex;
   if (provider === "kimi") return MODEL_OPTIONS_BY_PROVIDER.kimi;
+  if (provider === "antigravity") return MODEL_OPTIONS_BY_PROVIDER.antigravity;
   return MODEL_OPTIONS_BY_PROVIDER.claude;
 }
 

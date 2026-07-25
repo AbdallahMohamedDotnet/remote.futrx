@@ -37,26 +37,46 @@ apt-get update -qq
 apt-get install -y -qq gh`
 
 // InstallScript generates the provider-neutral base recipe plus every
-// configured agent CLI at its configured version.
+// configured agent CLI at its configured version. npm-packaged CLIs install in
+// one npm invocation; script-installed CLIs contribute their own pinned
+// install program.
 func InstallScript(profiles []provisioning.Profile) (string, error) {
 	packages := make([]string, 0, len(profiles))
+	scripts := make([]string, 0, len(profiles))
 	binaries := make([]string, 0, len(profiles))
 	for _, profile := range profiles {
-		if profile.CLI.PackageName == "" || profile.CLI.Binary == "" {
+		if profile.CLI.Binary == "" {
 			return "", fmt.Errorf("agent profile %q has an incomplete CLI definition", profile.ID)
 		}
-		packages = append(packages, profile.CLI.NPMPackage())
+		switch {
+		case profile.CLI.InstallMode == provisioning.InstallWithScript:
+			if profile.CLI.InstallScript == "" {
+				return "", fmt.Errorf("agent profile %q uses script install but has no install script", profile.ID)
+			}
+			scripts = append(scripts, "# "+profile.CLI.Name+" CLI.\n(\n"+profile.CLI.InstallScript+"\n)")
+		case profile.CLI.PackageName == "":
+			return "", fmt.Errorf("agent profile %q has an incomplete CLI definition", profile.ID)
+		default:
+			packages = append(packages, profile.CLI.NPMPackage())
+		}
 		binaries = append(binaries, profile.CLI.Binary)
 	}
-	if len(packages) == 0 {
+	if len(packages) == 0 && len(scripts) == 0 {
 		return "", errors.New("no agent profiles configured")
 	}
 
 	var script strings.Builder
 	script.WriteString(baseImageInstallPreamble)
-	script.WriteString("\n\n# Agent CLIs.\nnpm install -g ")
-	script.WriteString(strings.Join(packages, " "))
-	script.WriteString(" --silent 2>&1 | tail -8\n\n# Sanity check the full toolchain.\nwhich ")
+	if len(packages) > 0 {
+		script.WriteString("\n\n# Agent CLIs.\nnpm install -g ")
+		script.WriteString(strings.Join(packages, " "))
+		script.WriteString(" --silent 2>&1 | tail -8")
+	}
+	for _, installer := range scripts {
+		script.WriteString("\n\n")
+		script.WriteString(installer)
+	}
+	script.WriteString("\n\n# Sanity check the full toolchain.\nwhich ")
 	script.WriteString(strings.Join(binaries, " "))
 	script.WriteString(" git gh jq node npm python3 ssh\n")
 	for _, binary := range binaries {

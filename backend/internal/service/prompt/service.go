@@ -329,6 +329,8 @@ func clearSessionIDForProvider(meta *ChatMeta, provider agent.ProviderID) {
 		meta.CodexSessionID = ""
 	case agent.ProviderKimi:
 		meta.KimiSessionID = ""
+	case agent.ProviderAntigravity:
+		meta.AntigravitySessionID = ""
 	default:
 		meta.ClaudeSessionID = ""
 	}
@@ -362,6 +364,8 @@ func providerIDFromChatProvider(provider servicechat.Provider) agent.ProviderID 
 		return agent.ProviderCodex
 	case servicechat.ProviderKimi:
 		return agent.ProviderKimi
+	case servicechat.ProviderAntigravity:
+		return agent.ProviderAntigravity
 	default:
 		return agent.ProviderClaude
 	}
@@ -373,6 +377,8 @@ func sessionIDForProvider(meta ChatMeta, provider agent.ProviderID) string {
 		return meta.CodexSessionID
 	case agent.ProviderKimi:
 		return meta.KimiSessionID
+	case agent.ProviderAntigravity:
+		return meta.AntigravitySessionID
 	default:
 		return meta.ClaudeSessionID
 	}
@@ -457,7 +463,7 @@ func promptWithSelectedSkills(provider agent.ProviderID, skills []servicechat.Sk
 			triggers = append(triggers, "/"+name)
 		case agent.ProviderCodex:
 			triggers = append(triggers, "$"+name)
-		case agent.ProviderKimi:
+		case agent.ProviderKimi, agent.ProviderAntigravity:
 			if name == scheduledTasksSkillName {
 				triggers = append(
 					triggers,
@@ -475,7 +481,7 @@ func promptWithSelectedSkills(provider agent.ProviderID, skills []servicechat.Sk
 		return strings.Join(triggers, "\n") + "\n\n" + prompt
 	case agent.ProviderCodex:
 		return "Use these Codex skills for this request: " + strings.Join(triggers, " ") + "\n\n" + prompt
-	case agent.ProviderKimi:
+	case agent.ProviderKimi, agent.ProviderAntigravity:
 		return "Read and follow the selected skill instructions at " +
 			strings.Join(triggers, ", ") + ".\n\n" + prompt
 	default:
