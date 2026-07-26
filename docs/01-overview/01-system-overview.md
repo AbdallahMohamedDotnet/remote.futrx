@@ -2,7 +2,9 @@
 
 ## What the application is
 
-`remote.futrx` is a self-hosted browser workspace for Claude Code, Codex, and Kimi Code. Users create isolated projects, run agent chats against those projects, and inspect the result through chat, files, Git, a terminal, an IDE, or a live app preview.
+`remote.futrx` is a self-hosted browser workspace for Claude Code, Codex, and Kimi Code. Users create project-scoped containers, run agent chats against those projects, and inspect the result through chat, files, Git, a terminal, an IDE, or a live app preview.
+
+Read [Philosophy](00-philosophy.md) for the design rationale behind project-scoped authority, durable project and provider homes, the host control plane, and the isolation contract.
 
 ## Runtime architecture
 
@@ -96,7 +98,7 @@ sequenceDiagram
 
 ## Workspace navigation
 
-The sidebar groups chats under projects and keeps loose chats in a separate section. It supports project/chat search, project reordering, unread and running indicators, project start/stop actions, new project or chat creation, chat fork/delete, and read/unread toggling. Selecting a chat closes the mobile sidebar and opens its active `ChatContainer`.
+The sidebar groups chats under projects and keeps loose chats in a separate section. It supports project/chat search, project reordering, unread and running indicators, new project or chat creation, chat fork/delete, and read/unread toggling. Project start and stop controls live under the project's Settings tab. Selecting a chat closes the mobile sidebar and opens its active `ChatContainer`.
 
 The main shell switches between three views without browser routing:
 
@@ -110,7 +112,8 @@ The main shell switches between three views without browser routing:
 
 - The host owns authentication, metadata, HTTPS, access decisions, and container orchestration.
 - Each project owns its `/workspace` files and processes.
-- Agent credentials are host-managed and synchronized into project containers.
+- Each project also has durable Codex, Claude, and Kimi homes mounted at their provider-native paths.
+- Agent-provider credentials are host-managed and synchronized into project credential locations, primarily those homes; Claude also uses `/root/.claude.json` outside its mounted home.
 - The workspace WebSocket carries project/chat list updates; each chat has its own event stream.
 - Caddy authenticates IDE and preview requests before proxying them into containers.
 

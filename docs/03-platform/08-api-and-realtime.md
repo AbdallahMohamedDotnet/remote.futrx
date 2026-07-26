@@ -127,6 +127,8 @@ The upload access check happens when the random upload URL is created. Later chu
 | `/ws/{provider}/auth-status` | Server to client | Provider credential and login-state snapshots |
 | `/ws?session={name}` | Both | Auxiliary tmux PTY binary data and control messages |
 
+Chat and project-terminal membership is checked before the WebSocket upgrade. Removing a member prevents future checked connections, but the backend does not currently close or reauthorize that member's already-open sockets.
+
 ## Realtime channels
 
 ```mermaid
@@ -200,4 +202,3 @@ The workspace and chat streams send ping frames every 25 seconds. The frontend c
 - Frontend route constants: [`frontend/src/config/routes.ts`](../../frontend/src/config/routes.ts)
 - Chat socket: [`backend/internal/transport/ws/chat_socket.go`](../../backend/internal/transport/ws/chat_socket.go)
 - Workspace socket: [`backend/internal/transport/ws/workspace_socket.go`](../../backend/internal/transport/ws/workspace_socket.go)
-

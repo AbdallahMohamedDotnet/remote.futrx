@@ -1,0 +1,205 @@
+# Complete feature reference
+
+This is the compact inventory of current Remote behavior. “Page” means the loaded browser application; “host” means the Remote server; “project” means the durable workspace and its LXD container.
+
+## Navigation and project list
+
+| Feature | How to use it | Availability and persistence |
+| --- | --- | --- |
+| Expand or collapse sidebar | Use the chevron in the sidebar header | Persists in browser local storage |
+| Mobile sidebar | Use the menu button; tap outside or close to dismiss | Responsive UI |
+| Search projects and chats | Type in **Search projects and chats**; clear with **×** | Filters names and visible groups |
+| Project and chat counts | Read the summary below search | Live workspace state |
+| Create project | Choose the blue **+**, enter a name | Any registered user; project persists |
+| Reorder projects | Drag a project group when no search is active | Saved project order |
+| Expand project group | Use the project chevron | Per loaded page |
+| Inspect project | Use the gear beside the project name | Members and admins |
+| Create project chat | Use the **+** beside a provisioned project | Members and admins |
+| Provisioning and errors | Read the disabled/spinning new-chat control or project error text | Live workspace updates |
+| Chat model and time | Read each chat row's model badge and relative time | Persisted metadata |
+| Running indicator | Spinner beside an active chat | Live run state |
+| Unread indicator | Green dot beside completed unseen work | Persisted `lastReadAt` |
+| Mark read or unread | Hover a chat and use the eye control | Persisted |
+| Fork chat | Hover a chat and use the fork control | New persisted chat |
+| Delete chat | Hover a chat and use **×**, then confirm | Removes chat metadata/history |
+| Loose chats | Appear under **Unassigned** | Run on the host and are outside project isolation; avoid |
+| Account settings and sign-out | Use the account footer | Current user/session |
+
+## Chat composer
+
+| Feature | How to use it | Important behavior |
+| --- | --- | --- |
+| Provider | Choose **Codex**, **Claude**, or **Kimi** | Cannot change while streaming |
+| Model | Open **Model** and select a provider model or Auto | Stored per chat |
+| Thinking | Select Auto, None/Minimal where supported, or Low through Ultra | Provider-dependent |
+| Speed | Select Codex Auto, Default, Priority, or Fast | Codex only; model/provider may gate it |
+| Mode | Choose Chat, Plan, Code, Review, Debug, or Full auto | Advisory prompt policy, not enforcement |
+| Skill picker | Open **Skill set**, search, and select | Catalog depends on provider/project |
+| Skill chips | Review or remove selected skills | Cleared when provider changes |
+| Attach picker | Choose **+** and select one or more files | Project chats; resumable uploads |
+| Drag attachment | Drag files over the composer | Same upload path |
+| Paste image | Paste image clipboard data into the composer | Same upload path |
+| Attachment chips | Monitor or remove before sending | Saved file path is added to prompt |
+| Prompt text | Type the instruction; Shift+Enter adds a line | Draft survives chat switching, not reload |
+| Send | Press Enter or use the arrow | One active run per chat |
+| Queue | Send while streaming | Browser-memory queue; not durable |
+| Remove queued prompt | Use **×** on a queue chip | Before it auto-sends |
+| Cancel | Use the red square or Escape while running | Cancels active provider context |
+
+The placeholder mentions `@` files and `/` commands, but the current source has no implemented mention or slash-command picker. Use the attachment control and skill picker instead.
+
+## Conversation and messages
+
+| Feature | Visible behavior |
+| --- | --- |
+| Streaming text | Assistant output appears incrementally |
+| Reasoning | Provider reasoning/thinking parts are rendered when emitted |
+| Tool groups | Consecutive tools are grouped and expandable |
+| Specialized tools | Read, write, edit, search, shell, and questions have tailored cards |
+| Generic tools | Unknown tools use a generic renderer |
+| Markdown | Headings, lists, links, tables, blockquotes, and code render in messages |
+| Syntax highlighting | Code fences receive language-aware highlighting |
+| AskUserQuestion | Agent questions become a paged single/multi-select form with **Other** |
+| Usage | Supported providers report accumulated token usage |
+| Working state | Header dot, provider label, sidebar spinner, and composer state update |
+| Load older | Older JSONL events page backward |
+| Jump to latest | Appears when reading above the newest output |
+| Reconnect/replay | Chat socket resumes from the last event sequence |
+| Automatic title | Remote can title a new chat from its early content; it is persisted, and the current UI has no manual rename control |
+| Rewind | Deletes the selected point and later events; next run starts fresh |
+| Fork | Copies visible history; provider-specific session fork happens on next run |
+| Error block | Run and transport failures render in the thread |
+
+There is no approval workflow in the current chat transport. Project agents run with provider approval/sandbox bypasses inside the project container.
+
+## Providers and current differences
+
+| Capability | Claude | Codex | Kimi |
+| --- | ---: | ---: | ---: |
+| Host-wide interactive sign-in | Authorization URL and pasted code | Device flow | Device flow |
+| Model picker | Yes | Yes | Auto only |
+| Thinking control | Yes | Yes | No current options |
+| Speed/service tier | No | Yes | No |
+| Usage telemetry | Yes | Yes | No |
+| Provider session fork | Yes | Yes, rollout clone | No; starts fresh |
+| Selected skill trigger | Yes | Yes | Stored but not injected |
+| Browser MCP | Yes | Yes | No equivalent plumbing |
+
+## Workspace tools
+
+| Feature | How to use it | Limits or lifecycle |
+| --- | --- | --- |
+| Open in IDE | Choose **Open in IDE** in a project chat | code-server in `/workspace`; registered-user auth caveat |
+| Installable IDE launcher | Open `code.<host>` and use the browser's install action | PWA launcher with live project list; the main Remote app is not a PWA |
+| Open Terminal | Choose **Open Terminal** | New `bash -l` PTY; closing kills it; no reconnect |
+| Open History | Choose **History** | Git repositories only |
+| Open Files | Choose **Files** | Lazy workspace tree |
+| Open Browser | Choose **Open Browser** | Preview or Agent Browser |
+| Refresh Files | Use the drawer refresh control | Reloads root |
+| Expand folder | Select folder row | Lazy-loads children |
+| Search filenames | Type at least two characters | 300 results; 200,000 visited-entry cap |
+| Download file | Hover a file and choose download | Direct file response |
+| Download folder | Hover a folder and choose download | ZIP up to 1 GiB; two concurrent |
+| Inline media link | Open a supported workspace link from chat | Images, audio, video, PDF allowlist |
+| IDE file link | Open a validated workspace path from chat | Path-contained redirect |
+
+## App preview and inspection
+
+| Feature | How to use it | Boundary |
+| --- | --- | --- |
+| Discover apps | Open Browser or choose refresh | Non-loopback listeners, ports 1024–65535 |
+| Select app | Use the process/port picker | One preview target at a time |
+| Remember mentioned URL | Agent mentions a matching project preview URL | UI prefers the recent matching URL |
+| Resize drawer | Drag the divider | Persists in browser local storage |
+| Reload | Use the reload control | Reloads selected frame |
+| Open externally | Use the external-link control | New authenticated tab |
+| Inspect element | Toggle crosshair, then click the element | Same-origin inspector wrapper |
+| Insert element context | Happens after selection | Selector, text, HTML, bounds, styles, parents |
+| Preview authentication | Sign in to Remote | Admin or project member |
+| Preview hostname | `slug--port.dev.<host>` | On-demand TLS and known-project check |
+
+## Agent Browser
+
+| Feature | How to use it | Boundary |
+| --- | --- | --- |
+| Start human browser view | Toggle the key control in Browser | Starts project Chromium/noVNC as needed |
+| Share login with agent | Sign in visually, then select `browser` skill | Claude/Codex share the same profile/window |
+| Human intervention | Type or click in the live pane | Same session as agent |
+| Reload view | Use reload while ready | Reloads noVNC iframe |
+| Close drawer | Close Browser | Stops only the human view |
+| Stop complete stack | Use the square stop control | Stops browser core and view; keeps profile |
+| Persist site sessions | Reopen the project browser | Profile lives in workspace |
+| Automatic reaping | Leave view and agent inactive | Stops after roughly 20 minutes |
+
+There is one fixed 1366×768 browser session per project, unrestricted network egress, and no per-task browser isolation.
+
+## Git history
+
+| Feature | How to use it | Behavior |
+| --- | --- | --- |
+| Discover repositories | Open **History** | Workspace root through depth 6 with exclusions |
+| Select repository | Use repository picker | Shows path and dirty/clean state |
+| List commits | Select repository | UI asks for 100; backend caps at 200 |
+| View commit | Select a commit | Shows subject, author, date, SHA |
+| View diff | Select a commit | Truncates at 768 KiB |
+| Refresh | Use refresh control | Re-discovers repository state |
+| Switch commit | Select a commit and choose **Switch** on a clean tree | Detached HEAD checkout |
+| Safety checkpoint backend | Checkout API accepts a checkpoint message | Backend stages all, commits, then switches; current drawer does not render the required dirty-tree form |
+
+## Project settings
+
+| Tab | Features |
+| --- | --- |
+| Info | Container/OS/resources/disks/network/mounts/limits/agent versions/auth-bundle state, refresh, network repair |
+| Settings | Effective and override limits; start, stop, force restart, admin-only delete |
+| Secrets | Add, reveal, hide, edit, and delete environment values, including multiline values |
+| Sharing | Add or remove registered project members |
+
+Resource defaults are 6 CPUs, 4 GiB memory, and 2,000 processes. Admins alone may change limits or delete a project.
+
+## Global settings
+
+| Tab | Features |
+| --- | --- |
+| Appearance | System, Dark, Light |
+| Agents | Admin sign-in/status/refresh for Claude, Codex, Kimi |
+| Users | Google OAuth configuration; add/remove users; member/admin roles |
+| Info | Host CPU, memory, disks, network, OS/runtime, process, paths, role |
+
+## Persistence reference
+
+| State | Persists across page reload | Persists across container replacement |
+| --- | ---: | ---: |
+| Project metadata and membership | Yes | Yes |
+| Chat metadata and event log | Yes | Yes |
+| `/workspace` | Yes | Yes |
+| Provider homes | Yes | Yes |
+| Project secrets | Yes | Yes |
+| Agent Browser profile | Yes | Yes |
+| Container root filesystem additions | Yes until replacement | No |
+| Active run control and event streaming | No; an `lxc exec` child can remain alive but orphaned after backend restart | No reattachment |
+| Active Terminal PTY | No | No |
+| Composer draft | No | Not applicable |
+| Prompt queue | No | Not applicable |
+| Active chat and open drawers | No | Not applicable |
+| Sidebar width/collapse and Browser drawer width | Yes, in the same browser | Yes, in the same browser |
+| Project-group collapsed state | No | Recomputed from unread state rather than stored |
+
+## Features Remote does not currently provide
+
+- anonymous/public preview sharing;
+- read-only project membership;
+- per-user provider accounts or quotas;
+- enforced approval prompts for agent tools;
+- durable server-side prompt queues;
+- run reattachment after backend restart;
+- terminal reconnect;
+- the visible Git dirty-tree checkpoint form, despite backend support;
+- project IDE membership enforcement;
+- built-in backup/restore, audit log, metrics endpoint, or high availability;
+- content search in Files;
+- a main-app PWA, push notification, or offline mode;
+- current application voice dictation;
+- implemented `@`-mention or slash-command composer menus.
+
+Read [Known limitations](../known-limitations.md) and the [Threat model](../threat-model.md) before using Remote with mutually untrusted users or high-value credentials.

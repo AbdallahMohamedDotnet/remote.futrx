@@ -1,0 +1,78 @@
+# Known limitations
+
+These are the constraints worth understanding before you deploy or rely on remote.futrx. They are current, deliberate consequences of the design — not a bug list. Security-specific limitations are analyzed in depth in the [threat model](threat-model.md); this document covers operational, scaling, and functional limits. Everything here is drawn from the code as it stands.
+
+## Scale and availability
+
+- **Single server, single process.** The backend is one systemd unit bound to `127.0.0.1:7682` on the same host as Caddy and LXD. All state lives in local files guarded by in-process mutexes and in-memory indexes, so a second backend instance — even on the same box — would corrupt or diverge state. There is no clustering, load balancing, failover, or multi-node support. If the server dies, everything (app, workspaces, previews, IDEs) is down. *(`infra/templates/remote.futrx.service.tmpl`, `backend/internal/stores/`)*
+- **Capacity is bounded by the one host.** Projects, chats, and exposed ports all consume resources on a single box. The "unlimited projects/chats/ports" framing is a server-bound statement, not a product guarantee.
+- **No horizontal scaling of any runtime component.** The run hub, workspace hub, tus upload store, login limiter, and archive-download semaphore are all in-process. Slow WebSocket subscribers are dropped once their buffer fills.
+
+## Data, durability, and backups
+
+- **No database.** Every datastore is a flat JSON file or per-chat JSONL log under `DATA_DIR` (`/opt/remote.futrx/data`). JSON and metadata writes use temp-file + rename, while chat events append directly to JSONL with `O_APPEND`. Neither path uses `fsync` or file locking, so a crash, power loss, or stray second process can lose or corrupt state. *(`backend/internal/stores/`)*
+- **No backup or restore mechanism.** Nothing snapshots, exports, or restores `DATA_DIR`, the workspaces at `/var/lib/remote/projects`, or the containers. The only recovery-adjacent feature is the per-project Git "safety checkpoint," which protects code the agent edits — not chats, users, secrets, sessions, or container state. Disaster recovery is entirely the operator's responsibility, and a hand-rolled backup taken while the service runs can capture a torn view. **Snapshot the host or copy `DATA_DIR` yourself, ideally with the service stopped.**
+- **Chat logs grow without bound.** Per-chat `events.jsonl` files are append-only with no rotation or compaction, and `List()` re-reads every `meta.json` from disk — practical scale is modest project/chat counts.
+- **No cross-store transactions.** Project metadata, membership, and secrets are three separate files that can go out of sync. Deleting a project does not cascade-delete chats that reference it; deleting a user does not sweep their project-access records.
+- **Secrets are plaintext at rest.** Project secrets, the Google OAuth client secret, and the session signing key are unencrypted files (mode 0600). Encryption at rest is not provided. See the [threat model](threat-model.md).
+
+## Platform and deployment
+
+- **Ubuntu/Debian only.** The installer hard-exits on any other distro and assumes systemd, snap (LXD is installed via snap), Caddy, root execution, public DNS pointing at the box, and outbound reachability to Let's Encrypt. There is no air-gapped, Docker, or non-Linux deployment path. *(`infra/install.sh`, `infra/steps/01-host-deps.sh`)*
+- **The backend runs as root.** With `KillMode=process`, a compromise of the app process is a compromise of the host. There is no privilege separation for the backend. *(`infra/templates/remote.futrx.service.tmpl`)*
+- **The installer disables SSH password login.** Confirm your SSH key works before running it (this is called out in the README, and repeated here because it is easy to lock yourself out).
+- **Deploy has no automatic rollback.** CI restarts the service *before* the health check, so a build that starts but fails the 30-second probe leaves the box running the broken binary; the workflow just exits non-zero. *(`.github/workflows/deploy.yml`)*
+- **`update.sh` hard-resets to `origin/main`.** There is no version pinning, staged rollout, or rollback path — you get whatever is on the tip of `main`, and any local source changes are discarded.
+
+## Updates and workspace upgrades
+
+- **Container upgrades are lossy outside `/workspace`.** Upgrading to a new base image re-clones the container: only `/workspace` and the agent homes (bind mounts) survive. Anything installed in the rootfs — ad-hoc `apt`/`npm` installs, caches, system config — is lost on every upgrade. *(`infra/upgrade-workspaces.sh`)*
+- **The updater's active-run skip is currently unreliable, and the app goes down during recycling.** The intended default is to skip containers with a running agent, but the busy-process matcher does not match every provider command shape and can classify active work as idle. Coordinate a maintenance window or use `--skip-workspaces` while agents are active. The recycle step also stops the main backend service for its duration, so updates that recycle workspaces take the whole UI down. `--include-busy` explicitly permits disruptive recycling; it is not needed to trigger the current detector gap.
+- **A plain `install.sh` re-run can leave a stale base image.** The base-image build is skipped when the alias already exists; only `update.sh` (which forces a rebuild) or the runtime self-heal converges containers to new agent-CLI pins.
+
+## Resource management
+
+- **Default per-container caps are fixed in the binary and applied best-effort.** The backend-managed LXD profile targets 4 GiB memory, 6 CPUs, and 2000 processes (added after two real host takedowns — an ffmpeg CPU peg and a Node OOM). Changing the fleet default means editing source and redeploying. Launch attempts to restore the profile, but default-convergence errors are swallowed; explicit project overrides fail launch when they cannot be applied. Heavier workloads need a per-project override. *(`backend/internal/integration/containers/resources/manager.go`)*
+- **No default disk quota, and no cap on project count.** A single workspace can fill the host disk, and any invited user can create unlimited projects/containers (each `boot.autostart=true`, so a host reboot starts them all at once). The per-container caps bound one container, not the aggregate. See the [threat model](threat-model.md) for the DoS implications.
+- **No rate limiting except on local login.** Chat/agent runs, project creation, terminal/IDE sessions, and uploads (up to 10 GiB) have no per-user request-rate or quota limit.
+- **No audit logging and no metrics endpoint.** There is no record of who created/deleted projects, read or changed secrets, ran agents, or invited users (the code has a placeholder comment where caller identity is discarded). Forensics rely on generic journald output. There is no Prometheus/OpenTelemetry instrumentation.
+
+## Authentication and access
+
+- **One password account.** Only the first-claimed local admin uses a password; every other user must sign in through Google OAuth. Until an admin configures Google client credentials, the box is effectively single-user, and users without a Google account can never log in. *(`backend/internal/service/auth/`)*
+- **No 2FA, no password reset flow, no session revocation.** Recovering a lost owner password requires manually deleting `local-admin.json` on the host. Individual sessions cannot be revoked (30-day stateless tokens); the only levers are deleting the user or rotating the global session key.
+- **Flat admin/member roles.** There is no per-project "owner" tier. Any project member can read and change that project's secrets and edit its membership. Sharing a project shares its secrets.
+- **The per-project IDE is reachable by any invited user.** `<slug>.code.<host>` authenticates the registered user but does **not** check project membership, so any invited user can open any project's code editor. This is documented in [`docs/02-workspaces/02-auth-users-and-access.md`](02-workspaces/02-auth-users-and-access.md) and analyzed in the [threat model](threat-model.md).
+- **No public/anonymous sharing.** Every preview URL sits behind the platform session, so showing a prototype to an outside stakeholder means inviting them as a user first.
+
+## Agents
+
+- **Agent identity is a shared host singleton.** Provider credentials (Claude/Codex/Kimi) are authenticated once at host level and seeded into every container — all users and projects share the same provider accounts and subscription quotas. There is no per-user or per-project agent identity, and each provider allows only one interactive login at a time.
+- **Run control does not survive a backend restart.** Agent runs are owned by in-process state around an `lxc exec` child. A backend restart loses the run lock, cancellation handle, and event-stream ownership. With the production unit's `KillMode=process`, the child may remain alive but orphaned rather than being killed. There is no server-side run persistence, reattachment, or restart recovery.
+- **One backend run per chat; queueing is browser-only.** A direct concurrent run request is rejected. In the browser UI, sending while an agent works instead adds the prompt to that tab's in-memory queue: queued prompts are lost on tab close/refresh and only auto-send while that chat is open. "Queue work and walk away" holds only while the tab stays on that chat. Composer drafts are likewise in-memory.
+- **Session recovery drops context.** When a provider session is missing (or you switch provider mid-chat), the chat is "recovered" by replaying at most the last ~24 KB of visible transcript as plain text into a fresh session — earlier context and all tool-call state are dropped.
+- **Modes are advisory.** Chat/Plan/Code/Review/Debug/Full-Auto are prompt-preamble policies with no backend enforcement, sandboxing difference, or approval gate. An agent in "chat" mode can still modify files; there is no human-confirmation gate for irreversible or external actions.
+- **Provider-specific gaps.** Kimi has no fork primitive (forked Kimi chats silently start fresh) and reports no usage data. Codex service-tier selection is limited to three values (default/priority/fast). Failed Claude tool calls are currently rendered as successes.
+
+## Previews, IDE, and the Agent Browser
+
+- **Preview ports must be 4–5 digits.** The dev-URL scheme only routes ports 1024–65535 (`<slug>--<port>.dev.<host>`). A server on port 80/443/999 inside the container cannot be exposed without rebinding higher.
+- **Loopback-bound apps can't be previewed.** Port discovery deliberately excludes `127.0.0.1` binds, because Caddy proxies to the container's bridge address. Bind to `0.0.0.0` to get a preview URL.
+- **On-demand TLS means first-hit latency and CA dependency.** Each new project/port triggers an individual Let's Encrypt certificate at first visit, with a hard dependency on the CA being reachable and exposure to per-domain rate limits as projects × ports grow. There is no DNS-challenge wildcard option.
+- **One shared browser session per project.** The user and the agent drive the same Chromium profile and window (fixed 1366×768) — there is no per-agent or per-task browser isolation. Idle reaping counts any TCP connection to the VNC port as a viewer.
+- **Launch provisioning is best-effort.** Credential seeding, skill links, browser tooling, and code-server setup all swallow their errors, so a container can come up with a broken IDE, missing credentials, or no browser tooling with nothing surfaced until you try to use it.
+
+## Workspace tools and files
+
+- **Directory and search limits are fixed constants.** Listings truncate at 10,000 entries per directory; search is filename-substring only (no content search), returns at most 300 results, and gives up after visiting 200,000 entries. In-browser preview is limited to an image/audio/video/PDF allowlist; other types can't be opened inline.
+- **Archive downloads are capped.** Folder-ZIP downloads are limited to 1 GiB each with at most 2 concurrent downloads box-wide; a larger workspace simply fails.
+- **Escaping symlinks are silently omitted** from listings and downloads (a safety measure, but it can hide files).
+- **Git history detection is bounded.** Repository discovery skips a fixed directory blocklist at depth ≤ 6, so deeper or oddly-placed repos are invisible to the history UI. Commit lists cap at 200, diffs truncate at 768 KiB.
+- **The dirty-tree safety-checkpoint UI is incomplete.** The backend checkout route can stage all changes, create a `remote.futrx` checkpoint commit, and switch to a detached commit, but the current History drawer does not render the form that submits the checkpoint message. Clean the tree through Terminal or IDE before using **Switch**.
+
+## Frontend
+
+- **No URL routing.** The active chat, current view, and open drawers are all in-memory state — a page refresh loses your selection, and nothing is deep-linkable.
+- **No PWA on the main app.** Despite mobile positioning, the main chat UI ships no web app manifest, no service worker, and no push notifications — so there's no notification when a long-running agent finishes and no installable/offline shell. Only the separate IDE launcher at `code.<host>` is a PWA.
+- **The terminal has no reconnect logic.** A network blip ends the terminal view (unlike the chat/workspace sockets, which reconnect).
+- **Automated tests cover only pure state modules.** Hooks, transport, API clients, and UI components are untested by the frontend test suite; CI does not run the Go `go test` suite either (run it locally — see [CONTRIBUTING.md](../CONTRIBUTING.md)).

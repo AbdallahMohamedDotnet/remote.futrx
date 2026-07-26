@@ -116,6 +116,8 @@ flowchart TD
 
 Restore resolves the commit, optionally creates a safety checkpoint using the `remote.futrx` identity, and checks out the target in detached HEAD state. Git commands use an explicit safe directory and bounded timeouts.
 
+The checkout API supports the checkpoint message, but the current History drawer does not render the dirty-tree checkpoint form even though its component state is present. In the visible UI, commit or stash dirty work through Terminal or IDE, refresh History, and then switch. Clean-tree switching works directly.
+
 ## Browser IDE
 
 Each project has an on-demand code-server instance on container port `8842`.
@@ -142,4 +144,3 @@ Markdown links are inspected by the frontend. Workspace paths can be converted i
 - Terminal socket: [`backend/internal/transport/ws/container_terminal_socket.go`](../../backend/internal/transport/ws/container_terminal_socket.go)
 - Git history: [`backend/internal/service/githistory/service.go`](../../backend/internal/service/githistory/service.go)
 - IDE service: [`backend/internal/service/workspaceide/service.go`](../../backend/internal/service/workspaceide/service.go)
-

@@ -20,14 +20,18 @@ The application does not use a database. Durable metadata is stored as JSON file
 └── uploads/tmp/                        tus chunks and sidecars
 
 /var/lib/remote/projects/<slug>/
-└── workspace/                          durable project files
-    ├── .env                             generated project secrets
-    ├── .uploads/                        chat attachments
-    ├── .browser-gui/                    browser launch assets and profile data
-    └── ...                              user source and generated files
+├── workspace/                          durable project files
+│   ├── .env                             generated project secrets
+│   ├── .uploads/                        chat attachments
+│   ├── .browser-gui/                    browser launch assets and profile data
+│   └── ...                              user source and generated files
+└── agent-home/                         durable provider-owned state
+    ├── codex/                           mounted at /root/.codex
+    ├── claude/                          mounted at /root/.claude
+    └── kimi/                            mounted at /root/.kimi-code
 ```
 
-The exact agent credential locations are provider-owned paths in the host user's home. Credential synchronizers copy configured bundles into containers.
+The host-wide credential sources use provider-owned paths in the host user's home. Credential synchronizers seed or update project-specific credential locations, primarily the mounted provider homes. Claude also requires `/root/.claude.json` outside its mounted home; that file survives replacement through host synchronization rather than the project mount.
 
 ## Entity relationships
 
@@ -92,7 +96,7 @@ flowchart LR
     Replay --> Client["Chat UI"]
 ```
 
-Chat metadata includes title, provider, provider session IDs, working directory, project ID, read markers, model/mode controls, selected skills, and fork state. The `running` flag is computed from the in-memory run hub and is not persisted.
+Chat metadata includes title, provider, provider session IDs, working directory, project ID, read markers, model/mode controls, selected skills, and fork state. The `running` flag and cancellation handle are computed from the in-memory run hub and are not persisted. Provider child processes may survive a backend restart, so the restarted control plane cannot automatically rediscover or cancel them.
 
 Rewind rewrites `events.jsonl` atomically with only events before the selected timestamp. Chat deletion removes that chat directory.
 
@@ -102,6 +106,7 @@ Project metadata and workspaces are separate:
 
 - `data/projects/<id>/meta.json` stores identity, slug, container name, status, order, resource overrides, and timestamps.
 - `/var/lib/remote/projects/<slug>/workspace` stores durable project content.
+- `/var/lib/remote/projects/<slug>/agent-home/*` stores durable provider configuration, authentication, and session state.
 - Access and secrets use separate mode-`0600` files.
 - Metadata writes use a temporary file and rename where implemented.
 
@@ -137,7 +142,7 @@ flowchart TD
 
 | State | Lifetime |
 | --- | --- |
-| Authentication and user settings | React context; reloaded from HTTP after page reload |
+| Authentication and user settings | Preact context; reloaded from HTTP after page reload |
 | Projects and chat summaries | Workspace WebSocket; server is authoritative |
 | Active view, selected chat, sidebar open state | In-memory reducer |
 | Chat events | Initial HTTP page plus reconnecting WebSocket updates |
@@ -170,9 +175,9 @@ The initial snapshot is filtered to permitted projects for members. Current live
 | Delete action | Data removed |
 | --- | --- |
 | Delete chat | Chat metadata and event log; active run is canceled first |
-| Delete project | Container, project metadata, workspace directory, access list, and secrets |
+| Delete project | Container, project metadata, host project root containing workspace and provider homes, access list, and secrets |
 | Delete project | Does not currently cascade to separate chat records that reference it |
-| Delete secret | Secret entry, generated `.env` value, and LXD environment key |
+| Delete secret | Authoritative secret entry; removal from generated `.env` and LXD environment is attempted best-effort, so stale copies are possible on sync failure |
 | Delete user | User-directory entry; project access records are not globally swept |
 | Stop Agent Browser | Processes stop; persistent profile remains in the workspace |
 
@@ -183,4 +188,3 @@ The initial snapshot is filtered to permitted projects for members. Current live
 - Project store: [`backend/internal/stores/fileproject/store.go`](../../backend/internal/stores/fileproject/store.go)
 - Workspace context: [`frontend/src/state/context/WorkspaceContext.tsx`](../../frontend/src/state/context/WorkspaceContext.tsx)
 - Workspace data hook: [`frontend/src/state/hooks/workspace/useWorkspaceData.ts`](../../frontend/src/state/hooks/workspace/useWorkspaceData.ts)
-

@@ -1,24 +1,30 @@
 # Sandbox: remote.futrx
 
 You're running inside an unprivileged LXC container, one per project,
-spawned by [remote.futrx](https://{{PUBLIC_HOSTNAME}}). Other
-projects can't see this one - fresh `apt` installs, crashed
-processes, deleted files only affect you.
+spawned by [remote.futrx](https://{{PUBLIC_HOSTNAME}}). Other projects do
+not share this filesystem or process namespace: fresh `apt` installs,
+crashed processes, and deleted files stay within this project.
 
 ## Filesystem
 
 - `/workspace` - your project files. Persistent, survives container
   restarts and reprovisions.
+- `/root/.codex`, `/root/.claude`, and `/root/.kimi-code` - persistent,
+  project-specific provider homes. The host mounts and manages these paths so
+  provider configuration, authentication, and session state survive container
+  replacement. Keep project artifacts in `/workspace`, not in these homes.
 - `/root/.claude/CLAUDE.md` AND `/root/.codex/AGENTS.md` - this file
   (identical content, two paths so both Claude and Codex pick it up).
   The host re-pushes both whenever the template changes; don't edit
   them expecting changes to stick.
-- Everything else: ephemeral.
+- Everything else outside the four durable mounts: replaceable.
 
 ## Capabilities
 
-- Root in the container (uid 0). Unprivileged means container-root
-  maps to a low-privilege host user - no host escape.
+- Root in the container (uid 0). Unprivileged means container-root maps to a
+  low-privilege host user rather than host root. Do not intentionally access
+  the host or another project; the current shared network does not enforce
+  complete lateral separation between containers.
 - `apt-get install` whatever you need.
 - Network is fully open.
 - Background processes persist between prompts; they die on container
@@ -27,15 +33,15 @@ processes, deleted files only affect you.
 ## Pre-installed tools
 
 `git`, `gh`, `openssh-client`, `jq`, `build-essential`,
-`python3` + `pip`, `node 20` + `npm`, `claude`, `codex`. Anything else:
+`python3` + `pip`, `node 22` + `npm`, `claude`, `codex`, `kimi`. Anything else:
 `apt-get install` or `npm i -g` freely.
 
-**Persistence rule.** `/workspace/**` is a host bind-mount and survives
-container delete. Everything else (`/usr/local/`, `/root/`, packages you
-apt-install) is gone if the container is recreated. If you install a
-tool the project needs again later, append the install line to
-`/workspace/setup.sh` so a fresh container can rebootstrap with
-`bash /workspace/setup.sh`.
+**Persistence rule.** `/workspace/**` and the three provider homes listed
+above are host bind-mounts and survive container replacement. Other paths
+(`/usr/local/`, unmounted paths under `/root/`, and packages you apt-install)
+are gone if the container is recreated. If you install a tool the project
+needs again later, append the install line to `/workspace/setup.sh` so a fresh
+container can rebootstrap with `bash /workspace/setup.sh`.
 
 ## Secrets
 

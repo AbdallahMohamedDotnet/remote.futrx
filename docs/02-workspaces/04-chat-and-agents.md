@@ -18,7 +18,7 @@ stateDiagram-v2
     Ready --> [*]: delete chat
 ```
 
-Chats may belong to a project or be loose. Project chats inherit the project workspace directory and access rules. A loose chat is visible to every registered user and cannot use the project terminal, preview, or project-specific features.
+Chats may belong to a project or be loose. Project chats inherit the project workspace directory and access rules. A loose chat is visible to every registered user and cannot use the project terminal, preview, or project-specific features. Its approval-free provider CLI currently runs directly as the backend's host service user—root in the production unit—with the host environment and filesystem rather than a project container. Loose chats are therefore outside the project-isolation contract.
 
 ## Prompt execution
 
@@ -50,7 +50,7 @@ sequenceDiagram
     Hub-->>UI: sync running=false
 ```
 
-Only one prompt may run in a chat. A second send is queued in the browser until the run unlocks, or rejected by the server if another client races it.
+Only one prompt may run in a chat while the current backend process owns its in-memory lock. A second send is queued in the browser until the run unlocks, or rejected by the server if another client races it. Provider children may survive a backend restart while that lock and cancellation state do not, so the control plane does not yet reattach to an orphaned run.
 
 ## Provider abstraction
 
@@ -122,13 +122,13 @@ flowchart LR
     Browser -->|"Yes"| MCP["Enable browser MCP and activity keepalive"]
 ```
 
-The catalog reads agent skill roots and, for project chats, project workspace skills after checking access. Provider changes clear incompatible selected skills. Current prompt injection is implemented for Claude and Codex; Kimi-selected skill references are stored but do not add a trigger prefix.
+The catalog reads agent skill roots and, for project chats, project workspace skills after checking access. Provider changes clear incompatible selected skills. Current prompt injection and per-run browser MCP preparation are implemented for Claude and Codex; Kimi-selected skill references are stored but do not add a trigger prefix or enable equivalent browser plumbing.
 
 ## Conversation controls
 
 | Control | Behavior |
 | --- | --- |
-| Rename | Patches the chat title |
+| Rename | The API can patch the chat title; the current UI has no manual rename control |
 | Read/unread | Updates `lastReadAt` for sidebar indicators |
 | Cancel | Cancels the active provider context and releases the run lock |
 | Queue | Browser-session queue sends prompts one at a time after each run unlocks |

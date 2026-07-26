@@ -101,10 +101,13 @@ flowchart TD
     Busy -->|"Yes, default"| Skip["Skip busy container"]
     Busy -->|"No"| Delete["Delete replaceable container"]
     Delete --> Relaunch["Next start or prompt relaunches from new image"]
-    Relaunch --> Mount["Reattach persistent workspace and reprovision"]
+    Relaunch --> Mount["Reattach persistent workspace and provider homes"]
+    Mount --> Provision["Reprovision tools and compatibility links"]
 ```
 
 `--include-busy` forces busy workspace recycling. `--skip-workspaces` updates only the host and application. `upgrade-workspaces.sh --dry-run` shows the workspace plan without changing it.
+
+The intended default is to skip active agent containers. The current busy-process matcher expects a different `lxc exec` argument order than the provider commands use, so it may classify an active run as idle. Until that detector is corrected, treat workspace recycling as disruptive: coordinate a maintenance window or use `--skip-workspaces` while runs are active.
 
 The updater intentionally resets the installed application checkout to `origin/main`. Persistent application data and project workspaces live outside the tracked source tree.
 
@@ -137,13 +140,14 @@ The server-info settings page reports host, CPU, memory, storage, network, and G
 
 - The backend listens on loopback by default; Caddy is the public entry point.
 - Platform sessions use secure, HTTP-only cookies.
-- Preview and IDE requests use forward authentication.
+- Preview and IDE requests use forward authentication; preview authorization is project-aware, while IDE authorization currently accepts any registered user.
 - Platform cookies are removed before container proxying.
 - Internal Caddy helper routes are denied externally.
 - Secret, auth, access, and user files use restrictive permissions.
 - SSH password and keyboard-interactive authentication are disabled after install.
 - On-demand TLS issuance is restricted to valid, existing project hosts.
 - Project containers are unprivileged and receive host workspaces through mapped ownership.
+- Project containers currently share the LXD bridge without lateral ACLs; code-server and noVNC rely on Caddy for public authentication and do not independently authenticate direct bridge traffic.
 
 ## Operational commands
 
@@ -162,4 +166,3 @@ sudo bash /opt/remote.futrx/infra/upgrade-workspaces.sh --dry-run
 - Workspace upgrade: [`infra/upgrade-workspaces.sh`](../../infra/upgrade-workspaces.sh)
 - Systemd template: [`infra/templates/remote.futrx.service.tmpl`](../../infra/templates/remote.futrx.service.tmpl)
 - Base-image builder: [`backend/internal/service/container/image/builder.go`](../../backend/internal/service/container/image/builder.go)
-
