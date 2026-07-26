@@ -30,3 +30,7 @@
 
 # Claude Code runtime artifacts
 /.claude/scheduled_tasks.lock
+
+# remote.futrx.com is its own git repository — track it separately
+# (or wire it as a proper submodule), never as an embedded gitlink.
+/remote.futrx.com/
