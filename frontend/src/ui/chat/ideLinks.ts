@@ -1,4 +1,4 @@
-import { viewableMediaKind } from "./files/fileMeta";
+import { viewableMediaKind } from "./files/fileMeta.ts";
 
 export const defaultWorkspacePath = "/opt/remote.futrx";
 
@@ -27,7 +27,12 @@ function projectSlugAndContainerPath(
   return null;
 }
 
-export function buildIdeUrl(folderPath: string, filePath?: string): string {
+export function buildIdeUrl(
+  folderPath: string,
+  filePath?: string,
+  line?: number,
+  column?: number,
+): string {
   const folder = normalizeAbsolutePath(folderPath) || defaultWorkspacePath;
   const proj = projectSlugAndContainerPath(folder);
   const ideBaseUrl = currentIdeBaseUrl();
@@ -37,15 +42,46 @@ export function buildIdeUrl(folderPath: string, filePath?: string): string {
     url.searchParams.set("folder", proj.containerPath);
     if (filePath) {
       const f = projectSlugAndContainerPath(normalizeAbsolutePath(filePath));
-      if (f && f.slug === proj.slug) url.searchParams.set("file", f.containerPath);
+      if (f && f.slug === proj.slug) {
+        url.searchParams.set("payload", openFilePayload(url.host, f.containerPath, line, column));
+      }
     }
     return url.toString();
   }
   // Fallback: non-project paths -> host code-server.
   const url = new URL(ideBaseUrl);
   url.searchParams.set("folder", folder);
-  if (filePath) url.searchParams.set("file", normalizeAbsolutePath(filePath));
+  if (filePath) {
+    url.searchParams.set(
+      "payload",
+      openFilePayload(url.host, normalizeAbsolutePath(filePath), line, column),
+    );
+  }
   return url.toString();
+}
+
+// openFilePayload builds the VS Code web-workbench payload that makes
+// code-server open a file, optionally at line:column. code-server has no file
+// query parameter; the workbench's payload contract (openFile + gotoLineMode)
+// is what places the cursor. Mirrors the backend workspaceide service and was
+// verified against code-server 4.121.0.
+export function openFilePayload(
+  host: string,
+  absolutePath: string,
+  line?: number,
+  column?: number,
+): string {
+  const encodedPath = absolutePath.split("/").map(encodeURIComponent).join("/");
+  let fileUri = `vscode-remote://${host}${encodedPath}`;
+  const pairs: [string, string][] = [];
+  if (line && line > 0) {
+    fileUri += `:${line}`;
+    if (column && column > 0) fileUri += `:${column}`;
+    pairs.push(["openFile", fileUri], ["gotoLineMode", "true"]);
+  } else {
+    pairs.push(["openFile", fileUri]);
+  }
+  return JSON.stringify(pairs);
 }
 
 function currentIdeBaseUrl(): string {
@@ -72,11 +108,16 @@ export function internalPathOpenUrl(href: string, context: IdeLinkContext = {}):
     if (!workspaceRoot) return null;
     const rel = path.slice(containerWorkspacePath.length).replace(/^\/+/, "");
     const hostPath = rel ? `${workspaceRoot}/${rel}` : workspaceRoot;
-    return buildIdeUrl(workspaceRoot, hostPath === workspaceRoot ? undefined : hostPath);
+    return buildIdeUrl(
+      workspaceRoot,
+      hostPath === workspaceRoot ? undefined : hostPath,
+      ref.line,
+      ref.column,
+    );
   }
 
   const folder = workspaceRootFromCwd(path) || workspaceRoot || path;
-  return buildIdeUrl(folder, path === folder ? undefined : path);
+  return buildIdeUrl(folder, path === folder ? undefined : path, ref.line, ref.column);
 }
 
 export function internalPathIdeUrl(href: string, context: IdeLinkContext = {}): string | null {
