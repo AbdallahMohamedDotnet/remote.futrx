@@ -5,13 +5,31 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
+	"time"
 )
 
 type Config struct {
-	Host    string
-	Port    string
-	DataDir string
-	BaseURL string
+	Host     string
+	Port     string
+	DataDir  string
+	BaseURL  string
+	Schedule ScheduleLimits
+}
+
+// ScheduleLimits are the scheduled-task guardrails. Zero disables a limit;
+// the env values below choose conservative defaults so unattended agent runs
+// cannot take the host down.
+type ScheduleLimits struct {
+	// MinInterval is the floor between two starts of one cron task
+	// (SCHEDULE_MIN_INTERVAL, Go duration, default 5m, "0" disables).
+	MinInterval time.Duration
+	// MaxConcurrentRuns caps simultaneous scheduled runs across all chats
+	// (SCHEDULE_MAX_CONCURRENT, default 2, "0" disables).
+	MaxConcurrentRuns int
+	// MaxTasksPerProject caps standing tasks per project
+	// (SCHEDULE_MAX_TASKS_PER_PROJECT, default 20, "0" disables).
+	MaxTasksPerProject int
 }
 
 func Load() Config {
@@ -20,6 +38,11 @@ func Load() Config {
 		Port:    envDefault("PORT", "7682"),
 		DataDir: envDefault("DATA_DIR", "/opt/remote.futrx/data"),
 		BaseURL: envDefault("BASE_URL", ""),
+		Schedule: ScheduleLimits{
+			MinInterval:        envDuration("SCHEDULE_MIN_INTERVAL", 5*time.Minute),
+			MaxConcurrentRuns:  envInt("SCHEDULE_MAX_CONCURRENT", 2),
+			MaxTasksPerProject: envInt("SCHEDULE_MAX_TASKS_PER_PROJECT", 20),
+		},
 	}
 }
 
@@ -69,4 +92,32 @@ func envDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// envDuration parses a Go duration from the environment. Unset or invalid
+// values fall back to the default; an explicit "0" disables the limit.
+func envDuration(key string, def time.Duration) time.Duration {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil || parsed < 0 {
+		return def
+	}
+	return parsed
+}
+
+// envInt parses a non-negative integer from the environment. Unset or invalid
+// values fall back to the default; an explicit "0" disables the limit.
+func envInt(key string, def int) int {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed < 0 {
+		return def
+	}
+	return parsed
 }

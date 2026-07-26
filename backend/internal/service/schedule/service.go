@@ -13,6 +13,7 @@ import (
 	"time"
 
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 const (
@@ -47,6 +48,40 @@ func WithBusyRetry(delay time.Duration) Option {
 	}
 }
 
+// WithMinInterval sets the floor between two starts of the same cron task.
+// Definitions that would fire faster are rejected, and the claim path defers
+// occurrences that arrive early (e.g. after the floor was raised). Zero
+// disables the floor.
+func WithMinInterval(interval time.Duration) Option {
+	return func(s *Service) {
+		if interval >= 0 {
+			s.minInterval = interval
+		}
+	}
+}
+
+// WithMaxConcurrentRuns caps how many scheduled runs may hold claims at once
+// across all chats, bounding simultaneous container boots. Overflow follows
+// each task's overlap policy (queue or skip). Zero disables the cap. Forced
+// RunNow bypasses the cap but still counts toward it.
+func WithMaxConcurrentRuns(limit int) Option {
+	return func(s *Service) {
+		if limit >= 0 {
+			s.maxConcurrent = limit
+		}
+	}
+}
+
+// WithMaxTasksPerProject caps standing (non-terminal) tasks per project.
+// Zero disables the quota.
+func WithMaxTasksPerProject(limit int) Option {
+	return func(s *Service) {
+		if limit >= 0 {
+			s.maxTasksPerProject = limit
+		}
+	}
+}
+
 type Service struct {
 	repo       Repository
 	chats      ChatLookup
@@ -56,6 +91,10 @@ type Service struct {
 	cron       CronParser
 	now        func() time.Time
 	busyRetry  time.Duration
+
+	minInterval        time.Duration
+	maxConcurrent      int
+	maxTasksPerProject int
 
 	wake chan struct{}
 
@@ -217,16 +256,55 @@ func (s *Service) Create(
 	if err := s.validateCreationAccess(ctx, task, isAdmin); err != nil {
 		return Task{}, err
 	}
-	next, err := s.nextOccurrence(task, now)
-	if err != nil {
+	if err := s.enforceProjectQuota(ctx, task.ProjectID); err != nil {
 		return Task{}, err
 	}
-	task.NextRunAt = next.UnixMilli()
+	if input.CreatedByAgent {
+		// Agent-minted tasks are parked until a user arms them from the
+		// drawer. This is the enforced arm step: a confused or injected
+		// turn can define work but cannot put it on the clock.
+		task.CreatedByAgent = true
+		task.Enabled = false
+		task.Status = StatusPaused
+	} else {
+		next, err := s.nextOccurrence(task, now)
+		if err != nil {
+			return Task{}, err
+		}
+		task.NextRunAt = next.UnixMilli()
+	}
 	created, err := s.repo.Create(ctx, task)
 	if err == nil {
 		s.notify()
 	}
 	return created, err
+}
+
+// enforceProjectQuota bounds standing task definitions per project. Terminal
+// tasks (completed, exhausted, error) are history and do not consume quota.
+func (s *Service) enforceProjectQuota(ctx context.Context, projectID serviceproject.ID) error {
+	if s.maxTasksPerProject <= 0 {
+		return nil
+	}
+	tasks, err := s.repo.List(ctx)
+	if err != nil {
+		return err
+	}
+	standing := 0
+	for _, task := range tasks {
+		if task.ProjectID != projectID {
+			continue
+		}
+		switch task.Status {
+		case StatusCompleted, StatusExhausted, StatusError:
+			continue
+		}
+		standing++
+	}
+	if standing >= s.maxTasksPerProject {
+		return fmt.Errorf("%w (limit %d)", ErrProjectQuota, s.maxTasksPerProject)
+	}
+	return nil
 }
 
 func (s *Service) Update(
@@ -476,6 +554,28 @@ func (s *Service) claim(
 		return Task{}, false, err
 	}
 
+	// Fire-time interval floor: regardless of what the cron expression claims,
+	// two scheduled starts of one task never come closer than the floor. The
+	// occurrence is delayed, not consumed. Forced runs are a human decision
+	// and bypass the floor.
+	if !force && s.minInterval > 0 && task.LastRunAt > 0 {
+		earliest := task.LastRunAt + s.minInterval.Milliseconds()
+		if nowMS < earliest {
+			_, err := s.repo.Update(ctx, id, func(current *Task) error {
+				if current.PendingRun {
+					if current.RetryAt < earliest {
+						current.RetryAt = earliest
+					}
+				} else if current.NextRunAt > 0 && current.NextRunAt < earliest {
+					current.NextRunAt = earliest
+				}
+				current.UpdatedAt = nowMS
+				return nil
+			})
+			return Task{}, false, err
+		}
+	}
+
 	all, err := s.repo.List(ctx)
 	if err != nil {
 		return Task{}, false, err
@@ -488,8 +588,30 @@ func (s *Service) claim(
 		}
 	}
 	if chatBusy {
-		updated, updateErr := s.consumeOverlap(ctx, task, now, force)
+		updated, updateErr := s.consumeOverlap(
+			ctx, task, now, force,
+			"chat already has a scheduled run in progress",
+		)
 		return updated, false, updateErr
+	}
+
+	// Global dispatch cap: bound simultaneous scheduled runs (and the
+	// container boots they imply) across all chats. Saturation follows the
+	// task's overlap policy, so queue_one tasks fire as slots free up.
+	if !force && s.maxConcurrent > 0 {
+		active := 0
+		for _, other := range all {
+			if other.ActiveRunID != "" {
+				active++
+			}
+		}
+		if active >= s.maxConcurrent {
+			updated, updateErr := s.consumeOverlap(
+				ctx, task, now, force,
+				"scheduler is at its concurrent run limit",
+			)
+			return updated, false, updateErr
+		}
 	}
 
 	queued := task.PendingRun
@@ -546,6 +668,7 @@ func (s *Service) consumeOverlap(
 	task Task,
 	now time.Time,
 	force bool,
+	reason string,
 ) (Task, error) {
 	nowMS := now.UnixMilli()
 	return s.repo.Update(ctx, task.ID, func(current *Task) error {
@@ -574,7 +697,7 @@ func (s *Service) consumeOverlap(
 		current.LastRunAt = nowMS
 		current.LastRunEnd = nowMS
 		current.LastStatus = RunStatusSkipped
-		current.LastError = "chat already has a scheduled run in progress"
+		current.LastError = reason
 		if current.Kind == KindOnce ||
 			(current.MaxRuns > 0 && current.RunCount >= current.MaxRuns) {
 			current.Enabled = false
@@ -952,8 +1075,41 @@ func (s *Service) validateDefinition(task Task, now time.Time, requireFuture boo
 		if _, err := s.cron.Next(task.Cron, now, location); err != nil {
 			return err
 		}
+		if err := s.validateCronInterval(task.Cron, now, location); err != nil {
+			return err
+		}
 	default:
 		return ErrInvalidKind
+	}
+	return nil
+}
+
+// validateCronInterval samples successive occurrences and rejects expressions
+// that fire faster than the configured floor. Sampling is bounded (steps and
+// horizon), so pathologically rare tight pairs can slip through — the claim
+// path's fire-time deferral is the backstop that makes the floor airtight.
+func (s *Service) validateCronInterval(expr string, now time.Time, location *time.Location) error {
+	if s.minInterval <= 0 {
+		return nil
+	}
+	const sampleSteps = 32
+	horizon := now.Add(45 * 24 * time.Hour)
+	previous, err := s.cron.Next(expr, now, location)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < sampleSteps && previous.Before(horizon); i++ {
+		next, err := s.cron.Next(expr, previous, location)
+		if err != nil {
+			return err
+		}
+		if gap := next.Sub(previous); gap < s.minInterval {
+			return fmt.Errorf(
+				"%w (fires %s apart, minimum is %s)",
+				ErrIntervalTooSmall, gap, s.minInterval,
+			)
+		}
+		previous = next
 	}
 	return nil
 }

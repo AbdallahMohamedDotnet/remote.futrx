@@ -24,4 +24,7 @@ var (
 	ErrExecutorBusy      = errors.New("scheduled task chat is busy")
 	ErrTaskDisabled      = errors.New("scheduled task is disabled")
 	ErrMaxRunsReached    = errors.New("scheduled task has reached its maximum runs")
+	ErrIntervalTooSmall  = errors.New("cron schedule fires more often than the minimum interval")
+	ErrProjectQuota      = errors.New("project has reached its scheduled task limit")
+	ErrArmRequiresUser   = errors.New("arming a scheduled task requires a user")
 )

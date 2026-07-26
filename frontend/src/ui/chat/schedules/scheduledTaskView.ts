@@ -29,6 +29,21 @@ export function canResumeScheduledTask(task: ScheduledTask): boolean {
   return !task.enabled && task.status.toLowerCase() === "paused";
 }
 
+// An agent-created task that has never fired sits parked until the user arms
+// it — the enforced half of the agent-create handshake.
+export function isAwaitingArm(task: ScheduledTask): boolean {
+  return !!task.createdByAgent && !task.enabled && task.runCount === 0 &&
+    task.status.toLowerCase() === "paused";
+}
+
+// The enable/disable button's label: armed tasks pause, parked agent-created
+// tasks arm, everything else resumes.
+export function toggleActionLabel(task: ScheduledTask): string {
+  if (task.enabled) return "Pause";
+  if (isAwaitingArm(task)) return "Arm";
+  return "Resume";
+}
+
 export function formatTimestamp(timestamp?: number): string {
   if (!timestamp) return "Never";
   return new Date(timestamp).toLocaleString(undefined, {

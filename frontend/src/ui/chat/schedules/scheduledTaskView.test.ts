@@ -3,9 +3,11 @@ import test from "node:test";
 import type { ScheduledTask } from "../../../models/schedule.ts";
 import {
   canResumeScheduledTask,
+  isAwaitingArm,
   scheduleDefinition,
   scheduleRunCount,
   sortScheduledTasks,
+  toggleActionLabel,
 } from "./scheduledTaskView.ts";
 
 function task(overrides: Partial<ScheduledTask>): ScheduledTask {
@@ -55,4 +57,24 @@ test("canResumeScheduledTask only permits paused tasks", () => {
   assert.equal(canResumeScheduledTask(task({ enabled: false, status: "exhausted" })), false);
   assert.equal(canResumeScheduledTask(task({ enabled: false, status: "error" })), false);
   assert.equal(canResumeScheduledTask(task({ enabled: true, status: "paused" })), false);
+});
+
+test("isAwaitingArm flags parked agent-created tasks only", () => {
+  const parked = task({ createdByAgent: true, enabled: false, status: "paused", runCount: 0 });
+  assert.equal(isAwaitingArm(parked), true);
+  assert.equal(isAwaitingArm(task({ createdByAgent: true, enabled: true, status: "active" })), false);
+  assert.equal(
+    isAwaitingArm(task({ createdByAgent: true, enabled: false, status: "paused", runCount: 3 })),
+    false,
+  );
+  assert.equal(isAwaitingArm(task({ enabled: false, status: "paused", runCount: 0 })), false);
+});
+
+test("toggleActionLabel arms parked tasks and pauses running ones", () => {
+  assert.equal(toggleActionLabel(task({ enabled: true, status: "active" })), "Pause");
+  assert.equal(
+    toggleActionLabel(task({ createdByAgent: true, enabled: false, status: "paused", runCount: 0 })),
+    "Arm",
+  );
+  assert.equal(toggleActionLabel(task({ enabled: false, status: "paused", runCount: 2 })), "Resume");
 });

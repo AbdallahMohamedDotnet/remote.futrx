@@ -99,11 +99,16 @@ func TestEmbeddedScheduleCLIContract(t *testing.T) {
 		`request POST "/current/complete"`,
 		`request POST "/$1/run"`,
 		`request PATCH "/$1" '{"enabled":false}'`,
-		`request PATCH "/$1" '{"enabled":true}'`,
+		// Arming is reserved for the user in the drawer; the CLI must refuse
+		// resume client-side with guidance instead of calling the API.
+		"arming) a schedule is reserved for the user",
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("embedded CLI is missing %q", want)
 		}
+	}
+	if strings.Contains(content, `'{"enabled":true}'`) {
+		t.Error("embedded CLI must not be able to enable a schedule")
 	}
 }
 

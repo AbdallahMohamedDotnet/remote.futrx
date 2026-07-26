@@ -176,7 +176,7 @@ When enabled, the prompt service asks the in-memory capability registry ([`regis
 Grant properties:
 
 - Bound to owner email, chat ID, project ID (and, for scheduled fires, task + run ID).
-- **Scope `manage`** for interactive turns where the user selected the skill: create, list, pause, resume, run-now, delete — always fenced to the grant's own chat/owner/project.
+- **Scope `manage`** for interactive turns where the user selected the skill: create (disabled, pending user arm), list, pause, run-now, delete — always fenced to the grant's own chat/owner/project. Enabling (arming/resuming) is reserved for users.
 - **Scope `complete-self`** for scheduled fires: the *only* permitted call is `POST /agent-api/schedules/current/complete`. An unattended run can never mint, modify, or list schedules. This is the anti-runaway property: a compromised or confused scheduled turn cannot reproduce itself.
 - 4-hour TTL, revoked (best-effort) when the turn ends; the registry is in-memory, so a backend restart invalidates all outstanding grants.
 
@@ -194,10 +194,10 @@ Both live under `/workspace`, so they survive container replacement. All four pr
 | Route | Auth | Methods | Notes |
 | --- | --- | --- | --- |
 | `/api/chats/{id}/schedules` | session | GET, POST | Delegated from the chat handler after chat access is authorized; list is filtered to the chat. |
-| `/api/schedules/{id}` | session | PATCH, DELETE | PATCH accepts **only** `{"enabled": bool}` — pause/resume. |
+| `/api/schedules/{id}` | session | PATCH, DELETE | PATCH accepts the full definition — `name`, `prompt`, `kind`, `at`, `cron`, `timezone`, `maxRuns`, `overlapPolicy` — plus `enabled`; changed schedules revalidate and recompute their deadline. |
 | `/api/schedules/{id}/run` | session | POST | RunNow. |
-| `/agent-api/schedules` | bearer grant (`manage`) | GET, POST | Chat/project forced from the grant, never from the body. |
-| `/agent-api/schedules/{id}` | bearer grant (`manage`) | PATCH, DELETE | Target must match the grant (owner + chat + project). |
+| `/agent-api/schedules` | bearer grant (`manage`) | GET, POST | Chat/project forced from the grant, never from the body. Created tasks start **disabled** (the arm step). |
+| `/agent-api/schedules/{id}` | bearer grant (`manage`) | PATCH, DELETE | Target must match the grant. PATCH is pause-only: `{"enabled": true}` is refused (403) — arming is reserved for users, and definition edits from an agent would bypass a user's arm decision. |
 | `/agent-api/schedules/{id}/run` | bearer grant (`manage`) | POST | |
 | `/agent-api/schedules/current/complete` | bearer grant (`complete-self`) | POST | Claim-checked against the live run ID. |
 
@@ -215,12 +215,24 @@ Creation validates that the chat exists, belongs to a project, matches the claim
 
 The chat header shows a Schedules control for project chats, opening the drawer ([`ScheduleDrawer.tsx`](../../frontend/src/ui/chat/schedules/ScheduleDrawer.tsx)). It lists the chat's tasks with status, next/last run, and last error, and supports create, pause/resume, run-now, and delete over [`chatScheduleApi.ts`](../../frontend/src/api/chat/chatScheduleApi.ts).
 
+## Configuration
+
+Deployment guardrails, all env-configured with conservative defaults; an explicit `0` disables a limit:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `SCHEDULE_MIN_INTERVAL` | `5m` | Floor between two starts of one cron task. Enforced twice: create/update validation samples successive occurrences and rejects expressions that fire faster, and the claim path defers any occurrence arriving sooner than `lastRunAt + floor` (delayed, not consumed). Forced Run now bypasses the floor. |
+| `SCHEDULE_MAX_CONCURRENT` | `2` | Cap on simultaneous scheduled runs across all chats — bounds how many containers unattended fires can boot at once. Saturated occurrences follow the task's overlap policy (queue or skip) and queued tasks fire as slots free up. Forced runs bypass the cap but count toward it. |
+| `SCHEDULE_MAX_TASKS_PER_PROJECT` | `20` | Cap on standing task definitions per project. Terminal tasks (completed, exhausted, error) are history and do not consume quota. |
+
 ## Guardrails in place
 
 - Per-chat opt-in (skill selection) before any interactive turn can manage schedules.
 - Scheduled turns are `complete-self` only — no self-replication.
+- **Agent-created tasks start disabled** and must be armed by a user in the drawer; the agent API cannot enable a task, and agent PATCH cannot edit definitions.
 - Grant fencing to owner + chat + project on every agent-API call.
 - One run per chat, enforced twice (claim layer and run-hub lock); overlaps coalesce or skip, never stack.
+- **Minimum recurrence interval** with fire-time enforcement, a **global concurrent-run cap**, and a **per-project task quota** (see Configuration).
 - Fire-time re-authorization of owner and project access; permanent failures pause the task.
 - `maxRuns` bounds, 32 KiB prompt cap, 64 KiB request cap, durable claims, atomic persistence.
 
@@ -228,13 +240,9 @@ The chat header shows a Schedules control for project chats, opening the drawer 
 
 Ranked by how much they matter operationally:
 
-1. **No minimum recurrence interval.** `* * * * *` is accepted — a full agent turn every minute, unattended. The host has been taken down by runaway containers before; an interval floor (e.g. 5–15 minutes, admin-configurable) is the single most valuable missing guardrail.
-2. **No global concurrency cap or fire staggering.** N tasks across N chats can fire simultaneously and boot N containers at once. A small dispatch semaphore in the scheduler loop would bound this.
-3. **No per-project/per-user task quota.** Nothing prevents accumulating hundreds of active tasks.
-4. **No arm step for agent-created schedules.** A `manage`-scope turn creates tasks already enabled. The opt-in skill plus SKILL.md discipline ("only on explicit user request") is a prompt-level control, not an enforced one. If prompt-injection risk grows, add `enabled: false` on agent-created tasks plus a one-click arm in the drawer.
-5. **PATCH only toggles `enabled`.** Editing a task's prompt, cron, or bounds requires delete + recreate, though the service layer already supports full updates.
-6. **Session growth.** Every fire resumes the same provider session; a long-lived cron task accretes context and token cost. `--max-runs` is the current mitigation; session compaction or fresh-session-per-fire with injected summary would be the structural fix.
-7. **Marker sniffing is a fallback.** Completion detection via the last output line depends on the provider's final text surviving normalization verbatim; `complete-current` is the robust path and the skill teaches it first.
+1. **Session growth.** Every fire resumes the same provider session; a long-lived cron task accretes context and token cost. `--max-runs` is the current mitigation; session compaction or fresh-session-per-fire with injected summary would be the structural fix.
+2. **Marker sniffing is a fallback.** Completion detection via the last output line depends on the provider's final text surviving normalization verbatim; `complete-current` is the robust path and the skill teaches it first.
+3. **Interval validation is sampled.** Create-time validation samples 32 successive occurrences over a 45-day horizon, so a cron whose tight pairs are rarer than that can pass validation — the fire-time deferral in the claim path is what makes the floor airtight.
 
 ## Code map
 

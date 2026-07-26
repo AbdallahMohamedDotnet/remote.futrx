@@ -250,10 +250,7 @@ main() {
       request PATCH "/$1" '{"enabled":false}'
       ;;
     resume)
-      (( $# == 1 )) || die "resume requires exactly one schedule ID"
-      require_id "$1"
-      require_runtime
-      request PATCH "/$1" '{"enabled":true}'
+      die "resuming (arming) a schedule is reserved for the user: ask them to open the Schedules drawer and press Resume"
       ;;
     delete)
       (( $# == 1 )) || die "delete requires exactly one schedule ID"

@@ -68,6 +68,11 @@ func main() {
 		AgentContainers:   containerStack.AgentDependencies(),
 		TmuxClient:        tmuxClient,
 		ValidTmuxName:     tmuxcli.ValidName,
+		ScheduleLimits: service.ScheduleLimits{
+			MinInterval:        cfg.Schedule.MinInterval,
+			MaxConcurrentRuns:  cfg.Schedule.MaxConcurrentRuns,
+			MaxTasksPerProject: cfg.Schedule.MaxTasksPerProject,
+		},
 	})
 	if err != nil {
 		log.Fatalf("init services: %v", err)

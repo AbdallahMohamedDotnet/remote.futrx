@@ -19,6 +19,7 @@ export interface ScheduledTask {
   lastRunAt?: number;
   lastRunStatus?: string;
   lastError?: string;
+  createdByAgent?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -35,4 +36,10 @@ export interface CreateScheduledTaskInput {
 
 export interface UpdateScheduledTaskInput {
   enabled?: boolean;
+  name?: string;
+  prompt?: string;
+  at?: number;
+  cron?: string;
+  timezone?: string;
+  maxRuns?: number;
 }

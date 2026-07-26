@@ -46,6 +46,16 @@ type Dependencies struct {
 	AgentContainers   provisioning.ContainerDependencies
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
+	ScheduleLimits    ScheduleLimits
+}
+
+// ScheduleLimits mirrors the deployment's scheduled-task guardrails without
+// coupling the service layer to the config package. Zero values disable a
+// limit.
+type ScheduleLimits struct {
+	MinInterval        time.Duration
+	MaxConcurrentRuns  int
+	MaxTasksPerProject int
 }
 
 type Services struct {
@@ -149,6 +159,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		projectService,
 		authService,
 		scheduledPromptExecutor{prompts: promptService},
+		serviceschedule.WithMinInterval(deps.ScheduleLimits.MinInterval),
+		serviceschedule.WithMaxConcurrentRuns(deps.ScheduleLimits.MaxConcurrentRuns),
+		serviceschedule.WithMaxTasksPerProject(deps.ScheduleLimits.MaxTasksPerProject),
 	)
 	if err := scheduleService.Start(ctx); err != nil {
 		return Services{}, fmt.Errorf("start scheduled tasks: %w", err)

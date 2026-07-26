@@ -72,21 +72,30 @@ local timezone.
 ```
 
 Use `--max-runs` for bounded monitoring or any recurrence where unlimited
-runs are not clearly intended. Read the returned JSON and report the created
-schedule's name, timing, timezone, and ID to the user.
+runs are not clearly intended.
+
+**Schedules you create start disabled.** The backend parks every
+agent-created schedule until the user arms it from the Schedules drawer in
+the chat header. After creating one, read the returned JSON, then tell the
+user its name, timing, timezone, and ID, and ask them to open Schedules and
+press Resume to arm it. Do not treat the task as running until they do.
+
+The backend also enforces a minimum recurrence interval; if `create` is
+rejected for firing too often, widen the cron step instead of retrying.
 
 ## Manage
 
 ```sh
 /workspace/scripts/remote-schedule list
 /workspace/scripts/remote-schedule pause SCHEDULE_ID
-/workspace/scripts/remote-schedule resume SCHEDULE_ID
 /workspace/scripts/remote-schedule run-now SCHEDULE_ID
 /workspace/scripts/remote-schedule delete SCHEDULE_ID
 ```
 
 Pause is the default way to stop a schedule because it preserves its history.
-Delete only when the user explicitly asks to remove it.
+Delete only when the user explicitly asks to remove it. Enabling a schedule
+(arming or resuming) is reserved for the user in the Schedules drawer — the
+agent API cannot enable tasks, so never promise to resume one yourself.
 
 ## Complete the current standing task
 

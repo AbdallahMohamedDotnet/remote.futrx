@@ -1,9 +1,11 @@
+import type { ComponentChildren } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
-import type { ScheduledTask } from "../../../models/schedule";
+import type { ScheduledTask, UpdateScheduledTaskInput } from "../../../models/schedule";
 import {
   AlertCircle,
   CalendarClock,
+  Edit,
   Loader,
   Pause,
   Play,
@@ -14,12 +16,14 @@ import {
 import {
   canResumeScheduledTask,
   formatTimestamp,
+  isAwaitingArm,
   scheduleDefinition,
   scheduleRunCount,
   sortScheduledTasks,
+  toggleActionLabel,
 } from "./scheduledTaskView";
 
-type TaskAction = "toggle" | "run" | "delete";
+type TaskAction = "toggle" | "run" | "delete" | "save";
 
 export function ScheduleDrawer({
   chatId,
@@ -35,6 +39,7 @@ export function ScheduleDrawer({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<{ id: string; action: TaskAction } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const requestSequence = useRef(0);
   const sortedTasks = useMemo(() => sortScheduledTasks(tasks), [tasks]);
   const enabledCount = tasks.filter((task) => task.enabled).length;
@@ -45,6 +50,7 @@ export function ScheduleDrawer({
     setError(null);
     setNotice(null);
     setBusy(null);
+    setEditingId(null);
   }, [chatId]);
 
   useEffect(() => {
@@ -78,6 +84,17 @@ export function ScheduleDrawer({
   async function toggle(task: ScheduledTask) {
     await perform(task, "toggle", async () => {
       await chatApi.updateSchedule(task.id, { enabled: !task.enabled });
+      if (!task.enabled && isAwaitingArm(task)) {
+        setNotice(`Armed “${task.name}” — it is now on the clock.`);
+      }
+    });
+  }
+
+  async function saveEdit(task: ScheduledTask, changes: UpdateScheduledTaskInput) {
+    await perform(task, "save", async () => {
+      await chatApi.updateSchedule(task.id, changes);
+      setEditingId(null);
+      setNotice(`Updated “${changes.name ?? task.name}”.`);
     });
   }
 
@@ -201,9 +218,13 @@ export function ScheduleDrawer({
                   task={task}
                   busyAction={busy?.id === task.id ? busy.action : null}
                   actionsDisabled={!!busy}
+                  editing={editingId === task.id}
                   onToggle={() => void toggle(task)}
                   onRun={() => void runNow(task)}
                   onDelete={() => void remove(task)}
+                  onEditToggle={() =>
+                    setEditingId((current) => (current === task.id ? null : task.id))}
+                  onSave={(changes) => void saveEdit(task, changes)}
                 />
               ))}
             </div>
@@ -235,19 +256,27 @@ function ScheduledTaskCard({
   task,
   busyAction,
   actionsDisabled,
+  editing,
   onToggle,
   onRun,
   onDelete,
+  onEditToggle,
+  onSave,
 }: {
   task: ScheduledTask;
   busyAction: TaskAction | null;
   actionsDisabled: boolean;
+  editing: boolean;
   onToggle: () => void;
   onRun: () => void;
   onDelete: () => void;
+  onEditToggle: () => void;
+  onSave: (changes: UpdateScheduledTaskInput) => void;
 }) {
   const resumeAllowed = canResumeScheduledTask(task);
   const toggleDisabled = actionsDisabled || (!task.enabled && !resumeAllowed);
+  const awaitingArm = isAwaitingArm(task);
+  const toggleLabel = toggleActionLabel(task);
 
   return (
     <article class={`rounded-lg border px-3 py-3 ${task.enabled ? "border-white/10 bg-white/[0.035]" : "border-white/[0.07] bg-white/[0.018]"}`}>
@@ -286,17 +315,26 @@ function ScheduledTaskCard({
         </div>
       )}
 
+      {awaitingArm && (
+        <div class="mt-2 rounded-md border border-amber-400/25 bg-amber-400/[0.07] px-2.5 py-2 text-[11.5px] leading-4 text-amber-300/90">
+          Created by the agent and parked. Press Arm to put it on the clock.
+        </div>
+      )}
+
       <div class="mt-3 flex items-center gap-2">
         <button
           type="button"
           onClick={onToggle}
           disabled={toggleDisabled}
-          class="h-8 inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.04] px-2.5 text-[12px] text-ink-200 hover:bg-white/[0.08] disabled:opacity-45"
+          class={`h-8 inline-flex items-center gap-1.5 rounded-md border px-2.5 text-[12px] disabled:opacity-45
+                  ${awaitingArm
+                    ? "border-accent-green/30 bg-accent-green/[0.08] text-accent-green hover:bg-accent-green/[0.14]"
+                    : "border-white/10 bg-white/[0.04] text-ink-200 hover:bg-white/[0.08]"}`}
           title={
             task.enabled
               ? "Pause schedule"
               : resumeAllowed
-                ? "Resume schedule"
+                ? awaitingArm ? "Arm this schedule" : "Resume schedule"
                 : `${humanize(task.status || "terminal")} tasks cannot be resumed`
           }
         >
@@ -305,7 +343,7 @@ function ScheduledTaskCard({
             : task.enabled
               ? <Pause class="w-3.5 h-3.5" />
               : <Play class="w-3.5 h-3.5" />}
-          {task.enabled ? "Pause" : "Resume"}
+          {toggleLabel}
         </button>
         <button
           type="button"
@@ -319,6 +357,20 @@ function ScheduledTaskCard({
         </button>
         <button
           type="button"
+          onClick={onEditToggle}
+          disabled={actionsDisabled}
+          aria-pressed={editing}
+          class={`h-8 w-8 rounded-md border grid place-items-center disabled:opacity-45
+                  ${editing
+                    ? "border-accent-blue/35 bg-accent-blue/[0.14] text-accent-blue"
+                    : "border-white/10 bg-white/[0.03] text-ink-400 hover:bg-white/[0.08] hover:text-ink-100"}`}
+          title={editing ? "Close editor" : "Edit scheduled task"}
+          aria-label={`Edit ${task.name}`}
+        >
+          <Edit class="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
           onClick={onDelete}
           disabled={actionsDisabled}
           class="ml-auto h-8 w-8 rounded-md border border-white/10 bg-white/[0.03] text-ink-400 grid place-items-center hover:bg-accent-red/[0.08] hover:text-accent-red disabled:opacity-45"
@@ -328,8 +380,170 @@ function ScheduledTaskCard({
           {busyAction === "delete" ? <Loader class="w-3.5 h-3.5 animate-spin" /> : <Trash class="w-3.5 h-3.5" />}
         </button>
       </div>
+
+      {editing && (
+        <EditTaskForm
+          task={task}
+          saving={busyAction === "save"}
+          onCancel={onEditToggle}
+          onSave={onSave}
+        />
+      )}
     </article>
   );
+}
+
+// Inline definition editor. Only fields the user changed are sent, so an
+// untouched schedule field never resets scheduler state.
+function EditTaskForm({
+  task,
+  saving,
+  onCancel,
+  onSave,
+}: {
+  task: ScheduledTask;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: (changes: UpdateScheduledTaskInput) => void;
+}) {
+  const [name, setName] = useState(task.name);
+  const [prompt, setPrompt] = useState(task.prompt);
+  const [cron, setCron] = useState(task.cron ?? "");
+  const [at, setAt] = useState(task.at ? toLocalDateTimeInput(task.at) : "");
+  const [timezone, setTimezone] = useState(task.timezone);
+  const [maxRuns, setMaxRuns] = useState(task.maxRuns ? String(task.maxRuns) : "");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function submit(event: Event) {
+    event.preventDefault();
+    const changes: UpdateScheduledTaskInput = {};
+    if (name.trim() !== task.name) changes.name = name.trim();
+    if (prompt.trim() !== task.prompt) changes.prompt = prompt.trim();
+    if (timezone.trim() !== task.timezone) changes.timezone = timezone.trim();
+    if (task.kind === "cron" && cron.trim() !== (task.cron ?? "")) {
+      changes.cron = cron.trim();
+    }
+    if (task.kind === "once" && at) {
+      const millis = new Date(at).getTime();
+      if (Number.isNaN(millis)) {
+        setFormError("Enter a valid date and time.");
+        return;
+      }
+      if (millis !== task.at) changes.at = millis;
+    }
+    const parsedMaxRuns = maxRuns.trim() === "" ? 0 : Number(maxRuns);
+    if (!Number.isInteger(parsedMaxRuns) || parsedMaxRuns < 0) {
+      setFormError("Max runs must be a non-negative whole number.");
+      return;
+    }
+    if (parsedMaxRuns !== (task.maxRuns ?? 0)) changes.maxRuns = parsedMaxRuns;
+
+    if (Object.keys(changes).length === 0) {
+      onCancel();
+      return;
+    }
+    setFormError(null);
+    onSave(changes);
+  }
+
+  return (
+    <form onSubmit={submit} class="mt-3 space-y-2 rounded-md border border-white/[0.08] bg-black/20 p-2.5">
+      <EditField label="Name">
+        <input
+          type="text"
+          value={name}
+          onInput={(event) => setName((event.currentTarget as HTMLInputElement).value)}
+          class="h-8 w-full rounded-md border border-white/10 bg-[#0b0d11] px-2 text-[12.5px] text-ink-100 focus:outline-none focus:border-accent-blue/60"
+        />
+      </EditField>
+      <EditField label="Prompt">
+        <textarea
+          value={prompt}
+          onInput={(event) => setPrompt((event.currentTarget as HTMLTextAreaElement).value)}
+          rows={4}
+          class="w-full rounded-md border border-white/10 bg-[#0b0d11] px-2 py-1.5 text-[12.5px] leading-5 text-ink-100 focus:outline-none focus:border-accent-blue/60"
+        />
+      </EditField>
+      {task.kind === "cron" ? (
+        <EditField label="Cron (five fields)">
+          <input
+            type="text"
+            value={cron}
+            onInput={(event) => setCron((event.currentTarget as HTMLInputElement).value)}
+            placeholder="*/10 * * * *"
+            class="h-8 w-full rounded-md border border-white/10 bg-[#0b0d11] px-2 font-mono text-[12px] text-ink-100 focus:outline-none focus:border-accent-blue/60"
+          />
+        </EditField>
+      ) : (
+        <EditField label="Run at">
+          <input
+            type="datetime-local"
+            value={at}
+            onInput={(event) => setAt((event.currentTarget as HTMLInputElement).value)}
+            class="h-8 w-full rounded-md border border-white/10 bg-[#0b0d11] px-2 text-[12px] text-ink-100 focus:outline-none focus:border-accent-blue/60"
+          />
+        </EditField>
+      )}
+      <div class="grid grid-cols-2 gap-2">
+        <EditField label="Timezone">
+          <input
+            type="text"
+            value={timezone}
+            onInput={(event) => setTimezone((event.currentTarget as HTMLInputElement).value)}
+            placeholder="UTC"
+            class="h-8 w-full rounded-md border border-white/10 bg-[#0b0d11] px-2 text-[12px] text-ink-100 focus:outline-none focus:border-accent-blue/60"
+          />
+        </EditField>
+        <EditField label="Max runs (0 = unlimited)">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={maxRuns}
+            onInput={(event) => setMaxRuns((event.currentTarget as HTMLInputElement).value)}
+            placeholder="0"
+            class="h-8 w-full rounded-md border border-white/10 bg-[#0b0d11] px-2 text-[12px] text-ink-100 focus:outline-none focus:border-accent-blue/60"
+          />
+        </EditField>
+      </div>
+      {formError && (
+        <div class="text-[11.5px] text-accent-red">{formError}</div>
+      )}
+      <div class="flex items-center justify-end gap-2 pt-0.5">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          class="h-8 rounded-md border border-white/10 bg-white/[0.03] px-2.5 text-[12px] text-ink-300 hover:bg-white/[0.07] disabled:opacity-45"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          class="h-8 inline-flex items-center gap-1.5 rounded-md border border-accent-blue/35 bg-accent-blue/[0.14] px-3 text-[12px] font-medium text-accent-blue hover:bg-accent-blue/[0.2] disabled:opacity-45"
+        >
+          {saving && <Loader class="w-3.5 h-3.5 animate-spin" />}
+          Save changes
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function EditField({ label, children }: { label: string; children: ComponentChildren }) {
+  return (
+    <label class="block">
+      <span class="mb-1 block text-[10px] uppercase tracking-wide text-ink-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+// datetime-local inputs want local wall-clock time without a zone suffix.
+function toLocalDateTimeInput(timestamp: number): string {
+  const date = new Date(timestamp);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function TaskStatus({ task }: { task: ScheduledTask }) {

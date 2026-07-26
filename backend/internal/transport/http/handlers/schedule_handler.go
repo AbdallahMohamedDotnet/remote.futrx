@@ -159,7 +159,7 @@ func (h *ScheduleHandler) HandleUserResource(w http.ResponseWriter, r *http.Requ
 		httptransport.SendErr(w, http.StatusNotFound, "not found")
 		return
 	}
-	h.handleResource(w, r, id, action, callerEmail, isAdmin)
+	h.handleResource(w, r, id, action, callerEmail, isAdmin, callerKindUser)
 }
 
 func (h *ScheduleHandler) HandleAgentCollection(w http.ResponseWriter, r *http.Request) {
@@ -197,6 +197,9 @@ func (h *ScheduleHandler) HandleAgentCollection(w http.ResponseWriter, r *http.R
 		}
 		input.ChatID = grant.ChatID
 		input.ProjectID = grant.ProjectID
+		// The enforced arm step: agent-minted tasks start disabled and wait
+		// for a user to arm them from the Schedules drawer.
+		input.CreatedByAgent = true
 		task, err := h.schedules.Create(
 			r.Context(),
 			input,
@@ -255,8 +258,17 @@ func (h *ScheduleHandler) HandleAgentResource(w http.ResponseWriter, r *http.Req
 		httptransport.SendErr(w, http.StatusForbidden, "scheduled task is outside this capability")
 		return
 	}
-	h.handleResource(w, r, id, action, grant.OwnerEmail, grant.IsAdmin)
+	h.handleResource(w, r, id, action, grant.OwnerEmail, grant.IsAdmin, callerKindAgent)
 }
+
+// callerKind separates the human session API from the agent capability API so
+// agent turns keep a narrower write surface.
+type callerKind int
+
+const (
+	callerKindUser callerKind = iota
+	callerKindAgent
+)
 
 func (h *ScheduleHandler) handleAgentComplete(
 	w http.ResponseWriter,
@@ -305,12 +317,19 @@ func (h *ScheduleHandler) handleResource(
 	action string,
 	callerEmail string,
 	isAdmin bool,
+	caller callerKind,
 ) {
 	switch {
 	case action == "" && r.Method == http.MethodPatch:
-		input, err := decodeScheduleUpdate(r)
+		input, err := decodeScheduleUpdate(r, caller)
 		if err != nil {
 			httptransport.SendErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if caller == callerKindAgent && input.Enabled != nil && *input.Enabled {
+			// Arming is the human half of the agent-create handshake; an
+			// agent turn may pause but never enable.
+			sendScheduleError(w, serviceschedule.ErrArmRequiresUser)
 			return
 		}
 		task, err := h.schedules.Update(r.Context(), id, input, callerEmail, isAdmin)
@@ -372,13 +391,14 @@ func (h *ScheduleHandler) caller(r *http.Request) (string, bool, error) {
 }
 
 type scheduleCreateRequest struct {
-	Name     string               `json:"name"`
-	Prompt   string               `json:"prompt"`
-	Kind     serviceschedule.Kind `json:"kind"`
-	At       json.RawMessage      `json:"at"`
-	Cron     string               `json:"cron"`
-	Timezone string               `json:"timezone"`
-	MaxRuns  int                  `json:"maxRuns"`
+	Name     string                        `json:"name"`
+	Prompt   string                        `json:"prompt"`
+	Kind     serviceschedule.Kind          `json:"kind"`
+	At       json.RawMessage               `json:"at"`
+	Cron     string                        `json:"cron"`
+	Timezone string                        `json:"timezone"`
+	MaxRuns  int                           `json:"maxRuns"`
+	Overlap  serviceschedule.OverlapPolicy `json:"overlapPolicy"`
 }
 
 func decodeScheduleCreate(r *http.Request) (serviceschedule.CreateInput, error) {
@@ -398,20 +418,70 @@ func decodeScheduleCreate(r *http.Request) (serviceschedule.CreateInput, error) 
 		Cron:     body.Cron,
 		Timezone: body.Timezone,
 		MaxRuns:  body.MaxRuns,
+		Overlap:  body.Overlap,
 	}, nil
 }
 
-func decodeScheduleUpdate(r *http.Request) (serviceschedule.UpdateInput, error) {
-	var body struct {
-		Enabled *bool `json:"enabled"`
-	}
+type scheduleUpdateRequest struct {
+	Name     *string                        `json:"name"`
+	Prompt   *string                        `json:"prompt"`
+	Kind     *serviceschedule.Kind          `json:"kind"`
+	At       json.RawMessage                `json:"at"`
+	Cron     *string                        `json:"cron"`
+	Timezone *string                        `json:"timezone"`
+	MaxRuns  *int                           `json:"maxRuns"`
+	Overlap  *serviceschedule.OverlapPolicy `json:"overlapPolicy"`
+	Enabled  *bool                          `json:"enabled"`
+}
+
+// decodeScheduleUpdate accepts the full definition for the user API. The
+// agent capability API stays pause/resume-shaped: definition edits from an
+// agent would bypass the arm step a user granted to a different prompt.
+func decodeScheduleUpdate(
+	r *http.Request,
+	caller callerKind,
+) (serviceschedule.UpdateInput, error) {
+	var body scheduleUpdateRequest
 	if err := decodeScheduleJSON(r, &body); err != nil {
 		return serviceschedule.UpdateInput{}, err
 	}
-	if body.Enabled == nil {
-		return serviceschedule.UpdateInput{}, errors.New("enabled is required")
+	if caller == callerKindAgent {
+		if body.Enabled == nil {
+			return serviceschedule.UpdateInput{}, errors.New("enabled is required")
+		}
+		if body.Name != nil || body.Prompt != nil || body.Kind != nil ||
+			len(body.At) > 0 || body.Cron != nil || body.Timezone != nil ||
+			body.MaxRuns != nil || body.Overlap != nil {
+			return serviceschedule.UpdateInput{}, errors.New(
+				"agent updates may only pause or resume; delete and recreate to redefine",
+			)
+		}
+		return serviceschedule.UpdateInput{Enabled: body.Enabled}, nil
 	}
-	return serviceschedule.UpdateInput{Enabled: body.Enabled}, nil
+
+	input := serviceschedule.UpdateInput{
+		Name:     body.Name,
+		Prompt:   body.Prompt,
+		Kind:     body.Kind,
+		Cron:     body.Cron,
+		Timezone: body.Timezone,
+		MaxRuns:  body.MaxRuns,
+		Overlap:  body.Overlap,
+		Enabled:  body.Enabled,
+	}
+	if len(body.At) > 0 {
+		at, err := decodeScheduleAt(body.At)
+		if err != nil {
+			return serviceschedule.UpdateInput{}, err
+		}
+		input.At = &at
+	}
+	if input.Name == nil && input.Prompt == nil && input.Kind == nil &&
+		input.At == nil && input.Cron == nil && input.Timezone == nil &&
+		input.MaxRuns == nil && input.Overlap == nil && input.Enabled == nil {
+		return serviceschedule.UpdateInput{}, errors.New("no fields to update")
+	}
+	return input, nil
 }
 
 func decodeScheduleJSON(r *http.Request, target any) error {
@@ -511,50 +581,52 @@ func taskMatchesGrant(
 }
 
 type scheduleResponse struct {
-	ID            serviceschedule.ID        `json:"id"`
-	Name          string                    `json:"name"`
-	OwnerEmail    string                    `json:"ownerEmail"`
-	ProjectID     serviceproject.ID         `json:"projectId"`
-	ChatID        servicechat.ID            `json:"chatId"`
-	Prompt        string                    `json:"prompt"`
-	Kind          serviceschedule.Kind      `json:"kind"`
-	At            int64                     `json:"at,omitempty"`
-	Cron          string                    `json:"cron,omitempty"`
-	Timezone      string                    `json:"timezone"`
-	Enabled       bool                      `json:"enabled"`
-	Status        serviceschedule.Status    `json:"status"`
-	NextRunAt     int64                     `json:"nextRunAt,omitempty"`
-	RunCount      int                       `json:"runCount"`
-	MaxRuns       int                       `json:"maxRuns,omitempty"`
-	LastRunAt     int64                     `json:"lastRunAt,omitempty"`
-	LastRunStatus serviceschedule.RunStatus `json:"lastRunStatus,omitempty"`
-	LastError     string                    `json:"lastError,omitempty"`
-	CreatedAt     int64                     `json:"createdAt"`
-	UpdatedAt     int64                     `json:"updatedAt"`
+	ID             serviceschedule.ID        `json:"id"`
+	Name           string                    `json:"name"`
+	OwnerEmail     string                    `json:"ownerEmail"`
+	ProjectID      serviceproject.ID         `json:"projectId"`
+	ChatID         servicechat.ID            `json:"chatId"`
+	Prompt         string                    `json:"prompt"`
+	Kind           serviceschedule.Kind      `json:"kind"`
+	At             int64                     `json:"at,omitempty"`
+	Cron           string                    `json:"cron,omitempty"`
+	Timezone       string                    `json:"timezone"`
+	Enabled        bool                      `json:"enabled"`
+	Status         serviceschedule.Status    `json:"status"`
+	NextRunAt      int64                     `json:"nextRunAt,omitempty"`
+	RunCount       int                       `json:"runCount"`
+	MaxRuns        int                       `json:"maxRuns,omitempty"`
+	LastRunAt      int64                     `json:"lastRunAt,omitempty"`
+	LastRunStatus  serviceschedule.RunStatus `json:"lastRunStatus,omitempty"`
+	LastError      string                    `json:"lastError,omitempty"`
+	CreatedByAgent bool                      `json:"createdByAgent,omitempty"`
+	CreatedAt      int64                     `json:"createdAt"`
+	UpdatedAt      int64                     `json:"updatedAt"`
 }
 
 func newScheduleResponse(task serviceschedule.Task) scheduleResponse {
 	return scheduleResponse{
-		ID:            task.ID,
-		Name:          task.Name,
-		OwnerEmail:    task.OwnerEmail,
-		ProjectID:     task.ProjectID,
-		ChatID:        task.ChatID,
-		Prompt:        task.Prompt,
-		Kind:          task.Kind,
-		At:            task.At,
-		Cron:          task.Cron,
-		Timezone:      task.Timezone,
-		Enabled:       task.Enabled,
-		Status:        task.Status,
-		NextRunAt:     task.NextRunAt,
-		RunCount:      task.RunCount,
-		MaxRuns:       task.MaxRuns,
-		LastRunAt:     task.LastRunAt,
-		LastRunStatus: task.LastStatus,
-		LastError:     task.LastError,
-		CreatedAt:     task.CreatedAt,
-		UpdatedAt:     task.UpdatedAt,
+		ID:             task.ID,
+		Name:           task.Name,
+		OwnerEmail:     task.OwnerEmail,
+		ProjectID:      task.ProjectID,
+		ChatID:         task.ChatID,
+		Prompt:         task.Prompt,
+		Kind:           task.Kind,
+		At:             task.At,
+		Cron:           task.Cron,
+		Timezone:       task.Timezone,
+		Enabled:        task.Enabled,
+		Status:         task.Status,
+		NextRunAt:      task.NextRunAt,
+		RunCount:       task.RunCount,
+		MaxRuns:        task.MaxRuns,
+		LastRunAt:      task.LastRunAt,
+		LastRunStatus:  task.LastStatus,
+		LastError:      task.LastError,
+		CreatedByAgent: task.CreatedByAgent,
+		CreatedAt:      task.CreatedAt,
+		UpdatedAt:      task.UpdatedAt,
 	}
 }
 
@@ -579,16 +651,19 @@ func sendScheduleError(w http.ResponseWriter, err error) {
 		errors.Is(err, serviceschedule.ErrInvalidMaxRuns),
 		errors.Is(err, serviceschedule.ErrInvalidOverlap),
 		errors.Is(err, serviceschedule.ErrProjectRequired),
-		errors.Is(err, serviceschedule.ErrProjectMismatch):
+		errors.Is(err, serviceschedule.ErrProjectMismatch),
+		errors.Is(err, serviceschedule.ErrIntervalTooSmall):
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, serviceschedule.ErrNotFound),
 		errors.Is(err, serviceschedule.ErrChatNotFound):
 		httptransport.SendErr(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, serviceschedule.ErrAccessDenied),
-		errors.Is(err, serviceschedule.ErrOwnerUnregistered):
+		errors.Is(err, serviceschedule.ErrOwnerUnregistered),
+		errors.Is(err, serviceschedule.ErrArmRequiresUser):
 		httptransport.SendErr(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, serviceschedule.ErrAlreadyExists),
-		errors.Is(err, serviceschedule.ErrExecutorBusy):
+		errors.Is(err, serviceschedule.ErrExecutorBusy),
+		errors.Is(err, serviceschedule.ErrProjectQuota):
 		httptransport.SendErr(w, http.StatusConflict, err.Error())
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())

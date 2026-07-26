@@ -72,8 +72,11 @@ type Task struct {
 	LastRunEnd int64             `json:"lastRunFinishedAt,omitempty"`
 	LastStatus RunStatus         `json:"lastRunStatus,omitempty"`
 	LastError  string            `json:"lastError,omitempty"`
-	CreatedAt  int64             `json:"createdAt"`
-	UpdatedAt  int64             `json:"updatedAt"`
+	// CreatedByAgent marks tasks minted through an agent capability grant.
+	// They start disabled and require a user to arm (enable) them.
+	CreatedByAgent bool  `json:"createdByAgent,omitempty"`
+	CreatedAt      int64 `json:"createdAt"`
+	UpdatedAt      int64 `json:"updatedAt"`
 
 	// Claim fields are persisted before an agent is started. They make a
 	// process crash observable and prevent duplicate dispatch within a
@@ -98,6 +101,9 @@ type CreateInput struct {
 	Timezone  string            `json:"timezone"`
 	MaxRuns   int               `json:"maxRuns,omitempty"`
 	Overlap   OverlapPolicy     `json:"overlapPolicy,omitempty"`
+	// CreatedByAgent is set by the agent-API handler, never from request
+	// bodies. Agent-created tasks start disabled until a user arms them.
+	CreatedByAgent bool `json:"-"`
 }
 
 type UpdateInput struct {
