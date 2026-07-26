@@ -15,16 +15,17 @@ Create a project, tell an agent what you need, and review its work from your bro
 - **Persistent conversations** — resume, fork, rewind, queue prompts, and keep separate chats per project.
 - **File attachments** — drag, drop, paste, and resumably upload large files into a conversation.
 - **Live progress** — see messages, reasoning, tool calls, and usage while the agent works.
+- **Light local control surface** — a July 2026 Activity Monitor capture showed the Remote app at 58.9 MB, or 140.8 MB including every visible matched macOS helper, because the agent workspace runs on the server. See the [method and comparison](docs/01-overview/00-philosophy.md#the-local-resource-dividend).
 
 ### Project workspaces
 
-- **A separate container for every project** — tools and processes stay isolated from other projects.
+- **A separate container for every project** — tools and processes receive a project-specific namespace and durable mounts.
 - **Persistent project files** — your work survives container restarts, rebuilds, and app updates.
 - **Automatic agent setup** — agent tools and sign-in credentials are prepared inside each workspace.
 - **Browser-based IDE** — open the complete project in a full code editor.
 - **Built-in terminal** — run commands directly inside the project workspace.
-- **File manager** — search, preview, download, or export project uploads and generated media.
-- **Git history** — inspect commits and diffs, create a safety checkpoint, or return to an earlier commit.
+- **File manager** — browse, search, download, or export project files. Validated file links in chat can preview supported media inline.
+- **Git history** — inspect commits and diffs or return a clean repository to an earlier commit. The backend safety-checkpoint path exists, but its dirty-tree form is not rendered in the current UI; commit or stash through Terminal first.
 - **Project controls** — start, stop, restart, delete, inspect, and repair a workspace from the UI.
 - **Resource limits and monitoring** — manage memory limits and view CPU, memory, disk, process, and network information.
 
@@ -37,7 +38,7 @@ Create a project, tell an agent what you need, and review its work from your bro
 - **Built-in live preview** — view the running app beside the agent conversation.
 - **Element inspection** — select part of a preview and send its details back to the agent as context.
 - **Agent browser** — sign in to a website and let the agent work through a live browser session.
-- **On-demand project IDEs** — every project gets its own secure code-editor URL.
+- **On-demand project IDEs** — every project gets its own authenticated code-editor URL. The current proxy checks registered-user access, not project membership, so invited users are not mutually isolated at the IDE boundary.
 
 ```mermaid
 flowchart LR
@@ -53,15 +54,15 @@ flowchart LR
 - **Separate admin and user sign-in** — the administrator uses a local password; invited users use Google.
 - **Per-project sharing** — choose which users can access each workspace.
 - **Admin and member roles** — keep server management separate from project work.
-- **Managed project secrets** — pass API keys and environment values to agents without adding them to project files.
-- **Isolated previews** — project apps cannot read the main remote.futrx login cookies.
+- **Managed project secrets** — store API keys and environment values centrally, pass them to agent runs, persist single-line values for new container processes, and generate a managed workspace `.env` file.
+- **Cookie-isolated previews** — project apps cannot read the main remote.futrx login cookies.
 - **Key-only server access** — the installer disables SSH password login.
 
 ### Operations
 
 - **One-command installation** — install the app, dependencies, services, workspace image, and HTTPS together.
 - **One-command updates** — update the app, agent tools, and project image together.
-- **Safe workspace upgrades** — active projects are skipped and persistent files are preserved.
+- **Workspace-preserving upgrades** — project files and provider homes persist when replaceable containers are rebuilt.
 - **Automatic startup** — the app, proxy, and project containers return after a server reboot.
 - **Health checks and recovery** — installation verifies the service, while automatic network healing repairs containers that lose connectivity.
 
@@ -151,6 +152,21 @@ Run this command on the server:
 sudo bash /opt/remote.futrx/infra/update.sh
 ```
 
-The updater downloads the newest version, rebuilds the app and base image, then asks the Go workspace lifecycle to migrate agent state and replace each idle project container. Project files and Codex, Claude, and Kimi homes are persistent; active projects are skipped by default.
+The updater downloads the newest version, rebuilds the app and base image, then asks the Go workspace lifecycle to migrate agent state and replace project containers. Project files and Codex, Claude, and Kimi homes are persistent.
 
-Run the same command again later to refresh any projects that were busy during the update.
+The updater intends to skip active agent runs, but the current busy-process detector does not match every provider command shape. Until that is fixed, coordinate a maintenance window or run the updater with `--skip-workspaces` while agents are active. See [Deployment and operations](docs/04-operations/09-deployment-and-operations.md#update-flow).
+
+## Documentation
+
+- [Philosophy](docs/01-overview/00-philosophy.md) — the project-computer doctrine, capability/control split, isolation contract, and hardening roadmap
+- [Architecture](ARCHITECTURE.md) — components, data flow, and trust boundaries, with deep dives under [docs/](docs/)
+- [Threat model](docs/threat-model.md) — what the security design defends against, and what it does not
+- [Known limitations](docs/known-limitations.md) — current constraints to be aware of before deploying
+- [Contributing](CONTRIBUTING.md) — development setup and contribution process
+- [Security policy](SECURITY.md) — how to report vulnerabilities
+
+## License
+
+Copyright (c) 2026 Futrx.
+
+remote.futrx is free software, licensed under the [GNU Affero General Public License v3.0](LICENSE) (see also [NOTICE](NOTICE)). You may self-host, modify, and redistribute it under the AGPL's terms; if you offer a modified version as a network service, the AGPL requires you to make your modified source available to its users.

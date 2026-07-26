@@ -21,3 +21,12 @@
 
 # Logs
 *.log
+
+# Marketing + docs sites: deps and build outputs
+/remote.futrx.com/node_modules/
+/remote.futrx.com/dist/
+/docs.remote.futrx.com/node_modules/
+/docs.remote.futrx.com/dist/
+
+# Claude Code runtime artifacts
+/.claude/scheduled_tasks.lock
