@@ -1,172 +1,174 @@
-# remote.futrx
+<p align="center">
+  <a href="https://remote.futrx.com/">
+    <img src="docs.remote.futrx.com/static/brand/remote-futrx-on-dark.png" alt="Remote by FutrX" width="300">
+  </a>
+</p>
 
-remote.futrx is a self-hosted workspace for **Claude Code, Codex, and Kimi Code**.
+<h1 align="center">Give every AI project its own computer.</h1>
 
-Create a project, tell an agent what you need, and review its work from your browser. Chat, files, Git history, a terminal, a code editor, and live app previews are all included. Each project runs in a separate workspace.
+<p align="center">
+  Run Codex, Claude Code, and Kimi in separate, always-on Linux workspaces on your own server.
+  Use everything from one browser: chat, IDE, terminal, files, Git, live previews, and a shared browser.
+</p>
 
-## Features
+<p align="center">
+  <a href="https://remote.futrx.com/"><strong>Website</strong></a>
+  ·
+  <a href="https://docs.remote.futrx.com/"><strong>Documentation</strong></a>
+  ·
+  <a href="#quick-start"><strong>Install</strong></a>
+  ·
+  <a href="https://github.com/futrx-com/remote.futrx.com/issues"><strong>Roadmap</strong></a>
+</p>
 
-### AI workspace
+![Remote showing an AI conversation beside the application it built](docs/assets/readme/live-preview.webp)
 
-- **Claude, Codex, and Kimi together** — switch agents without switching tools.
-- **Model and reasoning controls** — choose the model, effort, and working mode for each chat.
-- **Purpose-built modes** — Chat, Plan, Code, Review, Debug, and Full Auto.
-- **Reusable skills** — give agents extra workflows and project-specific instructions.
-- **Persistent conversations** — resume, fork, rewind, queue prompts, and keep separate chats per project.
-- **File attachments** — drag, drop, paste, and resumably upload large files into a conversation.
-- **Live progress** — see messages, reasoning, tool calls, and usage while the agent works.
-- **Light local control surface** — a July 2026 Activity Monitor capture showed the Remote app at 58.9 MB, or 140.8 MB including every visible matched macOS helper, because the agent workspace runs on the server. See the [method and comparison](docs/01-overview/00-philosophy.md#the-local-resource-dividend).
+## What is Remote?
 
-### Project workspaces
+Remote is an open-source, self-hosted home for AI coding agents.
 
-- **A separate container for every project** — tools and processes receive a project-specific namespace and durable mounts.
-- **Persistent project files** — your work survives container restarts, rebuilds, and app updates.
-- **Automatic agent setup** — agent tools and sign-in credentials are prepared inside each workspace.
-- **Browser-based IDE** — open the complete project in a full code editor.
-- **Built-in terminal** — run commands directly inside the project workspace.
-- **File manager** — browse, search, download, or export project files. Validated file links in chat can preview supported media inline.
-- **Git history** — inspect commits and diffs or return a clean repository to an earlier commit. The backend safety-checkpoint path exists, but its dirty-tree form is not rendered in the current UI; commit or stash through Terminal first.
-- **Project controls** — start, stop, restart, delete, inspect, and repair a workspace from the UI.
-- **Resource limits and monitoring** — manage memory limits and view CPU, memory, disk, process, and network information.
+Think of every project as its own server-side computer:
 
-### Automatic previews and domains
+- It has a durable workspace, processes, ports, settings, and agent sessions.
+- Codex, Claude Code, and Kimi can work in the same project without moving files between tools.
+- The work keeps running on your server when you close your laptop.
+- You can watch, review, edit, restart, or take over from any browser.
 
-- **Automatic port discovery** — remote.futrx finds web apps running inside a project.
-- **Auto-generated subdomains** — an app on port `3000` becomes `project--3000.dev.remote.example.com`.
-- **Automatic HTTPS certificates** — Caddy creates and renews SSL certificates for the app, IDEs, and preview URLs.
-- **No proxy setup per app** — start a server in the workspace and open its generated URL.
-- **Built-in live preview** — view the running app beside the agent conversation.
-- **Element inspection** — select part of a preview and send its details back to the agent as context.
-- **Agent browser** — sign in to a website and let the agent work through a live browser session.
-- **On-demand project IDEs** — every project gets its own authenticated code-editor URL. The current proxy checks registered-user access, not project membership, so invited users are not mutually isolated at the IDE boundary.
+Remote is not another AI model. It gives the models you already use a complete place to work.
+
+## A quick tour
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/readme/create-project.webp" alt="Creating a new isolated project in Remote">
+      <br>
+      <strong>1. Create a project</strong><br>
+      Remote prepares a separate Linux workspace with its own files, processes, ports, and agent homes.
+    </td>
+    <td width="50%">
+      <img src="docs/assets/readme/parallel-agents.webp" alt="Multiple AI agents working in parallel in Remote">
+      <br>
+      <strong>2. Run agents in parallel</strong><br>
+      Keep several chats moving while every agent works against the same project state.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/readme/browser-ide.webp" alt="Remote project opened in its browser IDE">
+      <br>
+      <strong>3. Inspect the real workspace</strong><br>
+      Open the project in the browser IDE, terminal, file manager, or Git history.
+    </td>
+    <td width="50%">
+      <img src="docs/assets/readme/agent-browser.webp" alt="Remote agent browser with human takeover">
+      <br>
+      <strong>4. Share the browser</strong><br>
+      Watch the agent use a headed browser, then take control for sign-in or human judgment.
+    </td>
+  </tr>
+</table>
+
+See the continuous five-step product tour at [remote.futrx.com](https://remote.futrx.com/#product-tour).
+
+## What you get
+
+- **One project computer per project** — an unprivileged LXC container with durable files and agent homes.
+- **Your choice of agent** — use Codex, Claude Code, or Kimi with model, reasoning, and mode controls.
+- **A complete development surface** — chat, browser IDE, root terminal, files, uploads, Git history, and reusable skills.
+- **Live applications** — Remote finds listening ports, creates project URLs, adds HTTPS, and shows the app beside the conversation.
+- **A browser agents and humans can share** — let an agent browse visually, watch it work, or take over the same session.
+- **Controls outside the workspace** — manage access, secrets, CPU, memory, lifecycle, and recovery from the Remote host.
+
+## How it works
 
 ```mermaid
 flowchart LR
-    A["Your app starts on port 3000"] --> B["remote.futrx detects it"]
-    B --> C["A project subdomain is generated"]
-    C --> D["HTTPS is added automatically"]
-    D --> E["Open the live preview"]
+    A["You<br>any browser"] --> B["Remote host<br>identity, routing, lifecycle"]
+    B --> C["Project computer<br>one unprivileged LXC container"]
+    C --> D["Codex · Claude · Kimi"]
+    C --> E["IDE · terminal · Git · files"]
+    C --> F["Browser · apps · HTTPS previews"]
 ```
 
-### Access and security
+The project computer is the capability boundary: agents can install tools, run servers, use Git, and browse inside it. The Remote host keeps authentication, routing, membership, and container lifecycle controls outside that boundary.
 
-- **Self-hosted** — the application and project workspaces run on your server.
-- **Separate admin and user sign-in** — the administrator uses a local password; invited users use Google.
-- **Per-project sharing** — choose which users can access each workspace.
-- **Admin and member roles** — keep server management separate from project work.
-- **Managed project secrets** — store API keys and environment values centrally, pass them to agent runs, persist single-line values for new container processes, and generate a managed workspace `.env` file.
-- **Cookie-isolated previews** — project apps cannot read the main remote.futrx login cookies.
-- **Key-only server access** — the installer disables SSH password login.
+## Quick start
 
-### Operations
-
-- **One-command installation** — install the app, dependencies, services, workspace image, and HTTPS together.
-- **One-command updates** — update the app, agent tools, and project image together.
-- **Workspace-preserving upgrades** — project files and provider homes persist when replaceable containers are rebuilt.
-- **Automatic startup** — the app, proxy, and project containers return after a server reboot.
-- **Health checks and recovery** — installation verifies the service, while automatic network healing repairs containers that lose connectivity.
-
-```mermaid
-flowchart LR
-    A["Create a project"] --> B["Choose an agent"]
-    B --> C["Describe what you need"]
-    C --> D["Review the result"]
-    D --> E["Preview or improve it"]
-    E --> C
-```
-
-## How to use it
-
-1. Open your remote.futrx website and sign in.
-2. Go to **Settings → Agents** and connect Claude, ChatGPT, or Kimi.
-3. Select **New project** and enter a name.
-4. Create a chat and choose an agent.
-5. Describe what you want in normal language.
-6. Review the result in chat, the IDE, the terminal, or the browser preview.
-
-## Installation
-
-### Requirements
-
-You need:
+### What you need
 
 - A fresh Ubuntu or Debian server
 - Root or `sudo` access
-- A domain name, such as `remote.example.com`
+- A domain name
 - A working SSH key
 - Ports 80 and 443 open
 
-> The installer disables SSH password login. Confirm that your SSH key works before running it.
+> [!IMPORTANT]
+> The installer disables SSH password login. Confirm that key-based SSH access works before you run it.
 
-### 1. Set up DNS
+### 1. Point DNS to the server
 
-Point these names to your server's public IP address:
+For a base domain such as `remote.example.com`, create these records:
 
-| DNS name | Used for |
+| DNS name | Purpose |
 | --- | --- |
-| `remote.example.com` | Main app |
-| `code.remote.example.com` | Code editor |
-| `*.code.remote.example.com` | Project code editors |
-| `*.dev.remote.example.com` | Project app previews |
+| `remote.example.com` | Remote web app |
+| `code.remote.example.com` | Browser IDE |
+| `*.code.remote.example.com` | Per-project browser IDEs |
+| `*.dev.remote.example.com` | Per-project application previews |
 
-Replace `remote.example.com` with your real domain in every step below.
+### 2. Install Remote
 
-### 2. Run the installer
-
-Connect to your server, then run:
+Connect to the server and run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/futrx-com/remote.futrx.com/main/infra/install.sh \
   | sudo bash -s -- remote.example.com
 ```
 
-The installer downloads the app, installs its requirements, builds it, starts the services, and enables HTTPS. The app is installed in `/opt/remote.futrx`.
+Replace `remote.example.com` with your real domain. The installer downloads Remote, installs its dependencies, builds the workspace image, starts the services, and enables HTTPS.
 
-### 3. Create the administrator
+### 3. Create your first project
 
-Visit:
+1. Visit `https://remote.example.com`.
+2. Create the administrator account.
+3. Open **Settings → Agents** and connect Codex, Claude Code, or Kimi.
+4. Select **New project**.
+5. Start a chat and describe what you want in normal language.
 
-```text
-https://remote.example.com
-```
+Remote will show the agent's progress. When the work is ready, review it in the chat, IDE, terminal, file manager, Git history, or live preview.
 
-Create the administrator with your email and a password of at least 12 characters. The password is stored only as a secure one-way hash.
+## Security in plain language
 
-Then connect at least one provider: Claude, Codex, or Kimi. You can add the others later from **Settings → Agents**.
+Remote is designed to reduce the blast radius of agent work, not to promise an air gap:
 
-To invite users, open **Settings → Users** and add your Google OAuth client ID and secret first. Google sign-in is used only for invited users, not for the administrator.
+- Projects use separate unprivileged LXC containers, but they share the host kernel.
+- The host administrator can access project data and controls.
+- Secrets given to a project are readable by agents working in that project.
+- Durable storage survives routine container replacement, but it is not a backup.
 
-```mermaid
-flowchart LR
-    A["Prepare the server and DNS"] --> B["Run the installer"]
-    B --> C["Create the administrator"]
-    C --> D["Connect at least one AI provider"]
-    D --> E["Create your first project"]
-```
+Before using Remote with valuable code or credentials, read the [threat model](docs/threat-model.md), [known limitations](docs/known-limitations.md), and [security policy](SECURITY.md).
 
 ## Updating
 
-Run this command on the server:
+Run on the Remote server:
 
 ```bash
 sudo bash /opt/remote.futrx/infra/update.sh
 ```
 
-The updater downloads the newest version, rebuilds the app and base image, then asks the Go workspace lifecycle to migrate agent state and replace project containers. Project files and Codex, Claude, and Kimi homes are persistent.
+The updater rebuilds the app and project image while preserving project files and provider homes. Coordinate a maintenance window, or use `--skip-workspaces`, when agents are actively running. See [Deployment and operations](docs/04-operations/09-deployment-and-operations.md#update-flow) for details.
 
-The updater intends to skip active agent runs, but the current busy-process detector does not match every provider command shape. Until that is fixed, coordinate a maintenance window or run the updater with `--skip-workspaces` while agents are active. See [Deployment and operations](docs/04-operations/09-deployment-and-operations.md#update-flow).
+## Learn more
 
-## Documentation
-
-- [Philosophy](docs/01-overview/00-philosophy.md) — the project-computer doctrine, capability/control split, isolation contract, and hardening roadmap
-- [Architecture](ARCHITECTURE.md) — components, data flow, and trust boundaries, with deep dives under [docs/](docs/)
-- [Threat model](docs/threat-model.md) — what the security design defends against, and what it does not
-- [Known limitations](docs/known-limitations.md) — current constraints to be aware of before deploying
-- [Contributing](CONTRIBUTING.md) — development setup and contribution process
-- [Security policy](SECURITY.md) — how to report vulnerabilities
+- [Documentation](https://docs.remote.futrx.com/) — operator and user guides
+- [System architecture](ARCHITECTURE.md) — components, data flow, and trust boundaries
+- [Project philosophy](docs/01-overview/00-philosophy.md) — why Remote treats each project as a computer
+- [Contributing](CONTRIBUTING.md) — local development and contribution workflow
+- [Issue tracker](https://github.com/futrx-com/remote.futrx.com/issues) — bugs, ideas, and roadmap
 
 ## License
 
-Copyright (c) 2026 Futrx.
+Copyright © 2026 FutrX.
 
-remote.futrx is free software, licensed under the [GNU Affero General Public License v3.0](LICENSE) (see also [NOTICE](NOTICE)). You may self-host, modify, and redistribute it under the AGPL's terms; if you offer a modified version as a network service, the AGPL requires you to make your modified source available to its users.
+Remote is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). You may self-host, modify, and redistribute it under the AGPL's terms. If you offer a modified version as a network service, the AGPL requires you to make the modified source available to its users.
