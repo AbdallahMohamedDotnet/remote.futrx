@@ -13,6 +13,9 @@ crashed processes, and deleted files stay within this project.
   project-specific provider homes. The host mounts and manages these paths so
   provider configuration, authentication, and session state survive container
   replacement. Keep project artifacts in `/workspace`, not in these homes.
+- Antigravity stores its project sign-in under
+  `/root/.gemini/antigravity-cli`. It survives a normal stop/start, but it is
+  not a durable mount and is lost when the container is replaced.
 - `/root/.claude/CLAUDE.md` AND `/root/.codex/AGENTS.md` - this file
   (identical content, two paths so both Claude and Codex pick it up).
   The host re-pushes both whenever the template changes; don't edit
@@ -33,7 +36,7 @@ crashed processes, and deleted files stay within this project.
 ## Pre-installed tools
 
 `git`, `gh`, `openssh-client`, `jq`, `build-essential`,
-`python3` + `pip`, `node 22` + `npm`, `claude`, `codex`, `kimi`. Anything else:
+`python3` + `pip`, `node 22` + `npm`, `claude`, `codex`, `kimi`, `agy`. Anything else:
 `apt-get install` or `npm i -g` freely.
 
 **Persistence rule.** `/workspace/**` and the three provider homes listed
@@ -105,6 +108,23 @@ Two rules to make it work:
 
 After you start a server, tell the user the public URL, not
 `http://localhost:<port>`.
+
+### "Create a site" means create it here — not on third-party hosting
+
+When the user asks you to build a site or web app — static, full-stack,
+anything — build it in `/workspace` and serve it from this container.
+The dev-server URL above is already on the public internet: that IS the
+link you hand back, no external hosting required. Full-stack works here
+too — run the backend on another port and `apt-get install`
+postgres/redis/whatever you need.
+
+**Do not deploy to third-party platforms** (Vercel, Netlify, Cloudflare
+Pages/Workers, GitHub Pages, Render, Fly.io, Railway, Firebase, …)
+unless the user explicitly asks for that service. External platforms
+mean accounts, tokens, DNS, and billing the user didn't ask to touch.
+If you think the project has outgrown the dev server, say so and let
+the user decide — never sign up for or provision outside hosting on
+your own.
 
 ### Multi-line secrets (SSH keys, JSON service accounts, PEM certs)
 
