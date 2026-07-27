@@ -28,6 +28,7 @@ type HostInfo struct {
 	UptimeSec        int64  `json:"uptimeSec,omitempty"`
 	BootedAt         int64  `json:"bootedAt,omitempty"`
 	ServiceUptimeSec int64  `json:"serviceUptimeSec"`
+	AppVersion       string `json:"appVersion"`
 	GoVersion        string `json:"goVersion"`
 	DataPath         string `json:"dataPath"`
 	WorkspacePath    string `json:"workspacePath"`

@@ -70,6 +70,11 @@ export function ServerInfoSettings({
               <div class="text-[14.5px] font-semibold text-ink-50">
                 {info.host.hostname || "Parent server"}
               </div>
+              {info.host.appVersion && (
+                <span class="text-[11px] font-mono text-ink-300 bg-white/[0.06] border border-white/10 rounded px-1.5 py-0.5">
+                  {info.host.appVersion}
+                </span>
+              )}
               <span class="inline-flex items-center gap-1.5 text-[11px] text-accent-green">
                 <span class="w-1.5 h-1.5 rounded-full bg-accent-green" /> Connected
               </span>
@@ -132,6 +137,7 @@ export function ServerInfoSettings({
           <InfoField label="Operating system" value={info.host.platform || info.host.os} />
           <InfoField label="Architecture" value={info.host.architecture} mono />
           <InfoField label="Kernel" value={info.host.kernel || "Unavailable"} mono />
+          <InfoField label="App version" value={info.host.appVersion || "—"} mono />
           <InfoField label="Go runtime" value={info.host.goVersion} mono />
           <InfoField label="Host uptime" value={formatDuration(info.host.uptimeSec)} />
           <InfoField label="Service uptime" value={formatDuration(info.host.serviceUptimeSec)} />

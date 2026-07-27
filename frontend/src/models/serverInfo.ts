@@ -17,6 +17,7 @@ export interface ServerHostInfo {
   uptimeSec?: number;
   bootedAt?: number;
   serviceUptimeSec: number;
+  appVersion: string;
   goVersion: string;
   dataPath: string;
   workspacePath: string;

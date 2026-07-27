@@ -93,7 +93,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	serverInfoService := serviceserverinfo.New(hostinfo.New(), cfg.DataDir, fileproject.WorkspaceRoot)
+	serverInfoService := serviceserverinfo.New(hostinfo.New(), version.Version, cfg.DataDir, fileproject.WorkspaceRoot)
 	selfUpdateService := serviceselfupdate.New(version.Version, cfg.InstallDir, cfg.DataDir, updatecli.New())
 	workspaceFileService := serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore())
 	gitHistoryService := servicegithistory.New(gitcli.NewHistoryClient())
