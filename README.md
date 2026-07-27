@@ -7,7 +7,7 @@
 <h1 align="center">Give every AI project its own computer.</h1>
 
 <p align="center">
-  Run Codex, Claude Code, and Kimi in separate, always-on Linux workspaces on your own server.
+  Run Codex, Claude Code, Kimi, and Antigravity in separate, always-on Linux workspaces on your own server.
   Use everything from one browser: chat, IDE, terminal, files, Git, live previews, and a shared browser.
 </p>
 
@@ -30,7 +30,7 @@ Remote is an open-source, self-hosted home for AI coding agents.
 Think of every project as its own server-side computer:
 
 - It has a durable workspace, processes, ports, settings, and agent sessions.
-- Codex, Claude Code, and Kimi can work in the same project without moving files between tools.
+- Codex, Claude Code, Kimi, and Antigravity can work in the same project without moving files between tools.
 - The work keeps running on your server when you close your laptop.
 - You can watch, review, edit, restart, or take over from any browser.
 
@@ -74,10 +74,11 @@ See the continuous five-step product tour at [remote.futrx.com](https://remote.f
 ## What you get
 
 - **One project computer per project** — an unprivileged LXC container with durable files and agent homes.
-- **Your choice of agent** — use Codex, Claude Code, or Kimi with model, reasoning, and mode controls.
+- **Your choice of agent** — use Codex, Claude Code, Kimi, or Antigravity with provider-specific model and reasoning controls.
 - **A complete development surface** — chat, browser IDE, root terminal, files, uploads, Git history, and reusable skills.
 - **Live applications** — Remote finds listening ports, creates project URLs, adds HTTPS, and shows the app beside the conversation.
 - **A browser agents and humans can share** — let an agent browse visually, watch it work, or take over the same session.
+- **Scheduled work** — let a project chat run a one-time or recurring prompt later, even when your browser is closed.
 - **Controls outside the workspace** — manage access, secrets, CPU, memory, lifecycle, and recovery from the Remote host.
 
 ## How it works
@@ -86,7 +87,7 @@ See the continuous five-step product tour at [remote.futrx.com](https://remote.f
 flowchart LR
     A["You<br>any browser"] --> B["Remote host<br>identity, routing, lifecycle"]
     B --> C["Project computer<br>one unprivileged LXC container"]
-    C --> D["Codex · Claude · Kimi"]
+    C --> D["Codex · Claude · Kimi · Antigravity"]
     C --> E["IDE · terminal · Git · files"]
     C --> F["Browser · apps · HTTPS previews"]
 ```

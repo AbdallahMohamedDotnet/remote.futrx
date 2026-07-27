@@ -14,6 +14,21 @@ Severity reflects impact **and** precondition. Note the platform's baseline trus
 
 These are deliberate design decisions, not bugs. The threats below are about what follows from them.
 
+### Scheduled execution scope
+
+Scheduled tasks extend project-agent authority beyond an open browser session,
+so an armed task should be treated as unattended code execution with the same
+project files, secrets, network access, and provider identity as an interactive
+turn. The current design narrows that authority in several ways: agent-created
+tasks start paused until a user arms them; interactive schedule grants are
+fenced to one owner, chat, and project; scheduled fires receive only a
+claim-bound `complete-self` grant and cannot create or modify schedules; and
+the service applies recurrence, concurrency, and per-project task limits.
+Operators should still use bounded `maxRuns`, narrowly scoped project secrets,
+and the same egress and credential controls recommended below. See
+[Scheduled tasks](02-workspaces/06-scheduled-tasks.md) for the complete state
+machine and guardrails.
+
 ## Summary of findings
 
 | # | Threat | Boundary | STRIDE | Severity | Verified |

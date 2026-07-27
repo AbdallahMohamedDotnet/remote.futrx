@@ -213,7 +213,7 @@ Creation validates that the chat exists, belongs to a project, matches the claim
 
 ## Frontend
 
-The chat header shows a Schedules control for project chats, opening the drawer ([`ScheduleDrawer.tsx`](../../frontend/src/ui/chat/schedules/ScheduleDrawer.tsx)). It lists the chat's tasks with status, next/last run, and last error, and supports create, pause/resume, run-now, and delete over [`chatScheduleApi.ts`](../../frontend/src/api/chat/chatScheduleApi.ts).
+The chat header shows a Schedules control for project chats, opening the drawer ([`ScheduleDrawer.tsx`](../../frontend/src/ui/chat/schedules/ScheduleDrawer.tsx)). The current creation path is conversational: select the Scheduled Tasks skill and ask the agent to create the task. The drawer lists tasks with status, next/last run, owner, and last error, and lets the user arm, pause/resume, edit, run now, refresh, or delete them over [`chatScheduleApi.ts`](../../frontend/src/api/chat/chatScheduleApi.ts).
 
 ## Configuration
 

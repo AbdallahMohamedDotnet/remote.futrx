@@ -29,7 +29,7 @@ This is the compact inventory of current Remote behavior. “Page” means the l
 
 | Feature | How to use it | Important behavior |
 | --- | --- | --- |
-| Provider | Choose **Codex**, **Claude**, or **Kimi** | Cannot change while streaming |
+| Provider | Choose **Codex**, **Claude**, **Kimi**, or **Antigravity** | Cannot change while streaming |
 | Model | Open **Model** and select a provider model or Auto | Stored per chat |
 | Thinking | Select Auto, None/Minimal where supported, or Low through Ultra | Provider-dependent |
 | Speed | Select Codex Auto, Default, Priority, or Fast | Codex only; model/provider may gate it |
@@ -40,9 +40,9 @@ This is the compact inventory of current Remote behavior. “Page” means the l
 | Drag attachment | Drag files over the composer | Same upload path |
 | Paste image | Paste image clipboard data into the composer | Same upload path |
 | Attachment chips | Monitor or remove before sending | Saved file path is added to prompt |
-| Prompt text | Type the instruction; Shift+Enter adds a line | Draft survives chat switching, not reload |
+| Prompt text | Type the instruction; Shift+Enter adds a line | Draft survives chat switching and same-tab reloads |
 | Send | Press Enter or use the arrow | One active run per chat |
-| Queue | Send while streaming | Browser-memory queue; not durable |
+| Queue | Send while streaming | Per-tab `sessionStorage`; not a server-side job |
 | Remove queued prompt | Use **×** on a queue chip | Before it auto-sends |
 | Cancel | Use the red square or Escape while running | Cancels active provider context |
 
@@ -69,21 +69,26 @@ The placeholder mentions `@` files and `/` commands, but the current source has 
 | Rewind | Deletes the selected point and later events; next run starts fresh |
 | Fork | Copies visible history; provider-specific session fork happens on next run |
 | Error block | Run and transport failures render in the thread |
+| Schedules drawer | Project-chat header lists, edits, arms, pauses, runs, and deletes scheduled tasks |
 
 There is no approval workflow in the current chat transport. Project agents run with provider approval/sandbox bypasses inside the project container.
 
 ## Providers and current differences
 
-| Capability | Claude | Codex | Kimi |
-| --- | ---: | ---: | ---: |
-| Host-wide interactive sign-in | Authorization URL and pasted code | Device flow | Device flow |
-| Model picker | Yes | Yes | Auto only |
-| Thinking control | Yes | Yes | No current options |
-| Speed/service tier | No | Yes | No |
-| Usage telemetry | Yes | Yes | No |
-| Provider session fork | Yes | Yes, rollout clone | No; starts fresh |
-| Selected skill trigger | Yes | Yes | Stored but not injected |
-| Browser MCP | Yes | Yes | No equivalent plumbing |
+| Capability | Claude | Codex | Kimi | Antigravity |
+| --- | ---: | ---: | ---: | ---: |
+| Sign-in | Host authorization URL and pasted code | Host device flow | Host device flow | Run `agy` in each project Terminal |
+| Model picker | Yes | Yes | Auto only | Auto only |
+| Thinking control | Yes | Yes | No current options | Auto, Low, Medium, High |
+| Speed/service tier | No | Yes | No | No |
+| Usage telemetry | Yes | Yes | No | No |
+| Provider session fork | Yes | Yes, rollout clone | No; starts fresh | No; starts fresh |
+| Selected skill trigger | Yes | Yes | Stored but not injected | Scheduled Tasks only |
+| Browser MCP | Yes | Yes | No equivalent plumbing | No equivalent plumbing |
+| Structured tool stream | Yes | Yes | Yes | No; plain streamed text |
+
+Antigravity's project-local `/root/.gemini` state survives stop/start but not
+container replacement.
 
 ## Workspace tools
 
@@ -97,11 +102,37 @@ There is no approval workflow in the current chat transport. Project agents run 
 | Open Browser | Choose **Open Browser** | Preview or Agent Browser |
 | Refresh Files | Use the drawer refresh control | Reloads root |
 | Expand folder | Select folder row | Lazy-loads children |
+| Open file | Select a file or search result | Supported media opens in-app; other non-archives open in IDE; unsupported media/archives download |
 | Search filenames | Type at least two characters | 300 results; 200,000 visited-entry cap |
 | Download file | Hover a file and choose download | Direct file response |
 | Download folder | Hover a folder and choose download | ZIP up to 1 GiB; two concurrent |
-| Inline media link | Open a supported workspace link from chat | Images, audio, video, PDF allowlist |
-| IDE file link | Open a validated workspace path from chat | Path-contained redirect |
+| Inline media link | Open a supported workspace link from chat | Images, audio, video, PDF allowlist and full-screen viewer |
+| IDE file link | Open a validated workspace path from chat or Files | Path-contained redirect with optional exact `:line[:column]` |
+
+The **History** button is hidden until Remote discovers at least one repository.
+It checks again after every completed run. The diff view groups files into
+collapsible cards with line-number gutters, hunk headers, change counts, and
+new/deleted/binary badges; unparseable patches fall back to raw text.
+
+## Scheduled tasks
+
+| Feature | How to use it | Important behavior |
+| --- | --- | --- |
+| Create | Select **Scheduled Tasks** skill and explicitly ask the agent | Agent-created tasks start paused |
+| Arm | Open **Schedules** and select **Arm** | Human review is required before the first automatic run |
+| One-time timing | Ask for an exact time with timezone | One successful occurrence |
+| Recurring timing | Ask for five-field cron plus IANA timezone | Default minimum interval is 5 minutes |
+| Edit | Open the task editor | Name, prompt, time/cron, timezone, max runs |
+| Pause or resume | Use the task's primary control | Only paused tasks can resume |
+| Run now | Use **Run now** | Does not move the normal deadline |
+| Delete | Use the trash control and confirm | Removes definition and run history |
+| Observe | Read next/last run, result, count, owner, and error | Runs appear as ordinary turns in the chat transcript |
+| Complete standing task | Agent calls the scoped completion command during a scheduled run | Stops future runs and retains history |
+
+Schedules exist only for project chats. Members see and manage their own tasks;
+admins can see and manage all tasks. Defaults are 20 standing tasks per
+project and two concurrent scheduled runs server-wide. Busy occurrences
+coalesce into one follow-up under the default overlap policy.
 
 ## App preview and inspection
 
@@ -141,7 +172,7 @@ There is one fixed 1366×768 browser session per project, unrestricted network e
 | Select repository | Use repository picker | Shows path and dirty/clean state |
 | List commits | Select repository | UI asks for 100; backend caps at 200 |
 | View commit | Select a commit | Shows subject, author, date, SHA |
-| View diff | Select a commit | Truncates at 768 KiB |
+| View diff | Select a commit | Structured per-file view; truncates at 768 KiB |
 | Refresh | Use refresh control | Re-discovers repository state |
 | Switch commit | Select a commit and choose **Switch** on a clean tree | Detached HEAD checkout |
 | Safety checkpoint backend | Checkout API accepts a checkpoint message | Backend stages all, commits, then switches; current drawer does not render the required dirty-tree form |
@@ -162,7 +193,7 @@ Resource defaults are 6 CPUs, 4 GiB memory, and 2,000 processes. Admins alone ma
 | Tab | Features |
 | --- | --- |
 | Appearance | System, Dark, Light |
-| Agents | Admin sign-in/status/refresh for Claude, Codex, Kimi |
+| Agents | Admin sign-in/status/refresh for host-wide Claude, Codex, Kimi |
 | Users | Google OAuth configuration; add/remove users; member/admin roles |
 | Info | Host CPU, memory, disks, network, OS/runtime, process, paths, role |
 
@@ -176,11 +207,13 @@ Resource defaults are 6 CPUs, 4 GiB memory, and 2,000 processes. Admins alone ma
 | Provider homes | Yes | Yes |
 | Project secrets | Yes | Yes |
 | Agent Browser profile | Yes | Yes |
+| Scheduled-task definitions and run state | Yes | Yes |
+| Antigravity sign-in and conversation state | Yes, until container replacement | No |
 | Container root filesystem additions | Yes until replacement | No |
 | Active run control and event streaming | No; an `lxc exec` child can remain alive but orphaned after backend restart | No reattachment |
 | Active Terminal PTY | No | No |
-| Composer draft | No | Not applicable |
-| Prompt queue | No | Not applicable |
+| Composer draft | Yes, in the same browser tab session | Not applicable |
+| Prompt queue | Yes, in the same browser tab session | Not applicable |
 | Active chat and open drawers | No | Not applicable |
 | Sidebar width/collapse and Browser drawer width | Yes, in the same browser | Yes, in the same browser |
 | Project-group collapsed state | No | Recomputed from unread state rather than stored |
@@ -201,5 +234,7 @@ Resource defaults are 6 CPUs, 4 GiB memory, and 2,000 processes. Admins alone ma
 - a main-app PWA, push notification, or offline mode;
 - current application voice dictation;
 - implemented `@`-mention or slash-command composer menus.
+- a direct “create schedule” form in the current UI; schedule creation starts
+  through the Scheduled Tasks skill, then the drawer manages the definition.
 
 Read [Known limitations](../known-limitations.md) and the [Threat model](../threat-model.md) before using Remote with mutually untrusted users or high-value credentials.

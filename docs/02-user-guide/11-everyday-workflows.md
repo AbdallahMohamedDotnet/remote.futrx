@@ -52,14 +52,39 @@ Concurrent chats in one project share the same files, processes, ports, browser 
 
 1. Open the existing project chat.
 2. Wait for any active run to finish or cancel it.
-3. Choose **Codex**, **Claude**, or **Kimi** in the composer.
+3. Choose **Codex**, **Claude**, **Kimi**, or **Antigravity** in the composer.
 4. Recheck the model, thinking level, speed, and selected skills.
 5. State what the new provider should continue or verify.
 6. Send the prompt.
 
 ![The same durable project with provider controls available in the composer](/assets/docs/screenshots/20-agent-switching-controls-15m15s.webp)
 
-The files stay in the project. Provider-native session state does not transfer cleanly; when a provider session is missing, Remote supplies a bounded visible transcript to a fresh session. Kimi forks also start fresh.
+The files stay in the project. Provider-native session state does not transfer
+cleanly; when a provider session is missing, Remote supplies a bounded visible
+transcript to a fresh session. Kimi and Antigravity forks start fresh.
+
+Antigravity must first be signed in by running `agy` in that project's
+Terminal. Its sign-in and session state are not part of Remote's durable
+provider-home mounts.
+
+## Schedule a monitor and walk away
+
+1. Open the project chat that should own the future work.
+2. Select **Scheduled Tasks** in **Skill set**.
+3. Ask the agent to create a one-time or recurring task with an explicit
+   timezone, completion condition, and maximum run count.
+4. Wait for the agent to report the parked task.
+5. Open **Schedules** in the chat header.
+6. Review the saved prompt, timing, timezone, and limit.
+7. Select **Arm**.
+8. Close the browser if desired. The host scheduler owns the timer.
+9. Return later to the same chat to inspect each scheduled run in the normal
+   transcript.
+
+Pause the task when monitoring should stop temporarily. Let the agent complete
+the standing task only after the declared goal is actually terminal. See
+[Scheduled tasks](09-scheduled-tasks.md) for overlap, ownership, and server
+guardrails.
 
 ## Give an agent a signed-in website
 

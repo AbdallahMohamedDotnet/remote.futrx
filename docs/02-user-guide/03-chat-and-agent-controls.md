@@ -10,7 +10,8 @@ preference for new chats.
 
 Before sending a prompt:
 
-1. Select **Codex**, **Claude**, or **Kimi** in the **Provider** toggle.
+1. Select **Codex**, **Claude**, **Kimi**, or **Antigravity** in the
+   **Provider** toggle.
 2. Open **Model** and choose a provider-supported model or **Auto**.
 3. Optionally open **Skill set**, search the catalog, and select one or more
    skills.
@@ -30,6 +31,7 @@ changed while that chat is streaming.
 | **Codex** | **Auto**, **GPT-5.6 Sol**, **GPT-5.5**, **GPT-5.4**, **GPT-5.4 Mini**, **GPT-5.3 Codex** | **Thinking**, **Speed**, Codex skills |
 | **Claude** | **Auto**, **Fable**, **Opus**, **Sonnet**, **Haiku** | **Thinking**, Claude skills |
 | **Kimi** | **Auto** | No current thinking or speed selector |
+| **Antigravity** | **Auto** | **Thinking** at Auto, Low, Medium, or High |
 
 **Auto** omits an explicit model so the provider chooses its configured
 default. Model availability and account entitlements are ultimately enforced
@@ -50,6 +52,7 @@ provider.
   **XHigh**, **Max**, and **Ultra**.
 - Claude: **Auto**, **Low**, **Medium**, **High**, **XHigh**, **Max**, and
   **Ultra**.
+- Antigravity: **Auto**, **Low**, **Medium**, and **High**.
 - Kimi: no current selector.
 
 **Auto** omits the explicit effort flag. The provider or model then chooses its
@@ -106,11 +109,37 @@ Current provider caveats:
 - Kimi can display and store selected skill references, but the current prompt
   path does not inject an equivalent trigger. Do not rely on Kimi skill
   selection yet.
+- Antigravity has the same general selected-skill limitation as Kimi. The
+  built-in **Scheduled Tasks** skill is the exception: Remote passes its
+  project skill path explicitly so Antigravity can use it.
 - The browser skill prepares per-run browser MCP access for Claude and Codex,
-  not Kimi.
+  not Kimi or Antigravity.
 
 These generated triggers are an internal integration detail. The composer does
 not currently implement general-purpose user `@` mentions or slash commands.
+
+## Antigravity sign-in and output
+
+Antigravity does not appear in **Settings → Agents** because its `agy` CLI has
+no host-wide login flow that Remote can safely complete and copy.
+
+Before the first Antigravity prompt in a project:
+
+1. Open that project's **Terminal**.
+2. Run `agy`.
+3. Complete the URL-and-code sign-in shown by the CLI.
+4. Close the interactive CLI after sign-in.
+5. Return to the chat, choose **Antigravity**, and send the prompt.
+
+The sign-in is project-local. It survives normal container stop/start, but its
+files live under `/root/.gemini` in the replaceable container root and are lost
+when Remote replaces the container during an upgrade or recovery. Run `agy`
+again after replacement.
+
+Antigravity print mode streams plain assistant text. It does not currently
+provide Remote's structured tool cards or usage totals. It can resume its
+conversation while the CLI brain directory remains present; a fork starts a
+fresh Antigravity conversation.
 
 ## Running-state rules
 

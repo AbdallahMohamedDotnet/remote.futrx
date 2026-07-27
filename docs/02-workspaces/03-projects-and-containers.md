@@ -1,6 +1,8 @@
 # Projects and containers
 
-A project is a durable workspace, three provider agent homes, and an LXD container that supplies processes and tools. The durable directories survive container rebuilds; the container can be replaced.
+A project is a durable workspace, three mounted provider agent homes, and an
+LXD container that supplies processes and tools for four agent providers. The
+durable directories survive container rebuilds; the container can be replaced.
 
 ## Project creation
 
@@ -42,12 +44,17 @@ flowchart LR
     Homes --> Codex["Mounted at /root/.codex"]
     Homes --> Claude["Mounted at /root/.claude"]
     Homes --> Kimi["Mounted at /root/.kimi-code"]
+    Container --> Antigravity["Antigravity state under /root/.gemini"]
     Container --> RootFS["Replaceable root filesystem"]
     Container --> Tools["Agent CLIs, code-server, Chromium"]
     Container --> Processes["Agent, terminal, and app processes"]
 ```
 
 Files in `/workspace` and the three provider homes survive stop, restart, container deletion during upgrades, and image replacement. Provider homes preserve most provider-owned configuration, authentication, and session state. Claude also uses `/root/.claude.json` outside its mounted home and relies on host credential synchronization to restore it. Ad-hoc packages or files elsewhere in the container root filesystem do not survive container replacement.
+
+Antigravity is one of those root-filesystem exceptions. Its per-project sign-in
+and conversation brain live under `/root/.gemini`, so they survive normal
+stop/start of the same container but not container replacement.
 
 ## Lifecycle
 
@@ -74,7 +81,7 @@ At backend startup, reconciliation compares stored status with actual LXD state 
 The reusable Ubuntu 24.04 base image contains:
 
 - Node.js 22, Git, SSH client, `jq`, build tools, Python, and GitHub CLI.
-- Claude Code, Codex, and Kimi Code at pinned versions.
+- Claude Code, Codex, Kimi Code, and Antigravity at pinned versions.
 - The Agent Browser stack and Chromium.
 - `code-server` with on-demand startup.
 
@@ -85,6 +92,10 @@ Launch-time provisioning then:
 3. publishes current browser scripts and browser skill.
 4. applies browser process limits.
 5. configures the project IDE.
+
+When a prompt selects **Scheduled Tasks**, Remote also publishes the
+provider-neutral `remote-schedule` CLI and skill under `/workspace` before
+starting the provider.
 
 These launch steps are best-effort so one optional capability does not prevent the container from starting.
 

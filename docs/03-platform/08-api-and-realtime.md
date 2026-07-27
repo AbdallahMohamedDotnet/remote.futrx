@@ -52,7 +52,9 @@ All `/api/*` and `/ws*` requests require a signed session for a registered user.
 | POST | `/api/kimi/login/device` | Start Kimi device login; admin only |
 | GET | `/api/skills?provider=...&projectId=...` | List accessible provider and project skills |
 
-`{provider}` is one of `claude`, `codex`, or `kimi`.
+`{provider}` can also be `antigravity` for the generic status binding, but
+Antigravity has no host login route. Its status is unavailable by design
+because users authenticate `agy` inside each project.
 
 ## Project routes
 
@@ -101,8 +103,29 @@ Every `{id}` project route first requires admin status or project membership. Re
 | GET | `/api/chats/{id}/history/commits?repo=&limit=` | List commits |
 | GET | `/api/chats/{id}/history/diff?repo=&sha=` | Read one commit patch |
 | POST | `/api/chats/{id}/history/checkout` | Optional checkpoint and detached checkout |
+| GET, POST | `/api/chats/{id}/schedules` | List the caller's tasks for a project chat, or create one through the user API |
 
 All chat routes resolve the caller and enforce the chat's project membership. Loose chats have no project membership check.
+
+## Scheduled-task routes
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| PATCH, DELETE | `/api/schedules/{id}` | Edit/pause/resume or delete a visible owned task; admins can manage all |
+| POST | `/api/schedules/{id}/run` | Request an immediate occurrence without moving its regular deadline |
+| GET, POST | `/agent-api/schedules` | List or create tasks inside the capability's chat/project fence |
+| PATCH, DELETE | `/agent-api/schedules/{id}` | Pause or delete a capability-scoped task; an agent cannot enable it |
+| POST | `/agent-api/schedules/{id}/run` | Request a capability-scoped immediate occurrence |
+| POST | `/agent-api/schedules/current/complete` | Complete only the task/run named by a `complete-self` capability |
+
+Browser routes use the signed user session. Agent routes require a short-lived
+bearer capability issued for one owner, chat, and project; they do not accept a
+platform session cookie. Agent-created tasks are forced to `createdByAgent` and
+start disabled until a user arms them.
+
+Schedule request bodies cap at 64 KiB and reject unknown fields. Stored prompts
+cap at 32 KiB. The service re-checks the owner, chat, project, registration,
+and access on every fire.
 
 ## Upload and auxiliary routes
 

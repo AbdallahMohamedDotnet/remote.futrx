@@ -86,7 +86,15 @@ Modes are advisory prompt policies, not sandbox profiles. Put important constrai
 
 ### My queued prompt disappeared
 
-Queued prompts and drafts live in the loaded browser page. A refresh, tab close, or navigation that unloads the app removes them. Queue only the next immediate follow-up; use separate chats for durable parallel work.
+Queued prompts and drafts use `sessionStorage` in the current browser tab.
+They survive chat switching, app navigation, and a reload in that tab, but are
+not shared with another tab, browser, device, or user. Closing the tab ends
+their intended lifetime. A background chat's queue does not dispatch until you
+open that chat again.
+
+If delivery was rejected before the server accepted the prompt, Remote keeps it
+queued for the next send window. For work that must run with no browser tab
+open, use [Scheduled tasks](09-scheduled-tasks.md).
 
 ### The conversation lost earlier context
 
@@ -100,6 +108,19 @@ Runs execute under the current backend process and cannot be reattached after it
 
 Kimi currently has no usage telemetry, its fork starts fresh, selected skills are stored but not injected as provider triggers, and it does not receive the equivalent Browser MCP plumbing.
 
+### Antigravity says it is not signed in
+
+Antigravity is authenticated per project, not from **Settings → Agents**. Open
+the project's **Terminal**, run `agy`, complete the displayed URL-and-code
+flow, then retry the chat prompt. A container replacement removes
+Antigravity's `/root/.gemini` state, so sign in again after that kind of
+upgrade or recovery.
+
+Antigravity also differs from Claude and Codex: it streams plain text rather
+than structured tool/usage events, general selected skills are not injected,
+the Browser skill is not wired, and a fork starts fresh. The built-in
+Scheduled Tasks skill is supported explicitly.
+
 ## Attachments, files, terminal, and IDE
 
 ### An attachment fails or stalls
@@ -109,6 +130,14 @@ Confirm project access, free disk space, and the configured upload limit. The de
 ### File search finds nothing
 
 Search is filename substring search, not content search. Use at least two characters. Results cap at 300 after visiting at most 200,000 entries. Very large individual directory listings cap at 10,000 entries.
+
+### Selecting a file downloads it instead of opening it
+
+Archives and unsupported image, audio, or video formats deliberately fall back
+to download. Supported image/audio/video/PDF files open in Remote's media
+viewer; code, data, text, logs, and other non-media files open in the project
+IDE. Use the explicit download icon when you want the local file regardless of
+type.
 
 ### Folder download fails
 
@@ -120,7 +149,11 @@ Each Terminal overlay is a new non-persistent PTY. Closing the overlay or losing
 
 ### IDE opens the wrong place
 
-Open **Open in IDE** from the intended project chat, or use an agent-generated validated workspace path link. The default path is `/workspace`.
+Open **Open in IDE** from the intended project chat, or use an
+agent-generated validated absolute workspace path. The default path is
+`/workspace`. Links can include `:line` or `:line:column`; Remote validates the
+path and passes a code-server workbench payload so the cursor opens at that
+location.
 
 ### A user can open an IDE for a project they do not belong to
 
@@ -171,6 +204,34 @@ Commit diffs are capped at 768 KiB. Open the repository in the IDE or Terminal f
 ### Switch does not complete on a dirty repository
 
 The backend supports creating a safety checkpoint before checkout, but the current History drawer does not render the checkpoint form needed to submit it. Open **Terminal**, commit or stash the dirty work, refresh **History**, and choose **Switch** again.
+
+## Scheduled tasks
+
+### The agent created a task but it never runs
+
+Agent-created tasks start paused by design. Open **Schedules** in the same
+project chat, review the definition, and select **Arm**. The agent cannot arm
+or resume a task on your behalf.
+
+### A recurring task is rejected as too frequent
+
+The default minimum interval is five minutes. Widen the five-field cron
+expression. An operator can change `SCHEDULE_MIN_INTERVAL`, but lowering the
+guardrail increases unattended workload.
+
+### A task says queued or skipped
+
+Only one run can use a chat at a time. The default overlap policy coalesces
+missed occurrences into one pending follow-up. A task configured to skip
+records and consumes the busy occurrence instead. Open the chat, let the
+current run finish, and refresh **Schedules**.
+
+### A task is completed, exhausted, or in error and cannot resume
+
+Those are terminal states. `completed` means its standing goal was marked
+done; `exhausted` means it reached `maxRuns`; `error` usually means the owner,
+chat, or project authorization is no longer valid. Fix the underlying access
+or definition problem and create a new task.
 
 ### I switched successfully but cannot see a branch
 

@@ -30,11 +30,11 @@ sequenceDiagram
     participant Hub as Run hub
     participant Prompt as Prompt service
     participant Provider as Agent provider
-    participant CLI as Claude, Codex, or Kimi CLI
+    participant CLI as Claude, Codex, Kimi, or Antigravity CLI
     participant Store as Chat store
 
     User->>UI: Send prompt
-    UI->>WS: {type: prompt, text}
+    UI->>WS: {type: prompt, text, optional clientId}
     WS->>Hub: Acquire one-run-per-chat lock
     Hub-->>UI: sync running=true
     WS->>Prompt: Start prompt asynchronously
@@ -60,18 +60,25 @@ flowchart LR
     Registry --> Claude["Claude adapter"]
     Registry --> Codex["Codex adapter"]
     Registry --> Kimi["Kimi adapter"]
+    Registry --> Antigravity["Antigravity adapter"]
     Claude --> ClaudeCLI["Claude Code CLI"]
     Codex --> CodexCLI["Codex CLI"]
     Kimi --> KimiCLI["Kimi Code CLI"]
+    Antigravity --> AntigravityCLI["agy print mode"]
     ClaudeCLI --> Normalize["Normalized agent events"]
     CodexCLI --> Normalize
     KimiCLI --> Normalize
+    AntigravityCLI --> Normalize
     Normalize --> ChatEvents["Persisted chat event stream"]
 ```
 
 The run request contains the prompt, working directory, model, mode, prior provider session ID, fork flag, project ID, reasoning effort, service tier, and browser enablement.
 
-Each provider has its own command builder and JSON parser. The shared layer only sees normalized session, text, reasoning, tool, completion, usage, and error events.
+Each provider has its own command builder and parser. Claude, Codex, and Kimi
+produce structured streams; Antigravity print mode emits plain text, and its
+adapter recovers the conversation ID from the CLI brain directory. The shared
+layer sees whichever normalized session, text, reasoning, tool, completion,
+usage, and error events that provider can supply.
 
 ## Modes
 
@@ -109,6 +116,9 @@ The UI groups text, reasoning, and tool events into readable assistant messages.
 
 The thread also provides Markdown and syntax-highlighted code, grouped tool calls, visible reasoning blocks, token-usage totals, a working indicator, older-history loading, jump-to-latest behavior, and an error block. An `AskUserQuestion` tool call becomes a paged answer form whose submitted answer is sent as the next prompt.
 
+Antigravity currently contributes streamed assistant text and session/error
+state, not structured reasoning, tools, or usage.
+
 ## Skills
 
 ```mermaid
@@ -118,11 +128,18 @@ flowchart LR
     Selected --> Trigger["Provider-specific prompt trigger"]
     Trigger --> Claude["Claude: /skill-name"]
     Trigger --> Codex["Codex: $skill-name instruction"]
+    Trigger --> Other["Kimi/Antigravity: Scheduled Tasks path only"]
     Selected --> Browser{"browser selected?"}
     Browser -->|"Yes"| MCP["Enable browser MCP and activity keepalive"]
 ```
 
-The catalog reads agent skill roots and, for project chats, project workspace skills after checking access. Provider changes clear incompatible selected skills. Current prompt injection and per-run browser MCP preparation are implemented for Claude and Codex; Kimi-selected skill references are stored but do not add a trigger prefix or enable equivalent browser plumbing.
+The catalog reads agent skill roots and, for project chats, project workspace
+skills after checking access. Provider changes clear incompatible selected
+skills. Current general prompt injection and per-run browser MCP preparation
+are implemented for Claude and Codex. Kimi and Antigravity selected-skill
+references normally remain metadata only; **Scheduled Tasks** is the explicit
+exception, injected as the canonical project skill path and accompanied by a
+scoped schedule capability.
 
 ## Conversation controls
 
@@ -131,13 +148,29 @@ The catalog reads agent skill roots and, for project chats, project workspace sk
 | Rename | The API can patch the chat title; the current UI has no manual rename control |
 | Read/unread | Updates `lastReadAt` for sidebar indicators |
 | Cancel | Cancels the active provider context and releases the run lock |
-| Queue | Browser-session queue sends prompts one at a time after each run unlocks |
+| Queue | Per-tab `sessionStorage` queue sends prompts one at a time after each run unlocks and removes one only after server acceptance |
 | Fork | Copies visible history and provider session IDs; next run forks without mutating the parent |
 | Rewind | Deletes the selected event and everything after it; unavailable while running |
 | Delete | Cancels an active run, then removes chat metadata and history |
 | Load older | Pages backward through the JSONL event log |
 
-Draft text and queued prompts live in in-memory frontend session state per chat. They survive switching chats in the same loaded page, but not a full page reload.
+Draft text and queued prompts are mirrored into per-tab `sessionStorage` by
+chat ID. They survive switching chats, navigation, and reloads in the same tab,
+but are not server-authoritative and do not cross tabs, browsers, devices, or
+users. A background chat's queue waits until that chat is active again.
+
+## Scheduled turns
+
+The host scheduler starts a due task through the same prompt service and run
+hub used by an interactive WebSocket prompt. It persists the scheduled
+envelope as a user event, resumes the chat's selected provider session, and
+broadcasts ordinary chat events.
+
+Interactive turns receive a short-lived `manage` capability only when the
+**Scheduled Tasks** skill is selected. Scheduled turns receive a narrower
+`complete-self` capability tied to one task and one run. Agent-created tasks
+start paused and require a human **Arm** action. See
+[Scheduled tasks](06-scheduled-tasks.md).
 
 ## Rewind and fresh-session context
 

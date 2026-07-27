@@ -35,6 +35,11 @@ recovered, so store it in an appropriate password manager.
 The **Connect an AI provider** screen shows Claude, Codex, and Kimi. Connect at
 least one to enter the workspace; the others can be connected later.
 
+Antigravity is also available in project chats, but it does not use this
+host-wide onboarding screen and does not satisfy the initial provider gate.
+First connect Claude, Codex, or Kimi. You can then sign in to Antigravity from
+the Terminal of each project where you want to use it.
+
 ![Agent authentication cards for Claude, Codex, and Kimi](/assets/docs/screenshots/03-agent-authentication-01m05s.webp)
 
 ### Claude
@@ -71,6 +76,9 @@ desired subscription login.
 **Outcome:** as soon as any provider is authenticated, the workspace opens.
 The administrator can connect or refresh the other providers later through
 **Settings** → **Agents**.
+
+For Antigravity's separate per-project sign-in, see
+[Use Antigravity](10-global-settings-users-providers.md#use-antigravity).
 
 ## Sign in after setup
 
@@ -111,6 +119,10 @@ Provider credentials are host-wide, not personal to a user or project. An
 administrator signs in once on the parent host, and Remote seeds those
 credentials into project containers. Every authorized user who can run that
 provider therefore consumes the same connected provider account and quota.
+
+This shared-credential rule applies to the Claude, Codex, and Kimi onboarding
+cards. Antigravity is different: its CLI sign-in is performed inside one
+project and remains in that container's replaceable root filesystem.
 
 Platform sessions use a secure, HTTP-only cookie and currently last 30 days.
 There is no user-facing session-revocation screen; sign out with the **Sign

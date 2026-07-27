@@ -20,7 +20,7 @@ Files, Terminal, and IDE are three views of the same project workspace. Use
 
 | Task | Surface | What it changes |
 | --- | --- | --- |
-| Browse directories or download a file | **Files** | Nothing unless a download is saved locally |
+| Browse directories, open media/code, or download a file | **Files** | Nothing unless the opened IDE file is edited or a download is saved locally |
 | Find a file by name | **Files** | Nothing |
 | Download a directory as ZIP | **Files** | Creates a temporary server-side archive, then downloads it |
 | Run a command or inspect a process | **Open Terminal** | Whatever the command changes |
@@ -35,20 +35,27 @@ that location where supported.
 1. Open the project chat.
 2. Select **Files** in the chat header.
 3. Select a folder row to expand it. Subdirectories load as they are opened.
-4. Hover or focus a file and select **Download _filename_**.
-5. To export a directory, hover or focus it and select **Download _folder_ as
+4. Select a file row to open it in the media viewer, IDE, or download path
+   described below.
+5. Hover or focus a file and select **Download _filename_** to download
+   directly instead.
+6. To export a directory, hover or focus it and select **Download _folder_ as
    zip**.
-6. Select **Refresh** after an agent or terminal command changes the tree.
-7. Select **Close files** when finished.
+7. Select **Refresh** after an agent or terminal command changes the tree.
+8. Select **Close files** when finished.
 
-**Outcome:** files download directly; folders download as ZIP archives. The
-Files drawer itself is a browser and downloader, not a text editor.
+**Outcome:** supported media opens inside Remote, code/data/text opens in the
+project IDE, unsupported media and archives download, and folders download as
+ZIP archives. Editing still happens in code-server rather than inside the
+Files drawer.
 
 ### Search by filename
 
 1. Open **Files**.
 2. Enter at least two Unicode code points in **Search all files...**.
-3. Select the download control on the matching file or directory.
+3. Select a matching file row to open it, or use its download control. Search
+   result directories can be downloaded but are not expanded in the flat
+   search view.
 4. If Remote says **Showing the first matches only — refine your search to
    narrow it down**, add a more specific substring.
 5. Select **Clear search** to return to the directory tree.
@@ -77,10 +84,32 @@ Folder archives omit broken symlinks, symlinks that escape the workspace, and
 special files such as sockets or devices. They include regular files and safe
 directories.
 
-### Open media linked by an agent
+### What happens when you select a file
 
-Validated workspace links in chat can open supported media without exposing an
-arbitrary host path. Current inline types are:
+| File type | Selection result |
+| --- | --- |
+| Supported image, audio, video, or PDF | Opens in Remote's full-screen media viewer |
+| Code, data, text, log, or unknown non-media file | Opens that exact file in the project IDE |
+| Archive or unsupported image/audio/video format | Downloads the file |
+
+The media viewer provides **Open in new tab**, **Download**, and **Close**.
+Press Escape or select outside the content to close it.
+
+### Open workspace links from chat
+
+Validated absolute workspace links in an agent message follow the same split:
+supported media opens in the in-app viewer; other safe files redirect to the
+project IDE. A path can include `:line` or `:line:column`, and code-server opens
+the file at that exact location.
+
+Examples:
+
+```text
+/workspace/src/app.ts:42
+/workspace/src/app.ts:42:7
+```
+
+Current inline media types are:
 
 - images: `.avif`, `.bmp`, `.gif`, `.ico`, `.jpeg`, `.jpg`, `.png`, `.svg`,
   `.tif`, `.tiff`, and `.webp`;
@@ -88,8 +117,8 @@ arbitrary host path. Current inline types are:
 - video: `.m4v`, `.mov`, `.mp4`, `.ogv`, and `.webm`; and
 - PDF: `.pdf`.
 
-Other file types must be downloaded or opened in the IDE. Path containment is
-checked server-side; an outside or traversal path is rejected.
+Path containment is checked server-side; an outside or traversal path is
+rejected.
 
 ## Run a terminal command
 
@@ -124,8 +153,8 @@ drawer itself as a durable process supervisor.
 5. Use the IDE's explorer, search, editor, and integrated tools normally.
 
 **Outcome:** the browser opens the project's code-server instance on its
-dedicated IDE endpoint. Agent-produced workspace links can also target a
-validated file inside that IDE.
+dedicated IDE endpoint. File rows and agent-produced workspace links can target
+a validated file and optional line/column inside that IDE.
 
 ![The project code-server IDE in a browser tab](/assets/docs/screenshots/browser-ide.webp)
 

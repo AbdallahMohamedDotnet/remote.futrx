@@ -17,6 +17,7 @@ The application does not use a database. Durable metadata is stored as JSON file
 ├── local-admin.json
 ├── oauth.json
 ├── session.key
+├── scheduled-tasks/tasks.json          standing definitions, claims, and run state
 └── uploads/tmp/                        tus chunks and sidecars
 
 /var/lib/remote/projects/<slug>/
@@ -29,6 +30,9 @@ The application does not use a database. Durable metadata is stored as JSON file
     ├── codex/                           mounted at /root/.codex
     ├── claude/                          mounted at /root/.claude
     └── kimi/                            mounted at /root/.kimi-code
+
+# Antigravity is different:
+# /root/.gemini/antigravity-cli lives in the replaceable container root.
 ```
 
 The host-wide credential sources use provider-owned paths in the host user's home. Credential synchronizers seed or update project-specific credential locations, primarily the mounted provider homes. Claude also requires `/root/.claude.json` outside its mounted home; that file survives replacement through host synchronization rather than the project mount.
@@ -43,8 +47,11 @@ erDiagram
     PROJECT ||--o{ CHAT : "contains"
     PROJECT ||--|| WORKSPACE : "maps to"
     PROJECT ||--o| CONTAINER : "runs as"
+    PROJECT ||--o{ SCHEDULED_TASK : "contains"
     CHAT ||--o{ CHAT_EVENT : "records"
+    CHAT ||--o{ SCHEDULED_TASK : "owns"
     USER ||--|| USER_SETTINGS : "has"
+    USER ||--o{ SCHEDULED_TASK : "creates"
 
     USER {
         string email PK
@@ -80,6 +87,15 @@ erDiagram
         string key
         string value
     }
+    SCHEDULED_TASK {
+        string id PK
+        string projectId FK
+        string chatId FK
+        string ownerEmail
+        string kind
+        string status
+        int nextRunAt
+    }
 ```
 
 A chat's project relationship is optional. Project membership is stored as normalized email strings rather than a database foreign key.
@@ -98,6 +114,12 @@ flowchart LR
 
 Chat metadata includes title, provider, provider session IDs, working directory, project ID, read markers, model/mode controls, selected skills, and fork state. The `running` flag and cancellation handle are computed from the in-memory run hub and are not persisted. Provider child processes may survive a backend restart, so the restarted control plane cannot automatically rediscover or cancel them.
 
+Scheduled-task definitions are separate from chat metadata. One versioned
+`scheduled-tasks/tasks.json` document holds every task plus persisted active
+claims, pending occurrence state, retry deadline, counts, and last result.
+Writes atomically replace the document. The scheduler loop is in-memory, but it
+reconstructs deadlines and abandons stale claims after a backend restart.
+
 Rewind rewrites `events.jsonl` atomically with only events before the selected timestamp. Chat deletion removes that chat directory.
 
 ## Project persistence
@@ -107,6 +129,8 @@ Project metadata and workspaces are separate:
 - `data/projects/<id>/meta.json` stores identity, slug, container name, status, order, resource overrides, and timestamps.
 - `/var/lib/remote/projects/<slug>/workspace` stores durable project content.
 - `/var/lib/remote/projects/<slug>/agent-home/*` stores durable provider configuration, authentication, and session state.
+- Antigravity's `/root/.gemini/antigravity-cli` is not in that host tree and
+  does not survive container replacement.
 - Access and secrets use separate mode-`0600` files.
 - Metadata writes use a temporary file and rename where implemented.
 
@@ -137,7 +161,7 @@ flowchart TD
 
     ActiveChat["Active ChatContainer"] --> ChatHook["useChat metadata, history, stream"]
     ActiveChat --> Composer["draft, queue, attachments"]
-    ActiveChat --> Drawers["files, history, browser, terminal"]
+    ActiveChat --> Drawers["files, history, schedules, browser, terminal"]
 ```
 
 | State | Lifetime |
@@ -146,7 +170,7 @@ flowchart TD
 | Projects and chat summaries | Workspace WebSocket; server is authoritative |
 | Active view, selected chat, sidebar open state | In-memory reducer |
 | Chat events | Initial HTTP page plus reconnecting WebSocket updates |
-| Composer drafts and queued prompts | In-memory map keyed by chat ID |
+| Composer drafts and queued prompts | In-memory map mirrored to per-tab `sessionStorage`, keyed by chat ID |
 | Browser drawer width | Browser `localStorage` |
 | Answered interactive question state | Browser storage used by the question renderer |
 
@@ -175,6 +199,7 @@ The initial snapshot is filtered to permitted projects for members. Current live
 | Delete action | Data removed |
 | --- | --- |
 | Delete chat | Chat metadata and event log; active run is canceled first |
+| Delete chat | Does not cascade-delete scheduled tasks; a later fire moves the orphaned task to an error state |
 | Delete project | Container, project metadata, host project root containing workspace and provider homes, access list, and secrets |
 | Delete project | Does not currently cascade to separate chat records that reference it |
 | Delete secret | Authoritative secret entry; removal from generated `.env` and LXD environment is attempted best-effort, so stale copies are possible on sync failure |
@@ -186,5 +211,8 @@ The initial snapshot is filtered to permitted projects for members. Current live
 - Store composition: [`backend/internal/stores/stores.go`](../../backend/internal/stores/stores.go)
 - Chat store: [`backend/internal/stores/filechat/store.go`](../../backend/internal/stores/filechat/store.go)
 - Project store: [`backend/internal/stores/fileproject/store.go`](../../backend/internal/stores/fileproject/store.go)
+- Scheduled-task store: [`backend/internal/stores/fileschedule/store.go`](../../backend/internal/stores/fileschedule/store.go)
 - Workspace context: [`frontend/src/state/context/WorkspaceContext.tsx`](../../frontend/src/state/context/WorkspaceContext.tsx)
 - Workspace data hook: [`frontend/src/state/hooks/workspace/useWorkspaceData.ts`](../../frontend/src/state/hooks/workspace/useWorkspaceData.ts)
+- Per-tab composer persistence: [`frontend/src/state/chat/composerSessionStore.ts`](../../frontend/src/state/chat/composerSessionStore.ts)
+- Scheduled-task drawer and client API: [`frontend/src/ui/chat/schedules/`](../../frontend/src/ui/chat/schedules/), [`frontend/src/api/chat/chatScheduleApi.ts`](../../frontend/src/api/chat/chatScheduleApi.ts)

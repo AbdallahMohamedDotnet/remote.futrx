@@ -1,6 +1,8 @@
 # Workspace tools
 
-The chat header opens four views over the same project workspace: terminal, files, Git history, and browser. IDE links can also open workspace files in code-server.
+The chat header opens Terminal, Files, Git History, Schedules, Browser, and the
+project IDE. Most are views over the same project workspace; Schedules is a
+host-control-plane view whose runs return to the same chat.
 
 ## Tool map
 
@@ -11,6 +13,7 @@ flowchart TD
     Chat --> History["Git history"]
     Chat --> Browser["Browser drawer"]
     Chat --> IDE["Browser IDE links"]
+    Chat --> Schedules["Scheduled tasks drawer"]
     Chat --> Upload["Attachments"]
 
     Terminal --> Workspace["/workspace"]
@@ -18,6 +21,7 @@ flowchart TD
     History --> Repos["Git repositories under workspace"]
     IDE --> CodeServer["Project code-server"]
     Upload --> UploadDir["/workspace/.uploads"]
+    Schedules --> ScheduleStore["Host scheduled-task store"]
 ```
 
 ## Attachments
@@ -68,7 +72,20 @@ flowchart LR
     Expand --> IDE["Open path in IDE"]
 ```
 
-The backend resolves all paths relative to the chat working directory and rejects traversal. Listings and search results can report truncation rather than returning unbounded data. Inline media receives a restrictive content security policy.
+The backend resolves all paths relative to the chat working directory and
+rejects traversal. Listings and search results can report truncation rather
+than returning unbounded data.
+
+Selecting a file routes by type:
+
+- supported image/audio/video/PDF opens in the full-screen media overlay;
+- code, data, text, logs, and unknown non-media files redirect to code-server;
+  and
+- archives and unsupported media download.
+
+The same routing applies to validated absolute workspace links in chat. IDE
+targets preserve optional `:line[:column]` suffixes. Inline media receives a
+restrictive content security policy.
 
 ## Terminal
 
@@ -116,7 +133,23 @@ flowchart TD
 
 Restore resolves the commit, optionally creates a safety checkpoint using the `remote.futrx` identity, and checks out the target in detached HEAD state. Git commands use an explicit safe directory and bounded timeouts.
 
+The frontend checks for repositories when a ready chat opens and after each
+run; **History** stays hidden until at least one exists. Commit patches render
+as collapsible per-file cards with line numbers, hunks, change counts, and file
+status badges, with raw-text fallback.
+
 The checkout API supports the checkpoint message, but the current History drawer does not render the dirty-tree checkpoint form even though its component state is present. In the visible UI, commit or stash dirty work through Terminal or IDE, refresh History, and then switch. Clean-tree switching works directly.
+
+## Scheduled tasks
+
+The Schedules drawer is project-chat-only. It lists host-owned tasks visible to
+the caller, then updates them through the schedule API. The drawer can arm,
+pause/resume, run-now, edit, delete, and refresh tasks. Initial creation in the
+current UI is agent-driven through the **Scheduled Tasks** skill.
+
+Schedule timers do not run inside the container. The backend persists claims,
+starts the project if needed, and injects the stored prompt through the normal
+chat run path. See [Scheduled tasks](06-scheduled-tasks.md).
 
 ## Browser IDE
 
@@ -135,7 +168,11 @@ Caddy disables upstream keep-alive so code-server can stop after its idle window
 
 ## IDE and media links in chat
 
-Markdown links are inspected by the frontend. Workspace paths can be converted into backend `ide-open` or `media-open` routes. The backend validates the path, then either redirects to code-server or serves a supported image/audio/video file inline.
+Markdown links are inspected by the frontend. Workspace paths can be converted
+into backend `ide-open` or `media-open` routes. The backend validates the path,
+then either redirects to code-server—using the workbench payload for an exact
+file and optional line/column—or serves supported image/audio/video/PDF media
+in the in-app viewer.
 
 ## Code map
 
@@ -144,3 +181,4 @@ Markdown links are inspected by the frontend. Workspace paths can be converted i
 - Terminal socket: [`backend/internal/transport/ws/container_terminal_socket.go`](../../backend/internal/transport/ws/container_terminal_socket.go)
 - Git history: [`backend/internal/service/githistory/service.go`](../../backend/internal/service/githistory/service.go)
 - IDE service: [`backend/internal/service/workspaceide/service.go`](../../backend/internal/service/workspaceide/service.go)
+- Schedules UI: [`frontend/src/ui/chat/schedules/ScheduleDrawer.tsx`](../../frontend/src/ui/chat/schedules/ScheduleDrawer.tsx)

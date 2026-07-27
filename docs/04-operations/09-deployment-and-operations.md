@@ -78,7 +78,7 @@ sequenceDiagram
 
     Builder->>LXD: Delete leftover builder if present
     Builder->>Ubuntu: Launch temporary container
-    Builder->>Ubuntu: Install system tools, Node, GitHub CLI, agent CLIs
+    Builder->>Ubuntu: Install system tools, Node, GitHub CLI, four agent CLIs
     Builder->>Ubuntu: Install Chromium and Agent Browser
     Builder->>Ubuntu: Install code-server
     Builder->>Ubuntu: Stop container
@@ -121,7 +121,49 @@ When the backend starts, it:
 4. updates stored project status;
 5. reapplies the fleet resource profile and project overrides;
 6. starts the Agent Browser idle reaper;
-7. begins serving the embedded SPA, API, and WebSockets.
+7. starts the scheduled-task loop and restores persisted deadlines/claims;
+8. begins serving the embedded SPA, API, and WebSockets.
+
+## Scheduled-task guardrails
+
+Scheduled tasks are host-owned unattended runs, so the backend applies three
+independent limits:
+
+| Environment variable | Default | Meaning |
+| --- | ---: | --- |
+| `SCHEDULE_MIN_INTERVAL` | `5m` | Minimum time between starts of one recurring task; Go duration syntax |
+| `SCHEDULE_MAX_CONCURRENT` | `2` | Simultaneous scheduled runs across all chats |
+| `SCHEDULE_MAX_TASKS_PER_PROJECT` | `20` | Non-terminal standing tasks in one project |
+
+An explicit `0` disables a limit. **Run now** bypasses the interval and
+concurrency admission limits, but the forced run still counts while active.
+Terminal completed/exhausted/error definitions do not consume the
+per-project task quota.
+
+Create a systemd override rather than editing the installed unit template:
+
+```bash
+sudo systemctl edit remote.futrx
+```
+
+```ini
+[Service]
+Environment=SCHEDULE_MIN_INTERVAL=10m
+Environment=SCHEDULE_MAX_CONCURRENT=1
+Environment=SCHEDULE_MAX_TASKS_PER_PROJECT=10
+```
+
+Then apply it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart remote.futrx
+```
+
+Restarting the backend interrupts control of interactive and scheduled runs.
+Use a maintenance window. Before raising the limits, account for the fact that
+each scheduled occurrence can start a project container and consume provider
+quota, CPU, memory, network, and disk without an open browser.
 
 ## Health and recovery
 

@@ -3,7 +3,8 @@
 The application separates three concerns:
 
 1. Platform identity: who may open `remote.futrx`.
-2. Agent credentials: whether Claude, Codex, or Kimi can run.
+2. Agent credentials: whether a provider can run, with host-wide onboarding
+   for Claude, Codex, and Kimi and project-local sign-in for Antigravity.
 3. Project membership: which registered users may access a project.
 
 ## Application gate
@@ -79,7 +80,7 @@ User guardrails:
 
 ## Agent-provider authentication
 
-Provider credentials are host-wide and admin-managed.
+Claude, Codex, and Kimi credentials are host-wide and admin-managed.
 
 ```mermaid
 flowchart TD
@@ -98,6 +99,13 @@ flowchart TD
 ```
 
 Claude uses an interactive authorization URL plus a pasted code. Codex and Kimi use device-code flows. Credential files are later synchronized into project containers before agent execution.
+
+Antigravity is deliberately outside this host-wide flow. Its bare `agy` sign-in
+never exits the interactive TUI, so Remote exposes no Antigravity card or
+onboarding status. A user runs `agy` once in a project Terminal and completes
+the URL-and-code flow there. That project-local state does not satisfy the
+application's initial provider gate and is not synchronized by the host
+credential service.
 
 ## Project access rules
 

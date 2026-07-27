@@ -2,7 +2,10 @@
 
 ## What the application is
 
-`remote.futrx` is a self-hosted browser workspace for Claude Code, Codex, and Kimi Code. Users create project-scoped containers, run agent chats against those projects, and inspect the result through chat, files, Git, a terminal, an IDE, or a live app preview.
+`remote.futrx` is a self-hosted browser workspace for Claude Code, Codex, Kimi
+Code, and Antigravity. Users create project-scoped containers, run interactive
+or scheduled agent turns against those projects, and inspect the result through
+chat, files, Git, a terminal, an IDE, or a live app preview.
 
 Read [Philosophy](00-philosophy.md) for the design rationale behind project-scoped authority, durable project and provider homes, the host control plane, and the isolation contract.
 
@@ -14,6 +17,7 @@ flowchart LR
     Caddy -->|"Main UI, API, WebSockets"| Go["Go backend"]
     Go --> SPA["Embedded Preact SPA"]
     Go --> Stores["JSON and JSONL stores"]
+    Go --> Scheduler["Host scheduled-task loop"]
     Go --> Host["Host integrations"]
     Host --> LXD["LXD"]
     Host --> Git["Git CLI"]
@@ -38,9 +42,9 @@ flowchart LR
 | --- | --- |
 | Frontend | Authentication gates, workspace navigation, chat rendering, drawers, settings, and API clients |
 | HTTP and WebSocket transport | Routes, JSON responses, upgrades, session checks, and project membership checks |
-| Services | Chat, prompt, project, user, settings, skills, Git, files, browser, and container policy |
+| Services | Chat, prompt, schedule, project, user, settings, skills, Git, files, browser, and container policy |
 | Integrations | LXD, Git, tmux, host filesystem, Google OAuth, host metrics, and container commands |
-| Stores | File-backed auth, users, settings, chats, projects, access lists, and secrets |
+| Stores | File-backed auth, users, settings, chats, scheduled tasks, projects, access lists, and secrets |
 | Infrastructure | Installation, systemd, Caddy, LXD image creation, updates, and recovery timers |
 
 ## Main user surfaces
@@ -55,7 +59,7 @@ flowchart TD
 
     Chat --> Composer["Provider, model, mode, skills, attachments"]
     Chat --> Messages["Text, reasoning, tools, usage"]
-    Chat --> Drawers["History, files, browser"]
+    Chat --> Drawers["History, files, schedules, browser"]
     Chat --> Terminal["Terminal overlay"]
 
     Projects --> Lifecycle["Start, stop, restart, delete"]
@@ -94,6 +98,14 @@ sequenceDiagram
     Agent-->>API: Normalized text, reasoning, tool, session, usage events
     API-->>UI: Persisted event stream
     UI-->>User: Render live progress and result
+
+    opt scheduled task
+        API->>API: Claim due occurrence
+        API->>Project: Re-authorize owner and project
+        API->>Agent: Submit stored prompt through the same run service
+        Agent-->>API: Normalized run events
+        API-->>UI: Same persisted chat transcript when connected
+    end
 ```
 
 ## Workspace navigation
@@ -104,7 +116,7 @@ The main shell switches between three views without browser routing:
 
 | View | Main features |
 | --- | --- |
-| Chat | Streaming thread, composer, terminal, files, Git history, and browsers |
+| Chat | Streaming thread, composer, terminal, files, Git history, schedules, and browsers |
 | Project workspaces | Lifecycle, diagnostics, limits, secrets, and sharing |
 | Settings | Provider sign-in, system/dark/light theme, Google users, and server metrics |
 
@@ -114,6 +126,12 @@ The main shell switches between three views without browser routing:
 - Each project owns its `/workspace` files and processes.
 - Each project also has durable Codex, Claude, and Kimi homes mounted at their provider-native paths.
 - Agent-provider credentials are host-managed and synchronized into project credential locations, primarily those homes; Claude also uses `/root/.claude.json` outside its mounted home.
+- Antigravity authenticates inside each project and stores its current
+  `/root/.gemini` state in the replaceable container root rather than a durable
+  provider-home mount.
+- Scheduled-task definitions and claims live in the host control plane. A due
+  task enters the same project chat and one-run-per-chat path as an interactive
+  prompt.
 - The workspace WebSocket carries project/chat list updates; each chat has its own event stream.
 - Caddy authenticates IDE and preview requests before proxying them into containers.
 

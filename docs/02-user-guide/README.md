@@ -1,6 +1,9 @@
 # User guide
 
-This guide explains how to use every user-facing part of Remote: onboarding, projects, chats, agent controls, workspace tools, previews, the shared Agent Browser, Git recovery, secrets, sharing, users, and server information.
+This guide explains how to use every user-facing part of Remote: onboarding,
+projects, chats, four agent providers, scheduled tasks, workspace tools,
+previews, the shared Agent Browser, Git recovery, secrets, sharing, users, and
+server information.
 
 Remote is built around one idea: create a project computer, give an agent broad authority inside that project, and keep the human in control through the browser.
 
@@ -18,6 +21,8 @@ If this is your first session:
 6. For a web app, use [Preview and Inspect](06-previews-and-inspector.md).
 7. For a real signed-in website, use the [Agent Browser](07-agent-browser.md).
 8. Use [Git History](08-git-history-and-restore.md) before or after risky changes.
+9. Use [Scheduled tasks](09-scheduled-tasks.md) when a project chat should work
+   again later without keeping the browser open.
 
 ## Find a task
 
@@ -25,6 +30,7 @@ If this is your first session:
 | --- | --- |
 | Claim a new server or sign in | [First run and sign-in](01-first-run-and-sign-in.md) |
 | Connect Claude, Codex, or Kimi | [Global settings, users, and providers](10-global-settings-users-providers.md) |
+| Sign in to Antigravity for one project | [Global settings, users, and providers](10-global-settings-users-providers.md#use-antigravity) |
 | Create, search, reorder, start, or stop projects | [Projects and sidebar](02-projects-and-sidebar.md) |
 | Pick a provider, model, thinking level, speed, mode, or skill | [Chat and agent controls](03-chat-and-agent-controls.md) |
 | Attach files, queue work, cancel a run, fork, rewind, or mark unread | [Prompts, context, and conversation](04-prompts-context-and-conversation.md) |
@@ -34,18 +40,20 @@ If this is your first session:
 | Preview a local web app or select an element | [Previews and inspector](06-previews-and-inspector.md) |
 | Let an agent use a website where I am signed in | [Agent Browser](07-agent-browser.md) |
 | Inspect commits, prepare a recovery point, or switch clean versions | [Git history and restore](08-git-history-and-restore.md) |
+| Schedule, pause, edit, run, or delete future agent work | [Scheduled tasks](09-scheduled-tasks.md) |
 | Add secrets, share a project, set limits, or recover a container | [Project settings](09-project-settings.md) |
 | Invite a user, change a role, choose a theme, or inspect the host | [Global settings](10-global-settings-users-providers.md) |
 | Follow a complete end-to-end recipe | [Everyday workflows](11-everyday-workflows.md) |
 | Diagnose a problem | [Troubleshooting](12-troubleshooting.md) |
 | Check whether a feature exists and who may use it | [Complete feature reference](13-feature-reference.md) |
 
-## The five surfaces
+## The application surfaces
 
 ```mermaid
 flowchart LR
     Sidebar["Projects and chats"] --> Chat["Agent chat"]
     Chat --> Work["Files, Terminal, IDE, and Git"]
+    Chat --> Schedules["Scheduled tasks"]
     Chat --> Web["Preview, inspector, and Agent Browser"]
     Sidebar --> Project["Project settings"]
     Sidebar --> Global["Global settings"]
@@ -54,8 +62,9 @@ flowchart LR
 | Surface | What it controls |
 | --- | --- |
 | Projects sidebar | Project and chat creation, search, status, ordering, read state, forking, and deletion |
-| Chat | Agent selection, prompt context, streamed reasoning and tool activity, queues, questions, usage, and history |
+| Chat | Agent selection, prompt context, streamed reasoning and tool activity, per-tab drafts and queues, questions, usage, and history |
 | Workspace tools | The durable `/workspace` through files, downloads, a shell, code-server, and Git |
+| Scheduled tasks | Host-owned one-time or recurring prompts that return to a project chat |
 | Project settings | Container state, diagnostics, resource limits, secrets, membership, and recovery |
 | Global settings | Appearance, host-wide agent credentials, platform users, Google OAuth, and host metrics |
 
@@ -66,6 +75,7 @@ flowchart LR
 | Use a project and its chats | Yes | Yes, when added |
 | Create projects and chats | Yes | Yes |
 | Use files, terminal, preview, IDE, and browser | Yes | Yes, with the IDE caveat below |
+| Create and manage scheduled tasks | Yes, including all owners | Yes, for their own tasks |
 | Read or change project secrets | Yes | Yes |
 | Add or remove project members | Yes | Yes |
 | Start, stop, restart, inspect, or repair a project | Yes | Yes |
@@ -82,10 +92,17 @@ The durable center is the project, not one chat or one container generation.
 
 - `/workspace` survives normal stop, restart, and container replacement.
 - Claude, Codex, and Kimi provider homes are separate durable mounts.
+- Antigravity stores its sign-in and conversation state in the replaceable
+  container root; it survives ordinary stop/start but not container
+  replacement.
 - The Agent Browser profile lives in the workspace, so site sessions can survive container replacement.
 - Chat metadata and event history live in the host control plane.
+- Scheduled-task definitions, claims, and run state live in the host control
+  plane.
 - Packages or files installed elsewhere in a container root filesystem can disappear when the container is recycled.
-- Browser-only drafts and queued prompts disappear on a full page reload.
+- Drafts and queued prompts are stored in `sessionStorage` per browser tab.
+  They survive a reload in that tab, but not tab closure, a different tab,
+  another browser, or another device.
 
 For the architecture behind those guarantees, read [Philosophy](../01-overview/00-philosophy.md) and [Projects and containers](../02-workspaces/03-projects-and-containers.md).
 

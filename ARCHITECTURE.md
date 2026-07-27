@@ -4,7 +4,12 @@ This document describes how remote.futrx is put together: its runtime topology, 
 
 ## What it is
 
-remote.futrx is a **single-server, self-hosted** workspace for the Claude Code, Codex, and Kimi Code agent CLIs. A user creates a project, the platform gives that project an isolated Linux container, and the user drives an agent against the project's files from the browser — with a chat stream, a terminal, a code editor, a file manager, Git history, and live app previews all attached to the same container.
+remote.futrx is a **single-server, self-hosted** workspace for the Claude
+Code, Codex, Kimi Code, and Antigravity agent CLIs. A user creates a project,
+the platform gives that project an isolated Linux container, and the user
+drives interactive or scheduled agent turns against the project's files from
+the browser—with chat, terminal, code editor, file manager, Git history, task
+schedules, and live app previews attached to the same project.
 
 Everything runs on one host. There is no clustering, no external database, and no multi-node story (see [Known limitations](docs/known-limitations.md)).
 
@@ -91,7 +96,10 @@ Composition roots: [`backend/cmd/remote/main.go`](backend/cmd/remote/main.go) (s
 Three **separate** concerns, deliberately not conflated ([deep dive](docs/02-workspaces/02-auth-users-and-access.md)):
 
 1. **Platform identity.** Exactly one local-admin account (email + password, argon2id, min 12 chars, in `local-admin.json`); every other user signs in through **Google OAuth only** and must be invited first. There is no self-signup.
-2. **Agent-provider credentials.** Host-wide OAuth tokens for Claude/Codex/Kimi, connected once by an admin and **shared by all projects and users** on the box. They live in root's home and are copied into each container before a run.
+2. **Agent-provider credentials.** Host-wide OAuth tokens for
+   Claude/Codex/Kimi, connected once by an admin and **shared by all projects
+   and users** on the box. Antigravity instead authenticates through `agy`
+   inside one project and stores that state in the replaceable container root.
 3. **Per-project membership.** A flat email access-list per project (`projectaccess/<id>.json`). Any member — not only admins — can read/write that project's secrets and edit its member list.
 
 **Sessions** are stateless HMAC-SHA256 tokens (`{email, sub, iat, exp}`, 30-day expiry) signed by a random key at `DATA_DIR/session.key` ([`session_codec.go`](backend/internal/service/auth/session_codec.go)). The cookie is `HttpOnly; Secure; SameSite=Lax` and **domain-scoped to the base host** so it reaches the preview/IDE subdomains for `forward_auth`. There is no server-side session store: logout only clears the cookie, and per-request `IsRegistered` checks are the only way a session is invalidated early.
@@ -116,14 +124,22 @@ sequenceDiagram
     Prompt->>Life: ensure container running
     Life->>LXD: lxc start / reconcile mounts
     Prompt->>LXD: push credentials, skills, instructions
-    Prompt->>CLI: lxc exec ... claude/codex/kimi (root, skip-permissions)
+    Prompt->>CLI: lxc exec selected provider CLI (root, skip-permissions)
     CLI-->>Prompt: provider JSONL stream
     Prompt-->>WS: normalized events (persisted to JSONL, broadcast)
     WS-->>SPA: live text / reasoning / tool calls / usage
     Prompt->>LXD: on success, sync refreshed credentials back to host
 ```
 
-The run hub ([`service/runhub/hub.go`](backend/internal/service/runhub/hub.go)) enforces **one run per chat**, persists every event through the chat repository, and replays history to reconnecting subscribers by sequence number. Provider adapters ([`agent/claude`](backend/internal/agent/claude), [`agent/codex`](backend/internal/agent/codex), [`agent/kimi`](backend/internal/agent/kimi)) normalize each CLI's native JSONL into a shared event stream.
+The run hub ([`service/runhub/hub.go`](backend/internal/service/runhub/hub.go))
+enforces **one run per chat**, persists every event through the chat repository,
+and replays history to reconnecting subscribers by sequence number. Provider
+adapters ([`agent/claude`](backend/internal/agent/claude),
+[`agent/codex`](backend/internal/agent/codex),
+[`agent/kimi`](backend/internal/agent/kimi), and
+[`agent/antigravity`](backend/internal/agent/antigravity)) normalize each
+CLI's available output into a shared event stream. Antigravity print mode
+provides plain streamed text rather than structured tool/usage events.
 
 A chat with **no project** ("loose chat") runs the CLI directly on the host instead of in a container. This path is convenient but removes the container boundary; its consequences are the subject of several threat-model entries.
 
@@ -137,9 +153,11 @@ A chat with **no project** ("loose chat") runs the CLI directly on the host inst
 | Project membership | `DATA_DIR/projectaccess/<id>.json` | JSON | flat email list |
 | Project secrets | `DATA_DIR/projectsecrets/<id>.json` | JSON | **plaintext**, mode 0600, not encrypted at rest |
 | Chat events | `DATA_DIR/chats/<id>/events.jsonl` | JSONL | append-only, monotonic `seq`, no rotation |
+| Scheduled tasks | `DATA_DIR/scheduled-tasks/tasks.json` | JSON | definitions, deadlines, durable claims, pending state, and last outcomes |
 | Session key | `DATA_DIR/session.key` | 32 random bytes | mode 0600 |
 | Google OAuth secret | `DATA_DIR/oauth.json` | JSON | plaintext, mode 0600 |
 | Provider tokens | `/root/.claude*`, `/root/.codex`, `/root/.kimi-code` | provider files | copied into every container |
+| Antigravity project auth/session | project container `/root/.gemini/antigravity-cli` | provider files | survives stop/start, not container replacement |
 | Workspace files | `/var/lib/remote/projects/<slug>/workspace` | on-disk tree | bind-mounted to `/workspace` |
 | Agent homes | `/var/lib/remote/projects/<slug>/agent-home/*` | on-disk tree | bind-mounted to `/root/.claude` etc. |
 
@@ -150,11 +168,30 @@ JSON and metadata writes use temp-file + rename. Chat events are different: they
 Containers are **cattle**; durable state lives on the host and is bind-mounted in ([deep dive](docs/02-workspaces/03-projects-and-containers.md), [`lifecycle/service.go`](backend/internal/service/container/lifecycle/service.go)):
 
 - **Four bind mounts per project:** `workspace` → `/workspace`, and `agent-home/{claude,codex,kimi}` → `/root/.{claude,codex,kimi-code}`. Host dirs are chowned to uid/gid `1000000` (the unprivileged-root idmap) via `os.OpenRoot`+`Lchown` to defeat symlink-swap races.
+- **Antigravity is not a fifth mount.** Its `agy` state currently lives under
+  `/root/.gemini` in the replaceable rootfs.
 - **A managed LXD profile** (`futrx-workspace`, [`resources/manager.go`](backend/internal/integration/containers/resources/manager.go)) targets **4 GiB memory, 6 CPUs, 2000 processes** and sets `security.nesting=true` for nested-container workloads. Chromium currently launches with `--no-sandbox`, so that setting is not a Chromium sandbox guarantee. Default/profile resource convergence is best-effort because errors from the default `resources.Ensure` path are discarded; explicit per-project overrides fail launch when they cannot be applied. There is **no default disk quota.**
 - **Networking:** containers share LXD's default bridge; Caddy reaches them by `<slug>.lxd:<port>` DNS. The bridge has no inter-container ACLs by default.
 - **Everything else crosses via `lxc file push/pull` and `lxc exec`:** credentials, project secrets (as `environment.*` config and `--env` args), agent instructions, and skill links.
 
 The rootfs is disposable — [`upgrade-workspaces`](backend/cmd/upgrade-workspaces/main.go) replaces containers wholesale onto a new base image, so anything installed outside `/workspace` and the agent homes is lost on upgrade.
+
+## Scheduled execution
+
+Scheduled tasks are a control-plane capability, not container cron jobs. The
+backend stores definitions and persisted claims in
+`DATA_DIR/scheduled-tasks/tasks.json`, owns one timer loop, and injects each due
+prompt through the normal prompt service and one-run-per-chat hub.
+
+Interactive agents receive a short-lived, owner/chat/project-fenced `manage`
+capability only when the **Scheduled Tasks** skill is selected. A scheduled
+turn receives a narrower `complete-self` capability for its own task and run.
+Agent-created tasks start disabled and require a human **Arm** action. Default
+guardrails are a five-minute minimum recurrence, two concurrent scheduled
+runs, and twenty standing tasks per project.
+
+See [Scheduled tasks](docs/02-workspaces/06-scheduled-tasks.md) for the claim,
+overlap, authorization, cron, and crash-recovery state machine.
 
 ## Previews, IDE, and the Agent Browser
 

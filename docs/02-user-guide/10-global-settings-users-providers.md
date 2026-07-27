@@ -14,7 +14,10 @@ The preference is saved to your Remote user settings. Wait for the **Saved** sta
 
 ## Agents
 
-Agent authentication is host-wide and administrator-managed. Sign in once on the parent host; Remote then seeds the provider credentials into project containers.
+Claude, Codex, and Kimi authentication is host-wide and
+administrator-managed. Sign in once on the parent host; Remote then seeds
+those provider credentials into project containers. Antigravity uses a
+different per-project flow described below.
 
 ![Administrator view of Claude, Codex, and Kimi authentication](/assets/docs/screenshots/03-agent-authentication-01m05s.webp)
 
@@ -48,13 +51,43 @@ Remote may also detect a configured API key, but subscription/device authenticat
 4. Approve the account.
 5. Return to Remote and wait for the connected state.
 
+### Use Antigravity
+
+Antigravity appears in the chat provider picker but not in the global
+**Agents** cards. Its `agy` CLI does not expose a host-wide sign-in flow that
+Remote can complete and distribute.
+
+Sign in separately in each project:
+
+1. Open a chat in the project.
+2. Select **Open Terminal**.
+3. Run `agy`.
+4. Complete the URL-and-code flow displayed by Antigravity.
+5. Exit the interactive CLI.
+6. Return to the chat and select **Antigravity**.
+
+That sign-in is shared with other users and agents inside the same project
+container. Its files live under `/root/.gemini`, not one of Remote's durable
+provider-home mounts. They survive ordinary stop/start but disappear when the
+container is replaced; sign in again after an upgrade or recovery that
+recreates the container.
+
+Antigravity does not satisfy Remote's initial “at least one provider connected”
+gate. A server administrator must still connect Claude, Codex, or Kimi during
+onboarding.
+
 ### Shared-provider implications
 
-- Every user and project shares the same host provider accounts and their quotas.
-- Provider credentials are copied into project credential locations.
+- Every user and project shares the same host Claude, Codex, and Kimi accounts
+  and their quotas.
+- Those three provider credentials are copied into project credential
+  locations.
 - An agent that can read its project credential files can act with that provider authority.
 - Claude, Codex, and Kimi homes are durable but separate by provider format, not separate security principals.
 - Re-authentication can affect every project.
+- Antigravity is project-local rather than host-wide, but its credential state
+  is still readable by container root and shared by everyone with authority in
+  that project.
 
 Non-admins can use connected providers but cannot connect or refresh them.
 
@@ -131,6 +164,7 @@ Use the sign-out control in the account footer. This clears the platform session
 | Change own appearance | Yes | Yes |
 | View own account and server information | Yes | Yes |
 | Connect or refresh agent providers | Yes | No |
+| Sign in to Antigravity inside an assigned project | Yes | Yes |
 | Configure Google OAuth | Yes | No |
 | Add, remove, promote, or demote users | Yes | No |
 

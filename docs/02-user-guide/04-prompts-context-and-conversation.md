@@ -32,7 +32,7 @@ flowchart LR
     Files["Uploaded absolute paths"] --> Request
     Session["Provider session ID, when valid"] --> Request
     History["Bounded visible transcript after rewind or lost session"] --> Request
-    Request --> Agent["Claude, Codex, or Kimi CLI"]
+    Request --> Agent["Claude, Codex, Kimi, or Antigravity CLI"]
 ```
 
 Remote normally resumes the provider's own session. The visible event log and
@@ -75,13 +75,16 @@ the agent is working** and the send button becomes **Queue prompt**.
 4. Remove a queued item if it should not be sent.
 5. Keep or return to that chat in the same loaded page.
 
-The first queued prompt is sent after the active run unlocks. Queues are tied
-to the active chat connection, so a queue in a background chat waits until that
-chat is open again.
+The first queued prompt is sent after the active run unlocks. A prompt remains
+queued until the server acknowledges that it accepted the next run; a rejected
+or interrupted dispatch stays at the front for the next send window.
+Only the active chat has a live composer controller, so a queue in a background
+chat waits until you open that chat again.
 
-> Draft text and queued prompts exist only in page memory. They survive
-> switching chats within the currently loaded page, but they are lost on a full
-> reload, browser restart, or new tab. They are not durable server-side jobs.
+> Draft text and queued prompts are mirrored to `sessionStorage`, keyed by
+> chat. They survive chat switching, app navigation, and a reload in the same
+> browser tab. They are not server-side jobs and are not shared with another
+> tab, browser, device, or user; closing the tab ends their intended lifetime.
 
 There is still only one active run per chat. To run work concurrently, create
 separate chats and switch between them in the sidebar.
@@ -97,6 +100,9 @@ During a run, Remote can show:
 - working, completion, usage, and error states; and
 - a question form when the agent emits a supported `AskUserQuestion` tool.
 
+Antigravity currently emits plain streamed text rather than structured
+reasoning, tool, or usage events.
+
 Answer a displayed question and submit it to send that answer as the next
 prompt. Use **Jump to latest** after scrolling away from new output.
 
@@ -105,6 +111,9 @@ the active provider context known to the current backend process and releases
 the chat lock. A backend restart can leave a provider child process running
 without a control-plane attachment; Remote does not currently reattach to
 orphaned runs.
+
+For work that must start when no browser tab is open, use
+[Scheduled tasks](09-scheduled-tasks.md) rather than the per-tab prompt queue.
 
 ## Continue and manage a conversation
 
@@ -137,8 +146,8 @@ Rewind also clears the chat's page-memory prompt queue.
 4. Continue with different controls or instructions.
 
 Claude can request a provider session fork. Codex clones its stored rollout to
-a new session identifier. Kimi currently starts the fork's next run as a fresh
-session. In all cases, the parent chat remains unchanged.
+a new session identifier. Kimi and Antigravity currently start the fork's next
+run as a fresh session. In all cases, the parent chat remains unchanged.
 
 ## Parallel conversation pattern
 

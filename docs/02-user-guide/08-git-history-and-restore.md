@@ -4,6 +4,11 @@
 commits and patches, and place a repository at an earlier commit. It is a
 targeted recovery surface, not a replacement for the complete Git CLI.
 
+The **History** button appears only after Remote confirms that the chat
+workspace contains a Git repository. Remote checks when the chat becomes ready
+and checks again after each agent run, so a newly initialized or cloned
+repository can appear without a page reload.
+
 ## Before you begin
 
 - Confirm the intended directory is a Git repository with at least one commit.
@@ -23,16 +28,19 @@ targeted recovery surface, not a replacement for the complete Git CLI.
    short SHA, and current ref.
 4. Select a commit. The selected row shows its short SHA, subject, author, and
    date; the current commit is marked **HEAD**.
-5. Review the patch in the right pane.
+5. Review the structured patch in the right pane. Each changed file is a
+   collapsible card with addition/deletion counts, old and new line numbers,
+   hunk boundaries, and badges for new, deleted, or binary files.
 6. Select **Refresh history** after another tool changes commits or working-tree
    state.
 
 **Outcome:** the repository remains unchanged. Only selecting **Switch**
 requests a checkout.
 
-The drawer lists commits from all refs in date order. A blank patch can be
-valid for a commit with no displayed textual change; **No diff** alone does not
-prove that the repository has no history.
+The drawer lists commits from all refs in date order. Mode-only, rename-only,
+and binary changes can have no textual hunk. If a response cannot be parsed as
+a normal unified diff, Remote falls back to the raw patch instead of hiding it.
+**No diff** alone does not prove that the repository has no history.
 
 ## Switch a clean repository to a commit
 

@@ -95,6 +95,7 @@ flowchart LR
     Codex["Codex"] --> Project
     Claude["Claude"] --> Project
     Kimi["Kimi"] --> Project
+    Antigravity["Antigravity"] --> Project
 
     Project -. "outlives" .-> ChatA["Chat A"]
     Project -. "outlives" .-> ChatB["Chat B"]
@@ -105,7 +106,8 @@ This gives Remote five foundational rules:
 
 1. **One project, one containment boundary.** Files, processes, tools, browser state, and project authority belong to that project.
 2. **The project, not the conversation, is durable.** A new chat or a different provider should enter the same world rather than reconstruct it.
-3. **The model is a replaceable worker.** Codex, Claude, and Kimi can work against the same project without becoming its owner.
+3. **The model is a replaceable worker.** Codex, Claude, Kimi, and
+   Antigravity can work against the same project without becoming its owner.
 4. **Work is durable; machinery is replaceable.** Source, artifacts, skills, and provider homes persist while the runtime can be rebuilt.
 5. **Failure should be local and repairable.** A bad install, runaway process, or broken root filesystem should not require repairing another project. Recovery of agent-modified durable files still depends on Git, remotes, snapshots, or backups outside the current runtime.
 
@@ -200,10 +202,17 @@ flowchart LR
 | Codex home | `/root/.codex` | Codex provider configuration, authentication, sessions, and provider-owned state |
 | Claude home | `/root/.claude` | Claude provider configuration, authentication, sessions, and provider-owned state |
 | Kimi home | `/root/.kimi-code` | Kimi provider configuration, authentication, sessions, and provider-owned state |
-| Host control-plane data | Application data directory | Project metadata, chats, event logs, access lists, settings, and the authoritative secret store |
-| Replaceable runtime | Container root filesystem outside the mounts | Base image, installed packages, temporary files, and operating-system state |
+| Host control-plane data | Application data directory | Project metadata, chats, event logs, scheduled tasks, access lists, settings, and the authoritative secret store |
+| Replaceable runtime | Container root filesystem outside the mounts | Base image, installed packages, temporary files, Antigravity state, and operating-system state |
 
-The workspace is shared by all agents in the project. Provider homes are separate because each CLI owns different configuration and session formats; they are **format-separated, not security-separated**. Container root can read and modify all three homes regardless of the selected provider. Project skills have one canonical source at `/workspace/.agents/skills`; provider-specific paths are compatibility links rather than competing copies.
+The workspace is shared by all agents in the project. The three mounted
+provider homes are separate because Claude, Codex, and Kimi own different
+configuration and session formats; they are **format-separated, not
+security-separated**. Container root can read and modify all three regardless
+of the selected provider. Antigravity currently keeps its state under
+`/root/.gemini` in the replaceable rootfs rather than a fourth durable mount.
+Project skills have one canonical source at `/workspace/.agents/skills`;
+provider-specific paths are compatibility links rather than competing copies.
 
 The host also manages provider authentication. Host-wide provider credentials may be synchronized into the project before a run and back after it. Most synchronized files live in provider homes; Claude also uses `/root/.claude.json` in the replaceable root filesystem. Bidirectional synchronization means a project agent can potentially change host-wide provider state that is later used by other projects. That makes provider identity fleet-scoped even though project files, browser profiles, and project secrets are project-scoped. These are different trust domains and should remain visibly distinct.
 
@@ -221,14 +230,14 @@ The capability envelope should be complete enough that the agent can move from i
 | Filesystem | Read and write the complete project workspace and all provider homes mounted in that project container |
 | Package installation | `apt`, `npm`, `pip`, and project-local package managers may install what the work requires |
 | Core toolchain | Git, SSH client, `gh`, `jq`, build tools, Python, Node.js 22, npm, and npx |
-| Agent choice | Claude Code, Codex, and Kimi Code at pinned versions, behind one provider-neutral run model |
-| Skills | Project-authored procedures under `/workspace/.agents/skills`, including skills the agent creates for future work. Claude and Codex receive selected skill triggers; Kimi currently stores selections without equivalent prompt injection |
+| Agent choice | Claude Code, Codex, Kimi Code, and Antigravity at pinned versions, behind one provider-neutral run model |
+| Skills | Project-authored procedures under `/workspace/.agents/skills`, including skills the agent creates for future work. Claude and Codex receive general selected-skill triggers; Kimi and Antigravity do not. Scheduled Tasks is the explicit provider-neutral exception |
 | Processes | Foreground and background processes; background work may continue between prompts while the container stays running |
 | Network | Outbound networking and project app listeners; the current project instructions describe network access as open |
 | Web applications | Any non-loopback TCP listener on an allowed preview port from 1024 through 65535 can be discovered and exposed through an authenticated project URL |
-| Browser automation | A headless Playwright utility plus a shared headed Chromium. Claude and Codex can receive per-run MCP/CDP preparation; Kimi does not yet have equivalent browser enablement |
+| Browser automation | A headless Playwright utility plus a shared headed Chromium. Claude and Codex can receive per-run MCP/CDP preparation; Kimi and Antigravity do not yet have equivalent browser enablement |
 | Human-visible desktop | noVNC lets the user view and take over the same headed browser session |
-| Development surfaces | Terminal, browser IDE, files, uploads, Git history, app preview, and element inspection over the same workspace |
+| Development surfaces | Terminal, browser IDE, files and media, uploads, Git history, app preview, element inspection, and scheduled tasks over the same workspace |
 | Project credentials | Agent runs receive project secrets as environment values; persistable single-line values also reach new container processes, and all values are mirrored to `/workspace/.env` for dotenv-aware tools |
 | Concurrency | Several chats may work concurrently; the execution lock is per chat, so agents sharing files, Git state, ports, and processes can race and must coordinate |
 
@@ -241,11 +250,11 @@ Broad agent authority is paired with a complete control envelope. The human shou
 | Control | Human or host capability |
 | --- | --- |
 | Identity | Claim the server, sign in, manage registered users, and separate administrators from members |
-| Provider identity | Administrators connect, refresh, or replace the host-wide Claude, Codex, and Kimi identities; the application does not currently expose a provider logout/revoke control |
+| Provider identity | Administrators connect, refresh, or replace host-wide Claude, Codex, and Kimi identities; Antigravity signs in per project and has no global card |
 | Project access | Current members can add or remove registered project members; the backend gates project API, chat, upload, terminal, and preview resources |
 | Project secrets | Current members can create, read, change, or delete the authoritative secret record; propagation to and removal from managed copies is currently best-effort |
 | Agent selection | Choose provider, model, reasoning effort, service tier or speed, mode, and selected skills |
-| Run control | Send, queue, cancel, fork, rewind, mark read or unread, or delete conversations |
+| Run control | Send, queue, cancel, fork, rewind, mark read or unread, or delete conversations; create schedules through the agent, then arm, pause, edit, run, or delete them in the drawer |
 | Transparency | See provider-emitted text, reasoning, tool inputs, tool outputs, errors, sessions, and usage as normalized events |
 | Direct intervention | Project members can inspect the same work in the terminal, IDE, file manager, Git history, app preview, or Agent Browser |
 | Change recovery | Inspect Git diffs and return a clean repository to an earlier commit while usable local history or a remote copy survives; the backend checkpoint path exists, but its dirty-tree form is not rendered in the current UI |
@@ -299,7 +308,12 @@ sequenceDiagram
 
 The agent is not simulated by the web application. Remote launches the real provider CLI in the real project computer, normalizes the events it emits, and gives the user a common control surface over different providers.
 
-Preparation happens before every run where correctness requires it. That allows a missing container to be recreated, a stale CLI to be repaired, current shared instructions to be republished, and compatibility links to be converged. Selected-skill prompt triggers and per-run browser MCP preparation currently apply to Claude and Codex, not Kimi.
+Preparation happens before every run where correctness requires it. That allows
+a missing container to be recreated, a stale CLI to be repaired, current
+shared instructions to be republished, and compatibility links to be
+converged. General selected-skill prompt triggers and per-run browser MCP
+preparation currently apply to Claude and Codex, not Kimi or Antigravity.
+Scheduled Tasks is the explicit provider-neutral exception.
 
 ## Persistence and replaceability
 
@@ -310,6 +324,7 @@ flowchart TB
     Intent["Human intent and conversation history"] --> ProjectState["Durable project state"]
     ProjectState --> Workspace["Workspace, skills, artifacts, browser profile"]
     ProjectState --> AgentHomes["Codex, Claude, and Kimi homes"]
+    ProjectState --> Scheduled["Scheduled task definitions and claims"]
     ProjectState --> Metadata["Metadata, access, secrets, event logs"]
 
     Base["Versioned base image"] --> Runtime["Replaceable container generation"]
@@ -317,6 +332,7 @@ flowchart TB
     AgentHomes --> Runtime
     Runtime --> Processes["Ephemeral process generation"]
     Runtime --> Packages["Replaceable rootfs packages"]
+    Runtime --> AntigravityState["Antigravity /root/.gemini state"]
 
     Runtime -->|"rebuild"| NextRuntime["Next container generation"]
     Workspace --> NextRuntime
@@ -331,6 +347,8 @@ flowchart TB
 | Root-filesystem packages and ad-hoc files | Survive | Survive | Survive | Lost | Removed |
 | Background processes | May continue | Stop | Stop | Stop | Stop |
 | Chat metadata and event history | Survive | Survive | Survive | Survive | Stored separately; current project deletion does not cascade chat deletion |
+| Scheduled task definitions and run claims | Survive | Survive | Survive | Survive | Stored separately; invalid project/chat ownership is detected when the task next fires |
+| Antigravity state under `/root/.gemini` | Survive | Survive | Survive | Lost | Removed with the container |
 
 If a project depends on a package added to the replaceable root filesystem, the durable project should describe how to restore it—for example in `/workspace/setup.sh`. Reproducibility converts a one-off machine mutation into project knowledge.
 
@@ -362,7 +380,7 @@ Remote has four credential classes, each with a different scope:
 | Credential class | Scope | Current behavior |
 | --- | --- | --- |
 | Platform session | User and Remote control plane | Kept in secure HTTP-only cookies and stripped before requests enter project-controlled apps and IDEs |
-| Agent-provider identity | Host or fleet | Connected by an administrator and synchronized bidirectionally with project provider state so agents can use the subscription |
+| Agent-provider identity | Host-wide for Claude, Codex, and Kimi; project runtime for Antigravity | The three host providers are connected by an administrator and synchronized bidirectionally with project state. Antigravity is authenticated inside each project and its current state is not durable across container replacement |
 | Project secret | One project | Stored in a host file with mode `0600` but without application-level encryption; passed to agent runs, persisted as container environment when single-line, and mirrored into the managed `.env` file |
 | Browser-session identity | One project browser profile | Created through human login and persisted with the project so the agent can use the authenticated session |
 
@@ -380,11 +398,11 @@ The design principle is:
 
 Remote does not choose between autonomy and control. It separates their timescales:
 
-- **before work**, the human chooses the project, agent, mode, skills, resources, access, and credentials;
+- **before work**, the human chooses the project, agent, mode, skills, resources, access, credentials, and whether an agent-created schedule should be armed;
 - **during work**, the agent can act without constant local approval while provider-emitted progress and tool activity stream back;
 - **at judgment boundaries**, the human can answer a question, take over the browser, inspect a rendered element, or work directly in the IDE or terminal;
 - **after work**, the human can review artifacts, diffs, commits, processes, resource use, and the running application;
-- **on failure**, the host can cancel the run, stop or force-restart the container, restore Git state when a checkpoint survives, or replace the runtime.
+- **on failure**, the host can cancel the run, pause a schedule, stop or force-restart the container, restore Git state when a checkpoint survives, or replace the runtime.
 
 This is the desired operating loop:
 

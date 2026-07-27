@@ -47,12 +47,51 @@ These are the constraints worth understanding before you deploy or rely on remot
 
 ## Agents
 
-- **Agent identity is a shared host singleton.** Provider credentials (Claude/Codex/Kimi) are authenticated once at host level and seeded into every container — all users and projects share the same provider accounts and subscription quotas. There is no per-user or per-project agent identity, and each provider allows only one interactive login at a time.
+- **Claude, Codex, and Kimi identity is a shared host singleton.** Those
+  credentials are authenticated once at host level and seeded into every
+  container, so all users and projects share the same provider accounts and
+  subscription quotas. There is no per-user or per-project identity for those
+  providers, and each allows only one interactive login at a time.
+- **Antigravity authentication is project-local but not durable across
+  replacement.** Users run `agy` in the project Terminal. Its credential and
+  conversation state live under `/root/.gemini` in the replaceable container
+  root rather than a mounted provider home. It survives stop/start of the same
+  container but must be recreated after an upgrade or recovery replaces that
+  container.
 - **Run control does not survive a backend restart.** Agent runs are owned by in-process state around an `lxc exec` child. A backend restart loses the run lock, cancellation handle, and event-stream ownership. With the production unit's `KillMode=process`, the child may remain alive but orphaned rather than being killed. There is no server-side run persistence, reattachment, or restart recovery.
-- **One backend run per chat; queueing is browser-only.** A direct concurrent run request is rejected. In the browser UI, sending while an agent works instead adds the prompt to that tab's in-memory queue: queued prompts are lost on tab close/refresh and only auto-send while that chat is open. "Queue work and walk away" holds only while the tab stays on that chat. Composer drafts are likewise in-memory.
+- **One backend run per chat; interactive queueing remains browser-owned.** A
+  direct concurrent run request is rejected. Drafts and queued prompts are
+  mirrored to per-tab `sessionStorage`, so they survive navigation and reloads
+  in that tab, but not tab closure or another tab/browser/device. A background
+  chat's queue sends only after that chat is opened again. Use scheduled tasks
+  for host-owned future work.
 - **Session recovery drops context.** When a provider session is missing (or you switch provider mid-chat), the chat is "recovered" by replaying at most the last ~24 KB of visible transcript as plain text into a fresh session — earlier context and all tool-call state are dropped.
 - **Modes are advisory.** Chat/Plan/Code/Review/Debug/Full-Auto are prompt-preamble policies with no backend enforcement, sandboxing difference, or approval gate. An agent in "chat" mode can still modify files; there is no human-confirmation gate for irreversible or external actions.
-- **Provider-specific gaps.** Kimi has no fork primitive (forked Kimi chats silently start fresh) and reports no usage data. Codex service-tier selection is limited to three values (default/priority/fast). Failed Claude tool calls are currently rendered as successes.
+- **Provider-specific gaps.** Kimi has no fork primitive (forked Kimi chats
+  silently start fresh) and reports no usage data. Antigravity forks also
+  start fresh; print mode exposes plain streamed text rather than structured
+  tool/usage events, general selected skills are not injected, and Browser MCP
+  is unavailable. Codex service-tier selection is limited to three values
+  (default/priority/fast). Failed Claude tool calls are currently rendered as
+  successes.
+
+## Scheduled tasks
+
+- **Repeated runs grow one provider session.** A scheduled task resumes the
+  same chat/provider session, so long-lived recurrence accumulates context and
+  token cost. Use `maxRuns`, complete bounded monitors, and periodically create
+  a fresh task/chat.
+- **Missed occurrences are coalesced, not replayed.** After downtime or a busy
+  chat, Remote runs at most one overdue follow-up under the default overlap
+  policy. It is not a durable event-processing queue with exactly-once replay.
+- **Creation currently starts through the agent.** The drawer can arm, edit,
+  pause, resume, run, and delete tasks, but it has no direct create form.
+  Select the Scheduled Tasks skill and explicitly ask the agent to create the
+  parked definition.
+- **The scheduler is still single-process and file-backed.** Claims survive in
+  `scheduled-tasks/tasks.json`, but timer ownership, concurrency accounting,
+  and execution live in the one backend process. There is no distributed
+  scheduler or external queue.
 
 ## Previews, IDE, and the Agent Browser
 
