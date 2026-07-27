@@ -95,11 +95,19 @@ launch_chrome_direct() {
     "about:blank"
 }
 
-launch_chrome_scoped() {
-  systemctl reset-failed agent-browser.scope >/dev/null 2>&1 || true
-  systemd-run --quiet --scope --collect --unit=agent-browser \
+# A transient systemd SERVICE, not a scope. A scope wrapping `setsid` is
+# racy: setsid exits as soon as it forks Chrome, systemd sees the scope's
+# initial process gone, tears the cgroup down, and SIGTERMs the freshly
+# started Chrome - "core ready" then dead within seconds. A service
+# supervises Chrome directly (no setsid needed), detaches it from this
+# shell, applies the same resource caps, and appends output to $LOG.
+launch_chrome_service() {
+  systemctl reset-failed agent-browser.service >/dev/null 2>&1 || true
+  systemd-run --quiet --collect --unit=agent-browser \
+    --service-type=exec --setenv=DISPLAY="$DISPLAY" \
     -p MemoryMax=1536M -p CPUQuota=200% \
-    setsid "$CHROME" \
+    -p "StandardOutput=append:$LOG" -p "StandardError=append:$LOG" \
+    "$CHROME" \
     --user-data-dir="$PROFILE" \
     --no-sandbox --no-first-run --no-default-browser-check \
     --disable-dev-shm-usage \
@@ -123,7 +131,7 @@ start_core() {
   # because the unprivileged LXC container is itself the isolation boundary.
   if ! chrome_running; then
     if command -v systemd-run >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-      launch_chrome_scoped </dev/null >>"$LOG" 2>&1 &
+      launch_chrome_service </dev/null >>"$LOG" 2>&1 &
     else
       launch_chrome_direct </dev/null >>"$LOG" 2>&1 &
     fi
@@ -186,6 +194,7 @@ stop_view() {
 
 stop_core() {
   stop_view
+  systemctl stop agent-browser.service >/dev/null 2>&1 || true
   pkill -f "user-data-dir=$PROFILE" 2>/dev/null
   pkill -x openbox 2>/dev/null
   pkill -f "Xvfb :$DISPLAY_NUM" 2>/dev/null
