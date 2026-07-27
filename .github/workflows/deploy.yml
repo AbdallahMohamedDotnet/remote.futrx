@@ -93,7 +93,9 @@ jobs:
           ( cd frontend && npm install --silent --no-audit --no-fund 2>&1 | tail -3 && npm run build 2>&1 | tail -5 )
 
           echo "==> backend build"
-          ( cd backend && go build -trimpath -ldflags="-s -w" -o remote ./cmd/remote )
+          ( cd backend && go build -trimpath \
+              -ldflags="-s -w -X github.com/futrx-com/remote.futrx.com/internal/version.Version=$(git describe --tags --always --dirty)" \
+              -o remote ./cmd/remote )
 
           echo "==> restart backend"
           systemctl restart remote.futrx

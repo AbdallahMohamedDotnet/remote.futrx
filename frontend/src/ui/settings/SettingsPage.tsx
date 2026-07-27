@@ -2,17 +2,19 @@ import type { AppearanceTheme } from "../../models/settings";
 import type { CodexDeviceLogin, KimiDeviceLogin } from "../../models/auth";
 import type { UserDirectory } from "../../state/hooks/users/useUserDirectory";
 import type { ServerInfo } from "../../models/serverInfo";
+import type { SelfUpdateStatus } from "../../models/selfUpdate";
 import type { ComponentType } from "preact";
-import { Bot, ChevronLeft, Info, Menu, Monitor, Users } from "../primitives/icons";
+import { Bot, ChevronLeft, Download, Info, Menu, Monitor, Users } from "../primitives/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ClaudeAuthSettings } from "./ClaudeAuthSettings";
 import { CodexAuthSettings } from "./CodexAuthSettings";
 import { KimiAuthSettings } from "./KimiAuthSettings";
 import { GoogleOAuthSettings } from "./GoogleOAuthSettings";
 import { ServerInfoSettings } from "./ServerInfoSettings";
+import { UpdatesSettings } from "./UpdatesSettings";
 import { UsersPanel } from "../account/UsersPanel";
 
-export type SettingsTab = "appearance" | "agents" | "users" | "info";
+export type SettingsTab = "appearance" | "agents" | "users" | "updates" | "info";
 
 const tabs: Array<{
   id: SettingsTab;
@@ -39,6 +41,12 @@ const tabs: Array<{
     Icon: Users,
   },
   {
+    id: "updates",
+    label: "Updates",
+    description: "Check for new releases and install them.",
+    Icon: Download,
+  },
+  {
     id: "info",
     label: "Info",
     description: "View details about the main parent server.",
@@ -55,6 +63,12 @@ export function SettingsPage({
   serverInfoLoading,
   serverInfoRefreshing,
   serverInfoError,
+  selfUpdate,
+  selfUpdateLoading,
+  selfUpdateChecking,
+  selfUpdateApplying,
+  selfUpdateRestarting,
+  selfUpdateError,
   userDirectory,
   appearanceTheme,
   appearanceLoading,
@@ -75,6 +89,8 @@ export function SettingsPage({
   onHamburger,
   onTabChange,
   onRefreshServerInfo,
+  onCheckForUpdates,
+  onApplyUpdate,
   onAppearanceThemeChange,
   onStartCodexDeviceLogin,
   onStartKimiDeviceLogin,
@@ -87,6 +103,12 @@ export function SettingsPage({
   serverInfoLoading: boolean;
   serverInfoRefreshing: boolean;
   serverInfoError: string | null;
+  selfUpdate: SelfUpdateStatus | null;
+  selfUpdateLoading: boolean;
+  selfUpdateChecking: boolean;
+  selfUpdateApplying: boolean;
+  selfUpdateRestarting: boolean;
+  selfUpdateError: string | null;
   userDirectory: UserDirectory;
   appearanceTheme: AppearanceTheme;
   appearanceLoading: boolean;
@@ -107,6 +129,8 @@ export function SettingsPage({
   onHamburger: () => void;
   onTabChange: (tab: SettingsTab) => void;
   onRefreshServerInfo: () => Promise<void>;
+  onCheckForUpdates: () => Promise<void>;
+  onApplyUpdate: (tag?: string) => Promise<void>;
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
   onStartCodexDeviceLogin: () => Promise<void>;
   onStartKimiDeviceLogin: () => Promise<void>;
@@ -227,6 +251,24 @@ export function SettingsPage({
                 />
               </div>
             )}
+
+            {activeTab === "updates" &&
+              (isAdmin ? (
+                <UpdatesSettings
+                  status={selfUpdate}
+                  loading={selfUpdateLoading}
+                  checking={selfUpdateChecking}
+                  applying={selfUpdateApplying}
+                  restarting={selfUpdateRestarting}
+                  error={selfUpdateError}
+                  onCheck={onCheckForUpdates}
+                  onApply={onApplyUpdate}
+                />
+              ) : (
+                <SettingsNotice>
+                  Application updates are managed by server administrators.
+                </SettingsNotice>
+              ))}
 
             {activeTab === "info" && (
               <ServerInfoSettings

@@ -7,6 +7,7 @@ import { useAuthContext } from "../../state/context/AuthContext";
 import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
 import { useUserDirectory } from "../../state/hooks/users/useUserDirectory";
 import { useServerInfo } from "../../state/hooks/server/useServerInfo";
+import { useSelfUpdate } from "../../state/hooks/server/useSelfUpdate";
 
 export function SettingsContainer({
   onBack,
@@ -20,6 +21,7 @@ export function SettingsContainer({
   const userDirectory = useUserDirectory(auth.isAdmin);
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const serverInfo = useServerInfo(activeTab === "info");
+  const selfUpdate = useSelfUpdate(activeTab === "updates" && auth.isAdmin);
 
   return (
     <SettingsPage
@@ -31,6 +33,12 @@ export function SettingsContainer({
       serverInfoLoading={serverInfo.loading}
       serverInfoRefreshing={serverInfo.refreshing}
       serverInfoError={serverInfo.error}
+      selfUpdate={selfUpdate.status}
+      selfUpdateLoading={selfUpdate.loading}
+      selfUpdateChecking={selfUpdate.checking}
+      selfUpdateApplying={selfUpdate.applying}
+      selfUpdateRestarting={selfUpdate.restarting}
+      selfUpdateError={selfUpdate.error}
       userDirectory={userDirectory}
       appearanceTheme={userSettings.settings.appearance.theme}
       appearanceLoading={userSettings.loading}
@@ -46,6 +54,8 @@ export function SettingsContainer({
       onHamburger={onHamburger}
       onTabChange={setActiveTab}
       onRefreshServerInfo={serverInfo.refresh}
+      onCheckForUpdates={selfUpdate.check}
+      onApplyUpdate={selfUpdate.apply}
       onAppearanceThemeChange={(theme) => void userSettings.setTheme(theme)}
       onStartCodexDeviceLogin={codexAuth.startDeviceLogin}
       kimiAuthenticated={kimiAuth.authenticated}

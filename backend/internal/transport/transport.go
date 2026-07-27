@@ -10,6 +10,7 @@ import (
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
+	serviceselfupdate "github.com/futrx-com/remote.futrx.com/internal/service/selfupdate"
 	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
 	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
 	serviceworkspaceide "github.com/futrx-com/remote.futrx.com/internal/service/workspaceide"
@@ -30,6 +31,7 @@ type Dependencies struct {
 	DataDir        string
 	PublicHostname string
 	ServerInfo     *serviceserverinfo.Service
+	SelfUpdate     *serviceselfupdate.Service
 	Files          *serviceworkspacefiles.Service
 	GitHistory     *servicegithistory.Service
 	IDE            *serviceworkspaceide.Service
@@ -109,6 +111,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Auth,
 		),
 		ServerInfo:       httphandlers.NewServerInfoHandler(deps.ServerInfo),
+		SelfUpdate:       httphandlers.NewSelfUpdateHandler(deps.SelfUpdate, deps.Services.Auth),
 		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills),
 		BrowserInspector: httphandlers.NewBrowserInspectorHandler(),
 		Schedules:        scheduleHandler,

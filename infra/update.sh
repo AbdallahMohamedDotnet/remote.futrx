@@ -7,7 +7,7 @@
 # updates the checkout.
 #
 # Default flow:
-#   1. Fast-forward /opt/remote.futrx to origin/main.
+#   1. Reset /opt/remote.futrx to origin/main (or the --ref target).
 #   2. Converge host dependencies and all host agent CLIs.
 #   3. Build and restart the application.
 #   4. Rebuild the base image with the pinned agent CLIs.
@@ -20,6 +20,7 @@
 #
 # Flags:
 #   --include-busy     also recycle workspaces with an active agent process
+#   --ref=<ref>        update to a release tag (or any ref) instead of origin/main
 #   --skip-workspaces  update the host/application without rebuilding the base
 #                      image or recycling workspace containers
 set -euo pipefail
@@ -36,9 +37,11 @@ usage() {
 HOSTNAME=""
 INCLUDE_BUSY=0
 UPDATE_WORKSPACES=1
+TARGET_REF=""
 for a in "$@"; do
     case "$a" in
         --include-busy)    INCLUDE_BUSY=1 ;;
+        --ref=*)           TARGET_REF="${a#*=}" ;;
         --skip-workspaces) UPDATE_WORKSPACES=0 ;;
         -h|--help)         usage; exit 0 ;;
         --*)               echo "unknown flag: $a" >&2; exit 1 ;;
@@ -70,9 +73,13 @@ fi
 # update.sh can itself change in origin/main. Pull once, then hand control to
 # the freshly checked-out copy before reading manifests or invoking install.sh.
 if [ "${FUTRX_UPDATE_REEXECED:-0}" != "1" ]; then
-    echo "==> Updating repository at $INSTALL_DIR"
+    UPDATE_REF="${TARGET_REF:-origin/main}"
+    echo "==> Updating repository at $INSTALL_DIR (ref: $UPDATE_REF)"
     git -C "$INSTALL_DIR" fetch --quiet --tags origin
-    git -C "$INSTALL_DIR" reset --hard origin/main
+    # Tags win over identically named branches: --ref pins a release.
+    UPDATE_COMMIT="$(git -C "$INSTALL_DIR" rev-parse --verify --quiet "refs/tags/${UPDATE_REF}^{commit}" \
+        || git -C "$INSTALL_DIR" rev-parse --verify "${UPDATE_REF}^{commit}")"
+    git -C "$INSTALL_DIR" reset --hard "$UPDATE_COMMIT"
     export FUTRX_UPDATE_REEXECED=1
     exec bash "$INSTALL_DIR/infra/update.sh" "$@"
 fi
@@ -88,6 +95,10 @@ if [ -z "$HOSTNAME" ]; then
     echo "  sudo bash $0 <hostname>" >&2
     exit 1
 fi
+
+# Keep install.sh's checkout step (steps/02-app.sh) on the same ref this
+# updater just checked out, instead of resetting back to origin/main.
+export FUTRX_CHECKOUT_REF="${TARGET_REF:-origin/main}"
 
 if [ "$UPDATE_WORKSPACES" -eq 1 ]; then
     # Rebuild once in install.sh, after the new backend has been built. The

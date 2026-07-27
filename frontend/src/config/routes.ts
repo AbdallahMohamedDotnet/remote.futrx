@@ -85,6 +85,11 @@ export const API_ROUTES = {
   },
   settings: "/api/me/settings",
   serverInfo: "/api/server/info",
+  selfUpdate: {
+    status: "/api/admin/update/status",
+    check: "/api/admin/update/check",
+    apply: "/api/admin/update/apply",
+  },
   skills: (query: string) => `/api/skills?${query}`,
   uploads: "/api/uploads",
   users: {

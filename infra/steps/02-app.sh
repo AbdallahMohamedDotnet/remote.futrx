@@ -26,9 +26,14 @@ if [ -n "${GITHUB_TOKEN:-}" ]; then
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
-    log "Updating repo at $INSTALL_DIR"
+    # FUTRX_CHECKOUT_REF pins the deploy to a release tag (set by
+    # `update.sh --ref=<tag>`); default stays tracking origin/main.
+    CHECKOUT_REF="${FUTRX_CHECKOUT_REF:-origin/main}"
+    log "Updating repo at $INSTALL_DIR (ref: $CHECKOUT_REF)"
     git -C "$INSTALL_DIR" fetch --quiet --tags origin
-    git -C "$INSTALL_DIR" reset --hard origin/main
+    CHECKOUT_COMMIT="$(git -C "$INSTALL_DIR" rev-parse --verify --quiet "refs/tags/${CHECKOUT_REF}^{commit}" \
+        || git -C "$INSTALL_DIR" rev-parse --verify "${CHECKOUT_REF}^{commit}")"
+    git -C "$INSTALL_DIR" reset --hard "$CHECKOUT_COMMIT"
 else
     log "Cloning repo to $INSTALL_DIR"
     if ! git clone --depth=1 "$CLONE_URL" "$INSTALL_DIR" 2>&1; then
@@ -59,7 +64,10 @@ log "Building frontend (frontend/ → backend/public/)"
 log "Building backend (Go → backend/remote)"
 (
     cd backend
-    go build -trimpath -ldflags="-s -w" -o remote ./cmd/remote
+    APP_VERSION="$(git -C .. describe --tags --always --dirty 2>/dev/null || echo dev)"
+    go build -trimpath \
+        -ldflags="-s -w -X github.com/futrx-com/remote.futrx.com/internal/version.Version=${APP_VERSION}" \
+        -o remote ./cmd/remote
 )
 ok "$(ls -lh backend/remote | awk '{print $5}') binary"
 

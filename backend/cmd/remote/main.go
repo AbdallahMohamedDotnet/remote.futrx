@@ -23,14 +23,17 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/hostinfo"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/tmuxcli"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/updatecli"
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
 	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
+	serviceselfupdate "github.com/futrx-com/remote.futrx.com/internal/service/selfupdate"
 	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
 	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
 	serviceworkspaceide "github.com/futrx-com/remote.futrx.com/internal/service/workspaceide"
 	"github.com/futrx-com/remote.futrx.com/internal/stores"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileproject"
 	"github.com/futrx-com/remote.futrx.com/internal/transport"
+	"github.com/futrx-com/remote.futrx.com/internal/version"
 )
 
 func main() {
@@ -91,6 +94,7 @@ func main() {
 		log.Fatal(err)
 	}
 	serverInfoService := serviceserverinfo.New(hostinfo.New(), cfg.DataDir, fileproject.WorkspaceRoot)
+	selfUpdateService := serviceselfupdate.New(version.Version, cfg.InstallDir, cfg.DataDir, updatecli.New())
 	workspaceFileService := serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore())
 	gitHistoryService := servicegithistory.New(gitcli.NewHistoryClient())
 	codeServerBaseURL, err := config.CodeServerBaseURL(cfg.BaseURL)
@@ -106,6 +110,7 @@ func main() {
 		DataDir:        cfg.DataDir,
 		PublicHostname: publicHostname,
 		ServerInfo:     serverInfoService,
+		SelfUpdate:     selfUpdateService,
 		Files:          workspaceFileService,
 		GitHistory:     gitHistoryService,
 		IDE:            workspaceIDEService,
