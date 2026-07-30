@@ -30,8 +30,14 @@ crashed processes, and deleted files stay within this project.
   complete lateral separation between containers.
 - `apt-get install` whatever you need.
 - Network is fully open.
-- Background processes persist between prompts; they die on container
-  stop/reboot.
+- `systemd` is PID 1. Use transient systemd services for dev servers and other
+  processes that must survive the agent command that launches them.
+- The container remains alive between prompts, but processes launched inside an
+  agent-managed shell or PTY are not durable: the runner may terminate them
+  when that execution ends. `&`, `nohup`, and `disown` are not sufficient for
+  a server the user must continue using. Run persistent dev servers as systemd
+  services. Services still stop on container stop/reboot, and transient
+  services are not recreated after boot.
 
 ## Pre-installed tools
 
@@ -57,9 +63,15 @@ Discover what's currently set:
 
 ```bash
 env | cut -d= -f1 | grep -E '_(TOKEN|KEY|SECRET|PASSWORD)$|^(GITHUB|CLOUDFLARE|HCLOUD|OPENAI|ANTHROPIC|AWS|GOOGLE)_' | sort
-# or, for the human-readable list:
-cat /workspace/.env 2>/dev/null
+# Names from the persisted dotenv file, without printing secret values:
+sed -nE 's/^(export )?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' /workspace/.env 2>/dev/null | sort -u
 ```
+
+Never print, `cat`, or broadly inspect `/workspace/.env`, `/proc/*/environ`, or
+credential-bearing environment values merely to discover configuration. Read
+only the specific non-secret value required for the task. Project routing
+metadata must come from the documented project-slug value below, never from
+OAuth redirects, tokens, or other credentials.
 
 If you need a credential that isn't set, ask the user to add it via **this
 project's Containers → Secrets** in the web UI. Use the canonical
@@ -81,42 +93,125 @@ New values are live on your *next* shell. Already-running processes
 (dev servers you started earlier, etc.) keep their old environ — kill
 and restart them to pick up new credentials.
 
-## Dev servers — there is no localhost, there is a public URL
+A systemd service does not automatically inherit every variable from the
+current agent shell. If a server needs an exported variable, pass only the
+required variable by name with `systemd-run --setenv=NAME`, repeated once per
+variable, or use the application's normal dotenv loading. Do not place literal
+secret values in commands, unit descriptions, process arguments, or logs.
+Restart the service after credentials change.
+
+## Dev servers — start durably and hand back the routed URL
 
 Whenever the user asks for a dev server, **the URL they reach it at
 is**:
 
 ```
-https://<this-project-slug>--<port>.dev.{{PUBLIC_HOSTNAME}}
+https://{{PROJECT_SLUG}}--<port>.dev.{{PUBLIC_HOSTNAME}}
 ```
 
-Replace `<this-project-slug>` with this project's slug and `<port>`
-with whatever you bound. Pretend `localhost:<port>` doesn't exist
-for any user-facing purpose - they're not on this box, they're on
-the public internet. Cert is auto-issued on first hit.
+This project's slug is `{{PROJECT_SLUG}}`. Replace `<port>` with the port the
+application uses. Do not guess or derive the slug from environment values,
+OAuth configuration, repository names, or user data.
 
-Two rules to make it work:
+`localhost:<port>` is useful for health checks inside the container, but never
+give it to the user: they are on another machine. Give them the routed HTTPS
+URL. The route may be protected by the remote.futrx login, and its certificate
+is issued automatically on first access.
 
-1. **Bind to `0.0.0.0`, not `127.0.0.1`** (otherwise the LXD bridge
-   can't reach it).
-2. **If your dev server has a Host allowlist, add
-   `.dev.{{PUBLIC_HOSTNAME}}` to it.** This bites Vite, Next.js dev,
-   Webpack, CRA, Angular, Django (`ALLOWED_HOSTS`), Rails
-   (`config.hosts`). It does NOT bite `php -S`, plain Python/Node/Go
-   servers, Flask, FastAPI, Symfony, Laravel. When in doubt: search
-   your framework's docs for "allowed hosts" and widen it.
+### Before starting
 
-After you start a server, tell the user the public URL, not
-`http://localhost:<port>`.
+1. Choose the intended HTTP port and check whether it is already owned:
+
+   ```bash
+   ss -ltnp '( sport = :<port> )'
+   ```
+
+   If a listener exists, identify it. Reuse it when it is the expected healthy
+   application; otherwise choose another port or stop only a service known to
+   belong to the current task. Never kill an unrelated listener.
+
+2. Bind the web server to `0.0.0.0`, not `127.0.0.1`, so the LXC bridge can
+   reach it. Keep databases, Redis, and other private infrastructure on
+   loopback unless the user explicitly needs them exposed.
+
+3. Configure the framework's documented host/origin allowlist for the exact
+   routed hostname
+   `{{PROJECT_SLUG}}--<port>.dev.{{PUBLIC_HOSTNAME}}`, or for the documented
+   suffix form when the framework supports one. Syntax varies by framework and
+   version. Do not disable host validation wholesale.
+
+### Start the server durably
+
+A server that must outlive the current tool call must run as a transient
+systemd service, not in a managed PTY and not with `&`, `nohup`, `disown`, or
+`systemd-run --scope`. Use a deterministic, sanitized unit name, an absolute
+working directory, and the real executable:
+
+```bash
+systemd-run \
+  --unit="<app>-dev-<port>" \
+  --description="<app> dev server on port <port>" \
+  --collect \
+  --service-type=exec \
+  --working-directory="/workspace/<project>" \
+  --property=Restart=on-failure \
+  --property=RestartSec=2s \
+  /usr/bin/npm run dev
+```
+
+Use the project's actual command; the npm command above is only an example.
+Configure host and port through the framework's supported flags or project
+configuration. Add `--setenv=NAME` before the executable for each required
+exported variable, without putting its value in the command.
+
+### Verify before reporting success
+
+Starting a command, seeing a framework print “ready,” or receiving a PID is not
+proof that the server survived. After the launch command has returned, verify
+the service from a separate tool call:
+
+```bash
+systemctl is-active "<app>-dev-<port>"
+systemctl status "<app>-dev-<port>" --no-pager --full
+ss -ltnp '( sport = :<port> )'
+curl -fsS "http://127.0.0.1:<port>/<expected-route>"
+journalctl -u "<app>-dev-<port>" -n 100 --no-pager
+```
+
+Confirm all of the following:
+
+1. The unit is `active (running)` and is not crash-looping.
+2. The expected process is listening on `0.0.0.0:<port>`, not only
+   `127.0.0.1:<port>`.
+3. The expected application route succeeds locally and, when practical,
+   returns application-specific content rather than merely any HTTP 200.
+4. The routed HTTPS hostname responds through the public ingress. An
+   unauthenticated `302` redirect to the remote.futrx login confirms
+   ingress/auth routing only; it does not prove the application itself is
+   healthy. Use the authenticated browser when an end-to-end check is needed.
+5. Recent service logs contain no startup failure or restart loop.
+
+Useful lifecycle commands:
+
+```bash
+systemctl restart "<app>-dev-<port>"
+systemctl stop "<app>-dev-<port>"
+journalctl -u "<app>-dev-<port>" -n 100 --no-pager
+```
+
+In the handoff, give the routed HTTPS URL, systemd unit name, port, expected
+route, and checks actually performed. Do not claim the server is reachable
+based only on its startup output.
 
 ### "Create a site" means create it here — not on third-party hosting
 
 When the user asks you to build a site or web app — static, full-stack,
 anything — build it in `/workspace` and serve it from this container.
-The dev-server URL above is already on the public internet: that IS the
-link you hand back, no external hosting required. Full-stack works here
-too — run the backend on another port and `apt-get install`
-postgres/redis/whatever you need.
+The dev-server URL above is available through the externally routed project
+URL, which may be access-controlled: that is the link you hand back, and no
+external hosting is required. Full-stack works here too — run the backend on
+another intentional HTTP port and `apt-get install` postgres/redis/whatever
+you need, while keeping private infrastructure bound to loopback.
 
 **Do not deploy to third-party platforms** (Vercel, Netlify, Cloudflare
 Pages/Workers, GitHub Pages, Render, Fly.io, Railway, Firebase, …)
@@ -132,7 +227,8 @@ The Secrets value box accepts newlines — paste the whole PEM block, the
 whole JSON service account, the whole PKCS#1 blob. The value reaches
 this container as a single env var with the newlines intact, and lands
 in `/workspace/.env` with the newlines encoded as `\n` escape sequences
-(any dotenv library decodes them; raw `cat .env` shows the escapes).
+(compatible dotenv libraries decode them). Do not print the file to inspect
+those values.
 
 If you need the secret as a file (most ssh / gcloud / certbot use
 cases), write it yourself — don't try to source `.env` for those, the
@@ -232,14 +328,14 @@ script drive it:
 ```js
 // /workspace/.browser/recipes/<scenario>.mjs
 export default async function (page, context) {
-  await page.goto('https://app.example.com/dashboard');
-  await page.waitForLoadState('networkidle');
-  await page.click('text=Analytics');
-  await page.waitForTimeout(1500);
-  await page.click('text=Reports');
-  await page.waitForTimeout(1500);
-  // optional: return a value, it'll print as JSON on stdout
-  // return { title: await page.title() };
+    await page.goto('https://app.example.com/dashboard');
+    await page.waitForLoadState('networkidle');
+    await page.click('text=Analytics');
+    await page.waitForTimeout(1500);
+    await page.click('text=Reports');
+    await page.waitForTimeout(1500);
+    // optional: return a value, it'll print as JSON on stdout
+    // return { title: await page.title() };
 };
 ```
 
