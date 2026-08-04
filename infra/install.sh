@@ -8,8 +8,9 @@
 #   sudo bash infra/install.sh <hostname> [flags]
 #
 # Usage (fresh box, curl|bash):
-#   curl -fsSL https://raw.githubusercontent.com/futrx-com/remote.futrx.com/main/infra/install.sh \
-#     | sudo bash -s -- <hostname> [flags]
+#   curl -fsSL https://remote.futrx.com/get | sudo bash -s -- <hostname> [flags]
+#   (https://remote.futrx.com/get is a 301 to this file's raw.githubusercontent
+#   URL, served by the marketing site's public/_redirects.)
 #
 # Flags:
 #   --skip-dns-check                            useful on cloud bootstrap where the public

@@ -123,8 +123,7 @@ For a base domain such as `remote.example.com`, create these records:
 Connect to the server and run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/futrx-com/remote.futrx.com/main/infra/install.sh \
-  | sudo bash -s -- remote.example.com
+curl -fsSL https://remote.futrx.com/get | sudo bash -s -- remote.example.com
 ```
 
 Replace `remote.example.com` with your real domain. The installer downloads Remote, installs its dependencies, builds the workspace image, starts the services, and enables HTTPS.
