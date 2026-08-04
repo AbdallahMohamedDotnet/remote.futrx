@@ -36,7 +36,70 @@ fi
 # where gui-up.sh and browser.mjs both look. google-chrome-stable also works
 # now thanks to the local include above; the Playwright build stays the
 # baked-in default.
-npx --yes playwright@1.60.0 install chromium 2>&1 | tail -3
+#
+# __-delimited pins below are substituted from versions.env by
+# backend/internal/integration/containers/browser/install.go.
+PLAYWRIGHT_VERSION=__PLAYWRIGHT_VERSION__
+VENDOR_URL="https://github.com/__PW_VENDOR_REPO__/releases/download/__PW_VENDOR_RELEASE_TAG__"
+
+pw_install() {
+    # pipefail so the tail filter cannot mask a failed install — a masked
+    # failure here once surfaced 200 lines later as a bare "exit status 2".
+    (set -o pipefail; npx --yes "playwright@${PLAYWRIGHT_VERSION}" install chromium 2>&1 | tail -20)
+}
+
+if ! pw_install; then
+    # Google's Chrome-for-Testing CDN geo-blocks some datacenter IPs
+    # (403 "not available in your location" — seen on Hetzner and Scaleway
+    # ranges). Fall back to the project's own sha256-pinned copies of the
+    # same archives, published to a GitHub release by
+    # .github/workflows/vendor-playwright.yml. They are served to Playwright
+    # from a loopback HTTP server so its installer (paths, revision dirs,
+    # completion markers) runs untouched. See vendors/README.md.
+    echo "direct Playwright download failed — retrying from vendored assets at ${VENDOR_URL}" >&2
+    VENDOR_DIR=/tmp/pw-vendor
+    mkdir -p "$VENDOR_DIR"
+    for f in chrome-linux64.zip chrome-headless-shell-linux64.zip ffmpeg-linux.zip; do
+        curl -fsSL --retry 3 -o "$VENDOR_DIR/$f" "$VENDOR_URL/$f"
+    done
+    sha256sum -c --quiet <<EOF
+__PW_CHROME_LINUX64_SHA256__  $VENDOR_DIR/chrome-linux64.zip
+__PW_HEADLESS_SHELL_LINUX64_SHA256__  $VENDOR_DIR/chrome-headless-shell-linux64.zip
+__PW_FFMPEG_LINUX_SHA256__  $VENDOR_DIR/ffmpeg-linux.zip
+EOF
+    # Serve the archives by filename for whatever path Playwright requests —
+    # its URL layout under a custom PLAYWRIGHT_DOWNLOAD_HOST has changed
+    # between releases; the basenames have not.
+    node -e '
+        const http = require("http"), fs = require("fs"), path = require("path");
+        const dir = process.argv[1];
+        http.createServer((req, res) => {
+            const name = path.basename(new URL(req.url, "http://localhost").pathname);
+            const file = path.join(dir, name);
+            if (!/^[A-Za-z0-9._-]+$/.test(name) || !fs.existsSync(file)) {
+                res.statusCode = 404;
+                return res.end("not vendored: " + name);
+            }
+            res.setHeader("content-length", fs.statSync(file).size);
+            fs.createReadStream(file).pipe(res);
+        }).listen(8377, "127.0.0.1");
+    ' "$VENDOR_DIR" &
+    VENDOR_SRV=$!
+    trap 'kill "$VENDOR_SRV" 2>/dev/null || true' EXIT
+    for _ in $(seq 1 50); do
+        curl -s -o /dev/null "http://127.0.0.1:8377/" && break
+        sleep 0.2
+    done
+    if ! PLAYWRIGHT_DOWNLOAD_HOST=http://127.0.0.1:8377 pw_install; then
+        echo "Playwright install failed from both Google's CDN and the vendored release." >&2
+        echo "Likely causes: this server's IP is geo-blocked by Google AND ${VENDOR_URL} is" >&2
+        echo "missing assets for playwright@${PLAYWRIGHT_VERSION}. See vendors/README.md." >&2
+        exit 1
+    fi
+    kill "$VENDOR_SRV" 2>/dev/null || true
+    trap - EXIT
+    rm -rf "$VENDOR_DIR"
+fi
 
 # Sanity check the GUI toolchain (the chromium glob fails the build if absent).
 which Xvfb x11vnc websockify openbox xdotool

@@ -9,11 +9,13 @@ package codeserver
 // admin gate as the dev-URL proxy.
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"fmt"
 	"time"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
 )
@@ -21,10 +23,15 @@ import (
 //go:embed assets/code-server-up.sh
 var codeServerUpScript []byte
 
-// InstallScript returns the embedded code-server installation program used by
-// base-image builds.
+// InstallScript returns the code-server installation program used by
+// base-image builds and the on-demand migration path, with the pinned
+// code-server version filled in from versions.env.
 func InstallScript() []byte {
-	return append([]byte(nil), codeServerUpScript...)
+	return bytes.ReplaceAll(
+		codeServerUpScript,
+		[]byte("__CODE_SERVER_VERSION__"),
+		[]byte(provisioning.MustCLIVersion("CODE_SERVER_VERSION")),
+	)
 }
 
 // Provisioner owns installation and socket activation for the
@@ -55,8 +62,8 @@ func (p *Provisioner) Ensure(ctx context.Context, containerName, displayName str
 	// already ship them; re-running the install script is harmless but slow,
 	// so skip it when the unit file exists and just (re-)enable below.
 	if _, err := command.RunWithTimeout(ctx, p.runner, 10*time.Second, "exec", containerName, "--", "test", "-f", "/etc/systemd/system/code-server.socket"); err != nil {
-		if out, err := command.RunWithTimeout(ctx, p.runner, 5*time.Minute, "exec", containerName, "--env", "CODE_SERVER_WS_NAME="+displayName, "--", "bash", "-c", string(codeServerUpScript)); err != nil {
-			return fmt.Errorf("install code-server: %w; output: %s", err, output.Truncate(out, 2000))
+		if out, err := command.RunWithTimeout(ctx, p.runner, 5*time.Minute, "exec", containerName, "--env", "CODE_SERVER_WS_NAME="+displayName, "--", "bash", "-c", string(InstallScript())); err != nil {
+			return fmt.Errorf("install code-server: %w; output: %s", err, output.TruncateTail(out, 2000))
 		}
 	}
 
@@ -64,7 +71,7 @@ func (p *Provisioner) Ensure(ctx context.Context, containerName, displayName str
 	// baked-but-disabled/stopped one -- the case the old file-exists check
 	// reported as complete while routing was actually dead.
 	if out, err := command.RunWithTimeout(ctx, p.runner, 20*time.Second, "exec", containerName, "--", "systemctl", "enable", "--now", "code-server.socket"); err != nil {
-		return fmt.Errorf("enable code-server.socket: %w; output: %s", err, output.Truncate(out, 1000))
+		return fmt.Errorf("enable code-server.socket: %w; output: %s", err, output.TruncateTail(out, 1000))
 	}
 	return nil
 }

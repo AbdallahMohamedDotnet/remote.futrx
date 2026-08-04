@@ -43,7 +43,7 @@ func (p *agentBrowserProvisioner) ensure(ctx context.Context, containerName stri
 	if stackErr != nil {
 		out, err := command.RunWithTimeout(ctx, p.runner, agentBrowserInstallTimeout, "exec", containerName, "--", "bash", "-c", InstallScript())
 		if err != nil {
-			return fmt.Errorf("install agent browser stack: %w; output: %s", err, output.Truncate(out, 2000))
+			return fmt.Errorf("install agent browser stack: %w; output: %s", err, output.TruncateTail(out, 2000))
 		}
 	}
 

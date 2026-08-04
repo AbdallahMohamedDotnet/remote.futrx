@@ -1,0 +1,31 @@
+# Republishes the Playwright/Chrome-for-Testing archives pinned in
+# versions.env as release assets on this repo. They are the install-time
+# fallback for servers whose IPs Google's CDN geo-blocks (see
+# vendors/README.md). Runs on every pin change; safe to re-run any time
+# (create-or-update; release tags are never moved).
+name: Vendor Playwright assets
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - backend/internal/agent/provisioning/versions.env
+      - vendors/publish-playwright-assets.sh
+      - .github/workflows/vendor-playwright.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Publish vendored assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash vendors/publish-playwright-assets.sh

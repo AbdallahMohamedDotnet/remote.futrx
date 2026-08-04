@@ -133,7 +133,7 @@ func TestBuildPreservesErrorOutputAndDeferredCleanup(t *testing.T) {
 	builder.networkWarmup = 0
 
 	err := builder.Build(context.Background(), "custom-alias")
-	wantErr := "agent browser install script: exit 1; output: " + strings.Repeat("x", 2000) + "..."
+	wantErr := "agent browser install script: exit 1; output: ..." + strings.Repeat("x", 2000)
 	if err == nil || err.Error() != wantErr {
 		t.Fatalf("Build error = %v, want %q", err, wantErr)
 	}

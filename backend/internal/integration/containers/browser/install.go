@@ -3,16 +3,29 @@ package browser
 import (
 	_ "embed"
 	"strings"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
 //go:embed assets/agent-browser-install.sh
 var embeddedAgentBrowserInstallScript string
 
-// agentBrowserInstallScript installs the headed-browser stack used by the
-// Agent Browser feature. It is shared by base-image builds and the on-demand
-// repair path for older containers.
+// InstallScript installs the headed-browser stack used by the Agent Browser
+// feature. It is shared by base-image builds and the on-demand repair path
+// for older containers. The __-delimited pins in the embedded asset are
+// filled from versions.env so the Playwright version and the sha256-gated
+// vendor fallback stay declared in one place.
 func InstallScript() string {
-	// The former raw string literal had no trailing newline. Preserve its exact
-	// command argument while keeping the shell program in its natural layer.
-	return strings.TrimSuffix(embeddedAgentBrowserInstallScript, "\n")
+	script := strings.TrimSuffix(embeddedAgentBrowserInstallScript, "\n")
+	for placeholder, key := range map[string]string{
+		"__PLAYWRIGHT_VERSION__":               "PLAYWRIGHT_VERSION",
+		"__PW_VENDOR_REPO__":                   "PW_VENDOR_REPO",
+		"__PW_VENDOR_RELEASE_TAG__":            "PW_VENDOR_RELEASE_TAG",
+		"__PW_CHROME_LINUX64_SHA256__":         "PW_CHROME_LINUX64_SHA256",
+		"__PW_HEADLESS_SHELL_LINUX64_SHA256__": "PW_HEADLESS_SHELL_LINUX64_SHA256",
+		"__PW_FFMPEG_LINUX_SHA256__":           "PW_FFMPEG_LINUX_SHA256",
+	} {
+		script = strings.ReplaceAll(script, placeholder, provisioning.MustPin(key))
+	}
+	return script
 }

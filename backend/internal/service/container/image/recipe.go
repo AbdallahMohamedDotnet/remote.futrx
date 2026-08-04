@@ -22,8 +22,9 @@ apt-get install -y -qq \
     git openssh-client \
     jq build-essential python3-pip
 
-# Node 22 (provides node + npm + npx for agent CLIs and JS tooling).
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null 2>&1
+# Node __NODE_MAJOR__ (provides node + npm + npx for agent CLIs and JS tooling).
+NODE_MAJOR=__NODE_MAJOR__
+curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null 2>&1
 apt-get install -y -qq nodejs
 
 # Official GitHub CLI repo. Auth comes from $GITHUB_TOKEN at runtime,
@@ -66,7 +67,8 @@ func InstallScript(profiles []provisioning.Profile) (string, error) {
 	}
 
 	var script strings.Builder
-	script.WriteString(baseImageInstallPreamble)
+	script.WriteString(strings.ReplaceAll(
+		baseImageInstallPreamble, "__NODE_MAJOR__", provisioning.MustPin("NODE_MAJOR")))
 	if len(packages) > 0 {
 		script.WriteString("\n\n# Agent CLIs.\nnpm install -g ")
 		script.WriteString(strings.Join(packages, " "))
@@ -94,7 +96,7 @@ func description(profiles []provisioning.Profile) string {
 			labels = append(labels, profile.CLI.ImageLabel)
 		}
 	}
-	description := "futrx remote dev base: ubuntu 24.04 + node 22"
+	description := "futrx remote dev base: ubuntu 24.04 + node " + provisioning.MustPin("NODE_MAJOR")
 	if len(labels) > 0 {
 		description += " + " + strings.Join(labels, " + ")
 	}

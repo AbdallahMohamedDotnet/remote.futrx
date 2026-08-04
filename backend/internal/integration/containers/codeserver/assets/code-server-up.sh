@@ -13,7 +13,8 @@ set -e
 #                              by default (the bind-mounted project root), so a
 #                              bare URL lands in the workspace like code.<host>
 #                              does via ?folder=.
-CODE_SERVER_VERSION=4.121.0
+# Substituted from versions.env by containers/codeserver/provisioner.go.
+CODE_SERVER_VERSION=__CODE_SERVER_VERSION__
 
 if ! command -v code-server >/dev/null 2>&1 \
    || [ "$(code-server --version 2>/dev/null | head -1 | awk '{print $1}')" != "$CODE_SERVER_VERSION" ]; then

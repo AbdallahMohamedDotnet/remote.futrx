@@ -2,7 +2,7 @@ package output
 
 import "testing"
 
-func TestTruncate(t *testing.T) {
+func TestTruncateTail(t *testing.T) {
 	tests := []struct {
 		name  string
 		value string
@@ -11,13 +11,13 @@ func TestTruncate(t *testing.T) {
 	}{
 		{name: "shorter", value: "abc", max: 4, want: "abc"},
 		{name: "exact", value: "abcd", max: 4, want: "abcd"},
-		{name: "longer", value: "abcde", max: 4, want: "abcd..."},
+		{name: "longer keeps the tail", value: "abcde", max: 4, want: "...bcde"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Truncate(tt.value, tt.max); got != tt.want {
-				t.Fatalf("Truncate(%q, %d) = %q, want %q", tt.value, tt.max, got, tt.want)
+			if got := TruncateTail(tt.value, tt.max); got != tt.want {
+				t.Fatalf("TruncateTail(%q, %d) = %q, want %q", tt.value, tt.max, got, tt.want)
 			}
 		})
 	}

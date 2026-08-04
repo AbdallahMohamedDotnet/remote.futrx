@@ -97,7 +97,7 @@ func (p *Provisioner) Ensure(ctx context.Context, containerName string, spec pro
 			return nil
 		}
 		return fmt.Errorf("install %s in %s: %w; output: %s",
-			cliInstallLabel(spec), containerName, err, output.Truncate(out, 1000))
+			cliInstallLabel(spec), containerName, err, output.TruncateTail(out, 1000))
 	}
 	if spec.VerifyAfterInstall && !p.ready(ctx, containerName, spec) {
 		return fmt.Errorf("install %s in %s completed but the required version is unavailable",

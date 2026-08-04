@@ -188,21 +188,21 @@ func (b *Builder) Build(ctx context.Context, alias string) error {
 		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, installScript)
 	})
 	if err != nil {
-		return fmt.Errorf("install script: %w; output: %s", err, output.Truncate(out, 2000))
+		return fmt.Errorf("install script: %w; output: %s", err, output.TruncateTail(out, 2000))
 	}
 
 	out, err = b.runBuildStage(3, "Installing the agent browser and Chromium", func() (string, error) {
 		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, b.browserInstallScript)
 	})
 	if err != nil {
-		return fmt.Errorf("agent browser install script: %w; output: %s", err, output.Truncate(out, 2000))
+		return fmt.Errorf("agent browser install script: %w; output: %s", err, output.TruncateTail(out, 2000))
 	}
 
 	out, err = b.runBuildStage(4, "Installing the browser IDE", func() (string, error) {
 		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, string(b.codeServerInstallScript))
 	})
 	if err != nil {
-		return fmt.Errorf("code-server install script: %w; output: %s", err, output.Truncate(out, 2000))
+		return fmt.Errorf("code-server install script: %w; output: %s", err, output.TruncateTail(out, 2000))
 	}
 
 	out, err = b.runBuildStage(5, "Finalizing the builder container", func() (string, error) {

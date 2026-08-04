@@ -25,7 +25,7 @@ type agentBrowserRuntime struct {
 
 func (r *agentBrowserRuntime) start(ctx context.Context, containerName, verb, label string) error {
 	if out, err := command.RunWithTimeout(ctx, r.runner, agentBrowserReadyTimeout, "exec", containerName, "--", "sh", containerGUIScript, verb); err != nil {
-		return fmt.Errorf("%s: %w; output: %s", label, err, output.Truncate(out, 1000))
+		return fmt.Errorf("%s: %w; output: %s", label, err, output.TruncateTail(out, 1000))
 	}
 	return nil
 }
@@ -35,7 +35,7 @@ func (r *agentBrowserRuntime) stop(ctx context.Context, containerName string) er
 		return command.ErrUnavailable
 	}
 	if out, err := command.RunWithTimeout(ctx, r.runner, stopTimeout, "exec", containerName, "--", "sh", containerGUIScript, "stop"); err != nil {
-		return fmt.Errorf("stop agent browser: %w; output: %s", err, output.Truncate(out, 1000))
+		return fmt.Errorf("stop agent browser: %w; output: %s", err, output.TruncateTail(out, 1000))
 	}
 	return nil
 }
@@ -45,7 +45,7 @@ func (r *agentBrowserRuntime) stopView(ctx context.Context, containerName string
 		return command.ErrUnavailable
 	}
 	if out, err := command.RunWithTimeout(ctx, r.runner, stopTimeout, "exec", containerName, "--", "sh", containerGUIScript, "stop-view"); err != nil {
-		return fmt.Errorf("stop agent browser view: %w; output: %s", err, output.Truncate(out, 1000))
+		return fmt.Errorf("stop agent browser view: %w; output: %s", err, output.TruncateTail(out, 1000))
 	}
 	return nil
 }

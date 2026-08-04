@@ -19,20 +19,22 @@ log "apt update + base packages"
 apt-get update -qq
 apt-get install -y -qq git curl ca-certificates gnupg jq tmux gettext-base
 
-# ───────────────── host toolchain pins ─────────────────
-# infra/versions.env declares the exact versions the host must run. Every
-# section below converges the live box to its pin instead of only checking
+# ───────────────── version pins ─────────────────
+# infra/versions.env (a symlink to the canonical manifest embedded by the
+# backend) declares the exact versions the host must run. Every section
+# below converges the live box to its pin instead of only checking
 # existence — bump a pin and re-run to upgrade.
 VERSIONS_FILE="$INFRA_DIR/versions.env"
 if [ ! -r "$VERSIONS_FILE" ]; then
-    err "missing host version manifest: $VERSIONS_FILE"
+    err "missing version manifest: $VERSIONS_FILE"
     exit 1
 fi
 # shellcheck source=/dev/null
 . "$VERSIONS_FILE"
-for v in NODE_MAJOR NODE_MIN_VERSION GO_VERSION; do
+for v in NODE_MAJOR NODE_MIN_VERSION GO_VERSION \
+         CLAUDE_CODE_VERSION CODEX_CLI_VERSION KIMI_CODE_VERSION; do
     if [ -z "${!v:-}" ]; then
-        err "host version manifest is missing $v: $VERSIONS_FILE"
+        err "version manifest is missing $v: $VERSIONS_FILE"
         exit 1
     fi
 done
@@ -99,22 +101,9 @@ fi
 ok "$(caddy version | head -1)"
 
 # ───────────────── agent CLIs (host-side auth/provisioning) ─────────────────
-# The same manifest is embedded by the Go container manager. Re-running the
-# installer upgrades stale host binaries instead of only checking existence.
-AGENT_CLI_VERSIONS_FILE="$INFRA_DIR/../backend/internal/agent/provisioning/agent-cli-versions.env"
-if [ ! -r "$AGENT_CLI_VERSIONS_FILE" ]; then
-    err "missing agent CLI version manifest: $AGENT_CLI_VERSIONS_FILE"
-    exit 1
-fi
-# shellcheck source=/dev/null
-. "$AGENT_CLI_VERSIONS_FILE"
-for v in CLAUDE_CODE_VERSION CODEX_CLI_VERSION KIMI_CODE_VERSION; do
-    if [ -z "${!v:-}" ]; then
-        err "agent CLI version manifest is missing $v: $AGENT_CLI_VERSIONS_FILE"
-        exit 1
-    fi
-done
-
+# Pins come from the same versions.env sourced above (also embedded by the Go
+# container manager). Re-running the installer upgrades stale host binaries
+# instead of only checking existence.
 agent_cli_version() {
     "$1" --version 2>&1 \
         | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?' \

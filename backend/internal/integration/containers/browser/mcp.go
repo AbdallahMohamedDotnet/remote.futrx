@@ -49,7 +49,7 @@ func (p *agentBrowserMCPProvisioner) ensure(ctx context.Context, containerName s
 	if missing != nil {
 		out, err := command.RunWithTimeout(ctx, p.runner, browserMCPInstallTimeout, "exec", containerName, "--", "sh", "-c", "npm install -g @playwright/mcp 2>&1 | tail -3")
 		if err != nil {
-			return fmt.Errorf("install @playwright/mcp: %w; output: %s", err, output.Truncate(out, 1000))
+			return fmt.Errorf("install @playwright/mcp: %w; output: %s", err, output.TruncateTail(out, 1000))
 		}
 	}
 

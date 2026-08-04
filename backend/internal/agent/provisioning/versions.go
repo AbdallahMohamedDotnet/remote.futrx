@@ -7,22 +7,55 @@ import (
 	"strings"
 )
 
-//go:embed agent-cli-versions.env
-var cliVersionManifest string
+// versions.env is the repo's single version manifest (infra/versions.env is a
+// symlink to it). Embedding keeps container provisioning self-contained: the
+// backend and cmd/build-base-image need no file on disk at runtime.
+//
+//go:embed versions.env
+var versionManifest string
 
-var semanticVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
+var (
+	semanticVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
+	// Pins that are not semver: major streams ("22"), four-part Chrome
+	// versions, sha256 hex, release tags, owner/repo slugs.
+	pinPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
+)
 
-func MustCLIVersion(key string) string {
-	scanner := bufio.NewScanner(strings.NewReader(cliVersionManifest))
+func manifestValue(key string) (string, bool) {
+	scanner := bufio.NewScanner(strings.NewReader(versionManifest))
 	for scanner.Scan() {
 		name, value, ok := strings.Cut(strings.TrimSpace(scanner.Text()), "=")
 		if ok && name == key {
-			value = strings.TrimSpace(value)
-			if semanticVersionPattern.MatchString(value) {
-				return value
-			}
-			panic("invalid " + key + " in agent-cli-versions.env")
+			return strings.TrimSpace(value), true
 		}
 	}
-	panic("missing " + key + " in agent-cli-versions.env")
+	return "", false
+}
+
+// MustCLIVersion returns the pinned semver for an agent CLI, panicking on a
+// missing or malformed entry so a bad manifest fails at startup, not
+// mid-provision.
+func MustCLIVersion(key string) string {
+	value, ok := manifestValue(key)
+	if !ok {
+		panic("missing " + key + " in versions.env")
+	}
+	if !semanticVersionPattern.MatchString(value) {
+		panic("invalid " + key + " in versions.env")
+	}
+	return value
+}
+
+// MustPin returns any pinned value from the manifest (versions that are not
+// strict semver: Node major, Chrome-for-Testing builds, sha256 pins, release
+// tags). Same fail-fast contract as MustCLIVersion.
+func MustPin(key string) string {
+	value, ok := manifestValue(key)
+	if !ok {
+		panic("missing " + key + " in versions.env")
+	}
+	if !pinPattern.MatchString(value) {
+		panic("invalid " + key + " in versions.env")
+	}
+	return value
 }

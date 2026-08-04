@@ -2,8 +2,10 @@
 #
 # Pulls latest, rebuilds frontend + backend, restarts the backend service,
 # health-checks it. Takes ~25s. Does NOT touch Caddy, host packages,
-# code-server, systemd unit, or LXD. For those, run the `installer` workflow
-# (.github/workflows/installer.yml).
+# code-server, systemd unit, or LXD. For those, run
+# `sudo bash infra/update.sh` on the box (or apply a release tag from the
+# in-app updater) — both re-detect the box's hostname from the installed
+# unit, so they never change the domain a box serves.
 #
 # Secrets required:
 #   SSH_KEY      private OpenSSH key authorized on $DEPLOY_HOST as $DEPLOY_USER
