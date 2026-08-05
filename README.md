@@ -100,7 +100,7 @@ The project computer is the capability boundary: agents can install tools, run s
 
 - A fresh Ubuntu or Debian server
 - Root or `sudo` access
-- A domain name
+- A hostname pointing at that server — one you own, or a free one
 - A working SSH key
 - Ports 80 and 443 open
 
@@ -109,7 +109,9 @@ The project computer is the capability boundary: agents can install tools, run s
 
 ### 1. Point DNS to the server
 
-For a base domain such as `remote.example.com`, create these records:
+Every project gets its own HTTPS address, so Remote needs a hostname with wildcard subdomains under it. Pick whichever case describes you — HTTPS is automatic in all three, with free Let's Encrypt certificates issued and renewed for you.
+
+**If you already own a domain,** use a subdomain of it. For a base domain such as `remote.example.com`, create these records, all pointing at your server's IP address:
 
 | DNS name | Purpose |
 | --- | --- |
@@ -117,6 +119,21 @@ For a base domain such as `remote.example.com`, create these records:
 | `code.remote.example.com` | Browser IDE |
 | `*.code.remote.example.com` | Per-project browser IDEs |
 | `*.dev.remote.example.com` | Per-project application previews |
+
+**If you want a free hostname,** [DuckDNS](https://www.duckdns.org) is the quickest, because it resolves every subdomain automatically and there are no DNS records to create:
+
+1. Sign in with GitHub or Google.
+2. Add a name such as `yourname`. You now own `yourname.duckdns.org`.
+3. Replace the pre-filled IP address with **your server's** address, then select **update ip**. The page fills in the address of the computer you are browsing from, which is usually not your server.
+
+Then install using `yourname.duckdns.org` as the hostname.
+
+[deSEC](https://desec.io) is a good alternative, run by a non-profit and less likely to be filtered on corporate networks. It is a full DNS host rather than a wildcard service, so create the four records from the table above under your `yourname.dedyn.io` name.
+
+> [!NOTE]
+> Free dynamic-DNS providers are community-run with no uptime guarantee, and some corporate networks block all of `*.duckdns.org` because of unrelated abuse elsewhere on it. If a preview link refuses to open at the office, that is usually why, and a domain you own avoids it.
+
+**If you have neither,** a domain costs around $10 a year and gives you the shortest, most reliable URLs. Register one and follow the first case.
 
 ### 2. Install Remote
 
@@ -126,7 +143,7 @@ Connect to the server and run:
 curl -fsSL https://remote.futrx.com/get | sudo bash -s -- remote.example.com
 ```
 
-Replace `remote.example.com` with your real domain. The installer downloads Remote, installs its dependencies, builds the workspace image, starts the services, and enables HTTPS.
+Replace `remote.example.com` with the hostname you set up above. The installer downloads Remote, installs its dependencies, builds the workspace image, starts the services, and enables HTTPS.
 
 ### 3. Create your first project
 
