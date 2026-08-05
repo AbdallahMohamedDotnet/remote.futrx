@@ -1,0 +1,34 @@
+# Creates a GitHub Release for every version tag (0.2.4, 0.2.4.1, ...) so
+# the Releases page tracks product releases. Notes come from the tag
+# commit's changelog-style body — our release commits are the changelog.
+# Vendor asset releases (vendors-*) are separate pre-releases published by
+# vendor-playwright.yml and are not matched by the tag pattern below.
+name: Release on tag
+
+on:
+  push:
+    tags: ["[0-9]*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create GitHub Release from tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists"
+            exit 0
+          fi
+          notes="$(git log -1 --format=%b HEAD)"
+          if [ -n "$notes" ]; then
+            gh release create "$TAG" --title "$TAG" --notes "$notes" --verify-tag
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+          fi

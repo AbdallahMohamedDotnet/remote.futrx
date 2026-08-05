@@ -88,7 +88,9 @@ echo "sha256 pins verified"
 
 # ── Publish (create-or-update; the tag itself is never moved) ────────────────
 if ! gh release view "$PW_VENDOR_RELEASE_TAG" -R "$PW_VENDOR_REPO" >/dev/null 2>&1; then
-    gh release create "$PW_VENDOR_RELEASE_TAG" -R "$PW_VENDOR_REPO" \
+    # --prerelease keeps asset plumbing off the "Latest release" slot; the
+    # Releases page belongs to version tags (see release-on-tag.yml).
+    gh release create "$PW_VENDOR_RELEASE_TAG" -R "$PW_VENDOR_REPO" --prerelease \
         --title "Vendored Playwright assets (playwright@${PLAYWRIGHT_VERSION})" \
         --notes "Unmodified Playwright/Chrome-for-Testing archives (CfT ${PW_CFT_VERSION}, ffmpeg ${PW_FFMPEG_BUILD}), republished as the install-time fallback for servers geo-blocked by Google's CDN. sha256 pins live in versions.env; provenance is this repo's 'Vendor Playwright assets' workflow. See vendors/README.md."
 fi
