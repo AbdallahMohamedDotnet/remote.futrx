@@ -1,0 +1,16 @@
+[Unit]
+Description=Allow futrx container traffic through the FORWARD chain
+# iptables rules do not survive a reboot, and Docker reinstates its FORWARD
+# DROP policy every time it starts — so re-apply once both are up. The script
+# checks whether anything is actually restricting FORWARD and does nothing on
+# hosts where it is not, which is why this unit is installed unconditionally.
+After=network-online.target docker.service snap.lxd.daemon.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash ${INSTALL_DIR}/infra/lib/container-forwarding.sh --apply ${LXD_BRIDGE}
+
+[Install]
+WantedBy=multi-user.target

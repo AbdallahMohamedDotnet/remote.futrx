@@ -146,8 +146,42 @@ if ! lxc network show lxdbr0 >/dev/null 2>&1; then
 fi
 ok "lxd $(lxc version --format=csv 2>/dev/null | tr ',' ' ' | awk '{print $1}' || echo ok)"
 
+LXD_BRIDGE="lxdbr0"
+export LXD_BRIDGE
+
+# ───────────────── container IPv4 egress ─────────────────
+# Docker drops forwarded IPv4 by default, which strands containers on IPv6-only
+# reachability without any obvious symptom. See lib/container-forwarding.sh.
+# shellcheck source=../lib/container-forwarding.sh
+. "$INFRA_DIR/lib/container-forwarding.sh"
+if container_forwarding_needed; then
+    FORWARD_CHAIN="$(container_forwarding_chain)"
+    log "FORWARD chain is restricted — allowing $LXD_BRIDGE through $FORWARD_CHAIN"
+    if FORWARD_RULES_ADDED="$(ensure_container_forwarding "$LXD_BRIDGE")"; then
+        if [ -n "$FORWARD_RULES_ADDED" ]; then
+            ok "containers can reach IPv4 (added $FORWARD_CHAIN rules)"
+        else
+            ok "containers can reach IPv4 ($FORWARD_CHAIN already allows $LXD_BRIDGE)"
+        fi
+    else
+        err "Could not allow $LXD_BRIDGE through $FORWARD_CHAIN."
+        echo "  Containers would have no IPv4 egress, and the base image build would" >&2
+        echo "  fail minutes later on the first IPv4-only host it needs." >&2
+        exit 1
+    fi
+fi
+
+# Re-apply on every boot: the rules are not persistent and Docker reinstates
+# its policy on each start. Installed unconditionally; the unit self-gates.
+log "Rendering /etc/systemd/system/futrx-lxd-forward.service"
+render_template "${INFRA_DIR}/templates/futrx-lxd-forward.service.tmpl" \
+                /etc/systemd/system/futrx-lxd-forward.service
+systemctl daemon-reload
+systemctl enable --now futrx-lxd-forward.service >/dev/null 2>&1 \
+    || warn "futrx-lxd-forward.service could not be enabled; container IPv4 egress may not survive a reboot."
+
 # Detect the bridge IP so the resolved drop-in can forward *.lxd queries.
-LXD_BRIDGE_IP=$(lxc network get lxdbr0 ipv4.address 2>/dev/null | sed 's|/.*||')
+LXD_BRIDGE_IP=$(lxc network get "$LXD_BRIDGE" ipv4.address 2>/dev/null | sed 's|/.*||')
 if [ -z "$LXD_BRIDGE_IP" ]; then
     warn "lxdbr0 bridge IP not detectable — *.dev.${HOSTNAME} routing will fail."
 else

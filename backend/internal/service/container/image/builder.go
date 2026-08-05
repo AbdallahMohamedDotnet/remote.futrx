@@ -184,6 +184,11 @@ func (b *Builder) Build(ctx context.Context, alias string) error {
 		return bctx.Err()
 	}
 
+	// Fail fast on a container that can only reach IPv6 (see egress.go).
+	if _, err := b.runtime.ExecuteScript(bctx, baseImageBuilderName, ipv4EgressProbe); err != nil {
+		return errors.New(ipv4EgressHint)
+	}
+
 	out, err = b.runBuildStage(2, "Installing system tools, Node.js, and agent CLIs", func() (string, error) {
 		return b.runtime.ExecuteScript(bctx, baseImageBuilderName, installScript)
 	})

@@ -102,6 +102,7 @@ func TestBuildPreservesImageWorkflowOrder(t *testing.T) {
 		"available",
 		"delete " + baseImageBuilderName,
 		"launch " + SourceImage + " " + baseImageBuilderName,
+		"script " + baseImageBuilderName + " " + ipv4EgressProbe,
 		"script " + baseImageBuilderName + " " + installScript,
 		"script " + baseImageBuilderName + " browser-install",
 		"script " + baseImageBuilderName + " code-server-install",
@@ -115,11 +116,49 @@ func TestBuildPreservesImageWorkflowOrder(t *testing.T) {
 	}
 }
 
+func TestBuildStopsBeforeAnyStageWhenContainerHasNoIPv4Egress(t *testing.T) {
+	runtime := &recordingRuntime{
+		available: true,
+		scriptResponses: []runtimeResponse{
+			{output: "", err: errors.New("exit 1")}, // IPv4 egress probe
+		},
+	}
+	builder := NewBuilder(
+		runtime,
+		&recordingProfileSource{profiles: configuredProfiles()},
+		"browser-install",
+		[]byte("code-server-install"),
+		nil,
+	)
+	builder.networkWarmup = 0
+
+	err := builder.Build(context.Background(), "")
+	if err == nil {
+		t.Fatal("Build succeeded, want an IPv4 egress failure")
+	}
+	// The message has to name the cause, not the probe: this failure used to
+	// surface as a curl timeout against github.com four stages later.
+	for _, want := range []string{"cannot reach any IPv4", "Docker", "DOCKER-USER"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not mention %q", err, want)
+		}
+	}
+	for _, event := range runtime.events {
+		if strings.Contains(event, "browser-install") || strings.Contains(event, "code-server-install") {
+			t.Fatalf("build ran install stages despite no IPv4 egress: %q", runtime.events)
+		}
+	}
+	if len(runtime.events) == 0 || runtime.events[len(runtime.events)-1] != "delete "+baseImageBuilderName {
+		t.Fatalf("events = %q; the builder container was not cleaned up", runtime.events)
+	}
+}
+
 func TestBuildPreservesErrorOutputAndDeferredCleanup(t *testing.T) {
 	runtime := &recordingRuntime{
 		available: true,
 		scriptResponses: []runtimeResponse{
-			{},
+			{}, // IPv4 egress probe
+			{}, // install script
 			{output: strings.Repeat("x", 2001), err: errors.New("exit 1")},
 		},
 	}
