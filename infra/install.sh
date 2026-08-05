@@ -198,6 +198,10 @@ esac
 # Best-effort verification that the hostname resolves to this server.
 # Caddy's ACME challenge fails without correct DNS; we'd rather fail here
 # than after spending 30s building.
+
+# shellcheck source=lib/dns-resolve.sh
+. "$INFRA_DIR/lib/dns-resolve.sh"
+
 if [ "$SKIP_DNS_CHECK" -eq 0 ]; then
     log "Checking DNS: $HOSTNAME"
     SERVER_IP=""
@@ -208,9 +212,9 @@ if [ "$SKIP_DNS_CHECK" -eq 0 ]; then
     if [ -z "$SERVER_IP" ]; then
         warn "Could not detect this server's public IPv4 — skipping DNS check."
     else
-        HOSTNAME_IPS=$(getent ahostsv4 "$HOSTNAME" 2>/dev/null | awk '{print $1}' | sort -u || true)
+        HOSTNAME_IPS=$(resolve_public_a "$HOSTNAME" || true)
         if [ -z "$HOSTNAME_IPS" ]; then
-            err "$HOSTNAME does not resolve."
+            err "$HOSTNAME does not resolve in public DNS."
             echo "  Server's public IPv4: $SERVER_IP" >&2
             echo "  Add an A record for $HOSTNAME → $SERVER_IP and wait for propagation." >&2
             echo "  Or re-run with --skip-dns-check (Cloudflare proxy / tunnels / etc)." >&2
