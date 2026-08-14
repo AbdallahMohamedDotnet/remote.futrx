@@ -6,6 +6,7 @@ import type {
   ServiceTier,
 } from "../../../models/chat";
 import { agentCapabilityState } from "../../chat/agentCapabilityState";
+import { useAuthContext } from "../../context/AuthContext";
 import { useAgentCapabilities } from "./useAgentCapabilities";
 
 interface CapabilityPreferenceActions {
@@ -31,12 +32,42 @@ export function useComposerAgentCapabilities({
   serviceTier: ServiceTier;
   actions: CapabilityPreferenceActions;
 }) {
+  const {
+    claudeAuth,
+    codexAuth,
+    kimiAuth,
+    providerAuthChecked,
+  } = useAuthContext();
   const capabilities = useAgentCapabilities(projectId);
+  const unavailableProviders: Partial<Record<ChatProvider, string>> = {};
+  if (providerAuthChecked) {
+    if (!claudeAuth.authenticated) {
+      unavailableProviders.claude = "Log in to Claude in Settings before selecting it.";
+    }
+    if (!codexAuth.authenticated) {
+      unavailableProviders.codex = "Log in to Codex in Settings before selecting it.";
+    }
+    if (!kimiAuth.authenticated) {
+      unavailableProviders.kimi = "Log in to Kimi in Settings before selecting it.";
+    }
+  }
+  const antigravityCapabilities = capabilities.catalog?.providers.find(
+    (item) => item.provider === "antigravity",
+  );
+  if (
+    antigravityCapabilities?.source === "fallback"
+    && antigravityCapabilities.warning?.startsWith("Sign in to Antigravity")
+  ) {
+    unavailableProviders.antigravity = projectId
+      ? "Log in to Antigravity in this project's terminal, then refresh models."
+      : "Log in to Antigravity in the terminal, then refresh models.";
+  }
   const state = agentCapabilityState.resolve(
     capabilities.catalog,
     provider,
     model,
     capabilities.loading,
+    unavailableProviders,
   );
 
   useEffect(() => {

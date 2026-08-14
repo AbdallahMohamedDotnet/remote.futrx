@@ -24,7 +24,12 @@ export function ComposerAgentControls({
   model: string;
   provider: ChatProvider;
   streaming: boolean;
-  providerOptions: readonly { value: ChatProvider; label: string }[];
+  providerOptions: readonly {
+    value: ChatProvider;
+    label: string;
+    disabled?: boolean;
+    disabledReason?: string;
+  }[];
   modelOptions: readonly { value: string; label: string; sub: string }[];
   modelsLoading: boolean;
   modelsRefreshing: boolean;

@@ -44,6 +44,31 @@ test("does not present the current selection as a model while the catalog loads"
   assert.deepEqual(state.modelOptions, []);
 });
 
+test("disables providers with a known login requirement", () => {
+  const reason = "Log in to Codex in Settings before selecting it.";
+  const state = agentCapabilityState.resolve(catalog, "codex", "", false, {
+    codex: reason,
+  });
+
+  assert.deepEqual(state.providerOptions, [{
+    value: "codex",
+    label: "Codex",
+    disabled: true,
+    disabledReason: reason,
+  }]);
+});
+
+test("keeps providers selectable when authentication is unknown", () => {
+  const state = agentCapabilityState.resolve(catalog, "codex", "", false);
+
+  assert.deepEqual(state.providerOptions, [{
+    value: "codex",
+    label: "Codex",
+    disabled: false,
+    disabledReason: undefined,
+  }]);
+});
+
 test("corrects selections unsupported by a live catalog", () => {
   const state = agentCapabilityState.resolve(catalog, "codex", "gpt-fast", false);
   assert.deepEqual(

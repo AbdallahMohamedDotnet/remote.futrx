@@ -7,7 +7,12 @@ import type { ChatProvider } from "../../models/chat";
 
 export interface ComposerCapabilityState {
   providerCapabilities?: AgentProviderCapabilities;
-  providerOptions: Array<{ value: ChatProvider; label: string }>;
+  providerOptions: Array<{
+    value: ChatProvider;
+    label: string;
+    disabled?: boolean;
+    disabledReason?: string;
+  }>;
   modelOptions: Array<{ value: string; label: string; sub: string }>;
   reasoningEffortOptions: AgentCapabilityOption[];
   serviceTierOptions: AgentCapabilityOption[];
@@ -32,6 +37,7 @@ export const agentCapabilityState = {
     provider: ChatProvider,
     model: string,
     loading: boolean,
+    unavailableProviders: Partial<Record<ChatProvider, string>> = {},
   ): ComposerCapabilityState {
     const providerCapabilities = catalog?.providers.find(
       (item) => item.provider === provider,
@@ -39,7 +45,14 @@ export const agentCapabilityState = {
     const providerOptions = catalog?.providers.map((item) => ({
       value: item.provider,
       label: item.label,
-    })) ?? [{ value: provider, label: providerLabel(provider) }];
+      disabled: !!unavailableProviders[item.provider],
+      disabledReason: unavailableProviders[item.provider],
+    })) ?? [{
+      value: provider,
+      label: providerLabel(provider),
+      disabled: !!unavailableProviders[provider],
+      disabledReason: unavailableProviders[provider],
+    }];
     const modelOptions = providerCapabilities?.models.map((item) => ({
       value: item.id,
       label: item.label,
