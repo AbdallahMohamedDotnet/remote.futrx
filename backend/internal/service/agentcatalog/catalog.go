@@ -20,7 +20,6 @@ import (
 	"errors"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
@@ -33,8 +32,6 @@ var (
 	ErrAuthenticationRequired   = errors.New("authentication required")
 	ErrProjectAccessDenied      = errors.New("project access denied")
 )
-
-const cacheTTL = 30 * time.Second
 
 type ProjectCatalog interface {
 	Get(ctx context.Context, id serviceproject.ID) (serviceproject.Meta, error)
@@ -56,21 +53,12 @@ type Catalog struct {
 	agents   *agent.Registry
 	projects ProjectCatalog
 	auth     Authorizer
-	now      func() time.Time
-
-	mu    sync.Mutex
-	cache map[string]cacheEntry
-}
-
-type cacheEntry struct {
-	expiresAt time.Time
-	result    []agent.Capabilities
+	cache    *catalogCache
 }
 
 func New(agents *agent.Registry, projects ProjectCatalog, auth Authorizer) *Catalog {
 	return &Catalog{
-		agents: agents, projects: projects, auth: auth, now: time.Now,
-		cache: make(map[string]cacheEntry),
+		agents: agents, projects: projects, auth: auth, cache: newCatalogCache(),
 	}
 }
 
@@ -96,7 +84,7 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 	}
 
 	if !query.Refresh {
-		if cached, ok := c.cached(cacheKey); ok {
+		if cached, ok := c.cache.load(cacheKey); ok {
 			return cached, nil
 		}
 	}
@@ -127,7 +115,7 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 		}()
 	}
 	wait.Wait()
-	c.store(cacheKey, result)
+	c.cache.store(cacheKey, result)
 	return cloneCapabilities(result), nil
 }
 
@@ -155,40 +143,4 @@ func (c *Catalog) authorize(ctx context.Context, projectID serviceproject.ID, co
 		return ErrProjectAccessDenied
 	}
 	return nil
-}
-
-func (c *Catalog) cached(key string) ([]agent.Capabilities, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	entry, ok := c.cache[key]
-	if !ok || !c.now().Before(entry.expiresAt) {
-		delete(c.cache, key)
-		return nil, false
-	}
-	return cloneCapabilities(entry.result), true
-}
-
-func (c *Catalog) store(key string, result []agent.Capabilities) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.cache[key] = cacheEntry{expiresAt: c.now().Add(cacheTTL), result: cloneCapabilities(result)}
-}
-
-func cloneCapabilities(input []agent.Capabilities) []agent.Capabilities {
-	output := make([]agent.Capabilities, len(input))
-	for index, caps := range input {
-		output[index] = caps
-		output[index].Modes = append([]agent.CapabilityOption(nil), caps.Modes...)
-		output[index].Models = make([]agent.ModelCapability, len(caps.Models))
-		for modelIndex, model := range caps.Models {
-			output[index].Models[modelIndex] = model
-			output[index].Models[modelIndex].ReasoningEfforts = append(
-				[]agent.CapabilityOption(nil), model.ReasoningEfforts...,
-			)
-			output[index].Models[modelIndex].ServiceTiers = append(
-				[]agent.CapabilityOption(nil), model.ServiceTiers...,
-			)
-		}
-	}
-	return output
 }
