@@ -11,14 +11,12 @@ import (
 var (
 	quotedValuePattern = regexp.MustCompile(`['"]([A-Za-z0-9._-]+)['"]`)
 	effortPattern      = regexp.MustCompile(`(?is)--effort\s+<level>.*?\(([^)]*)\)`)
-	modePattern        = regexp.MustCompile(`(?is)--permission-mode\s+<mode>.*?choices:\s*([^)]+)\)`)
 	modelPattern       = regexp.MustCompile(`(?is)--model\s+<model>.*?alias.*?\(([^)]*)\)`)
 )
 
 func parseCapabilityHelp(help string) agent.Capabilities {
 	efforts := parseHelpChoiceValues(effortPattern, help)
 	models := parseHelpQuotedValues(modelPattern, help)
-	permissionModes := parseHelpChoiceValues(modePattern, help)
 
 	if len(efforts) == 0 || len(models) == 0 {
 		caps := fallbackCapabilities()
@@ -41,7 +39,7 @@ func parseCapabilityHelp(help string) agent.Capabilities {
 		Label:       "Claude",
 		Source:      agent.CapabilitySourceLive,
 		Models:      agent.WithAutoModel(items, "Claude default"),
-		Modes:       agent.ProviderModes(containsChoice(permissionModes, string(agent.RunModePlan))),
+		Modes:       agent.ProviderModes(true),
 		DefaultMode: agent.RunModeDefault,
 	}
 }
@@ -89,15 +87,6 @@ func uniqueHelpValues(values []string) []string {
 		result = append(result, value)
 	}
 	return result
-}
-
-func containsChoice(values []string, target string) bool {
-	for _, value := range values {
-		if strings.EqualFold(value, target) {
-			return true
-		}
-	}
-	return false
 }
 
 func optionLabel(value string) string {

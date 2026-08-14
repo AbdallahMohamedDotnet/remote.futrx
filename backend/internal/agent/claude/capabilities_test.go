@@ -29,4 +29,7 @@ func TestParseCapabilitiesFallsBackForIncompleteHelp(t *testing.T) {
 	if caps.Source != "fallback" || len(caps.Models) < 2 || caps.Warning == "" {
 		t.Fatalf("capabilities = %+v", caps)
 	}
+	if len(caps.Modes) != 2 || caps.Modes[0].Value != string(agent.RunModeDefault) || caps.Modes[1].Value != string(agent.RunModePlan) {
+		t.Fatalf("fallback modes = %+v", caps.Modes)
+	}
 }
