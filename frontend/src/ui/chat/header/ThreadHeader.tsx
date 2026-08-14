@@ -1,31 +1,18 @@
 import type { ChatMeta } from "../../../models/chat";
 import { providerDisplayLabel } from "../../../config/chat";
 import { Menu, MessageSquare } from "../../primitives/icons";
-import { WorkspaceActions } from "./WorkspaceActions";
 
 export function ThreadHeader({
   chat,
   streaming,
-  showHistory,
-  onOpenTerminal,
-  onOpenBrowser,
-  onOpenHistory,
-  onOpenFiles,
-  onOpenSchedules,
   onHamburger,
 }: {
   chat: ChatMeta;
   streaming: boolean;
-  showHistory: boolean;
-  onOpenTerminal: () => void;
-  onOpenBrowser: () => void;
-  onOpenHistory: () => void;
-  onOpenFiles: () => void;
-  onOpenSchedules: () => void;
   onHamburger: () => void;
 }) {
   return (
-    <header class="codex-header top-chrome flex-none z-20 bg-[#101318] md:bg-[#101318]/95 md:backdrop-blur border-b border-white/10 px-3 py-2 flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+    <header class="codex-header top-chrome z-20 flex flex-none items-center border-b border-white/10 bg-[#101318] px-3 py-2 md:bg-[#101318]/95 md:backdrop-blur">
       <div class="codex-thread-heading flex min-w-0 flex-1 items-center gap-2 min-h-9">
         <button
           type="button"
@@ -57,18 +44,6 @@ export function ThreadHeader({
         </div>
       </div>
 
-      <div class="workspace-action-bar flex w-full min-w-0 items-center justify-end md:w-auto md:flex-none">
-        <WorkspaceActions
-          cwd={chat.cwd || "~"}
-          onOpenTerminal={onOpenTerminal}
-          onOpenBrowser={onOpenBrowser}
-          onOpenHistory={onOpenHistory}
-          onOpenFiles={onOpenFiles}
-          onOpenSchedules={onOpenSchedules}
-          showHistory={showHistory}
-          showSchedules={!!chat.projectId}
-        />
-      </div>
     </header>
   );
 }

@@ -26,8 +26,8 @@ export function WorkspaceActions({
                        text-ink-300 transition hover:bg-white/[0.08] hover:text-ink-100`;
 
   return (
-    <div class="flex min-w-max items-center gap-1.5">
-      <div class="workspace-action-group inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
+    <div class="flex flex-col items-center gap-1.5">
+      <div class="workspace-action-group inline-flex flex-col items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
         <a
           href={ideUrl}
           target="_blank"
@@ -49,7 +49,7 @@ export function WorkspaceActions({
         </button>
       </div>
 
-      <div class="workspace-action-group inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
+      <div class="workspace-action-group inline-flex flex-col items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
         {showHistory && (
           <button
             type="button"
