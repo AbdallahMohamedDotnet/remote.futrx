@@ -57,7 +57,7 @@ export function ThreadHeader({
         </div>
       </div>
 
-      <div class="workspace-action-bar flex w-full min-w-0 items-center overflow-x-auto no-scrollbar md:w-auto md:flex-none">
+      <div class="workspace-action-bar flex w-full min-w-0 items-center justify-end md:w-auto md:flex-none">
         <WorkspaceActions
           cwd={chat.cwd || "~"}
           onOpenTerminal={onOpenTerminal}

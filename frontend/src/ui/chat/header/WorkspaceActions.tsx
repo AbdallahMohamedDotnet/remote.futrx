@@ -22,8 +22,8 @@ export function WorkspaceActions({
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = buildIdeUrl(workspacePath);
-  const actionClass = `workspace-action h-8 inline-flex flex-none items-center gap-1.5 rounded-md px-2
-                       text-left text-ink-300 transition hover:bg-white/[0.08] hover:text-ink-100`;
+  const actionClass = `workspace-action inline-flex h-8 w-8 flex-none items-center justify-center rounded-md
+                       text-ink-300 transition hover:bg-white/[0.08] hover:text-ink-100`;
 
   return (
     <div class="flex min-w-max items-center gap-1.5">
@@ -36,7 +36,7 @@ export function WorkspaceActions({
           title={`Open workspace in IDE: ${workspacePath}`}
           aria-label="Open workspace in IDE"
         >
-          <WorkspaceActionContent Icon={Code} label="IDE" />
+          <WorkspaceActionIcon Icon={Code} />
         </a>
         <button
           type="button"
@@ -45,7 +45,7 @@ export function WorkspaceActions({
           title={`Open terminal in container workspace: ${workspacePath}`}
           aria-label="Open terminal"
         >
-          <WorkspaceActionContent Icon={Terminal} label="Terminal" />
+          <WorkspaceActionIcon Icon={Terminal} />
         </button>
       </div>
 
@@ -58,7 +58,7 @@ export function WorkspaceActions({
             title="Review git history"
             aria-label="Review history"
           >
-            <WorkspaceActionContent Icon={Clock} label="History" />
+            <WorkspaceActionIcon Icon={Clock} />
           </button>
         )}
         <button
@@ -68,7 +68,7 @@ export function WorkspaceActions({
           title="Browse uploads and media files"
           aria-label="Open file manager"
         >
-          <WorkspaceActionContent Icon={Folder} label="Files" />
+          <WorkspaceActionIcon Icon={Folder} />
         </button>
         {showSchedules && (
           <button
@@ -78,7 +78,7 @@ export function WorkspaceActions({
             title="View scheduled tasks"
             aria-label="Open scheduled tasks"
           >
-            <WorkspaceActionContent Icon={CalendarClock} label="Schedules" />
+            <WorkspaceActionIcon Icon={CalendarClock} />
           </button>
         )}
         <button
@@ -88,24 +88,13 @@ export function WorkspaceActions({
           title="Open browser preview"
           aria-label="Open browser"
         >
-          <WorkspaceActionContent Icon={Monitor} label="Browser" />
+          <WorkspaceActionIcon Icon={Monitor} />
         </button>
       </div>
     </div>
   );
 }
 
-function WorkspaceActionContent({
-  Icon,
-  label,
-}: {
-  Icon: typeof Code;
-  label: string;
-}) {
-  return (
-    <>
-      <Icon class="w-3.5 h-3.5 text-accent-blue flex-none" />
-      <span class="workspace-action-label text-[11.5px] font-medium">{label}</span>
-    </>
-  );
+function WorkspaceActionIcon({ Icon }: { Icon: typeof Code }) {
+  return <Icon class="h-3.5 w-3.5 flex-none text-accent-blue" />;
 }

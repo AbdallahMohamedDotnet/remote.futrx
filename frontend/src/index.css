@@ -92,22 +92,6 @@
     margin-top: 0.5rem;
   }
 
-  .codex-header {
-    container-type: inline-size;
-  }
-
-  @container (max-width: 720px) {
-    .workspace-action-label {
-      display: none;
-    }
-
-    .workspace-action {
-      width: 2rem;
-      justify-content: center;
-      padding-inline: 0;
-    }
-  }
-
   .codex-composer-card .codex-composer-form,
   .codex-composer-card .codex-composer-textarea {
     background: transparent !important;
