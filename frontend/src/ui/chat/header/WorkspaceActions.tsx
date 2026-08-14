@@ -1,6 +1,5 @@
 import { CalendarClock, Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
-import { WorkspaceAction } from "./WorkspaceAction";
 
 export function WorkspaceActions({
   cwd,
@@ -23,61 +22,90 @@ export function WorkspaceActions({
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = buildIdeUrl(workspacePath);
+  const actionClass = `workspace-action h-8 inline-flex flex-none items-center gap-1.5 rounded-md px-2
+                       text-left text-ink-300 transition hover:bg-white/[0.08] hover:text-ink-100`;
 
   return (
     <div class="flex min-w-max items-center gap-1.5">
       <div class="workspace-action-group inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
-        <WorkspaceAction
+        <a
           href={ideUrl}
-          Icon={Code}
-          label="IDE"
+          target="_blank"
+          rel="noopener noreferrer"
+          class={actionClass}
           title={`Open workspace in IDE: ${workspacePath}`}
-          ariaLabel="Open workspace in IDE"
-        />
-        <WorkspaceAction
+          aria-label="Open workspace in IDE"
+        >
+          <WorkspaceActionContent Icon={Code} label="IDE" />
+        </a>
+        <button
+          type="button"
           onClick={onOpenTerminal}
-          Icon={Terminal}
-          label="Terminal"
+          class={actionClass}
           title={`Open terminal in container workspace: ${workspacePath}`}
-          ariaLabel="Open terminal"
-        />
+          aria-label="Open terminal"
+        >
+          <WorkspaceActionContent Icon={Terminal} label="Terminal" />
+        </button>
       </div>
 
       <div class="workspace-action-group inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
         {showHistory && (
-          <WorkspaceAction
+          <button
+            type="button"
             onClick={onOpenHistory}
-            Icon={Clock}
-            label="History"
+            class={actionClass}
             title="Review git history"
-            ariaLabel="Review history"
-          />
+            aria-label="Review history"
+          >
+            <WorkspaceActionContent Icon={Clock} label="History" />
+          </button>
         )}
-        <WorkspaceAction
+        <button
+          type="button"
           onClick={onOpenFiles}
-          Icon={Folder}
-          label="Files"
+          class={actionClass}
           title="Browse uploads and media files"
-          ariaLabel="Open file manager"
-        />
+          aria-label="Open file manager"
+        >
+          <WorkspaceActionContent Icon={Folder} label="Files" />
+        </button>
         {showSchedules && (
-          <WorkspaceAction
+          <button
+            type="button"
             onClick={onOpenSchedules}
-            Icon={CalendarClock}
-            label="Schedules"
+            class={actionClass}
             title="View scheduled tasks"
-            ariaLabel="Open scheduled tasks"
-          />
+            aria-label="Open scheduled tasks"
+          >
+            <WorkspaceActionContent Icon={CalendarClock} label="Schedules" />
+          </button>
         )}
-        <WorkspaceAction
+        <button
+          type="button"
           onClick={onOpenBrowser}
-          Icon={Monitor}
-          label="Browser"
+          class={`${actionClass} bg-accent-blue/[0.08] text-ink-100`}
           title="Open browser preview"
-          ariaLabel="Open browser"
-          emphasized
-        />
+          aria-label="Open browser"
+        >
+          <WorkspaceActionContent Icon={Monitor} label="Browser" />
+        </button>
       </div>
     </div>
+  );
+}
+
+function WorkspaceActionContent({
+  Icon,
+  label,
+}: {
+  Icon: typeof Code;
+  label: string;
+}) {
+  return (
+    <>
+      <Icon class="w-3.5 h-3.5 text-accent-blue flex-none" />
+      <span class="workspace-action-label text-[11.5px] font-medium">{label}</span>
+    </>
   );
 }
