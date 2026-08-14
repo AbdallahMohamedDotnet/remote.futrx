@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
 func TestArgsComposition(t *testing.T) {
@@ -66,17 +67,28 @@ func TestEffortFlagClamping(t *testing.T) {
 	}
 }
 
-func TestInstallScriptPinsVersion(t *testing.T) {
+func TestInstallScriptPinsVersionedRelease(t *testing.T) {
 	script := Profile().CLI.InstallScript
 	version := Profile().CLI.Version
-	if !strings.Contains(script, version) {
-		t.Fatalf("install script does not reference pinned version %s", version)
+	for _, want := range []string{
+		releaseBaseURL + "/" + version + "/${asset}",
+		`asset="agy_cli_linux_x64.tar.gz"`,
+		`asset="agy_cli_linux_arm64.tar.gz"`,
+		provisioning.MustPin("ANTIGRAVITY_LINUX_X64_SHA512"),
+		provisioning.MustPin("ANTIGRAVITY_LINUX_ARM64_SHA512"),
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("install script does not contain pinned release value %q", want)
+		}
 	}
 	if !strings.Contains(script, "sha512sum -c") {
-		t.Fatal("install script must verify the manifest checksum")
+		t.Fatal("install script must verify the pinned checksum")
 	}
 	if !strings.Contains(script, "/usr/local/bin/agy") {
 		t.Fatal("install script must install the agy binary")
+	}
+	if strings.Contains(script, "/manifests/") {
+		t.Fatal("install script must not consult the moving latest manifest")
 	}
 }
 

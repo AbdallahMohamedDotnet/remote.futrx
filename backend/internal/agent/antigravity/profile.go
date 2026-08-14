@@ -20,8 +20,8 @@ const containerAgentHome = "/root"
 // stateDirUnderHome is where agy stores conversations and headless auth state.
 const stateDirUnderHome = ".gemini/antigravity-cli"
 
-// manifestBaseURL serves per-platform release manifests: {version, url, sha512}.
-const manifestBaseURL = "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app"
+// releaseBaseURL contains version-addressed Antigravity CLI assets.
+const releaseBaseURL = "https://github.com/google-antigravity/antigravity-cli/releases/download"
 
 var antigravityProfile = provisioning.Profile{
 	ID: string(agent.ProviderAntigravity),
@@ -34,9 +34,13 @@ var antigravityProfile = provisioning.Profile{
 		CheckVersion:       true,
 		VerifyAfterInstall: true,
 		InstallMode:        provisioning.InstallWithScript,
-		InstallScript:      installScript(provisioning.MustCLIVersion("ANTIGRAVITY_CLI_VERSION")),
-		InstallTimeout:     8 * time.Minute,
-		WaitTimeout:        5 * time.Minute,
+		InstallScript: installScript(
+			provisioning.MustCLIVersion("ANTIGRAVITY_CLI_VERSION"),
+			provisioning.MustPin("ANTIGRAVITY_LINUX_X64_SHA512"),
+			provisioning.MustPin("ANTIGRAVITY_LINUX_ARM64_SHA512"),
+		),
+		InstallTimeout: 8 * time.Minute,
+		WaitTimeout:    5 * time.Minute,
 	},
 	// No credential sync: agy stores auth in the OS keyring on desktops and in
 	// per-home fallback files on headless systems, with no stable documented
@@ -52,32 +56,30 @@ func Profile() provisioning.Profile {
 }
 
 // installScript downloads the pinned agy release for the container's
-// architecture, verifies the manifest checksum, and installs /usr/local/bin/agy.
-// It refuses to install a manifest version other than the repository pin so
-// upgrades stay deliberate.
-func installScript(version string) string {
+// architecture, verifies its repository-pinned checksum, and installs
+// /usr/local/bin/agy. It never consults Antigravity's moving latest manifest.
+func installScript(version, linuxX64SHA512, linuxARM64SHA512 string) string {
 	return fmt.Sprintf(`set -euo pipefail
 if command -v agy >/dev/null 2>&1 && [ "$(agy --version 2>/dev/null)" = %[1]q ]; then
     exit 0
 fi
 case "$(uname -m)" in
-    x86_64|amd64) platform="linux_amd64" ;;
-    aarch64|arm64) platform="linux_arm64" ;;
+    x86_64|amd64)
+        asset="agy_cli_linux_x64.tar.gz"
+        sha512=%[3]q
+        ;;
+    aarch64|arm64)
+        asset="agy_cli_linux_arm64.tar.gz"
+        sha512=%[4]q
+        ;;
     *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
-manifest=$(curl -fsSL "%[2]s/manifests/${platform}.json")
-manifest_version=$(printf '%%s' "$manifest" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-url=$(printf '%%s' "$manifest" | sed -n 's/.*"url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-sha512=$(printf '%%s' "$manifest" | sed -n 's/.*"sha512"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-if [ "$manifest_version" != %[1]q ]; then
-    echo "antigravity manifest serves ${manifest_version}, repository pins %[1]s — update ANTIGRAVITY_CLI_VERSION" >&2
-    exit 1
-fi
+url="%[2]s/%[1]s/${asset}"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 curl -fsSL "$url" -o "$tmp/agy.tar.gz"
 echo "${sha512}  $tmp/agy.tar.gz" | sha512sum -c - >/dev/null
 tar -xzf "$tmp/agy.tar.gz" -C "$tmp" antigravity
 install -m 0755 "$tmp/antigravity" /usr/local/bin/agy
-agy --version`, version, manifestBaseURL)
+agy --version`, version, releaseBaseURL, linuxX64SHA512, linuxARM64SHA512)
 }
