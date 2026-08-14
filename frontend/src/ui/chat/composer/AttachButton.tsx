@@ -18,9 +18,9 @@ export function AttachButton({
         type="button"
         onClick={() => fileInputRef.current?.click()}
         disabled={uploading || disconnected}
-        class="codex-icon-button flex-none w-11 h-11 rounded-md bg-white/[0.06] border border-white/10
+        class="codex-icon-button flex-none w-10 h-10 rounded-lg bg-white/[0.045]
                hover:bg-white/10 active:bg-accent-blue active:border-accent-blue active:scale-[0.98]
-               disabled:opacity-50 disabled:active:scale-100 grid place-items-center text-ink-100 transition"
+               disabled:opacity-50 disabled:active:scale-100 grid place-items-center text-ink-300 hover:text-ink-100 transition"
         aria-label="Attach files"
         title="Attach (or drag-and-drop / paste images)"
       >
