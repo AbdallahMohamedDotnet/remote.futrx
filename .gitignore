@@ -11,6 +11,7 @@
 # Runtime state — don't commit chat history or local data
 /data/
 /.qa.env
+/AGENTS.md
 
 # OS / editor noise
 .DS_Store
