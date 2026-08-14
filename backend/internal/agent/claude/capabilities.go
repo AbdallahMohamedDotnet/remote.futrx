@@ -23,7 +23,7 @@ var (
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	probeCtx, cancel := context.WithTimeout(ctx, capabilityTimeout)
 	defer cancel()
-	cmd := agent.CapabilityCommand(
+	cmd := agent.NewCapabilityCommand(
 		probeCtx,
 		req,
 		[]string{"HOME=/root", "IS_SANDBOX=1"},

@@ -80,7 +80,7 @@ func loadAppServerCapabilities(
 	ctx context.Context,
 	req agent.CapabilityRequest,
 ) (modelListResponse, collaborationModeListResponse, error) {
-	cmd := agent.CapabilityCommand(
+	cmd := agent.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "CODEX_HOME=/root/.codex", "OPENAI_API_KEY="},
@@ -207,7 +207,7 @@ type debugCatalog struct {
 }
 
 func loadDebugModels(ctx context.Context, req agent.CapabilityRequest) (modelListResponse, error) {
-	cmd := agent.CapabilityCommand(
+	cmd := agent.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "CODEX_HOME=/root/.codex", "OPENAI_API_KEY="},

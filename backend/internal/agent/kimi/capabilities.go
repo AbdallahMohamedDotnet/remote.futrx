@@ -21,7 +21,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	if req.ContainerName == "" {
 		kimiHome = hostKimiHome()
 	}
-	modelsCmd := agent.CapabilityCommand(
+	modelsCmd := agent.NewCapabilityCommand(
 		probeCtx,
 		req,
 		[]string{"HOME=/root", "KIMI_CODE_HOME=" + kimiHome},
@@ -31,7 +31,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 		"--json",
 	)
 	modelsOutput, modelsErr := modelsCmd.Output()
-	helpCmd := agent.CapabilityCommand(
+	helpCmd := agent.NewCapabilityCommand(
 		probeCtx,
 		req,
 		[]string{"HOME=/root", "KIMI_CODE_HOME=" + kimiHome},

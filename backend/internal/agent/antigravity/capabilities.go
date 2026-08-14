@@ -25,9 +25,9 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	defer cancel()
 	environment := []string{"HOME=" + containerAgentHome}
 
-	modelsCmd := agent.CapabilityCommand(probeCtx, req, environment, "agy", "models")
+	modelsCmd := agent.NewCapabilityCommand(probeCtx, req, environment, "agy", "models")
 	modelsOutput, modelsErr := modelsCmd.CombinedOutput()
-	helpCmd := agent.CapabilityCommand(probeCtx, req, environment, "agy", "--help")
+	helpCmd := agent.NewCapabilityCommand(probeCtx, req, environment, "agy", "--help")
 	helpOutput, helpErr := helpCmd.CombinedOutput()
 
 	if modelsErr != nil && helpErr != nil {
