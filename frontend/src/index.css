@@ -92,6 +92,29 @@
     margin-top: 0.5rem;
   }
 
+  .codex-header {
+    container-type: inline-size;
+  }
+
+  @container (max-width: 720px) {
+    .workspace-action-label {
+      display: none;
+    }
+
+    .workspace-action {
+      width: 2rem;
+      justify-content: center;
+      padding-inline: 0;
+    }
+  }
+
+  .codex-composer-card .codex-composer-form,
+  .codex-composer-card .codex-composer-textarea {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
   .md-code { color: #e4e4e7; }
   .md-code-comment { color: #9b9ba3; }
   .md-code-keyword { color: #ff9b96; }
@@ -197,27 +220,30 @@
     color: #e4e4e7 !important;
   }
 
-  .codex-composer-form {
-    order: 1;
+  .codex-composer-card {
     align-items: flex-end;
-    margin: 0 0.75rem;
-    padding: 0.625rem 0.625rem max(0.625rem, env(safe-area-inset-bottom, 0px)) !important;
+    margin: 0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom, 0px)) !important;
     border: 1px solid #3f4047;
-    border-radius: 1.75rem;
+    border-radius: 1.25rem;
     background: #191a1f;
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
+  .codex-composer-form {
+    margin: 0;
+    padding: 0.625rem 0.625rem 0.4rem !important;
+  }
+
   .codex-composer-primary-controls {
-    order: 0;
-    padding: 0.45rem 0.875rem 0.35rem !important;
-    border: 0 !important;
+    padding: 0 !important;
   }
 
   .codex-composer-secondary-controls {
-    order: 2;
-    padding: 0.4rem 1.375rem max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
-    border: 0 !important;
+    padding: 0 !important;
+  }
+
+  .codex-composer-control-deck {
+    padding: 0.4rem 0.625rem 0.625rem !important;
   }
 
   .codex-mode-control {
@@ -351,6 +377,11 @@ html[data-theme="dark"] .codex-composer-shell {
   border-color: rgba(255, 255, 255, 0.09) !important;
 }
 
+html[data-theme="dark"] .codex-composer-card {
+  background: #191a1f !important;
+  border-color: rgba(255, 255, 255, 0.11) !important;
+}
+
 html[data-theme="dark"] .codex-composer-form,
 html[data-theme="dark"] .codex-composer-textarea,
 html[data-theme="dark"] .codex-tool-shell {
@@ -419,6 +450,12 @@ html[data-theme="light"] .codex-composer-shell {
   background: linear-gradient(to top, #ffffff 82%, rgba(255, 255, 255, 0.92)) !important;
   border-color: rgba(31, 35, 40, 0.12) !important;
   color: #24292f !important;
+}
+
+html[data-theme="light"] .codex-composer-card {
+  background: #ffffff !important;
+  border-color: #d0d7de !important;
+  box-shadow: 0 8px 24px rgba(140, 149, 159, 0.18) !important;
 }
 
 html[data-theme="light"] .codex-composer-form {

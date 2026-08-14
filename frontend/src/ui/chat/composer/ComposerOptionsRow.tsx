@@ -20,38 +20,36 @@ export function ComposerOptionsRow({
   const serviceTierOptions = serviceTierOptionsForProvider(preferences.provider);
 
   return (
-    <div class="codex-composer-secondary-controls px-3 pt-1.5 pb-2">
-      <div class="flex w-full min-w-0 flex-wrap items-center gap-2">
-        {reasoningEffortOptions.length > 0 && (
-          <ComposerOptionDropdown
-            label="Thinking"
-            value={preferences.reasoningEffort}
-            options={reasoningEffortOptions}
-            disabled={streaming}
-            Icon={Activity}
-            onChange={preferenceActions.changeReasoningEffort}
-          />
-        )}
-
-        {serviceTierOptions.length > 0 && (
-          <ComposerOptionDropdown
-            label="Speed"
-            value={preferences.serviceTier}
-            options={serviceTierOptions}
-            disabled={streaming}
-            Icon={Cpu}
-            onChange={preferenceActions.changeServiceTier}
-          />
-        )}
-
+    <div class="codex-composer-secondary-controls flex min-w-0 flex-wrap items-center gap-1">
+      {reasoningEffortOptions.length > 0 && (
         <ComposerOptionDropdown
-          label="Mode"
-          value={preferences.mode}
-          options={MODE_OPTIONS}
-          Icon={MessageSquare}
-          onChange={preferenceActions.changeMode}
+          label="Thinking"
+          value={preferences.reasoningEffort}
+          options={reasoningEffortOptions}
+          disabled={streaming}
+          Icon={Activity}
+          onChange={preferenceActions.changeReasoningEffort}
         />
-      </div>
+      )}
+
+      {serviceTierOptions.length > 0 && (
+        <ComposerOptionDropdown
+          label="Speed"
+          value={preferences.serviceTier}
+          options={serviceTierOptions}
+          disabled={streaming}
+          Icon={Cpu}
+          onChange={preferenceActions.changeServiceTier}
+        />
+      )}
+
+      <ComposerOptionDropdown
+        label="Mode"
+        value={preferences.mode}
+        options={MODE_OPTIONS}
+        Icon={MessageSquare}
+        onChange={preferenceActions.changeMode}
+      />
     </div>
   );
 }

@@ -46,7 +46,7 @@ export function ComposerOptionDropdown<T extends string>({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        class={`inline-flex h-8 items-center gap-2 rounded-md px-2.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60
+        class={`inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60
                 ${open ? "bg-accent-blue/[0.14] text-accent-blue" : "bg-white/[0.045] text-ink-200 hover:bg-white/[0.075] hover:text-ink-100"}`}
         disabled={disabled}
         title={`${label}: ${selected?.label || "Auto"}`}
@@ -54,15 +54,15 @@ export function ComposerOptionDropdown<T extends string>({
         aria-expanded={open}
       >
         <span
-          class="inline-flex h-5 w-5 flex-none items-center justify-center text-ink-300"
+          class="inline-flex h-4 w-4 flex-none items-center justify-center text-ink-400"
           title={label}
           aria-label={label}
         >
-          <Icon class="h-3.5 w-3.5" />
+          <Icon class="h-3 w-3" />
         </span>
-        <span class="hidden text-ink-400 sm:inline">{label}</span>
-        <span class="max-w-[7.5rem] truncate font-semibold text-ink-100">{selected?.label || "Auto"}</span>
-        <ChevronDown class="h-3.5 w-3.5 flex-none text-ink-400" />
+        <span class="sr-only">{label}</span>
+        <span class="max-w-[5.5rem] truncate font-semibold text-ink-100">{selected?.label || "Auto"}</span>
+        <ChevronDown class="h-3 w-3 flex-none text-ink-400" />
       </button>
 
       {open && (

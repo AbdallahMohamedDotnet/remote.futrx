@@ -45,10 +45,10 @@ export function PromptTextarea({
       }
       disabled={disconnected}
       class="codex-composer-textarea flex-1 resize-none rounded-md
-             bg-[#101318] border border-white/10 text-ink-100 placeholder:text-ink-300
-             focus:outline-none focus:border-accent-blue/80 focus:bg-[#121722]
-             px-3.5 py-3 text-[16px] sm:text-[14.5px] leading-normal
-             min-h-[44px] max-h-[220px] shadow-inner
+             bg-transparent border-0 text-ink-100 placeholder:text-ink-300
+             focus:outline-none focus:bg-white/[0.025]
+             px-2.5 py-2.5 text-[16px] sm:text-[14px] leading-normal
+             min-h-[40px] max-h-[220px]
              disabled:opacity-60 transition-colors"
     />
   );
