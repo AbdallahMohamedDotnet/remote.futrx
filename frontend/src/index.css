@@ -544,6 +544,14 @@ html[data-theme="light"] .md-code {
   border: 1px solid transparent !important;
 }
 
+.codex-window-frame {
+  overflow: hidden;
+}
+
+html[data-theme] .codex-composer-card > .codex-composer-form {
+  background: transparent !important;
+}
+
 html[data-theme="dark"] .codex-main {
   --codex-window-surface: #121317;
 }
