@@ -1,10 +1,6 @@
 import { CalendarClock, Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
-import {
-  WorkspaceActionButton,
-  WorkspaceActionGroup,
-  WorkspaceActionLink,
-} from "./WorkspaceAction";
+import { WorkspaceAction } from "./WorkspaceAction";
 
 export function WorkspaceActions({
   cwd,
@@ -30,26 +26,26 @@ export function WorkspaceActions({
 
   return (
     <div class="flex min-w-max items-center gap-1.5">
-      <WorkspaceActionGroup>
-        <WorkspaceActionLink
+      <div class="workspace-action-group inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
+        <WorkspaceAction
           href={ideUrl}
           Icon={Code}
           label="IDE"
           title={`Open workspace in IDE: ${workspacePath}`}
           ariaLabel="Open workspace in IDE"
         />
-        <WorkspaceActionButton
+        <WorkspaceAction
           onClick={onOpenTerminal}
           Icon={Terminal}
           label="Terminal"
           title={`Open terminal in container workspace: ${workspacePath}`}
           ariaLabel="Open terminal"
         />
-      </WorkspaceActionGroup>
+      </div>
 
-      <WorkspaceActionGroup>
+      <div class="workspace-action-group inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
         {showHistory && (
-          <WorkspaceActionButton
+          <WorkspaceAction
             onClick={onOpenHistory}
             Icon={Clock}
             label="History"
@@ -57,7 +53,7 @@ export function WorkspaceActions({
             ariaLabel="Review history"
           />
         )}
-        <WorkspaceActionButton
+        <WorkspaceAction
           onClick={onOpenFiles}
           Icon={Folder}
           label="Files"
@@ -65,7 +61,7 @@ export function WorkspaceActions({
           ariaLabel="Open file manager"
         />
         {showSchedules && (
-          <WorkspaceActionButton
+          <WorkspaceAction
             onClick={onOpenSchedules}
             Icon={CalendarClock}
             label="Schedules"
@@ -73,7 +69,7 @@ export function WorkspaceActions({
             ariaLabel="Open scheduled tasks"
           />
         )}
-        <WorkspaceActionButton
+        <WorkspaceAction
           onClick={onOpenBrowser}
           Icon={Monitor}
           label="Browser"
@@ -81,7 +77,7 @@ export function WorkspaceActions({
           ariaLabel="Open browser"
           emphasized
         />
-      </WorkspaceActionGroup>
+      </div>
     </div>
   );
 }
