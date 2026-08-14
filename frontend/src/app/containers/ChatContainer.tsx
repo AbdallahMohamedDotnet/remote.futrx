@@ -171,10 +171,14 @@ export function ChatContainer({
           <WorkspaceActions
             cwd={displayMeta.cwd || "~"}
             onOpenTerminal={terminal.openTerminal}
-            onOpenBrowser={drawers.openBrowser}
-            onOpenHistory={drawers.openHistory}
-            onOpenFiles={drawers.openFiles}
-            onOpenSchedules={drawers.openSchedules}
+            onToggleBrowser={browser.browserOpen ? browser.closeBrowserDrawer : drawers.openBrowser}
+            onToggleHistory={drawers.historyOpen ? drawers.closeHistory : drawers.openHistory}
+            onToggleFiles={drawers.filesOpen ? drawers.closeFiles : drawers.openFiles}
+            onToggleSchedules={drawers.schedulesOpen ? drawers.closeSchedules : drawers.openSchedules}
+            browserOpen={browser.browserOpen}
+            historyOpen={drawers.historyOpen}
+            filesOpen={drawers.filesOpen}
+            schedulesOpen={drawers.schedulesOpen}
             showHistory={hasRepos}
             showSchedules={!!displayMeta.projectId}
           />

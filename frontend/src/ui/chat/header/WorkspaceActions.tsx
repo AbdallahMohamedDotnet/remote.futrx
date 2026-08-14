@@ -9,19 +9,27 @@ const actionClass = `workspace-action relative inline-flex h-9 w-9 flex-none ite
 export function WorkspaceActions({
   cwd,
   onOpenTerminal,
-  onOpenBrowser,
-  onOpenHistory,
-  onOpenFiles,
-  onOpenSchedules,
+  onToggleBrowser,
+  onToggleHistory,
+  onToggleFiles,
+  onToggleSchedules,
+  browserOpen,
+  historyOpen,
+  filesOpen,
+  schedulesOpen,
   showHistory,
   showSchedules,
 }: {
   cwd: string;
   onOpenTerminal: () => void;
-  onOpenBrowser: () => void;
-  onOpenHistory: () => void;
-  onOpenFiles: () => void;
-  onOpenSchedules: () => void;
+  onToggleBrowser: () => void;
+  onToggleHistory: () => void;
+  onToggleFiles: () => void;
+  onToggleSchedules: () => void;
+  browserOpen: boolean;
+  historyOpen: boolean;
+  filesOpen: boolean;
+  schedulesOpen: boolean;
   showHistory: boolean;
   showSchedules: boolean;
 }) {
@@ -45,30 +53,34 @@ export function WorkspaceActions({
       {showHistory && (
         <WorkspaceAction
           Icon={Clock}
-          onClick={onOpenHistory}
-          label="Git history"
-          tooltip="Review git history"
+          onClick={onToggleHistory}
+          label={historyOpen ? "Close git history" : "Git history"}
+          tooltip={historyOpen ? "Close git history" : "Review git history"}
+          expanded={historyOpen}
         />
       )}
       <WorkspaceAction
         Icon={Folder}
-        onClick={onOpenFiles}
-        label="Workspace files"
-        tooltip="Browse workspace files"
+        onClick={onToggleFiles}
+        label={filesOpen ? "Close workspace files" : "Workspace files"}
+        tooltip={filesOpen ? "Close workspace files" : "Browse workspace files"}
+        expanded={filesOpen}
       />
       {showSchedules && (
         <WorkspaceAction
           Icon={CalendarClock}
-          onClick={onOpenSchedules}
-          label="Scheduled tasks"
-          tooltip="View scheduled tasks"
+          onClick={onToggleSchedules}
+          label={schedulesOpen ? "Close scheduled tasks" : "Scheduled tasks"}
+          tooltip={schedulesOpen ? "Close scheduled tasks" : "View scheduled tasks"}
+          expanded={schedulesOpen}
         />
       )}
       <WorkspaceAction
         Icon={Monitor}
-        onClick={onOpenBrowser}
-        label="Browser preview"
-        tooltip="Open browser preview"
+        onClick={onToggleBrowser}
+        label={browserOpen ? "Close browser preview" : "Browser preview"}
+        tooltip={browserOpen ? "Close browser preview" : "Open browser preview"}
+        expanded={browserOpen}
       />
     </div>
   );
@@ -80,12 +92,14 @@ function WorkspaceAction({
   tooltip,
   href,
   onClick,
+  expanded,
 }: {
   Icon: typeof Code;
   label: string;
   tooltip: string;
   href?: string;
   onClick?: () => void;
+  expanded?: boolean;
 }) {
   const tooltipId = useId();
   const [isHovered, setIsHovered] = useState(false);
@@ -144,7 +158,13 @@ function WorkspaceAction({
   }
 
   return (
-    <button {...interactionProps} type="button" onClick={onClick} class={actionClass}>
+    <button
+      {...interactionProps}
+      type="button"
+      onClick={onClick}
+      aria-expanded={expanded}
+      class={`${actionClass} ${expanded ? "border-accent-blue/40 bg-white/[0.09] text-accent-blue" : ""}`}
+    >
       {content}
     </button>
   );
