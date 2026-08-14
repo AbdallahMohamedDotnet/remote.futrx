@@ -65,5 +65,11 @@ export function useComposerAgentCapabilities({
     state.serviceTierOptions,
   ]);
 
-  return state;
+  return {
+    ...state,
+    loading: capabilities.loading,
+    refreshing: capabilities.refreshing,
+    error: capabilities.error,
+    refresh: capabilities.refresh,
+  };
 }

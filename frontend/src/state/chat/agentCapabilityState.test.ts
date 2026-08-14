@@ -39,6 +39,11 @@ test("falls back to the auto model for an unknown saved model", () => {
   assert.deepEqual(state.reasoningEffortOptions.map((option) => option.value), ["", "medium"]);
 });
 
+test("does not present the current selection as a model while the catalog loads", () => {
+  const state = agentCapabilityState.resolve(null, "claude", "", true);
+  assert.deepEqual(state.modelOptions, []);
+});
+
 test("corrects selections unsupported by a live catalog", () => {
   const state = agentCapabilityState.resolve(catalog, "codex", "gpt-fast", false);
   assert.deepEqual(

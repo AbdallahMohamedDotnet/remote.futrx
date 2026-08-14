@@ -11,10 +11,14 @@ export function ComposerAgentControls({
   streaming,
   providerOptions,
   modelOptions,
+  modelsLoading,
+  modelsRefreshing,
+  modelError,
   selectedSkills,
   onSelectSkill,
   onProviderChange,
   onModelChange,
+  onRefreshModels,
 }: {
   projectId?: string;
   model: string;
@@ -22,10 +26,14 @@ export function ComposerAgentControls({
   streaming: boolean;
   providerOptions: readonly { value: ChatProvider; label: string }[];
   modelOptions: readonly { value: string; label: string; sub: string }[];
+  modelsLoading: boolean;
+  modelsRefreshing: boolean;
+  modelError: string;
   selectedSkills: SelectedSkill[];
   onSelectSkill: (skill: RegisteredSkill) => void;
   onProviderChange: (provider: ChatProvider) => void;
   onModelChange: (model: string) => void;
+  onRefreshModels: () => Promise<void>;
 }) {
   const selectedCount = selectedSkills.length;
   return (
@@ -41,7 +49,11 @@ export function ComposerAgentControls({
         model={model}
         streaming={streaming}
         options={modelOptions}
+        loading={modelsLoading}
+        refreshing={modelsRefreshing}
+        error={modelError}
         onChange={onModelChange}
+        onRefresh={onRefreshModels}
       />
 
       <SkillPicker

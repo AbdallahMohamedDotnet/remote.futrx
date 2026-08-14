@@ -1,34 +1,51 @@
-import { useEffect, useState } from "preact/hooks";
-import { capabilitiesApi } from "../../../api/agents/capabilitiesApi";
-import type { AgentCapabilitiesCatalog } from "../../../models/agentCapabilities";
+import { useCallback, useEffect, useState } from "preact/hooks";
+import {
+  agentCapabilityCatalogStore,
+  type AgentCapabilityCatalogSnapshot,
+} from "../../agents/agentCapabilityCatalog";
+import { useAuthContext } from "../../context/AuthContext";
 
 export function useAgentCapabilities(projectId?: string) {
-  const [catalog, setCatalog] = useState<AgentCapabilitiesCatalog | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const { auth } = useAuthContext();
+  const userId = auth.email || auth.adminEmail || "anonymous";
+  const scope = `${userId.trim().toLowerCase()}\0${projectId || "host"}`;
+  const [state, setState] = useState<{
+    scope: string;
+    snapshot: AgentCapabilityCatalogSnapshot;
+  }>(() => ({
+    scope,
+    snapshot: agentCapabilityCatalogStore.read(userId, projectId),
+  }));
+  const snapshot = state.scope === scope
+    ? state.snapshot
+    : agentCapabilityCatalogStore.read(userId, projectId);
 
   useEffect(() => {
-    let cancelled = false;
-    setCatalog(null);
-    setLoading(true);
-    setError("");
-    capabilitiesApi.list(projectId)
-      .then((nextCatalog) => {
-        if (!cancelled) setCatalog(nextCatalog);
-      })
-      .catch((cause) => {
-        if (!cancelled) {
-          setCatalog(null);
-          setError((cause as Error).message || "Could not load agent capabilities");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+    function sync() {
+      setState({
+        scope,
+        snapshot: agentCapabilityCatalogStore.read(userId, projectId),
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
+    }
+    const unsubscribe = agentCapabilityCatalogStore.subscribe(userId, projectId, sync);
+    sync();
+    void agentCapabilityCatalogStore.load(userId, projectId).catch(() => undefined);
+    return unsubscribe;
+  }, [scope, userId, projectId]);
 
-  return { catalog, loading, error };
+  const refresh = useCallback(async () => {
+    try {
+      await agentCapabilityCatalogStore.load(userId, projectId, { force: true });
+    } catch {
+      // The store retains stale data and exposes the error in its snapshot.
+    }
+  }, [scope, userId, projectId]);
+
+  return {
+    catalog: snapshot.catalog,
+    loading: snapshot.loading,
+    refreshing: snapshot.refreshing,
+    error: snapshot.error,
+    refresh,
+  };
 }

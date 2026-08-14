@@ -32,10 +32,10 @@ type Meta struct {
 	LastMessageAt        int64      `json:"lastMessageAt"`
 	LastReadAt           int64      `json:"lastReadAt,omitempty"`
 	Running              bool       `json:"running,omitempty"`
-	Model                string     `json:"model,omitempty"`
-	Mode                 string     `json:"mode,omitempty"`
-	ReasoningEffort      string     `json:"reasoningEffort,omitempty"`
-	ServiceTier          string     `json:"serviceTier,omitempty"`
+	Model                string     `json:"model"`
+	Mode                 string     `json:"mode"`
+	ReasoningEffort      string     `json:"reasoningEffort"`
+	ServiceTier          string     `json:"serviceTier"`
 	ProjectID            ProjectID  `json:"projectId,omitempty"`
 	ForkPending          bool       `json:"forkPending,omitempty"`
 	SelectedSkills       []SkillRef `json:"selectedSkills,omitempty"`

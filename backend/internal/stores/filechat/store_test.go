@@ -253,3 +253,38 @@ func TestStorePersistsSelectedSkills(t *testing.T) {
 		t.Fatalf("reloaded skills = %#v", loaded.SelectedSkills)
 	}
 }
+
+func TestStorePersistsAgentSelectionsAcrossInstances(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(context.Background(), servicechat.Meta{
+		ID:              "abcd",
+		Provider:        servicechat.ProviderClaude,
+		Model:           "claude-opus-current",
+		Mode:            "plan",
+		ReasoningEffort: "high",
+		ServiceTier:     "fast",
+		ProjectID:       "project-1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := New(store.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := reopened.Get(context.Background(), "abcd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Provider != servicechat.ProviderClaude ||
+		loaded.Model != "claude-opus-current" ||
+		loaded.Mode != "plan" ||
+		loaded.ReasoningEffort != "high" ||
+		loaded.ServiceTier != "fast" ||
+		loaded.ProjectID != "project-1" {
+		t.Fatalf("reloaded selections = %#v", loaded)
+	}
+}

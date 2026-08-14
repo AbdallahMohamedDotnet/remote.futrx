@@ -51,3 +51,73 @@ test("keeps the scheduled-tasks skill identity stable after workspace provisioni
   assert.equal(chatPreferenceState.includesSkill(selected, provisioned, "claude"), true);
   assert.deepEqual(chatPreferenceState.withoutSkill(selected, provisioned, "claude"), []);
 });
+
+test("prefers live workspace selections from another client", () => {
+  const resolved = chatPreferenceState.resolveMeta(
+    {
+      id: "chat",
+      title: "Chat",
+      createdAt: 1,
+      lastMessageAt: 1,
+      provider: "claude",
+      model: "claude-opus-current",
+      mode: "plan",
+      reasoningEffort: "high",
+      serviceTier: "fast",
+    },
+    {
+      id: "chat",
+      title: "Chat",
+      createdAt: 1,
+      lastMessageAt: 1,
+      provider: "codex",
+      model: "gpt-previous",
+      mode: "default",
+      reasoningEffort: "low",
+      serviceTier: "default",
+    },
+    {
+      provider: "codex",
+      model: "",
+      mode: "default",
+      reasoningEffort: "",
+      serviceTier: "",
+    },
+  );
+
+  assert.equal(resolved.provider, "claude");
+  assert.equal(resolved.model, "claude-opus-current");
+  assert.equal(resolved.mode, "plan");
+  assert.equal(resolved.reasoningEffort, "high");
+  assert.equal(resolved.serviceTier, "fast");
+});
+
+test("preserves an explicit per-chat Auto selection", () => {
+  const resolved = chatPreferenceState.resolveMeta(
+    {
+      id: "chat",
+      title: "Chat",
+      createdAt: 1,
+      lastMessageAt: 1,
+      provider: "claude",
+      model: "",
+      mode: "default",
+      reasoningEffort: "",
+      serviceTier: "",
+    },
+    null,
+    {
+      provider: "codex",
+      model: "gpt-global-default",
+      mode: "plan",
+      reasoningEffort: "high",
+      serviceTier: "fast",
+    },
+  );
+
+  assert.equal(resolved.provider, "claude");
+  assert.equal(resolved.model, "");
+  assert.equal(resolved.mode, "default");
+  assert.equal(resolved.reasoningEffort, "");
+  assert.equal(resolved.serviceTier, "");
+});

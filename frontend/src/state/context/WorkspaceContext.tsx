@@ -12,6 +12,8 @@ import {
   type WorkspaceUiState,
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
+import { agentCapabilityCatalogStore } from "../agents/agentCapabilityCatalog";
+import { useAuthContext } from "./AuthContext";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];
@@ -44,9 +46,19 @@ export function WorkspaceProvider({
   children: ComponentChildren;
 }) {
   const data = useWorkspaceData(enabled);
+  const { auth } = useAuthContext();
   const { settings } = useUserSettingsContext();
   const [ui, dispatch] = useReducer(workspaceUiState.reduce, workspaceUiState.createInitial());
   const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
+  const capabilityUserId = auth.email || auth.adminEmail || "anonymous";
+  const activeCapabilityProjectId = activeChat?.projectId;
+
+  useEffect(() => {
+    if (!enabled || !activeChat) return;
+    void agentCapabilityCatalogStore
+      .load(capabilityUserId, activeCapabilityProjectId)
+      .catch(() => undefined);
+  }, [enabled, capabilityUserId, activeCapabilityProjectId, activeChat?.id]);
 
   useEffect(() => {
     const chatId = workspaceSidebarState.initialChatId(enabled, ui.activeChatId, data.chats);
@@ -90,6 +102,7 @@ export function WorkspaceProvider({
 
   async function deleteProject(projectId: string) {
     await projectApi.delete(projectId);
+    agentCapabilityCatalogStore.removeProject(capabilityUserId, projectId);
   }
 
   async function reorderProjects(projectIds: string[]) {
@@ -98,6 +111,7 @@ export function WorkspaceProvider({
 
   async function startProject(projectId: string) {
     await projectApi.start(projectId);
+    agentCapabilityCatalogStore.invalidateProject(capabilityUserId, projectId);
   }
 
   async function stopProject(projectId: string) {

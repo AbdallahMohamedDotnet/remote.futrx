@@ -78,6 +78,10 @@ export function ChatComposer({
     reasoningEffortOptions,
     serviceTierOptions,
     modeOptions,
+    loading: modelsLoading,
+    refreshing,
+    error: capabilityError,
+    refresh: refreshCapabilities,
   } = capabilityState;
 
   const disconnected = !canSendPrompt && !streaming;
@@ -132,10 +136,14 @@ export function ChatComposer({
             streaming={streaming}
             providerOptions={providerOptions}
             modelOptions={modelOptions}
+            modelsLoading={modelsLoading}
+            modelsRefreshing={refreshing}
+            modelError={capabilityError}
             selectedSkills={selectedSkills}
             onSelectSkill={onSelectSkill}
             onProviderChange={preferenceActions.changeProvider}
             onModelChange={preferenceActions.changeModel}
+            onRefreshModels={refreshCapabilities}
           />
 
           <ComposerExecutionControls

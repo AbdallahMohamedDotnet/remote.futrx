@@ -7,15 +7,21 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-const cacheTTL = 30 * time.Second
+const (
+	liveCatalogTTL     = 24 * time.Hour
+	degradedCatalogTTL = 2 * time.Hour
+)
 
+// catalogCache is the shared freshness boundary for every web client. It is
+// intentionally process-local: restarting or deploying the backend naturally
+// forces one fresh discovery, after which all connected clients share it.
 type catalogCache struct {
 	mu      sync.Mutex
 	now     func() time.Time
-	entries map[string]cacheEntry
+	entries map[string]catalogCacheEntry
 }
 
-type cacheEntry struct {
+type catalogCacheEntry struct {
 	expiresAt time.Time
 	result    []agent.Capabilities
 }
@@ -23,7 +29,7 @@ type cacheEntry struct {
 func newCatalogCache() *catalogCache {
 	return &catalogCache{
 		now:     time.Now,
-		entries: make(map[string]cacheEntry),
+		entries: make(map[string]catalogCacheEntry),
 	}
 }
 
@@ -41,27 +47,17 @@ func (c *catalogCache) load(key string) ([]agent.Capabilities, bool) {
 func (c *catalogCache) store(key string, result []agent.Capabilities) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[key] = cacheEntry{
-		expiresAt: c.now().Add(cacheTTL),
+	c.entries[key] = catalogCacheEntry{
+		expiresAt: c.now().Add(catalogTTL(result)),
 		result:    cloneCapabilities(result),
 	}
 }
 
-func cloneCapabilities(input []agent.Capabilities) []agent.Capabilities {
-	output := make([]agent.Capabilities, len(input))
-	for index, caps := range input {
-		output[index] = caps
-		output[index].Modes = append([]agent.CapabilityOption(nil), caps.Modes...)
-		output[index].Models = make([]agent.ModelCapability, len(caps.Models))
-		for modelIndex, model := range caps.Models {
-			output[index].Models[modelIndex] = model
-			output[index].Models[modelIndex].ReasoningEfforts = append(
-				[]agent.CapabilityOption(nil), model.ReasoningEfforts...,
-			)
-			output[index].Models[modelIndex].ServiceTiers = append(
-				[]agent.CapabilityOption(nil), model.ServiceTiers...,
-			)
+func catalogTTL(result []agent.Capabilities) time.Duration {
+	for _, capabilities := range result {
+		if capabilities.Source != agent.CapabilitySourceLive || capabilities.Warning != "" {
+			return degradedCatalogTTL
 		}
 	}
-	return output
+	return liveCatalogTTL
 }

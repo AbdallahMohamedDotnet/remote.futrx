@@ -1,20 +1,32 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { ChevronDown } from "../../primitives/icons";
+import { ChevronDown, Loader, RotateCcw } from "../../primitives/icons";
 
 export function ComposerModelPicker({
   model,
   streaming,
   options,
+  loading,
+  refreshing,
+  error,
   onChange,
+  onRefresh,
 }: {
   model: string;
   streaming: boolean;
   options: readonly { value: string; label: string; sub: string }[];
+  loading: boolean;
+  refreshing: boolean;
+  error: string;
   onChange: (model: string) => void;
+  onRefresh: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const label = options.find((option) => option.value === model)?.label || model || "Auto";
+
+  useEffect(() => {
+    if (loading) setOpen(false);
+  }, [loading]);
 
   useEffect(() => {
     if (!open) return;
@@ -38,19 +50,34 @@ export function ComposerModelPicker({
         onClick={() => setOpen((value) => !value)}
         class={`h-7 w-full min-w-0 rounded-md px-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60
                 ${open ? "bg-accent-blue/[0.12]" : "bg-white/[0.045] hover:bg-white/[0.075]"}`}
-        disabled={streaming}
-        title={streaming ? "Cannot change model while streaming" : "Choose model"}
+        disabled={streaming || loading}
+        title={loading
+          ? "Loading available models"
+          : streaming
+            ? "Cannot change model while streaming"
+            : "Choose model"}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
         <span class="flex min-w-0 items-center gap-1.5">
           <span class="sr-only">Model</span>
-          <span class="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-ink-100">{label}</span>
-          <ChevronDown class="h-3 w-3 flex-none text-ink-400" />
+          {loading ? (
+            <>
+              <Loader class="h-3.5 w-3.5 flex-none animate-spin text-ink-300" />
+              <span class="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-ink-200">
+                Loading models…
+              </span>
+            </>
+          ) : (
+            <>
+              <span class="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-ink-100">{label}</span>
+              <ChevronDown class="h-3 w-3 flex-none text-ink-400" />
+            </>
+          )}
         </span>
       </button>
 
-      {open && (
+      {open && !loading && (
         <div
           class="theme-menu-surface absolute left-0 bottom-full z-40 mb-2 w-[min(23rem,calc(100vw-1.5rem))]
                  rounded-lg border border-white/10 bg-[#14161d] p-1 shadow-2xl"
@@ -90,6 +117,24 @@ export function ComposerModelPicker({
               </button>
             );
           })}
+          <div class="mt-1 border-t border-white/[0.08] pt-1">
+            <button
+              type="button"
+              onClick={() => void onRefresh()}
+              disabled={refreshing}
+              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[12px] font-medium text-ink-300 transition hover:bg-white/[0.07] hover:text-ink-100 disabled:cursor-wait disabled:opacity-60"
+            >
+              {refreshing
+                ? <Loader class="h-3.5 w-3.5 animate-spin" />
+                : <RotateCcw class="h-3.5 w-3.5" />}
+              <span>{refreshing ? "Refreshing models…" : "Refresh models"}</span>
+            </button>
+            {error && (
+              <p class="px-3 pb-1 text-[11px] leading-4 text-red-300" role="status">
+                {error}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>

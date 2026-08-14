@@ -2,8 +2,10 @@ package agentcatalog
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
@@ -15,14 +17,22 @@ type catalogTestProvider struct {
 	mu       sync.Mutex
 	calls    int
 	requests []agent.CapabilityRequest
+	entered  chan<- struct{}
+	release  <-chan struct{}
 }
 
 func (p *catalogTestProvider) ID() agent.ProviderID { return p.id }
 func (p *catalogTestProvider) Capabilities(_ context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.calls++
 	p.requests = append(p.requests, req)
+	p.mu.Unlock()
+	if p.entered != nil {
+		p.entered <- struct{}{}
+	}
+	if p.release != nil {
+		<-p.release
+	}
 	return agent.Capabilities{
 		Provider: p.id, Label: p.label, Source: agent.CapabilitySourceLive,
 		Models: []agent.ModelCapability{}, Modes: []agent.CapabilityOption{},
@@ -49,7 +59,7 @@ func (catalogTestProjects) HasAccess(context.Context, serviceproject.ID, string)
 	return true, nil
 }
 
-func TestListUsesRegistryOrderProjectContainerAndCache(t *testing.T) {
+func TestListUsesRegistryOrderProjectContainerAndSharedCache(t *testing.T) {
 	claude := &catalogTestProvider{id: agent.ProviderClaude, label: "Claude"}
 	codex := &catalogTestProvider{id: agent.ProviderCodex, label: "Codex"}
 	registry := catalogTestRegistry{providers: []agent.CapabilityProvider{claude, codex}}
@@ -77,6 +87,68 @@ func TestListUsesRegistryOrderProjectContainerAndCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	if claude.calls != 2 || codex.calls != 2 {
-		t.Fatalf("refresh calls = claude:%d codex:%d", claude.calls, codex.calls)
+		t.Fatalf("refreshed capability calls = claude:%d codex:%d", claude.calls, codex.calls)
+	}
+}
+
+func TestListCoalescesOnlyOverlappingRequests(t *testing.T) {
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	provider := &catalogTestProvider{
+		id: agent.ProviderClaude, label: "Claude", entered: entered, release: release,
+	}
+	catalog := New(catalogTestRegistry{providers: []agent.CapabilityProvider{provider}}, nil, nil)
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := catalog.List(context.Background(), ListQuery{})
+		firstDone <- err
+	}()
+	<-entered
+
+	waiterCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := catalog.List(waiterCtx, ListQuery{}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("overlapping waiter error = %v", err)
+	}
+	provider.mu.Lock()
+	calls := provider.calls
+	provider.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("overlapping capability calls = %d", calls)
+	}
+
+	close(release)
+	if err := <-firstDone; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := catalog.List(context.Background(), ListQuery{}); err != nil {
+		t.Fatal(err)
+	}
+	provider.mu.Lock()
+	calls = provider.calls
+	provider.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("cached capability calls = %d", calls)
+	}
+	if _, err := catalog.List(context.Background(), ListQuery{Refresh: true}); err != nil {
+		t.Fatal(err)
+	}
+	provider.mu.Lock()
+	calls = provider.calls
+	provider.mu.Unlock()
+	if calls != 2 {
+		t.Fatalf("refreshed capability calls = %d", calls)
+	}
+}
+
+func TestCatalogTTLUsesShortRetryForDegradedResults(t *testing.T) {
+	if got := catalogTTL([]agent.Capabilities{{Source: agent.CapabilitySourceLive}}); got != liveCatalogTTL {
+		t.Fatalf("live TTL = %s", got)
+	}
+	if got := catalogTTL([]agent.Capabilities{{Source: agent.CapabilitySourceFallback}}); got != degradedCatalogTTL {
+		t.Fatalf("fallback TTL = %s", got)
+	}
+	if got := catalogTTL([]agent.Capabilities{{Source: agent.CapabilitySourceLive, Warning: "partial"}}); got != degradedCatalogTTL {
+		t.Fatalf("warning TTL = %s", got)
 	}
 }

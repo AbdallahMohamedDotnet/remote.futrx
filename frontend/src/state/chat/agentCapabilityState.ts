@@ -44,11 +44,11 @@ export const agentCapabilityState = {
       value: item.id,
       label: item.label,
       sub: item.description || (item.providerDefault ? "provider default" : "available model"),
-    })) ?? [{
+    })) ?? (loading ? [] : [{
       value: model,
       label: model || "Auto",
-      sub: loading ? "loading capabilities" : "current selection",
-    }];
+      sub: "current selection",
+    }]);
     const selectedModel = providerCapabilities?.models.find((item) => item.id === model)
       ?? providerCapabilities?.models.find((item) => item.id === "");
     return {
