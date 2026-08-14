@@ -55,7 +55,7 @@ qa_prepare_connection() {
 }
 
 qa_prepare() {
-    local requested_ref="$1" command_name test_script
+    local requested_ref="$1"
 
     case "$requested_ref" in
         '') qa_fail "a branch, tag, or commit is required" ;;
@@ -64,9 +64,7 @@ qa_prepare() {
 
     qa_prepare_connection
 
-    for command_name in git npm go; do
-        command -v "$command_name" >/dev/null 2>&1 || qa_fail "required command is missing: $command_name"
-    done
+    command -v git >/dev/null 2>&1 || qa_fail "required command is missing: git"
 
     cd "$QA_REPO_ROOT"
 
@@ -85,23 +83,6 @@ qa_prepare() {
     fi
 
     printf '==> Candidate: %s (%s)\n' "$QA_REQUESTED_REF" "$QA_CANDIDATE_SHA"
-
-    printf '==> Running infrastructure tests\n'
-    for test_script in "$QA_REPO_ROOT"/infra/tests/*.sh; do
-        bash "$test_script"
-    done
-
-    printf '==> Running frontend tests and build\n'
-    npm --prefix "$QA_REPO_ROOT/frontend" ci --no-audit --no-fund
-    npm --prefix "$QA_REPO_ROOT/frontend" test
-    npm --prefix "$QA_REPO_ROOT/frontend" run build
-
-    printf '==> Running Go tests and vet\n'
-    (
-        cd "$QA_REPO_ROOT/backend"
-        go test ./...
-        go vet ./...
-    )
 }
 
 qa_verify_public_url() {

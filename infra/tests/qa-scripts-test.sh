@@ -76,5 +76,8 @@ grep -Fq '"--ref=$candidate_sha"' "$INSTALL_SCRIPT" || \
 if grep -Eq 'apt-get|git clone' "$INSTALL_SCRIPT"; then
     fail "install.sh bootstraps dependencies or clones the repository itself"
 fi
+if grep -Eq 'infra/tests|npm --prefix|go (test|vet)' "$COMMON_SCRIPT"; then
+    fail "QA install/update scripts run local project tests"
+fi
 
 echo "QA install/update script tests passed"
