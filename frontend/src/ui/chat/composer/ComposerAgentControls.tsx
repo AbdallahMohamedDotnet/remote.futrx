@@ -5,7 +5,7 @@ import { ComposerModelPicker } from "./ComposerModelPicker";
 import { ProviderToggle } from "./ProviderToggle";
 import { SkillPicker } from "./SkillPicker";
 
-export function ComposerToolbar({
+export function ComposerAgentControls({
   projectId,
   model,
   provider,
@@ -27,7 +27,7 @@ export function ComposerToolbar({
   const modelOptions = modelOptionsForProvider(provider);
   const selectedCount = selectedSkills.length;
   return (
-    <div class="codex-composer-primary-controls flex min-w-0 flex-wrap items-center gap-1">
+    <div class="codex-composer-agent-controls flex min-w-0 flex-wrap items-center gap-1">
       <ProviderToggle
         provider={provider}
         streaming={streaming}

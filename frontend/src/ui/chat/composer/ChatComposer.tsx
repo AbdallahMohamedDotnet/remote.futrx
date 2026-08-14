@@ -4,9 +4,9 @@ import type { RegisteredSkill } from "../../../models/skill";
 import type { Attachment } from "../../../models/upload";
 import { AttachmentTray } from "./AttachmentTray";
 import { AttachButton } from "./AttachButton";
+import { ComposerAgentControls } from "./ComposerAgentControls";
 import { ComposerDropOverlay } from "./ComposerDropOverlay";
-import { ComposerOptionsRow } from "./ComposerOptionsRow";
-import { ComposerToolbar } from "./ComposerToolbar";
+import { ComposerExecutionControls } from "./ComposerExecutionControls";
 import { PromptTextarea } from "./PromptTextarea";
 import { QueuedPromptList } from "./QueuedPromptList";
 import { SelectedSkillChips } from "./SelectedSkillChips";
@@ -107,7 +107,7 @@ export function ChatComposer({
         </form>
 
         <div class="codex-composer-control-deck flex min-w-0 flex-wrap items-center justify-between gap-1.5 border-t border-white/[0.07] px-2 py-1.5">
-          <ComposerToolbar
+          <ComposerAgentControls
             projectId={projectId}
             model={preferences.model}
             provider={preferences.provider}
@@ -118,7 +118,7 @@ export function ChatComposer({
             onModelChange={preferenceActions.changeModel}
           />
 
-          <ComposerOptionsRow
+          <ComposerExecutionControls
             preferences={preferences}
             preferenceActions={preferenceActions}
             streaming={streaming}

@@ -7,7 +7,7 @@ import { Activity, Cpu, MessageSquare } from "../../primitives/icons";
 import { ComposerOptionDropdown } from "./ComposerOptionDropdown";
 import type { ComposerPreferenceActions, ComposerPreferences } from "./preferences";
 
-export function ComposerOptionsRow({
+export function ComposerExecutionControls({
   preferences,
   preferenceActions,
   streaming,
@@ -20,7 +20,7 @@ export function ComposerOptionsRow({
   const serviceTierOptions = serviceTierOptionsForProvider(preferences.provider);
 
   return (
-    <div class="codex-composer-secondary-controls flex min-w-0 flex-wrap items-center gap-1">
+    <div class="codex-composer-execution-controls flex min-w-0 flex-wrap items-center gap-1">
       {reasoningEffortOptions.length > 0 && (
         <ComposerOptionDropdown
           label="Thinking"
