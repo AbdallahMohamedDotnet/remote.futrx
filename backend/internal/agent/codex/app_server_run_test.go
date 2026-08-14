@@ -81,7 +81,9 @@ done`
 func TestAnswerAppServerRequestDeclinesMutationInPlan(t *testing.T) {
 	var encoded strings.Builder
 	emitCalls := 0
-	err := answerAppServerRequest(
+	err := newAppServerRequestHandler(
+		agent.RunRequest{Mode: "plan"},
+		func(agent.Event) { emitCalls++ },
 		func(message any) error {
 			data, marshalErr := json.Marshal(message)
 			if marshalErr == nil {
@@ -89,13 +91,10 @@ func TestAnswerAppServerRequestDeclinesMutationInPlan(t *testing.T) {
 			}
 			return marshalErr
 		},
-		appServerEnvelope{
-			ID:     []byte("42"),
-			Method: "item/fileChange/requestApproval",
-		},
-		agent.RunRequest{Mode: "plan"},
-		func(agent.Event) { emitCalls++ },
-	)
+	).Answer(appServerEnvelope{
+		ID:     []byte("42"),
+		Method: "item/fileChange/requestApproval",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

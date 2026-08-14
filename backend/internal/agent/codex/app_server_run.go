@@ -89,6 +89,7 @@ func runAppServer(
 	}
 
 	parser := newAppServerEventParser(req)
+	requestHandler := newAppServerRequestHandler(req, emit, writeRPC)
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 	terminal := false
@@ -107,7 +108,7 @@ func runAppServer(
 		}
 
 		if envelope.Method != "" && len(envelope.ID) > 0 {
-			if err := answerAppServerRequest(writeRPC, envelope, req, emit); err != nil {
+			if err := requestHandler.Answer(envelope); err != nil {
 				protocolErr = err
 				break
 			}
@@ -319,76 +320,4 @@ func captureAppServerStderr(reader io.Reader, logID string, done chan<- string) 
 		}
 	}
 	done <- captured.String()
-}
-
-func answerAppServerRequest(
-	writeRPC func(any) error,
-	envelope appServerEnvelope,
-	req agent.RunRequest,
-	emit func(agent.Event),
-) error {
-	result := any(nil)
-	switch envelope.Method {
-	case "item/tool/requestUserInput", "tool/requestUserInput":
-		var params struct {
-			ItemID    string `json:"itemId"`
-			Questions []struct {
-				Header   string `json:"header"`
-				ID       string `json:"id"`
-				Question string `json:"question"`
-				Options  []struct {
-					Label       string `json:"label"`
-					Description string `json:"description"`
-				} `json:"options"`
-			} `json:"questions"`
-		}
-		if err := json.Unmarshal(envelope.Params, &params); err != nil {
-			return err
-		}
-		input, _ := json.Marshal(map[string]any{"questions": params.Questions})
-		emit(agent.Event{
-			T:              time.Now().UnixMilli(),
-			Type:           agent.EventToolStarted,
-			Provider:       agent.ProviderCodex,
-			ConversationID: req.ConversationID,
-			ItemID:         params.ItemID,
-			ItemKind:       agent.ItemToolCall,
-			ToolName:       "AskUserQuestion",
-			Input:          input,
-		})
-		answers := make(map[string]any, len(params.Questions))
-		for _, question := range params.Questions {
-			answers[question.ID] = map[string]any{"answers": []string{}}
-		}
-		result = map[string]any{"answers": answers}
-
-	case "item/commandExecution/requestApproval", "item/fileChange/requestApproval":
-		decision := "accept"
-		if req.Mode == "plan" {
-			decision = "decline"
-		}
-		result = map[string]string{"decision": decision}
-
-	case "execCommandApproval", "applyPatchApproval":
-		if req.Mode == "plan" {
-			result = map[string]any{"decision": map[string]any{
-				"denied": map[string]string{"rejection": "Plan mode does not allow mutations"},
-			}}
-		} else {
-			result = map[string]string{"decision": "approved"}
-		}
-
-	case "mcpServer/elicitation/request":
-		result = map[string]any{"action": "cancel", "content": nil}
-
-	default:
-		return writeRPC(map[string]any{
-			"id": envelope.ID,
-			"error": map[string]any{
-				"code":    -32601,
-				"message": "Remote does not implement " + envelope.Method,
-			},
-		})
-	}
-	return writeRPC(map[string]any{"id": envelope.ID, "result": result})
 }
