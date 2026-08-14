@@ -3,8 +3,7 @@ import { useEffect } from "preact/hooks";
 import type { QueuedPrompt, SelectedSkill } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import type { Attachment } from "../../../models/upload";
-import { agentCapabilityState } from "../../../state/chat/agentCapabilityState";
-import { useAgentCapabilities } from "../../../state/hooks/chat/useAgentCapabilities";
+import { useComposerAgentCapabilities } from "../../../state/hooks/chat/useComposerAgentCapabilities";
 import { AttachmentTray } from "./AttachmentTray";
 import { AttachButton } from "./AttachButton";
 import { ComposerDropOverlay } from "./ComposerDropOverlay";
@@ -65,13 +64,11 @@ export function ChatComposer({
   onSelectSkill,
   onRemoveSelectedSkill,
 }: ChatComposerProps) {
-  const capabilities = useAgentCapabilities(projectId);
-  const capabilityState = agentCapabilityState.resolve(
-    capabilities.catalog,
-    preferences.provider,
-    preferences.model,
-    capabilities.loading,
-  );
+  const capabilityState = useComposerAgentCapabilities({
+    projectId,
+    provider: preferences.provider,
+    model: preferences.model,
+  });
   const {
     providerCapabilities,
     providerOptions,
