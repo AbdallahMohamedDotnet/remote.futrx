@@ -15,6 +15,8 @@
 # Flags:
 #   --skip-dns-check                            useful on cloud bootstrap where the public
 #                                               A record is set but propagation isn't done.
+#   --ref=<40-character commit SHA>             install an immutable candidate commit instead
+#                                               of origin/main (used by QA branch installs).
 #   --github-token=ghp_xxx                      private-repo PAT.
 #   --google-client-id=...                      optional; can be added in Settings later.
 #   --google-client-secret=...                  optional; can be added in Settings later.
@@ -44,6 +46,21 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
     TARGET="${FUTRX_INSTALL_DIR:-/opt/remote.futrx}"
     LEGACY_TARGET="${FUTRX_LEGACY_INSTALL_DIR:-/opt/remote.futrx.dev}"
 
+    # Parse bootstrap-only values before touching either checkout. The full
+    # argument loop below parses them again after we re-exec from disk.
+    BOOTSTRAP_TOKEN="${GITHUB_TOKEN:-}"
+    BOOTSTRAP_REF=""
+    for a in "$@"; do
+        case "$a" in
+            --github-token=*) BOOTSTRAP_TOKEN="${a#*=}" ;;
+            --ref=*)          BOOTSTRAP_REF="${a#*=}" ;;
+        esac
+    done
+    if [ -n "$BOOTSTRAP_REF" ] && ! printf '%s' "$BOOTSTRAP_REF" | grep -qE '^[0-9a-fA-F]{40}$'; then
+        echo "--ref must be a full 40-character commit SHA" >&2
+        exit 1
+    fi
+
     # A pre-rename checkout can update itself in place, then the checked-out
     # installer below performs the guarded path migration with rollback.
     if [ -d "$LEGACY_TARGET/.git" ] && [ ! -L "$LEGACY_TARGET" ]; then
@@ -53,20 +70,19 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
         fi
         if [ ! -e "$TARGET" ] || { [ -d "$TARGET" ] && [ -z "$(ls -A "$TARGET" 2>/dev/null)" ]; }; then
             echo "==> bootstrapping from legacy checkout at $LEGACY_TARGET"
-            git -C "$LEGACY_TARGET" fetch --quiet --tags origin
-            git -C "$LEGACY_TARGET" reset --hard origin/main
+            if [ -n "$BOOTSTRAP_REF" ]; then
+                git -C "$LEGACY_TARGET" fetch --quiet --depth=1 origin "$BOOTSTRAP_REF"
+                git -C "$LEGACY_TARGET" reset --hard "$BOOTSTRAP_REF"
+            else
+                git -C "$LEGACY_TARGET" fetch --quiet --tags origin
+                git -C "$LEGACY_TARGET" reset --hard origin/main
+            fi
             exec bash "$LEGACY_TARGET/infra/install.sh" "$@"
         fi
     fi
 
     # Honor --github-token / GITHUB_TOKEN for the bootstrap clone of a private
-    # repo. The full arg loop later re-parses everything.
-    BOOTSTRAP_TOKEN="${GITHUB_TOKEN:-}"
-    for a in "$@"; do
-        case "$a" in
-            --github-token=*) BOOTSTRAP_TOKEN="${a#*=}" ;;
-        esac
-    done
+    # repo.
     CLONE_URL="https://github.com/futrx-com/remote.futrx.git"
     if [ -n "$BOOTSTRAP_TOKEN" ]; then
         CLONE_URL="https://x-access-token:${BOOTSTRAP_TOKEN}@github.com/futrx-com/remote.futrx.git"
@@ -81,10 +97,21 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
         mkdir -p "$TARGET"
         git clone --depth=1 "$CLONE_URL" "$TARGET"
         chmod 0600 "$TARGET/.git/config"
+        if [ -n "$BOOTSTRAP_REF" ]; then
+            echo "==> bootstrapping candidate commit $BOOTSTRAP_REF"
+            git -C "$TARGET" fetch --quiet --depth=1 origin "$BOOTSTRAP_REF"
+            git -C "$TARGET" reset --hard "$BOOTSTRAP_REF"
+        fi
     else
-        echo "==> repo already at $TARGET, pulling latest"
-        git -C "$TARGET" fetch --quiet --tags origin
-        git -C "$TARGET" reset --hard origin/main
+        if [ -n "$BOOTSTRAP_REF" ]; then
+            echo "==> repo already at $TARGET, selecting candidate commit $BOOTSTRAP_REF"
+            git -C "$TARGET" fetch --quiet --depth=1 origin "$BOOTSTRAP_REF"
+            git -C "$TARGET" reset --hard "$BOOTSTRAP_REF"
+        else
+            echo "==> repo already at $TARGET, pulling latest"
+            git -C "$TARGET" fetch --quiet --tags origin
+            git -C "$TARGET" reset --hard origin/main
+        fi
     fi
 
     exec bash "$TARGET/infra/install.sh" "$@"
@@ -96,9 +123,11 @@ SKIP_DNS_CHECK=0
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+TARGET_REF=""
 for a in "$@"; do
     case "$a" in
         --skip-dns-check)         SKIP_DNS_CHECK=1 ;;
+        --ref=*)                  TARGET_REF="${a#*=}" ;;
         --google-client-id=*)     GOOGLE_CLIENT_ID="${a#*=}" ;;
         --google-client-secret=*) GOOGLE_CLIENT_SECRET="${a#*=}" ;;
         --github-token=*)         GITHUB_TOKEN="${a#*=}" ;;
@@ -106,6 +135,10 @@ for a in "$@"; do
         *)   [ -z "$HOSTNAME" ] && HOSTNAME="$a" ;;
     esac
 done
+if [ -n "$TARGET_REF" ] && ! printf '%s' "$TARGET_REF" | grep -qE '^[0-9a-fA-F]{40}$'; then
+    echo "--ref must be a full 40-character commit SHA" >&2
+    exit 1
+fi
 if [ -z "$HOSTNAME" ]; then
     read -rp "Public hostname (must already point here in DNS): " HOSTNAME || true
 fi
@@ -129,6 +162,9 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 export HOSTNAME GITHUB_TOKEN GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
+if [ -n "$TARGET_REF" ]; then
+    export FUTRX_CHECKOUT_REF="$TARGET_REF"
+fi
 
 # ───────────────── globals ─────────────────
 INFRA_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"

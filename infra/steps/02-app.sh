@@ -31,6 +31,10 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     CHECKOUT_REF="${FUTRX_CHECKOUT_REF:-origin/main}"
     log "Updating repo at $INSTALL_DIR (ref: $CHECKOUT_REF)"
     git -C "$INSTALL_DIR" fetch --quiet --tags origin
+    if ! git -C "$INSTALL_DIR" rev-parse --verify --quiet "refs/tags/${CHECKOUT_REF}^{commit}" >/dev/null && \
+       ! git -C "$INSTALL_DIR" rev-parse --verify --quiet "${CHECKOUT_REF}^{commit}" >/dev/null; then
+        git -C "$INSTALL_DIR" fetch --quiet --depth=1 origin "$CHECKOUT_REF"
+    fi
     CHECKOUT_COMMIT="$(git -C "$INSTALL_DIR" rev-parse --verify --quiet "refs/tags/${CHECKOUT_REF}^{commit}" \
         || git -C "$INSTALL_DIR" rev-parse --verify "${CHECKOUT_REF}^{commit}")"
     git -C "$INSTALL_DIR" reset --hard "$CHECKOUT_COMMIT"
@@ -50,6 +54,10 @@ EOF
         exit 1
     fi
     chmod 0600 "$INSTALL_DIR/.git/config"
+    if [ -n "${FUTRX_CHECKOUT_REF:-}" ]; then
+        git -C "$INSTALL_DIR" fetch --quiet --depth=1 origin "$FUTRX_CHECKOUT_REF"
+        git -C "$INSTALL_DIR" reset --hard "$FUTRX_CHECKOUT_REF"
+    fi
 fi
 cd "$INSTALL_DIR"
 
