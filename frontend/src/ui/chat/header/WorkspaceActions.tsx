@@ -1,5 +1,10 @@
 import { CalendarClock, Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
+import {
+  WorkspaceActionButton,
+  WorkspaceActionGroup,
+  WorkspaceActionLink,
+} from "./WorkspaceAction";
 
 export function WorkspaceActions({
   cwd,
@@ -22,81 +27,61 @@ export function WorkspaceActions({
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = buildIdeUrl(workspacePath);
-  const actionClass = `workspace-action h-8 inline-flex flex-none items-center gap-1.5 rounded-md px-2
-                       text-left text-ink-300 transition hover:bg-white/[0.08] hover:text-ink-100`;
 
   return (
     <div class="flex min-w-max items-center gap-1.5">
-      <div class="workspace-action-group inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
-        <a
+      <WorkspaceActionGroup>
+        <WorkspaceActionLink
           href={ideUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          class={actionClass}
+          Icon={Code}
+          label="IDE"
           title={`Open workspace in IDE: ${workspacePath}`}
-          aria-label="Open workspace in IDE"
-        >
-          <Code class="w-3.5 h-3.5 text-accent-blue flex-none" />
-          <span class="workspace-action-label text-[11.5px] font-medium">IDE</span>
-        </a>
-        <button
-          type="button"
+          ariaLabel="Open workspace in IDE"
+        />
+        <WorkspaceActionButton
           onClick={onOpenTerminal}
-          class={actionClass}
+          Icon={Terminal}
+          label="Terminal"
           title={`Open terminal in container workspace: ${workspacePath}`}
-          aria-label="Open terminal"
-        >
-          <Terminal class="w-3.5 h-3.5 text-accent-blue flex-none" />
-          <span class="workspace-action-label text-[11.5px] font-medium">Terminal</span>
-        </button>
-      </div>
+          ariaLabel="Open terminal"
+        />
+      </WorkspaceActionGroup>
 
-      <div class="workspace-action-group inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
+      <WorkspaceActionGroup>
         {showHistory && (
-          <button
-            type="button"
+          <WorkspaceActionButton
             onClick={onOpenHistory}
-            class={actionClass}
+            Icon={Clock}
+            label="History"
             title="Review git history"
-            aria-label="Review history"
-          >
-            <Clock class="w-3.5 h-3.5 text-accent-blue flex-none" />
-            <span class="workspace-action-label text-[11.5px] font-medium">History</span>
-          </button>
+            ariaLabel="Review history"
+          />
         )}
-        <button
-          type="button"
+        <WorkspaceActionButton
           onClick={onOpenFiles}
-          class={actionClass}
+          Icon={Folder}
+          label="Files"
           title="Browse uploads and media files"
-          aria-label="Open file manager"
-        >
-          <Folder class="w-3.5 h-3.5 text-accent-blue flex-none" />
-          <span class="workspace-action-label text-[11.5px] font-medium">Files</span>
-        </button>
+          ariaLabel="Open file manager"
+        />
         {showSchedules && (
-          <button
-            type="button"
+          <WorkspaceActionButton
             onClick={onOpenSchedules}
-            class={actionClass}
+            Icon={CalendarClock}
+            label="Schedules"
             title="View scheduled tasks"
-            aria-label="Open scheduled tasks"
-          >
-            <CalendarClock class="w-3.5 h-3.5 text-accent-blue flex-none" />
-            <span class="workspace-action-label text-[11.5px] font-medium">Schedules</span>
-          </button>
+            ariaLabel="Open scheduled tasks"
+          />
         )}
-        <button
-          type="button"
+        <WorkspaceActionButton
           onClick={onOpenBrowser}
-          class={`${actionClass} bg-accent-blue/[0.08] text-ink-100`}
+          Icon={Monitor}
+          label="Browser"
           title="Open browser preview"
-          aria-label="Open browser"
-        >
-          <Monitor class="w-3.5 h-3.5 text-accent-blue flex-none" />
-          <span class="workspace-action-label text-[11.5px] font-medium">Browser</span>
-        </button>
-      </div>
+          ariaLabel="Open browser"
+          emphasized
+        />
+      </WorkspaceActionGroup>
     </div>
   );
 }
