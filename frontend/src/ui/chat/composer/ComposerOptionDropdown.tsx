@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { ChevronDown } from "../../primitives/icons";
 
 export interface ComposerOption<T extends string> {
@@ -23,7 +23,9 @@ export function ComposerOptionDropdown<T extends string>({
   onChange: (value: T) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [menuAlignment, setMenuAlignment] = useState<"start" | "end">("start");
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const selected = options.find((option) => option.value === value) || options[0];
 
   useEffect(() => {
@@ -34,6 +36,24 @@ export function ComposerOptionDropdown<T extends string>({
     }
     window.addEventListener("mousedown", closeOnOutsideClick);
     return () => window.removeEventListener("mousedown", closeOnOutsideClick);
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    function placeMenuWithinViewport() {
+      const rootBounds = rootRef.current?.getBoundingClientRect();
+      const menuWidth = menuRef.current?.offsetWidth;
+      if (!rootBounds || !menuWidth) return;
+
+      const viewportGutter = 12;
+      const availableWidthAfterTrigger = window.innerWidth - viewportGutter - rootBounds.left;
+      setMenuAlignment(menuWidth > availableWidthAfterTrigger ? "end" : "start");
+    }
+
+    placeMenuWithinViewport();
+    window.addEventListener("resize", placeMenuWithinViewport);
+    return () => window.removeEventListener("resize", placeMenuWithinViewport);
   }, [open]);
 
   function pick(nextValue: T) {
@@ -67,7 +87,9 @@ export function ComposerOptionDropdown<T extends string>({
 
       {open && (
         <div
-          class="theme-menu-surface absolute left-0 bottom-full z-40 mb-1.5 w-40 rounded-lg border border-white/10 bg-[#14161d] p-1 shadow-2xl"
+          ref={menuRef}
+          class={`theme-menu-surface absolute bottom-full z-40 mb-1.5 w-[min(10rem,calc(100vw-1.5rem))] rounded-lg border border-white/10 bg-[#14161d] p-1 shadow-2xl
+                  ${menuAlignment === "end" ? "right-0" : "left-0"}`}
           role="listbox"
         >
           {options.map((option) => {
