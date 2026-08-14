@@ -2,8 +2,8 @@ import { useId, useState } from "preact/hooks";
 import { CalendarClock, Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
 
-const actionClass = `workspace-action relative inline-flex h-8 w-8 flex-none items-center justify-center rounded-md
-                     text-ink-300 transition hover:bg-white/[0.08] hover:text-ink-100
+const actionClass = `workspace-action relative inline-flex h-9 w-9 flex-none items-center justify-center rounded-md
+                     border border-white/10 bg-white/5 text-ink-200 transition hover:bg-white/[0.09] hover:text-ink-100
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/80`;
 
 export function WorkspaceActions({
@@ -29,53 +29,47 @@ export function WorkspaceActions({
   const ideUrl = buildIdeUrl(workspacePath);
 
   return (
-    <div class="flex flex-col items-center gap-1.5">
-      <div class="workspace-action-group inline-flex flex-col items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
+    <div class="flex flex-col items-center gap-2">
+      <WorkspaceAction
+        Icon={Code}
+        href={ideUrl}
+        label="Workspace IDE"
+        tooltip="Open workspace in IDE"
+      />
+      <WorkspaceAction
+        Icon={Terminal}
+        onClick={onOpenTerminal}
+        label="Container terminal"
+        tooltip="Open container terminal"
+      />
+      {showHistory && (
         <WorkspaceAction
-          Icon={Code}
-          href={ideUrl}
-          label="Workspace IDE"
-          tooltip="Open workspace in IDE"
+          Icon={Clock}
+          onClick={onOpenHistory}
+          label="Git history"
+          tooltip="Review git history"
         />
+      )}
+      <WorkspaceAction
+        Icon={Folder}
+        onClick={onOpenFiles}
+        label="Workspace files"
+        tooltip="Browse workspace files"
+      />
+      {showSchedules && (
         <WorkspaceAction
-          Icon={Terminal}
-          onClick={onOpenTerminal}
-          label="Container terminal"
-          tooltip="Open container terminal"
+          Icon={CalendarClock}
+          onClick={onOpenSchedules}
+          label="Scheduled tasks"
+          tooltip="View scheduled tasks"
         />
-      </div>
-
-      <div class="workspace-action-group inline-flex flex-col items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
-        {showHistory && (
-          <WorkspaceAction
-            Icon={Clock}
-            onClick={onOpenHistory}
-            label="Git history"
-            tooltip="Review git history"
-          />
-        )}
-        <WorkspaceAction
-          Icon={Folder}
-          onClick={onOpenFiles}
-          label="Workspace files"
-          tooltip="Browse workspace files"
-        />
-        {showSchedules && (
-          <WorkspaceAction
-            Icon={CalendarClock}
-            onClick={onOpenSchedules}
-            label="Scheduled tasks"
-            tooltip="View scheduled tasks"
-          />
-        )}
-        <WorkspaceAction
-          Icon={Monitor}
-          onClick={onOpenBrowser}
-          label="Browser preview"
-          tooltip="Open browser preview"
-          emphasized
-        />
-      </div>
+      )}
+      <WorkspaceAction
+        Icon={Monitor}
+        onClick={onOpenBrowser}
+        label="Browser preview"
+        tooltip="Open browser preview"
+      />
     </div>
   );
 }
@@ -86,21 +80,18 @@ function WorkspaceAction({
   tooltip,
   href,
   onClick,
-  emphasized = false,
 }: {
   Icon: typeof Code;
   label: string;
   tooltip: string;
   href?: string;
   onClick?: () => void;
-  emphasized?: boolean;
 }) {
   const tooltipId = useId();
   const [isHovered, setIsHovered] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const isTooltipOpen = !isDismissed && (isHovered || isFocused);
-  const className = `${actionClass} ${emphasized ? "bg-accent-blue/[0.08] text-ink-100" : ""}`;
   const interactionProps = {
     "aria-describedby": tooltipId,
     "aria-label": label,
@@ -125,7 +116,7 @@ function WorkspaceAction({
   };
   const content = (
     <>
-      <Icon aria-hidden="true" focusable="false" class="h-3.5 w-3.5 flex-none text-accent-blue" />
+      <Icon aria-hidden="true" focusable="false" class="h-4 w-4 flex-none" />
       <span
         id={tooltipId}
         role="tooltip"
@@ -145,7 +136,7 @@ function WorkspaceAction({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        class={className}
+        class={actionClass}
       >
         {content}
       </a>
@@ -153,7 +144,7 @@ function WorkspaceAction({
   }
 
   return (
-    <button {...interactionProps} type="button" onClick={onClick} class={className}>
+    <button {...interactionProps} type="button" onClick={onClick} class={actionClass}>
       {content}
     </button>
   );

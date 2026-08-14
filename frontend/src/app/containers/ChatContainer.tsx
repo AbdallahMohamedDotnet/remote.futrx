@@ -167,7 +167,7 @@ export function ChatContainer({
           onCaptureElement={browser.insertBrowserElementContext}
           onClose={browser.closeBrowserDrawer}
         />
-        <aside class="workspace-action-rail top-chrome z-20 flex w-11 flex-none flex-col items-center border-l border-white/10 bg-[#101318] px-1.5 pb-2">
+        <aside class="workspace-action-rail top-chrome z-20 flex w-12 flex-none flex-col items-center border-l border-white/10 bg-[#101318] px-1.5 pb-2">
           <WorkspaceActions
             cwd={displayMeta.cwd || "~"}
             onOpenTerminal={terminal.openTerminal}
