@@ -32,7 +32,7 @@ func TestArgsComposition(t *testing.T) {
 	full := p.args(agent.RunRequest{
 		Prompt:      "next",
 		Model:       "gemini-3-pro",
-		Mode:        "plan",
+		Mode:        agent.RunModePlan,
 		ResumeID:    "abc-123",
 		Preferences: agent.RunPreferences{ReasoningEffort: "xhigh"},
 	})

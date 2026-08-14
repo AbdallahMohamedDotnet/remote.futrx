@@ -1,6 +1,10 @@
 package claude
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+)
 
 func TestParseCapabilitiesFromHelp(t *testing.T) {
 	help := `
@@ -15,7 +19,7 @@ func TestParseCapabilitiesFromHelp(t *testing.T) {
 	if caps.Models[1].ID != "fable" || caps.Models[1].ReasoningEfforts[5].Value != "max" {
 		t.Fatalf("models = %+v", caps.Models)
 	}
-	if len(caps.Modes) != 2 || caps.Modes[0].Value != "default" || caps.Modes[1].Value != "plan" {
+	if len(caps.Modes) != 2 || caps.Modes[0].Value != string(agent.RunModeDefault) || caps.Modes[1].Value != string(agent.RunModePlan) {
 		t.Fatalf("modes = %+v", caps.Modes)
 	}
 }

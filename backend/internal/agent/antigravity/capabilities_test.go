@@ -1,6 +1,10 @@
 package antigravity
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+)
 
 func TestParseCapabilitiesFromCLIOutput(t *testing.T) {
 	models := `Available models:
@@ -18,7 +22,7 @@ func TestParseCapabilitiesFromCLIOutput(t *testing.T) {
 	if got := caps.Models[1].ReasoningEfforts; len(got) != 4 || got[3].Value != "high" {
 		t.Fatalf("reasoning efforts = %+v", got)
 	}
-	if len(caps.Modes) != 2 || caps.Modes[0].Value != "default" || caps.Modes[1].Value != "plan" {
+	if len(caps.Modes) != 2 || caps.Modes[0].Value != string(agent.RunModeDefault) || caps.Modes[1].Value != string(agent.RunModePlan) {
 		t.Fatalf("modes = %+v", caps.Modes)
 	}
 }

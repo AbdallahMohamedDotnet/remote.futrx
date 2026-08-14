@@ -1,6 +1,10 @@
 package kimi
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+)
 
 func TestParseCapabilitiesFromProviderJSON(t *testing.T) {
 	caps, err := parseProviderCatalog([]byte(`{
@@ -13,7 +17,7 @@ func TestParseCapabilitiesFromProviderJSON(t *testing.T) {
 	if len(caps.Models) != 3 || caps.Models[1].ID != "fast" || caps.Models[2].ID != "moonshot/kimi-k2" {
 		t.Fatalf("models = %+v", caps.Models)
 	}
-	if len(caps.Modes) != 2 || caps.Modes[0].Value != "default" || caps.Modes[1].Value != "plan" {
+	if len(caps.Modes) != 2 || caps.Modes[0].Value != string(agent.RunModeDefault) || caps.Modes[1].Value != string(agent.RunModePlan) {
 		t.Fatalf("modes = %+v", caps.Modes)
 	}
 }

@@ -58,6 +58,6 @@ func fallbackCapabilities() agent.Capabilities {
 		Source:      agent.CapabilitySourceFallback,
 		Models:      agent.WithAutoModel(nil, "Kimi default"),
 		Modes:       agent.ProviderModes(false),
-		DefaultMode: "default",
+		DefaultMode: agent.RunModeDefault,
 	}
 }

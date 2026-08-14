@@ -59,13 +59,13 @@ func (handler *appServerRequestHandler) Answer(envelope appServerEnvelope) error
 
 	case "item/commandExecution/requestApproval", "item/fileChange/requestApproval":
 		decision := "accept"
-		if handler.req.Mode == "plan" {
+		if handler.req.Mode == agent.RunModePlan {
 			decision = "decline"
 		}
 		result = map[string]string{"decision": decision}
 
 	case "execCommandApproval", "applyPatchApproval":
-		if handler.req.Mode == "plan" {
+		if handler.req.Mode == agent.RunModePlan {
 			result = map[string]any{"decision": map[string]any{
 				"denied": map[string]string{"rejection": "Plan mode does not allow mutations"},
 			}}

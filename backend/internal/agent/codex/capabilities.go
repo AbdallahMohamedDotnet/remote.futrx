@@ -110,7 +110,7 @@ func buildCapabilities(models modelListResponse, providerModes collaborationMode
 	}
 	nativePlan := false
 	for _, mode := range providerModes.Data {
-		if strings.EqualFold(mode.Mode, "plan") {
+		if strings.EqualFold(mode.Mode, string(agent.RunModePlan)) {
 			nativePlan = true
 		}
 	}
@@ -120,7 +120,7 @@ func buildCapabilities(models modelListResponse, providerModes collaborationMode
 		Source:      agent.CapabilitySourceLive,
 		Models:      agent.WithAutoModel(items, "Codex default"),
 		Modes:       agent.ProviderModes(nativePlan),
-		DefaultMode: "default",
+		DefaultMode: agent.RunModeDefault,
 	}
 }
 
@@ -131,7 +131,7 @@ func fallbackCapabilities() agent.Capabilities {
 		Source:      agent.CapabilitySourceFallback,
 		Models:      agent.WithAutoModel(nil, "Codex default"),
 		Modes:       agent.ProviderModes(false),
-		DefaultMode: "default",
+		DefaultMode: agent.RunModeDefault,
 	}
 }
 

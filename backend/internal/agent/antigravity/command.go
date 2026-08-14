@@ -22,8 +22,8 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	// interactive-free but still enforces tool permission prompts, so
 	// --dangerously-skip-permissions is required for headless runs.
 	args := []string{"--print", req.Prompt, "--print-timeout", printTimeout}
-	if req.Mode == "plan" {
-		args = append(args, "--mode", "plan")
+	if req.Mode == agent.RunModePlan {
+		args = append(args, "--mode", string(agent.RunModePlan))
 	} else {
 		args = append(args, "--dangerously-skip-permissions")
 	}

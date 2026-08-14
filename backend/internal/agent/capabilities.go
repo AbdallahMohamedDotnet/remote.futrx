@@ -45,13 +45,13 @@ func AutoOption() CapabilityOption {
 
 func ProviderModes(supportsPlan bool) []CapabilityOption {
 	modes := []CapabilityOption{{
-		Value:       "default",
+		Value:       string(RunModeDefault),
 		Label:       "Default",
 		Description: "Use the provider's normal agent behavior",
 	}}
 	if supportsPlan {
 		modes = append(modes, CapabilityOption{
-			Value:       "plan",
+			Value:       string(RunModePlan),
 			Label:       "Plan",
 			Description: "Use the provider's native planning mode",
 		})

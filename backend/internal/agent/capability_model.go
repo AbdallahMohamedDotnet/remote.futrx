@@ -39,7 +39,7 @@ type Capabilities struct {
 	Warning     string             `json:"warning,omitempty"`
 	Models      []ModelCapability  `json:"models"`
 	Modes       []CapabilityOption `json:"modes"`
-	DefaultMode string             `json:"defaultMode,omitempty"`
+	DefaultMode RunMode            `json:"defaultMode,omitempty"`
 }
 
 type CapabilityRequest struct {

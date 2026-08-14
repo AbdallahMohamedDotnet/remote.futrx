@@ -19,8 +19,8 @@ func (p *Provider) args(req agent.RunRequest) []string {
 		"--include-partial-messages",
 		"--verbose",
 	}
-	if req.Mode == "plan" {
-		args = append(args, "--permission-mode", "plan")
+	if req.Mode == agent.RunModePlan {
+		args = append(args, "--permission-mode", string(agent.RunModePlan))
 	} else {
 		args = append(args, "--dangerously-skip-permissions")
 	}

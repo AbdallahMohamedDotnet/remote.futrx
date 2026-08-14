@@ -46,6 +46,6 @@ func fallbackCapabilities() agent.Capabilities {
 		Source:      agent.CapabilitySourceFallback,
 		Models:      agent.WithAutoModel(models, "Claude default"),
 		Modes:       agent.ProviderModes(false),
-		DefaultMode: "default",
+		DefaultMode: agent.RunModeDefault,
 	}
 }

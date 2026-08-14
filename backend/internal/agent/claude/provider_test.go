@@ -33,10 +33,10 @@ func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
 
 func TestArgsUseNativePlanModeWithoutPermissionBypass(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
-	args := provider.args(agent.RunRequest{Mode: "plan"})
+	args := provider.args(agent.RunRequest{Mode: agent.RunModePlan})
 
 	modeIndex := slices.Index(args, "--permission-mode")
-	if modeIndex < 0 || modeIndex+1 >= len(args) || args[modeIndex+1] != "plan" {
+	if modeIndex < 0 || modeIndex+1 >= len(args) || args[modeIndex+1] != string(agent.RunModePlan) {
 		t.Fatalf("native Plan mode missing: %#v", args)
 	}
 	if slices.Contains(args, "--dangerously-skip-permissions") {

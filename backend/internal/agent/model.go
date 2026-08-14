@@ -45,6 +45,12 @@ const (
 
 type ReasoningEffort string
 type ServiceTier string
+type RunMode string
+
+const (
+	RunModeDefault RunMode = "default"
+	RunModePlan    RunMode = "plan"
+)
 
 // RunPreferences contains provider-neutral launch preferences. Provider
 // adapters remain responsible for accepting only the values their CLI supports.
@@ -61,7 +67,7 @@ type RunRequest struct {
 	Prompt         string
 	Cwd            string
 	Model          string
-	Mode           string
+	Mode           RunMode
 	ResumeID       string
 	ProjectID      string
 	Fork           bool

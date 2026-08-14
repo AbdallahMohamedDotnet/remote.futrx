@@ -38,7 +38,7 @@ done`
 	err := runAppServer(
 		context.Background(),
 		exec.Command("sh", "-c", script),
-		agent.RunRequest{ConversationID: "chat-1", Mode: "plan", Prompt: "plan it"},
+		agent.RunRequest{ConversationID: "chat-1", Mode: agent.RunModePlan, Prompt: "plan it"},
 		func(event agent.Event) { events = append(events, event) },
 	)
 	if err != nil {
@@ -82,7 +82,7 @@ func TestAnswerAppServerRequestDeclinesMutationInPlan(t *testing.T) {
 	var encoded strings.Builder
 	emitCalls := 0
 	err := newAppServerRequestHandler(
-		agent.RunRequest{Mode: "plan"},
+		agent.RunRequest{Mode: agent.RunModePlan},
 		func(agent.Event) { emitCalls++ },
 		func(message any) error {
 			data, marshalErr := json.Marshal(message)

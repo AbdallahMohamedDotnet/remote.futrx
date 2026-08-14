@@ -47,6 +47,6 @@ func fallbackCapabilities() agent.Capabilities {
 		Source:      agent.CapabilitySourceFallback,
 		Models:      models,
 		Modes:       agent.ProviderModes(false),
-		DefaultMode: "default",
+		DefaultMode: agent.RunModeDefault,
 	}
 }

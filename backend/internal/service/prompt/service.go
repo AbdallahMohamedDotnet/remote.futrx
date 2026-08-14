@@ -289,7 +289,7 @@ func (rnr *Service) runPromptAs(
 			Prompt:         runPrompt,
 			Cwd:            cwd,
 			Model:          meta.Model,
-			Mode:           meta.Mode,
+			Mode:           agent.RunMode(meta.Mode),
 			ResumeID:       runResumeID,
 			ProjectID:      string(meta.ProjectID),
 			Fork:           meta.ForkPending,

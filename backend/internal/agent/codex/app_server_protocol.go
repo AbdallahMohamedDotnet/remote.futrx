@@ -62,7 +62,7 @@ type appServerTurnParams struct {
 }
 
 type appServerCollaborationMode struct {
-	Mode     string                         `json:"mode"`
+	Mode     agent.RunMode                  `json:"mode"`
 	Settings appServerCollaborationSettings `json:"settings"`
 }
 
@@ -113,12 +113,12 @@ func buildAppServerThreadRequest(req agent.RunRequest) appServerThreadRequest {
 }
 
 func buildAppServerTurnParams(req agent.RunRequest, threadID, model string) appServerTurnParams {
-	mode := "default"
-	if req.Mode == "plan" {
-		mode = "plan"
+	mode := agent.RunModeDefault
+	if req.Mode == agent.RunModePlan {
+		mode = agent.RunModePlan
 	}
 	effort := reasoningEffortArg(req.Preferences.ReasoningEffort)
-	if effort == "" && mode == "plan" {
+	if effort == "" && mode == agent.RunModePlan {
 		// Codex's native Plan preset uses medium reasoning when the user has not
 		// selected an explicit effort.
 		effort = "medium"

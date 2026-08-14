@@ -164,11 +164,11 @@ func TestAppServerResumesThread(t *testing.T) {
 
 func TestNativePlanTurnUsesCollaborationMode(t *testing.T) {
 	params := buildAppServerTurnParams(
-		agent.RunRequest{Mode: "plan"},
+		agent.RunRequest{Mode: agent.RunModePlan},
 		"thread-123",
 		"gpt-5.5",
 	)
-	if params.CollaborationMode.Mode != "plan" {
+	if params.CollaborationMode.Mode != agent.RunModePlan {
 		t.Fatalf("collaboration mode = %#v", params.CollaborationMode)
 	}
 	settings := params.CollaborationMode.Settings
@@ -179,12 +179,12 @@ func TestNativePlanTurnUsesCollaborationMode(t *testing.T) {
 
 func TestNativeDefaultTurnUsesProviderInstructions(t *testing.T) {
 	params := buildAppServerTurnParams(
-		agent.RunRequest{Mode: "default"},
+		agent.RunRequest{Mode: agent.RunModeDefault},
 		"thread-123",
 		"gpt-5.5",
 	)
 	mode := params.CollaborationMode
-	if mode.Mode != "default" {
+	if mode.Mode != agent.RunModeDefault {
 		t.Fatalf("collaboration mode = %#v", mode)
 	}
 	settings := mode.Settings

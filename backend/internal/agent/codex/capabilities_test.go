@@ -1,6 +1,10 @@
 package codex
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+)
 
 func TestBuildCapabilitiesPreservesPerModelControls(t *testing.T) {
 	var models modelListResponse
@@ -13,7 +17,7 @@ func TestBuildCapabilitiesPreservesPerModelControls(t *testing.T) {
 		ServiceTiers: []serviceTierItem{{ID: "priority", Name: "Fast", Description: "faster"}},
 	})
 	modes := collaborationModeListResponse{}
-	modes.Data = append(modes.Data, collaborationModeItem{Name: "Plan", Mode: "plan"})
+	modes.Data = append(modes.Data, collaborationModeItem{Name: "Plan", Mode: string(agent.RunModePlan)})
 
 	caps := buildCapabilities(models, modes)
 	if len(caps.Models) != 2 || caps.Models[0].ID != "" || caps.Models[1].ID != "gpt-next" {
@@ -25,7 +29,7 @@ func TestBuildCapabilitiesPreservesPerModelControls(t *testing.T) {
 	if got := caps.Models[1].ServiceTiers; len(got) != 2 || got[1].Value != "priority" || got[1].Label != "Fast" {
 		t.Fatalf("service tiers = %+v", got)
 	}
-	if len(caps.Modes) != 2 || caps.Modes[0].Value != "default" || caps.Modes[1].Value != "plan" {
+	if len(caps.Modes) != 2 || caps.Modes[0].Value != string(agent.RunModeDefault) || caps.Modes[1].Value != string(agent.RunModePlan) {
 		t.Fatalf("modes = %+v", caps.Modes)
 	}
 }
