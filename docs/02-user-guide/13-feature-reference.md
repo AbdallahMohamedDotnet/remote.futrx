@@ -80,7 +80,7 @@ There is no approval workflow in the current chat transport. Project agents run 
 | Sign-in | Host authorization URL and pasted code | Host device flow | Host device flow | Run `agy` in each project Terminal |
 | Model picker | Yes | Yes | Auto only | Auto only |
 | Thinking control | Yes | Yes | No current options | Auto, Low, Medium, High |
-| Speed/service tier | No | Yes | No | No |
+| Speed/service tier | Fast for Auto and Opus | Yes | No | No |
 | Usage telemetry | Yes | Yes | No | No |
 | Provider session fork | Yes | Yes, native app-server fork | No; starts fresh | No; starts fresh |
 | Selected skill trigger | Yes | Yes | Stored but not injected | Scheduled Tasks only |

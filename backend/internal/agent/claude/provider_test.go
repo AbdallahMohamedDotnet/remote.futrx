@@ -92,6 +92,34 @@ func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 	}
 }
 
+func TestArgsEnableFastModeForRun(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{
+		Model: "opus",
+		Preferences: agent.RunPreferences{
+			ServiceTier: agent.ServiceTier(fastServiceTier),
+		},
+	})
+
+	settingsIndex := slices.Index(args, "--settings")
+	if settingsIndex < 0 || settingsIndex+1 >= len(args) {
+		t.Fatalf("missing --settings pair: %#v", args)
+	}
+	if args[settingsIndex+1] != `{"fastMode":true}` {
+		t.Fatalf("--settings = %q, want fast mode", args[settingsIndex+1])
+	}
+}
+
+func TestArgsIgnoreUnsupportedServiceTier(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{
+		Preferences: agent.RunPreferences{ServiceTier: "priority"},
+	})
+	if slices.Contains(args, "--settings") {
+		t.Fatalf("unexpected --settings for unsupported service tier: %#v", args)
+	}
+}
+
 func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 	project := serviceproject.Meta{
 		ID:            serviceproject.ID("abcd"),

@@ -62,6 +62,9 @@ hidden when there are none. **Auto** omits an explicit tier.
 
 Tier availability, behavior, cost, and quotas belong to the connected provider
 account. Remote does not guarantee that every model accepts every tier.
+Claude exposes Fast for Auto and Opus selections. Fast mode may switch Auto to
+an eligible Opus model, uses usage credits at a higher token price, and can be
+disabled by the connected organization or authentication provider.
 
 ## Provider modes
 

@@ -30,15 +30,19 @@ func parseCapabilityHelp(help string) agent.Capabilities {
 	}
 	items := make([]agent.ModelCapability, 0, len(models))
 	for _, id := range models {
-		items = append(items, agent.ModelCapability{
+		model := agent.ModelCapability{
 			ID: id, Label: optionLabel(id), ReasoningEfforts: append([]agent.CapabilityOption(nil), reasoning...),
-		})
+		}
+		if supportsFastMode(id) {
+			model.ServiceTiers = fastModeOptions()
+		}
+		items = append(items, model)
 	}
 	return agent.Capabilities{
 		Provider:    agent.ProviderClaude,
 		Label:       "Claude",
 		Source:      agent.CapabilitySourceLive,
-		Models:      agent.WithAutoModel(items, "Claude default"),
+		Models:      withAutoFastMode(items),
 		Modes:       agent.ProviderModes(true),
 		DefaultMode: agent.RunModeDefault,
 	}

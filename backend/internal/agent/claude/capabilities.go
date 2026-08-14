@@ -3,12 +3,14 @@ package claude
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
 const capabilityTimeout = 8 * time.Second
+const fastServiceTier = "fast"
 
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	probeCtx, cancel := context.WithTimeout(ctx, capabilityTimeout)
@@ -36,16 +38,41 @@ func fallbackCapabilities() agent.Capabilities {
 	}
 	models := make([]agent.ModelCapability, 0, 4)
 	for _, id := range []string{"fable", "opus", "sonnet", "haiku"} {
-		models = append(models, agent.ModelCapability{
+		model := agent.ModelCapability{
 			ID: id, Label: optionLabel(id), ReasoningEfforts: append([]agent.CapabilityOption(nil), reasoning...),
-		})
+		}
+		if supportsFastMode(id) {
+			model.ServiceTiers = fastModeOptions()
+		}
+		models = append(models, model)
 	}
 	return agent.Capabilities{
 		Provider:    agent.ProviderClaude,
 		Label:       "Claude",
 		Source:      agent.CapabilitySourceFallback,
-		Models:      agent.WithAutoModel(models, "Claude default"),
+		Models:      withAutoFastMode(models),
 		Modes:       agent.ProviderModes(true),
 		DefaultMode: agent.RunModeDefault,
 	}
+}
+
+func withAutoFastMode(models []agent.ModelCapability) []agent.ModelCapability {
+	models = agent.WithAutoModel(models, "Claude default")
+	models[0].ServiceTiers = fastModeOptions()
+	return models
+}
+
+func fastModeOptions() []agent.CapabilityOption {
+	return []agent.CapabilityOption{
+		agent.AutoOption(),
+		{
+			Value:       fastServiceTier,
+			Label:       "Fast",
+			Description: "Use Claude Fast mode for lower latency at a higher token cost",
+		},
+	}
+}
+
+func supportsFastMode(model string) bool {
+	return strings.EqualFold(strings.TrimSpace(model), "opus")
 }

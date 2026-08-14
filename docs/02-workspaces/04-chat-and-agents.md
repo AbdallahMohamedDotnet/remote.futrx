@@ -94,7 +94,10 @@ The selector is hidden when Default is the provider's only available mode.
 Codex modes are sent through app-server collaboration modes. Claude, Kimi, and
 Antigravity receive their native Plan CLI flag.
 
-Model and reasoning controls are stored per chat. The user's last selection also becomes the default for new chats. Service tier is exposed for Codex-style speed/cost selection.
+Model, reasoning, and speed controls are stored per chat. The user's last
+selection also becomes the default for new chats. Codex forwards service tiers
+through app-server; Claude Fast mode is applied per run through CLI settings
+for Auto and Opus selections.
 
 ## Capability discovery
 
@@ -108,7 +111,7 @@ Each provider owns its parser because the CLIs expose different surfaces:
 | Provider | Discovery source |
 | --- | --- |
 | Codex | App-server `model/list` and `collaborationMode/list`, with `codex debug models` as a structured fallback |
-| Claude | Model aliases, efforts, and permission modes parsed from `claude --help` |
+| Claude | Model aliases and efforts parsed from `claude --help`; native Default/Plan and Auto/Opus Fast controls declared by the adapter |
 | Kimi | Models from `kimi provider list --json`; mode hints from CLI help |
 | Antigravity | Models from `agy models`; effort and mode choices from CLI help |
 

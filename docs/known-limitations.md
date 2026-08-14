@@ -77,8 +77,9 @@ These are the constraints worth understanding before you deploy or rely on remot
   start fresh; print mode exposes plain streamed text rather than structured
   tool/usage events, general selected skills are not injected, and Browser MCP
   is unavailable. Codex service-tier selection is limited to three values
-  (default/priority/fast). Failed Claude tool calls are currently rendered as
-  successes.
+  (default/priority/fast). Claude Fast mode requires an eligible Opus model,
+  usage credits, and provider/account enablement. Failed Claude tool calls are
+  currently rendered as successes.
 
 ## Scheduled tasks
 

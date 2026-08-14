@@ -30,6 +30,9 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	if effort := reasoningEffortArg(req.Preferences.ReasoningEffort); effort != "" {
 		args = append(args, "--effort", effort)
 	}
+	if req.Preferences.ServiceTier == agent.ServiceTier(fastServiceTier) {
+		args = append(args, "--settings", `{"fastMode":true}`)
+	}
 	if req.ResumeID != "" {
 		args = append(args, "--resume", req.ResumeID)
 		if req.Fork {
