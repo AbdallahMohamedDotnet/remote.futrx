@@ -11,7 +11,7 @@ func TestParseCapabilitiesFromCLIOutput(t *testing.T) {
   --effort Reasoning effort (low|medium|high)
   --mode Agent mode (accept-edits, plan)
 `
-	caps := parseCapabilities(models, help)
+	caps := parseCLIOutputCatalog(models, help)
 	if len(caps.Models) != 3 || caps.Models[1].ID != "gemini-3-pro" || caps.Models[2].ID != "google/gemini-fast" {
 		t.Fatalf("models = %+v", caps.Models)
 	}
