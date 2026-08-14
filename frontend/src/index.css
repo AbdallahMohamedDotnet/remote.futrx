@@ -30,6 +30,9 @@
 
 @layer components {
   .app-shell {
+    position: fixed;
+    inset-inline: 0;
+    top: var(--app-offset-top, 0px);
     width: 100%;
     height: var(--app-height, 100vh);
     height: var(--app-height, 100dvh);
@@ -205,7 +208,6 @@
   }
 
   .codex-composer-card {
-    align-items: flex-end;
     margin: 0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom, 0px)) !important;
     border: 1px solid #3f4047;
     border-radius: 1.25rem;
@@ -214,8 +216,12 @@
   }
 
   .codex-composer-form {
+    display: grid !important;
+    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+    align-items: center !important;
+    gap: 0.5rem !important;
     margin: 0;
-    padding: 0.625rem 0.625rem 0.4rem !important;
+    padding: 0.625rem !important;
   }
 
   .codex-composer-agent-controls {
@@ -228,6 +234,46 @@
 
   .codex-composer-control-deck {
     padding: 0.4rem 0.625rem 0.625rem !important;
+  }
+
+  .codex-mobile-settings-trigger {
+    display: inline-flex !important;
+    grid-column: 2;
+    grid-row: 2;
+    height: 2.25rem;
+  }
+
+  .codex-mobile-settings-panel .codex-composer-agent-controls {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.5rem !important;
+  }
+
+  .codex-mobile-settings-panel .codex-provider-control {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .codex-mobile-settings-panel .codex-model-control,
+  .codex-mobile-settings-panel .codex-skill-control-root {
+    width: 100% !important;
+  }
+
+  .codex-mobile-settings-panel .codex-composer-execution-controls {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem !important;
+  }
+
+  .codex-mobile-settings-panel .codex-option-control,
+  .codex-mobile-settings-panel .codex-option-control > button {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .codex-mobile-settings-panel .codex-option-control > button {
+    justify-content: space-between;
+    padding-inline: 0.5rem;
   }
 
   .codex-mode-control {
@@ -244,9 +290,12 @@
   }
 
   .codex-composer-textarea {
-    min-height: 4.25rem !important;
-    max-height: 9rem !important;
-    padding: 0.45rem 0.25rem 0.35rem !important;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+    min-height: 3.75rem !important;
+    max-height: min(8rem, 28dvh) !important;
+    padding: 0.25rem 0.125rem 0.5rem !important;
     border: 0 !important;
     border-radius: 0 !important;
     background: transparent !important;
@@ -266,6 +315,16 @@
     border-radius: 9999px !important;
     background: transparent !important;
     color: #e4e4e7 !important;
+  }
+
+  .codex-icon-button {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .codex-send-controls {
+    grid-column: 3;
+    grid-row: 2;
   }
 
   .codex-send-button {
