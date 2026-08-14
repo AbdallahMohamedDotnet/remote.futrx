@@ -154,9 +154,13 @@ type Event struct {
 	Raw            json.RawMessage `json:"raw,omitempty"`
 }
 
-type Provider interface {
+type CapabilityProvider interface {
 	ID() ProviderID
+	Capabilities(ctx context.Context, req CapabilityRequest) (Capabilities, error)
+}
+
+type Provider interface {
+	CapabilityProvider
 	Parser(req RunRequest) LineParser
 	Run(ctx context.Context, req RunRequest, emit func(Event)) error
-	Capabilities(ctx context.Context, req CapabilityRequest) (Capabilities, error)
 }

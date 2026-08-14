@@ -45,12 +45,13 @@ func (r *Registry) Lookup(id ProviderID) Provider {
 	return r.providers[id]
 }
 
-// Providers returns registered providers in composition order.
-func (r *Registry) Providers() []Provider {
+// CapabilityProviders returns registered providers in composition order using
+// only the capability-discovery contract needed by catalog consumers.
+func (r *Registry) CapabilityProviders() []CapabilityProvider {
 	if r == nil {
 		return nil
 	}
-	providers := make([]Provider, 0, len(r.order))
+	providers := make([]CapabilityProvider, 0, len(r.order))
 	for _, id := range r.order {
 		if provider := r.providers[id]; provider != nil {
 			providers = append(providers, provider)

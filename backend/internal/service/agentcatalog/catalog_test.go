@@ -17,11 +17,7 @@ type catalogTestProvider struct {
 	requests []agent.CapabilityRequest
 }
 
-func (p *catalogTestProvider) ID() agent.ProviderID                     { return p.id }
-func (p *catalogTestProvider) Parser(agent.RunRequest) agent.LineParser { return nil }
-func (p *catalogTestProvider) Run(context.Context, agent.RunRequest, func(agent.Event)) error {
-	return nil
-}
+func (p *catalogTestProvider) ID() agent.ProviderID { return p.id }
 func (p *catalogTestProvider) Capabilities(_ context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -31,6 +27,14 @@ func (p *catalogTestProvider) Capabilities(_ context.Context, req agent.Capabili
 		Provider: p.id, Label: p.label, Source: agent.CapabilitySourceLive,
 		Models: []agent.ModelCapability{}, Modes: []agent.CapabilityOption{},
 	}, nil
+}
+
+type catalogTestRegistry struct {
+	providers []agent.CapabilityProvider
+}
+
+func (r catalogTestRegistry) CapabilityProviders() []agent.CapabilityProvider {
+	return r.providers
 }
 
 type catalogTestProjects struct {
@@ -46,14 +50,9 @@ func (catalogTestProjects) HasAccess(context.Context, serviceproject.ID, string)
 }
 
 func TestListUsesRegistryOrderProjectContainerAndCache(t *testing.T) {
-	registry := agent.NewRegistry()
 	claude := &catalogTestProvider{id: agent.ProviderClaude, label: "Claude"}
 	codex := &catalogTestProvider{id: agent.ProviderCodex, label: "Codex"}
-	for _, provider := range []agent.Provider{claude, codex} {
-		if err := registry.Register(provider); err != nil {
-			t.Fatal(err)
-		}
-	}
+	registry := catalogTestRegistry{providers: []agent.CapabilityProvider{claude, codex}}
 	catalog := New(registry, catalogTestProjects{project: serviceproject.Meta{
 		ID: "abcd", ContainerName: "remote-abcd", Status: serviceproject.StatusRunning,
 	}}, nil)

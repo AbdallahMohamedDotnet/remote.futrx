@@ -43,6 +43,10 @@ type Authorizer interface {
 	IsAdmin(ctx context.Context, email string) (bool, error)
 }
 
+type CapabilityRegistry interface {
+	CapabilityProviders() []agent.CapabilityProvider
+}
+
 type ListQuery struct {
 	ProjectID     serviceproject.ID
 	SessionCookie string
@@ -50,13 +54,13 @@ type ListQuery struct {
 }
 
 type Catalog struct {
-	agents   *agent.Registry
+	agents   CapabilityRegistry
 	projects ProjectCatalog
 	auth     Authorizer
 	cache    *catalogCache
 }
 
-func New(agents *agent.Registry, projects ProjectCatalog, auth Authorizer) *Catalog {
+func New(agents CapabilityRegistry, projects ProjectCatalog, auth Authorizer) *Catalog {
 	return &Catalog{
 		agents: agents, projects: projects, auth: auth, cache: newCatalogCache(),
 	}
@@ -88,7 +92,7 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 			return cached, nil
 		}
 	}
-	providers := c.agents.Providers()
+	providers := c.agents.CapabilityProviders()
 	result := make([]agent.Capabilities, len(providers))
 	var wait sync.WaitGroup
 	for index, provider := range providers {
