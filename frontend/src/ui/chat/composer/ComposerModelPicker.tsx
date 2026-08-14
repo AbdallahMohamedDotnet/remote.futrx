@@ -1,16 +1,12 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { ChatProvider } from "../../../models/chat";
-import { modelDisplayLabel } from "../../../config/chat";
 import { ChevronDown } from "../../primitives/icons";
 
 export function ComposerModelPicker({
-  provider,
   model,
   streaming,
   options,
   onChange,
 }: {
-  provider: ChatProvider;
   model: string;
   streaming: boolean;
   options: readonly { value: string; label: string; sub: string }[];
@@ -18,11 +14,7 @@ export function ComposerModelPicker({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const label = modelDisplayLabel(model, provider);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [provider]);
+  const label = options.find((option) => option.value === model)?.label || model || "Auto";
 
   useEffect(() => {
     if (!open) return;

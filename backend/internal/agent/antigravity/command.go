@@ -41,8 +41,8 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	return args
 }
 
-// effortFlag clamps the app's provider-neutral reasoning efforts onto agy's
-// low|medium|high scale; unknown or empty values omit the flag.
+// effortFlag preserves the legacy mappings for Remote's older shared effort
+// ladder, then forwards any safe value advertised by a newer agy CLI.
 func effortFlag(effort agent.ReasoningEffort) string {
 	switch strings.ToLower(strings.TrimSpace(string(effort))) {
 	case "none", "minimal", "low":
@@ -52,7 +52,7 @@ func effortFlag(effort agent.ReasoningEffort) string {
 	case "high", "xhigh":
 		return "high"
 	default:
-		return ""
+		return agent.NormalizeCapabilityValue(string(effort))
 	}
 }
 

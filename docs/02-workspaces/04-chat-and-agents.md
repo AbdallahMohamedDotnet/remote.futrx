@@ -93,6 +93,28 @@ usage, and error events that provider can supply.
 
 Model and reasoning controls are stored per chat. The user's last selection also becomes the default for new chats. Service tier is exposed for Codex-style speed/cost selection.
 
+## Capability discovery
+
+`GET /api/agent-capabilities?projectId=<id>` returns one provider-neutral
+catalog built from the registered backend agents. Project requests run probes
+against the CLI inside that project's container; loose-chat requests probe the
+host. Results are cached briefly and can be explicitly refreshed.
+
+Each provider owns its parser because the CLIs expose different surfaces:
+
+| Provider | Discovery source |
+| --- | --- |
+| Codex | App-server `model/list` and `collaborationMode/list`, with `codex debug models` as a structured fallback |
+| Claude | Model aliases, efforts, and permission modes parsed from `claude --help` |
+| Kimi | Models from `kimi provider list --json`; mode hints from CLI help |
+| Antigravity | Models from `agy models`; effort and mode choices from CLI help |
+
+The normalized model record owns its reasoning-effort and service-tier lists,
+so the frontend can update dependent selectors when a model changes without a
+compiled model catalog. Remote's Chat, Plan, Code, Review, Debug, and Full Auto
+workflow modes remain backend-defined prompt policies; native metadata marks
+where a provider CLI directly supports a corresponding mode.
+
 ## Event model
 
 ```mermaid
@@ -182,4 +204,5 @@ Rewind clears provider session IDs. On the next run, the backend converts remain
 - Prompt service: [`backend/internal/service/prompt/service.go`](../../backend/internal/service/prompt/service.go)
 - Run hub: [`backend/internal/service/runhub/hub.go`](../../backend/internal/service/runhub/hub.go)
 - Agent model: [`backend/internal/agent/model.go`](../../backend/internal/agent/model.go)
+- Capability catalog: [`backend/internal/service/agentcatalog/catalog.go`](../../backend/internal/service/agentcatalog/catalog.go)
 - Frontend chat hook: [`frontend/src/state/hooks/chat/useChat.ts`](../../frontend/src/state/hooks/chat/useChat.ts)

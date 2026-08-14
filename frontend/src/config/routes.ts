@@ -91,6 +91,8 @@ export const API_ROUTES = {
     apply: "/api/admin/update/apply",
   },
   skills: (query: string) => `/api/skills?${query}`,
+  agentCapabilities: (query: string) =>
+    `/api/agent-capabilities${query ? `?${query}` : ""}`,
   uploads: "/api/uploads",
   users: {
     collection: "/api/admin/users",

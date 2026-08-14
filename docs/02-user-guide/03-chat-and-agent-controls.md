@@ -10,13 +10,12 @@ preference for new chats.
 
 Before sending a prompt:
 
-1. Select **Codex**, **Claude**, **Kimi**, or **Antigravity** in the
-   **Provider** toggle.
+1. Select an available agent in the **Provider** toggle.
 2. Open **Model** and choose a provider-supported model or **Auto**.
 3. Optionally open **Skill set**, search the catalog, and select one or more
    skills.
 4. Set **Thinking** when the provider exposes reasoning effort.
-5. Set **Speed** when using Codex and a model that supports service tiers.
+5. Set **Speed** when the selected provider and model expose a service tier.
 6. Set **Mode** for the task.
 7. Write and send the prompt.
 
@@ -26,12 +25,17 @@ changed while that chat is streaming.
 
 ## Provider and model choices
 
-| Provider | Current **Model** choices | Additional controls |
-| --- | --- | --- |
-| **Codex** | **Auto**, **GPT-5.6 Sol**, **GPT-5.5**, **GPT-5.4**, **GPT-5.4 Mini**, **GPT-5.3 Codex** | **Thinking**, **Speed**, Codex skills |
-| **Claude** | **Auto**, **Fable**, **Opus**, **Sonnet**, **Haiku** | **Thinking**, Claude skills |
-| **Kimi** | **Auto** | No current thinking or speed selector |
-| **Antigravity** | **Auto** | **Thinking** at Auto, Low, Medium, or High |
+Remote loads the provider list from its backend agent registry. For a project
+chat, the backend probes the provider CLIs installed in that project's
+container and normalizes their models, reasoning efforts, service tiers, and
+native-mode metadata into one catalog. Loose chats use the host CLIs instead.
+The composer therefore follows the installed CLI version and the connected
+account rather than a model list compiled into the frontend.
+
+Codex exposes the richest structured catalog. Claude, Kimi, and Antigravity
+publish different amounts of metadata, so their adapters parse the structured
+or help output each CLI makes available. **Auto** and a conservative fallback
+catalog remain available when a CLI is older, unavailable, or signed out.
 
 **Auto** omits an explicit model so the provider chooses its configured
 default. Model availability and account entitlements are ultimately enforced
@@ -46,25 +50,15 @@ provider.
 
 ## Thinking and speed
 
-**Thinking** controls provider reasoning effort:
-
-- Codex: **Auto**, **None**, **Minimal**, **Low**, **Medium**, **High**,
-  **XHigh**, **Max**, and **Ultra**.
-- Claude: **Auto**, **Low**, **Medium**, **High**, **XHigh**, **Max**, and
-  **Ultra**.
-- Antigravity: **Auto**, **Low**, **Medium**, and **High**.
-- Kimi: no current selector.
+**Thinking** contains the reasoning efforts reported for the selected model.
+It is hidden when that provider/model does not advertise an effort control.
 
 **Auto** omits the explicit effort flag. The provider or model then chooses its
 default. Higher labels request more reasoning; they can increase latency and
 usage, and unsupported provider/model combinations may be rejected upstream.
 
-**Speed** is currently a Codex-only service-tier selector:
-
-- **Auto** omits an explicit tier.
-- **Default** requests the normal tier.
-- **Priority** requests priority service.
-- **Fast** requests the fast tier.
+**Speed** contains the service tiers reported for the selected model and is
+hidden when there are none. **Auto** omits an explicit tier.
 
 Tier availability, behavior, cost, and quotas belong to the connected provider
 account. Remote does not guarantee that every model accepts every tier.

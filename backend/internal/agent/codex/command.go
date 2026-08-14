@@ -58,44 +58,12 @@ func sanitizeModel(model string) string {
 }
 
 func reasoningEffortArg(effort agent.ReasoningEffort) string {
-	// Valid `model_reasoning_effort` values for the codex CLI, per its own
-	// reasoning.effort validation: none, minimal, low, medium, high, xhigh, max, ultra.
-	switch strings.ToLower(strings.TrimSpace(string(effort))) {
-	case "none":
-		return "none"
-	case "minimal":
-		return "minimal"
-	case "low":
-		return "low"
-	case "medium":
-		return "medium"
-	case "high":
-		return "high"
-	case "xhigh":
-		return "xhigh"
-	case "max":
-		return "max"
-	case "ultra":
-		return "ultra"
-	default:
-		return ""
-	}
+	return agent.NormalizeCapabilityValue(string(effort))
 }
 
-// serviceTierArg maps the conversation's speed selection onto codex's
-// `-c service_tier=` values we expose (default, priority, fast). Unsupported tiers are
-// warned-and-omitted by codex itself, so we only forward the ones we surface.
+// serviceTierArg forwards safe values from the live Codex model catalog.
 func serviceTierArg(tier agent.ServiceTier) string {
-	switch strings.ToLower(strings.TrimSpace(string(tier))) {
-	case "default":
-		return "default"
-	case "priority":
-		return "priority"
-	case "fast":
-		return "fast"
-	default:
-		return ""
-	}
+	return agent.NormalizeCapabilityValue(string(tier))
 }
 
 func (p *Provider) buildCmd(

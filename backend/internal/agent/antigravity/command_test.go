@@ -58,7 +58,8 @@ func TestEffortFlagClamping(t *testing.T) {
 		"medium":  "medium",
 		"high":    "high",
 		"xhigh":   "high",
-		"ultra":   "",
+		"ultra":   "ultra",
+		"bad;arg": "",
 	}
 	for effort, want := range tests {
 		if got := effortFlag(effort); got != want {

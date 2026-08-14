@@ -1,18 +1,19 @@
 import type { ChatProvider } from "../../../models/chat";
-import { PROVIDER_OPTIONS } from "../../../config/chat";
 
 export function ProviderToggle({
   provider,
+  options,
   streaming,
   onChange,
 }: {
   provider: ChatProvider;
+  options: readonly { value: ChatProvider; label: string }[];
   streaming: boolean;
   onChange: (provider: ChatProvider) => void;
 }) {
   return (
     <div class="inline-flex h-8 min-w-[164px] flex-none rounded-md bg-white/[0.045] p-0.5" aria-label="Provider">
-        {PROVIDER_OPTIONS.map((option) => {
+        {options.map((option) => {
           const active = option.value === provider;
           return (
             <button

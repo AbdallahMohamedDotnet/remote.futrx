@@ -46,26 +46,10 @@ func sanitizeModel(model string) string {
 	return model
 }
 
-// reasoningEffortArg maps the conversation's reasoning effort onto the
-// `claude --effort` levels (low, medium, high, xhigh, max, ultra). Unknown or empty
-// values yield "" so the flag is omitted and the CLI picks its default.
+// reasoningEffortArg forwards safe values from the live Claude capability
+// catalog. Empty or malformed values omit the flag so the CLI picks a default.
 func reasoningEffortArg(effort agent.ReasoningEffort) string {
-	switch strings.ToLower(strings.TrimSpace(string(effort))) {
-	case "low":
-		return "low"
-	case "medium":
-		return "medium"
-	case "high":
-		return "high"
-	case "xhigh":
-		return "xhigh"
-	case "max":
-		return "max"
-	case "ultra":
-		return "ultra"
-	default:
-		return ""
-	}
+	return agent.NormalizeCapabilityValue(string(effort))
 }
 
 func (p *Provider) buildCmd(

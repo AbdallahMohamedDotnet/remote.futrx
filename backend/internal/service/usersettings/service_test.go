@@ -46,6 +46,22 @@ func TestUpdatePersistsChatPreferences(t *testing.T) {
 	}
 }
 
+func TestUpdatePreservesProviderDefinedCapabilityValues(t *testing.T) {
+	repo := &memoryRepo{}
+	effort := ReasoningEffort(" Future.V2 ")
+	tier := ServiceTier(" Burst_2 ")
+
+	settings, err := New(repo).Update(context.Background(), "sub:user", UpdateInput{
+		Chat: &ChatUpdate{ReasoningEffort: &effort, ServiceTier: &tier},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.Chat.ReasoningEffort != "Future.V2" || settings.Chat.ServiceTier != "Burst_2" {
+		t.Fatalf("provider capability values were changed: %+v", settings.Chat)
+	}
+}
+
 func TestUpdateRejectsInvalidChatPreferences(t *testing.T) {
 	tests := []struct {
 		name string
@@ -69,7 +85,7 @@ func TestUpdateRejectsInvalidChatPreferences(t *testing.T) {
 		{
 			name: "reasoning effort",
 			in: UpdateInput{Chat: &ChatUpdate{
-				ReasoningEffort: ptr(ReasoningEffort("bad")),
+				ReasoningEffort: ptr(ReasoningEffort("bad value")),
 			}},
 			want: ErrInvalidReasoningEffort,
 		},

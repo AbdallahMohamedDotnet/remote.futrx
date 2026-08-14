@@ -71,7 +71,7 @@ func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 	args := provider.args(agent.RunRequest{
 		Model: "opus",
 		Preferences: agent.RunPreferences{
-			ReasoningEffort: "extreme",
+			ReasoningEffort: "extreme;invalid",
 		},
 	})
 	if slices.Contains(args, "--effort") {

@@ -130,9 +130,9 @@ func normalizeChatMode(mode ChatMode) ChatMode {
 }
 
 func normalizeReasoningEffort(effort ReasoningEffort) ReasoningEffort {
-	return ReasoningEffort(strings.ToLower(strings.TrimSpace(string(effort))))
+	return ReasoningEffort(strings.TrimSpace(string(effort)))
 }
 
 func normalizeServiceTier(tier ServiceTier) ServiceTier {
-	return ServiceTier(strings.ToLower(strings.TrimSpace(string(tier))))
+	return ServiceTier(strings.TrimSpace(string(tier)))
 }

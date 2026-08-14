@@ -1,16 +1,7 @@
-import type {
-  ChatMode,
-  ChatProvider,
-  ReasoningEffort,
-  ServiceTier,
-} from "../config/chatCatalog";
-
-export type {
-  ChatMode,
-  ChatProvider,
-  ReasoningEffort,
-  ServiceTier,
-} from "../config/chatCatalog";
+export type ChatProvider = "claude" | "codex" | "kimi" | "antigravity";
+export type ChatMode = string;
+export type ReasoningEffort = string;
+export type ServiceTier = string;
 
 export interface ChatMeta {
   id: string;

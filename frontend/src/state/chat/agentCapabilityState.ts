@@ -1,0 +1,55 @@
+import type {
+  AgentCapabilitiesCatalog,
+  AgentCapabilityOption,
+  AgentProviderCapabilities,
+} from "../../models/agentCapabilities";
+import type { ChatProvider } from "../../models/chat";
+
+export interface ComposerCapabilityState {
+  providerCapabilities?: AgentProviderCapabilities;
+  providerOptions: Array<{ value: ChatProvider; label: string }>;
+  modelOptions: Array<{ value: string; label: string; sub: string }>;
+  reasoningEffortOptions: AgentCapabilityOption[];
+  serviceTierOptions: AgentCapabilityOption[];
+  modeOptions: AgentCapabilityOption[];
+}
+
+export const agentCapabilityState = {
+  resolve(
+    catalog: AgentCapabilitiesCatalog | null,
+    provider: ChatProvider,
+    model: string,
+    loading: boolean,
+  ): ComposerCapabilityState {
+    const providerCapabilities = catalog?.providers.find(
+      (item) => item.provider === provider,
+    );
+    const providerOptions = catalog?.providers.map((item) => ({
+      value: item.provider,
+      label: item.label,
+    })) ?? [{ value: provider, label: providerLabel(provider) }];
+    const modelOptions = providerCapabilities?.models.map((item) => ({
+      value: item.id,
+      label: item.label,
+      sub: item.description || (item.providerDefault ? "provider default" : "available model"),
+    })) ?? [{
+      value: model,
+      label: model || "Auto",
+      sub: loading ? "loading capabilities" : "current selection",
+    }];
+    const selectedModel = providerCapabilities?.models.find((item) => item.id === model)
+      ?? providerCapabilities?.models.find((item) => item.id === "");
+    return {
+      providerCapabilities,
+      providerOptions,
+      modelOptions,
+      reasoningEffortOptions: selectedModel?.reasoningEfforts ?? [],
+      serviceTierOptions: selectedModel?.serviceTiers ?? [],
+      modeOptions: providerCapabilities?.modes ?? [],
+    };
+  },
+};
+
+function providerLabel(provider: string): string {
+  return provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : "Agent";
+}

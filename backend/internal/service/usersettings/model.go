@@ -1,6 +1,9 @@
 package usersettings
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 var (
 	ErrNotFound               = errors.New("user settings not found")
@@ -143,19 +146,21 @@ func ValidChatMode(mode ChatMode) bool {
 }
 
 func ValidReasoningEffort(effort ReasoningEffort) bool {
-	switch effort {
-	case ReasoningEffortAuto, ReasoningEffortNone, ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax, ReasoningEffortUltra:
-		return true
-	default:
-		return false
-	}
+	return validCapabilityValue(string(effort))
 }
 
 func ValidServiceTier(tier ServiceTier) bool {
-	switch tier {
-	case ServiceTierAuto, ServiceTierDefault, ServiceTierPriority, ServiceTierFast:
-		return true
-	default:
+	return validCapabilityValue(string(tier))
+}
+
+func validCapabilityValue(value string) bool {
+	value = strings.TrimSpace(value)
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
+			r == '-' || r == '_' || r == '.' {
+			continue
+		}
 		return false
 	}
+	return true
 }

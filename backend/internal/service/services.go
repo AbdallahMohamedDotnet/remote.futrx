@@ -10,6 +10,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/googleoauth"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	serviceagentcatalog "github.com/futrx-com/remote.futrx.com/internal/service/agentcatalog"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
@@ -66,6 +67,7 @@ type Services struct {
 	Schedules    *serviceschedule.Service
 	ScheduleCaps *schedulecapability.Registry
 	AgentAuth    *agentauth.Registry
+	AgentCatalog *serviceagentcatalog.Catalog
 	Runs         *runhub.Hub
 	Workspace    *workspacehub.Hub
 	Auth         *serviceauth.Service
@@ -169,6 +171,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	userSettingsService := serviceusersettings.New(deps.UserSettings)
 	skillService := serviceskills.New()
 	skillCatalog := serviceskills.NewCatalog(skillService, projectService, authService)
+	agentCatalog := serviceagentcatalog.New(agents, projectService, authService)
 	var accessVerifier *serviceauth.AccessVerifier
 	if authService != nil {
 		accessVerifier = serviceauth.NewAccessVerifier(authService, projectService)
@@ -186,6 +189,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Schedules:    scheduleService,
 		ScheduleCaps: scheduleCaps,
 		AgentAuth:    agentAuth,
+		AgentCatalog: agentCatalog,
 		Runs:         runs,
 		Workspace:    workspace,
 		Auth:         authService,

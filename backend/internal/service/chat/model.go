@@ -122,41 +122,25 @@ func NormalizeProvider(provider Provider) Provider {
 }
 
 func NormalizeReasoningEffort(effort string) string {
-	switch strings.ToLower(strings.TrimSpace(effort)) {
-	case "none":
-		return "none"
-	case "minimal":
-		return "minimal"
-	case "low":
-		return "low"
-	case "medium":
-		return "medium"
-	case "high":
-		return "high"
-	case "xhigh":
-		return "xhigh"
-	case "max":
-		return "max"
-	case "ultra":
-		return "ultra"
-	default:
-		return ""
-	}
+	return normalizeCapabilityValue(effort)
 }
 
-// NormalizeServiceTier maps codex service_tier values we expose (default,
-// priority, fast). "" = Auto (omit the flag). Unknown values collapse to "".
+// NormalizeServiceTier keeps future provider tiers usable without requiring a
+// frontend/backend release for every catalog addition. "" means Auto.
 func NormalizeServiceTier(tier string) string {
-	switch strings.ToLower(strings.TrimSpace(tier)) {
-	case "default":
-		return "default"
-	case "priority":
-		return "priority"
-	case "fast":
-		return "fast"
-	default:
+	return normalizeCapabilityValue(tier)
+}
+
+func normalizeCapabilityValue(value string) string {
+	value = strings.TrimSpace(value)
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
+			r == '-' || r == '_' || r == '.' {
+			continue
+		}
 		return ""
 	}
+	return value
 }
 
 func NormalizeSelectedSkills(skills []SkillRef, fallbackProvider Provider) []SkillRef {

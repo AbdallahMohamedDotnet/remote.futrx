@@ -106,6 +106,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			agentAuthBindings,
 			deps.Services.Auth,
 		),
+		AgentCapabilities: httphandlers.NewAgentCapabilitiesHandler(deps.Services.AgentCatalog),
 		UserSettings: httphandlers.NewUserSettingsHandler(
 			deps.Services.UserSettings,
 			deps.Services.Auth,

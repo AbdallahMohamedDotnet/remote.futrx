@@ -18,6 +18,9 @@ type recoveryProvider struct {
 
 func (p *recoveryProvider) ID() agent.ProviderID                     { return agent.ProviderCodex }
 func (p *recoveryProvider) Parser(agent.RunRequest) agent.LineParser { return nil }
+func (p *recoveryProvider) Capabilities(context.Context, agent.CapabilityRequest) (agent.Capabilities, error) {
+	return agent.Capabilities{Provider: agent.ProviderCodex}, nil
+}
 func (p *recoveryProvider) Run(_ context.Context, req agent.RunRequest, emit func(agent.Event)) error {
 	p.requests = append(p.requests, req)
 	if len(p.requests) == 1 {

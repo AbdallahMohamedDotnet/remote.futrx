@@ -35,6 +35,10 @@ func (p *contextAwareScheduleProvider) Parser(agent.RunRequest) agent.LineParser
 	return nil
 }
 
+func (p *contextAwareScheduleProvider) Capabilities(context.Context, agent.CapabilityRequest) (agent.Capabilities, error) {
+	return agent.Capabilities{Provider: agent.ProviderCodex}, nil
+}
+
 func (p *contextAwareScheduleProvider) Run(
 	ctx context.Context,
 	_ agent.RunRequest,

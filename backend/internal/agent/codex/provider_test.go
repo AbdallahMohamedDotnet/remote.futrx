@@ -69,7 +69,7 @@ func TestArgsIncludeReasoningEffort(t *testing.T) {
 func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
-		Preferences: agent.RunPreferences{ReasoningEffort: "extreme"},
+		Preferences: agent.RunPreferences{ReasoningEffort: "extreme;invalid"},
 	})
 
 	if slices.Contains(args, "-c") {
@@ -122,7 +122,7 @@ func TestArgsIncludeReasoningEffortAndServiceTier(t *testing.T) {
 func TestArgsIgnoreInvalidServiceTier(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
-		Preferences: agent.RunPreferences{ServiceTier: "turbo"},
+		Preferences: agent.RunPreferences{ServiceTier: "turbo;invalid"},
 	})
 
 	if slices.Contains(args, "-c") {

@@ -50,8 +50,8 @@ export function useChatPreferences({
   }
 
   function changeModel(model: string) {
-    metaActions.applyMeta({ model });
-    void setChatSettings({ model });
+    metaActions.applyMeta({ model, reasoningEffort: "", serviceTier: "" });
+    void setChatSettings({ model, reasoningEffort: "", serviceTier: "" });
   }
 
   function changeMode(mode: ChatMode) {

@@ -1,8 +1,3 @@
-import {
-  MODE_OPTIONS,
-  reasoningEffortOptionsForProvider,
-  serviceTierOptionsForProvider,
-} from "../../../config/chat";
 import { Activity, Cpu, MessageSquare } from "../../primitives/icons";
 import { ComposerOptionDropdown } from "./ComposerOptionDropdown";
 import type { ComposerPreferenceActions, ComposerPreferences } from "./preferences";
@@ -11,14 +6,17 @@ export function ComposerOptionsRow({
   preferences,
   preferenceActions,
   streaming,
+  reasoningEffortOptions,
+  serviceTierOptions,
+  modeOptions,
 }: {
   preferences: ComposerPreferences;
   preferenceActions: ComposerPreferenceActions;
   streaming: boolean;
+  reasoningEffortOptions: readonly { value: string; label: string }[];
+  serviceTierOptions: readonly { value: string; label: string }[];
+  modeOptions: readonly { value: string; label: string }[];
 }) {
-  const reasoningEffortOptions = reasoningEffortOptionsForProvider(preferences.provider);
-  const serviceTierOptions = serviceTierOptionsForProvider(preferences.provider);
-
   return (
     <div class="codex-composer-secondary-controls px-3 pt-1.5 pb-2">
       <div class="flex w-full min-w-0 flex-wrap items-center gap-2">
@@ -44,13 +42,15 @@ export function ComposerOptionsRow({
           />
         )}
 
-        <ComposerOptionDropdown
-          label="Mode"
-          value={preferences.mode}
-          options={MODE_OPTIONS}
-          Icon={MessageSquare}
-          onChange={preferenceActions.changeMode}
-        />
+        {modeOptions.length > 0 && (
+          <ComposerOptionDropdown
+            label="Mode"
+            value={preferences.mode}
+            options={modeOptions}
+            Icon={MessageSquare}
+            onChange={preferenceActions.changeMode}
+          />
+        )}
       </div>
     </div>
   );

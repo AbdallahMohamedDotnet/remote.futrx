@@ -12,6 +12,7 @@ var ErrInvalidProvider = errors.New("invalid agent provider")
 // looked up by application services at run time.
 type Registry struct {
 	providers map[ProviderID]Provider
+	order     []ProviderID
 }
 
 func NewRegistry() *Registry {
@@ -33,6 +34,7 @@ func (r *Registry) Register(provider Provider) error {
 		return fmt.Errorf("%w: provider %q is already registered", ErrInvalidProvider, id)
 	}
 	r.providers[id] = provider
+	r.order = append(r.order, id)
 	return nil
 }
 
@@ -41,4 +43,18 @@ func (r *Registry) Lookup(id ProviderID) Provider {
 		return nil
 	}
 	return r.providers[id]
+}
+
+// Providers returns registered providers in composition order.
+func (r *Registry) Providers() []Provider {
+	if r == nil {
+		return nil
+	}
+	providers := make([]Provider, 0, len(r.order))
+	for _, id := range r.order {
+		if provider := r.providers[id]; provider != nil {
+			providers = append(providers, provider)
+		}
+	}
+	return providers
 }

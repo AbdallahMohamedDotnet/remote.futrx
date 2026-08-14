@@ -1,7 +1,10 @@
 import type { RefObject } from "preact";
+import { useEffect } from "preact/hooks";
 import type { QueuedPrompt, SelectedSkill } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import type { Attachment } from "../../../models/upload";
+import { agentCapabilityState } from "../../../state/chat/agentCapabilityState";
+import { useAgentCapabilities } from "../../../state/hooks/chat/useAgentCapabilities";
 import { AttachmentTray } from "./AttachmentTray";
 import { AttachButton } from "./AttachButton";
 import { ComposerDropOverlay } from "./ComposerDropOverlay";
@@ -62,6 +65,56 @@ export function ChatComposer({
   onSelectSkill,
   onRemoveSelectedSkill,
 }: ChatComposerProps) {
+  const capabilities = useAgentCapabilities(projectId);
+  const capabilityState = agentCapabilityState.resolve(
+    capabilities.catalog,
+    preferences.provider,
+    preferences.model,
+    capabilities.loading,
+  );
+  const {
+    providerCapabilities,
+    providerOptions,
+    modelOptions,
+    reasoningEffortOptions,
+    serviceTierOptions,
+    modeOptions,
+  } = capabilityState;
+
+  useEffect(() => {
+    if (!providerCapabilities || providerCapabilities.source !== "live") return;
+    if (
+      preferences.reasoningEffort &&
+      !reasoningEffortOptions.some(
+        (option) => option.value === preferences.reasoningEffort,
+      )
+    ) {
+      preferenceActions.changeReasoningEffort("");
+    }
+    if (
+      preferences.serviceTier &&
+      !serviceTierOptions.some(
+        (option) => option.value === preferences.serviceTier,
+      )
+    ) {
+      preferenceActions.changeServiceTier("");
+    }
+    if (preferences.mode && !modeOptions.some((option) => option.value === preferences.mode)) {
+      preferenceActions.changeMode(
+        providerCapabilities.defaultMode || modeOptions[0]?.value || "code",
+      );
+    }
+  }, [
+    modeOptions,
+    preferences.mode,
+    preferences.model,
+    preferences.reasoningEffort,
+    preferences.serviceTier,
+    providerCapabilities,
+    reasoningEffortOptions,
+    serviceTierOptions,
+  ]);
+
   const disconnected = !canSendPrompt && !streaming;
   const hasContent = text.trim().length > 0 || attachments.some((attachment) => attachment.serverPath);
   const canSend = !uploading && !disconnected && hasContent;
@@ -75,6 +128,8 @@ export function ChatComposer({
         model={preferences.model}
         provider={preferences.provider}
         streaming={streaming}
+        providerOptions={providerOptions}
+        modelOptions={modelOptions}
         selectedSkills={selectedSkills}
         onSelectSkill={onSelectSkill}
         onProviderChange={preferenceActions.changeProvider}
@@ -120,6 +175,9 @@ export function ChatComposer({
         preferences={preferences}
         preferenceActions={preferenceActions}
         streaming={streaming}
+        reasoningEffortOptions={reasoningEffortOptions}
+        serviceTierOptions={serviceTierOptions}
+        modeOptions={modeOptions}
       />
     </div>
   );
