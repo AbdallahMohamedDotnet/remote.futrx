@@ -77,6 +77,20 @@ export function ChatContainer({
   useChatReadMarker({ chatId: chat.id, eventCount, status });
   useChatKeyboardShortcuts({ status, onCancel: cancel });
   const { hasRepos } = useWorkspaceGitRepos({ chatId: chat.id, status });
+  const workspaceActions = {
+    cwd: displayMeta.cwd || "~",
+    onOpenTerminal: terminal.openTerminal,
+    onToggleBrowser: browser.browserOpen ? browser.closeBrowserDrawer : drawers.openBrowser,
+    onToggleHistory: drawers.historyOpen ? drawers.closeHistory : drawers.openHistory,
+    onToggleFiles: drawers.filesOpen ? drawers.closeFiles : drawers.openFiles,
+    onToggleSchedules: drawers.schedulesOpen ? drawers.closeSchedules : drawers.openSchedules,
+    browserOpen: browser.browserOpen,
+    historyOpen: drawers.historyOpen,
+    filesOpen: drawers.filesOpen,
+    schedulesOpen: drawers.schedulesOpen,
+    showHistory: hasRepos,
+    showSchedules: !!displayMeta.projectId,
+  };
 
   const composerView: ChatComposerProps = {
     projectId: displayMeta.projectId,
@@ -137,6 +151,11 @@ export function ChatContainer({
             onAnswerQuestion={composer.handleAnswerQuestion}
             onLoadOlder={loadOlder}
             onRewind={composer.handleRewind}
+            mobileToolbar={
+              <aside class="workspace-action-toolbar relative z-30 flex flex-none justify-end border-b border-white/10 bg-[#101318] px-3 py-2 md:hidden">
+                <WorkspaceActions {...workspaceActions} orientation="horizontal" />
+              </aside>
+            }
           />
         </div>
         <HistoryDrawer
@@ -167,21 +186,8 @@ export function ChatContainer({
           onCaptureElement={browser.insertBrowserElementContext}
           onClose={browser.closeBrowserDrawer}
         />
-        <aside class="workspace-action-rail top-chrome z-20 flex w-12 flex-none flex-col items-center border-l border-white/10 bg-[#101318] px-1.5 pb-2">
-          <WorkspaceActions
-            cwd={displayMeta.cwd || "~"}
-            onOpenTerminal={terminal.openTerminal}
-            onToggleBrowser={browser.browserOpen ? browser.closeBrowserDrawer : drawers.openBrowser}
-            onToggleHistory={drawers.historyOpen ? drawers.closeHistory : drawers.openHistory}
-            onToggleFiles={drawers.filesOpen ? drawers.closeFiles : drawers.openFiles}
-            onToggleSchedules={drawers.schedulesOpen ? drawers.closeSchedules : drawers.openSchedules}
-            browserOpen={browser.browserOpen}
-            historyOpen={drawers.historyOpen}
-            filesOpen={drawers.filesOpen}
-            schedulesOpen={drawers.schedulesOpen}
-            showHistory={hasRepos}
-            showSchedules={!!displayMeta.projectId}
-          />
+        <aside class="workspace-action-rail top-chrome z-20 hidden w-12 flex-none flex-col items-center border-l border-white/10 bg-[#101318] px-1.5 pb-2 md:flex">
+          <WorkspaceActions {...workspaceActions} orientation="vertical" />
         </aside>
       </div>
       {terminal.TerminalOverlay && (
