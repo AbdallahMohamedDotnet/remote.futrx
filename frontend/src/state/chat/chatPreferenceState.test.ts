@@ -15,7 +15,7 @@ test("preserves normalized skill identity and chat defaults", () => {
       {
         provider: "codex",
         model: "gpt-5",
-        mode: "code",
+        mode: "default",
         reasoningEffort: "high",
         serviceTier: "priority",
       }
@@ -27,7 +27,7 @@ test("preserves normalized skill identity and chat defaults", () => {
       lastMessageAt: 1,
       provider: "codex",
       model: "gpt-5",
-      mode: "code",
+      mode: "default",
       reasoningEffort: "high",
       serviceTier: "priority",
     }

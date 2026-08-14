@@ -49,12 +49,8 @@ const (
 type ChatMode string
 
 const (
-	ChatModeChat     ChatMode = "chat"
-	ChatModePlan     ChatMode = "plan"
-	ChatModeCode     ChatMode = "code"
-	ChatModeReview   ChatMode = "review"
-	ChatModeDebug    ChatMode = "debug"
-	ChatModeFullAuto ChatMode = "full-auto"
+	ChatModeDefault ChatMode = "default"
+	ChatModePlan    ChatMode = "plan"
 )
 
 type ReasoningEffort string
@@ -111,7 +107,7 @@ func DefaultSettings() Settings {
 		Chat: Chat{
 			Provider:        ChatProviderCodex,
 			Model:           "",
-			Mode:            ChatModeCode,
+			Mode:            ChatModeDefault,
 			ReasoningEffort: ReasoningEffortAuto,
 			ServiceTier:     ServiceTierAuto,
 		},
@@ -138,7 +134,7 @@ func ValidChatProvider(provider ChatProvider) bool {
 
 func ValidChatMode(mode ChatMode) bool {
 	switch mode {
-	case ChatModeChat, ChatModePlan, ChatModeCode, ChatModeReview, ChatModeDebug, ChatModeFullAuto:
+	case ChatModeDefault, ChatModePlan:
 		return true
 	default:
 		return false

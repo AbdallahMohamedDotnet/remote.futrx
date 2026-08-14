@@ -8,8 +8,8 @@ const catalog: AgentCapabilitiesCatalog = {
     provider: "codex",
     label: "Codex",
     source: "live",
-    defaultMode: "code",
-    modes: [{ value: "code", label: "Code" }, { value: "plan", label: "Plan" }],
+    defaultMode: "default",
+    modes: [{ value: "default", label: "Default" }, { value: "plan", label: "Plan" }],
     models: [
       {
         id: "",
@@ -31,7 +31,7 @@ test("resolves thinking and speed from the selected model", () => {
   const state = agentCapabilityState.resolve(catalog, "codex", "gpt-fast", false);
   assert.deepEqual(state.reasoningEffortOptions.map((option) => option.value), ["", "low"]);
   assert.deepEqual(state.serviceTierOptions.map((option) => option.value), ["", "priority"]);
-  assert.deepEqual(state.modeOptions.map((option) => option.value), ["code", "plan"]);
+  assert.deepEqual(state.modeOptions.map((option) => option.value), ["default", "plan"]);
 });
 
 test("falls back to the auto model for an unknown saved model", () => {
@@ -47,7 +47,7 @@ test("corrects selections unsupported by a live catalog", () => {
       reasoningEffort: "ultra",
       serviceTier: "slow",
     }),
-    { mode: "code", reasoningEffort: "", serviceTier: "" },
+    { mode: "default", reasoningEffort: "", serviceTier: "" },
   );
 });
 

@@ -13,8 +13,8 @@ func TestParseCapabilitiesFromProviderJSON(t *testing.T) {
 	if len(caps.Models) != 3 || caps.Models[1].ID != "fast" || caps.Models[2].ID != "moonshot/kimi-k2" {
 		t.Fatalf("models = %+v", caps.Models)
 	}
-	if !caps.Modes[1].Native {
-		t.Fatalf("plan mode should be native: %+v", caps.Modes)
+	if len(caps.Modes) != 2 || caps.Modes[0].Value != "default" || caps.Modes[1].Value != "plan" {
+		t.Fatalf("modes = %+v", caps.Modes)
 	}
 }
 

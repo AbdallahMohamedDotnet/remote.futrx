@@ -41,8 +41,8 @@ func parseCapabilityHelp(help string) agent.Capabilities {
 		Label:       "Claude",
 		Source:      agent.CapabilitySourceLive,
 		Models:      agent.WithAutoModel(items, "Claude default"),
-		Modes:       agent.CapabilityModes(containsChoice(permissionModes, "plan")),
-		DefaultMode: "code",
+		Modes:       agent.ProviderModes(containsChoice(permissionModes, "plan")),
+		DefaultMode: "default",
 	}
 }
 

@@ -46,7 +46,7 @@ func fallbackCapabilities() agent.Capabilities {
 		Label:       "Antigravity",
 		Source:      agent.CapabilitySourceFallback,
 		Models:      models,
-		Modes:       agent.CapabilityModes(true),
-		DefaultMode: "code",
+		Modes:       agent.ProviderModes(false),
+		DefaultMode: "default",
 	}
 }

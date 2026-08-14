@@ -11,8 +11,8 @@ func TestDefaultSettingsUseCodexChatDefaults(t *testing.T) {
 	if settings.Chat.Provider != ChatProviderCodex {
 		t.Fatalf("expected codex default provider, got %q", settings.Chat.Provider)
 	}
-	if settings.Chat.Mode != ChatModeCode {
-		t.Fatalf("expected code default mode, got %q", settings.Chat.Mode)
+	if settings.Chat.Mode != ChatModeDefault {
+		t.Fatalf("expected provider default mode, got %q", settings.Chat.Mode)
 	}
 	if settings.Chat.Model != "" || settings.Chat.ReasoningEffort != "" {
 		t.Fatalf("expected auto model and reasoning effort, got %+v", settings.Chat)

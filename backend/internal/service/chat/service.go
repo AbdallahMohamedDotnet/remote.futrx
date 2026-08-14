@@ -53,7 +53,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 
 	mode := in.Mode
 	if mode == "" {
-		mode = "code"
+		mode = "default"
 	}
 	provider := NormalizeProvider(in.Provider)
 
@@ -95,8 +95,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 
 // Fork creates an independent copy of a chat from its latest state: same
 // metadata and full visible history, plus a pending fork of the underlying
-// agent session. The fork materializes on the next prompt — Claude via
-// --fork-session, Codex via a copied rollout — so the parent is never mutated.
+// agent session. The fork materializes on the next prompt through each
+// provider's native fork mechanism, so the parent is never mutated.
 func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID

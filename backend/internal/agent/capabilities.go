@@ -43,15 +43,20 @@ func AutoOption() CapabilityOption {
 	return CapabilityOption{Value: "", Label: "Auto"}
 }
 
-func CapabilityModes(nativePlan bool) []CapabilityOption {
-	return []CapabilityOption{
-		{Value: "code", Label: "Code", Description: "Use the provider's default coding mode", Native: true},
-		{Value: "plan", Label: "Plan", Description: "Inspect and plan before making changes", Native: nativePlan},
-		{Value: "chat", Label: "Chat", Description: "Answer without changing files unless asked"},
-		{Value: "review", Label: "Review", Description: "Prioritize bugs, regressions, tests, and risks"},
-		{Value: "debug", Label: "Debug", Description: "Reproduce and localize the issue before fixing it"},
-		{Value: "full-auto", Label: "Full auto", Description: "Carry implementation through verification"},
+func ProviderModes(supportsPlan bool) []CapabilityOption {
+	modes := []CapabilityOption{{
+		Value:       "default",
+		Label:       "Default",
+		Description: "Use the provider's normal agent behavior",
+	}}
+	if supportsPlan {
+		modes = append(modes, CapabilityOption{
+			Value:       "plan",
+			Label:       "Plan",
+			Description: "Use the provider's native planning mode",
+		})
 	}
+	return modes
 }
 
 // WithAutoModel prepends the provider-default selection. Its controls mirror

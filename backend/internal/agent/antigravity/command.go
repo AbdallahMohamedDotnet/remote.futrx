@@ -21,19 +21,17 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	// agy takes the prompt via --print (positional value). Print mode is
 	// interactive-free but still enforces tool permission prompts, so
 	// --dangerously-skip-permissions is required for headless runs.
-	args := []string{
-		"--print", req.Prompt,
-		"--print-timeout", printTimeout,
-		"--dangerously-skip-permissions",
+	args := []string{"--print", req.Prompt, "--print-timeout", printTimeout}
+	if req.Mode == "plan" {
+		args = append(args, "--mode", "plan")
+	} else {
+		args = append(args, "--dangerously-skip-permissions")
 	}
 	if model := strings.TrimSpace(req.Model); model != "" {
 		args = append(args, "--model", model)
 	}
 	if effort := effortFlag(req.Preferences.ReasoningEffort); effort != "" {
 		args = append(args, "--effort", effort)
-	}
-	if req.Mode == "plan" {
-		args = append(args, "--mode", "plan")
 	}
 	if req.ResumeID != "" {
 		args = append(args, "--conversation", req.ResumeID)

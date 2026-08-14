@@ -47,6 +47,9 @@ func TestArgsComposition(t *testing.T) {
 			t.Fatalf("args missing %q: %v", want, full)
 		}
 	}
+	if strings.Contains(joined, "--dangerously-skip-permissions") {
+		t.Fatalf("Plan mode must not bypass Antigravity permissions: %v", full)
+	}
 }
 
 func TestEffortFlagClamping(t *testing.T) {

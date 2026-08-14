@@ -89,7 +89,7 @@ func (s *Store) Create(ctx context.Context, meta servicechat.Meta) (servicechat.
 	meta.ServiceTier = servicechat.NormalizeServiceTier(meta.ServiceTier)
 	meta.SelectedSkills = servicechat.NormalizeSelectedSkills(meta.SelectedSkills, meta.Provider)
 	if meta.Mode == "" {
-		meta.Mode = "code"
+		meta.Mode = "default"
 	}
 	dir := s.chatDir(meta.ID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {

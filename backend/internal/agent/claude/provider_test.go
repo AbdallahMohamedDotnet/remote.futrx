@@ -31,6 +31,19 @@ func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
 	}
 }
 
+func TestArgsUseNativePlanModeWithoutPermissionBypass(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{Mode: "plan"})
+
+	modeIndex := slices.Index(args, "--permission-mode")
+	if modeIndex < 0 || modeIndex+1 >= len(args) || args[modeIndex+1] != "plan" {
+		t.Fatalf("native Plan mode missing: %#v", args)
+	}
+	if slices.Contains(args, "--dangerously-skip-permissions") {
+		t.Fatalf("Plan mode must not bypass Claude permissions: %#v", args)
+	}
+}
+
 func TestArgsIncludeBrowserMCPConfigOnlyWhenEnabled(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	withoutBrowser := provider.args(agent.RunRequest{})

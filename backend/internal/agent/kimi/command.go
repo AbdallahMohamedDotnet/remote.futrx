@@ -18,8 +18,11 @@ const containerKimiHome = "/root/.kimi-code"
 
 func (p *Provider) args(req agent.RunRequest) []string {
 	// kimi-code takes the prompt as a positional argument (NOT stdin). Print
-	// mode (`-p`) forces auto-approval, so we must not pass -y/--auto/--plan.
+	// mode (`-p`) supplies the provider's normal non-interactive behavior.
 	args := []string{"-p", req.Prompt, "--output-format", "stream-json"}
+	if req.Mode == "plan" {
+		args = append(args, "--plan")
+	}
 	if model := sanitizeModel(req.Model); model != "" {
 		args = append(args, "--model", model)
 	}

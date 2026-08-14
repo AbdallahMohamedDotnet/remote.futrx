@@ -63,22 +63,17 @@ hidden when there are none. **Auto** omits an explicit tier.
 Tier availability, behavior, cost, and quotas belong to the connected provider
 account. Remote does not guarantee that every model accepts every tier.
 
-## Modes are advisory
+## Provider modes
 
-| **Mode** | Prompt guidance added by Remote |
-| --- | --- |
-| **Chat** | Answer directly and avoid file changes unless requested |
-| **Plan** | Inspect and propose a concrete plan before editing |
-| **Code** | Use the provider's normal implementation behavior |
-| **Review** | Lead with bugs, regressions, missing tests, and risks |
-| **Debug** | Reproduce or localize first, then make the smallest root-cause fix |
-| **Full auto** | Continue through implementation and verification unless blocked |
+**Default** uses the provider's normal agent behavior. **Plan** invokes the
+provider's own planning mode and is shown only when the selected CLI advertises
+it. If a provider exposes only Default, the mode control is hidden.
 
-Modes are prompt policy, not a security or permission boundary. They do not
-technically prevent an agent from running commands or editing files. Project
-agents run as root inside their unprivileged container, and the provider CLIs
-are launched in approval-free modes. Review proposed actions and use project
-isolation, Git, resource limits, and backups as the real control layers.
+Remote does not prepend custom Chat, Code, Review, Debug, or Full auto prompts.
+Default project runs remain approval-free inside the isolated project
+container. Plan-mode enforcement belongs to the provider and can differ: for
+example, Claude applies its read-only Plan permission mode while Codex applies
+its native Plan collaboration instructions.
 
 Changing **Mode** while a run is already active affects a later prompt, not the
 provider process that is currently producing output.

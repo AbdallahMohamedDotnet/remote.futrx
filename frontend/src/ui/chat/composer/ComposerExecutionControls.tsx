@@ -41,7 +41,7 @@ export function ComposerExecutionControls({
         />
       )}
 
-      {modeOptions.length > 0 && (
+      {modeOptions.length > 1 && (
         <ComposerOptionDropdown
           label="Mode"
           value={preferences.mode}

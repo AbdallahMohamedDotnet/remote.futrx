@@ -18,7 +18,11 @@ func (p *Provider) args(req agent.RunRequest) []string {
 		"--output-format", "stream-json",
 		"--include-partial-messages",
 		"--verbose",
-		"--dangerously-skip-permissions",
+	}
+	if req.Mode == "plan" {
+		args = append(args, "--permission-mode", "plan")
+	} else {
+		args = append(args, "--dangerously-skip-permissions")
 	}
 	if model := sanitizeModel(req.Model); model != "" {
 		args = append(args, "--model", model)

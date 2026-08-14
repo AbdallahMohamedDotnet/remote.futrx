@@ -15,8 +15,8 @@ func TestParseCapabilitiesFromHelp(t *testing.T) {
 	if caps.Models[1].ID != "fable" || caps.Models[1].ReasoningEfforts[5].Value != "max" {
 		t.Fatalf("models = %+v", caps.Models)
 	}
-	if !caps.Modes[1].Native {
-		t.Fatalf("plan mode should be native: %+v", caps.Modes)
+	if len(caps.Modes) != 2 || caps.Modes[0].Value != "default" || caps.Modes[1].Value != "plan" {
+		t.Fatalf("modes = %+v", caps.Modes)
 	}
 }
 

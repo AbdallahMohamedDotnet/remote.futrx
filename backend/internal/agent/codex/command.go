@@ -15,30 +15,10 @@ import (
 )
 
 func (p *Provider) args(req agent.RunRequest) []string {
-	common := []string{
-		"--json",
-		"--skip-git-repo-check",
-		"--dangerously-bypass-approvals-and-sandbox",
-	}
-	if model := sanitizeModel(req.Model); model != "" {
-		common = append(common, "--model", model)
-	}
-	if effort := reasoningEffortArg(req.Preferences.ReasoningEffort); effort != "" {
-		common = append(common, "-c", "model_reasoning_effort="+effort)
-	}
-	if tier := serviceTierArg(req.Preferences.ServiceTier); tier != "" {
-		common = append(common, "-c", "service_tier="+tier)
-	}
+	args := []string{"app-server"}
 	if req.EnableBrowser {
-		common = append(common, browserMCPConfigArgs()...)
+		args = append(args, browserMCPConfigArgs()...)
 	}
-	if req.ResumeID != "" {
-		args := append([]string{"exec", "resume"}, common...)
-		args = append(args, req.ResumeID, "-")
-		return args
-	}
-	args := append([]string{"exec"}, common...)
-	args = append(args, "-")
 	return args
 }
 
@@ -87,7 +67,6 @@ func (p *Provider) buildCmd(
 		cmd := exec.CommandContext(ctx, "codex", args...)
 		cmd.Dir = cwd
 		cmd.Env = agent.WithRuntimeEnvironment(codexEnv(os.Environ()), req.RuntimeEnv)
-		cmd.Stdin = strings.NewReader(req.Prompt)
 		return cmd, "", nil
 	}
 
@@ -180,7 +159,6 @@ func (p *Provider) buildCmd(
 	lxcArgs = append(lxcArgs, project.ContainerName, "--", "codex")
 	lxcArgs = append(lxcArgs, args...)
 	cmd := exec.CommandContext(ctx, "lxc", lxcArgs...)
-	cmd.Stdin = strings.NewReader(req.Prompt)
 	return cmd, project.ContainerName, nil
 }
 

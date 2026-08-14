@@ -4,7 +4,6 @@ export interface AgentCapabilityOption {
   value: string;
   label: string;
   description?: string;
-  native?: boolean;
 }
 
 export interface AgentModelCapability {

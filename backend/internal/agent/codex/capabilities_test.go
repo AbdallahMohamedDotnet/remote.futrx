@@ -25,7 +25,7 @@ func TestBuildCapabilitiesPreservesPerModelControls(t *testing.T) {
 	if got := caps.Models[1].ServiceTiers; len(got) != 2 || got[1].Value != "priority" || got[1].Label != "Fast" {
 		t.Fatalf("service tiers = %+v", got)
 	}
-	if !caps.Modes[1].Native {
-		t.Fatalf("plan mode should be native: %+v", caps.Modes)
+	if len(caps.Modes) != 2 || caps.Modes[0].Value != "default" || caps.Modes[1].Value != "plan" {
+		t.Fatalf("modes = %+v", caps.Modes)
 	}
 }

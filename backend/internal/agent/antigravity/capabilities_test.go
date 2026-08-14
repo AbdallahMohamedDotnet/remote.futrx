@@ -18,7 +18,7 @@ func TestParseCapabilitiesFromCLIOutput(t *testing.T) {
 	if got := caps.Models[1].ReasoningEfforts; len(got) != 4 || got[3].Value != "high" {
 		t.Fatalf("reasoning efforts = %+v", got)
 	}
-	if !caps.Modes[1].Native {
-		t.Fatalf("plan mode should be native: %+v", caps.Modes)
+	if len(caps.Modes) != 2 || caps.Modes[0].Value != "default" || caps.Modes[1].Value != "plan" {
+		t.Fatalf("modes = %+v", caps.Modes)
 	}
 }

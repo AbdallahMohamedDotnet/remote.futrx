@@ -14,18 +14,11 @@ import (
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
-func TestArgsUseCodexExecJSONMode(t *testing.T) {
+func TestArgsUseCodexAppServer(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{Model: "gpt-5.5 [fast]"})
 
-	want := []string{
-		"exec",
-		"--json",
-		"--skip-git-repo-check",
-		"--dangerously-bypass-approvals-and-sandbox",
-		"--model", "gpt-5.5",
-		"-",
-	}
+	want := []string{"app-server"}
 	if !slices.Equal(args, want) {
 		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
 	}
@@ -48,85 +41,52 @@ func TestCodexEnvStripsOpenAIAPIKey(t *testing.T) {
 }
 
 func TestArgsIncludeReasoningEffort(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
-	args := provider.args(agent.RunRequest{
+	params := appServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{ReasoningEffort: "high"},
-	})
-
-	want := []string{
-		"exec",
-		"--json",
-		"--skip-git-repo-check",
-		"--dangerously-bypass-approvals-and-sandbox",
-		"-c", "model_reasoning_effort=high",
-		"-",
-	}
-	if !slices.Equal(args, want) {
-		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}, "thread-1", "gpt-5.5")
+	if params["effort"] != "high" {
+		t.Fatalf("effort = %#v, want high", params["effort"])
 	}
 }
 
 func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
-	args := provider.args(agent.RunRequest{
+	params := appServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{ReasoningEffort: "extreme;invalid"},
-	})
+	}, "thread-1", "gpt-5.5")
 
-	if slices.Contains(args, "-c") {
-		t.Fatalf("invalid reasoning effort should not add config args: %#v", args)
+	if _, ok := params["effort"]; ok {
+		t.Fatalf("invalid reasoning effort should not be sent: %#v", params)
 	}
 }
 
 func TestArgsIncludeServiceTier(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
-	args := provider.args(agent.RunRequest{
+	params := appServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{ServiceTier: "priority"},
-	})
-
-	want := []string{
-		"exec",
-		"--json",
-		"--skip-git-repo-check",
-		"--dangerously-bypass-approvals-and-sandbox",
-		"-c", "service_tier=priority",
-		"-",
-	}
-	if !slices.Equal(args, want) {
-		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}, "thread-1", "gpt-5.5")
+	if params["serviceTier"] != "priority" {
+		t.Fatalf("serviceTier = %#v, want priority", params["serviceTier"])
 	}
 }
 
 func TestArgsIncludeReasoningEffortAndServiceTier(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
-	args := provider.args(agent.RunRequest{
+	params := appServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{
 			ReasoningEffort: "xhigh",
 			ServiceTier:     "default",
 		},
-	})
-
-	want := []string{
-		"exec",
-		"--json",
-		"--skip-git-repo-check",
-		"--dangerously-bypass-approvals-and-sandbox",
-		"-c", "model_reasoning_effort=xhigh",
-		"-c", "service_tier=default",
-		"-",
-	}
-	if !slices.Equal(args, want) {
-		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+	}, "thread-1", "gpt-5.5")
+	if params["effort"] != "xhigh" || params["serviceTier"] != "default" {
+		t.Fatalf("turn params = %#v", params)
 	}
 }
 
 func TestArgsIgnoreInvalidServiceTier(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
-	args := provider.args(agent.RunRequest{
+	params := appServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{ServiceTier: "turbo;invalid"},
-	})
+	}, "thread-1", "gpt-5.5")
 
-	if slices.Contains(args, "-c") {
-		t.Fatalf("invalid service tier should not add config args: %#v", args)
+	if _, ok := params["serviceTier"]; ok {
+		t.Fatalf("invalid service tier should not be sent: %#v", params)
 	}
 }
 
@@ -135,13 +95,9 @@ func TestArgsIncludeBrowserMCPConfig(t *testing.T) {
 	args := provider.args(agent.RunRequest{EnableBrowser: true})
 
 	want := []string{
-		"exec",
-		"--json",
-		"--skip-git-repo-check",
-		"--dangerously-bypass-approvals-and-sandbox",
+		"app-server",
 		"-c", `mcp_servers.browser.command="npx"`,
 		"-c", `mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222","--caps=vision"]`,
-		"-",
 	}
 	if !slices.Equal(args, want) {
 		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
@@ -200,20 +156,48 @@ func TestProfileReturnsIndependentProvisioningPolicy(t *testing.T) {
 }
 
 func TestArgsResumeThread(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
-	args := provider.args(agent.RunRequest{ResumeID: "thread-123"})
-
-	want := []string{
-		"exec",
-		"resume",
-		"--json",
-		"--skip-git-repo-check",
-		"--dangerously-bypass-approvals-and-sandbox",
-		"thread-123",
-		"-",
+	method, params := appServerThreadRequest(agent.RunRequest{ResumeID: "thread-123"})
+	if method != "thread/resume" || params["threadId"] != "thread-123" {
+		t.Fatalf("thread request = %s %#v", method, params)
 	}
-	if !slices.Equal(args, want) {
-		t.Fatalf("args mismatch\n got: %#v\nwant: %#v", args, want)
+}
+
+func TestNativePlanTurnUsesCollaborationMode(t *testing.T) {
+	params := appServerTurnParams(
+		agent.RunRequest{Mode: "plan"},
+		"thread-123",
+		"gpt-5.5",
+	)
+	mode, ok := params["collaborationMode"].(map[string]any)
+	if !ok || mode["mode"] != "plan" {
+		t.Fatalf("collaboration mode = %#v", params["collaborationMode"])
+	}
+	settings, ok := mode["settings"].(map[string]any)
+	if !ok || settings["developer_instructions"] != nil || settings["reasoning_effort"] != "medium" {
+		t.Fatalf("plan settings = %#v", mode["settings"])
+	}
+}
+
+func TestNativeDefaultTurnUsesProviderInstructions(t *testing.T) {
+	params := appServerTurnParams(
+		agent.RunRequest{Mode: "default"},
+		"thread-123",
+		"gpt-5.5",
+	)
+	mode := params["collaborationMode"].(map[string]any)
+	if mode["mode"] != "default" {
+		t.Fatalf("collaboration mode = %#v", mode)
+	}
+	settings := mode["settings"].(map[string]any)
+	if settings["developer_instructions"] != nil || settings["reasoning_effort"] != nil {
+		t.Fatalf("default settings = %#v", settings)
+	}
+}
+
+func TestForkUsesNativeThreadFork(t *testing.T) {
+	method, params := appServerThreadRequest(agent.RunRequest{ResumeID: "thread-123", Fork: true})
+	if method != "thread/fork" || params["threadId"] != "thread-123" {
+		t.Fatalf("thread request = %s %#v", method, params)
 	}
 }
 

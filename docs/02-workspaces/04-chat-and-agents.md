@@ -82,14 +82,17 @@ usage, and error events that provider can supply.
 
 ## Modes
 
-| Mode | Prompt policy |
+Remote does not define workflow prompts. The mode selector contains the
+provider-native modes discovered from the selected CLI:
+
+| Mode | Behavior |
 | --- | --- |
-| Chat | Answer directly; avoid file changes unless requested |
-| Plan | Inspect and propose a concrete plan before editing |
-| Code | Normal implementation behavior; no extra mode prefix |
-| Review | Lead with bugs, regressions, missing tests, and risks |
-| Debug | Reproduce or localize first, then make the smallest root-cause fix |
-| Full Auto | Continue through implementation and verification unless blocked |
+| Default | Use the provider's normal agent behavior |
+| Plan | Use the provider's native planning mode; shown only when advertised |
+
+The selector is hidden when Default is the provider's only available mode.
+Codex modes are sent through app-server collaboration modes. Claude, Kimi, and
+Antigravity receive their native Plan CLI flag.
 
 Model and reasoning controls are stored per chat. The user's last selection also becomes the default for new chats. Service tier is exposed for Codex-style speed/cost selection.
 
@@ -111,9 +114,8 @@ Each provider owns its parser because the CLIs expose different surfaces:
 
 The normalized model record owns its reasoning-effort and service-tier lists,
 so the frontend can update dependent selectors when a model changes without a
-compiled model catalog. Remote's Chat, Plan, Code, Review, Debug, and Full Auto
-workflow modes remain backend-defined prompt policies; native metadata marks
-where a provider CLI directly supports a corresponding mode.
+compiled model catalog. Mode discovery is reduced to Default plus a native
+Plan mode when the provider advertises one; Remote does not add mode prompts.
 
 ## Event model
 

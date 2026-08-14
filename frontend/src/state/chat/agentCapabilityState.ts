@@ -89,7 +89,7 @@ export const agentCapabilityState = {
       selection.mode &&
       !state.modeOptions.some((option) => option.value === selection.mode)
     ) {
-      correction.mode = capabilities.defaultMode || state.modeOptions[0]?.value || "code";
+      correction.mode = capabilities.defaultMode || state.modeOptions[0]?.value || "default";
     }
     return correction;
   },

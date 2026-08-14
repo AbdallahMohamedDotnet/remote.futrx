@@ -231,7 +231,7 @@ func (rnr *Service) runPromptAs(
 		)
 	}
 	resumeID := sessionIDForProvider(meta, providerID)
-	effectivePrompt := promptForMode(meta.Mode, prompt)
+	effectivePrompt := prompt
 	enableBrowser := hasBrowserSkill(meta.SelectedSkills)
 	if enableBrowser && meta.ProjectID != "" {
 		stopBrowserKeepalive := rnr.keepAgentBrowserActivity(ctx, serviceproject.ID(meta.ProjectID))
@@ -312,7 +312,7 @@ func (rnr *Service) runPromptAs(
 			m.ForkPending = false
 		})
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "system", Subtype: "session_recovered"})
-		freshPrompt := promptForMode(meta.Mode, prompt)
+		freshPrompt := prompt
 		freshPrompt = promptWithVisibleHistory(priorEvents, freshPrompt)
 		freshPrompt = promptWithSelectedSkills(providerID, promptSkills, freshPrompt)
 		err = run(freshPrompt, "")
@@ -381,23 +381,6 @@ func sessionIDForProvider(meta ChatMeta, provider agent.ProviderID) string {
 		return meta.AntigravitySessionID
 	default:
 		return meta.ClaudeSessionID
-	}
-}
-
-func promptForMode(mode, prompt string) string {
-	switch mode {
-	case "plan":
-		return "Work in planning mode. Inspect enough context to be concrete, then propose the implementation plan before changing files. Avoid file edits until the user asks you to proceed.\n\n" + prompt
-	case "review":
-		return "Work in review mode. Prioritize bugs, behavioral regressions, missing tests, and risks. Put findings first with file and line references when available.\n\n" + prompt
-	case "debug":
-		return "Work in debugging mode. Reproduce or localize the issue first, explain the failing path, then make the smallest fix that addresses the root cause.\n\n" + prompt
-	case "full-auto":
-		return "Work in full-auto mode. Carry the task through implementation, verification, and a concise outcome unless you hit a hard blocker.\n\n" + prompt
-	case "chat":
-		return "Work in chat mode. Answer directly and avoid changing files unless the user clearly asks for implementation.\n\n" + prompt
-	default:
-		return prompt
 	}
 }
 

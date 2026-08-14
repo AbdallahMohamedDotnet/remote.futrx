@@ -66,7 +66,12 @@ These are the constraints worth understanding before you deploy or rely on remot
   chat's queue sends only after that chat is opened again. Use scheduled tasks
   for host-owned future work.
 - **Session recovery drops context.** When a provider session is missing (or you switch provider mid-chat), the chat is "recovered" by replaying at most the last ~24 KB of visible transcript as plain text into a fresh session — earlier context and all tool-call state are dropped.
-- **Modes are advisory.** Chat/Plan/Code/Review/Debug/Full-Auto are prompt-preamble policies with no backend enforcement, sandboxing difference, or approval gate. An agent in "chat" mode can still modify files; there is no human-confirmation gate for irreversible or external actions.
+- **Provider Plan modes differ.** Remote forwards provider-native Default and
+  Plan modes instead of adding workflow prompts. Claude Plan is read-only;
+  Codex Plan is a provider collaboration-instruction preset rather than an
+  OS-level read-only sandbox. Default project runs bypass provider approvals,
+  and Remote has no human-confirmation gate for irreversible or external
+  actions.
 - **Provider-specific gaps.** Kimi has no fork primitive (forked Kimi chats
   silently start fresh) and reports no usage data. Antigravity forks also
   start fresh; print mode exposes plain streamed text rather than structured

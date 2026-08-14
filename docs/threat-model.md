@@ -142,9 +142,14 @@ The agent runs as root with approvals disabled and ingests untrusted content —
 - **Existing mitigations:** the MCP is wired only when the skill is selected; CDP and RFB are loopback-only inside the container; the skill prose asks for confirmation before writes.
 - **Residual gap:** no technical enforcement of write-approval, no URL allowlist, unrestricted reads of authenticated content. Classic confused deputy over a live session.
 
-### Related: agent modes and skill instructions are advisory only
+### Related: default runs and skill instructions are approval-free
 
-Chat/Plan/Debug modes are prepended prompt sentences with no backend enforcement ([`prompt/service.go`](../backend/internal/service/prompt/service.go)); an agent in "chat" mode can still modify files. There is no human-confirmation gate for irreversible or external actions. See [Known limitations](known-limitations.md).
+Remote now forwards only provider-native Default and Plan modes; it does not
+prepend custom workflow prompts. Default runs still bypass provider approvals
+inside the project container, and Codex Plan is implemented by provider-owned
+collaboration instructions rather than an OS-level read-only sandbox. There is
+no Remote human-confirmation gate for irreversible or external actions. See
+[Known limitations](known-limitations.md).
 
 ---
 

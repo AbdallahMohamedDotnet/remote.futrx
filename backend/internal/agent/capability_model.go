@@ -8,13 +8,11 @@ const (
 )
 
 // CapabilityOption is the provider-neutral shape used by model, reasoning,
-// speed, and mode selectors. Native distinguishes a provider-owned mode from a
-// Remote workflow preset implemented through prompt instructions.
+// speed, and provider-native mode selectors.
 type CapabilityOption struct {
 	Value       string `json:"value"`
 	Label       string `json:"label"`
 	Description string `json:"description,omitempty"`
-	Native      bool   `json:"native,omitempty"`
 }
 
 // ModelCapability keeps controls next to the model that supports them. Some

@@ -33,7 +33,7 @@ This is the compact inventory of current Remote behavior. “Page” means the l
 | Model | Open **Model** and select a provider model or Auto | Stored per chat |
 | Thinking | Select Auto, None/Minimal where supported, or Low through Ultra | Provider-dependent |
 | Speed | Select Codex Auto, Default, Priority, or Fast | Codex only; model/provider may gate it |
-| Mode | Choose Chat, Plan, Code, Review, Debug, or Full auto | Advisory prompt policy, not enforcement |
+| Mode | Choose Default or provider-native Plan | Hidden when Plan is unavailable |
 | Skill picker | Open **Skill set**, search, and select | Catalog depends on provider/project |
 | Skill chips | Review or remove selected skills | Cleared when provider changes |
 | Attach picker | Choose **+** and select one or more files | Project chats; resumable uploads |
@@ -82,7 +82,7 @@ There is no approval workflow in the current chat transport. Project agents run 
 | Thinking control | Yes | Yes | No current options | Auto, Low, Medium, High |
 | Speed/service tier | No | Yes | No | No |
 | Usage telemetry | Yes | Yes | No | No |
-| Provider session fork | Yes | Yes, rollout clone | No; starts fresh | No; starts fresh |
+| Provider session fork | Yes | Yes, native app-server fork | No; starts fresh | No; starts fresh |
 | Selected skill trigger | Yes | Yes | Stored but not injected | Scheduled Tasks only |
 | Browser MCP | Yes | Yes | No equivalent plumbing | No equivalent plumbing |
 | Structured tool stream | Yes | Yes | Yes | No; plain streamed text |
