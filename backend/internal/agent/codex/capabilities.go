@@ -25,31 +25,39 @@ type rpcResponse struct {
 }
 
 type modelListResponse struct {
-	Data []struct {
-		ID                        string `json:"id"`
-		Model                     string `json:"model"`
-		DisplayName               string `json:"displayName"`
-		Description               string `json:"description"`
-		DefaultReasoningEffort    string `json:"defaultReasoningEffort"`
-		DefaultServiceTier        string `json:"defaultServiceTier"`
-		IsDefault                 bool   `json:"isDefault"`
-		SupportedReasoningEfforts []struct {
-			ReasoningEffort string `json:"reasoningEffort"`
-			Description     string `json:"description"`
-		} `json:"supportedReasoningEfforts"`
-		ServiceTiers []struct {
-			ID          string `json:"id"`
-			Name        string `json:"name"`
-			Description string `json:"description"`
-		} `json:"serviceTiers"`
-	} `json:"data"`
+	Data []modelListItem `json:"data"`
+}
+
+type modelListItem struct {
+	ID                        string                `json:"id"`
+	Model                     string                `json:"model"`
+	DisplayName               string                `json:"displayName"`
+	Description               string                `json:"description"`
+	DefaultReasoningEffort    string                `json:"defaultReasoningEffort"`
+	DefaultServiceTier        string                `json:"defaultServiceTier"`
+	IsDefault                 bool                  `json:"isDefault"`
+	SupportedReasoningEfforts []reasoningEffortItem `json:"supportedReasoningEfforts"`
+	ServiceTiers              []serviceTierItem     `json:"serviceTiers"`
+}
+
+type reasoningEffortItem struct {
+	ReasoningEffort string `json:"reasoningEffort"`
+	Description     string `json:"description"`
+}
+
+type serviceTierItem struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type collaborationModeListResponse struct {
-	Data []struct {
-		Name string `json:"name"`
-		Mode string `json:"mode"`
-	} `json:"data"`
+	Data []collaborationModeItem `json:"data"`
+}
+
+type collaborationModeItem struct {
+	Name string `json:"name"`
+	Mode string `json:"mode"`
 }
 
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
@@ -188,22 +196,22 @@ func loadAppServerCapabilities(
 }
 
 type debugCatalog struct {
-	Models []struct {
-		Slug                  string `json:"slug"`
-		DisplayName           string `json:"display_name"`
-		Description           string `json:"description"`
-		DefaultReasoningLevel string `json:"default_reasoning_level"`
-		Visibility            string `json:"visibility"`
-		SupportedReasoning    []struct {
-			Effort      string `json:"effort"`
-			Description string `json:"description"`
-		} `json:"supported_reasoning_levels"`
-		ServiceTiers []struct {
-			ID          string `json:"id"`
-			Name        string `json:"name"`
-			Description string `json:"description"`
-		} `json:"service_tiers"`
-	} `json:"models"`
+	Models []debugModelItem `json:"models"`
+}
+
+type debugModelItem struct {
+	Slug                  string               `json:"slug"`
+	DisplayName           string               `json:"display_name"`
+	Description           string               `json:"description"`
+	DefaultReasoningLevel string               `json:"default_reasoning_level"`
+	Visibility            string               `json:"visibility"`
+	SupportedReasoning    []debugReasoningItem `json:"supported_reasoning_levels"`
+	ServiceTiers          []serviceTierItem    `json:"service_tiers"`
+}
+
+type debugReasoningItem struct {
+	Effort      string `json:"effort"`
+	Description string `json:"description"`
 }
 
 func loadDebugModels(ctx context.Context, req agent.CapabilityRequest) (modelListResponse, error) {
@@ -228,40 +236,21 @@ func loadDebugModels(ctx context.Context, req agent.CapabilityRequest) (modelLis
 		if model.Visibility != "" && model.Visibility != "list" {
 			continue
 		}
-		item := struct {
-			ID                        string `json:"id"`
-			Model                     string `json:"model"`
-			DisplayName               string `json:"displayName"`
-			Description               string `json:"description"`
-			DefaultReasoningEffort    string `json:"defaultReasoningEffort"`
-			DefaultServiceTier        string `json:"defaultServiceTier"`
-			IsDefault                 bool   `json:"isDefault"`
-			SupportedReasoningEfforts []struct {
-				ReasoningEffort string `json:"reasoningEffort"`
-				Description     string `json:"description"`
-			} `json:"supportedReasoningEfforts"`
-			ServiceTiers []struct {
-				ID          string `json:"id"`
-				Name        string `json:"name"`
-				Description string `json:"description"`
-			} `json:"serviceTiers"`
-		}{
+		item := modelListItem{
 			ID: model.Slug, Model: model.Slug, DisplayName: model.DisplayName,
 			Description: model.Description, DefaultReasoningEffort: model.DefaultReasoningLevel,
 			IsDefault: len(result.Data) == 0,
 		}
 		for _, effort := range model.SupportedReasoning {
-			item.SupportedReasoningEfforts = append(item.SupportedReasoningEfforts, struct {
-				ReasoningEffort string `json:"reasoningEffort"`
-				Description     string `json:"description"`
-			}{effort.Effort, effort.Description})
+			item.SupportedReasoningEfforts = append(
+				item.SupportedReasoningEfforts,
+				reasoningEffortItem{ReasoningEffort: effort.Effort, Description: effort.Description},
+			)
 		}
 		for _, tier := range model.ServiceTiers {
-			item.ServiceTiers = append(item.ServiceTiers, struct {
-				ID          string `json:"id"`
-				Name        string `json:"name"`
-				Description string `json:"description"`
-			}{tier.ID, tier.Name, tier.Description})
+			item.ServiceTiers = append(item.ServiceTiers, serviceTierItem{
+				ID: tier.ID, Name: tier.Name, Description: tier.Description,
+			})
 		}
 		result.Data = append(result.Data, item)
 	}

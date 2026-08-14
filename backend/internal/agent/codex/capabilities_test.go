@@ -4,41 +4,16 @@ import "testing"
 
 func TestBuildCapabilitiesPreservesPerModelControls(t *testing.T) {
 	var models modelListResponse
-	models.Data = append(models.Data, struct {
-		ID                        string `json:"id"`
-		Model                     string `json:"model"`
-		DisplayName               string `json:"displayName"`
-		Description               string `json:"description"`
-		DefaultReasoningEffort    string `json:"defaultReasoningEffort"`
-		DefaultServiceTier        string `json:"defaultServiceTier"`
-		IsDefault                 bool   `json:"isDefault"`
-		SupportedReasoningEfforts []struct {
-			ReasoningEffort string `json:"reasoningEffort"`
-			Description     string `json:"description"`
-		} `json:"supportedReasoningEfforts"`
-		ServiceTiers []struct {
-			ID          string `json:"id"`
-			Name        string `json:"name"`
-			Description string `json:"description"`
-		} `json:"serviceTiers"`
-	}{
+	models.Data = append(models.Data, modelListItem{
 		ID: "gpt-next", Model: "gpt-next", DisplayName: "GPT Next", IsDefault: true,
 		DefaultReasoningEffort: "medium",
-		SupportedReasoningEfforts: []struct {
-			ReasoningEffort string `json:"reasoningEffort"`
-			Description     string `json:"description"`
-		}{{ReasoningEffort: "medium", Description: "balanced"}},
-		ServiceTiers: []struct {
-			ID          string `json:"id"`
-			Name        string `json:"name"`
-			Description string `json:"description"`
-		}{{ID: "priority", Name: "Fast", Description: "faster"}},
+		SupportedReasoningEfforts: []reasoningEffortItem{{
+			ReasoningEffort: "medium", Description: "balanced",
+		}},
+		ServiceTiers: []serviceTierItem{{ID: "priority", Name: "Fast", Description: "faster"}},
 	})
 	modes := collaborationModeListResponse{}
-	modes.Data = append(modes.Data, struct {
-		Name string `json:"name"`
-		Mode string `json:"mode"`
-	}{Name: "Plan", Mode: "plan"})
+	modes.Data = append(modes.Data, collaborationModeItem{Name: "Plan", Mode: "plan"})
 
 	caps := buildCapabilities(models, modes)
 	if len(caps.Models) != 2 || caps.Models[0].ID != "" || caps.Models[1].ID != "gpt-next" {
