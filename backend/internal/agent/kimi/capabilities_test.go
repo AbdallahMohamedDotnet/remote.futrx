@@ -3,7 +3,7 @@ package kimi
 import "testing"
 
 func TestParseCapabilitiesFromProviderJSON(t *testing.T) {
-	caps, err := parseCapabilities([]byte(`{
+	caps, err := parseProviderCatalog([]byte(`{
   "providers": {"custom": {}},
   "models": {"moonshot/kimi-k2": {}, "fast": {}}
 }`), "--plan Start in plan mode")
@@ -19,7 +19,7 @@ func TestParseCapabilitiesFromProviderJSON(t *testing.T) {
 }
 
 func TestParseCapabilitiesAllowsEmptyBuiltInCatalog(t *testing.T) {
-	caps, err := parseCapabilities([]byte(`{"providers":{},"models":{}}`), "")
+	caps, err := parseProviderCatalog([]byte(`{"providers":{},"models":{}}`), "")
 	if err != nil || len(caps.Models) != 1 || caps.Models[0].ID != "" {
 		t.Fatalf("capabilities = %+v, err = %v", caps, err)
 	}
