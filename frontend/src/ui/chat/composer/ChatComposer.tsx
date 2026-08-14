@@ -4,9 +4,9 @@ import type { RegisteredSkill } from "../../../models/skill";
 import type { Attachment } from "../../../models/upload";
 import { AttachmentTray } from "./AttachmentTray";
 import { AttachButton } from "./AttachButton";
+import { ComposerAgentControls } from "./ComposerAgentControls";
 import { ComposerDropOverlay } from "./ComposerDropOverlay";
-import { ComposerOptionsRow } from "./ComposerOptionsRow";
-import { ComposerToolbar } from "./ComposerToolbar";
+import { ComposerExecutionControls } from "./ComposerExecutionControls";
 import { PromptTextarea } from "./PromptTextarea";
 import { QueuedPromptList } from "./QueuedPromptList";
 import { SelectedSkillChips } from "./SelectedSkillChips";
@@ -70,57 +70,61 @@ export function ChatComposer({
     <div class="codex-composer-shell flex-none z-20 relative bg-[#0b0d11] border-t border-white/10">
       {dragging && <ComposerDropOverlay />}
 
-      <ComposerToolbar
-        projectId={projectId}
-        model={preferences.model}
-        provider={preferences.provider}
-        streaming={streaming}
-        selectedSkills={selectedSkills}
-        onSelectSkill={onSelectSkill}
-        onProviderChange={preferenceActions.changeProvider}
-        onModelChange={preferenceActions.changeModel}
-      />
-
       <SelectedSkillChips skills={selectedSkills} onRemove={onRemoveSelectedSkill} />
       <QueuedPromptList queuedPrompts={queuedPrompts} onRemove={onRemoveQueued} />
       <AttachmentTray attachments={attachments} onRemove={onRemoveAttachment} />
 
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          onSend();
-        }}
-        class="codex-composer-form composer-form flex gap-2 items-end px-3 pt-2"
-      >
-        <AttachButton
-          fileInputRef={fileInputRef}
-          uploading={uploading}
-          disconnected={disconnected}
-          onFilesSelected={onFilesSelected}
-        />
-        <PromptTextarea
-          textareaRef={textareaRef}
-          text={text}
-          uploading={uploading}
-          streaming={streaming}
-          disconnected={disconnected}
-          onTextChange={onTextChange}
-          onPaste={onPaste}
-          onSend={onSend}
-        />
-        <SendControls
-          streaming={streaming}
-          canSend={canSend}
-          disconnected={disconnected}
-          onCancel={onCancel}
-        />
-      </form>
+      <div class="codex-composer-card mx-3 my-2 overflow-visible rounded-xl border border-white/10 bg-[#15171c] shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSend();
+          }}
+          class="codex-composer-form composer-form flex gap-1.5 items-end px-2 pt-2"
+        >
+          <AttachButton
+            fileInputRef={fileInputRef}
+            uploading={uploading}
+            disconnected={disconnected}
+            onFilesSelected={onFilesSelected}
+          />
+          <PromptTextarea
+            textareaRef={textareaRef}
+            text={text}
+            uploading={uploading}
+            streaming={streaming}
+            disconnected={disconnected}
+            onTextChange={onTextChange}
+            onPaste={onPaste}
+            onSend={onSend}
+          />
+          <SendControls
+            streaming={streaming}
+            canSend={canSend}
+            disconnected={disconnected}
+            onCancel={onCancel}
+          />
+        </form>
 
-      <ComposerOptionsRow
-        preferences={preferences}
-        preferenceActions={preferenceActions}
-        streaming={streaming}
-      />
+        <div class="codex-composer-control-deck flex min-w-0 flex-wrap items-center justify-between gap-1.5 border-t border-white/[0.07] px-2 py-1.5">
+          <ComposerAgentControls
+            projectId={projectId}
+            model={preferences.model}
+            provider={preferences.provider}
+            streaming={streaming}
+            selectedSkills={selectedSkills}
+            onSelectSkill={onSelectSkill}
+            onProviderChange={preferenceActions.changeProvider}
+            onModelChange={preferenceActions.changeModel}
+          />
+
+          <ComposerExecutionControls
+            preferences={preferences}
+            preferenceActions={preferenceActions}
+            streaming={streaming}
+          />
+        </div>
+      </div>
     </div>
   );
 }
