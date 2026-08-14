@@ -67,7 +67,7 @@ export function ComposerOptionDropdown<T extends string>({
 
       {open && (
         <div
-          class="absolute left-0 bottom-full z-40 mb-1.5 w-40 rounded-lg border border-white/10 bg-[#14161d] p-1 shadow-2xl"
+          class="theme-menu-surface absolute left-0 bottom-full z-40 mb-1.5 w-40 rounded-lg border border-white/10 bg-[#14161d] p-1 shadow-2xl"
           role="listbox"
         >
           {options.map((option) => {

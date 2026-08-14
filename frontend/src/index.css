@@ -464,6 +464,23 @@ html[data-theme="light"] .bg-white\/10 {
   background-color: rgba(31, 35, 40, 0.06) !important;
 }
 
+html[data-theme="light"] .theme-submenu-surface {
+  background: #f6f8fa !important;
+  border-color: rgba(31, 35, 40, 0.12) !important;
+  color: #24292f !important;
+}
+
+html[data-theme="light"] .theme-menu-surface {
+  background: #ffffff !important;
+  border-color: #d0d7de !important;
+  color: #24292f !important;
+  box-shadow: 0 12px 32px rgba(31, 35, 40, 0.18) !important;
+}
+
+html[data-theme="light"] .theme-menu-surface .bg-\[\#191a1f\] {
+  background: #f6f8fa !important;
+}
+
 html[data-theme="light"] .bg-\[\#090b0f\],
 html[data-theme="light"] .bg-\[\#0b0d11\] {
   background-color: #ffffff !important;

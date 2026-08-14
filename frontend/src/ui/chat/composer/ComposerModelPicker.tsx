@@ -60,7 +60,7 @@ export function ComposerModelPicker({
 
       {open && (
         <div
-          class="absolute left-0 bottom-full z-40 mb-2 w-[min(23rem,calc(100vw-1.5rem))]
+          class="theme-menu-surface absolute left-0 bottom-full z-40 mb-2 w-[min(23rem,calc(100vw-1.5rem))]
                  rounded-lg border border-white/10 bg-[#14161d] p-1 shadow-2xl"
           role="listbox"
         >

@@ -84,7 +84,7 @@ export function SkillPicker({
 
       {open && (
         <div
-          class="absolute left-0 bottom-full z-40 mb-2 w-[calc(100vw-1.5rem)] sm:left-auto sm:right-0 sm:w-[460px]
+          class="theme-menu-surface absolute left-0 bottom-full z-40 mb-2 w-[calc(100vw-1.5rem)] sm:left-auto sm:right-0 sm:w-[460px]
                  rounded-lg border border-white/10 bg-[#14161d] shadow-2xl overflow-hidden"
         >
           <div class="p-2 border-b border-white/10 bg-[#191a1f]">
