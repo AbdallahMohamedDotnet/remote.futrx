@@ -119,7 +119,7 @@ func buildCapabilities(models modelListResponse, providerModes collaborationMode
 		Label:       "Codex",
 		Source:      agent.CapabilitySourceLive,
 		Models:      agent.WithAutoModel(items, "Codex default"),
-		Modes:       agent.CodeAndPlanModes(nativePlan),
+		Modes:       agent.CapabilityModes(nativePlan),
 		DefaultMode: "code",
 	}
 }
@@ -130,7 +130,7 @@ func fallbackCapabilities() agent.Capabilities {
 		Label:       "Codex",
 		Source:      agent.CapabilitySourceFallback,
 		Models:      agent.WithAutoModel(nil, "Codex default"),
-		Modes:       agent.CodeAndPlanModes(false),
+		Modes:       agent.CapabilityModes(false),
 		DefaultMode: "code",
 	}
 }

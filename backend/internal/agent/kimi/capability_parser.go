@@ -23,7 +23,7 @@ func parseProviderCatalog(raw []byte, help string) (agent.Capabilities, error) {
 		Label:       "Kimi",
 		Source:      agent.CapabilitySourceLive,
 		Models:      agent.WithAutoModel(models, "Kimi default"),
-		Modes:       agent.CodeAndPlanModes(strings.Contains(help, "--plan")),
+		Modes:       agent.CapabilityModes(strings.Contains(help, "--plan")),
 		DefaultMode: "code",
 	}, nil
 }

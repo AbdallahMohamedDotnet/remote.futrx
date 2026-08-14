@@ -43,7 +43,7 @@ func AutoOption() CapabilityOption {
 	return CapabilityOption{Value: "", Label: "Auto"}
 }
 
-func CodeAndPlanModes(nativePlan bool) []CapabilityOption {
+func CapabilityModes(nativePlan bool) []CapabilityOption {
 	return []CapabilityOption{
 		{Value: "code", Label: "Code", Description: "Use the provider's default coding mode", Native: true},
 		{Value: "plan", Label: "Plan", Description: "Inspect and plan before making changes", Native: nativePlan},

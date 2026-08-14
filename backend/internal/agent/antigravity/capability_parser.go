@@ -37,7 +37,7 @@ func parseCLIOutputCatalog(modelsOutput, help string) agent.Capabilities {
 		Label:       "Antigravity",
 		Source:      agent.CapabilitySourceLive,
 		Models:      agent.WithAutoModel(models, "Antigravity default"),
-		Modes:       agent.CodeAndPlanModes(containsCLIChoice(modes, "plan")),
+		Modes:       agent.CapabilityModes(containsCLIChoice(modes, "plan")),
 		DefaultMode: "code",
 	}
 }
