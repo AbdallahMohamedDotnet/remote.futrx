@@ -8,7 +8,7 @@ func TestParseCapabilitiesFromHelp(t *testing.T) {
   --model <model>   Provide an alias for the latest model (e.g. 'fable', 'opus', or 'sonnet')
   --permission-mode <mode> Permission mode (choices: "acceptEdits", "auto", "plan")
 `
-	caps := parseCapabilities(help)
+	caps := parseCapabilityHelp(help)
 	if caps.Source != "live" || len(caps.Models) != 4 {
 		t.Fatalf("capabilities = %+v", caps)
 	}
@@ -21,7 +21,7 @@ func TestParseCapabilitiesFromHelp(t *testing.T) {
 }
 
 func TestParseCapabilitiesFallsBackForIncompleteHelp(t *testing.T) {
-	caps := parseCapabilities("--model <model>")
+	caps := parseCapabilityHelp("--model <model>")
 	if caps.Source != "fallback" || len(caps.Models) < 2 || caps.Warning == "" {
 		t.Fatalf("capabilities = %+v", caps)
 	}
