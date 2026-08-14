@@ -4,6 +4,7 @@ import { BrowserDrawer } from "../../ui/chat/browser/BrowserDrawer";
 import { ChatThread } from "../../ui/chat/ChatThread";
 import { MediaViewerOverlay } from "../../ui/chat/files/MediaViewerOverlay";
 import type { ChatComposerProps } from "../../ui/chat/composer/ChatComposer";
+import { WorkspaceActions } from "../../ui/chat/header/WorkspaceActions";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
 import { ScheduleDrawer } from "../../ui/chat/schedules/ScheduleDrawer";
@@ -126,7 +127,6 @@ export function ChatContainer({
             status={status}
             error={error}
             composer={composerView}
-            showHistory={hasRepos}
             showJump={composer.scroll.showJump}
             scrollRef={composer.scroll.scrollRef}
             contentRef={composer.scroll.contentRef}
@@ -137,11 +137,6 @@ export function ChatContainer({
             onAnswerQuestion={composer.handleAnswerQuestion}
             onLoadOlder={loadOlder}
             onRewind={composer.handleRewind}
-            onOpenTerminal={terminal.openTerminal}
-            onOpenBrowser={drawers.openBrowser}
-            onOpenHistory={drawers.openHistory}
-            onOpenFiles={drawers.openFiles}
-            onOpenSchedules={drawers.openSchedules}
           />
         </div>
         <HistoryDrawer
@@ -172,6 +167,18 @@ export function ChatContainer({
           onCaptureElement={browser.insertBrowserElementContext}
           onClose={browser.closeBrowserDrawer}
         />
+        <aside class="workspace-action-rail top-chrome z-20 flex w-11 flex-none flex-col items-center border-l border-white/10 bg-[#101318] px-1.5 pb-2">
+          <WorkspaceActions
+            cwd={displayMeta.cwd || "~"}
+            onOpenTerminal={terminal.openTerminal}
+            onOpenBrowser={drawers.openBrowser}
+            onOpenHistory={drawers.openHistory}
+            onOpenFiles={drawers.openFiles}
+            onOpenSchedules={drawers.openSchedules}
+            showHistory={hasRepos}
+            showSchedules={!!displayMeta.projectId}
+          />
+        </aside>
       </div>
       {terminal.TerminalOverlay && (
         <terminal.TerminalOverlay

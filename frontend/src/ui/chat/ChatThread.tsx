@@ -5,7 +5,6 @@ import { ChatComposer, type ChatComposerProps } from "./composer/ChatComposer";
 import { JumpToLatestButton } from "./messages/JumpToLatestButton";
 import { MessageList } from "./messages/MessageList";
 import { ThreadHeader } from "./header/ThreadHeader";
-import { WorkspaceActions } from "./header/WorkspaceActions";
 
 export function ChatThread({
   chat,
@@ -15,7 +14,6 @@ export function ChatThread({
   status,
   error,
   composer,
-  showHistory,
   showJump,
   scrollRef,
   contentRef,
@@ -26,11 +24,6 @@ export function ChatThread({
   onAnswerQuestion,
   onLoadOlder,
   onRewind,
-  onOpenTerminal,
-  onOpenBrowser,
-  onOpenHistory,
-  onOpenFiles,
-  onOpenSchedules,
 }: {
   chat: ChatMeta;
   blocks: ChatMessageBlock[];
@@ -39,7 +32,6 @@ export function ChatThread({
   status: ChatStatus;
   error: string | null;
   composer: ChatComposerProps;
-  showHistory: boolean;
   showJump: boolean;
   scrollRef: RefObject<HTMLDivElement>;
   contentRef: RefObject<HTMLDivElement>;
@@ -50,11 +42,6 @@ export function ChatThread({
   onAnswerQuestion: (text: string) => void;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
-  onOpenTerminal: () => void;
-  onOpenBrowser: () => void;
-  onOpenHistory: () => void;
-  onOpenFiles: () => void;
-  onOpenSchedules: () => void;
 }) {
   return (
     <div class="codex-thread flex-1 h-full flex min-h-0 overflow-hidden bg-[#0b0d11]">
@@ -87,19 +74,6 @@ export function ChatThread({
 
         <ChatComposer {...composer} />
       </div>
-
-      <aside class="workspace-action-rail top-chrome z-20 flex w-11 flex-none flex-col items-center border-l border-white/10 bg-[#101318] px-1.5 pb-2">
-        <WorkspaceActions
-          cwd={chat.cwd || "~"}
-          onOpenTerminal={onOpenTerminal}
-          onOpenBrowser={onOpenBrowser}
-          onOpenHistory={onOpenHistory}
-          onOpenFiles={onOpenFiles}
-          onOpenSchedules={onOpenSchedules}
-          showHistory={showHistory}
-          showSchedules={!!chat.projectId}
-        />
-      </aside>
     </div>
   );
 }
