@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -23,21 +22,13 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	if req.Mode == agent.RunModePlan {
 		args = append(args, "--plan")
 	}
-	if model := sanitizeModel(req.Model); model != "" {
+	if model := normalizeKimiModel(req.Model); model != "" {
 		args = append(args, "--model", model)
 	}
 	if req.ResumeID != "" {
 		args = append(args, "--session", req.ResumeID)
 	}
 	return args
-}
-
-func sanitizeModel(model string) string {
-	model = strings.TrimSpace(model)
-	if idx := strings.Index(model, "["); idx > 0 {
-		model = strings.TrimSpace(model[:idx])
-	}
-	return model
 }
 
 func (p *Provider) buildCmd(

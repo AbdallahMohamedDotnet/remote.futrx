@@ -32,15 +32,26 @@ native-mode metadata into one catalog. Loose chats use the host CLIs instead.
 The composer therefore follows the installed CLI version and the connected
 account rather than a model list compiled into the frontend.
 
-Codex exposes the richest structured catalog. Claude, Kimi, and Antigravity
-publish different amounts of metadata, so their adapters parse the structured
-or help output each CLI makes available. **Auto** and a conservative fallback
+The model picker uses the complete catalog published by the selected CLI and
+shows its exact versioned display names. Codex pages through the app-server
+catalog. Claude resolves every `/model` selection (including `best`, 1M-context,
+and `opusplan`) so an alias such as `opus` is displayed as the concrete Opus
+version selected for the connected account. Kimi shows every configured alias
+with its provider model/display name and per-model effort metadata. Antigravity
+preserves every full display name returned by `agy models`, including its
+thinking variant.
+
+Remote still submits the provider's required selection value. For example, a
+Claude row labeled **Opus 4.8** can carry the dynamic `opus` alias underneath;
+this lets Claude Code keep resolving account-specific model revisions without
+reducing the UI label to merely “Opus.” **Auto** and a conservative fallback
 catalog remain available when a CLI is older, unavailable, or signed out.
 
 **Auto** omits an explicit model so the provider chooses its configured
-default. Model availability and account entitlements are ultimately enforced
-by the provider; a listed choice can still fail if the connected account does
-not have access.
+default. Its Claude label includes the currently resolved default version.
+Model availability and account entitlements are ultimately enforced by the
+provider; a listed choice can still fail if the connected account changes or
+loses access after the catalog is loaded.
 
 Switching providers clears the previous model, reasoning effort, service tier,
 and selected skills because those values may not be compatible with the new

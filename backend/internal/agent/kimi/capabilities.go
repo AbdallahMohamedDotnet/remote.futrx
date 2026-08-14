@@ -8,7 +8,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-const capabilityTimeout = 8 * time.Second
+const capabilityTimeout = 12 * time.Second
 
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	probeCtx, cancel := context.WithTimeout(ctx, capabilityTimeout)
@@ -28,6 +28,15 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 		"--json",
 	)
 	modelsOutput, modelsErr := modelsCmd.Output()
+	defaultsCmd := agent.NewCapabilityCommand(
+		probeCtx,
+		req,
+		[]string{"HOME=/root", "KIMI_CODE_HOME=" + kimiHome},
+		"kimi",
+		"provider",
+		"list",
+	)
+	defaultsOutput, defaultsErr := defaultsCmd.Output()
 	helpCmd := agent.NewCapabilityCommand(
 		probeCtx,
 		req,
@@ -37,16 +46,19 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	)
 	helpOutput, helpErr := helpCmd.CombinedOutput()
 
-	if modelsErr != nil && helpErr != nil {
+	if modelsErr != nil {
 		caps := fallbackCapabilities()
 		caps.Warning = "Kimi capabilities could not be read from the CLI"
-		return caps, fmt.Errorf("kimi capability discovery: models: %v; help: %w", modelsErr, helpErr)
+		return caps, fmt.Errorf("kimi capability discovery: models: %w", modelsErr)
 	}
-	caps, err := parseProviderCatalog(modelsOutput, string(helpOutput))
+	caps, err := parseProviderCatalog(modelsOutput, string(helpOutput), string(defaultsOutput))
 	if err != nil {
 		fallback := fallbackCapabilities()
 		fallback.Warning = "Kimi returned an unreadable provider catalog"
 		return fallback, err
+	}
+	if helpErr != nil || defaultsErr != nil {
+		caps.Warning = "Some Kimi capability defaults could not be read from the CLI"
 	}
 	return caps, nil
 }

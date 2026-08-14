@@ -50,7 +50,13 @@ func queryAppServerCapabilities(
 		}
 		_ = cmd.Wait()
 	}()
+	return readAppServerCapabilities(stdin, stdout)
+}
 
+func readAppServerCapabilities(
+	stdin io.Writer,
+	stdout io.Reader,
+) (modelListResponse, collaborationModeListResponse, error) {
 	writeRPC := func(message any) error {
 		return json.NewEncoder(stdin).Encode(message)
 	}
@@ -74,6 +80,8 @@ func queryAppServerCapabilities(
 	initialized := false
 	var modelResult modelListResponse
 	var modeResult collaborationModeListResponse
+	modelRequestID := 2
+	const modeRequestID = 3
 	modelsDone := false
 	modesDone := false
 	for scanner.Scan() {
@@ -81,8 +89,7 @@ func queryAppServerCapabilities(
 		if err := json.Unmarshal(scanner.Bytes(), &response); err != nil || response.ID == 0 {
 			continue
 		}
-		switch response.ID {
-		case 1:
+		if response.ID == 1 {
 			if response.Error != nil {
 				return modelListResponse{}, collaborationModeListResponse{}, fmt.Errorf("initialize: %s", response.Error.Message)
 			}
@@ -92,27 +99,47 @@ func queryAppServerCapabilities(
 			initialized = true
 			if err := writeRPC(map[string]any{
 				"method": "model/list",
-				"id":     2,
+				"id":     modelRequestID,
 				"params": map[string]any{"includeHidden": false, "limit": 100},
 			}); err != nil {
 				return modelListResponse{}, collaborationModeListResponse{}, err
 			}
 			if err := writeRPC(map[string]any{
 				"method": "collaborationMode/list",
-				"id":     3,
+				"id":     modeRequestID,
 				"params": map[string]any{},
 			}); err != nil {
 				return modelListResponse{}, collaborationModeListResponse{}, err
 			}
-		case 2:
-			modelsDone = true
+		} else if response.ID == modelRequestID {
 			if response.Error != nil {
 				return modelListResponse{}, collaborationModeListResponse{}, fmt.Errorf("model/list: %s", response.Error.Message)
 			}
-			if err := json.Unmarshal(response.Result, &modelResult); err != nil {
+			var page modelListResponse
+			if err := json.Unmarshal(response.Result, &page); err != nil {
 				return modelListResponse{}, collaborationModeListResponse{}, fmt.Errorf("decode model/list: %w", err)
 			}
-		case 3:
+			modelResult.Data = append(modelResult.Data, page.Data...)
+			if page.NextCursor != "" {
+				modelRequestID++
+				if modelRequestID == modeRequestID {
+					modelRequestID++
+				}
+				if err := writeRPC(map[string]any{
+					"method": "model/list",
+					"id":     modelRequestID,
+					"params": map[string]any{
+						"includeHidden": false,
+						"limit":         100,
+						"cursor":        page.NextCursor,
+					},
+				}); err != nil {
+					return modelListResponse{}, collaborationModeListResponse{}, err
+				}
+			} else {
+				modelsDone = true
+			}
+		} else if response.ID == modeRequestID {
 			modesDone = true
 			if response.Error == nil {
 				_ = json.Unmarshal(response.Result, &modeResult)

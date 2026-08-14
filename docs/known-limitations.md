@@ -76,10 +76,11 @@ These are the constraints worth understanding before you deploy or rely on remot
   silently start fresh) and reports no usage data. Antigravity forks also
   start fresh; print mode exposes plain streamed text rather than structured
   tool/usage events, general selected skills are not injected, and Browser MCP
-  is unavailable. Codex service-tier selection is limited to three values
-  (default/priority/fast). Claude Fast mode requires an eligible Opus model,
-  usage credits, and provider/account enablement. Failed Claude tool calls are
-  currently rendered as successes.
+  is unavailable. Model catalogs reflect the installed CLI, its configuration,
+  the signed-in account, and current entitlements; they are not a promise that
+  every provider model in existence is available to that account. Claude Fast
+  mode requires an eligible Opus model, usage credits, and provider/account
+  enablement. Failed Claude tool calls are currently rendered as successes.
 
 ## Scheduled tasks
 

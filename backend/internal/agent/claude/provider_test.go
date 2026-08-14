@@ -12,7 +12,7 @@ import (
 
 func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
-	args := provider.args(agent.RunRequest{Model: "sonnet [1m]", ResumeID: "session-123"})
+	args := provider.args(agent.RunRequest{Model: "sonnet[1m]", ResumeID: "session-123"})
 
 	want := []string{
 		"-p",
@@ -20,7 +20,7 @@ func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
 		"--include-partial-messages",
 		"--verbose",
 		"--dangerously-skip-permissions",
-		"--model", "sonnet",
+		"--model", "sonnet[1m]",
 		"--resume", "session-123",
 	}
 	if !slices.Equal(args, want) {

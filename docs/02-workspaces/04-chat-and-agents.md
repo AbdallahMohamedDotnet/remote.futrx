@@ -110,15 +110,18 @@ Each provider owns its parser because the CLIs expose different surfaces:
 
 | Provider | Discovery source |
 | --- | --- |
-| Codex | App-server `model/list` and `collaborationMode/list`, with `codex debug models` as a structured fallback |
-| Claude | Model aliases and efforts parsed from `claude --help`; native Default/Plan and Auto/Opus Fast controls declared by the adapter |
-| Kimi | Models from `kimi provider list --json`; mode hints from CLI help |
-| Antigravity | Models from `agy models`; effort and mode choices from CLI help |
+| Codex | Every page of app-server `model/list` plus `collaborationMode/list`, with `codex debug models` as a structured fallback |
+| Claude | The complete `/model` selection list, with every alias resolved through the CLI to an exact versioned label; efforts from CLI help; native Default/Plan and eligible Auto/Opus Fast controls declared by the adapter |
+| Kimi | Every configured alias and its exact display/provider model, effort metadata, and active default from `kimi provider list`; mode hints from CLI help |
+| Antigravity | Every complete display name from `agy models`; effort and mode choices from CLI help |
 
 The normalized model record owns its reasoning-effort and service-tier lists,
 so the frontend can update dependent selectors when a model changes without a
 compiled model catalog. Mode discovery is reduced to Default plus a native
 Plan mode when the provider advertises one; Remote does not add mode prompts.
+Provider-required aliases remain model IDs, while the user-facing labels carry
+the resolved version and variant. This is particularly important for dynamic
+Claude aliases and Antigravity's parenthesized thinking variants.
 
 ## Event model
 

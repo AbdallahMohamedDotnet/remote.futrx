@@ -19,3 +19,14 @@ func TestArgsUseNativePlanModeWhenSelected(t *testing.T) {
 		t.Fatalf("default mode unexpectedly enabled Plan: %#v", defaults)
 	}
 }
+
+func TestArgsPreserveExactConfiguredModelAlias(t *testing.T) {
+	provider := &Provider{}
+	args := provider.args(agent.RunRequest{Prompt: "inspect", Model: "moonshot/kimi-k2[1m]"})
+	for index := 0; index+1 < len(args); index++ {
+		if args[index] == "--model" && args[index+1] == "moonshot/kimi-k2[1m]" {
+			return
+		}
+	}
+	t.Fatalf("exact model alias missing: %#v", args)
+}

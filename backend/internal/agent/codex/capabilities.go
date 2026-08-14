@@ -13,7 +13,8 @@ import (
 const capabilityTimeout = 12 * time.Second
 
 type modelListResponse struct {
-	Data []modelListItem `json:"data"`
+	Data       []modelListItem `json:"data"`
+	NextCursor string          `json:"nextCursor"`
 }
 
 type modelListItem struct {

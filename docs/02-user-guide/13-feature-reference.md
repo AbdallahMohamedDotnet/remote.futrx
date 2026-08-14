@@ -78,8 +78,8 @@ There is no approval workflow in the current chat transport. Project agents run 
 | Capability | Claude | Codex | Kimi | Antigravity |
 | --- | ---: | ---: | ---: | ---: |
 | Sign-in | Host authorization URL and pasted code | Host device flow | Host device flow | Run `agy` in each project Terminal |
-| Model picker | Yes | Yes | Auto only | Auto only |
-| Thinking control | Yes | Yes | No current options | Auto, Low, Medium, High |
+| Model picker | Full CLI list with resolved versions | Full paginated app-server list | Every configured model | Every signed-in CLI model/variant |
+| Thinking control | Yes | Yes | Per model when configured | Auto, Low, Medium, High |
 | Speed/service tier | Fast for Auto and Opus | Yes | No | No |
 | Usage telemetry | Yes | Yes | No | No |
 | Provider session fork | Yes | Yes, native app-server fork | No; starts fresh | No; starts fresh |

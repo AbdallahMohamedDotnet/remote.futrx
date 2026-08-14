@@ -24,7 +24,7 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	} else {
 		args = append(args, "--dangerously-skip-permissions")
 	}
-	if model := sanitizeModel(req.Model); model != "" {
+	if model := normalizeModelSelection(req.Model); model != "" {
 		args = append(args, "--model", model)
 	}
 	if effort := reasoningEffortArg(req.Preferences.ReasoningEffort); effort != "" {
@@ -43,14 +43,6 @@ func (p *Provider) args(req agent.RunRequest) []string {
 		args = append(args, "--mcp-config", browserMCPConfigPath)
 	}
 	return args
-}
-
-func sanitizeModel(model string) string {
-	model = strings.TrimSpace(model)
-	if idx := strings.Index(model, "["); idx > 0 {
-		model = strings.TrimSpace(model[:idx])
-	}
-	return model
 }
 
 // reasoningEffortArg forwards safe values from the live Claude capability

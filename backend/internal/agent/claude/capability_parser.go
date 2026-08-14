@@ -8,44 +8,21 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-var (
-	quotedValuePattern = regexp.MustCompile(`['"]([A-Za-z0-9._-]+)['"]`)
-	effortPattern      = regexp.MustCompile(`(?is)--effort\s+<level>.*?\(([^)]*)\)`)
-	modelPattern       = regexp.MustCompile(`(?is)--model\s+<model>.*?alias.*?\(([^)]*)\)`)
-)
+var effortPattern = regexp.MustCompile(`(?is)--effort\s+<level>.*?\(([^)]*)\)`)
 
-func parseCapabilityHelp(help string) agent.Capabilities {
+func parseHelpEfforts(help string) []agent.CapabilityOption {
 	efforts := parseHelpChoiceValues(effortPattern, help)
-	models := parseHelpQuotedValues(modelPattern, help)
-
-	if len(efforts) == 0 || len(models) == 0 {
-		caps := fallbackCapabilities()
-		caps.Warning = "Claude CLI help did not publish a complete capability catalog"
-		return caps
+	if len(efforts) == 0 {
+		return nil
 	}
-
 	reasoning := []agent.CapabilityOption{agent.AutoOption()}
 	for _, effort := range efforts {
-		reasoning = append(reasoning, agent.CapabilityOption{Value: effort, Label: optionLabel(effort)})
+		reasoning = append(reasoning, agent.CapabilityOption{
+			Value: effort,
+			Label: optionLabel(effort),
+		})
 	}
-	items := make([]agent.ModelCapability, 0, len(models))
-	for _, id := range models {
-		model := agent.ModelCapability{
-			ID: id, Label: optionLabel(id), ReasoningEfforts: append([]agent.CapabilityOption(nil), reasoning...),
-		}
-		if supportsFastMode(id) {
-			model.ServiceTiers = fastModeOptions()
-		}
-		items = append(items, model)
-	}
-	return agent.Capabilities{
-		Provider:    agent.ProviderClaude,
-		Label:       "Claude",
-		Source:      agent.CapabilitySourceLive,
-		Models:      withAutoFastMode(items),
-		Modes:       agent.ProviderModes(true),
-		DefaultMode: agent.RunModeDefault,
-	}
+	return reasoning
 }
 
 func parseHelpChoiceValues(pattern *regexp.Regexp, input string) []string {
@@ -57,26 +34,6 @@ func parseHelpChoiceValues(pattern *regexp.Regexp, input string) []string {
 		return r == ',' || r == '|' || unicode.IsSpace(r)
 	})
 	return uniqueHelpValues(parts)
-}
-
-func parseHelpQuotedValues(pattern *regexp.Regexp, input string) []string {
-	match := pattern.FindStringSubmatch(input)
-	if len(match) < 2 {
-		return nil
-	}
-	quoted := quotedValuePattern.FindAllStringSubmatch(match[1], -1)
-	seen := make(map[string]bool)
-	values := make([]string, 0, len(quoted))
-	for _, item := range quoted {
-		if len(item) > 1 {
-			value := agent.NormalizeModelID(item[1])
-			if value != "" && !seen[value] {
-				seen[value] = true
-				values = append(values, value)
-			}
-		}
-	}
-	return values
 }
 
 func uniqueHelpValues(values []string) []string {

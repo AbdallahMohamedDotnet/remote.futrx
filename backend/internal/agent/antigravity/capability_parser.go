@@ -3,8 +3,8 @@ package antigravity
 import (
 	"encoding/json"
 	"regexp"
-	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
@@ -12,7 +12,6 @@ import (
 var (
 	cliEffortChoicesPattern = regexp.MustCompile(`(?im)--effort\s+.*?\(([^)]*)\)`)
 	cliModeChoicesPattern   = regexp.MustCompile(`(?im)--mode\s+.*?\(([^)]*)\)`)
-	cliParenthesizedID      = regexp.MustCompile(`\(([A-Za-z0-9._:/@-]+)\)\s*$`)
 )
 
 func parseCLIOutputCatalog(modelsOutput, help string) agent.Capabilities {
@@ -28,7 +27,7 @@ func parseCLIOutputCatalog(modelsOutput, help string) agent.Capabilities {
 	models := make([]agent.ModelCapability, 0, len(modelIDs))
 	for _, id := range modelIDs {
 		models = append(models, agent.ModelCapability{
-			ID: id, Label: capabilityLabel(id), ReasoningEfforts: append([]agent.CapabilityOption(nil), reasoning...),
+			ID: id, Label: id, ReasoningEfforts: append([]agent.CapabilityOption(nil), reasoning...),
 		})
 	}
 	modes := parseCLIChoices(cliModeChoicesPattern, help)
@@ -49,15 +48,16 @@ func parseCLIModelIDs(output string) []string {
 	}
 	var jsonObject struct {
 		Models []struct {
-			ID    string `json:"id"`
-			Model string `json:"model"`
-			Name  string `json:"name"`
+			ID          string `json:"id"`
+			Model       string `json:"model"`
+			Name        string `json:"name"`
+			DisplayName string `json:"displayName"`
 		} `json:"models"`
 	}
 	if strings.HasPrefix(trimmed, "{") && json.Unmarshal([]byte(trimmed), &jsonObject) == nil {
 		ids := make([]string, 0, len(jsonObject.Models))
 		for _, model := range jsonObject.Models {
-			id := firstCLIModelID(model.ID, model.Model, model.Name)
+			id := firstCLIModelID(model.DisplayName, model.Name, model.Model, model.ID)
 			if id != "" {
 				ids = append(ids, id)
 			}
@@ -74,18 +74,8 @@ func parseCLIModelIDs(output string) []string {
 			strings.EqualFold(line, "model") || strings.HasPrefix(line, "---") {
 			continue
 		}
-		if match := cliParenthesizedID.FindStringSubmatch(line); len(match) > 1 {
-			if id := agent.NormalizeModelID(match[1]); id != "" {
-				ids = append(ids, id)
-				continue
-			}
-		}
 		line = strings.TrimLeft(line, "*-•>✓ ")
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
-		if id := agent.NormalizeModelID(fields[0]); id != "" && strings.ContainsAny(id, "-._/:@") {
+		if id := normalizeCLIModel(line); id != "" {
 			ids = append(ids, id)
 		}
 	}
@@ -120,24 +110,36 @@ func uniqueCLIModels(values []string) []string {
 	seen := make(map[string]bool)
 	result := make([]string, 0, len(values))
 	for _, value := range values {
-		value = agent.NormalizeModelID(value)
+		value = normalizeCLIModel(value)
 		if value == "" || seen[value] {
 			continue
 		}
 		seen[value] = true
 		result = append(result, value)
 	}
-	sort.Strings(result)
 	return result
 }
 
 func firstCLIModelID(values ...string) string {
 	for _, value := range values {
-		if safe := agent.NormalizeModelID(value); safe != "" {
+		if safe := normalizeCLIModel(value); safe != "" {
 			return safe
 		}
 	}
 	return ""
+}
+
+func normalizeCLIModel(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 256 {
+		return ""
+	}
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			return ""
+		}
+	}
+	return value
 }
 
 func containsCLIChoice(values []string, target string) bool {
