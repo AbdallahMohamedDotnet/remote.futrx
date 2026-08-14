@@ -18,45 +18,101 @@ type appServerEnvelope struct {
 	Method string          `json:"method,omitempty"`
 	Params json.RawMessage `json:"params,omitempty"`
 	Result json.RawMessage `json:"result,omitempty"`
-	Error  *struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
+	Error  *appServerError `json:"error,omitempty"`
+}
+
+type appServerError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
 }
 
 type appServerThreadResult struct {
-	Thread struct {
-		ID string `json:"id"`
-	} `json:"thread"`
-	Model string `json:"model"`
+	Thread appServerThread `json:"thread"`
+	Model  string          `json:"model"`
 }
 
-func appServerThreadRequest(req agent.RunRequest) (string, map[string]any) {
-	params := map[string]any{
-		"approvalPolicy": "never",
-		"sandbox":        "danger-full-access",
+type appServerThread struct {
+	ID string `json:"id"`
+}
+
+type appServerThreadRequest struct {
+	Method string
+	Params appServerThreadParams
+}
+
+type appServerThreadParams struct {
+	ApprovalPolicy string `json:"approvalPolicy"`
+	Cwd            string `json:"cwd,omitempty"`
+	Model          string `json:"model,omitempty"`
+	Sandbox        string `json:"sandbox"`
+	ServiceName    string `json:"serviceName,omitempty"`
+	ServiceTier    string `json:"serviceTier,omitempty"`
+	ThreadID       string `json:"threadId,omitempty"`
+}
+
+type appServerTurnParams struct {
+	ApprovalPolicy    string                     `json:"approvalPolicy"`
+	CollaborationMode appServerCollaborationMode `json:"collaborationMode"`
+	Effort            string                     `json:"effort,omitempty"`
+	Input             []appServerUserInput       `json:"input"`
+	Model             string                     `json:"model"`
+	SandboxPolicy     appServerSandboxPolicy     `json:"sandboxPolicy"`
+	ServiceTier       string                     `json:"serviceTier,omitempty"`
+	ThreadID          string                     `json:"threadId"`
+}
+
+type appServerCollaborationMode struct {
+	Mode     string                         `json:"mode"`
+	Settings appServerCollaborationSettings `json:"settings"`
+}
+
+type appServerCollaborationSettings struct {
+	DeveloperInstructions *string `json:"developer_instructions"`
+	Model                 string  `json:"model"`
+	ReasoningEffort       *string `json:"reasoning_effort"`
+}
+
+type appServerUserInput struct {
+	Text string `json:"text"`
+	Type string `json:"type"`
+}
+
+type appServerSandboxPolicy struct {
+	Type string `json:"type"`
+}
+
+func buildAppServerThreadRequest(req agent.RunRequest) appServerThreadRequest {
+	request := appServerThreadRequest{
+		Method: "thread/start",
+		Params: appServerThreadParams{
+			ApprovalPolicy: "never",
+			Sandbox:        "danger-full-access",
+			ServiceName:    "remote-futrx",
+		},
 	}
 	if cwd := strings.TrimSpace(req.Cwd); cwd != "" {
-		params["cwd"] = cwd
+		request.Params.Cwd = cwd
 	}
 	if model := sanitizeModel(req.Model); model != "" {
-		params["model"] = model
+		request.Params.Model = model
 	}
 	if tier := serviceTierArg(req.Preferences.ServiceTier); tier != "" {
-		params["serviceTier"] = tier
+		request.Params.ServiceTier = tier
 	}
 	if req.ResumeID == "" {
-		params["serviceName"] = "remote-futrx"
-		return "thread/start", params
+		return request
 	}
-	params["threadId"] = req.ResumeID
+	request.Params.ServiceName = ""
+	request.Params.ThreadID = req.ResumeID
 	if req.Fork {
-		return "thread/fork", params
+		request.Method = "thread/fork"
+		return request
 	}
-	return "thread/resume", params
+	request.Method = "thread/resume"
+	return request
 }
 
-func appServerTurnParams(req agent.RunRequest, threadID, model string) map[string]any {
+func buildAppServerTurnParams(req agent.RunRequest, threadID, model string) appServerTurnParams {
 	mode := "default"
 	if req.Mode == "plan" {
 		mode = "plan"
@@ -67,36 +123,29 @@ func appServerTurnParams(req agent.RunRequest, threadID, model string) map[strin
 		// selected an explicit effort.
 		effort = "medium"
 	}
-	settings := map[string]any{
-		"model":                  model,
-		"developer_instructions": nil,
-		"reasoning_effort":       nullableString(effort),
-	}
-	params := map[string]any{
-		"threadId":       threadID,
-		"input":          []map[string]string{{"type": "text", "text": req.Prompt}},
-		"approvalPolicy": "never",
-		"sandboxPolicy":  map[string]string{"type": "dangerFullAccess"},
-		"model":          model,
-		"collaborationMode": map[string]any{
-			"mode":     mode,
-			"settings": settings,
-		},
-	}
+	var reasoningEffort *string
 	if effort != "" {
-		params["effort"] = effort
+		reasoningEffort = &effort
+	}
+	params := appServerTurnParams{
+		ApprovalPolicy: "never",
+		CollaborationMode: appServerCollaborationMode{
+			Mode: mode,
+			Settings: appServerCollaborationSettings{
+				Model:           model,
+				ReasoningEffort: reasoningEffort,
+			},
+		},
+		Effort:        effort,
+		Input:         []appServerUserInput{{Text: req.Prompt, Type: "text"}},
+		Model:         model,
+		SandboxPolicy: appServerSandboxPolicy{Type: "dangerFullAccess"},
+		ThreadID:      threadID,
 	}
 	if tier := serviceTierArg(req.Preferences.ServiceTier); tier != "" {
-		params["serviceTier"] = tier
+		params.ServiceTier = tier
 	}
 	return params
-}
-
-func nullableString(value string) any {
-	if value == "" {
-		return nil
-	}
-	return value
 }
 
 func rpcResponseID(raw json.RawMessage) (int, bool) {

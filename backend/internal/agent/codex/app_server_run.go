@@ -181,11 +181,11 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 			run.protocolErr = err
 			return
 		}
-		method, params := appServerThreadRequest(run.req)
+		request := buildAppServerThreadRequest(run.req)
 		run.protocolErr = run.write(map[string]any{
-			"method": method,
+			"method": request.Method,
 			"id":     appServerThreadRequestID,
-			"params": params,
+			"params": request.Params,
 		})
 
 	case appServerThreadRequestID:
@@ -211,7 +211,7 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 		run.protocolErr = run.write(map[string]any{
 			"method": "turn/start",
 			"id":     appServerTurnRequestID,
-			"params": appServerTurnParams(run.req, result.Thread.ID, result.Model),
+			"params": buildAppServerTurnParams(run.req, result.Thread.ID, result.Model),
 		})
 
 	case appServerTurnRequestID:

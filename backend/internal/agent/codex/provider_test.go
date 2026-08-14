@@ -40,52 +40,52 @@ func TestCodexEnvStripsOpenAIAPIKey(t *testing.T) {
 	}
 }
 
-func TestArgsIncludeReasoningEffort(t *testing.T) {
-	params := appServerTurnParams(agent.RunRequest{
+func TestAppServerTurnIncludesReasoningEffort(t *testing.T) {
+	params := buildAppServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{ReasoningEffort: "high"},
 	}, "thread-1", "gpt-5.5")
-	if params["effort"] != "high" {
-		t.Fatalf("effort = %#v, want high", params["effort"])
+	if params.Effort != "high" {
+		t.Fatalf("effort = %q, want high", params.Effort)
 	}
 }
 
-func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
-	params := appServerTurnParams(agent.RunRequest{
+func TestAppServerTurnIgnoresInvalidReasoningEffort(t *testing.T) {
+	params := buildAppServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{ReasoningEffort: "extreme;invalid"},
 	}, "thread-1", "gpt-5.5")
 
-	if _, ok := params["effort"]; ok {
+	if params.Effort != "" {
 		t.Fatalf("invalid reasoning effort should not be sent: %#v", params)
 	}
 }
 
-func TestArgsIncludeServiceTier(t *testing.T) {
-	params := appServerTurnParams(agent.RunRequest{
+func TestAppServerTurnIncludesServiceTier(t *testing.T) {
+	params := buildAppServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{ServiceTier: "priority"},
 	}, "thread-1", "gpt-5.5")
-	if params["serviceTier"] != "priority" {
-		t.Fatalf("serviceTier = %#v, want priority", params["serviceTier"])
+	if params.ServiceTier != "priority" {
+		t.Fatalf("serviceTier = %q, want priority", params.ServiceTier)
 	}
 }
 
-func TestArgsIncludeReasoningEffortAndServiceTier(t *testing.T) {
-	params := appServerTurnParams(agent.RunRequest{
+func TestAppServerTurnIncludesReasoningEffortAndServiceTier(t *testing.T) {
+	params := buildAppServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{
 			ReasoningEffort: "xhigh",
 			ServiceTier:     "default",
 		},
 	}, "thread-1", "gpt-5.5")
-	if params["effort"] != "xhigh" || params["serviceTier"] != "default" {
+	if params.Effort != "xhigh" || params.ServiceTier != "default" {
 		t.Fatalf("turn params = %#v", params)
 	}
 }
 
-func TestArgsIgnoreInvalidServiceTier(t *testing.T) {
-	params := appServerTurnParams(agent.RunRequest{
+func TestAppServerTurnIgnoresInvalidServiceTier(t *testing.T) {
+	params := buildAppServerTurnParams(agent.RunRequest{
 		Preferences: agent.RunPreferences{ServiceTier: "turbo;invalid"},
 	}, "thread-1", "gpt-5.5")
 
-	if _, ok := params["serviceTier"]; ok {
+	if params.ServiceTier != "" {
 		t.Fatalf("invalid service tier should not be sent: %#v", params)
 	}
 }
@@ -155,49 +155,48 @@ func TestProfileReturnsIndependentProvisioningPolicy(t *testing.T) {
 	}
 }
 
-func TestArgsResumeThread(t *testing.T) {
-	method, params := appServerThreadRequest(agent.RunRequest{ResumeID: "thread-123"})
-	if method != "thread/resume" || params["threadId"] != "thread-123" {
-		t.Fatalf("thread request = %s %#v", method, params)
+func TestAppServerResumesThread(t *testing.T) {
+	request := buildAppServerThreadRequest(agent.RunRequest{ResumeID: "thread-123"})
+	if request.Method != "thread/resume" || request.Params.ThreadID != "thread-123" {
+		t.Fatalf("thread request = %#v", request)
 	}
 }
 
 func TestNativePlanTurnUsesCollaborationMode(t *testing.T) {
-	params := appServerTurnParams(
+	params := buildAppServerTurnParams(
 		agent.RunRequest{Mode: "plan"},
 		"thread-123",
 		"gpt-5.5",
 	)
-	mode, ok := params["collaborationMode"].(map[string]any)
-	if !ok || mode["mode"] != "plan" {
-		t.Fatalf("collaboration mode = %#v", params["collaborationMode"])
+	if params.CollaborationMode.Mode != "plan" {
+		t.Fatalf("collaboration mode = %#v", params.CollaborationMode)
 	}
-	settings, ok := mode["settings"].(map[string]any)
-	if !ok || settings["developer_instructions"] != nil || settings["reasoning_effort"] != "medium" {
-		t.Fatalf("plan settings = %#v", mode["settings"])
+	settings := params.CollaborationMode.Settings
+	if settings.DeveloperInstructions != nil || settings.ReasoningEffort == nil || *settings.ReasoningEffort != "medium" {
+		t.Fatalf("plan settings = %#v", settings)
 	}
 }
 
 func TestNativeDefaultTurnUsesProviderInstructions(t *testing.T) {
-	params := appServerTurnParams(
+	params := buildAppServerTurnParams(
 		agent.RunRequest{Mode: "default"},
 		"thread-123",
 		"gpt-5.5",
 	)
-	mode := params["collaborationMode"].(map[string]any)
-	if mode["mode"] != "default" {
+	mode := params.CollaborationMode
+	if mode.Mode != "default" {
 		t.Fatalf("collaboration mode = %#v", mode)
 	}
-	settings := mode["settings"].(map[string]any)
-	if settings["developer_instructions"] != nil || settings["reasoning_effort"] != nil {
+	settings := mode.Settings
+	if settings.DeveloperInstructions != nil || settings.ReasoningEffort != nil {
 		t.Fatalf("default settings = %#v", settings)
 	}
 }
 
 func TestForkUsesNativeThreadFork(t *testing.T) {
-	method, params := appServerThreadRequest(agent.RunRequest{ResumeID: "thread-123", Fork: true})
-	if method != "thread/fork" || params["threadId"] != "thread-123" {
-		t.Fatalf("thread request = %s %#v", method, params)
+	request := buildAppServerThreadRequest(agent.RunRequest{ResumeID: "thread-123", Fork: true})
+	if request.Method != "thread/fork" || request.Params.ThreadID != "thread-123" {
+		t.Fatalf("thread request = %#v", request)
 	}
 }
 
