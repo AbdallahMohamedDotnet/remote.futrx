@@ -25,18 +25,7 @@ func (handler *appServerRequestHandler) Answer(envelope appServerEnvelope) error
 	result := any(nil)
 	switch envelope.Method {
 	case "item/tool/requestUserInput", "tool/requestUserInput":
-		var params struct {
-			ItemID    string `json:"itemId"`
-			Questions []struct {
-				Header   string `json:"header"`
-				ID       string `json:"id"`
-				Question string `json:"question"`
-				Options  []struct {
-					Label       string `json:"label"`
-					Description string `json:"description"`
-				} `json:"options"`
-			} `json:"questions"`
-		}
+		var params appServerUserInputRequestParams
 		if err := json.Unmarshal(envelope.Params, &params); err != nil {
 			return err
 		}

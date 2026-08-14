@@ -15,37 +15,6 @@ type appServerEventParser struct {
 	lastUsage json.RawMessage
 }
 
-type appServerItem struct {
-	ID               string          `json:"id,omitempty"`
-	Type             string          `json:"type,omitempty"`
-	Text             string          `json:"text,omitempty"`
-	Command          string          `json:"command,omitempty"`
-	AggregatedOutput string          `json:"aggregatedOutput,omitempty"`
-	ExitCode         *int            `json:"exitCode,omitempty"`
-	Status           string          `json:"status,omitempty"`
-	Server           string          `json:"server,omitempty"`
-	Tool             string          `json:"tool,omitempty"`
-	Namespace        string          `json:"namespace,omitempty"`
-	Arguments        json.RawMessage `json:"arguments,omitempty"`
-	Result           json.RawMessage `json:"result,omitempty"`
-	Error            json.RawMessage `json:"error,omitempty"`
-	Changes          json.RawMessage `json:"changes,omitempty"`
-	Query            string          `json:"query,omitempty"`
-	Action           json.RawMessage `json:"action,omitempty"`
-	Raw              json.RawMessage `json:"-"`
-}
-
-func (item *appServerItem) UnmarshalJSON(data []byte) error {
-	type alias appServerItem
-	var decoded alias
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	*item = appServerItem(decoded)
-	item.Raw = append(json.RawMessage(nil), data...)
-	return nil
-}
-
 func newAppServerEventParser(req agent.RunRequest) *appServerEventParser {
 	return &appServerEventParser{req: req, itemText: make(map[string]string)}
 }
@@ -54,10 +23,7 @@ func (parser *appServerEventParser) ParseNotification(method string, raw json.Ra
 	now := time.Now().UnixMilli()
 	switch method {
 	case "item/agentMessage/delta", "item/plan/delta":
-		var params struct {
-			ItemID string `json:"itemId"`
-			Delta  string `json:"delta"`
-		}
+		var params appServerDeltaParams
 		if json.Unmarshal(raw, &params) != nil || params.Delta == "" {
 			return nil
 		}
@@ -69,10 +35,7 @@ func (parser *appServerEventParser) ParseNotification(method string, raw json.Ra
 		})}
 
 	case "item/reasoning/summaryTextDelta", "item/reasoning/textDelta":
-		var params struct {
-			ItemID string `json:"itemId"`
-			Delta  string `json:"delta"`
-		}
+		var params appServerDeltaParams
 		if json.Unmarshal(raw, &params) != nil || params.Delta == "" {
 			return nil
 		}
@@ -83,9 +46,7 @@ func (parser *appServerEventParser) ParseNotification(method string, raw json.Ra
 		})}
 
 	case "item/started", "item/completed":
-		var params struct {
-			Item appServerItem `json:"item"`
-		}
+		var params appServerItemParams
 		if json.Unmarshal(raw, &params) != nil {
 			return nil
 		}
@@ -95,25 +56,14 @@ func (parser *appServerEventParser) ParseNotification(method string, raw json.Ra
 		return parser.itemCompleted(now, raw, params.Item)
 
 	case "thread/tokenUsage/updated":
-		var params struct {
-			TokenUsage struct {
-				Last appServerTokenUsage `json:"last"`
-			} `json:"tokenUsage"`
-		}
+		var params appServerTokenUsageParams
 		if json.Unmarshal(raw, &params) == nil {
 			parser.lastUsage = params.TokenUsage.Last.normalized()
 		}
 		return nil
 
 	case "turn/completed":
-		var params struct {
-			Turn struct {
-				Status string `json:"status"`
-				Error  *struct {
-					Message string `json:"message"`
-				} `json:"error"`
-			} `json:"turn"`
-		}
+		var params appServerTurnCompletedParams
 		if json.Unmarshal(raw, &params) != nil {
 			return nil
 		}
@@ -133,9 +83,7 @@ func (parser *appServerEventParser) ParseNotification(method string, raw json.Ra
 		})}
 
 	case "error":
-		var params struct {
-			Message string `json:"message"`
-		}
+		var params appServerErrorParams
 		if json.Unmarshal(raw, &params) == nil && params.Message != "" {
 			return []agent.Event{parser.event(now, agent.EventError, raw, func(event *agent.Event) {
 				event.Message = params.Message
@@ -272,13 +220,6 @@ func (parser *appServerEventParser) event(
 		configure(&event)
 	}
 	return event
-}
-
-type appServerTokenUsage struct {
-	InputTokens           int64 `json:"inputTokens"`
-	CachedInputTokens     int64 `json:"cachedInputTokens"`
-	OutputTokens          int64 `json:"outputTokens"`
-	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"`
 }
 
 func (usage appServerTokenUsage) normalized() json.RawMessage {

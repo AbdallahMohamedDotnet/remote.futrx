@@ -81,6 +81,91 @@ type appServerSandboxPolicy struct {
 	Type string `json:"type"`
 }
 
+type appServerItem struct {
+	ID               string          `json:"id,omitempty"`
+	Type             string          `json:"type,omitempty"`
+	Text             string          `json:"text,omitempty"`
+	Command          string          `json:"command,omitempty"`
+	AggregatedOutput string          `json:"aggregatedOutput,omitempty"`
+	ExitCode         *int            `json:"exitCode,omitempty"`
+	Status           string          `json:"status,omitempty"`
+	Server           string          `json:"server,omitempty"`
+	Tool             string          `json:"tool,omitempty"`
+	Namespace        string          `json:"namespace,omitempty"`
+	Arguments        json.RawMessage `json:"arguments,omitempty"`
+	Result           json.RawMessage `json:"result,omitempty"`
+	Error            json.RawMessage `json:"error,omitempty"`
+	Changes          json.RawMessage `json:"changes,omitempty"`
+	Query            string          `json:"query,omitempty"`
+	Action           json.RawMessage `json:"action,omitempty"`
+	Raw              json.RawMessage `json:"-"`
+}
+
+func (item *appServerItem) UnmarshalJSON(data []byte) error {
+	type alias appServerItem
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*item = appServerItem(decoded)
+	item.Raw = append(json.RawMessage(nil), data...)
+	return nil
+}
+
+type appServerDeltaParams struct {
+	ItemID string `json:"itemId"`
+	Delta  string `json:"delta"`
+}
+
+type appServerItemParams struct {
+	Item appServerItem `json:"item"`
+}
+
+type appServerTokenUsageParams struct {
+	TokenUsage appServerTokenUsageSnapshot `json:"tokenUsage"`
+}
+
+type appServerTokenUsageSnapshot struct {
+	Last appServerTokenUsage `json:"last"`
+}
+
+type appServerTokenUsage struct {
+	InputTokens           int64 `json:"inputTokens"`
+	CachedInputTokens     int64 `json:"cachedInputTokens"`
+	OutputTokens          int64 `json:"outputTokens"`
+	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"`
+}
+
+type appServerTurnCompletedParams struct {
+	Turn appServerTurnResult `json:"turn"`
+}
+
+type appServerTurnResult struct {
+	Status string          `json:"status"`
+	Error  *appServerError `json:"error"`
+}
+
+type appServerErrorParams struct {
+	Message string `json:"message"`
+}
+
+type appServerUserInputRequestParams struct {
+	ItemID    string                  `json:"itemId"`
+	Questions []appServerUserQuestion `json:"questions"`
+}
+
+type appServerUserQuestion struct {
+	Header   string                    `json:"header"`
+	ID       string                    `json:"id"`
+	Question string                    `json:"question"`
+	Options  []appServerQuestionOption `json:"options"`
+}
+
+type appServerQuestionOption struct {
+	Label       string `json:"label"`
+	Description string `json:"description"`
+}
+
 func buildAppServerThreadRequest(req agent.RunRequest) appServerThreadRequest {
 	request := appServerThreadRequest{
 		Method: "thread/start",
