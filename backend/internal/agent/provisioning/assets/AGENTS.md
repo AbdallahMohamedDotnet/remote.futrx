@@ -106,12 +106,12 @@ Whenever the user asks for a dev server, **the URL they reach it at
 is**:
 
 ```
-https://{{PROJECT_SLUG}}--<port>.dev.{{PUBLIC_HOSTNAME}}
+https://<this-project-slug>--<port>.dev.{{PUBLIC_HOSTNAME}}
 ```
 
-This project's slug is `{{PROJECT_SLUG}}`. Replace `<port>` with the port the
-application uses. Do not guess or derive the slug from environment values,
-OAuth configuration, repository names, or user data.
+Replace `<this-project-slug>` with the project slug shown in the environment
+context and `<port>` with the port the application uses. Do not guess or derive
+the slug from OAuth configuration, repository names, or user data.
 
 `localhost:<port>` is useful for health checks inside the container, but never
 give it to the user: they are on another machine. Give them the routed HTTPS
@@ -136,9 +136,10 @@ is issued automatically on first access.
 
 3. Configure the framework's documented host/origin allowlist for the exact
    routed hostname
-   `{{PROJECT_SLUG}}--<port>.dev.{{PUBLIC_HOSTNAME}}`, or for the documented
-   suffix form when the framework supports one. Syntax varies by framework and
-   version. Do not disable host validation wholesale.
+   `<this-project-slug>--<port>.dev.{{PUBLIC_HOSTNAME}}`, or the suffix
+   `.dev.{{PUBLIC_HOSTNAME}}` when the framework documents a suffix form.
+   Syntax varies by framework and version. Do not disable host validation
+   wholesale.
 
 ### Start the server durably
 
