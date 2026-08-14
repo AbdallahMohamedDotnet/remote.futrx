@@ -1,12 +1,9 @@
 package codex
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -14,15 +11,6 @@ import (
 )
 
 const capabilityTimeout = 12 * time.Second
-
-type rpcResponse struct {
-	ID     int             `json:"id"`
-	Result json.RawMessage `json:"result"`
-	Error  *struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
-}
 
 type modelListResponse struct {
 	Data []modelListItem `json:"data"`
@@ -62,7 +50,7 @@ type collaborationModeItem struct {
 
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	appServerCtx, cancelAppServer := context.WithTimeout(ctx, capabilityTimeout)
-	models, modes, err := loadAppServerCapabilities(appServerCtx, req)
+	models, modes, err := queryAppServerCapabilities(appServerCtx, req)
 	cancelAppServer()
 	if err == nil {
 		return buildCapabilities(models, modes), nil
@@ -72,7 +60,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	// is still structured JSON and preserves live model/effort/speed data.
 	debugCtx, cancelDebug := context.WithTimeout(ctx, capabilityTimeout)
 	defer cancelDebug()
-	debugModels, debugErr := loadDebugModels(debugCtx, req)
+	debugModels, debugErr := queryDebugModels(debugCtx, req)
 	if debugErr == nil {
 		caps := buildCapabilities(debugModels, collaborationModeListResponse{})
 		caps.Warning = "Codex mode discovery is unavailable in this CLI version"
@@ -82,182 +70,6 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	caps := fallbackCapabilities()
 	caps.Warning = "Codex capabilities could not be read from the CLI"
 	return caps, fmt.Errorf("codex capability discovery: %w", errors.Join(err, debugErr))
-}
-
-func loadAppServerCapabilities(
-	ctx context.Context,
-	req agent.CapabilityRequest,
-) (modelListResponse, collaborationModeListResponse, error) {
-	cmd := agent.NewCapabilityCommand(
-		ctx,
-		req,
-		[]string{"HOME=/root", "CODEX_HOME=/root/.codex", "OPENAI_API_KEY="},
-		"codex",
-		"app-server",
-	)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return modelListResponse{}, collaborationModeListResponse{}, err
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return modelListResponse{}, collaborationModeListResponse{}, err
-	}
-	cmd.Stderr = io.Discard
-	if err := cmd.Start(); err != nil {
-		return modelListResponse{}, collaborationModeListResponse{}, err
-	}
-	defer func() {
-		_ = stdin.Close()
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		_ = cmd.Wait()
-	}()
-
-	writeRPC := func(message any) error {
-		return json.NewEncoder(stdin).Encode(message)
-	}
-	if err := writeRPC(map[string]any{
-		"method": "initialize",
-		"id":     1,
-		"params": map[string]any{
-			"clientInfo": map[string]string{
-				"name":    "remote-futrx",
-				"title":   "Remote",
-				"version": "1",
-			},
-			"capabilities": map[string]bool{"experimentalApi": true},
-		},
-	}); err != nil {
-		return modelListResponse{}, collaborationModeListResponse{}, err
-	}
-
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
-	initialized := false
-	var modelResult modelListResponse
-	var modeResult collaborationModeListResponse
-	modelsDone := false
-	modesDone := false
-	for scanner.Scan() {
-		var response rpcResponse
-		if err := json.Unmarshal(scanner.Bytes(), &response); err != nil || response.ID == 0 {
-			continue
-		}
-		switch response.ID {
-		case 1:
-			if response.Error != nil {
-				return modelListResponse{}, collaborationModeListResponse{}, fmt.Errorf("initialize: %s", response.Error.Message)
-			}
-			if initialized {
-				continue
-			}
-			initialized = true
-			if err := writeRPC(map[string]any{
-				"method": "model/list",
-				"id":     2,
-				"params": map[string]any{"includeHidden": false, "limit": 100},
-			}); err != nil {
-				return modelListResponse{}, collaborationModeListResponse{}, err
-			}
-			if err := writeRPC(map[string]any{
-				"method": "collaborationMode/list",
-				"id":     3,
-				"params": map[string]any{},
-			}); err != nil {
-				return modelListResponse{}, collaborationModeListResponse{}, err
-			}
-		case 2:
-			modelsDone = true
-			if response.Error != nil {
-				return modelListResponse{}, collaborationModeListResponse{}, fmt.Errorf("model/list: %s", response.Error.Message)
-			}
-			if err := json.Unmarshal(response.Result, &modelResult); err != nil {
-				return modelListResponse{}, collaborationModeListResponse{}, fmt.Errorf("decode model/list: %w", err)
-			}
-		case 3:
-			modesDone = true
-			if response.Error == nil {
-				_ = json.Unmarshal(response.Result, &modeResult)
-			}
-		}
-		if modelsDone && modesDone {
-			if len(modelResult.Data) == 0 {
-				return modelListResponse{}, collaborationModeListResponse{}, errors.New("model/list returned no models")
-			}
-			return modelResult, modeResult, nil
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return modelListResponse{}, collaborationModeListResponse{}, err
-	}
-	return modelListResponse{}, collaborationModeListResponse{}, errors.New("codex app-server closed before returning capabilities")
-}
-
-type debugCatalog struct {
-	Models []debugModelItem `json:"models"`
-}
-
-type debugModelItem struct {
-	Slug                  string               `json:"slug"`
-	DisplayName           string               `json:"display_name"`
-	Description           string               `json:"description"`
-	DefaultReasoningLevel string               `json:"default_reasoning_level"`
-	Visibility            string               `json:"visibility"`
-	SupportedReasoning    []debugReasoningItem `json:"supported_reasoning_levels"`
-	ServiceTiers          []serviceTierItem    `json:"service_tiers"`
-}
-
-type debugReasoningItem struct {
-	Effort      string `json:"effort"`
-	Description string `json:"description"`
-}
-
-func loadDebugModels(ctx context.Context, req agent.CapabilityRequest) (modelListResponse, error) {
-	cmd := agent.NewCapabilityCommand(
-		ctx,
-		req,
-		[]string{"HOME=/root", "CODEX_HOME=/root/.codex", "OPENAI_API_KEY="},
-		"codex",
-		"debug",
-		"models",
-	)
-	output, err := cmd.Output()
-	if err != nil {
-		return modelListResponse{}, err
-	}
-	var debug debugCatalog
-	if err := json.Unmarshal(output, &debug); err != nil {
-		return modelListResponse{}, err
-	}
-	var result modelListResponse
-	for _, model := range debug.Models {
-		if model.Visibility != "" && model.Visibility != "list" {
-			continue
-		}
-		item := modelListItem{
-			ID: model.Slug, Model: model.Slug, DisplayName: model.DisplayName,
-			Description: model.Description, DefaultReasoningEffort: model.DefaultReasoningLevel,
-			IsDefault: len(result.Data) == 0,
-		}
-		for _, effort := range model.SupportedReasoning {
-			item.SupportedReasoningEfforts = append(
-				item.SupportedReasoningEfforts,
-				reasoningEffortItem{ReasoningEffort: effort.Effort, Description: effort.Description},
-			)
-		}
-		for _, tier := range model.ServiceTiers {
-			item.ServiceTiers = append(item.ServiceTiers, serviceTierItem{
-				ID: tier.ID, Name: tier.Name, Description: tier.Description,
-			})
-		}
-		result.Data = append(result.Data, item)
-	}
-	if len(result.Data) == 0 {
-		return modelListResponse{}, errors.New("codex debug catalog returned no visible models")
-	}
-	return result, nil
 }
 
 func buildCapabilities(models modelListResponse, providerModes collaborationModeListResponse) agent.Capabilities {
