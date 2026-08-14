@@ -70,11 +70,11 @@ func TestFallbackCapabilitiesKeepCompleteVersionedCatalog(t *testing.T) {
 	}
 	want := map[string]string{
 		"fable":    "Fable 5",
-		"opus":     "Opus 4.8",
+		"opus":     "Opus 5",
 		"sonnet":   "Sonnet 5",
 		"haiku":    "Haiku 4.5",
-		"opus[1m]": "Opus 4.8 (1M context)",
-		"opusplan": "Opus 4.8 (Plan) · Sonnet 5 (Default)",
+		"opus[1m]": "Opus 5 (1M context)",
+		"opusplan": "Opus 5 (Plan) · Sonnet 5 (Default)",
 	}
 	for _, model := range caps.Models {
 		if label, ok := want[model.ID]; ok && model.Label != label {

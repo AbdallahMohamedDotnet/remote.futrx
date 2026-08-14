@@ -42,7 +42,7 @@ preserves every full display name returned by `agy models`, including its
 thinking variant.
 
 Remote still submits the provider's required selection value. For example, a
-Claude row labeled **Opus 4.8** can carry the dynamic `opus` alias underneath;
+Claude row labeled **Opus 5** can carry the dynamic `opus` alias underneath;
 this lets Claude Code keep resolving account-specific model revisions without
 reducing the UI label to merely “Opus.” **Auto** and a conservative fallback
 catalog remain available when a CLI is older, unavailable, or signed out.

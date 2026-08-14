@@ -19,7 +19,7 @@ func TestProfilePreservesClaudeProvisioningPolicy(t *testing.T) {
 		ImageLabel:         "claude-code",
 		Binary:             "claude",
 		PackageName:        "@anthropic-ai/claude-code",
-		Version:            "2.1.216",
+		Version:            "2.1.232",
 		ReportVersion:      true,
 		CheckVersion:       true,
 		VerifyAfterInstall: true,

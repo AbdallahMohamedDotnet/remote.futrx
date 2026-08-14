@@ -225,7 +225,7 @@ func fallbackModelCatalog() claudeModelCatalog {
 	}
 	return claudeModelCatalog{
 		Source:       agent.CapabilitySourceFallback,
-		DefaultLabel: "Opus 4.8 (1M context)",
+		DefaultLabel: "Opus 5 (1M context)",
 		Selections:   selections,
 	}
 }
@@ -235,7 +235,7 @@ func fallbackModelLabel(selection string) string {
 	case "best", "fable":
 		return "Fable 5"
 	case "opus", "opusplan":
-		return "Opus 4.8"
+		return "Opus 5"
 	case "sonnet":
 		return "Sonnet 5"
 	case "haiku":

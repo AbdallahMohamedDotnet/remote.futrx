@@ -16,7 +16,7 @@ func TestProfilePreservesCodexProvisioningPolicy(t *testing.T) {
 			ImageLabel:         "codex",
 			Binary:             "codex",
 			PackageName:        "@openai/codex",
-			Version:            "0.145.0",
+			Version:            "0.147.0",
 			ReportVersion:      true,
 			CheckVersion:       true,
 			VerifyAfterInstall: true,
