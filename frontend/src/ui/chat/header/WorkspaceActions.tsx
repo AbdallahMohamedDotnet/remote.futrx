@@ -1,5 +1,10 @@
+import { useId, useState } from "preact/hooks";
 import { CalendarClock, Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
+
+const actionClass = `workspace-action relative inline-flex h-8 w-8 flex-none items-center justify-center rounded-md
+                     text-ink-300 transition hover:bg-white/[0.08] hover:text-ink-100
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/80`;
 
 export function WorkspaceActions({
   cwd,
@@ -22,79 +27,134 @@ export function WorkspaceActions({
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = buildIdeUrl(workspacePath);
-  const actionClass = `workspace-action inline-flex h-8 w-8 flex-none items-center justify-center rounded-md
-                       text-ink-300 transition hover:bg-white/[0.08] hover:text-ink-100`;
 
   return (
     <div class="flex flex-col items-center gap-1.5">
       <div class="workspace-action-group inline-flex flex-col items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
-        <a
+        <WorkspaceAction
+          Icon={Code}
           href={ideUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          class={actionClass}
-          title={`Open workspace in IDE: ${workspacePath}`}
-          aria-label="Open workspace in IDE"
-        >
-          <WorkspaceActionIcon Icon={Code} />
-        </a>
-        <button
-          type="button"
+          label="Workspace IDE"
+          tooltip="Open workspace in IDE"
+        />
+        <WorkspaceAction
+          Icon={Terminal}
           onClick={onOpenTerminal}
-          class={actionClass}
-          title={`Open terminal in container workspace: ${workspacePath}`}
-          aria-label="Open terminal"
-        >
-          <WorkspaceActionIcon Icon={Terminal} />
-        </button>
+          label="Container terminal"
+          tooltip="Open container terminal"
+        />
       </div>
 
       <div class="workspace-action-group inline-flex flex-col items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] p-0.5">
         {showHistory && (
-          <button
-            type="button"
+          <WorkspaceAction
+            Icon={Clock}
             onClick={onOpenHistory}
-            class={actionClass}
-            title="Review git history"
-            aria-label="Review history"
-          >
-            <WorkspaceActionIcon Icon={Clock} />
-          </button>
+            label="Git history"
+            tooltip="Review git history"
+          />
         )}
-        <button
-          type="button"
+        <WorkspaceAction
+          Icon={Folder}
           onClick={onOpenFiles}
-          class={actionClass}
-          title="Browse uploads and media files"
-          aria-label="Open file manager"
-        >
-          <WorkspaceActionIcon Icon={Folder} />
-        </button>
+          label="Workspace files"
+          tooltip="Browse workspace files"
+        />
         {showSchedules && (
-          <button
-            type="button"
+          <WorkspaceAction
+            Icon={CalendarClock}
             onClick={onOpenSchedules}
-            class={actionClass}
-            title="View scheduled tasks"
-            aria-label="Open scheduled tasks"
-          >
-            <WorkspaceActionIcon Icon={CalendarClock} />
-          </button>
+            label="Scheduled tasks"
+            tooltip="View scheduled tasks"
+          />
         )}
-        <button
-          type="button"
+        <WorkspaceAction
+          Icon={Monitor}
           onClick={onOpenBrowser}
-          class={`${actionClass} bg-accent-blue/[0.08] text-ink-100`}
-          title="Open browser preview"
-          aria-label="Open browser"
-        >
-          <WorkspaceActionIcon Icon={Monitor} />
-        </button>
+          label="Browser preview"
+          tooltip="Open browser preview"
+          emphasized
+        />
       </div>
     </div>
   );
 }
 
-function WorkspaceActionIcon({ Icon }: { Icon: typeof Code }) {
-  return <Icon class="h-3.5 w-3.5 flex-none text-accent-blue" />;
+function WorkspaceAction({
+  Icon,
+  label,
+  tooltip,
+  href,
+  onClick,
+  emphasized = false,
+}: {
+  Icon: typeof Code;
+  label: string;
+  tooltip: string;
+  href?: string;
+  onClick?: () => void;
+  emphasized?: boolean;
+}) {
+  const tooltipId = useId();
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
+  const isTooltipOpen = !isDismissed && (isHovered || isFocused);
+  const className = `${actionClass} ${emphasized ? "bg-accent-blue/[0.08] text-ink-100" : ""}`;
+  const interactionProps = {
+    "aria-describedby": tooltipId,
+    "aria-label": label,
+    onBlur: () => {
+      setIsFocused(false);
+      setIsDismissed(false);
+    },
+    onFocus: () => {
+      setIsFocused(true);
+      setIsDismissed(false);
+    },
+    onKeyDown: (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setIsDismissed(true);
+      event.stopPropagation();
+    },
+    onMouseEnter: () => {
+      setIsHovered(true);
+      setIsDismissed(false);
+    },
+    onMouseLeave: () => setIsHovered(false),
+  };
+  const content = (
+    <>
+      <Icon aria-hidden="true" focusable="false" class="h-3.5 w-3.5 flex-none text-accent-blue" />
+      <span
+        id={tooltipId}
+        role="tooltip"
+        class={`workspace-action-tooltip pointer-events-none absolute right-full top-1/2 z-50 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#191a1f] px-2 py-1.5 text-[11px] font-medium text-ink-100 shadow-xl transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
+          isTooltipOpen ? "translate-x-0 opacity-100" : "translate-x-1 opacity-0"
+        }`}
+      >
+        {tooltip}
+      </span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a
+        {...interactionProps}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        class={className}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button {...interactionProps} type="button" onClick={onClick} class={className}>
+      {content}
+    </button>
+  );
 }

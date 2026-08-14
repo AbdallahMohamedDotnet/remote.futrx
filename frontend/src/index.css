@@ -502,6 +502,16 @@ html[data-theme="light"] .theme-menu-surface .bg-\[\#191a1f\] {
   background: #f6f8fa !important;
 }
 
+html[data-theme="light"] .workspace-action-tooltip {
+  background: #24292f !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .workspace-action:focus-visible {
+  --tw-ring-color: rgba(9, 105, 218, 0.9);
+}
+
 html[data-theme="light"] .bg-\[\#090b0f\],
 html[data-theme="light"] .bg-\[\#0b0d11\] {
   background-color: #ffffff !important;
