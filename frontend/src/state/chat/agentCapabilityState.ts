@@ -14,6 +14,18 @@ export interface ComposerCapabilityState {
   modeOptions: AgentCapabilityOption[];
 }
 
+export interface CapabilityPreferenceSelection {
+  mode: string;
+  reasoningEffort: string;
+  serviceTier: string;
+}
+
+export interface CapabilityPreferenceCorrection {
+  mode?: string;
+  reasoningEffort?: string;
+  serviceTier?: string;
+}
+
 export const agentCapabilityState = {
   resolve(
     catalog: AgentCapabilitiesCatalog | null,
@@ -47,6 +59,39 @@ export const agentCapabilityState = {
       serviceTierOptions: selectedModel?.serviceTiers ?? [],
       modeOptions: providerCapabilities?.modes ?? [],
     };
+  },
+
+  corrections(
+    state: ComposerCapabilityState,
+    selection: CapabilityPreferenceSelection,
+  ): CapabilityPreferenceCorrection {
+    const capabilities = state.providerCapabilities;
+    if (!capabilities || capabilities.source !== "live") return {};
+
+    const correction: CapabilityPreferenceCorrection = {};
+    if (
+      selection.reasoningEffort &&
+      !state.reasoningEffortOptions.some(
+        (option) => option.value === selection.reasoningEffort,
+      )
+    ) {
+      correction.reasoningEffort = "";
+    }
+    if (
+      selection.serviceTier &&
+      !state.serviceTierOptions.some(
+        (option) => option.value === selection.serviceTier,
+      )
+    ) {
+      correction.serviceTier = "";
+    }
+    if (
+      selection.mode &&
+      !state.modeOptions.some((option) => option.value === selection.mode)
+    ) {
+      correction.mode = capabilities.defaultMode || state.modeOptions[0]?.value || "code";
+    }
+    return correction;
   },
 };
 

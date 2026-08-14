@@ -38,3 +38,30 @@ test("falls back to the auto model for an unknown saved model", () => {
   const state = agentCapabilityState.resolve(catalog, "codex", "retired-model", false);
   assert.deepEqual(state.reasoningEffortOptions.map((option) => option.value), ["", "medium"]);
 });
+
+test("corrects selections unsupported by a live catalog", () => {
+  const state = agentCapabilityState.resolve(catalog, "codex", "gpt-fast", false);
+  assert.deepEqual(
+    agentCapabilityState.corrections(state, {
+      mode: "retired-mode",
+      reasoningEffort: "ultra",
+      serviceTier: "slow",
+    }),
+    { mode: "code", reasoningEffort: "", serviceTier: "" },
+  );
+});
+
+test("preserves selections when discovery used a fallback catalog", () => {
+  const fallbackCatalog: AgentCapabilitiesCatalog = {
+    providers: [{ ...catalog.providers[0], source: "fallback" }],
+  };
+  const state = agentCapabilityState.resolve(fallbackCatalog, "codex", "gpt-fast", false);
+  assert.deepEqual(
+    agentCapabilityState.corrections(state, {
+      mode: "retired-mode",
+      reasoningEffort: "ultra",
+      serviceTier: "slow",
+    }),
+    {},
+  );
+});
