@@ -12,10 +12,10 @@ usage() {
 Usage: bash infra/qa/install.sh [branch|tag|commit]
 
 With no ref, runs the same public curl|bash command documented for a new Remote
-user. With a ref, resolves the pushed ref to an immutable commit, runs the
-local test suite, and curl-installs that exact candidate commit. It refuses to
-run when /opt/remote.futrx already exists; recreate the server before using
-this command to repeat a clean-install test.
+user. With a ref, resolves the pushed ref to an immutable commit and
+curl-installs that exact candidate commit. It refuses to run when
+/opt/remote.futrx already exists; recreate the server before using this command
+to repeat a clean-install test.
 EOF
 }
 
