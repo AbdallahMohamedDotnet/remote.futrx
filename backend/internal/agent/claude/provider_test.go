@@ -79,6 +79,24 @@ func TestArgsIncludeReasoningEffort(t *testing.T) {
 	}
 }
 
+func TestArgsEnableUltracodeForRun(t *testing.T) {
+	provider := New(nil, provisioning.ContainerDependencies{})
+	args := provider.args(agent.RunRequest{
+		Model: "opus",
+		Preferences: agent.RunPreferences{
+			ReasoningEffort: ultracodeEffort,
+		},
+	})
+
+	effortIndex := slices.Index(args, "--effort")
+	if effortIndex < 0 || effortIndex+1 >= len(args) {
+		t.Fatalf("missing --effort pair: %#v", args)
+	}
+	if args[effortIndex+1] != ultracodeEffort {
+		t.Fatalf("--effort = %q, want %q", args[effortIndex+1], ultracodeEffort)
+	}
+}
+
 func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 	provider := New(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{

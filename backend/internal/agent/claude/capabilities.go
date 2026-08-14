@@ -3,6 +3,8 @@ package claude
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,34 +14,59 @@ import (
 const capabilityTimeout = 15 * time.Second
 const fastServiceTier = "fast"
 
+const ultracodeEffort = "ultracode"
+
+var claudeModelVersionPattern = regexp.MustCompile(`(?i)\b(fable|opus|sonnet|haiku)\s+(\d+)(?:\.(\d+))?`)
+
+type effortDiscoveryResult struct {
+	options []agent.CapabilityOption
+	err     error
+}
+
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	probeCtx, cancel := context.WithTimeout(ctx, capabilityTimeout)
 	defer cancel()
 
+	// Effort and model commands are independent local CLI probes. Run them in
+	// parallel so detecting Ultracode does not add another startup delay to the
+	// first uncached catalog request.
+	effortDone := make(chan effortDiscoveryResult, 1)
+	go func() {
+		options, err := queryEffortOptions(probeCtx, req)
+		effortDone <- effortDiscoveryResult{options: options, err: err}
+	}()
 	catalog, fullyResolved, catalogErr := queryModelCatalog(probeCtx, req)
-	helpCmd := agent.NewCapabilityCommand(
-		probeCtx,
-		req,
-		[]string{"HOME=/root", "IS_SANDBOX=1"},
-		"claude",
-		"--help",
-	)
-	helpOutput, helpErr := helpCmd.CombinedOutput()
+	effortResult := <-effortDone
+	reasoning, effortErr := effortResult.options, effortResult.err
+	if effortErr != nil || len(reasoning) == 0 {
+		reasoning = queryHelpEffortOptions(probeCtx, req)
+	}
 	if catalogErr != nil {
-		caps := fallbackCapabilities()
+		caps := buildCapabilities(fallbackModelCatalog(), reasoning)
 		caps.Warning = "Claude model catalog could not be read from the CLI"
 		return caps, fmt.Errorf("claude capability discovery: %w", catalogErr)
 	}
 
-	reasoning := parseHelpEfforts(string(helpOutput))
 	caps := buildCapabilities(catalog, reasoning)
-	if helpErr != nil || len(reasoning) == 0 {
+	if effortErr != nil || len(reasoning) == 0 {
 		caps.Warning = "Claude effort levels could not be read from the CLI"
 	}
 	if !fullyResolved {
 		caps.Warning = "Some Claude model versions could not be resolved by the CLI"
 	}
 	return caps, nil
+}
+
+func queryHelpEffortOptions(ctx context.Context, req agent.CapabilityRequest) []agent.CapabilityOption {
+	helpCmd := agent.NewCapabilityCommand(
+		ctx,
+		req,
+		[]string{"HOME=/root", "IS_SANDBOX=1"},
+		"claude",
+		"--help",
+	)
+	helpOutput, _ := helpCmd.CombinedOutput()
+	return parseHelpEfforts(string(helpOutput))
 }
 
 func fallbackCapabilities() agent.Capabilities {
@@ -55,7 +82,7 @@ func buildCapabilities(catalog claudeModelCatalog, reasoning []agent.CapabilityO
 		ID:               "",
 		Label:            autoModelLabel(catalog.DefaultLabel),
 		Description:      "Use the model selected by Claude Code for this account",
-		ReasoningEfforts: append([]agent.CapabilityOption(nil), reasoning...),
+		ReasoningEfforts: reasoningOptionsForModel(reasoning, catalog.DefaultLabel),
 		ServiceTiers:     fastModeOptions(),
 	})
 	for _, selection := range catalog.Selections {
@@ -63,7 +90,7 @@ func buildCapabilities(catalog claudeModelCatalog, reasoning []agent.CapabilityO
 			ID:               selection.ID,
 			Label:            selection.Label,
 			Description:      selection.Description,
-			ReasoningEfforts: append([]agent.CapabilityOption(nil), reasoning...),
+			ReasoningEfforts: reasoningOptionsForModel(reasoning, selection.Label),
 		}
 		if supportsFastMode(selection.ID) {
 			model.ServiceTiers = fastModeOptions()
@@ -77,6 +104,103 @@ func buildCapabilities(catalog claudeModelCatalog, reasoning []agent.CapabilityO
 		Models:      models,
 		Modes:       agent.ProviderModes(true),
 		DefaultMode: agent.RunModeDefault,
+	}
+}
+
+// reasoningOptionsForModel turns Claude Code's provider-wide --help choices
+// into the per-model choices shown by its own effort picker. Ultracode is a
+// session setting layered on xhigh rather than an API effort level, so it is
+// offered only when the resolved model supports xhigh.
+func reasoningOptionsForModel(
+	options []agent.CapabilityOption,
+	modelLabel string,
+) []agent.CapabilityOption {
+	supportsEffort, supportsXHigh, knownModel := claudeModelEffortSupport(modelLabel)
+	if knownModel && !supportsEffort {
+		return []agent.CapabilityOption{}
+	}
+
+	result := make([]agent.CapabilityOption, 0, len(options)+1)
+	hasXHigh := false
+	hasUltracode := false
+	for _, option := range options {
+		switch option.Value {
+		case ultracodeEffort:
+			hasUltracode = true
+			// Re-add it below only for a compatible model. This also prevents a
+			// future --help response from applying it to every model globally.
+			continue
+		case "xhigh":
+			if knownModel && !supportsXHigh {
+				continue
+			}
+			hasXHigh = true
+		}
+		result = append(result, option)
+	}
+	if supportsXHigh && hasXHigh && hasUltracode {
+		result = append(result, agent.CapabilityOption{
+			Value:       ultracodeEffort,
+			Label:       "Ultracode",
+			Description: "XHigh effort with automatic dynamic-workflow orchestration (session only)",
+		})
+	}
+	return result
+}
+
+func claudeModelEffortSupport(label string) (supportsEffort, supportsXHigh, known bool) {
+	matches := claudeModelVersionPattern.FindAllStringSubmatch(label, -1)
+	for _, match := range matches {
+		major, majorErr := strconv.Atoi(match[2])
+		minor := 0
+		var minorErr error
+		if match[3] != "" {
+			minor, minorErr = strconv.Atoi(match[3])
+		}
+		if majorErr != nil || minorErr != nil {
+			continue
+		}
+
+		modelEffort, modelXHigh := modelVersionEffortSupport(
+			strings.ToLower(match[1]),
+			major,
+			minor,
+		)
+		if !known {
+			supportsEffort = modelEffort
+			supportsXHigh = modelXHigh
+			known = true
+			continue
+		}
+		// Composite selections such as opusplan must be compatible across
+		// every model Claude Code may use for that selection.
+		supportsEffort = supportsEffort && modelEffort
+		supportsXHigh = supportsXHigh && modelXHigh
+	}
+	return supportsEffort, supportsXHigh, known
+}
+
+func modelVersionEffortSupport(family string, major, minor int) (bool, bool) {
+	switch family {
+	case "fable":
+		return major >= 5, major >= 5
+	case "opus":
+		if major >= 5 {
+			return true, true
+		}
+		if major == 4 && minor >= 7 {
+			return true, true
+		}
+		return major == 4 && minor == 6, false
+	case "sonnet":
+		if major >= 5 {
+			return true, true
+		}
+		return major == 4 && minor == 6, false
+	case "haiku":
+		return false, false
+	default:
+		return false, false
 	}
 }
 

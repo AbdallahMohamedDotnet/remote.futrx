@@ -28,6 +28,20 @@ func TestParseModelCatalogResultReturnsEverySelection(t *testing.T) {
 	}
 }
 
+func TestParseEffortCommandOptionsIncludesUltracode(t *testing.T) {
+	got := parseEffortCommandOptions(
+		"Usage: /effort <low|medium|high|xhigh|max|ultracode|auto>",
+	)
+	want := []string{"", "low", "medium", "high", "xhigh", "max", "ultracode"}
+	values := make([]string, 0, len(got))
+	for _, option := range got {
+		values = append(values, option.Value)
+	}
+	if !slices.Equal(values, want) {
+		t.Fatalf("effort values = %v, want %v", values, want)
+	}
+}
+
 func TestBuildCapabilitiesUsesResolvedVersionedLabels(t *testing.T) {
 	catalog := claudeModelCatalog{
 		Source:       agent.CapabilitySourceLive,
@@ -38,7 +52,9 @@ func TestBuildCapabilitiesUsesResolvedVersionedLabels(t *testing.T) {
 			{ID: "opus[1m]", Label: "Opus 4.8 (1M context)", Description: "Claude Code selection: opus[1m]"},
 		},
 	}
-	reasoning := parseHelpEfforts("--effort <level> (low, medium, high, xhigh, max)")
+	reasoning := parseEffortCommandOptions(
+		"Usage: /effort <low|medium|high|xhigh|max|ultracode|auto>",
+	)
 	caps := buildCapabilities(catalog, reasoning)
 
 	if len(caps.Models) != 4 || caps.Models[0].Label != "Auto · Opus 4.8 (1M context)" {
@@ -55,11 +71,60 @@ func TestBuildCapabilitiesUsesResolvedVersionedLabels(t *testing.T) {
 			t.Fatalf("model %d speed tiers = %+v", index, got)
 		}
 	}
-	if got := caps.Models[2].ReasoningEfforts; len(got) != 6 || got[5].Value != "max" {
+	if got := caps.Models[2].ReasoningEfforts; len(got) != 7 || got[5].Value != "max" || got[6].Value != ultracodeEffort {
 		t.Fatalf("reasoning efforts = %+v", got)
 	}
 	if len(caps.Modes) != 2 || caps.Modes[0].Value != string(agent.RunModeDefault) || caps.Modes[1].Value != string(agent.RunModePlan) {
 		t.Fatalf("modes = %+v", caps.Modes)
+	}
+}
+
+func TestBuildCapabilitiesScopesEffortAndUltracodeByModel(t *testing.T) {
+	catalog := claudeModelCatalog{
+		Source:       agent.CapabilitySourceLive,
+		DefaultLabel: "Opus 4.6",
+		Selections: []claudeModelSelection{
+			{ID: "opus", Label: "Opus 4.8"},
+			{ID: "sonnet", Label: "Sonnet 4.6"},
+			{ID: "haiku", Label: "Haiku 4.5"},
+			{ID: "opusplan", Label: "Opus 5 (Plan) · Sonnet 5 (Default)"},
+		},
+	}
+	reasoning := parseEffortCommandOptions(
+		"Usage: /effort <low|medium|high|xhigh|max|ultracode|auto>",
+	)
+	caps := buildCapabilities(catalog, reasoning)
+
+	assertEffortValues(t, caps.Models[0], []string{"", "low", "medium", "high", "max"})
+	assertEffortValues(t, caps.Models[1], []string{"", "low", "medium", "high", "xhigh", "max", "ultracode"})
+	assertEffortValues(t, caps.Models[2], []string{"", "low", "medium", "high", "max"})
+	assertEffortValues(t, caps.Models[3], []string{})
+	assertEffortValues(t, caps.Models[4], []string{"", "low", "medium", "high", "xhigh", "max", "ultracode"})
+}
+
+func TestReasoningOptionsDoNotTrustProviderWideUltracodeForUnknownModel(t *testing.T) {
+	reasoning := parseHelpEfforts(
+		"--effort <level> (low, medium, high, xhigh, max, ultracode)",
+	)
+	got := reasoningOptionsForModel(reasoning, "Custom gateway model")
+
+	values := make([]string, 0, len(got))
+	for _, option := range got {
+		values = append(values, option.Value)
+	}
+	if slices.Contains(values, ultracodeEffort) {
+		t.Fatalf("unknown model efforts = %v, want ultracode omitted", values)
+	}
+}
+
+func assertEffortValues(t *testing.T, model agent.ModelCapability, want []string) {
+	t.Helper()
+	got := make([]string, 0, len(model.ReasoningEfforts))
+	for _, option := range model.ReasoningEfforts {
+		got = append(got, option.Value)
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("model %q reasoning efforts = %v, want %v", model.Label, got, want)
 	}
 }
 

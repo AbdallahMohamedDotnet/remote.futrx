@@ -8,15 +8,30 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-var effortPattern = regexp.MustCompile(`(?is)--effort\s+<level>.*?\(([^)]*)\)`)
+var (
+	effortPattern        = regexp.MustCompile(`(?is)--effort\s+<level>.*?\(([^)]*)\)`)
+	effortCommandPattern = regexp.MustCompile(`(?is)/effort\s+<([^>]+)>`)
+)
 
 func parseHelpEfforts(help string) []agent.CapabilityOption {
 	efforts := parseHelpChoiceValues(effortPattern, help)
+	return reasoningOptions(efforts)
+}
+
+func parseEffortCommandOptions(output string) []agent.CapabilityOption {
+	efforts := parseHelpChoiceValues(effortCommandPattern, output)
+	return reasoningOptions(efforts)
+}
+
+func reasoningOptions(efforts []string) []agent.CapabilityOption {
 	if len(efforts) == 0 {
 		return nil
 	}
 	reasoning := []agent.CapabilityOption{agent.AutoOption()}
 	for _, effort := range efforts {
+		if effort == "auto" {
+			continue
+		}
 		reasoning = append(reasoning, agent.CapabilityOption{
 			Value: effort,
 			Label: optionLabel(effort),
