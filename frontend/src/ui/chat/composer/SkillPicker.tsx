@@ -57,34 +57,31 @@ export function SkillPicker({
   const providerLabel = provider === "codex" ? "Codex" : "Claude";
 
   return (
-    <div ref={rootRef} class="relative w-full flex-none sm:w-[260px] lg:w-[300px]">
+    <div ref={rootRef} class="relative w-[130px] flex-none sm:w-[148px]">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        class={`codex-skill-control flex h-8 w-full items-center justify-between gap-2 rounded-md px-2.5 text-left transition
+        class={`codex-skill-control flex h-7 w-full items-center justify-between gap-1.5 rounded-md px-2 text-left transition
                 ${open ? "bg-accent-blue/[0.14] text-accent-blue" : "bg-accent-blue/[0.08] text-ink-100 hover:bg-accent-blue/[0.12]"}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={`${providerLabel} skills`}
       >
-        <span class="flex min-w-0 items-center gap-2">
-          <Code class="h-3.5 w-3.5 flex-none" />
-          <span class="truncate text-[13px] font-semibold">Skill set</span>
-          <span class="hidden truncate text-[11px] text-ink-400 sm:inline">
-            {loading ? "Loading" : providerLabel}
-          </span>
+        <span class="flex min-w-0 items-center gap-1.5">
+          <Code class="h-3 w-3 flex-none" />
+          <span class="truncate text-[11.5px] font-semibold">Skills</span>
         </span>
-        <span class="inline-flex flex-none items-center gap-2">
-          <span class="rounded bg-white/10 px-1.5 py-0.5 text-[11px] leading-none text-ink-300">
+        <span class="inline-flex flex-none items-center gap-1">
+          <span class="rounded bg-white/10 px-1 py-0.5 text-[10px] leading-none text-ink-300">
             {selectedCount > 0 ? selectedCount : loading ? "..." : skills.length}
           </span>
-          <ChevronDown class="h-3.5 w-3.5 flex-none" />
+          <ChevronDown class="h-3 w-3 flex-none" />
         </span>
       </button>
 
       {open && (
         <div
-          class="absolute left-0 bottom-full z-40 mb-2 w-[calc(100vw-1.5rem)] sm:left-auto sm:right-0 sm:w-[460px]
+          class="theme-menu-surface absolute left-0 bottom-full z-40 mb-2 w-[calc(100vw-1.5rem)] sm:left-auto sm:right-0 sm:w-[460px]
                  rounded-lg border border-white/10 bg-[#14161d] shadow-2xl overflow-hidden"
         >
           <div class="p-2 border-b border-white/10 bg-[#191a1f]">

@@ -81,7 +81,7 @@ export function Sidebar({
       <aside
         data-open={open ? "true" : "false"}
         data-collapsed={sidebarCollapsed ? "true" : "false"}
-        class={`codex-sidebar drawer-panel mobile-sheet safe-top fixed md:static z-40 inset-y-0 left-0 w-[min(92vw,380px)] ${sidebarWidth}
+        class={`codex-sidebar codex-window-frame drawer-panel mobile-sheet safe-top fixed md:static z-40 inset-y-0 left-0 w-[min(92vw,380px)] ${sidebarWidth}
                 ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0
                 bg-[#101318] border-r border-white/10 flex flex-col shadow-2xl md:shadow-none
                 transition-[width,transform] duration-200 ease-out`}

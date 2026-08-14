@@ -34,7 +34,7 @@ export function ModelPicker({
         <ChevronDown class="w-3.5 h-3.5 text-ink-300" />
       </button>
       {open && (
-        <div class="absolute right-0 top-full mt-2 z-40 w-[220px]
+        <div class="theme-menu-surface absolute right-0 top-full mt-2 z-40 w-[220px]
                     bg-[#151922] border border-white/[0.12] rounded-lg shadow-2xl overflow-hidden p-1">
           {options.map((option) => {
             const active = (model || "") === option.value ||

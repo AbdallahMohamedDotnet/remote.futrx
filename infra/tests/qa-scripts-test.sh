@@ -4,6 +4,7 @@ set -euo pipefail
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 INSTALL_SCRIPT="$TESTS_DIR/../qa/install.sh"
 UPDATE_SCRIPT="$TESTS_DIR/../qa/update.sh"
+DEPLOY_APP_SCRIPT="$TESTS_DIR/../qa/deploy-app.sh"
 COMMON_SCRIPT="$TESTS_DIR/../qa/common.sh"
 CORE_INSTALL_SCRIPT="$TESTS_DIR/../install.sh"
 TEST_DIR="$(mktemp -d)"
@@ -14,7 +15,7 @@ fail() {
     exit 1
 }
 
-for script in "$COMMON_SCRIPT" "$INSTALL_SCRIPT" "$UPDATE_SCRIPT"; do
+for script in "$COMMON_SCRIPT" "$INSTALL_SCRIPT" "$UPDATE_SCRIPT" "$DEPLOY_APP_SCRIPT"; do
     bash -n "$script"
 done
 
@@ -22,6 +23,8 @@ bash "$INSTALL_SCRIPT" --help | grep -q 'public curl|bash command' || \
     fail "install help does not identify the public installer contract"
 bash "$UPDATE_SCRIPT" --help | grep -q 'existing QA installation' || \
     fail "update help does not identify the existing-installation contract"
+bash "$DEPLOY_APP_SCRIPT" --help | grep -q 'application code only' || \
+    fail "deploy-app help does not identify the app-only contract"
 
 if QA_ENV_FILE="$TEST_DIR/missing.env" bash "$INSTALL_SCRIPT" >"$TEST_DIR/out" 2>"$TEST_DIR/err"; then
     fail "install.sh accepted missing QA configuration"
@@ -53,6 +56,18 @@ fi
 grep -q 'unsupported characters' "$TEST_DIR/err" || \
     fail "update.sh gave an unclear unsafe-ref error"
 
+if QA_ENV_FILE="$TEST_DIR/missing.env" bash "$DEPLOY_APP_SCRIPT" main >"$TEST_DIR/out" 2>"$TEST_DIR/err"; then
+    fail "deploy-app.sh accepted missing QA configuration"
+fi
+grep -q 'missing .*missing.env' "$TEST_DIR/err" || \
+    fail "deploy-app.sh gave an unclear missing-config error"
+
+if QA_ENV_FILE="$TEST_DIR/missing.env" bash "$DEPLOY_APP_SCRIPT" 'bad ref' >"$TEST_DIR/out" 2>"$TEST_DIR/err"; then
+    fail "deploy-app.sh accepted an unsafe Git ref"
+fi
+grep -q 'unsupported characters' "$TEST_DIR/err" || \
+    fail "deploy-app.sh gave an unclear unsafe-ref error"
+
 if bash "$CORE_INSTALL_SCRIPT" test.example.com --ref=main >"$TEST_DIR/out" 2>"$TEST_DIR/err"; then
     fail "core install.sh accepted a movable ref"
 fi
@@ -79,5 +94,12 @@ fi
 if grep -Eq 'infra/tests|npm --prefix|go (test|vet)' "$COMMON_SCRIPT"; then
     fail "QA install/update scripts run local project tests"
 fi
+for required_contract in 'npm run build' 'go build -trimpath' 'systemctl restart' 'wait_for_http_health' 'QA_DEPLOYED_SHA'; do
+    grep -Fq "$required_contract" "$DEPLOY_APP_SCRIPT" || \
+        fail "deploy-app.sh is missing contract: $required_contract"
+done
+if grep -Eq 'infra/(install|update|upgrade-workspaces)[.]sh|FORCE_REBUILD_BASE_IMAGE|apt-get' "$DEPLOY_APP_SCRIPT"; then
+    fail "deploy-app.sh invokes host or workspace convergence"
+fi
 
-echo "QA install/update script tests passed"
+echo "QA install/update/app-deploy script tests passed"

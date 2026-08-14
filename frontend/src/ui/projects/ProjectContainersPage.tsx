@@ -144,13 +144,13 @@ export function ProjectContainersPage({
         <ProjectSettingsNavigation
           activeTab={activeTab}
           onTabChange={onTabChange}
-          className="hidden md:flex w-56 flex-none border-r border-white/10 bg-[#0f1217] p-3"
+          className="theme-submenu-surface hidden md:flex w-56 flex-none border-r border-white/10 bg-[#0f1217] p-3"
         />
         <ProjectSettingsNavigation
           activeTab={activeTab}
           onTabChange={onTabChange}
           mobile
-          className="md:hidden flex-none border-b border-white/10 bg-[#0f1217] px-3 py-2 overflow-x-auto no-scrollbar"
+          className="theme-submenu-surface md:hidden flex-none border-b border-white/10 bg-[#0f1217] px-3 py-2 overflow-x-auto no-scrollbar"
         />
 
         <main

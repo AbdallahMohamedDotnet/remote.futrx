@@ -1,22 +1,35 @@
+import { useId, useState } from "preact/hooks";
 import { CalendarClock, Clock, Code, Folder, Monitor, Terminal } from "../../primitives/icons";
 import { buildIdeUrl, defaultWorkspacePath } from "../ideLinks";
+
+const actionClass = `workspace-action relative inline-flex h-9 w-9 flex-none items-center justify-center rounded-md
+                     border border-white/10 bg-white/5 text-ink-200 transition hover:bg-white/[0.09] hover:text-ink-100
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/80`;
 
 export function WorkspaceActions({
   cwd,
   onOpenTerminal,
-  onOpenBrowser,
-  onOpenHistory,
-  onOpenFiles,
-  onOpenSchedules,
+  onToggleBrowser,
+  onToggleHistory,
+  onToggleFiles,
+  onToggleSchedules,
+  browserOpen,
+  historyOpen,
+  filesOpen,
+  schedulesOpen,
   showHistory,
   showSchedules,
 }: {
   cwd: string;
   onOpenTerminal: () => void;
-  onOpenBrowser: () => void;
-  onOpenHistory: () => void;
-  onOpenFiles: () => void;
-  onOpenSchedules: () => void;
+  onToggleBrowser: () => void;
+  onToggleHistory: () => void;
+  onToggleFiles: () => void;
+  onToggleSchedules: () => void;
+  browserOpen: boolean;
+  historyOpen: boolean;
+  filesOpen: boolean;
+  schedulesOpen: boolean;
   showHistory: boolean;
   showSchedules: boolean;
 }) {
@@ -24,78 +37,135 @@ export function WorkspaceActions({
   const ideUrl = buildIdeUrl(workspacePath);
 
   return (
-    <>
-      <a
+    <div class="flex flex-col items-center gap-2">
+      <WorkspaceAction
+        Icon={Code}
         href={ideUrl}
+        label="Workspace IDE"
+        tooltip="Open workspace in IDE"
+      />
+      <WorkspaceAction
+        Icon={Terminal}
+        onClick={onOpenTerminal}
+        label="Container terminal"
+        tooltip="Open container terminal"
+      />
+      {showHistory && (
+        <WorkspaceAction
+          Icon={Clock}
+          onClick={onToggleHistory}
+          label={historyOpen ? "Close git history" : "Git history"}
+          tooltip={historyOpen ? "Close git history" : "Review git history"}
+          expanded={historyOpen}
+        />
+      )}
+      <WorkspaceAction
+        Icon={Folder}
+        onClick={onToggleFiles}
+        label={filesOpen ? "Close workspace files" : "Workspace files"}
+        tooltip={filesOpen ? "Close workspace files" : "Browse workspace files"}
+        expanded={filesOpen}
+      />
+      {showSchedules && (
+        <WorkspaceAction
+          Icon={CalendarClock}
+          onClick={onToggleSchedules}
+          label={schedulesOpen ? "Close scheduled tasks" : "Scheduled tasks"}
+          tooltip={schedulesOpen ? "Close scheduled tasks" : "View scheduled tasks"}
+          expanded={schedulesOpen}
+        />
+      )}
+      <WorkspaceAction
+        Icon={Monitor}
+        onClick={onToggleBrowser}
+        label={browserOpen ? "Close browser preview" : "Browser preview"}
+        tooltip={browserOpen ? "Close browser preview" : "Open browser preview"}
+        expanded={browserOpen}
+      />
+    </div>
+  );
+}
+
+function WorkspaceAction({
+  Icon,
+  label,
+  tooltip,
+  href,
+  onClick,
+  expanded,
+}: {
+  Icon: typeof Code;
+  label: string;
+  tooltip: string;
+  href?: string;
+  onClick?: () => void;
+  expanded?: boolean;
+}) {
+  const tooltipId = useId();
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
+  const isTooltipOpen = !isDismissed && (isHovered || isFocused);
+  const interactionProps = {
+    "aria-describedby": tooltipId,
+    "aria-label": label,
+    onBlur: () => {
+      setIsFocused(false);
+      setIsDismissed(false);
+    },
+    onFocus: () => {
+      setIsFocused(true);
+      setIsDismissed(false);
+    },
+    onKeyDown: (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setIsDismissed(true);
+      event.stopPropagation();
+    },
+    onMouseEnter: () => {
+      setIsHovered(true);
+      setIsDismissed(false);
+    },
+    onMouseLeave: () => setIsHovered(false),
+  };
+  const content = (
+    <>
+      <Icon aria-hidden="true" focusable="false" class="h-4 w-4 flex-none" />
+      <span
+        id={tooltipId}
+        role="tooltip"
+        class={`workspace-action-tooltip pointer-events-none absolute right-full top-1/2 z-50 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#191a1f] px-2 py-1.5 text-[11px] font-medium text-ink-100 shadow-xl transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
+          isTooltipOpen ? "translate-x-0 opacity-100" : "translate-x-1 opacity-0"
+        }`}
+      >
+        {tooltip}
+      </span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a
+        {...interactionProps}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
-        class="h-9 max-w-[72vw] md:max-w-[520px] inline-flex items-center gap-2 px-3 rounded-md
-               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200"
-        title={`Open workspace in IDE: ${workspacePath}`}
-        aria-label="Open workspace in IDE"
+        class={actionClass}
       >
-        <Code class="w-4 h-4 text-accent-blue flex-none" />
-        <span class="text-[12.5px] font-medium">Open in IDE</span>
+        {content}
       </a>
-      <button
-        type="button"
-        onClick={onOpenTerminal}
-        class="h-9 inline-flex items-center gap-2 px-3 rounded-md
-               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
-        title={`Open terminal in container workspace: ${workspacePath}`}
-        aria-label="Open terminal"
-      >
-        <Terminal class="w-4 h-4 text-accent-blue flex-none" />
-        <span class="text-[12.5px] font-medium">Open Terminal</span>
-      </button>
-      {showHistory && (
-        <button
-          type="button"
-          onClick={onOpenHistory}
-          class="h-9 inline-flex items-center gap-2 px-3 rounded-md
-                 bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none ml-auto"
-          title="Review git history"
-          aria-label="Review history"
-        >
-          <Clock class="w-4 h-4 text-accent-blue flex-none" />
-          <span class="text-[12.5px] font-medium">History</span>
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={onOpenFiles}
-        class={`h-9 inline-flex items-center gap-2 px-3 rounded-md
-               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none ${showHistory ? "" : "ml-auto"}`}
-        title="Browse uploads and media files"
-        aria-label="Open file manager"
-      >
-        <Folder class="w-4 h-4 text-accent-blue flex-none" />
-        <span class="text-[12.5px] font-medium">Files</span>
-      </button>
-      {showSchedules && (
-        <button
-          type="button"
-          onClick={onOpenSchedules}
-          class="h-9 inline-flex items-center gap-2 px-3 rounded-md
-                 bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
-          title="View scheduled tasks"
-          aria-label="Open scheduled tasks"
-        >
-          <CalendarClock class="w-4 h-4 text-accent-blue flex-none" />
-          <span class="text-[12.5px] font-medium">Schedules</span>
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={onOpenBrowser}
-        class="h-9 inline-flex items-center gap-2 px-3 rounded-md
-               bg-white/5 hover:bg-white/[0.09] border border-white/10 text-left text-ink-200 flex-none"
-        title="Open browser preview"
-        aria-label="Open browser"
-      >
-        <Monitor class="w-4 h-4 text-accent-blue flex-none" />
-        <span class="text-[12.5px] font-medium">Open Browser</span>
-      </button>
-    </>
+    );
+  }
+
+  return (
+    <button
+      {...interactionProps}
+      type="button"
+      onClick={onClick}
+      aria-expanded={expanded}
+      class={`${actionClass} ${expanded ? "border-accent-blue/40 bg-white/[0.09] text-accent-blue" : ""}`}
+    >
+      {content}
+    </button>
   );
 }

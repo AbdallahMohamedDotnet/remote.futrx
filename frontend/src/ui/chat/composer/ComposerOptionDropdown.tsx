@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { ChevronDown } from "../../primitives/icons";
 
 export interface ComposerOption<T extends string> {
@@ -23,7 +23,9 @@ export function ComposerOptionDropdown<T extends string>({
   onChange: (value: T) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [menuAlignment, setMenuAlignment] = useState<"start" | "end">("start");
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const selected = options.find((option) => option.value === value) || options[0];
 
   useEffect(() => {
@@ -36,6 +38,24 @@ export function ComposerOptionDropdown<T extends string>({
     return () => window.removeEventListener("mousedown", closeOnOutsideClick);
   }, [open]);
 
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    function placeMenuWithinViewport() {
+      const rootBounds = rootRef.current?.getBoundingClientRect();
+      const menuWidth = menuRef.current?.offsetWidth;
+      if (!rootBounds || !menuWidth) return;
+
+      const viewportGutter = 12;
+      const availableWidthAfterTrigger = window.innerWidth - viewportGutter - rootBounds.left;
+      setMenuAlignment(menuWidth > availableWidthAfterTrigger ? "end" : "start");
+    }
+
+    placeMenuWithinViewport();
+    window.addEventListener("resize", placeMenuWithinViewport);
+    return () => window.removeEventListener("resize", placeMenuWithinViewport);
+  }, [open]);
+
   function pick(nextValue: T) {
     setOpen(false);
     if (nextValue !== value) onChange(nextValue);
@@ -46,7 +66,7 @@ export function ComposerOptionDropdown<T extends string>({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        class={`inline-flex h-8 items-center gap-2 rounded-md px-2.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60
+        class={`inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60
                 ${open ? "bg-accent-blue/[0.14] text-accent-blue" : "bg-white/[0.045] text-ink-200 hover:bg-white/[0.075] hover:text-ink-100"}`}
         disabled={disabled}
         title={`${label}: ${selected?.label || "Auto"}`}
@@ -54,20 +74,22 @@ export function ComposerOptionDropdown<T extends string>({
         aria-expanded={open}
       >
         <span
-          class="inline-flex h-5 w-5 flex-none items-center justify-center text-ink-300"
+          class="inline-flex h-4 w-4 flex-none items-center justify-center text-ink-400"
           title={label}
           aria-label={label}
         >
-          <Icon class="h-3.5 w-3.5" />
+          <Icon class="h-3 w-3" />
         </span>
-        <span class="hidden text-ink-400 sm:inline">{label}</span>
-        <span class="max-w-[7.5rem] truncate font-semibold text-ink-100">{selected?.label || "Auto"}</span>
-        <ChevronDown class="h-3.5 w-3.5 flex-none text-ink-400" />
+        <span class="sr-only">{label}</span>
+        <span class="max-w-[5.5rem] truncate font-semibold text-ink-100">{selected?.label || "Auto"}</span>
+        <ChevronDown class="h-3 w-3 flex-none text-ink-400" />
       </button>
 
       {open && (
         <div
-          class="absolute left-0 bottom-full z-40 mb-1.5 w-40 rounded-lg border border-white/10 bg-[#14161d] p-1 shadow-2xl"
+          ref={menuRef}
+          class={`theme-menu-surface absolute bottom-full z-40 mb-1.5 w-[min(10rem,calc(100vw-1.5rem))] rounded-lg border border-white/10 bg-[#14161d] p-1 shadow-2xl
+                  ${menuAlignment === "end" ? "right-0" : "left-0"}`}
           role="listbox"
         >
           {options.map((option) => {
