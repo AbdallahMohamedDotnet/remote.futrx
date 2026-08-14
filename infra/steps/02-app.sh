@@ -22,7 +22,7 @@ fi
 
 CLONE_URL="$REPO_URL"
 if [ -n "${GITHUB_TOKEN:-}" ]; then
-    CLONE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/futrx-com/remote.futrx.com.git"
+    CLONE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/futrx-com/remote.futrx.git"
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then

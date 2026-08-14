@@ -67,9 +67,9 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
             --github-token=*) BOOTSTRAP_TOKEN="${a#*=}" ;;
         esac
     done
-    CLONE_URL="https://github.com/futrx-com/remote.futrx.com.git"
+    CLONE_URL="https://github.com/futrx-com/remote.futrx.git"
     if [ -n "$BOOTSTRAP_TOKEN" ]; then
-        CLONE_URL="https://x-access-token:${BOOTSTRAP_TOKEN}@github.com/futrx-com/remote.futrx.com.git"
+        CLONE_URL="https://x-access-token:${BOOTSTRAP_TOKEN}@github.com/futrx-com/remote.futrx.git"
     fi
 
     if [ ! -d "$TARGET/.git" ]; then
@@ -134,7 +134,7 @@ export HOSTNAME GITHUB_TOKEN GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
 INFRA_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 INSTALL_DIR="${FUTRX_INSTALL_DIR:-/opt/remote.futrx}"
 LEGACY_INSTALL_DIR="${FUTRX_LEGACY_INSTALL_DIR:-/opt/remote.futrx.dev}"
-REPO_URL="https://github.com/futrx-com/remote.futrx.com.git"
+REPO_URL="https://github.com/futrx-com/remote.futrx.git"
 SERVICE_PORT="${SERVICE_PORT:-7682}"
 
 # Escape dots in HOSTNAME for Caddy regex (dots match any char in regex; we
