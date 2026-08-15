@@ -25,14 +25,20 @@ export function PromptTextarea({
       value={text}
       onInput={(event) => onTextChange((event.currentTarget as HTMLTextAreaElement).value)}
       onKeyDown={(event) => {
-        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        if (
+          event.key === "Enter" &&
+          (event.ctrlKey || event.metaKey) &&
+          !event.shiftKey &&
+          !event.isComposing
+        ) {
           event.preventDefault();
           onSend();
         }
       }}
       onPaste={(event) => onPaste(event as ClipboardEvent)}
       rows={1}
-      enterkeyhint="send"
+      enterkeyhint="enter"
+      aria-keyshortcuts="Control+Enter Meta+Enter"
       autocomplete="off"
       autocapitalize="off"
       autocorrect="off"
