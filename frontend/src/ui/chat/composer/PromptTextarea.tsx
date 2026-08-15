@@ -25,14 +25,20 @@ export function PromptTextarea({
       value={text}
       onInput={(event) => onTextChange((event.currentTarget as HTMLTextAreaElement).value)}
       onKeyDown={(event) => {
-        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        if (
+          event.key === "Enter" &&
+          (event.ctrlKey || event.metaKey) &&
+          !event.shiftKey &&
+          !event.isComposing
+        ) {
           event.preventDefault();
           onSend();
         }
       }}
       onPaste={(event) => onPaste(event as ClipboardEvent)}
       rows={1}
-      enterkeyhint="send"
+      enterkeyhint="enter"
+      aria-keyshortcuts="Control+Enter Meta+Enter"
       autocomplete="off"
       autocapitalize="off"
       autocorrect="off"
@@ -46,7 +52,7 @@ export function PromptTextarea({
       disabled={disconnected}
       class="codex-composer-textarea flex-1 resize-none rounded-md
              bg-transparent border-0 text-ink-100 placeholder:text-ink-300
-             focus:outline-none focus:bg-white/[0.025]
+             focus:outline-none
              px-2.5 py-2.5 text-[16px] sm:text-[14px] leading-normal
              min-h-[40px] max-h-[220px]
              disabled:opacity-60 transition-colors"

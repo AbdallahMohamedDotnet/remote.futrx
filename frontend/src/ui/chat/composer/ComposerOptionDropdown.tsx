@@ -62,7 +62,7 @@ export function ComposerOptionDropdown<T extends string>({
   }
 
   return (
-    <div ref={rootRef} class="relative flex-none">
+    <div ref={rootRef} class="codex-option-control relative flex-none">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}

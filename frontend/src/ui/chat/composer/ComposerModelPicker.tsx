@@ -44,7 +44,7 @@ export function ComposerModelPicker({
   }
 
   return (
-    <div ref={rootRef} class="relative w-[152px] flex-none sm:w-[168px]">
+    <div ref={rootRef} class="codex-model-control relative w-[152px] flex-none sm:w-[168px]">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

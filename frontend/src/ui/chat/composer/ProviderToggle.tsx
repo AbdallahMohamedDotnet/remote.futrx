@@ -20,7 +20,7 @@ export function ProviderToggle({
   const tooltipId = useId();
 
   return (
-    <div class="inline-flex h-7 min-w-[132px] flex-none rounded-md bg-white/[0.045] p-0.5" aria-label="Provider">
+    <div class="codex-provider-control inline-flex h-7 min-w-[132px] flex-none rounded-md bg-white/[0.045] p-0.5" aria-label="Provider">
         {options.map((option) => {
           const active = option.value === provider;
           const unavailable = !!option.disabled;
