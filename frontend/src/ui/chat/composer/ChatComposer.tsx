@@ -183,8 +183,7 @@ export function ChatComposer({
               modelError={capabilityError}
               selectedSkills={selectedSkills}
               onSelectSkill={onSelectSkill}
-              onProviderChange={preferenceActions.changeProvider}
-              onModelChange={preferenceActions.changeModel}
+              onAgentChange={preferenceActions.changeAgent}
               onRefreshModels={refreshCapabilities}
             />
 
@@ -215,8 +214,7 @@ export function ChatComposer({
             modelError={capabilityError}
             selectedSkills={selectedSkills}
             onSelectSkill={onSelectSkill}
-            onProviderChange={preferenceActions.changeProvider}
-            onModelChange={preferenceActions.changeModel}
+            onAgentChange={preferenceActions.changeAgent}
             onRefreshModels={refreshCapabilities}
           />
 

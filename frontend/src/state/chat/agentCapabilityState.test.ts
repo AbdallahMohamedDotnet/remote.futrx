@@ -55,6 +55,10 @@ test("disables providers with a known login requirement", () => {
     label: "Codex",
     disabled: true,
     disabledReason: reason,
+    models: [
+      { value: "", label: "Auto", sub: "available model" },
+      { value: "gpt-fast", label: "GPT Fast", sub: "available model" },
+    ],
   }]);
 });
 
@@ -66,7 +70,26 @@ test("keeps providers selectable when authentication is unknown", () => {
     label: "Codex",
     disabled: false,
     disabledReason: undefined,
+    models: [
+      { value: "", label: "Auto", sub: "available model" },
+      { value: "gpt-fast", label: "GPT Fast", sub: "available model" },
+    ],
   }]);
+});
+
+test("keeps a saved provider available when discovery temporarily omits it", () => {
+  const state = agentCapabilityState.resolve(catalog, "claude", "opus", false);
+
+  assert.deepEqual(state.providerOptions.at(-1), {
+    value: "claude",
+    label: "Claude",
+    disabled: false,
+    disabledReason: undefined,
+    models: [{ value: "opus", label: "opus", sub: "current selection" }],
+  });
+  assert.deepEqual(state.modelOptions, [
+    { value: "opus", label: "opus", sub: "current selection" },
+  ]);
 });
 
 test("corrects selections unsupported by a live catalog", () => {

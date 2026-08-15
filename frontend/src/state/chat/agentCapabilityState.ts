@@ -7,16 +7,25 @@ import type { ChatProvider } from "../../models/chat";
 
 export interface ComposerCapabilityState {
   providerCapabilities?: AgentProviderCapabilities;
-  providerOptions: Array<{
-    value: ChatProvider;
-    label: string;
-    disabled?: boolean;
-    disabledReason?: string;
-  }>;
-  modelOptions: Array<{ value: string; label: string; sub: string }>;
+  providerOptions: ComposerProviderOption[];
+  modelOptions: ComposerModelOption[];
   reasoningEffortOptions: AgentCapabilityOption[];
   serviceTierOptions: AgentCapabilityOption[];
   modeOptions: AgentCapabilityOption[];
+}
+
+export interface ComposerModelOption {
+  value: string;
+  label: string;
+  sub: string;
+}
+
+export interface ComposerProviderOption {
+  value: ChatProvider;
+  label: string;
+  disabled?: boolean;
+  disabledReason?: string;
+  models: ComposerModelOption[];
 }
 
 export interface CapabilityPreferenceSelection {
@@ -42,26 +51,35 @@ export const agentCapabilityState = {
     const providerCapabilities = catalog?.providers.find(
       (item) => item.provider === provider,
     );
-    const providerOptions = catalog?.providers.map((item) => ({
+    const discoveredProviderOptions = catalog?.providers.map((item) => ({
       value: item.provider,
       label: item.label,
       disabled: !!unavailableProviders[item.provider],
       disabledReason: unavailableProviders[item.provider],
-    })) ?? [{
+      models: item.models.map((modelItem) => ({
+        value: modelItem.id,
+        label: modelItem.label,
+        sub: modelItem.description
+          || (modelItem.providerDefault ? "provider default" : "available model"),
+      })),
+    })) ?? [];
+    const savedProviderFallback: ComposerProviderOption = {
       value: provider,
       label: providerLabel(provider),
       disabled: !!unavailableProviders[provider],
       disabledReason: unavailableProviders[provider],
-    }];
-    const modelOptions = providerCapabilities?.models.map((item) => ({
-      value: item.id,
-      label: item.label,
-      sub: item.description || (item.providerDefault ? "provider default" : "available model"),
-    })) ?? (loading ? [] : [{
-      value: model,
-      label: model || "Auto",
-      sub: "current selection",
-    }]);
+      models: loading ? [] : [{
+        value: model,
+        label: model || "Auto",
+        sub: "current selection",
+      }],
+    };
+    const providerOptions: ComposerProviderOption[] = discoveredProviderOptions.some(
+      (option) => option.value === provider,
+    )
+      ? discoveredProviderOptions
+      : [...discoveredProviderOptions, savedProviderFallback];
+    const modelOptions = providerOptions.find((option) => option.value === provider)?.models ?? [];
     const selectedModel = providerCapabilities?.models.find((item) => item.id === model)
       ?? providerCapabilities?.models.find((item) => item.id === "");
     return {

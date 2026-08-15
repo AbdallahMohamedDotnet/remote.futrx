@@ -1,7 +1,10 @@
 import type { ChatProvider, SelectedSkill } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
-import { ComposerModelPicker } from "./ComposerModelPicker";
-import { ProviderToggle } from "./ProviderToggle";
+import type {
+  ComposerModelOption,
+  ComposerProviderOption,
+} from "../../../state/chat/agentCapabilityState";
+import { ComposerAgentPicker } from "./ComposerAgentPicker";
 import { SkillPicker } from "./SkillPicker";
 
 export function ComposerAgentControls({
@@ -16,48 +19,36 @@ export function ComposerAgentControls({
   modelError,
   selectedSkills,
   onSelectSkill,
-  onProviderChange,
-  onModelChange,
+  onAgentChange,
   onRefreshModels,
 }: {
   projectId?: string;
   model: string;
   provider: ChatProvider;
   streaming: boolean;
-  providerOptions: readonly {
-    value: ChatProvider;
-    label: string;
-    disabled?: boolean;
-    disabledReason?: string;
-  }[];
-  modelOptions: readonly { value: string; label: string; sub: string }[];
+  providerOptions: readonly ComposerProviderOption[];
+  modelOptions: readonly ComposerModelOption[];
   modelsLoading: boolean;
   modelsRefreshing: boolean;
   modelError: string;
   selectedSkills: SelectedSkill[];
   onSelectSkill: (skill: RegisteredSkill) => void;
-  onProviderChange: (provider: ChatProvider) => void;
-  onModelChange: (model: string) => void;
+  onAgentChange: (provider: ChatProvider, model: string) => void;
   onRefreshModels: () => Promise<void>;
 }) {
   const selectedCount = selectedSkills.length;
   return (
     <div class="codex-composer-agent-controls flex min-w-0 flex-wrap items-center gap-1">
-      <ProviderToggle
+      <ComposerAgentPicker
         provider={provider}
-        options={providerOptions}
-        streaming={streaming}
-        onChange={onProviderChange}
-      />
-
-      <ComposerModelPicker
         model={model}
         streaming={streaming}
-        options={modelOptions}
+        providerOptions={providerOptions}
+        modelOptions={modelOptions}
         loading={modelsLoading}
         refreshing={modelsRefreshing}
         error={modelError}
-        onChange={onModelChange}
+        onChange={onAgentChange}
         onRefresh={onRefreshModels}
       />
 

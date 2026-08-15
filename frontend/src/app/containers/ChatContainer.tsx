@@ -140,8 +140,7 @@ export function ChatContainer({
       serviceTier: displayMeta.serviceTier || "",
     },
     preferenceActions: {
-      changeProvider: preferences.changeProvider,
-      changeModel: preferences.changeModel,
+      changeAgent: preferences.changeAgent,
       changeMode: preferences.changeMode,
       changeReasoningEffort: preferences.changeReasoningEffort,
       changeServiceTier: preferences.changeServiceTier,
