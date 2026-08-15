@@ -1,20 +1,15 @@
 package browser
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"fmt"
 	"time"
 
-	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
 )
-
-//go:embed assets/gui-up.sh
-var guiUpScript []byte
 
 //go:embed assets/human-input.sh
 var humanInputScript []byte
@@ -61,16 +56,4 @@ func (p *agentBrowserProvisioner) pushTemplates(ctx context.Context, containerNa
 		return err
 	}
 	return p.publisher.Push(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
-}
-
-func browserStackCheck() string {
-	return `command -v Xvfb >/dev/null 2>&1 && for browser_bin in /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome; do [ -x "$browser_bin" ] || continue; "$browser_bin" --version 2>/dev/null | grep -Fq '` + provisioning.MustPin("PW_CFT_VERSION") + `' && exit 0; done; exit 1`
-}
-
-func renderedGUIUpScript() []byte {
-	return bytes.ReplaceAll(
-		guiUpScript,
-		[]byte("__PW_CFT_VERSION__"),
-		[]byte(provisioning.MustPin("PW_CFT_VERSION")),
-	)
 }
