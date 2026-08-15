@@ -1,5 +1,6 @@
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
+import { useEffect, useRef } from "preact/hooks";
 import { BrowserDrawer } from "../../ui/chat/browser/BrowserDrawer";
 import { ChatThread } from "../../ui/chat/ChatThread";
 import { MediaViewerOverlay } from "../../ui/chat/files/MediaViewerOverlay";
@@ -91,6 +92,41 @@ export function ChatContainer({
     showHistory: hasRepos,
     showSchedules: !!displayMeta.projectId,
   };
+  const activePane = drawers.historyOpen
+    ? "history"
+    : drawers.filesOpen
+      ? "files"
+      : drawers.schedulesOpen
+        ? "schedules"
+        : browser.browserOpen
+          ? "browser"
+          : null;
+  const previousMobilePane = useRef<typeof activePane>(null);
+
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+
+    if (activePane) {
+      previousMobilePane.current = activePane;
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`workspace-${activePane}-pane`)
+          ?.querySelector<HTMLElement>("[data-workspace-pane-close]")
+          ?.focus();
+      });
+      return;
+    }
+
+    const closedPane = previousMobilePane.current;
+    if (!closedPane) return;
+    previousMobilePane.current = null;
+    requestAnimationFrame(() => {
+      const triggers = document.querySelectorAll<HTMLElement>(
+        `[data-workspace-action="${closedPane}"]`
+      );
+      Array.from(triggers).find((trigger) => trigger.offsetParent !== null)?.focus();
+    });
+  }, [activePane]);
 
   const composerView: ChatComposerProps = {
     projectId: displayMeta.projectId,
@@ -132,7 +168,7 @@ export function ChatContainer({
   return (
     <div class="relative flex-1 h-full min-h-0 overflow-hidden">
       <div class="flex h-full min-h-0 w-full overflow-hidden">
-        <div class="min-w-0 flex-1 h-full">
+        <div class={`min-w-0 flex-1 h-full ${activePane ? "hidden md:block" : ""}`}>
           <ChatThread
             chat={displayMeta}
             blocks={blocks}

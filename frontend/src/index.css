@@ -54,10 +54,44 @@
     transition: transform 220ms cubic-bezier(0.2, 0, 0, 1);
     will-change: transform;
   }
+  .workspace-pane {
+    width: 0;
+    max-width: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .workspace-pane[aria-hidden="false"] {
+    width: 100%;
+    max-width: 100%;
+  }
+  .workspace-pane-header {
+    padding-top: calc(0.625rem + env(safe-area-inset-top, 0px));
+  }
   @media (min-width: 768px) {
     .drawer-panel {
       transition: none;
       will-change: auto;
+    }
+    .workspace-pane {
+      padding-bottom: 0;
+    }
+    .workspace-pane-header {
+      padding-top: 0.625rem;
+    }
+    .workspace-history-pane[aria-hidden="false"] {
+      width: min(820px, calc(100vw - 360px));
+      max-width: none;
+    }
+    .workspace-files-pane[aria-hidden="false"] {
+      width: min(560px, calc(100vw - 320px));
+      max-width: none;
+    }
+    .workspace-schedules-pane[aria-hidden="false"] {
+      width: min(520px, calc(100vw - 64px));
+      max-width: none;
+    }
+    .workspace-browser-pane[aria-hidden="false"] {
+      width: var(--workspace-browser-width, 720px);
+      max-width: var(--workspace-browser-max-width, max(360px, calc(100% - 320px)));
     }
   }
   .safe-top { padding-top: env(safe-area-inset-top, 0px); }

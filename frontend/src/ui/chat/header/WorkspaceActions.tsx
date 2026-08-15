@@ -62,6 +62,8 @@ export function WorkspaceActions({
           label={historyOpen ? "Close git history" : "Git history"}
           tooltip={historyOpen ? "Close git history" : "Review git history"}
           expanded={historyOpen}
+          controls="workspace-history-pane"
+          action="history"
           tooltipPlacement={tooltipPlacement}
         />
       )}
@@ -71,6 +73,8 @@ export function WorkspaceActions({
         label={filesOpen ? "Close workspace files" : "Workspace files"}
         tooltip={filesOpen ? "Close workspace files" : "Browse workspace files"}
         expanded={filesOpen}
+        controls="workspace-files-pane"
+        action="files"
         tooltipPlacement={tooltipPlacement}
       />
       {showSchedules && (
@@ -80,6 +84,8 @@ export function WorkspaceActions({
           label={schedulesOpen ? "Close scheduled tasks" : "Scheduled tasks"}
           tooltip={schedulesOpen ? "Close scheduled tasks" : "View scheduled tasks"}
           expanded={schedulesOpen}
+          controls="workspace-schedules-pane"
+          action="schedules"
           tooltipPlacement={tooltipPlacement}
         />
       )}
@@ -89,6 +95,8 @@ export function WorkspaceActions({
         label={browserOpen ? "Close browser preview" : "Browser preview"}
         tooltip={browserOpen ? "Close browser preview" : "Open browser preview"}
         expanded={browserOpen}
+        controls="workspace-browser-pane"
+        action="browser"
         tooltipPlacement={tooltipPlacement}
       />
     </div>
@@ -102,6 +110,8 @@ function WorkspaceAction({
   href,
   onClick,
   expanded,
+  controls,
+  action,
   tooltipPlacement,
 }: {
   Icon: typeof Code;
@@ -110,6 +120,8 @@ function WorkspaceAction({
   href?: string;
   onClick?: () => void;
   expanded?: boolean;
+  controls?: string;
+  action?: "history" | "files" | "schedules" | "browser";
   tooltipPlacement: "below" | "left";
 }) {
   const tooltipId = useId();
@@ -176,6 +188,8 @@ function WorkspaceAction({
       type="button"
       onClick={onClick}
       aria-expanded={expanded}
+      aria-controls={controls}
+      data-workspace-action={action}
       class={`${actionClass} ${expanded ? "border-accent-blue/40 bg-white/[0.09] text-accent-blue" : ""}`}
     >
       {content}
