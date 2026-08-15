@@ -16,9 +16,11 @@ export type WorkspaceUiAction =
   | { type: "show-project-containers"; projectId: string | null };
 
 class WorkspaceUiStateTransitions {
-  createInitial(): WorkspaceUiState {
+  // A notification tap on a cold start arrives as ?chat=<id>, so the first
+  // render can open straight into that chat instead of the newest one.
+  createInitial(requestedChatId: string | null = null): WorkspaceUiState {
     return {
-      activeChatId: null,
+      activeChatId: requestedChatId,
       containerProjectId: null,
       sidebarOpen: false,
       view: "chat",
