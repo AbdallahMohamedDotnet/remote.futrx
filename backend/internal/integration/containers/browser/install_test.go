@@ -20,6 +20,8 @@ func TestInstallScriptSubstitutesEveryPin(t *testing.T) {
 		"--enable-unsafe-swiftshader",
 		"http://127.0.0.1:19222/json/version",
 		"Chrome exited after initially opening CDP",
+		"setsid \"$CHROME\"",
+		"kill -TERM -- \"-$SMOKE_CHROME_PID\"",
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("install script is missing %q", want)

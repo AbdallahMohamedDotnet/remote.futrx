@@ -1,5 +1,5 @@
 # Sanity check the GUI toolchain and select the browser pinned by versions.env.
-which Xvfb x11vnc websockify openbox xdotool
+which Xvfb x11vnc websockify openbox xdotool setsid
 CHROME=""
 for browser_bin in /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome; do
     [ -x "$browser_bin" ] || continue
@@ -20,15 +20,31 @@ fi
 SMOKE_DIR="$(mktemp -d /tmp/remote-browser-smoke.XXXXXX)"
 SMOKE_X_PID=""
 SMOKE_CHROME_PID=""
+stop_smoke_browser() {
+    [ -n "$SMOKE_CHROME_PID" ] || return 0
+
+    # Chrome forks helpers that can outlive its browser process briefly. Run it
+    # in its own process group, stop the whole group, and wait until no helper
+    # can recreate files while the temporary profile is being removed.
+    kill -TERM -- "-$SMOKE_CHROME_PID" 2>/dev/null || true
+    for _ in $(seq 1 50); do
+        kill -0 -- "-$SMOKE_CHROME_PID" 2>/dev/null || break
+        sleep 0.1
+    done
+    kill -KILL -- "-$SMOKE_CHROME_PID" 2>/dev/null || true
+    wait "$SMOKE_CHROME_PID" 2>/dev/null || true
+}
+
 smoke_cleanup() {
-    if [ -n "$SMOKE_CHROME_PID" ]; then
-        kill "$SMOKE_CHROME_PID" 2>/dev/null || true
-        wait "$SMOKE_CHROME_PID" 2>/dev/null || true
-    fi
+    stop_smoke_browser
     if [ -n "$SMOKE_X_PID" ]; then
         kill "$SMOKE_X_PID" 2>/dev/null || true
         wait "$SMOKE_X_PID" 2>/dev/null || true
     fi
+    for _ in $(seq 1 20); do
+        rm -rf -- "$SMOKE_DIR" 2>/dev/null && return 0
+        sleep 0.1
+    done
     rm -rf -- "$SMOKE_DIR"
 }
 trap smoke_cleanup EXIT
@@ -47,7 +63,7 @@ if [ ! -s "$SMOKE_DIR/display" ]; then
     exit 1
 fi
 
-DISPLAY=":$(cat "$SMOKE_DIR/display")" "$CHROME" \
+DISPLAY=":$(cat "$SMOKE_DIR/display")" setsid "$CHROME" \
     --user-data-dir="$SMOKE_DIR/profile" \
     --no-sandbox --no-first-run --no-default-browser-check \
     --disable-dev-shm-usage \
