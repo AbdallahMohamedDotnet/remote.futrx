@@ -1,11 +1,13 @@
 package browser
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"fmt"
 	"time"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 	"github.com/futrx-com/remote.futrx.com/internal/shared/output"
@@ -39,7 +41,7 @@ func (p *agentBrowserProvisioner) ensure(ctx context.Context, containerName stri
 		return command.ErrUnavailable
 	}
 
-	_, stackErr := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "sh", "-c", "command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1")
+	_, stackErr := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "sh", "-c", browserStackCheck())
 	if stackErr != nil {
 		out, err := command.RunWithTimeout(ctx, p.runner, agentBrowserInstallTimeout, "exec", containerName, "--", "bash", "-c", InstallScript())
 		if err != nil {
@@ -55,8 +57,20 @@ func (p *agentBrowserProvisioner) pushTemplates(ctx context.Context, containerNa
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w; output: %s", containerGUIDir, err, out)
 	}
-	if err := p.publisher.Push(ctx, containerName, guiUpScript, containerGUIScriptHash, "755", containerGUIScript); err != nil {
+	if err := p.publisher.Push(ctx, containerName, renderedGUIUpScript(), containerGUIScriptHash, "755", containerGUIScript); err != nil {
 		return err
 	}
 	return p.publisher.Push(ctx, containerName, humanInputScript, containerHumanInputHash, "755", containerHumanInputScript)
+}
+
+func browserStackCheck() string {
+	return `command -v Xvfb >/dev/null 2>&1 && for browser_bin in /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome; do [ -x "$browser_bin" ] || continue; "$browser_bin" --version 2>/dev/null | grep -Fq '` + provisioning.MustPin("PW_CFT_VERSION") + `' && exit 0; done; exit 1`
+}
+
+func renderedGUIUpScript() []byte {
+	return bytes.ReplaceAll(
+		guiUpScript,
+		[]byte("__PW_CFT_VERSION__"),
+		[]byte(provisioning.MustPin("PW_CFT_VERSION")),
+	)
 }

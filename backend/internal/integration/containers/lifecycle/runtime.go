@@ -20,7 +20,7 @@ const (
 	startTimeout   = 30 * time.Second
 	stopTimeout    = 30 * time.Second
 	restartTimeout = 60 * time.Second
-	deleteTimeout  = 30 * time.Second
+	deleteTimeout  = 5 * time.Minute
 	queryTimeout   = 10 * time.Second
 )
 
@@ -182,9 +182,27 @@ func (c *Client) Delete(ctx context.Context, containerName string) error {
 	if !c.runner.Available() {
 		return nil
 	}
-	if out, err := command.RunWithTimeout(ctx, c.runner, deleteTimeout, "delete", "--force", containerName); err != nil {
+	deleteCtx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	out, err := c.runner.Run(deleteCtx, "delete", "--force", containerName)
+	timedOut := errors.Is(deleteCtx.Err(), context.DeadlineExceeded)
+	cancel()
+	if err != nil {
 		if strings.Contains(out, "not found") {
 			return nil
+		}
+		// The LXD daemon can finish an asynchronous delete after the lxc client
+		// exceeds its deadline. Reconcile the actual instance state before
+		// reporting a false failure like the 0.3.0 video-editing upgrade.
+		if timedOut {
+			stateCtx, stateCancel := context.WithTimeout(context.WithoutCancel(ctx), queryTimeout)
+			defer stateCancel()
+			state, stateErr := c.State(stateCtx, containerName)
+			if stateErr == nil && state == serviceproject.ContainerStateMissing {
+				return nil
+			}
+			if stateErr != nil {
+				return fmt.Errorf("lxc delete: %w; output: %s; verify state: %v", err, out, stateErr)
+			}
 		}
 		return fmt.Errorf("lxc delete: %w; output: %s", err, out)
 	}

@@ -19,6 +19,7 @@ func InstallScript() string {
 	script := strings.TrimSuffix(embeddedAgentBrowserInstallScript, "\n")
 	for placeholder, key := range map[string]string{
 		"__PLAYWRIGHT_VERSION__":               "PLAYWRIGHT_VERSION",
+		"__PW_CFT_VERSION__":                   "PW_CFT_VERSION",
 		"__PW_VENDOR_REPO__":                   "PW_VENDOR_REPO",
 		"__PW_VENDOR_RELEASE_TAG__":            "PW_VENDOR_RELEASE_TAG",
 		"__PW_CHROME_LINUX64_SHA256__":         "PW_CHROME_LINUX64_SHA256",

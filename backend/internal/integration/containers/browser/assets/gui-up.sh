@@ -19,6 +19,7 @@ VNC_PORT=6080
 RFB_PORT=5900
 CDP_PORT=9222
 SCREEN=1366x768x24
+EXPECTED_CHROME_VERSION=__PW_CFT_VERSION__
 export DISPLAY=":$DISPLAY_NUM"
 
 # Prefer Playwright's Chromium (Chrome for Testing) — the baked-in default,
@@ -27,8 +28,18 @@ export DISPLAY=":$DISPLAY_NUM"
 # chrome "network," rule (baked by AgentBrowserInstallScript since 2026-07-08;
 # Ubuntu's stock chrome profile otherwise denies all its sockets inside
 # nested LXD AppArmor namespaces — CreatePlatformSocket EPERM).
-CHROME="$(ls -1 /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome 2>/dev/null | sort -V | tail -1)"
-[ -n "$CHROME" ] || CHROME="$(command -v google-chrome 2>/dev/null || echo /usr/bin/google-chrome)"
+CHROME=""
+for browser_bin in /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome; do
+  [ -x "$browser_bin" ] || continue
+  if "$browser_bin" --version 2>/dev/null | grep -Fq "$EXPECTED_CHROME_VERSION"; then
+    CHROME="$browser_bin"
+    break
+  fi
+done
+if [ -z "$CHROME" ]; then
+  echo "[gui-up] pinned Chrome for Testing $EXPECTED_CHROME_VERSION is not installed" >&2
+  exit 1
+fi
 
 log() { echo "[gui-up] $*"; }
 
@@ -66,6 +77,16 @@ chrome_running() {
   pgrep -f "user-data-dir=$PROFILE" >/dev/null 2>&1
 }
 
+clear_stale_profile_locks() {
+  chrome_running && return 0
+  # A force-deleted container cannot let Chromium clean these symlinks. Only
+  # remove Chrome's known symlinks, and only while no process owns the profile;
+  # the profile itself (cookies and authenticated sessions) remains untouched.
+  for lock_name in SingletonLock SingletonCookie SingletonSocket; do
+    [ ! -L "$PROFILE/$lock_name" ] || rm -f -- "$PROFILE/$lock_name"
+  done
+}
+
 start_x_stack() {
   if ! pgrep -f "Xvfb :$DISPLAY_NUM" >/dev/null 2>&1; then
     setsid Xvfb ":$DISPLAY_NUM" -screen 0 "$SCREEN" -ac -nolisten tcp </dev/null >>"$LOG" 2>&1 &
@@ -84,7 +105,7 @@ launch_chrome_direct() {
     --user-data-dir="$PROFILE" \
     --no-sandbox --no-first-run --no-default-browser-check \
     --disable-dev-shm-usage \
-    --use-gl=angle --use-angle=swiftshader-webgl \
+    --use-gl=angle --use-angle=swiftshader-webgl --enable-unsafe-swiftshader \
     --renderer-process-limit=4 \
     --disable-background-networking \
     --disable-features=Translate,MediaRouter,OptimizationHints \
@@ -111,7 +132,7 @@ launch_chrome_service() {
     --user-data-dir="$PROFILE" \
     --no-sandbox --no-first-run --no-default-browser-check \
     --disable-dev-shm-usage \
-    --use-gl=angle --use-angle=swiftshader-webgl \
+    --use-gl=angle --use-angle=swiftshader-webgl --enable-unsafe-swiftshader \
     --renderer-process-limit=4 \
     --disable-background-networking \
     --disable-features=Translate,MediaRouter,OptimizationHints \
@@ -130,6 +151,7 @@ start_core() {
   # Headed Chromium, persistent profile, loopback CDP port. --no-sandbox
   # because the unprivileged LXC container is itself the isolation boundary.
   if ! chrome_running; then
+    clear_stale_profile_locks
     if command -v systemd-run >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
       launch_chrome_service </dev/null >>"$LOG" 2>&1 &
     else
@@ -147,10 +169,19 @@ start_core() {
       log "core ready (cdp :$CDP_PORT)"
       return 0
     fi
+    if ! chrome_running; then
+      log "browser core exited before CDP became ready"
+      if command -v journalctl >/dev/null 2>&1; then
+        journalctl -u agent-browser.service -n 20 --no-pager >>"$LOG" 2>&1 || true
+      fi
+      stop_core
+      return 1
+    fi
     i=$((i + 1))
     sleep 1
   done
   log "timed out waiting for browser core to become ready"
+  stop_core
   return 1
 }
 
