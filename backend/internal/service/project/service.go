@@ -464,17 +464,7 @@ func (s *Service) Upgrade(ctx context.Context, id ID, includeBusy bool) (Meta, e
 		if err := s.containerLifecycle.Ensure(ctx, m); err != nil {
 			return s.setStartError(ctx, id, err)
 		}
-		// Browser profiles are durable host mounts. Stop Chromium gracefully so
-		// it can remove its Singleton* locks before the disposable container is
-		// deleted. A missing/legacy browser stack must not block the workspace
-		// upgrade; the new container provisions it on demand.
-		if s.containerBrowser != nil {
-			if stopErr := s.containerBrowser.Stop(ctx, m.ContainerName); stopErr != nil {
-				log.Printf("projects: stop agent browser in %s before upgrade: %v", m.ContainerName, stopErr)
-			}
-			s.clearAgentBrowserState(id)
-			s.forgetAgentBrowserActivity(id)
-		}
+		s.stopAgentBrowserBeforeUpgrade(ctx, id, m.ContainerName)
 		if err := s.containerLifecycle.Delete(ctx, m.ContainerName); err != nil {
 			return s.setStartError(ctx, id, err)
 		}
@@ -486,6 +476,21 @@ func (s *Service) Upgrade(ctx context.Context, id ID, includeBusy bool) (Meta, e
 		log.Printf("projects: sync env to %s after upgrade: %v", m.ContainerName, syncErr)
 	}
 	return s.repo.SetStatus(ctx, id, StatusRunning, "")
+}
+
+// Browser profiles are durable host mounts. Stop Chromium gracefully so it
+// can remove its Singleton* locks before the disposable container is deleted.
+// A missing or legacy browser stack must not block the workspace upgrade; the
+// replacement container provisions it on demand.
+func (s *Service) stopAgentBrowserBeforeUpgrade(ctx context.Context, id ID, containerName string) {
+	if s.containerBrowser == nil {
+		return
+	}
+	if err := s.containerBrowser.Stop(ctx, containerName); err != nil {
+		log.Printf("projects: stop agent browser in %s before upgrade: %v", containerName, err)
+	}
+	s.clearAgentBrowserState(id)
+	s.forgetAgentBrowserActivity(id)
 }
 
 // setStartError keeps the persisted project status useful for the UI while
