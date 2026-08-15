@@ -12,6 +12,9 @@ type notifyingChatRepository struct {
 	servicechat.Repository
 	workspace *workspacehub.Hub
 	running   func(servicechat.ID) bool
+	// push receives every appended event so it can raise notifications for
+	// the few that matter. Nil when push is not configured.
+	push *chatPushNotifier
 }
 
 func (r notifyingChatRepository) Create(ctx context.Context, meta servicechat.Meta) (servicechat.Meta, error) {
@@ -48,10 +51,14 @@ func (r notifyingChatRepository) AppendEvent(
 	ev servicechat.Event,
 ) (servicechat.Event, error) {
 	next, err := r.Repository.AppendEvent(ctx, id, ev)
-	if err == nil && eventUpdatesWorkspace(next.Type) {
+	if err != nil {
+		return next, err
+	}
+	if eventUpdatesWorkspace(next.Type) {
 		r.publishChat(ctx, id)
 	}
-	return next, err
+	r.push.ChatEvent(id, next)
+	return next, nil
 }
 
 func (r notifyingChatRepository) TruncateEventsBefore(

@@ -110,6 +110,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.UserSettings,
 			deps.Services.Auth,
 		),
+		Push:             httphandlers.NewPushHandler(deps.Services.Push, deps.Services.Auth),
 		ServerInfo:       httphandlers.NewServerInfoHandler(deps.ServerInfo),
 		SelfUpdate:       httphandlers.NewSelfUpdateHandler(deps.SelfUpdate, deps.Services.Auth),
 		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills),
