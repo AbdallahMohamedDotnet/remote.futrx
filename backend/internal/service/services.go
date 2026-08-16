@@ -14,6 +14,7 @@ import (
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/futrx-com/remote.futrx.com/internal/service/prompt"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
@@ -87,6 +88,7 @@ type Services struct {
 	Tmux         *servicetmux.Service
 	Access       *serviceauth.AccessVerifier
 	Push         *servicepush.Service
+	Presence     *servicepresence.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -102,7 +104,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	// The notifier needs services that are built further down, so it is
 	// created empty here and populated once they exist — the same late
 	// binding the run hub uses above.
-	pushNotifier := &chatPushNotifier{chats: deps.Chats}
+	presenceService := servicepresence.New()
+	pushNotifier := &chatPushNotifier{chats: deps.Chats, presence: presenceService}
 	chats := notifyingChatRepository{
 		Repository: deps.Chats,
 		workspace:  workspace,
@@ -218,6 +221,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Tmux:         tmuxService,
 		Access:       accessVerifier,
 		Push:         pushService,
+		Presence:     presenceService,
 	}, nil
 }
 

@@ -18,6 +18,7 @@ import {
   setVisibleChat,
   takeRequestedChatId,
 } from "../push/serviceWorkerClient";
+import { setWatchedChat } from "../push/presenceClient";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];
@@ -67,10 +68,13 @@ export function WorkspaceProvider({
     });
   }, []);
 
-  // Tell the worker which chat is on screen so it stays quiet about one the
-  // user is already watching.
+  // Say which chat is on screen, so nothing interrupts the user about the one
+  // they are already watching. The worker covers this browser; the server
+  // covers the user's other devices, which the worker cannot see.
   useEffect(() => {
-    setVisibleChat(ui.view === "chat" ? ui.activeChatId : null);
+    const onScreen = ui.view === "chat" ? ui.activeChatId : null;
+    setVisibleChat(onScreen);
+    setWatchedChat(onScreen);
   }, [ui.activeChatId, ui.view]);
 
   useEffect(() => {

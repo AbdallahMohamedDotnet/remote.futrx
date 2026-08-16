@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	"github.com/futrx-com/remote.futrx.com/internal/service/workspacehub"
@@ -204,9 +205,10 @@ func newNotifyingChat(t *testing.T, meta servicechat.Meta) (
 		Repository: chats,
 		workspace:  workspacehub.New(),
 		push: &chatPushNotifier{
-			push:  pushService,
-			chats: chats,
-			users: users,
+			push:     pushService,
+			chats:    chats,
+			users:    users,
+			presence: servicepresence.New(),
 		},
 	}, sender
 }
@@ -357,5 +359,60 @@ func TestASecondRunAfterAnAbandonedQuestionStillNotifies(t *testing.T) {
 	sent := sender.captured()
 	if len(sent) != 2 || sent[1].Kind != servicepush.KindError {
 		t.Fatalf("captured %+v", sent)
+	}
+}
+
+// The reason presence exists: the service worker can only silence the browser
+// it runs in, so without a server-side signal the owner's other phone buzzes
+// about a question they are reading right now.
+func TestWatchingAChatSilencesEveryDeviceTheUserOwns(t *testing.T) {
+	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
+	repo.push.presence.Claim("owner@example.com", "laptop", "beefcafe")
+
+	_, err := repo.AppendEvent(context.Background(), "beefcafe", servicechat.Event{
+		Type: "tool_use_start",
+		Name: "AskUserQuestion",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.push.push.Wait()
+
+	if sent := sender.captured(); len(sent) != 0 {
+		t.Fatalf("captured %+v, want nothing while the user is watching", sent)
+	}
+}
+
+func TestWatchingADifferentChatStillNotifies(t *testing.T) {
+	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
+	// Reading one chat is no reason to miss another agent needing an answer.
+	repo.push.presence.Claim("owner@example.com", "laptop", "otherchat")
+
+	_, err := repo.AppendEvent(context.Background(), "beefcafe", servicechat.Event{Type: "complete"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.push.push.Wait()
+
+	if sent := sender.captured(); len(sent) != 1 {
+		t.Fatalf("captured %d notifications, want 1", len(sent))
+	}
+}
+
+func TestLeavingAChatRestoresNotifications(t *testing.T) {
+	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
+	ctx := context.Background()
+
+	repo.push.presence.Claim("owner@example.com", "laptop", "beefcafe")
+	_, _ = repo.AppendEvent(ctx, "beefcafe", servicechat.Event{Type: "complete"})
+	repo.push.push.Wait()
+
+	// Backgrounding the tab withdraws the claim, and the next turn lands.
+	repo.push.presence.Release("owner@example.com", "laptop")
+	_, _ = repo.AppendEvent(ctx, "beefcafe", servicechat.Event{Type: "complete"})
+	repo.push.push.Wait()
+
+	if sent := sender.captured(); len(sent) != 1 {
+		t.Fatalf("captured %+v, want only the notification raised after leaving", sent)
 	}
 }

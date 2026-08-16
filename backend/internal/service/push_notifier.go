@@ -10,6 +10,7 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
@@ -32,6 +33,7 @@ type chatPushNotifier struct {
 	chats    servicechat.Repository
 	projects *serviceproject.Service
 	users    *serviceuser.Service
+	presence *servicepresence.Service
 
 	// parked records chats whose run stopped on an unanswered question. A run
 	// ends right after AskUserQuestion, so without this the "turn finished"
@@ -68,6 +70,11 @@ func (n *chatPushNotifier) ChatEvent(chatID servicechat.ID, event servicechat.Ev
 		log.Printf("push: resolve audience for chat %s: %v", chatID, err)
 		return
 	}
+	// Someone with this chat on screen is already watching the thing the
+	// notification would announce. Dropping them here silences every device
+	// they own, which the service worker cannot do: it only sees the tabs of
+	// the browser it runs in, so their other phone would buzz regardless.
+	recipients = n.presence.Filter(recipients, string(chatID))
 	if len(recipients) == 0 {
 		return
 	}

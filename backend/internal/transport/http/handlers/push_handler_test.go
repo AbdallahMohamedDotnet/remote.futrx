@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 )
 
@@ -79,7 +80,7 @@ func newPushHandler() (*PushHandler, *pushRepoStub, *pushSenderStub) {
 	sender := &pushSenderStub{}
 	// A nil auth service means the handler falls back to the local-admin
 	// identity, which is how a single-operator box runs.
-	return NewPushHandler(servicepush.New(repo, sender), nil), repo, sender
+	return NewPushHandler(servicepush.New(repo, sender), nil, servicepresence.New()), repo, sender
 }
 
 func TestPushConfigAdvertisesTheServerKey(t *testing.T) {
@@ -104,7 +105,7 @@ func TestPushConfigAdvertisesTheServerKey(t *testing.T) {
 }
 
 func TestPushConfigReportsADisabledServerWithoutFailing(t *testing.T) {
-	handler := NewPushHandler(servicepush.New(nil, nil), nil)
+	handler := NewPushHandler(servicepush.New(nil, nil), nil, servicepresence.New())
 
 	response := httptest.NewRecorder()
 	handler.HandleConfig(response, httptest.NewRequest(http.MethodGet, "/api/push/config", nil))
@@ -236,5 +237,64 @@ func TestPushRoutesRejectTheWrongMethod(t *testing.T) {
 		if response.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("%s %s: status = %d, want 405", tc.method, tc.path, response.Code)
 		}
+	}
+}
+
+func TestPresenceRecordsAndWithdrawsAClaim(t *testing.T) {
+	handler, _, _ := newPushHandler()
+
+	post := func(body string) int {
+		response := httptest.NewRecorder()
+		handler.HandlePresence(
+			response,
+			httptest.NewRequest(http.MethodPost, "/api/push/presence", strings.NewReader(body)),
+		)
+		return response.Code
+	}
+
+	if code := post(`{"chatId":"beefcafe","clientId":"tab-1"}`); code != http.StatusNoContent {
+		t.Fatalf("status = %d", code)
+	}
+	// local-admin is the identity a nil auth service falls back to.
+	if !handler.presence.IsWatching("local-admin", "beefcafe") {
+		t.Fatal("posting a chat id should mark the caller as watching it")
+	}
+
+	if code := post(`{"chatId":"","clientId":"tab-1"}`); code != http.StatusNoContent {
+		t.Fatalf("status = %d", code)
+	}
+	if handler.presence.IsWatching("local-admin", "beefcafe") {
+		t.Fatal("an empty chat id should withdraw the claim")
+	}
+}
+
+func TestPresenceRejectsANonPost(t *testing.T) {
+	handler, _, _ := newPushHandler()
+
+	response := httptest.NewRecorder()
+	handler.HandlePresence(response, httptest.NewRequest(http.MethodGet, "/api/push/presence", nil))
+
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d", response.Code)
+	}
+}
+
+// Whitespace is not a chat id: a client sending it is signing off, and must
+// not be left holding a claim that silences its owner until the TTL runs out.
+func TestPresenceTreatsABlankChatIDAsSigningOff(t *testing.T) {
+	handler, _, _ := newPushHandler()
+
+	post := func(body string) {
+		handler.HandlePresence(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodPost, "/api/push/presence", strings.NewReader(body)),
+		)
+	}
+
+	post(`{"chatId":"beefcafe","clientId":"tab-1"}`)
+	post(`{"chatId":"   ","clientId":"tab-1"}`)
+
+	if handler.presence.IsWatching("local-admin", "beefcafe") {
+		t.Fatal("a whitespace chat id should withdraw the claim, not be ignored")
 	}
 }

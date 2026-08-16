@@ -88,6 +88,7 @@ export const API_ROUTES = {
     config: "/api/push/config",
     subscriptions: "/api/push/subscriptions",
     test: "/api/push/test",
+    presence: "/api/push/presence",
   },
   serverInfo: "/api/server/info",
   selfUpdate: {

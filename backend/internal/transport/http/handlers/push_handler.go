@@ -5,27 +5,36 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 // PushHandler exposes the browser side of Web Push: the application server key
-// to subscribe with, and this user's device registrations.
+// to subscribe with, this user's device registrations, and the heartbeat that
+// says which chat they are watching.
 type PushHandler struct {
-	push *servicepush.Service
-	auth *serviceauth.Service
+	push     *servicepush.Service
+	auth     *serviceauth.Service
+	presence *servicepresence.Service
 }
 
-func NewPushHandler(push *servicepush.Service, auth *serviceauth.Service) *PushHandler {
-	return &PushHandler{push: push, auth: auth}
+func NewPushHandler(
+	push *servicepush.Service,
+	auth *serviceauth.Service,
+	presence *servicepresence.Service,
+) *PushHandler {
+	return &PushHandler{push: push, auth: auth, presence: presence}
 }
 
 func (h *PushHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/push/config", h.HandleConfig)
 	mux.HandleFunc("/api/push/subscriptions", h.HandleSubscriptions)
 	mux.HandleFunc("/api/push/test", h.HandleTest)
+	mux.HandleFunc("/api/push/presence", h.HandlePresence)
 }
 
 type pushConfigResponse struct {
@@ -137,6 +146,43 @@ func (h *PushHandler) HandleTest(w http.ResponseWriter, r *http.Request) {
 		Body:  "You will be notified when an agent asks a question or finishes a turn.",
 		Tag:   "push-test",
 	})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// presenceRequest is one client saying what it currently has on screen. The
+// client id distinguishes tabs, so a background tab signing off cannot cancel
+// the claim of the focused one beside it.
+type presenceRequest struct {
+	ChatID   string `json:"chatId"`
+	ClientID string `json:"clientId"`
+}
+
+// HandlePresence records that the caller is watching a chat right now, which
+// keeps notifications about it away from every device they own. An empty chat
+// id withdraws the claim; claims also expire on their own, so a browser that
+// vanishes without one starts notifying again shortly.
+func (h *PushHandler) HandlePresence(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	email, err := h.caller(r)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var body presenceRequest
+	if err := decodePushBody(r, &body); err != nil {
+		httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+
+	// No chat on screen is the client signing off, not a malformed claim.
+	if strings.TrimSpace(body.ChatID) == "" {
+		h.presence.Release(email, body.ClientID)
+	} else {
+		h.presence.Claim(email, body.ClientID, body.ChatID)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
