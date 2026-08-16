@@ -17,7 +17,6 @@ func TestInstallScriptSubstitutesEveryPin(t *testing.T) {
 		"PW_CFT_VERSION=" + provisioning.MustPin("PW_CFT_VERSION"),
 		"releases/download/",
 		"sha256sum -c",
-		"--enable-unsafe-swiftshader",
 		"http://127.0.0.1:19222/json/version",
 		"Chrome exited after initially opening CDP",
 		"setsid \"$CHROME\"",
@@ -26,5 +25,8 @@ func TestInstallScriptSubstitutesEveryPin(t *testing.T) {
 		if !strings.Contains(script, want) {
 			t.Fatalf("install script is missing %q", want)
 		}
+	}
+	if strings.Contains(script, "--enable-unsafe-swiftshader") {
+		t.Fatal("install script opts in to unsafe SwiftShader WebGL")
 	}
 }

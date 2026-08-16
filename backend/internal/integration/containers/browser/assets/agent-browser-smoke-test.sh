@@ -67,7 +67,7 @@ DISPLAY=":$(cat "$SMOKE_DIR/display")" setsid "$CHROME" \
     --user-data-dir="$SMOKE_DIR/profile" \
     --no-sandbox --no-first-run --no-default-browser-check \
     --disable-dev-shm-usage \
-    --use-gl=angle --use-angle=swiftshader-webgl --enable-unsafe-swiftshader \
+    --use-gl=angle --use-angle=swiftshader-webgl \
     --renderer-process-limit=4 \
     --disable-background-networking \
     --disable-features=Translate,MediaRouter,OptimizationHints \

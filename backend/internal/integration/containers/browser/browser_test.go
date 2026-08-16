@@ -134,7 +134,6 @@ func TestRenderedGUIUpScriptPinsAndValidatesChromium(t *testing.T) {
 	script := string(renderedGUIUpScript())
 	for _, want := range []string{
 		"EXPECTED_CHROME_VERSION=" + provisioning.MustPin("PW_CFT_VERSION"),
-		"--enable-unsafe-swiftshader",
 		"clear_stale_profile_locks",
 		"browser core exited before CDP became ready",
 	} {
@@ -144,6 +143,9 @@ func TestRenderedGUIUpScriptPinsAndValidatesChromium(t *testing.T) {
 	}
 	if strings.Contains(script, "__PW_CFT_VERSION__") {
 		t.Fatal("rendered GUI launcher still contains the Chrome version placeholder")
+	}
+	if strings.Contains(script, "--enable-unsafe-swiftshader") {
+		t.Fatal("rendered GUI launcher opts in to unsafe SwiftShader WebGL")
 	}
 }
 

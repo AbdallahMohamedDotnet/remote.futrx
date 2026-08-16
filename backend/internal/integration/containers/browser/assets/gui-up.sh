@@ -105,7 +105,7 @@ launch_chrome_direct() {
     --user-data-dir="$PROFILE" \
     --no-sandbox --no-first-run --no-default-browser-check \
     --disable-dev-shm-usage \
-    --use-gl=angle --use-angle=swiftshader-webgl --enable-unsafe-swiftshader \
+    --use-gl=angle --use-angle=swiftshader-webgl \
     --renderer-process-limit=4 \
     --disable-background-networking \
     --disable-features=Translate,MediaRouter,OptimizationHints \
@@ -132,7 +132,7 @@ launch_chrome_service() {
     --user-data-dir="$PROFILE" \
     --no-sandbox --no-first-run --no-default-browser-check \
     --disable-dev-shm-usage \
-    --use-gl=angle --use-angle=swiftshader-webgl --enable-unsafe-swiftshader \
+    --use-gl=angle --use-angle=swiftshader-webgl \
     --renderer-process-limit=4 \
     --disable-background-networking \
     --disable-features=Translate,MediaRouter,OptimizationHints \
