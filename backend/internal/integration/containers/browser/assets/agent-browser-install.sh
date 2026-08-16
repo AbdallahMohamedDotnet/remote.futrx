@@ -40,6 +40,7 @@ fi
 # __-delimited pins below are substituted from versions.env by
 # backend/internal/integration/containers/browser/install.go.
 PLAYWRIGHT_VERSION=__PLAYWRIGHT_VERSION__
+PW_CFT_VERSION=__PW_CFT_VERSION__
 VENDOR_URL="https://github.com/__PW_VENDOR_REPO__/releases/download/__PW_VENDOR_RELEASE_TAG__"
 
 pw_install() {
@@ -100,7 +101,3 @@ EOF
     trap - EXIT
     rm -rf "$VENDOR_DIR"
 fi
-
-# Sanity check the GUI toolchain (the chromium glob fails the build if absent).
-which Xvfb x11vnc websockify openbox xdotool
-ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome

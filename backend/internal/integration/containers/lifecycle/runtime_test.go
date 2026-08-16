@@ -6,6 +6,7 @@ import (
 	"io"
 	"slices"
 	"testing"
+	"time"
 
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
@@ -13,6 +14,25 @@ import (
 type runnerResponse struct {
 	out string
 	err error
+}
+
+type timeoutThenMissingRunner struct {
+	calls [][]string
+}
+
+func (r *timeoutThenMissingRunner) Available() bool { return true }
+
+func (r *timeoutThenMissingRunner) Run(ctx context.Context, args ...string) (string, error) {
+	r.calls = append(r.calls, slices.Clone(args))
+	if args[0] == "delete" {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	return "Error: Instance not found", errors.New("exit 1")
+}
+
+func (r *timeoutThenMissingRunner) RunStdin(ctx context.Context, _ io.Reader, args ...string) (string, error) {
+	return r.Run(ctx, args...)
 }
 
 type recordingRunner struct {
@@ -349,6 +369,20 @@ func TestClientLifecycleCommandsAndErrorMappings(t *testing.T) {
 			assertArgv(t, runner.calls, tt.wantCalls)
 		})
 	}
+}
+
+func TestClientDeleteReconcilesACompletedDeleteAfterClientTimeout(t *testing.T) {
+	runner := &timeoutThenMissingRunner{}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+
+	if err := NewClient(runner).Delete(ctx, "project-1"); err != nil {
+		t.Fatalf("Delete() error = %v, want completed daemon delete to succeed", err)
+	}
+	assertArgv(t, runner.calls, [][]string{
+		{"delete", "--force", "project-1"},
+		{"info", "project-1"},
+	})
 }
 
 func assertError(t *testing.T, err error, want string) {
