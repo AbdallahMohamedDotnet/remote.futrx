@@ -4,7 +4,7 @@
   "globalName": "FutrX",
   "shape": "package",
   "entry": "./frontend/ds-entry.ts",
-  "buildCmd": "cd frontend && npm i --no-save react@18 react-dom@18 @types/react@18 && npx tailwindcss -c ../.design-sync/tailwind.sync.ts -i src/index.css -o .ds-css/tailwind.css",
+  "buildCmd": "cd frontend && npm i --no-save react@18 react-dom@18 @types/react@18 && npx tailwindcss -c ../.design-sync/tailwind.sync.ts -i src/index.css -o .ds-css/tailwind.css && rm -rf .ds-dts && npx tsc ds-entry.ts --jsx react-jsx --jsxImportSource preact --declaration --emitDeclarationOnly --declarationDir .ds-dts --moduleResolution bundler --target es2020 --module esnext --skipLibCheck --allowImportingTsExtensions",
   "tsconfig": "../.design-sync/tsconfig.sync.json",
   "cssEntry": "./.ds-css/tailwind.css",
   "componentSrcMap": {
@@ -44,6 +44,14 @@
     "SidebarNoMatches": "src/ui/sidebar/SidebarEmptyState.tsx",
     "NoChatSelected": "src/ui/layout/NoChatSelected.tsx",
     "BrowserEmptyState": "src/ui/chat/browser/BrowserEmptyState.tsx",
-    "Markdown": "src/ui/chat/markdown/Markdown.tsx"
-  }
+    "Markdown": "src/ui/chat/markdown/Markdown.tsx",
+    "DsSurface": null
+  },
+  "extraEntries": [
+    "./src/ui/primitives/icons.tsx"
+  ],
+  "provider": {
+    "component": "DsSurface"
+  },
+  "readmeHeader": ".design-sync/conventions.md"
 }

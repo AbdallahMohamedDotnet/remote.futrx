@@ -14,6 +14,8 @@ export default {
     "../.design-sync/previews/**/*.tsx",
   ],
   safelist: [
+    "font-sans",
+    { pattern: /^max-w-(xs|sm|md|lg|xl|2xl|3xl|4xl)$/ },
     {
       pattern: /^(bg|text|border|ring|divide)-(ink|accent)-.+$/,
       variants: ["hover", "focus", "group-hover", "disabled"],

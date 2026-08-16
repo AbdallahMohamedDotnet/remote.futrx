@@ -2,6 +2,7 @@
 // the claude.ai/design bundle. Outside tsconfig's include on purpose — only
 // the design-sync converter bundles this file. Keep exports limited to
 // components that render standalone (no state/transport imports).
+export { DsSurface } from "./ds-surface";
 export { LoadingScreen } from "./src/ui/primitives/LoadingScreen";
 export {
   Loading,
@@ -46,6 +47,3 @@ export { SidebarEmptyState, SidebarNoMatches } from "./src/ui/sidebar/SidebarEmp
 export { NoChatSelected } from "./src/ui/layout/NoChatSelected";
 export { BrowserEmptyState } from "./src/ui/chat/browser/BrowserEmptyState";
 export { Markdown } from "./src/ui/chat/markdown/Markdown";
-
-// Icon set: importable exports for the design agent (not separate cards).
-export * from "./src/ui/primitives/icons";
