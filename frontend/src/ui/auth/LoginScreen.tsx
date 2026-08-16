@@ -1,6 +1,7 @@
 import { useLocalAuthController } from "../../state/hooks/auth/useLocalAuthController";
 import type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
 import { Key, Loader, MessageSquare } from "../primitives/icons";
+import { TwoFactorChallengeStep } from "./TwoFactorChallengeStep";
 
 export type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
 
@@ -31,6 +32,13 @@ export function LoginScreen({
     setup,
     submit,
     submitting,
+    pendingTwoFactor,
+    twoFactorCode,
+    setTwoFactorCode,
+    twoFactorError,
+    twoFactorSubmitting,
+    submitTwoFactorCode,
+    cancelTwoFactor,
   } = useLocalAuthController({ mode, adminEmail, onSuccess });
   const title = mode === "claim"
     ? "Create your admin account"
@@ -44,6 +52,21 @@ export function LoginScreen({
       : !localAdminConfigured
         ? "The existing administrator must sign in with Google once, then create a local password."
         : "Administrators use their local password. Invited users sign in with Google.";
+
+  if (pendingTwoFactor) {
+    return (
+      <div class="app-shell overflow-y-auto grid place-items-center bg-[#090b0f] text-ink-100 p-5">
+        <TwoFactorChallengeStep
+          code={twoFactorCode}
+          error={twoFactorError}
+          submitting={twoFactorSubmitting}
+          onCodeChange={setTwoFactorCode}
+          onSubmit={submitTwoFactorCode}
+          onCancel={cancelTwoFactor}
+        />
+      </div>
+    );
+  }
 
   return (
     <div class="app-shell overflow-y-auto grid place-items-center bg-[#090b0f] text-ink-100 p-5">

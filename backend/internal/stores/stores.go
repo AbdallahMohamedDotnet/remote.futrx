@@ -15,6 +15,8 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileprojectaccess"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileprojectsecrets"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileschedule"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/filesessions"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/filetwofactor"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusers"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusersettings"
 )
@@ -24,14 +26,16 @@ type AuthStore interface {
 }
 
 type Stores struct {
-	Chats          servicechat.Repository
-	Projects       serviceproject.Repository
-	ProjectSecrets serviceproject.SecretsRepository
-	ProjectAccess  serviceproject.AccessRepository
-	Schedules      serviceschedule.Repository
-	Auth           AuthStore
-	Users          serviceuser.Repository
-	UserSettings   serviceusersettings.Repository
+	Chats           servicechat.Repository
+	Projects        serviceproject.Repository
+	ProjectSecrets  serviceproject.SecretsRepository
+	ProjectAccess   serviceproject.AccessRepository
+	Schedules       serviceschedule.Repository
+	Auth            AuthStore
+	Users           serviceuser.Repository
+	UserSettings    serviceusersettings.Repository
+	TwoFactor       serviceauth.TwoFactorStore
+	SessionRegistry serviceauth.SessionRegistryStore
 }
 
 func New(dataDir string) (Stores, error) {
@@ -70,14 +74,26 @@ func New(dataDir string) (Stores, error) {
 		return Stores{}, fmt.Errorf("init user settings store: %w", err)
 	}
 
+	twoFactor, err := filetwofactor.New(dataDir)
+	if err != nil {
+		return Stores{}, fmt.Errorf("init two-factor store: %w", err)
+	}
+
+	sessionRegistry, err := filesessions.New(dataDir)
+	if err != nil {
+		return Stores{}, fmt.Errorf("init session registry store: %w", err)
+	}
+
 	return Stores{
-		Chats:          chats,
-		Projects:       projects,
-		ProjectSecrets: projectSecrets,
-		ProjectAccess:  projectAccess,
-		Schedules:      schedules,
-		Auth:           fileauth.New(dataDir),
-		Users:          users,
-		UserSettings:   userSettings,
+		Chats:           chats,
+		Projects:        projects,
+		ProjectSecrets:  projectSecrets,
+		ProjectAccess:   projectAccess,
+		Schedules:       schedules,
+		Auth:            fileauth.New(dataDir),
+		Users:           users,
+		UserSettings:    userSettings,
+		TwoFactor:       twoFactor,
+		SessionRegistry: sessionRegistry,
 	}, nil
 }

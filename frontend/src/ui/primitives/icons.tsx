@@ -62,3 +62,4 @@ export const Cpu = (p: P) => (<svg {...base} {...p}><rect x="6" y="6" width="12"
 export const MemoryStick = (p: P) => (<svg {...base} {...p}><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h2v4H6zM11 10h2v4h-2zM16 10h2v4h-2zM6 18v2M10 18v2M14 18v2M18 18v2"/></svg>);
 export const HardDrive = (p: P) => (<svg {...base} {...p}><path d="M22 12H2l3-7h14l3 7Z"/><rect x="2" y="12" width="20" height="7" rx="1"/><path d="M6 15.5h.01M10 15.5h.01"/></svg>);
 export const Network = (p: P) => (<svg {...base} {...p}><rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-4h14v4"/></svg>);
+export const ShieldCheck = (p: P) => (<svg {...base} {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>);

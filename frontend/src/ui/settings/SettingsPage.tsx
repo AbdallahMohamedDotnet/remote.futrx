@@ -3,18 +3,20 @@ import type { CodexDeviceLogin, KimiDeviceLogin } from "../../models/auth";
 import type { UserDirectory } from "../../state/hooks/users/useUserDirectory";
 import type { ServerInfo } from "../../models/serverInfo";
 import type { SelfUpdateStatus } from "../../models/selfUpdate";
+import type { SecuritySettingsController } from "../../state/hooks/auth/useSecuritySettings";
 import type { ComponentType } from "preact";
-import { Bot, ChevronLeft, Download, Info, Menu, Monitor, Users } from "../primitives/icons";
+import { Bot, ChevronLeft, Download, Info, Menu, Monitor, ShieldCheck, Users } from "../primitives/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ClaudeAuthSettings } from "./ClaudeAuthSettings";
 import { CodexAuthSettings } from "./CodexAuthSettings";
 import { KimiAuthSettings } from "./KimiAuthSettings";
 import { GoogleOAuthSettings } from "./GoogleOAuthSettings";
+import { SecuritySettings } from "./SecuritySettings";
 import { ServerInfoSettings } from "./ServerInfoSettings";
 import { UpdatesSettings } from "./UpdatesSettings";
 import { UsersPanel } from "../account/UsersPanel";
 
-export type SettingsTab = "appearance" | "agents" | "users" | "updates" | "info";
+export type SettingsTab = "appearance" | "agents" | "users" | "security" | "updates" | "info";
 
 const tabs: Array<{
   id: SettingsTab;
@@ -39,6 +41,12 @@ const tabs: Array<{
     label: "Users",
     description: "Control who can access this server.",
     Icon: Users,
+  },
+  {
+    id: "security",
+    label: "Security",
+    description: "Manage two-factor authentication, sessions, and sign-in history.",
+    Icon: ShieldCheck,
   },
   {
     id: "updates",
@@ -85,6 +93,7 @@ export function SettingsPage({
   kimiLoading,
   kimiStarting,
   kimiError,
+  security,
   onBack,
   onHamburger,
   onTabChange,
@@ -125,6 +134,7 @@ export function SettingsPage({
   kimiLoading: boolean;
   kimiStarting: boolean;
   kimiError: string | null;
+  security: SecuritySettingsController;
   onBack: () => void;
   onHamburger: () => void;
   onTabChange: (tab: SettingsTab) => void;
@@ -251,6 +261,8 @@ export function SettingsPage({
                 />
               </div>
             )}
+
+            {activeTab === "security" && <SecuritySettings controller={security} />}
 
             {activeTab === "updates" &&
               (isAdmin ? (

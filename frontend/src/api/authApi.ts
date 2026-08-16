@@ -19,6 +19,7 @@ export async function fetchAuthSession(): Promise<AuthSession> {
       email: data.email ?? "",
       isAdmin: !!data.isAdmin,
       isRegistered: !!data.isRegistered,
+      securityAlert: data.securityAlert ?? undefined,
     };
   } catch {
     return UNAUTHENTICATED_SESSION;
@@ -29,7 +30,29 @@ export const localAuthApi = {
   claim: (email: string, password: string) =>
     requestLocalAuth("/auth/local/claim", email, password),
   login: (email: string, password: string) =>
-    requestLocalAuth("/auth/local/login", email, password),
+    requestLocalAuthOrChallenge("/auth/local/login", email, password),
+};
+
+// twoFactorApi completes (or cancels) the pending-login challenge issued by
+// localAuthApi.login (or the Google callback redirect) when the account has
+// 2FA enabled. Pre-session, like localAuthApi, so it talks to sendHttpRequest
+// directly rather than requestJson - a wrong code intentionally returns 401
+// here and must not trigger requestJson's "session expired, reload" behavior.
+export const twoFactorApi = {
+  verify: async (code: string): Promise<AuthSession> => {
+    const response = await sendHttpRequest("POST", API_ROUTES.auth2fa.verify, { code });
+    if (!response.ok) {
+      let message = `${response.status}`;
+      try {
+        message = (await response.json()).error || message;
+      } catch {}
+      throw new Error(message);
+    }
+    return response.json() as Promise<AuthSession>;
+  },
+  cancel: async (): Promise<void> => {
+    await sendHttpRequest("POST", API_ROUTES.auth2fa.cancel);
+  },
 };
 
 export const googleOAuthApi = {
@@ -52,4 +75,29 @@ async function requestLocalAuth(url: string, email: string, password: string): P
     throw new Error(message);
   }
   return response.json() as Promise<AuthSession>;
+}
+
+export type LocalLoginResult =
+  | { twoFactorRequired: true }
+  | { twoFactorRequired: false; session: AuthSession };
+
+// Local login's response shape now branches: an account with 2FA enabled
+// gets {twoFactorRequired: true} and a pending cookie instead of a full
+// AuthSession.
+async function requestLocalAuthOrChallenge(
+  url: string,
+  email: string,
+  password: string
+): Promise<LocalLoginResult> {
+  const response = await sendHttpRequest("POST", url, { email, password });
+  if (!response.ok) {
+    let message = `${response.status}`;
+    try {
+      message = (await response.json()).error || message;
+    } catch {}
+    throw new Error(message);
+  }
+  const data = await response.json();
+  if (data?.twoFactorRequired) return { twoFactorRequired: true };
+  return { twoFactorRequired: false, session: data as AuthSession };
 }

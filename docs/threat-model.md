@@ -95,11 +95,12 @@ External users reach only Caddy, which terminates TLS and forwards to the loopba
 
 - **Residual gap:** apply the membership predicate per event, not only to the snapshot.
 
-### 16. Stateless 30-day sessions, no revocation — **Medium** ✓ code-verified
+### 16. Stateless 30-day sessions, no revocation — **Medium** ✓ code-verified — partially resolved for opted-in accounts
 
-**Spoofing.** Sessions are stateless HMAC tokens with a hardcoded 30-day expiry ([`session_codec.go`](../backend/internal/service/auth/session_codec.go)); there is no server-side store. Logout only clears the cookie. A captured token is replayable for up to 30 days. The only kill switches are deleting the user (a per-request `IsRegistered` check then rejects them) or rotating `session.key` (which logs everyone out).
+**Spoofing.** Sessions are stateless HMAC tokens with a hardcoded 30-day expiry ([`session_codec.go`](../backend/internal/service/auth/session_codec.go)); there is no server-side store by default. Logout clears the cookie and, for an account that has turned on "single active session" (see below), also revokes the server-side registry record. A captured token for an account that has not opted into single-session tracking is replayable for up to 30 days. The only kill switches for such an account remain deleting the user (a per-request `IsRegistered` check then rejects them) or rotating `session.key` (which logs everyone out).
 
-- **Residual gap:** no per-session revocation, no idle timeout, no rotation-on-logout. Severity rises to High if any token-leak vector exists.
+- **Resolved for accounts that turn on "single active session" (Settings → Security), independently of whether TOTP 2FA is also enabled.** Once on, a `SessionRegistry` record tracks one active session id per account (`backend/internal/service/auth/session_registry.go`); a new login immediately supersedes the previous session, and logout revokes it. TOTP-based 2FA is a separate, independently-toggleable control (`backend/internal/service/auth/twofactor.go`) that adds a second factor to login itself; it does not by itself change session revocability. See `docs/known-limitations.md` for the exact opt-in scoping.
+- **Residual gap, unchanged for every account that leaves "single active session" off (the default):** no per-session revocation, no idle timeout, no rotation-on-logout. Severity rises to High if any token-leak vector exists. Turning the preference on is a user choice, not an enforced policy, so this residual gap persists fleet-wide until an account opts in.
 
 ### 17. No CSRF tokens; WebSocket origin checks disabled — **Medium**
 
