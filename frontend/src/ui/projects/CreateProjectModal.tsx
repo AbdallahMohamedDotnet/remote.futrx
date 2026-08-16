@@ -45,13 +45,18 @@ export function CreateProjectModal({
 
   if (!open) return null;
 
+  // The create request only resolves once the container is provisioned, and
+  // the live project list picks up the in-flight project before that. Freeze
+  // validation while creating so our own project isn't flagged as a duplicate.
   const validation = createProjectForm.validate(name, projects);
   const slug = validation.slug;
-  const showError = !!submitError || (touched && !validation.ok && !!validation.message);
-  const hint = submitError
-    || (touched && !validation.ok ? validation.message : "")
-    || validation.message
-    || "Lowercase letters, numbers and dashes.";
+  const showError = !creating && (!!submitError || (touched && !validation.ok && !!validation.message));
+  const hint = creating
+    ? "Provisioning container…"
+    : submitError
+      || (touched && !validation.ok ? validation.message : "")
+      || validation.message
+      || "Lowercase letters, numbers and dashes.";
   const canSubmit = validation.ok && !creating;
 
   function close() {
@@ -129,7 +134,7 @@ export function CreateProjectModal({
               class={`theme-submenu-surface w-full rounded-[9px] border bg-[#101116] px-3 py-2.5 font-mono text-sm text-ink-100 outline-none transition-[border-color,box-shadow] duration-150 ${
                 showError
                   ? "border-accent-red/60 shadow-[0_0_0_3px_rgba(255,123,114,.12)]"
-                  : touched && validation.ok
+                  : touched && (validation.ok || creating)
                     ? "border-white/[0.12] shadow-[0_0_0_3px_rgba(138,180,255,.14)]"
                     : "border-white/[0.12]"
               }`}
