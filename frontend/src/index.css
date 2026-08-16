@@ -700,6 +700,35 @@ html[data-theme="light"] .codex-composer-card {
   }
 }
 
+/* Tablet-sized viewports only (phones in landscape clear 768px width but not
+   this height): keep the window cards clear of the device status bar / home
+   indicator (iPad PWA with viewport-fit=cover). On desktop the insets are 0,
+   so every rule here resolves to the values above and nothing changes. */
+@media (min-width: 768px) and (min-height: 500px) {
+  .codex-app {
+    padding:
+      max(0.5rem, env(safe-area-inset-top, 0px))
+      max(0.5rem, env(safe-area-inset-right, 0px))
+      max(0.5rem, env(safe-area-inset-bottom, 0px))
+      max(0.5rem, env(safe-area-inset-left, 0px));
+  }
+
+  /* The app frame absorbs the insets above; the per-surface safe-area
+     paddings are for the fullscreen mobile layout and must not stack. */
+  .codex-sidebar.safe-top {
+    padding-top: 0;
+  }
+
+  .top-chrome {
+    padding-top: 0.5rem;
+  }
+
+  .safe-bottom-control,
+  .composer-form {
+    padding-bottom: 0.75rem;
+  }
+}
+
 html[data-theme="light"] .md-code-comment {
   color: #57606a !important;
 }
