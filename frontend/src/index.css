@@ -63,9 +63,6 @@
     width: 100%;
     max-width: 100%;
   }
-  .workspace-pane-header {
-    padding-top: calc(0.625rem + env(safe-area-inset-top, 0px));
-  }
   @media (min-width: 768px) {
     .drawer-panel {
       transition: none;
@@ -73,9 +70,6 @@
     }
     .workspace-pane {
       padding-bottom: 0;
-    }
-    .workspace-pane-header {
-      padding-top: 0.625rem;
     }
     .workspace-history-pane[aria-hidden="false"] {
       width: min(820px, calc(100vw - 360px));
@@ -150,6 +144,17 @@
 @layer utilities {
   .top-chrome {
     padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+  }
+  /* Fullscreen mobile drawers start at y=0, so their header clears the status
+     bar itself. This lives in the utilities layer because the headers also
+     carry a `py-*` utility, which would otherwise win over the inset. */
+  .workspace-pane-header {
+    padding-top: calc(0.625rem + env(safe-area-inset-top, 0px));
+  }
+  @media (min-width: 768px) {
+    .workspace-pane-header {
+      padding-top: 0.625rem;
+    }
   }
   .safe-bottom-control {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
