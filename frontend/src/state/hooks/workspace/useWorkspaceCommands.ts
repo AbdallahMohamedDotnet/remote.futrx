@@ -6,14 +6,8 @@ import { chatApi } from "../../../api/chatApi";
 export function useWorkspaceCommands() {
   const workspace = useWorkspaceContext();
 
-  async function newProject() {
-    const name = prompt("Project name?", "");
-    if (!name || !name.trim()) return;
-    try {
-      await workspace.createProject(name.trim());
-    } catch (error) {
-      alert("create project failed: " + (error as Error).message);
-    }
+  function newProject() {
+    workspace.openCreateProject();
   }
 
   async function newChatInProject(projectId?: string) {

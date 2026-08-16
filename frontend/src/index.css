@@ -735,3 +735,38 @@ html[data-theme="light"] .scrollbar-thin {
 html[data-theme="light"] .scrollbar-thin::-webkit-scrollbar-thumb {
   background: #afb8c1;
 }
+
+@keyframes modal-card-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes modal-backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-card-pop {
+  animation: modal-card-pop 0.2s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.modal-backdrop-fade {
+  animation: modal-backdrop-fade 0.18s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-card-pop,
+  .modal-backdrop-fade {
+    animation: none;
+  }
+}
