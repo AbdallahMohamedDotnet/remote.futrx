@@ -1,5 +1,5 @@
 {
-  "name": "remote.futrx-web",
+  "name": "@remote.futrx-web/frontend",
   "private": true,
   "version": "0.3.0",
   "type": "module",
