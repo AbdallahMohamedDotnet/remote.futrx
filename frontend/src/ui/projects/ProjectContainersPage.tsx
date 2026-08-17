@@ -13,8 +13,10 @@ import {
 import { ProjectSecretsSection } from "./project-containers/ProjectSecretsSection";
 import { ProjectSharingSection } from "./project-containers/ProjectSharingSection";
 import { ProjectResourceLimits } from "./project-containers/ProjectResourceLimits";
+import { ProjectUsageLine } from "./project-containers/ProjectUsageLine";
 import { formatRelativeTime as fmtRelative } from "./project-containers/projectContainerFormat";
 import type { ContainerLimits, ProjectContainerInfo, ProjectMeta } from "../../models/project";
+import type { UsageSummary } from "../../models/usage";
 import { ChevronLeft, Info, Key, Loader, Menu, RotateCcw, Settings, Users } from "../primitives/icons";
 
 export type ProjectSettingsTab = "info" | "settings" | "secrets" | "sharing";
@@ -61,6 +63,9 @@ export function ProjectContainersPage({
   isAdmin,
   serverMemoryTotalBytes,
   serverMemoryLoading,
+  usageSummary,
+  usageLoading,
+  usageError,
   onRefresh,
   onBack,
   onHamburger,
@@ -85,6 +90,9 @@ export function ProjectContainersPage({
   isAdmin: boolean;
   serverMemoryTotalBytes?: number;
   serverMemoryLoading: boolean;
+  usageSummary: UsageSummary | null;
+  usageLoading: boolean;
+  usageError: string | null;
   onRefresh: () => void;
   onBack: () => void;
   onHamburger: () => void;
@@ -176,6 +184,9 @@ export function ProjectContainersPage({
                       project={project}
                       info={infoRecord.data}
                       refreshedAt={infoRecord.refreshedAt}
+                      usageSummary={usageSummary}
+                      usageLoading={usageLoading}
+                      usageError={usageError}
                     />
                     <ProjectInfoSection
                       project={project}
@@ -338,10 +349,16 @@ function ProjectHeader({
   project,
   info,
   refreshedAt,
+  usageSummary,
+  usageLoading,
+  usageError,
 }: {
   project: ProjectMeta;
   info?: ProjectContainerInfo;
   refreshedAt?: number;
+  usageSummary: UsageSummary | null;
+  usageLoading: boolean;
+  usageError: string | null;
 }) {
   return (
     <section class="rounded-lg border border-white/10 bg-[#101318] px-4 py-3 flex items-start gap-3">
@@ -356,6 +373,7 @@ function ProjectHeader({
         <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug font-mono truncate">
           {project.containerName || project.slug}
         </div>
+        <ProjectUsageLine summary={usageSummary} loading={usageLoading} error={usageError} />
       </div>
       {refreshedAt && (
         <div class="text-[11px] text-ink-400 mt-1.5">refreshed {fmtRelative(refreshedAt)}</div>

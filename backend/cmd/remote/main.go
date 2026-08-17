@@ -66,6 +66,7 @@ func main() {
 		Auth:              storeSet.Auth,
 		Users:             storeSet.Users,
 		UserSettings:      storeSet.UserSettings,
+		Usage:             storeSet.Usage,
 		AuthBaseURL:       cfg.BaseURL,
 		ProjectContainers: containerStack.ProjectDependencies(),
 		AgentContainers:   containerStack.AgentDependencies(),

@@ -19,6 +19,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/service/schedulecapability"
 	serviceskills "github.com/futrx-com/remote.futrx.com/internal/service/skills"
 	servicetmux "github.com/futrx-com/remote.futrx.com/internal/service/tmux"
+	serviceusage "github.com/futrx-com/remote.futrx.com/internal/service/usage"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	serviceusersettings "github.com/futrx-com/remote.futrx.com/internal/service/usersettings"
 	"github.com/futrx-com/remote.futrx.com/internal/service/workspacehub"
@@ -41,6 +42,7 @@ type Dependencies struct {
 	Auth              AuthStore
 	Users             serviceuser.Repository
 	UserSettings      serviceusersettings.Repository
+	Usage             serviceusage.Repository
 	AuthBaseURL       string
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
@@ -71,6 +73,7 @@ type Services struct {
 	Auth         *serviceauth.Service
 	Users        *serviceuser.Service
 	UserSettings *serviceusersettings.Service
+	Usage        *serviceusage.Service
 	Skills       *serviceskills.Catalog
 	Tmux         *servicetmux.Service
 	Access       *serviceauth.AccessVerifier
@@ -145,13 +148,19 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		return Services{}, err
 	}
 	scheduleCaps := schedulecapability.New(deps.AuthBaseURL)
+	var usageService *serviceusage.Service
+	promptOptions := []prompt.Option{prompt.WithScheduleToolIssuer(scheduleCaps)}
+	if deps.Usage != nil {
+		usageService = serviceusage.New(deps.Usage, projectService, chats)
+		promptOptions = append(promptOptions, prompt.WithUsageRecorder(usageService))
+	}
 	promptService := prompt.New(
 		chats,
 		deps.TmuxClient,
 		projectService,
 		runs,
 		agents,
-		prompt.WithScheduleToolIssuer(scheduleCaps),
+		promptOptions...,
 	)
 	scheduleService := serviceschedule.New(
 		deps.Schedules,
@@ -191,6 +200,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Auth:         authService,
 		Users:        userService,
 		UserSettings: userSettingsService,
+		Usage:        usageService,
 		Skills:       skillCatalog,
 		Tmux:         tmuxService,
 		Access:       accessVerifier,

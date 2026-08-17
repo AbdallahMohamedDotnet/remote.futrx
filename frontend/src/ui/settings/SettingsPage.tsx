@@ -4,7 +4,7 @@ import type { UserDirectory } from "../../state/hooks/users/useUserDirectory";
 import type { ServerInfo } from "../../models/serverInfo";
 import type { SelfUpdateStatus } from "../../models/selfUpdate";
 import type { ComponentType } from "preact";
-import { Bot, ChevronLeft, Download, Info, Menu, Monitor, Users } from "../primitives/icons";
+import { Activity, Bot, ChevronLeft, Download, Info, Menu, Monitor, Users } from "../primitives/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ClaudeAuthSettings } from "./ClaudeAuthSettings";
 import { CodexAuthSettings } from "./CodexAuthSettings";
@@ -12,9 +12,11 @@ import { KimiAuthSettings } from "./KimiAuthSettings";
 import { GoogleOAuthSettings } from "./GoogleOAuthSettings";
 import { ServerInfoSettings } from "./ServerInfoSettings";
 import { UpdatesSettings } from "./UpdatesSettings";
+import { UsageSettings } from "./UsageSettings";
 import { UsersPanel } from "../account/UsersPanel";
+import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
 
-export type SettingsTab = "appearance" | "agents" | "users" | "updates" | "info";
+export type SettingsTab = "appearance" | "agents" | "usage" | "users" | "updates" | "info";
 
 const tabs: Array<{
   id: SettingsTab;
@@ -33,6 +35,12 @@ const tabs: Array<{
     label: "Agents",
     description: "Manage host authentication for coding agents.",
     Icon: Bot,
+  },
+  {
+    id: "usage",
+    label: "Usage",
+    description: "Track tokens and estimated cost per project, user, provider, and model.",
+    Icon: Activity,
   },
   {
     id: "users",
@@ -70,6 +78,10 @@ export function SettingsPage({
   selfUpdateRestarting,
   selfUpdateError,
   userDirectory,
+  usageDashboard,
+  usageRebuilding,
+  usageRebuildMessage,
+  onRebuildUsage,
   appearanceTheme,
   appearanceLoading,
   appearanceSaving,
@@ -110,6 +122,10 @@ export function SettingsPage({
   selfUpdateRestarting: boolean;
   selfUpdateError: string | null;
   userDirectory: UserDirectory;
+  usageDashboard: UsageDashboard;
+  usageRebuilding: boolean;
+  usageRebuildMessage: string | null;
+  onRebuildUsage: () => Promise<void>;
   appearanceTheme: AppearanceTheme;
   appearanceLoading: boolean;
   appearanceSaving: boolean;
@@ -233,6 +249,16 @@ export function SettingsPage({
                   Agent authentication is managed by server administrators.
                 </SettingsNotice>
               )
+            )}
+
+            {activeTab === "usage" && (
+              <UsageSettings
+                dashboard={usageDashboard}
+                isAdmin={isAdmin}
+                onRebuild={onRebuildUsage}
+                rebuilding={usageRebuilding}
+                rebuildMessage={usageRebuildMessage}
+              />
             )}
 
             {activeTab === "users" && (
