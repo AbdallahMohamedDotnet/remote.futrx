@@ -50,7 +50,7 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
     const wrapDir = isLtrWrap ? "ltr" : undefined;
     const childContext = isLtrWrap ? { ...context, isRtl: false } : context;
     const children = renderInline(content, key, childContext);
-    const wrapClass = "bidi-isolate";
+    const wrapClass = isLtrWrap ? "bidi-isolate" : undefined;
     if (tag === "strong") nodes.push(<strong key={key} dir={wrapDir} class={wrapClass}>{children}</strong>);
     if (tag === "em") nodes.push(<em key={key} dir={wrapDir} class={wrapClass}>{children}</em>);
     if (tag === "del") nodes.push(<del key={key} dir={wrapDir} class={wrapClass}>{children}</del>);
@@ -111,8 +111,10 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
             flush();
             const key = `${keyPrefix}-${nodes.length}`;
             const labelText = text.slice(index + 1, labelEnd);
-            const labelDir = getTextDirection(labelText);
-            const labelContext = { ...context, isRtl: labelDir === "rtl" };
+            const isLtrLink = !isRtlText(labelText) && hasLtrText(labelText);
+            const labelDir = isLtrLink ? "ltr" : undefined;
+            const labelClass = isLtrLink ? "text-accent-blue hover:underline bidi-isolate" : "text-accent-blue hover:underline";
+            const labelContext = isLtrLink ? { ...context, isRtl: false } : context;
             nodes.push(
               <a
                 key={key}
@@ -120,7 +122,7 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
                 target="_blank"
                 rel="noopener noreferrer"
                 dir={labelDir}
-                class="text-accent-blue hover:underline bidi-isolate"
+                class={labelClass}
                 onClick={(event) => maybeOpenMediaViewer(event, href)}
               >
                 {renderInline(labelText, key, labelContext)}

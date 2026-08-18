@@ -6,14 +6,16 @@ import type { MarkdownBlock } from "./types";
 import { getTextAlignClass, getTextDirection, isRtlText } from "./bidi";
 
 export function Markdown({ children, chatId, cwd }: { children: string; chatId?: string; cwd?: string }) {
+  const docIsRtl = isRtlText(children);
   const blocks = useMemo(() => parseMarkdown(children), [children]);
-  const context = { chatId, cwd };
+  const context: MarkdownRenderContext = { chatId, cwd, docIsRtl };
   return <>{blocks.map((block, index) => renderBlock(block, `md-${index}`, context))}</>;
 }
 
 interface MarkdownRenderContext {
   chatId?: string;
   cwd?: string;
+  docIsRtl?: boolean;
   isRtl?: boolean;
 }
 
@@ -111,15 +113,14 @@ function renderHeading(level: 1 | 2 | 3 | 4 | 5 | 6, text: string, key: string, 
 }
 
 function renderList(block: Extract<MarkdownBlock, { type: "list" }>, key: string, context: MarkdownRenderContext) {
-  const isRtl = block.items.some((item) => isRtlText(item.text));
+  const isRtl = !!context.docIsRtl || block.items.some((item) => isRtlText(item.text));
   const dir = isRtl ? "rtl" : "ltr";
   const paddingClass = isRtl ? "pr-5 pl-0 text-right" : "pl-5 pr-0 text-left";
   const className = `${block.ordered ? "list-decimal" : "list-disc"} list-outside ${paddingClass} my-2 space-y-0.5`;
   const items = block.items.map((item, index) => {
-    const itemIsRtl = isRtlText(item.text);
-    const itemDir = itemIsRtl ? "rtl" : "ltr";
-    const itemAlign = getTextAlignClass(item.text);
-    const itemContext = { ...context, isRtl: itemIsRtl };
+    const itemDir = isRtl ? "rtl" : "ltr";
+    const itemAlign = isRtl ? "text-right" : "text-left";
+    const itemContext = { ...context, isRtl };
     const content = renderInline(item.text, `${key}-li-${index}`, itemContext);
     if (item.checked === undefined) return <li key={index} dir={itemDir} class={itemAlign}>{content}</li>;
     return (
