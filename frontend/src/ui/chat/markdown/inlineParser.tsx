@@ -2,8 +2,15 @@ import type { ComponentChildren } from "preact";
 import { mediaViewerState } from "../../../state/chat/mediaViewerState";
 import { viewableMediaKind } from "../files/fileMeta";
 import { internalPathOpenUrl } from "../ideLinks";
+import { getTextDirection, hasLtrText, isRtlText, splitBidiSegments } from "./bidi";
 
 const urlPattern = /^https?:\/\/[^\s<]+/;
+
+export interface InlineRenderContext {
+  chatId?: string;
+  cwd?: string;
+  isRtl?: boolean;
+}
 
 export function renderInline(text: string, keyPrefix: string, context: InlineRenderContext = {}): ComponentChildren[] {
   const nodes: ComponentChildren[] = [];
@@ -12,7 +19,26 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
 
   const flush = () => {
     if (plain) {
-      nodes.push(plain);
+      if (context.isRtl || isRtlText(plain)) {
+        const segments = splitBidiSegments(plain);
+        for (const seg of segments) {
+          if (seg.isLtr) {
+            nodes.push(
+              <span
+                key={`${keyPrefix}-bidi-${nodes.length}`}
+                dir="ltr"
+                class="bidi-isolate"
+              >
+                {seg.text}
+              </span>
+            );
+          } else if (seg.text) {
+            nodes.push(seg.text);
+          }
+        }
+      } else {
+        nodes.push(plain);
+      }
       plain = "";
     }
   };
@@ -20,10 +46,14 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
   const addWrapped = (tag: "strong" | "em" | "del", content: string, markerLength: number, end: number) => {
     flush();
     const key = `${keyPrefix}-${nodes.length}`;
-    const children = renderInline(content, key, context);
-    if (tag === "strong") nodes.push(<strong key={key}>{children}</strong>);
-    if (tag === "em") nodes.push(<em key={key}>{children}</em>);
-    if (tag === "del") nodes.push(<del key={key}>{children}</del>);
+    const isLtrWrap = !isRtlText(content) && hasLtrText(content);
+    const wrapDir = isLtrWrap ? "ltr" : undefined;
+    const childContext = isLtrWrap ? { ...context, isRtl: false } : context;
+    const children = renderInline(content, key, childContext);
+    const wrapClass = "bidi-isolate";
+    if (tag === "strong") nodes.push(<strong key={key} dir={wrapDir} class={wrapClass}>{children}</strong>);
+    if (tag === "em") nodes.push(<em key={key} dir={wrapDir} class={wrapClass}>{children}</em>);
+    if (tag === "del") nodes.push(<del key={key} dir={wrapDir} class={wrapClass}>{children}</del>);
     index = end + markerLength;
   };
 
@@ -33,7 +63,11 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
       if (end > index + 1) {
         flush();
         nodes.push(
-          <code key={`${keyPrefix}-${nodes.length}`} class="bg-white/[0.08] text-ink-100 px-1 py-0.5 rounded text-[12.5px] font-mono">
+          <code
+            key={`${keyPrefix}-${nodes.length}`}
+            dir="ltr"
+            class="bg-white/[0.08] text-ink-100 px-1 py-0.5 rounded text-[12.5px] font-mono md-inline-code"
+          >
             {text.slice(index + 1, end)}
           </code>
         );
@@ -76,16 +110,20 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
           if (href) {
             flush();
             const key = `${keyPrefix}-${nodes.length}`;
+            const labelText = text.slice(index + 1, labelEnd);
+            const labelDir = getTextDirection(labelText);
+            const labelContext = { ...context, isRtl: labelDir === "rtl" };
             nodes.push(
               <a
                 key={key}
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-accent-blue hover:underline"
+                dir={labelDir}
+                class="text-accent-blue hover:underline bidi-isolate"
                 onClick={(event) => maybeOpenMediaViewer(event, href)}
               >
-                {renderInline(text.slice(index + 1, labelEnd), key, context)}
+                {renderInline(labelText, key, labelContext)}
               </a>
             );
             index = hrefEnd + 1;
@@ -100,7 +138,14 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
       const href = trimTrailingUrlPunctuation(url);
       flush();
       nodes.push(
-        <a key={`${keyPrefix}-${nodes.length}`} href={href} target="_blank" rel="noopener noreferrer" class="text-accent-blue hover:underline">
+        <a
+          key={`${keyPrefix}-${nodes.length}`}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          dir="ltr"
+          class="text-accent-blue hover:underline bidi-isolate"
+        >
           {href}
         </a>
       );
@@ -114,11 +159,6 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
 
   flush();
   return nodes;
-}
-
-interface InlineRenderContext {
-  chatId?: string;
-  cwd?: string;
 }
 
 function safeHref(raw: string, context: InlineRenderContext): string | null {

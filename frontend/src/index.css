@@ -145,6 +145,25 @@
   .md-code-addition { color: #b7f7c2; }
   .md-code-deletion { color: #ffc4bf; }
   .md-code-meta { color: #c8bbff; }
+
+  /* Scoped BiDi / RTL isolation for chat content */
+  .bidi-isolate {
+    unicode-bidi: isolate;
+  }
+
+  .md-inline-code {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  .md-code,
+  pre.md-code,
+  .codex-tool-shell pre,
+  .codex-tool-shell code {
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: isolate !important;
+  }
 }
 
 @layer utilities {

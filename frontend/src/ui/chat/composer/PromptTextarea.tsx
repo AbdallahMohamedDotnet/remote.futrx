@@ -22,6 +22,7 @@ export function PromptTextarea({
   return (
     <textarea
       ref={textareaRef}
+      dir="auto"
       value={text}
       onInput={(event) => onTextChange((event.currentTarget as HTMLTextAreaElement).value)}
       onKeyDown={(event) => {

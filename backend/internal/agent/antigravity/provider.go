@@ -143,21 +143,24 @@ func (p *Provider) streamPrintRun(
 		}
 	}()
 
+	var decoder UTF8StreamDecoder
 	reader := bufio.NewReader(stdout)
 	chunk := make([]byte, 4096)
 	for {
 		n, readErr := reader.Read(chunk)
 		if n > 0 {
-			text := string(chunk[:n])
-			tail.append(text)
-			emit(agent.Event{
-				T:              time.Now().UnixMilli(),
-				Type:           agent.EventAssistantTextDelta,
-				Provider:       agent.ProviderAntigravity,
-				ConversationID: req.ConversationID,
-				ItemKind:       agent.ItemMessage,
-				Text:           text,
-			})
+			text := decoder.Decode(chunk[:n])
+			if len(text) > 0 {
+				tail.append(text)
+				emit(agent.Event{
+					T:              time.Now().UnixMilli(),
+					Type:           agent.EventAssistantTextDelta,
+					Provider:       agent.ProviderAntigravity,
+					ConversationID: req.ConversationID,
+					ItemKind:       agent.ItemMessage,
+					Text:           text,
+				})
+			}
 		}
 		if readErr != nil {
 			if !errors.Is(readErr, io.EOF) && ctx.Err() == nil {
@@ -165,6 +168,17 @@ func (p *Provider) streamPrintRun(
 			}
 			break
 		}
+	}
+	if remaining := decoder.Flush(); len(remaining) > 0 {
+		tail.append(remaining)
+		emit(agent.Event{
+			T:              time.Now().UnixMilli(),
+			Type:           agent.EventAssistantTextDelta,
+			Provider:       agent.ProviderAntigravity,
+			ConversationID: req.ConversationID,
+			ItemKind:       agent.ItemMessage,
+			Text:           remaining,
+		})
 	}
 
 	err = cmd.Wait()

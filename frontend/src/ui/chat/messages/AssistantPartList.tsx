@@ -1,6 +1,7 @@
 import type { ComponentChildren } from "preact";
 import type { AssistantMessagePart } from "../../../models/chatMessage";
 import { ToolCall } from "../tool-calls/ToolCall";
+import { isRtlText } from "../markdown/bidi";
 import { StreamingText } from "./StreamingText";
 import { ToolGroup } from "./ToolGroup";
 
@@ -63,8 +64,13 @@ function renderAssistantParts(
     }
 
     if (part.kind === "thinking") {
+      const isRtl = isRtlText(part.text);
+      const dir = isRtl ? "rtl" : "ltr";
+      const borderClass = isRtl
+        ? "border-r-2 border-accent-yellow/[0.45] pr-3 text-right"
+        : "border-l-2 border-accent-yellow/[0.45] pl-3 text-left";
       rendered.push(
-        <div key={index} class="text-[13px] italic text-ink-300 border-l-2 border-accent-yellow/[0.45] pl-3 my-2">
+        <div key={index} dir={dir} class={`text-[13px] italic text-ink-300 ${borderClass} my-2`}>
           {part.text}
         </div>
       );
