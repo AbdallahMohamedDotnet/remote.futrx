@@ -9,12 +9,15 @@ export function TerminalResizeHandle({
     <button
       type="button"
       onPointerDown={onPointerDown}
-      class={`hidden sm:block absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize touch-none
-              ${resizing ? "bg-accent-blue/35" : "bg-transparent hover:bg-accent-blue/25"}`}
-      title="Resize terminal"
+      class={`group hidden sm:flex absolute inset-y-0 left-0 z-30 w-3 items-center justify-center cursor-col-resize touch-none
+              ${resizing ? "bg-accent-blue/30" : "bg-white/[0.04] hover:bg-accent-blue/25"}`}
+      title="Drag to resize terminal"
       aria-label="Resize terminal"
     >
-      <span class="absolute left-1/2 top-1/2 h-12 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/30" />
+      <span
+        class={`h-16 w-1 rounded-full transition-colors
+                ${resizing ? "bg-accent-blue" : "bg-white/40 group-hover:bg-accent-blue/80"}`}
+      />
     </button>
   );
 }
