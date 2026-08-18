@@ -1,8 +1,25 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import "@xterm/xterm/css/xterm.css";
 import type { ChatMeta } from "../../../models/chat";
 import { useTerminalSession } from "../../../state/hooks/chat/useTerminalSession";
 import { Terminal as TerminalIcon, X } from "../../primitives/icons";
+import { TerminalResizeHandle } from "./TerminalResizeHandle";
+
+const terminalWidthKey = "remote.futrx.terminalDrawerWidth";
+const defaultTerminalWidth = 760;
+const minTerminalWidth = 420;
+const maxTerminalWidth = 1100;
+const minChatWidth = 360;
+
+function clampWidth(width: number, maxWidth = maxTerminalWidth): number {
+  return Math.min(Math.max(width, minTerminalWidth), Math.max(minTerminalWidth, maxWidth));
+}
+
+function readTerminalWidth(): number {
+  if (typeof window === "undefined") return defaultTerminalWidth;
+  const stored = Number(window.localStorage.getItem(terminalWidthKey));
+  return Number.isFinite(stored) && stored > 0 ? clampWidth(stored) : defaultTerminalWidth;
+}
 
 export function TerminalOverlay({
   chat,
@@ -22,6 +39,9 @@ export function TerminalOverlay({
     enabled: openedChatId === chat.id,
     title: chat.title,
   });
+  const [terminalWidth, setTerminalWidth] = useState(readTerminalWidth);
+  const [resizing, setResizing] = useState(false);
+  const asideRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -37,6 +57,58 @@ export function TerminalOverlay({
     return () => cancelAnimationFrame(frame);
   }, [open, terminal.focus]);
 
+  useEffect(() => {
+    window.localStorage.setItem(terminalWidthKey, String(terminalWidth));
+  }, [terminalWidth]);
+
+  // Keep the pane within the container as the viewport changes, always leaving
+  // room for the chat beside it.
+  useEffect(() => {
+    if (!open) return;
+    function clampToContainer() {
+      const bounds = asideRef.current?.parentElement?.getBoundingClientRect();
+      if (!bounds) return;
+      const availableWidth = Math.min(maxTerminalWidth, Math.max(minTerminalWidth, bounds.width - minChatWidth));
+      setTerminalWidth((width) => clampWidth(width, availableWidth));
+    }
+    clampToContainer();
+    window.addEventListener("resize", clampToContainer);
+    return () => window.removeEventListener("resize", clampToContainer);
+  }, [open]);
+
+  function handleResizeStart(event: PointerEvent) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    setResizing(true);
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function finishResize() {
+      setResizing(false);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", finishResize);
+      window.removeEventListener("pointercancel", finishResize);
+    }
+
+    function resize(moveEvent: PointerEvent) {
+      const bounds = asideRef.current?.parentElement?.getBoundingClientRect();
+      if (!bounds) return;
+      const availableWidth = Math.min(maxTerminalWidth, Math.max(minTerminalWidth, bounds.width - minChatWidth));
+      // Dragging the left edge: width grows as the pointer moves left.
+      const next = bounds.right - moveEvent.clientX;
+      setTerminalWidth(clampWidth(next, availableWidth));
+    }
+
+    window.addEventListener("pointermove", resize, { passive: false });
+    window.addEventListener("pointerup", finishResize);
+    window.addEventListener("pointercancel", finishResize);
+  }
+
   const workspacePath = chat.cwd || "/workspace";
   const statusLabel =
     terminal.status === "connected" ? "Connected" :
@@ -46,12 +118,16 @@ export function TerminalOverlay({
 
   return (
     <aside
+      ref={asideRef}
       id="workspace-terminal-pane"
-      class={`workspace-pane workspace-terminal-pane relative z-20 h-full flex-none overflow-hidden bg-[#101318] border-l border-white/10 shadow-2xl
-              transition-[width,opacity] duration-200 ease-out ${open ? "opacity-100" : "opacity-0 border-l-0 pointer-events-none"}`}
+      class={`workspace-pane workspace-terminal-pane relative z-20 h-full flex-none overflow-hidden bg-[#101318] border-l border-white/10
+              ${resizing ? "transition-none" : "transition-[width,opacity] duration-200 ease-out"}
+              ${open ? "opacity-100 shadow-2xl" : "opacity-0 border-l-0 shadow-none pointer-events-none"}`}
+      style={`--workspace-terminal-width: ${terminalWidth}px; --workspace-terminal-max-width: max(${minTerminalWidth}px, calc(100% - ${minChatWidth}px));`}
       aria-hidden={!open}
       aria-label="Terminal"
     >
+      <TerminalResizeHandle resizing={resizing} onPointerDown={handleResizeStart} />
       <div
         class={`h-full min-h-0 w-full flex flex-col transition-transform duration-200 ease-out ${open ? "translate-x-0" : "translate-x-full"}`}
       >

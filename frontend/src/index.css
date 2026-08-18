@@ -80,8 +80,8 @@
       max-width: none;
     }
     .workspace-terminal-pane[aria-hidden="false"] {
-      width: min(760px, calc(100vw - 320px));
-      max-width: none;
+      width: var(--workspace-terminal-width, 760px);
+      max-width: var(--workspace-terminal-max-width, max(420px, calc(100% - 320px)));
     }
     .workspace-schedules-pane[aria-hidden="false"] {
       width: min(520px, calc(100vw - 64px));
