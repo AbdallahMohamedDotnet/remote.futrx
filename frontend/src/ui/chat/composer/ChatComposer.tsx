@@ -14,6 +14,8 @@ import { PromptTextarea } from "./PromptTextarea";
 import { QueuedPromptList } from "./QueuedPromptList";
 import { SelectedSkillChips } from "./SelectedSkillChips";
 import { SendControls } from "./SendControls";
+import { SlashCommandMenu } from "./SlashCommandMenu";
+import { useSlashCommandMenu } from "../../../state/hooks/chat/useSlashCommandMenu";
 import type { ComposerPreferenceActions, ComposerPreferences } from "./preferences";
 
 export interface ChatComposerProps {
@@ -66,6 +68,14 @@ export function ChatComposer({
   onRemoveSelectedSkill,
 }: ChatComposerProps) {
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const slash = useSlashCommandMenu({
+    provider: preferences.provider,
+    projectId,
+    text,
+    onSelectSkill,
+    onTextChange,
+    focusTextarea: () => textareaRef.current?.focus(),
+  });
   const disconnected = !canSendPrompt && !streaming;
   const hasContent = text.trim().length > 0 || attachments.some((attachment) => attachment.serverPath);
   const canSend = !uploading && !disconnected && hasContent;
@@ -92,8 +102,19 @@ export function ChatComposer({
             event.preventDefault();
             onSend();
           }}
-          class="codex-composer-form composer-form flex gap-1.5 items-end px-2 pt-2"
+          class="codex-composer-form composer-form relative flex gap-1.5 items-end px-2 pt-2"
         >
+          {slash.open && (
+            <SlashCommandMenu
+              items={slash.items}
+              highlight={slash.highlight}
+              loading={slash.loading}
+              error={slash.error}
+              query={slash.query}
+              onChoose={slash.choose}
+              onHighlight={slash.setHighlight}
+            />
+          )}
           <AttachButton
             fileInputRef={fileInputRef}
             uploading={uploading}
@@ -109,6 +130,7 @@ export function ChatComposer({
             onTextChange={onTextChange}
             onPaste={onPaste}
             onSend={onSend}
+            onKeyDown={slash.onKeyDown}
           />
           <button
             type="button"
