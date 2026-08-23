@@ -70,6 +70,7 @@ bash infra/tests/health-check-test.sh
 bash infra/tests/go-toolchain-test.sh
 bash infra/tests/dns-resolve-test.sh
 bash infra/tests/container-forwarding-test.sh
+bash infra/tests/swap-provision-test.sh
 ```
 
 There is no CI that exercises the installer against a server. `infra/` changes reach a box only when its operator runs `sudo bash infra/update.sh` over SSH or applies a release tag from the in-app updater (both re-detect the box's hostname from the installed unit). Treat changes to `infra/` with extra care since they modify hosts in place.
