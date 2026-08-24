@@ -1,5 +1,4 @@
 import { pushServiceWorkerApi } from "../../api/pushServiceWorkerApi";
-import { pushNotificationNavigationState } from "./pushNotificationNavigationState";
 
 type ChatOpener = (chatId: string | null) => void;
 
@@ -22,14 +21,6 @@ class PushNotificationState {
   /** Reports which chat is on screen, so the worker can suppress its notification. */
   setVisibleChat(chatId: string | null): void {
     this.#visibleChatId = chatId;
-  }
-
-  /**
-   * Reads a chat id handed over by a cold-start notification tap and clears it
-   * from the address bar, so reloading later does not jump back to it.
-   */
-  takeRequestedChatId(): string | null {
-    return pushNotificationNavigationState.takeRequestedChatId();
   }
 
   #chatInFocus(): string | null {
