@@ -64,6 +64,7 @@
     max-width: 100%;
   }
   .workspace-pane-header {
+    /* Keep top spacing here at every width; env() is zero when no inset exists. */
     padding-top: calc(0.625rem + env(safe-area-inset-top, 0px));
   }
   @media (min-width: 768px) {
@@ -73,9 +74,6 @@
     }
     .workspace-pane {
       padding-bottom: 0;
-    }
-    .workspace-pane-header {
-      padding-top: 0.625rem;
     }
     .workspace-history-pane[aria-hidden="false"] {
       width: min(820px, calc(100vw - 360px));
