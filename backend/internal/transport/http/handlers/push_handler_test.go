@@ -202,7 +202,7 @@ func TestSubscriptionStatusChecksThisAccountsExactEndpoint(t *testing.T) {
 	handler.HandleSubscriptions(httptest.NewRecorder(), post)
 
 	response := httptest.NewRecorder()
-	handler.HandleSubscriptionStatus(
+	handler.HandleSubscriptionOwnership(
 		response,
 		httptest.NewRequest(
 			http.MethodPost,
@@ -213,7 +213,7 @@ func TestSubscriptionStatusChecksThisAccountsExactEndpoint(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body)
 	}
-	var body subscriptionStatusResponse
+	var body subscriptionOwnershipResponse
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestSubscriptionStatusChecksThisAccountsExactEndpoint(t *testing.T) {
 	}
 
 	response = httptest.NewRecorder()
-	handler.HandleSubscriptionStatus(
+	handler.HandleSubscriptionOwnership(
 		response,
 		httptest.NewRequest(
 			http.MethodPost,
