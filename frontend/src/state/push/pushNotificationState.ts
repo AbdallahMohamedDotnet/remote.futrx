@@ -4,17 +4,15 @@ type ChatOpener = (chatId: string | null) => void;
 
 class PushNotificationState {
   #visibleChatId: string | null = null;
-  #openChat: ChatOpener | null = null;
 
   /** Registers for push and routes notification taps into chat selection. */
   connect(openChat: ChatOpener): void {
     // Keep registration first: it installs the listener before asking the
     // browser to update the worker, matching the page's startup sequence.
     void pushServiceWorkerApi.register();
-    this.#openChat = openChat;
     pushServiceWorkerApi.connect({
       visibleChatId: () => this.#chatInFocus(),
-      openChat: (chatId) => this.#openChat?.(chatId),
+      openChat,
     });
   }
 
