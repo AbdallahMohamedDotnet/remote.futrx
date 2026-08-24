@@ -231,7 +231,7 @@ func newPush(store PushStore, baseURL string) *servicepush.Service {
 	if store == nil {
 		return servicepush.New(nil, nil)
 	}
-	private, _, err := store.VAPIDKeys(func() (string, string, error) {
+	private, public, err := store.VAPIDKeys(func() (string, string, error) {
 		key, err := webpush.GenerateVAPIDKey()
 		if err != nil {
 			return "", "", err
@@ -242,7 +242,7 @@ func newPush(store PushStore, baseURL string) *servicepush.Service {
 		log.Printf("push: notifications disabled: %v", err)
 		return servicepush.New(nil, nil)
 	}
-	key, err := webpush.ParseVAPIDKey(private)
+	key, err := webpush.ParseVAPIDKey(private, public)
 	if err != nil {
 		log.Printf("push: notifications disabled: %v", err)
 		return servicepush.New(nil, nil)

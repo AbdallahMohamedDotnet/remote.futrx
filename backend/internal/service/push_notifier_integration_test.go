@@ -188,8 +188,8 @@ func newNotifyingChat(t *testing.T, meta servicechat.Meta) (
 
 	subscription := servicepush.Subscription{
 		Endpoint:  "https://push.example.com/device-1",
-		P256dh:    "BLc4xRzKlKORKWlbdgFaBrrPK3ydWAHo4M0gs0i1oEKgPpWC5cW8OCzVrOQRv-1npXRWk8udnW3oYhIO4475rds",
-		Auth:      "5I2Bu2oKdyy9CwL8QVF0NQ",
+		P256dh:    "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+		Auth:      "AAAAAAAAAAAAAAAAAAAAAA",
 		CreatedAt: 1,
 	}
 	if err := pushService.Subscribe(context.Background(), "owner@example.com", subscription); err != nil {

@@ -3,377 +3,334 @@ package webpush
 import (
 	"bytes"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/ecdh"
-	"crypto/hkdf"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
-	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
 )
 
-// receiver mirrors the user-agent half of RFC 8291: it holds the key pair a
-// browser would have minted, and decrypts what the client produces.
-type receiver struct {
-	private *ecdh.PrivateKey
-	auth    []byte
+type doerFunc func(*http.Request) (*http.Response, error)
+
+func (function doerFunc) Do(request *http.Request) (*http.Response, error) {
+	return function(request)
 }
 
-func newReceiver(t *testing.T) receiver {
-	t.Helper()
-	private, err := ecdh.P256().GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatalf("generate subscription key: %v", err)
-	}
-	auth := make([]byte, authLength)
-	if _, err := io.ReadFull(rand.Reader, auth); err != nil {
-		t.Fatalf("generate auth secret: %v", err)
-	}
-	return receiver{private: private, auth: auth}
-}
-
-func (r receiver) subscription(endpoint string) Subscription {
-	return Subscription{
-		Endpoint: endpoint,
-		P256dh:   b64.EncodeToString(r.private.PublicKey().Bytes()),
-		Auth:     b64.EncodeToString(r.auth),
-	}
-}
-
-// open parses the aes128gcm body and recovers the plaintext, following the
-// receiver steps of RFC 8188 §2 and the key schedule of RFC 8291 §3.
-func (r receiver) open(body []byte) ([]byte, error) {
-	if len(body) < headerLength {
-		return nil, errors.New("body shorter than the aes128gcm header")
-	}
-	salt := body[:saltLength]
-	if size := binary.BigEndian.Uint32(body[saltLength : saltLength+4]); size != recordSize {
-		return nil, errors.New("unexpected record size")
-	}
-	if idLength := int(body[saltLength+4]); idLength != publicKeyLength {
-		return nil, errors.New("unexpected key id length")
-	}
-	serverPublic := body[saltLength+5 : headerLength]
-
-	senderKey, err := ecdh.P256().NewPublicKey(serverPublic)
-	if err != nil {
-		return nil, err
-	}
-	shared, err := r.private.ECDH(senderKey)
-	if err != nil {
-		return nil, err
-	}
-
-	keyInfo := append([]byte("WebPush: info\x00"), r.private.PublicKey().Bytes()...)
-	keyInfo = append(keyInfo, serverPublic...)
-	ikm, err := hkdf.Key(sha256.New, shared, r.auth, string(keyInfo), 32)
-	if err != nil {
-		return nil, err
-	}
-	prk, err := hkdf.Extract(sha256.New, ikm, salt)
-	if err != nil {
-		return nil, err
-	}
-	key, err := hkdf.Expand(sha256.New, prk, "Content-Encoding: aes128gcm\x00", 16)
-	if err != nil {
-		return nil, err
-	}
-	nonce, err := hkdf.Expand(sha256.New, prk, "Content-Encoding: nonce\x00", 12)
-	if err != nil {
-		return nil, err
-	}
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	record, err := aead.Open(nil, nonce, body[headerLength:], nil)
-	if err != nil {
-		return nil, err
-	}
-	// Strip the RFC 8188 padding delimiter; ours is always a final record.
-	if len(record) == 0 || record[len(record)-1] != 0x02 {
-		return nil, errors.New("missing final-record delimiter")
-	}
-	return record[:len(record)-1], nil
-}
-
-func TestEncryptRoundTripsThroughAReceiver(t *testing.T) {
-	ua := newReceiver(t)
-	plaintext := []byte(`{"kind":"question","chatId":"beefcafe"}`)
-
-	body, err := encrypt(plaintext, ua.private.PublicKey().Bytes(), ua.auth, nil)
-	if err != nil {
-		t.Fatalf("encrypt: %v", err)
-	}
-
-	if want := headerLength + len(plaintext) + 1 + 16; len(body) != want {
-		t.Fatalf("body length = %d, want %d", len(body), want)
-	}
-	if got := binary.BigEndian.Uint32(body[saltLength : saltLength+4]); got != recordSize {
-		t.Fatalf("record size header = %d, want %d", got, recordSize)
-	}
-
-	got, err := ua.open(body)
-	if err != nil {
-		t.Fatalf("decrypt: %v", err)
-	}
-	if !bytes.Equal(got, plaintext) {
-		t.Fatalf("plaintext = %q, want %q", got, plaintext)
-	}
-}
-
-func TestEncryptUsesAFreshSaltAndEphemeralKeyPerMessage(t *testing.T) {
-	ua := newReceiver(t)
-	first, err := encrypt([]byte("same"), ua.private.PublicKey().Bytes(), ua.auth, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := encrypt([]byte("same"), ua.private.PublicKey().Bytes(), ua.auth, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Equal(first[:headerLength], second[:headerLength]) {
-		t.Fatal("two messages reused the same salt and ephemeral key")
-	}
-}
-
-func TestEncryptRejectsOversizedPayloads(t *testing.T) {
-	ua := newReceiver(t)
-	_, err := encrypt(bytes.Repeat([]byte("x"), maxPlaintext+1), ua.private.PublicKey().Bytes(), ua.auth, nil)
-	if !errors.Is(err, ErrPayloadTooLarge) {
-		t.Fatalf("err = %v, want ErrPayloadTooLarge", err)
-	}
-}
-
-func TestEncryptRejectsAMalformedAuthSecret(t *testing.T) {
-	ua := newReceiver(t)
-	if _, err := encrypt([]byte("hi"), ua.private.PublicKey().Bytes(), ua.auth[:8], nil); err == nil {
-		t.Fatal("expected a short auth secret to be rejected")
-	}
-}
-
-func TestVAPIDKeyRoundTripsThroughItsEncodedForm(t *testing.T) {
+func TestVAPIDKeyRoundTripsThroughPersistedForm(t *testing.T) {
 	key, err := GenerateVAPIDKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := ParseVAPIDKey(key.PrivateKeyBase64())
+	restored, err := ParseVAPIDKey(key.PrivateKeyBase64(), key.PublicKeyBase64())
 	if err != nil {
-		t.Fatalf("parse: %v", err)
+		t.Fatalf("ParseVAPIDKey() error = %v", err)
 	}
-	if restored.PublicKeyBase64() != key.PublicKeyBase64() {
-		t.Fatal("public key did not survive the round trip")
-	}
-	if raw, err := decodeBase64(key.PublicKeyBase64()); err != nil || len(raw) != publicKeyLength {
-		t.Fatalf("public key = %d bytes (err %v), want %d", len(raw), err, publicKeyLength)
+	if restored.PrivateKeyBase64() != key.PrivateKeyBase64() ||
+		restored.PublicKeyBase64() != key.PublicKeyBase64() {
+		t.Fatal("key pair did not survive its persisted representation")
 	}
 }
 
-func TestAuthorizationHeaderCarriesASignedTokenForTheEndpointOrigin(t *testing.T) {
-	key, err := GenerateVAPIDKey()
+func TestParseVAPIDKeyRejectsMismatchedPair(t *testing.T) {
+	first, err := GenerateVAPIDKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	now := time.Unix(1_700_000_000, 0)
-
-	header, err := key.authorization("https://fcm.googleapis.com/fcm/send/abc123", "https://remote.example.com", now)
+	second, err := GenerateVAPIDKey()
 	if err != nil {
-		t.Fatalf("authorization: %v", err)
+		t.Fatal(err)
 	}
-	token, ok := strings.CutPrefix(header, "vapid t=")
-	if !ok {
-		t.Fatalf("header = %q, want a vapid scheme", header)
-	}
-	token, publicKey, ok := strings.Cut(token, ", k=")
-	if !ok {
-		t.Fatalf("header = %q, want a k= parameter", header)
-	}
-	if publicKey != key.PublicKeyBase64() {
-		t.Fatal("header advertised a different public key")
-	}
-
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		t.Fatalf("token has %d segments, want 3", len(parts))
-	}
-	claims := map[string]any{}
-	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		t.Fatalf("decode claims: %v", err)
-	}
-	if err := json.Unmarshal(raw, &claims); err != nil {
-		t.Fatalf("parse claims: %v", err)
-	}
-	// The audience is the endpoint's origin only — never its path, which
-	// would leak the subscription id to anyone who sees the token.
-	if claims["aud"] != "https://fcm.googleapis.com" {
-		t.Fatalf("aud = %v, want the endpoint origin", claims["aud"])
-	}
-	if claims["sub"] != "https://remote.example.com" {
-		t.Fatalf("sub = %v", claims["sub"])
-	}
-	if exp, _ := claims["exp"].(float64); int64(exp) != now.Add(vapidTokenLifetime).Unix() {
-		t.Fatalf("exp = %v, want %d", claims["exp"], now.Add(vapidTokenLifetime).Unix())
+	if _, err := ParseVAPIDKey(first.PrivateKeyBase64(), second.PublicKeyBase64()); err == nil {
+		t.Fatal("ParseVAPIDKey() accepted a public key from another pair")
 	}
 }
 
-func TestNormalizeSubject(t *testing.T) {
-	for _, tc := range []struct {
-		in      string
+func TestNormalizeSubscriber(t *testing.T) {
+	for _, test := range []struct {
+		input   string
 		want    string
 		wantErr bool
 	}{
-		{in: "https://remote.example.com/", want: "https://remote.example.com"},
-		{in: "mailto:ops@example.com", want: "mailto:ops@example.com"},
-		{in: "ops@example.com", want: "mailto:ops@example.com"},
-		{in: "", wantErr: true},
-		{in: "http://remote.example.com", wantErr: true},
+		{input: "https://remote.example.com/", want: "https://remote.example.com"},
+		{input: "mailto:ops@example.com", want: "ops@example.com"},
+		{input: "ops@example.com", want: "ops@example.com"},
+		{input: "", wantErr: true},
+		{input: "http://remote.example.com", wantErr: true},
+		{input: "https://user@remote.example.com", wantErr: true},
 	} {
-		got, err := NormalizeSubject(tc.in)
-		if tc.wantErr {
-			if err == nil {
-				t.Fatalf("NormalizeSubject(%q) = %q, want an error", tc.in, got)
+		t.Run(test.input, func(t *testing.T) {
+			got, err := normalizeSubscriber(test.input)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("normalizeSubscriber(%q) = %q, want an error", test.input, got)
+				}
+				return
 			}
-			continue
-		}
-		if err != nil || got != tc.want {
-			t.Fatalf("NormalizeSubject(%q) = %q, %v; want %q", tc.in, got, err, tc.want)
-		}
+			if err != nil || got != test.want {
+				t.Fatalf("normalizeSubscriber(%q) = %q, %v; want %q", test.input, got, err, test.want)
+			}
+		})
 	}
 }
 
-func TestSendPostsAnEncryptedBodyTheSubscriptionCanOpen(t *testing.T) {
-	ua := newReceiver(t)
-	payload := []byte(`{"title":"Claude is asking"}`)
+func TestSendDelegatesProtocolAndBuildsExpectedRequest(t *testing.T) {
+	key := testVAPIDKey(t)
+	subscription := testSubscription(t, "https://push.example.com/device/abc")
+	payload := []byte(`{"title":"Agent needs you"}`)
 
-	var opened []byte
-	var headers http.Header
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		headers = r.Header.Clone()
-		body, _ := io.ReadAll(r.Body)
-		var err error
-		if opened, err = ua.open(body); err != nil {
-			t.Errorf("receiver could not open the body: %v", err)
-		}
-		w.WriteHeader(http.StatusCreated)
+	var delivered *http.Request
+	var encrypted []byte
+	client, err := newClient(key, "ops@example.com", doerFunc(func(request *http.Request) (*http.Response, error) {
+		delivered = request
+		encrypted, _ = io.ReadAll(request.Body)
+		return response(http.StatusCreated, ""), nil
 	}))
-	defer server.Close()
-
-	key, err := GenerateVAPIDKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	client, err := NewClient(key, "ops@example.com")
-	if err != nil {
-		t.Fatal(err)
-	}
-	client.http = server.Client()
 
 	err = client.Send(
 		context.Background(),
-		ua.subscription(server.URL+"/push/abc"),
+		subscription,
 		payload,
 		Options{TTL: 90 * time.Second, Urgency: UrgencyHigh, Topic: "chat-beefcafe"},
 	)
 	if err != nil {
-		t.Fatalf("send: %v", err)
+		t.Fatalf("Send() error = %v", err)
 	}
-	if !bytes.Equal(opened, payload) {
-		t.Fatalf("delivered payload = %q, want %q", opened, payload)
+	if delivered == nil {
+		t.Fatal("protocol implementation did not execute the HTTP request")
 	}
-	if got := headers.Get("Content-Encoding"); got != "aes128gcm" {
-		t.Fatalf("Content-Encoding = %q", got)
+	if delivered.Method != http.MethodPost || delivered.URL.String() != subscription.Endpoint {
+		t.Fatalf("request = %s %s", delivered.Method, delivered.URL)
 	}
-	if got := headers.Get("TTL"); got != "90" {
-		t.Fatalf("TTL = %q, want 90", got)
+	if len(encrypted) == 0 || bytes.Contains(encrypted, payload) {
+		t.Fatal("request body was empty or exposed the plaintext payload")
 	}
-	if got := headers.Get("Urgency"); got != "high" {
-		t.Fatalf("Urgency = %q", got)
+	for name, want := range map[string]string{
+		"Content-Encoding": "aes128gcm",
+		"Content-Type":     "application/octet-stream",
+		"TTL":              "90",
+		"Urgency":          "high",
+		"Topic":            "chat-beefcafe",
+	} {
+		if got := delivered.Header.Get(name); got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
+		}
 	}
-	if got := headers.Get("Topic"); got != "chat-beefcafe" {
-		t.Fatalf("Topic = %q", got)
-	}
-	if !strings.HasPrefix(headers.Get("Authorization"), "vapid t=") {
-		t.Fatalf("Authorization = %q", headers.Get("Authorization"))
-	}
+	assertVAPIDSubject(t, delivered.Header.Get("Authorization"), "mailto:ops@example.com")
 }
 
 func TestSendReportsRetiredSubscriptionsAsGone(t *testing.T) {
 	for _, status := range []int{http.StatusNotFound, http.StatusGone} {
-		ua := newReceiver(t)
-		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(status)
-		}))
-		key, err := GenerateVAPIDKey()
-		if err != nil {
-			t.Fatal(err)
-		}
-		client, err := NewClient(key, "ops@example.com")
-		if err != nil {
-			t.Fatal(err)
-		}
-		client.http = server.Client()
-
-		err = client.Send(context.Background(), ua.subscription(server.URL+"/push/abc"), []byte("{}"), Options{})
-		if !errors.Is(err, ErrSubscriptionGone) {
-			t.Fatalf("status %d: err = %v, want ErrSubscriptionGone", status, err)
-		}
-		server.Close()
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			client, err := newClient(testVAPIDKey(t), "ops@example.com", doerFunc(func(*http.Request) (*http.Response, error) {
+				return response(status, ""), nil
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = client.Send(context.Background(), testSubscription(t, "https://push.example.com/device"), []byte("{}"), Options{})
+			if !errors.Is(err, ErrSubscriptionGone) {
+				t.Fatalf("Send() error = %v, want ErrSubscriptionGone", err)
+			}
+		})
 	}
 }
 
-func TestSendSurfacesOtherFailures(t *testing.T) {
-	ua := newReceiver(t)
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusTooManyRequests)
-		_, _ = w.Write([]byte("slow down"))
+func TestSendSurfacesOtherPushServiceFailures(t *testing.T) {
+	client, err := newClient(testVAPIDKey(t), "ops@example.com", doerFunc(func(*http.Request) (*http.Response, error) {
+		return response(http.StatusTooManyRequests, "slow down"), nil
 	}))
-	defer server.Close()
-
-	key, err := GenerateVAPIDKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	client, err := NewClient(key, "ops@example.com")
-	if err != nil {
-		t.Fatal(err)
-	}
-	client.http = server.Client()
-
-	err = client.Send(context.Background(), ua.subscription(server.URL+"/push/abc"), []byte("{}"), Options{})
-	if err == nil || errors.Is(err, ErrSubscriptionGone) {
-		t.Fatalf("err = %v, want a plain failure", err)
-	}
-	if !strings.Contains(err.Error(), "slow down") {
-		t.Fatalf("err = %v, want the push service's detail quoted", err)
+	err = client.Send(context.Background(), testSubscription(t, "https://push.example.com/device"), []byte("{}"), Options{})
+	if err == nil || errors.Is(err, ErrSubscriptionGone) || !strings.Contains(err.Error(), "slow down") {
+		t.Fatalf("Send() error = %v, want ordinary failure with response detail", err)
 	}
 }
 
-func TestSendRejectsNonHTTPSEndpoints(t *testing.T) {
+func TestSendRejectsOversizedPayloadBeforeHTTP(t *testing.T) {
+	called := false
+	client, err := newClient(testVAPIDKey(t), "ops@example.com", doerFunc(func(*http.Request) (*http.Response, error) {
+		called = true
+		return response(http.StatusCreated, ""), nil
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Send(
+		context.Background(),
+		testSubscription(t, "https://push.example.com/device"),
+		bytes.Repeat([]byte("x"), 5000),
+		Options{},
+	)
+	if !errors.Is(err, ErrPayloadTooLarge) {
+		t.Fatalf("Send() error = %v, want ErrPayloadTooLarge", err)
+	}
+	if called {
+		t.Fatal("oversized payload reached HTTP client")
+	}
+}
+
+func TestSendRejectsUnsafeEndpointBeforeHTTP(t *testing.T) {
+	for _, endpoint := range []string{
+		"http://push.example.com/device",
+		"https://localhost/device",
+		"https://127.0.0.1/device",
+		"https://10.0.0.1/device",
+		"https://user:password@push.example.com/device",
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			called := false
+			client, err := newClient(testVAPIDKey(t), "ops@example.com", doerFunc(func(*http.Request) (*http.Response, error) {
+				called = true
+				return response(http.StatusCreated, ""), nil
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = client.Send(context.Background(), testSubscription(t, endpoint), []byte("{}"), Options{})
+			if err == nil {
+				t.Fatal("Send() accepted an unsafe endpoint")
+			}
+			if called {
+				t.Fatal("unsafe endpoint reached HTTP client")
+			}
+		})
+	}
+}
+
+func TestPublicDialerRejectsPrivateAndMixedDNSAnswers(t *testing.T) {
+	for _, addresses := range [][]netip.Addr{
+		{netip.MustParseAddr("127.0.0.1")},
+		{netip.MustParseAddr("10.0.0.4")},
+		{netip.MustParseAddr("169.254.169.254")},
+		{netip.MustParseAddr("93.184.216.34"), netip.MustParseAddr("192.168.1.20")},
+	} {
+		dialed := false
+		dialer := publicDialer{
+			lookup: func(context.Context, string, string) ([]netip.Addr, error) { return addresses, nil },
+			dial: func(context.Context, string, string) (net.Conn, error) {
+				dialed = true
+				return nil, errors.New("unexpected dial")
+			},
+		}
+		_, err := dialer.DialContext(context.Background(), "tcp", "push.example.com:443")
+		if !errors.Is(err, ErrUnsafeEndpoint) {
+			t.Fatalf("DialContext() error = %v, want ErrUnsafeEndpoint for %v", err, addresses)
+		}
+		if dialed {
+			t.Fatalf("DialContext() dialed an answer from %v", addresses)
+		}
+	}
+}
+
+func TestPublicDialerPinsTheValidatedDNSAnswer(t *testing.T) {
+	wantAddress := netip.MustParseAddr("93.184.216.34")
+	wantErr := errors.New("stop after observing address")
+	var dialed string
+	dialer := publicDialer{
+		lookup: func(_ context.Context, network, host string) ([]netip.Addr, error) {
+			if network != "ip" || host != "push.example.com" {
+				t.Fatalf("lookup = %q %q", network, host)
+			}
+			return []netip.Addr{wantAddress}, nil
+		},
+		dial: func(_ context.Context, network, address string) (net.Conn, error) {
+			if network != "tcp" {
+				t.Fatalf("network = %q", network)
+			}
+			dialed = address
+			return nil, wantErr
+		},
+	}
+
+	_, err := dialer.DialContext(context.Background(), "tcp", "push.example.com:443")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("DialContext() error = %v, want %v", err, wantErr)
+	}
+	if dialed != "93.184.216.34:443" {
+		t.Fatalf("dialed address = %q", dialed)
+	}
+}
+
+func TestSafeHTTPClientDisablesProxyAndRedirects(t *testing.T) {
+	client := newSafeHTTPClient()
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("Transport = %T", client.Transport)
+	}
+	if transport.Proxy != nil {
+		t.Fatal("safe push transport inherited an HTTP proxy")
+	}
+	if err := client.CheckRedirect(&http.Request{}, []*http.Request{{}}); !errors.Is(err, http.ErrUseLastResponse) {
+		t.Fatalf("CheckRedirect() error = %v, want ErrUseLastResponse", err)
+	}
+}
+
+func testVAPIDKey(t *testing.T) VAPIDKey {
+	t.Helper()
 	key, err := GenerateVAPIDKey()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("GenerateVAPIDKey() error = %v", err)
 	}
-	client, err := NewClient(key, "ops@example.com")
+	return key
+}
+
+func testSubscription(t *testing.T, endpoint string) Subscription {
+	t.Helper()
+	privateKey, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("generate subscription key: %v", err)
 	}
-	ua := newReceiver(t)
-	if err := client.Send(context.Background(), ua.subscription("http://push.example.com/x"), []byte("{}"), Options{}); err == nil {
-		t.Fatal("expected an http:// endpoint to be rejected")
+	return Subscription{
+		Endpoint: endpoint,
+		P256dh:   base64.RawURLEncoding.EncodeToString(privateKey.PublicKey().Bytes()),
+		Auth:     base64.RawURLEncoding.EncodeToString(make([]byte, 16)),
+	}
+}
+
+func response(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Status:     http.StatusText(status),
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+	}
+}
+
+func assertVAPIDSubject(t *testing.T, authorization, want string) {
+	t.Helper()
+	token, ok := strings.CutPrefix(authorization, "vapid t=")
+	if !ok {
+		t.Fatalf("Authorization = %q", authorization)
+	}
+	token, _, ok = strings.Cut(token, ", k=")
+	if !ok {
+		t.Fatalf("Authorization = %q", authorization)
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		t.Fatalf("VAPID token has %d segments", len(parts))
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("decode VAPID claims: %v", err)
+	}
+	claims := map[string]any{}
+	if err := json.Unmarshal(raw, &claims); err != nil {
+		t.Fatalf("parse VAPID claims: %v", err)
+	}
+	if claims["sub"] != want {
+		t.Fatalf("VAPID subject = %v, want %q", claims["sub"], want)
 	}
 }

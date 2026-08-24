@@ -1,7 +1,10 @@
 package push
 
 import (
+	"crypto/ecdh"
+	"encoding/base64"
 	"errors"
+	"net/netip"
 	"net/url"
 	"strings"
 )
@@ -9,7 +12,7 @@ import (
 var (
 	ErrDisabled            = errors.New("push notifications are not configured")
 	ErrInvalidIdentity     = errors.New("push subscriptions require an authenticated user")
-	ErrInvalidEndpoint     = errors.New("push subscription endpoint must be an https URL")
+	ErrInvalidEndpoint     = errors.New("push subscription endpoint must be a public https URL")
 	ErrInvalidKeys         = errors.New("push subscription keys are malformed")
 	ErrTooManySubscription = errors.New("too many push subscriptions for this user")
 )
@@ -72,19 +75,48 @@ func (s *Subscription) Validate() error {
 	s.UserAgent = truncate(strings.TrimSpace(s.UserAgent), 256)
 
 	endpoint, err := url.Parse(s.Endpoint)
-	if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" {
+	if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" || endpoint.Hostname() == "" {
 		return ErrInvalidEndpoint
 	}
-	if len(s.Endpoint) > 2048 {
+	if len(s.Endpoint) > 2048 || endpoint.User != nil || endpoint.Fragment != "" || endpoint.Opaque != "" {
 		return ErrInvalidEndpoint
 	}
-	// A P-256 point is 65 bytes and the auth secret is 16, which base64url
-	// encodes to 88 and 22 characters. Checking the encoded length here keeps
-	// junk out of the store without decoding on every request.
-	if len(s.P256dh) < 80 || len(s.P256dh) > 100 || len(s.Auth) < 16 || len(s.Auth) > 32 {
+	host := strings.TrimSuffix(strings.ToLower(endpoint.Hostname()), ".")
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return ErrInvalidEndpoint
+	}
+	if address, parseErr := netip.ParseAddr(host); parseErr == nil &&
+		(!address.IsGlobalUnicast() || address.IsPrivate() || address.IsLoopback() ||
+			address.IsLinkLocalUnicast() || address.IsMulticast() || address.IsUnspecified()) {
+		return ErrInvalidEndpoint
+	}
+
+	publicKey, err := decodeSubscriptionKey(s.P256dh)
+	if err != nil || len(publicKey) != 65 {
+		return ErrInvalidKeys
+	}
+	if _, err := ecdh.P256().NewPublicKey(publicKey); err != nil {
+		return ErrInvalidKeys
+	}
+	authSecret, err := decodeSubscriptionKey(s.Auth)
+	if err != nil || len(authSecret) != 16 {
 		return ErrInvalidKeys
 	}
 	return nil
+}
+
+func decodeSubscriptionKey(value string) ([]byte, error) {
+	for _, encoding := range []*base64.Encoding{
+		base64.RawURLEncoding,
+		base64.URLEncoding,
+		base64.RawStdEncoding,
+		base64.StdEncoding,
+	} {
+		if decoded, err := encoding.DecodeString(value); err == nil {
+			return decoded, nil
+		}
+	}
+	return nil, ErrInvalidKeys
 }
 
 func truncate(value string, limit int) string {

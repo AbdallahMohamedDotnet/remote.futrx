@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 )
@@ -92,9 +91,10 @@ func (s *recordingSender) endpoints() []string {
 func validSubscription(endpoint string) Subscription {
 	return Subscription{
 		Endpoint: endpoint,
-		// 65 raw bytes and 16 raw bytes, base64url encoded.
-		P256dh: strings.Repeat("A", 87) + "=",
-		Auth:   strings.Repeat("B", 22),
+		// The encoded P-256 generator is a valid browser public key. The auth
+		// value is a 16-byte test secret.
+		P256dh: "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+		Auth:   "AAAAAAAAAAAAAAAAAAAAAA",
 	}
 }
 
