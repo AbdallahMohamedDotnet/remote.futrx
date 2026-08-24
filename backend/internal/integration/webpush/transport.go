@@ -16,6 +16,10 @@ import (
 // local, private, reserved, or otherwise non-public network address.
 var ErrUnsafeEndpoint = errors.New("unsafe web push endpoint")
 
+type httpDoer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 type lookupNetIPFunc func(context.Context, string, string) ([]netip.Addr, error)
 type dialContextFunc func(context.Context, string, string) (net.Conn, error)
 
