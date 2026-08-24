@@ -76,6 +76,21 @@ bash infra/tests/qa-scripts-test.sh
 bash .github/scripts/classify-release-test.sh
 ```
 
+The root package exposes every QA deployment path. Commands that take a ref
+require a clean checkout whose `HEAD` matches the pushed branch, tag, or commit:
+
+```bash
+npm run qa:install                         # public install on a fresh server
+npm run qa:install -- <ref>                # candidate install on a fresh server
+npm run qa:update -- <ref>                 # full infrastructure update
+npm run qa:deploy-app -- <ref>             # app-only deploy from a pushed ref
+npm run qa:deploy-local                    # app-only deploy of the working tree
+npm run qa:test                            # QA wrapper contract tests
+```
+
+All deployment commands read `.qa.env`; set `QA_ENV_FILE=/path/to/.qa.env` to
+reuse configuration stored in another worktree.
+
 There is no CI that exercises the installer against a server. `infra/` changes reach a box only when its operator runs `sudo bash infra/update.sh` over SSH or applies a release tag from the in-app updater (both re-detect the box's hostname from the installed unit). Treat changes to `infra/` with extra care since they modify hosts in place.
 
 ## Making changes

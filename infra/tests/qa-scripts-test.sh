@@ -8,6 +8,7 @@ DEPLOY_APP_SCRIPT="$TESTS_DIR/../qa/deploy-app.sh"
 DEPLOY_LOCAL_SCRIPT="$TESTS_DIR/../qa/deploy-local.sh"
 COMMON_SCRIPT="$TESTS_DIR/../qa/common.sh"
 CORE_INSTALL_SCRIPT="$TESTS_DIR/../install.sh"
+ROOT_PACKAGE_JSON="$TESTS_DIR/../../package.json"
 TEST_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$TEST_DIR"' EXIT
 
@@ -117,5 +118,14 @@ done
 if grep -Eq 'git (fetch|reset)|infra/(install|update|upgrade-workspaces)[.]sh|FORCE_REBUILD_BASE_IMAGE|apt-get' "$DEPLOY_LOCAL_SCRIPT"; then
     fail "deploy-local.sh changes the installed checkout, host, or workspaces"
 fi
+for package_contract in \
+    '"qa:install": "bash infra/qa/install.sh"' \
+    '"qa:update": "bash infra/qa/update.sh"' \
+    '"qa:deploy-app": "bash infra/qa/deploy-app.sh"' \
+    '"qa:deploy-local": "bash infra/qa/deploy-local.sh"' \
+    '"qa:test": "bash infra/tests/qa-scripts-test.sh"'; do
+    grep -Fq "$package_contract" "$ROOT_PACKAGE_JSON" || \
+        fail "root package is missing QA command: $package_contract"
+done
 
 echo "QA install/update/app-deploy/local-deploy script tests passed"
