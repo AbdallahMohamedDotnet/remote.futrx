@@ -14,6 +14,7 @@ import (
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/futrx-com/remote.futrx.com/internal/service/prompt"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
@@ -40,6 +41,7 @@ type TmuxClient interface {
 // thereafter; rotating it would invalidate every browser subscription.
 type PushStore interface {
 	servicepush.Repository
+	removedUserSubscriptions
 	VAPIDKeys(generate func() (private string, public string, err error)) (string, string, error)
 }
 
@@ -87,6 +89,7 @@ type Services struct {
 	Tmux         *servicetmux.Service
 	Access       *serviceauth.AccessVerifier
 	Push         *servicepush.Service
+	Presence     *servicepresence.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -102,7 +105,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	// The notifier needs services that are built further down, so it is
 	// created empty here and populated once they exist — the same late
 	// binding the run hub uses above.
-	pushNotifier := &chatPushNotifier{chats: deps.Chats}
+	presenceService := servicepresence.New()
+	pushNotifier := &chatPushNotifier{chats: deps.Chats, presence: presenceService}
 	chats := notifyingChatRepository{
 		Repository: deps.Chats,
 		workspace:  workspace,
@@ -131,6 +135,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		chatProjectResolver{projects: projectService},
 		tmuxResolver,
 		runs,
+		servicechat.WithCopiedEventAppender(chats),
 	)
 	chatAccessService := servicechat.NewAccessService(chatService, projectService)
 	agents := agent.NewRegistry()
@@ -157,7 +162,14 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			return Services{}, err
 		}
 	}
-	userService := serviceuser.New(deps.Users)
+	pushService := newPush(deps.Push, deps.AuthBaseURL)
+	userService := serviceuser.New(
+		deps.Users,
+		serviceuser.WithRemovalCleanup(userRemovalCleanup{
+			projects:      projectService,
+			subscriptions: deps.Push,
+		}),
+	)
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
 	if err != nil {
 		return Services{}, err
@@ -196,10 +208,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxService = servicetmux.NewSessions(deps.TmuxClient)
 	}
 
-	pushService := newPush(deps.Push, deps.AuthBaseURL)
 	pushNotifier.push = pushService
-	pushNotifier.projects = projectService
-	pushNotifier.users = userService
+	pushNotifier.audience.projects = projectService
+	pushNotifier.audience.users = userService
 
 	return Services{
 		Chats:        chatService,
@@ -218,6 +229,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Tmux:         tmuxService,
 		Access:       accessVerifier,
 		Push:         pushService,
+		Presence:     presenceService,
 	}, nil
 }
 
@@ -227,7 +239,7 @@ func newPush(store PushStore, baseURL string) *servicepush.Service {
 	if store == nil {
 		return servicepush.New(nil, nil)
 	}
-	private, _, err := store.VAPIDKeys(func() (string, string, error) {
+	private, public, err := store.VAPIDKeys(func() (string, string, error) {
 		key, err := webpush.GenerateVAPIDKey()
 		if err != nil {
 			return "", "", err
@@ -236,17 +248,17 @@ func newPush(store PushStore, baseURL string) *servicepush.Service {
 	})
 	if err != nil {
 		log.Printf("push: notifications disabled: %v", err)
-		return servicepush.New(nil, nil)
+		return servicepush.New(store, nil)
 	}
-	key, err := webpush.ParseVAPIDKey(private)
+	key, err := webpush.ParseVAPIDKey(private, public)
 	if err != nil {
 		log.Printf("push: notifications disabled: %v", err)
-		return servicepush.New(nil, nil)
+		return servicepush.New(store, nil)
 	}
 	client, err := webpush.NewClient(key, baseURL)
 	if err != nil {
 		log.Printf("push: notifications disabled: %v", err)
-		return servicepush.New(nil, nil)
+		return servicepush.New(store, nil)
 	}
 	return servicepush.New(store, webPushSender{client: client})
 }

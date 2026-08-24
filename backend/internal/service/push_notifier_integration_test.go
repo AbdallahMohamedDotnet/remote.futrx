@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	"github.com/futrx-com/remote.futrx.com/internal/service/workspacehub"
@@ -173,6 +175,13 @@ func (r *pushRepoStub) Delete(_ context.Context, email, endpoint string) error {
 	return nil
 }
 
+func (r *pushRepoStub) DeleteAll(_ context.Context, email string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.rows, email)
+	return nil
+}
+
 // newNotifyingChat assembles the same wrapper services.New builds, so the test
 // exercises the real append -> notify path rather than the notifier alone.
 func newNotifyingChat(t *testing.T, meta servicechat.Meta) (
@@ -187,8 +196,8 @@ func newNotifyingChat(t *testing.T, meta servicechat.Meta) (
 
 	subscription := servicepush.Subscription{
 		Endpoint:  "https://push.example.com/device-1",
-		P256dh:    "BLc4xRzKlKORKWlbdgFaBrrPK3ydWAHo4M0gs0i1oEKgPpWC5cW8OCzVrOQRv-1npXRWk8udnW3oYhIO4475rds",
-		Auth:      "5I2Bu2oKdyy9CwL8QVF0NQ",
+		P256dh:    "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+		Auth:      "AAAAAAAAAAAAAAAAAAAAAA",
 		CreatedAt: 1,
 	}
 	if err := pushService.Subscribe(context.Background(), "owner@example.com", subscription); err != nil {
@@ -204,9 +213,10 @@ func newNotifyingChat(t *testing.T, meta servicechat.Meta) (
 		Repository: chats,
 		workspace:  workspacehub.New(),
 		push: &chatPushNotifier{
-			push:  pushService,
-			chats: chats,
-			users: users,
+			push:     pushService,
+			chats:    chats,
+			audience: chatNotificationAudience{users: users},
+			presence: servicepresence.New(),
 		},
 	}, sender
 }
@@ -240,6 +250,59 @@ func TestAppendingATerminalEventRaisesANotification(t *testing.T) {
 	// stacking a new one per turn.
 	if sent[0].Tag != "chat:beefcafe" {
 		t.Fatalf("tag = %q", sent[0].Tag)
+	}
+}
+
+func TestAppendingCopiedHistoryDoesNotRaiseNotifications(t *testing.T) {
+	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Forked chat"})
+	ctx := context.Background()
+
+	for _, event := range []servicechat.Event{
+		{Type: "tool_use_start", Name: "AskUserQuestion"},
+		{Type: "complete"},
+		{Type: "error", Message: "historical failure"},
+	} {
+		if _, err := repo.AppendCopiedEvent(ctx, "beefcafe", event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repo.push.push.Wait()
+
+	if sent := sender.captured(); len(sent) != 0 {
+		t.Fatalf("historical replay sent notifications: %+v", sent)
+	}
+}
+
+func TestProjectAudienceExcludesAccessEntriesForRemovedUsers(t *testing.T) {
+	projects := []serviceproject.Meta{{ID: "beefcafe"}}
+	access := &cleanupProjectAccess{members: map[serviceproject.ID][]string{
+		"beefcafe": {"active@example.com", "removed@example.com"},
+	}}
+	audience := chatNotificationAudience{
+		projects: serviceproject.New(
+			cleanupProjectRepository{projects: projects},
+			serviceproject.ContainerDependencies{},
+			nil,
+			access,
+		),
+		users: serviceuser.New(userRepoStub{users: []serviceuser.User{
+			{Email: "active@example.com", Role: serviceuser.RoleMember},
+			{Email: "admin@example.com", Role: serviceuser.RoleAdmin},
+		}}),
+	}
+
+	recipients, err := audience.recipients(context.Background(), servicechat.Meta{ProjectID: "beefcafe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"active@example.com": true, "admin@example.com": true}
+	if len(recipients) != len(want) {
+		t.Fatalf("recipients = %v, want active member and admin", recipients)
+	}
+	for _, recipient := range recipients {
+		if !want[recipient] {
+			t.Fatalf("unexpected recipient %q in %v", recipient, recipients)
+		}
 	}
 }
 
@@ -357,5 +420,75 @@ func TestASecondRunAfterAnAbandonedQuestionStillNotifies(t *testing.T) {
 	sent := sender.captured()
 	if len(sent) != 2 || sent[1].Kind != servicepush.KindError {
 		t.Fatalf("captured %+v", sent)
+	}
+}
+
+// The reason presence exists: the service worker can only silence the browser
+// it runs in, so without a server-side signal the owner's other phone buzzes
+// about a question they are reading right now.
+func TestWatchingAChatSilencesEveryDeviceTheUserOwns(t *testing.T) {
+	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
+	repo.push.presence.Record("owner@example.com", servicepresence.Report{
+		ClientID: "laptop",
+		ChatID:   "beefcafe",
+		Revision: 1,
+	})
+
+	_, err := repo.AppendEvent(context.Background(), "beefcafe", servicechat.Event{
+		Type: "tool_use_start",
+		Name: "AskUserQuestion",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.push.push.Wait()
+
+	if sent := sender.captured(); len(sent) != 0 {
+		t.Fatalf("captured %+v, want nothing while the user is watching", sent)
+	}
+}
+
+func TestWatchingADifferentChatStillNotifies(t *testing.T) {
+	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
+	// Reading one chat is no reason to miss another agent needing an answer.
+	repo.push.presence.Record("owner@example.com", servicepresence.Report{
+		ClientID: "laptop",
+		ChatID:   "otherchat",
+		Revision: 1,
+	})
+
+	_, err := repo.AppendEvent(context.Background(), "beefcafe", servicechat.Event{Type: "complete"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.push.push.Wait()
+
+	if sent := sender.captured(); len(sent) != 1 {
+		t.Fatalf("captured %d notifications, want 1", len(sent))
+	}
+}
+
+func TestLeavingAChatRestoresNotifications(t *testing.T) {
+	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
+	ctx := context.Background()
+
+	repo.push.presence.Record("owner@example.com", servicepresence.Report{
+		ClientID: "laptop",
+		ChatID:   "beefcafe",
+		Revision: 1,
+	})
+	_, _ = repo.AppendEvent(ctx, "beefcafe", servicechat.Event{Type: "complete"})
+	repo.push.push.Wait()
+
+	// Backgrounding the tab withdraws the claim, and the next turn lands.
+	repo.push.presence.Record("owner@example.com", servicepresence.Report{
+		ClientID: "laptop",
+		Revision: 2,
+	})
+	_, _ = repo.AppendEvent(ctx, "beefcafe", servicechat.Event{Type: "complete"})
+	repo.push.push.Wait()
+
+	if sent := sender.captured(); len(sent) != 1 {
+		t.Fatalf("captured %+v, want only the notification raised after leaving", sent)
 	}
 }

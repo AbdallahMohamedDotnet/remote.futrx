@@ -1,7 +1,10 @@
 package push
 
 import (
+	"crypto/ecdh"
+	"encoding/base64"
 	"errors"
+	"net/netip"
 	"net/url"
 	"strings"
 )
@@ -9,7 +12,7 @@ import (
 var (
 	ErrDisabled            = errors.New("push notifications are not configured")
 	ErrInvalidIdentity     = errors.New("push subscriptions require an authenticated user")
-	ErrInvalidEndpoint     = errors.New("push subscription endpoint must be an https URL")
+	ErrInvalidEndpoint     = errors.New("push subscription endpoint must be a public https URL")
 	ErrInvalidKeys         = errors.New("push subscription keys are malformed")
 	ErrTooManySubscription = errors.New("too many push subscriptions for this user")
 )
@@ -18,6 +21,13 @@ var (
 // subscription whenever their old one is invalidated, so without a cap a single
 // user's file would grow forever.
 const MaxSubscriptionsPerUser = 20
+
+const (
+	maxEndpointLength     = 2048
+	maxUserAgentLength    = 256
+	publicKeyLengthBytes  = 65
+	authSecretLengthBytes = 16
+)
 
 // Subscription is one browser's push registration. Endpoint identifies it;
 // P256dh and Auth are the keys every payload for it is encrypted to.
@@ -66,25 +76,67 @@ type Notification struct {
 // Validate normalizes a subscription submitted by a browser and rejects
 // anything that could not be a real Web Push registration.
 func (s *Subscription) Validate() error {
+	s.normalize()
+	if err := validateSubscriptionEndpoint(s.Endpoint); err != nil {
+		return err
+	}
+	return validateSubscriptionKeys(s.P256dh, s.Auth)
+}
+
+func (s *Subscription) normalize() {
 	s.Endpoint = strings.TrimSpace(s.Endpoint)
 	s.P256dh = strings.TrimSpace(s.P256dh)
 	s.Auth = strings.TrimSpace(s.Auth)
-	s.UserAgent = truncate(strings.TrimSpace(s.UserAgent), 256)
+	s.UserAgent = truncate(strings.TrimSpace(s.UserAgent), maxUserAgentLength)
+}
 
-	endpoint, err := url.Parse(s.Endpoint)
-	if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" {
+func validateSubscriptionEndpoint(rawEndpoint string) error {
+	endpoint, err := url.Parse(rawEndpoint)
+	if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" || endpoint.Hostname() == "" {
 		return ErrInvalidEndpoint
 	}
-	if len(s.Endpoint) > 2048 {
+	if len(rawEndpoint) > maxEndpointLength || endpoint.User != nil || endpoint.Fragment != "" || endpoint.Opaque != "" {
 		return ErrInvalidEndpoint
 	}
-	// A P-256 point is 65 bytes and the auth secret is 16, which base64url
-	// encodes to 88 and 22 characters. Checking the encoded length here keeps
-	// junk out of the store without decoding on every request.
-	if len(s.P256dh) < 80 || len(s.P256dh) > 100 || len(s.Auth) < 16 || len(s.Auth) > 32 {
+	host := strings.TrimSuffix(strings.ToLower(endpoint.Hostname()), ".")
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return ErrInvalidEndpoint
+	}
+	if address, parseErr := netip.ParseAddr(host); parseErr == nil &&
+		(!address.IsGlobalUnicast() || address.IsPrivate() || address.IsLoopback() ||
+			address.IsLinkLocalUnicast() || address.IsMulticast() || address.IsUnspecified()) {
+		return ErrInvalidEndpoint
+	}
+	return nil
+}
+
+func validateSubscriptionKeys(p256dh, auth string) error {
+	publicKey, err := decodeSubscriptionKey(p256dh)
+	if err != nil || len(publicKey) != publicKeyLengthBytes {
+		return ErrInvalidKeys
+	}
+	if _, err := ecdh.P256().NewPublicKey(publicKey); err != nil {
+		return ErrInvalidKeys
+	}
+	authSecret, err := decodeSubscriptionKey(auth)
+	if err != nil || len(authSecret) != authSecretLengthBytes {
 		return ErrInvalidKeys
 	}
 	return nil
+}
+
+func decodeSubscriptionKey(value string) ([]byte, error) {
+	for _, encoding := range []*base64.Encoding{
+		base64.RawURLEncoding,
+		base64.URLEncoding,
+		base64.RawStdEncoding,
+		base64.StdEncoding,
+	} {
+		if decoded, err := encoding.DecodeString(value); err == nil {
+			return decoded, nil
+		}
+	}
+	return nil, ErrInvalidKeys
 }
 
 func truncate(value string, limit int) string {

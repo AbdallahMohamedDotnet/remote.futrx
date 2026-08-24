@@ -1,23 +1,19 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
-import { useContext, useEffect, useReducer } from "preact/hooks";
+import { useCallback, useContext, useEffect, useReducer } from "preact/hooks";
 import type { ChatMeta, CreateChatInput } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatApi } from "../../api/chatApi";
 import { projectApi } from "../../api/projectApi";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
+import { useWorkspacePushLifecycle } from "../hooks/push/useWorkspacePushLifecycle";
 import { useUserSettingsContext } from "./UserSettingsContext";
 import {
   workspaceUiState,
   type WorkspaceUiState,
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
-import {
-  onNotificationOpen,
-  registerServiceWorker,
-  setVisibleChat,
-  takeRequestedChatId,
-} from "../push/serviceWorkerClient";
+import { takePushNotificationChatId } from "../push/pushNotificationNavigation";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];
@@ -56,24 +52,17 @@ export function WorkspaceProvider({
   const [ui, dispatch] = useReducer(
     workspaceUiState.reduce,
     null,
-    () => workspaceUiState.createInitial(takeRequestedChatId())
+    () => workspaceUiState.createInitial(takePushNotificationChatId())
   );
   const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
-
-  // Register the worker on every boot so a deployed sw.js replaces the
-  // installed one, and route notification taps into chat selection.
-  useEffect(() => {
-    void registerServiceWorker();
-    onNotificationOpen((chatId) => {
-      if (chatId) dispatch({ type: "select-chat", chatId });
-    });
+  const openPushChat = useCallback((chatId: string) => {
+    dispatch({ type: "select-chat", chatId });
   }, []);
-
-  // Tell the worker which chat is on screen so it stays quiet about one the
-  // user is already watching.
-  useEffect(() => {
-    setVisibleChat(ui.view === "chat" ? ui.activeChatId : null);
-  }, [ui.activeChatId, ui.view]);
+  useWorkspacePushLifecycle({
+    activeChatId: ui.activeChatId,
+    view: ui.view,
+    openChat: openPushChat,
+  });
 
   useEffect(() => {
     const chatId = workspaceSidebarState.initialChatId(enabled, ui.activeChatId, data.chats);

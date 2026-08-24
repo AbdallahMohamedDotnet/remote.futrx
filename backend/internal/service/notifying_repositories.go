@@ -50,6 +50,23 @@ func (r notifyingChatRepository) AppendEvent(
 	id servicechat.ID,
 	ev servicechat.Event,
 ) (servicechat.Event, error) {
+	return r.appendEvent(ctx, id, ev, true)
+}
+
+func (r notifyingChatRepository) AppendCopiedEvent(
+	ctx context.Context,
+	id servicechat.ID,
+	ev servicechat.Event,
+) (servicechat.Event, error) {
+	return r.appendEvent(ctx, id, ev, false)
+}
+
+func (r notifyingChatRepository) appendEvent(
+	ctx context.Context,
+	id servicechat.ID,
+	ev servicechat.Event,
+	notify bool,
+) (servicechat.Event, error) {
 	next, err := r.Repository.AppendEvent(ctx, id, ev)
 	if err != nil {
 		return next, err
@@ -57,7 +74,9 @@ func (r notifyingChatRepository) AppendEvent(
 	if eventUpdatesWorkspace(next.Type) {
 		r.publishChat(ctx, id)
 	}
-	r.push.ChatEvent(id, next)
+	if notify {
+		r.push.ChatEvent(id, next)
+	}
 	return next, nil
 }
 

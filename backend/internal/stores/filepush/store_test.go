@@ -134,6 +134,25 @@ func TestDeletingAnUnknownEndpointIsNotAnError(t *testing.T) {
 	}
 }
 
+func TestDeleteAllRemovesEveryDeviceAndIsIdempotent(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	_ = store.Save(ctx, "ops@example.com", subscription("https://push.example.com/a", 10))
+	_ = store.Save(ctx, "ops@example.com", subscription("https://push.example.com/b", 20))
+
+	for i := 0; i < 2; i++ {
+		if err := store.DeleteAll(ctx, "OPS@example.com"); err != nil {
+			t.Fatalf("delete all %d: %v", i, err)
+		}
+	}
+	if subscriptions, err := store.List(ctx, "ops@example.com"); err != nil || len(subscriptions) != 0 {
+		t.Fatalf("subscriptions = %+v, %v; want empty", subscriptions, err)
+	}
+}
+
 func TestARecordRequiresAnIdentity(t *testing.T) {
 	store, err := New(t.TempDir())
 	if err != nil {

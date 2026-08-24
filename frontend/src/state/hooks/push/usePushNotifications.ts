@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { pushApi } from "../../../api/pushApi";
+import { pushSubscriptionApi } from "../../../api/pushSubscriptionApi";
 import type { PushBlocker, PushStatus } from "../../../models/push";
-import {
-  currentSubscription,
-  disablePush,
-  enablePush,
-  pushBlocker,
-} from "../../push/pushSubscriptionClient";
 
 export interface PushNotifications {
   status: PushStatus;
@@ -34,7 +29,7 @@ export function usePushNotifications(active: boolean): PushNotifications {
       const config = await pushApi.config();
       setPublicKey(config.publicKey);
 
-      const reason = pushBlocker(config.enabled);
+      const reason = pushSubscriptionApi.blocker(config.enabled);
       setBlocker(reason);
       if (reason) {
         setStatus("blocked");
@@ -43,7 +38,7 @@ export function usePushNotifications(active: boolean): PushNotifications {
       // The server's record and this device's registration can disagree — a
       // second device, or a subscription the browser dropped — so trust the
       // browser for what *this* device receives.
-      setStatus((await currentSubscription()) ? "on" : "off");
+      setStatus((await pushSubscriptionApi.reconcileCurrentAccount()) ? "on" : "off");
     } catch (cause) {
       setStatus("blocked");
       setError(messageOf(cause));
@@ -60,7 +55,7 @@ export function usePushNotifications(active: boolean): PushNotifications {
     setError(null);
     setNotice(null);
     try {
-      await enablePush(publicKey);
+      await pushSubscriptionApi.enable(publicKey);
       setStatus("on");
       setNotice("This device will now receive notifications.");
     } catch (cause) {
@@ -77,7 +72,7 @@ export function usePushNotifications(active: boolean): PushNotifications {
     setError(null);
     setNotice(null);
     try {
-      await disablePush();
+      await pushSubscriptionApi.disable();
       setStatus("off");
     } catch (cause) {
       setError(messageOf(cause));

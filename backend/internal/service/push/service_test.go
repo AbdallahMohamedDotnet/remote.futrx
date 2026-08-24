@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 )
@@ -92,9 +91,10 @@ func (s *recordingSender) endpoints() []string {
 func validSubscription(endpoint string) Subscription {
 	return Subscription{
 		Endpoint: endpoint,
-		// 65 raw bytes and 16 raw bytes, base64url encoded.
-		P256dh: strings.Repeat("A", 87) + "=",
-		Auth:   strings.Repeat("B", 22),
+		// The encoded P-256 generator is a valid browser public key. The auth
+		// value is a 16-byte test secret.
+		P256dh: "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+		Auth:   "AAAAAAAAAAAAAAAAAAAAAA",
 	}
 }
 
@@ -290,5 +290,18 @@ func TestUnsubscribeIsIdempotent(t *testing.T) {
 	}
 	if reachable, _ := service.HasSubscriptions(ctx, "ops@example.com"); reachable {
 		t.Fatal("subscription survived unsubscribe")
+	}
+}
+
+func TestOwnsSubscriptionChecksTheExactEndpointForThisAccount(t *testing.T) {
+	service, _, _ := newTestService()
+	ctx := context.Background()
+	_ = service.Subscribe(ctx, "first@example.com", validSubscription("https://push.example.com/device"))
+
+	if owns, err := service.OwnsSubscription(ctx, "first@example.com", "https://push.example.com/device"); err != nil || !owns {
+		t.Fatalf("first account ownership = %v, %v; want true", owns, err)
+	}
+	if owns, err := service.OwnsSubscription(ctx, "second@example.com", "https://push.example.com/device"); err != nil || owns {
+		t.Fatalf("second account ownership = %v, %v; want false", owns, err)
 	}
 }

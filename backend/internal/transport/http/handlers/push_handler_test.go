@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 )
 
@@ -69,8 +70,8 @@ const browserSubscriptionJSON = `{
   "endpoint": "https://fcm.googleapis.com/fcm/send/abc123",
   "expirationTime": null,
   "keys": {
-    "p256dh": "BLc4xRzKlKORKWlbdgFaBrrPK3ydWAHo4M0gs0i1oEKgPpWC5cW8OCzVrOQRv-1npXRWk8udnW3oYhIO4475rds",
-    "auth": "5I2Bu2oKdyy9CwL8QVF0NQ"
+    "p256dh": "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+    "auth": "AAAAAAAAAAAAAAAAAAAAAA"
   }
 }`
 
@@ -79,7 +80,7 @@ func newPushHandler() (*PushHandler, *pushRepoStub, *pushSenderStub) {
 	sender := &pushSenderStub{}
 	// A nil auth service means the handler falls back to the local-admin
 	// identity, which is how a single-operator box runs.
-	return NewPushHandler(servicepush.New(repo, sender), nil), repo, sender
+	return NewPushHandler(servicepush.New(repo, sender), nil, servicepresence.New()), repo, sender
 }
 
 func TestPushConfigAdvertisesTheServerKey(t *testing.T) {
@@ -104,7 +105,7 @@ func TestPushConfigAdvertisesTheServerKey(t *testing.T) {
 }
 
 func TestPushConfigReportsADisabledServerWithoutFailing(t *testing.T) {
-	handler := NewPushHandler(servicepush.New(nil, nil), nil)
+	handler := NewPushHandler(servicepush.New(nil, nil), nil, servicepresence.New())
 
 	response := httptest.NewRecorder()
 	handler.HandleConfig(response, httptest.NewRequest(http.MethodGet, "/api/push/config", nil))
@@ -195,6 +196,46 @@ func TestUnsubscribeRemovesTheDevice(t *testing.T) {
 	}
 }
 
+func TestSubscriptionStatusChecksThisAccountsExactEndpoint(t *testing.T) {
+	handler, _, _ := newPushHandler()
+	post := httptest.NewRequest(http.MethodPost, "/api/push/subscriptions", strings.NewReader(browserSubscriptionJSON))
+	handler.HandleSubscriptions(httptest.NewRecorder(), post)
+
+	response := httptest.NewRecorder()
+	handler.HandleSubscriptionOwnership(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/api/push/subscriptions/status",
+			strings.NewReader(`{"endpoint":"https://fcm.googleapis.com/fcm/send/abc123"}`),
+		),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body)
+	}
+	var body subscriptionOwnershipResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.Owned {
+		t.Fatal("the endpoint registered to this account was not recognized")
+	}
+
+	response = httptest.NewRecorder()
+	handler.HandleSubscriptionOwnership(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/api/push/subscriptions/status",
+			strings.NewReader(`{"endpoint":"https://push.example.com/someone-elses-device"}`),
+		),
+	)
+	_ = json.NewDecoder(response.Body).Decode(&body)
+	if body.Owned {
+		t.Fatal("an endpoint not registered to this account was reported as owned")
+	}
+}
+
 func TestTestNotificationGoesOnlyToTheCaller(t *testing.T) {
 	handler, _, sender := newPushHandler()
 
@@ -236,5 +277,81 @@ func TestPushRoutesRejectTheWrongMethod(t *testing.T) {
 		if response.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("%s %s: status = %d, want 405", tc.method, tc.path, response.Code)
 		}
+	}
+}
+
+func TestPresenceRecordsAndWithdrawsAClaim(t *testing.T) {
+	handler, _, _ := newPushHandler()
+
+	post := func(body string) int {
+		response := httptest.NewRecorder()
+		handler.HandlePresence(
+			response,
+			httptest.NewRequest(http.MethodPost, "/api/push/presence", strings.NewReader(body)),
+		)
+		return response.Code
+	}
+
+	if code := post(`{"chatId":"beefcafe","clientId":"tab-1","revision":1}`); code != http.StatusNoContent {
+		t.Fatalf("status = %d", code)
+	}
+	// local-admin is the identity a nil auth service falls back to.
+	if !handler.presence.IsWatching("local-admin", "beefcafe") {
+		t.Fatal("posting a chat id should mark the caller as watching it")
+	}
+
+	if code := post(`{"chatId":"","clientId":"tab-1","revision":2}`); code != http.StatusNoContent {
+		t.Fatalf("status = %d", code)
+	}
+	if handler.presence.IsWatching("local-admin", "beefcafe") {
+		t.Fatal("an empty chat id should withdraw the claim")
+	}
+}
+
+func TestPresenceRejectsANonPost(t *testing.T) {
+	handler, _, _ := newPushHandler()
+
+	response := httptest.NewRecorder()
+	handler.HandlePresence(response, httptest.NewRequest(http.MethodGet, "/api/push/presence", nil))
+
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d", response.Code)
+	}
+}
+
+// Whitespace is not a chat id: a client sending it is signing off, and must
+// not be left holding a claim that silences its owner until the TTL runs out.
+func TestPresenceTreatsABlankChatIDAsSigningOff(t *testing.T) {
+	handler, _, _ := newPushHandler()
+
+	post := func(body string) {
+		handler.HandlePresence(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodPost, "/api/push/presence", strings.NewReader(body)),
+		)
+	}
+
+	post(`{"chatId":"beefcafe","clientId":"tab-1","revision":1}`)
+	post(`{"chatId":"   ","clientId":"tab-1","revision":2}`)
+
+	if handler.presence.IsWatching("local-admin", "beefcafe") {
+		t.Fatal("a whitespace chat id should withdraw the claim, not be ignored")
+	}
+}
+
+func TestPresenceRejectsARequestWithoutAnOrderingRevision(t *testing.T) {
+	handler, _, _ := newPushHandler()
+	response := httptest.NewRecorder()
+	handler.HandlePresence(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/api/push/presence",
+			strings.NewReader(`{"chatId":"beefcafe","clientId":"tab-1"}`),
+		),
+	)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", response.Code)
 	}
 }

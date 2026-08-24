@@ -20,13 +20,19 @@ const (
 	startTimeout   = 30 * time.Second
 	stopTimeout    = 30 * time.Second
 	restartTimeout = 60 * time.Second
-	deleteTimeout  = 30 * time.Second
+	deleteTimeout  = 5 * time.Minute
 	queryTimeout   = 10 * time.Second
 )
 
 // Client translates lifecycle operations into LXD CLI calls.
 type Client struct {
 	runner command.Runner
+}
+
+type deleteAttempt struct {
+	output   string
+	err      error
+	timedOut bool
 }
 
 func NewClient(runner command.Runner) *Client {
@@ -182,13 +188,41 @@ func (c *Client) Delete(ctx context.Context, containerName string) error {
 	if !c.runner.Available() {
 		return nil
 	}
-	if out, err := command.RunWithTimeout(ctx, c.runner, deleteTimeout, "delete", "--force", containerName); err != nil {
-		if strings.Contains(out, "not found") {
+	attempt := c.forceDelete(ctx, containerName)
+	if attempt.err != nil {
+		if strings.Contains(attempt.output, "not found") {
 			return nil
 		}
-		return fmt.Errorf("lxc delete: %w; output: %s", err, out)
+		if attempt.timedOut {
+			missing, stateErr := c.missingAfterDeleteTimeout(ctx, containerName)
+			if stateErr == nil && missing {
+				return nil
+			}
+			if stateErr != nil {
+				return fmt.Errorf("lxc delete: %w; output: %s; verify state: %v", attempt.err, attempt.output, stateErr)
+			}
+		}
+		return fmt.Errorf("lxc delete: %w; output: %s", attempt.err, attempt.output)
 	}
 	return nil
+}
+
+func (c *Client) forceDelete(ctx context.Context, containerName string) deleteAttempt {
+	deleteCtx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	output, err := c.runner.Run(deleteCtx, "delete", "--force", containerName)
+	timedOut := errors.Is(deleteCtx.Err(), context.DeadlineExceeded)
+	cancel()
+	return deleteAttempt{output: output, err: err, timedOut: timedOut}
+}
+
+// The LXD daemon can finish an asynchronous delete after the lxc client
+// exceeds its deadline. Reconcile the actual instance state before reporting
+// a false failure like the 0.3.0 video-editing upgrade.
+func (c *Client) missingAfterDeleteTimeout(ctx context.Context, containerName string) (bool, error) {
+	stateCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), queryTimeout)
+	defer cancel()
+	state, err := c.State(stateCtx, containerName)
+	return state == serviceproject.ContainerStateMissing, err
 }
 
 func (c *Client) State(ctx context.Context, containerName string) (serviceproject.ContainerState, error) {
