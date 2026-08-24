@@ -1,4 +1,5 @@
 import { pushServiceWorkerApi } from "../../api/pushServiceWorkerApi";
+import { isPushPageFocused } from "./pushPageFocus";
 
 type ChatOpener = (chatId: string | null) => void;
 
@@ -24,9 +25,7 @@ class PushNotificationState {
   #chatInFocus(): string | null {
     // Only claim a chat when this window is genuinely in front; a background
     // tab showing the chat should still raise a notification.
-    return document.visibilityState === "visible" && document.hasFocus()
-      ? this.#visibleChatId
-      : null;
+    return isPushPageFocused() ? this.#visibleChatId : null;
   }
 }
 

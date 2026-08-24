@@ -12,6 +12,7 @@
 
 import { pushApi } from "../../api/pushApi";
 import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../config/push";
+import { isPushPageFocused } from "./pushPageFocus";
 
 /**
  * Keeps the server's idea of what this client is watching in step with what is
@@ -43,8 +44,7 @@ class PushPresenceState {
     if (!this.#onScreen || typeof document === "undefined") return null;
     // A visible but unfocused window is one the user left behind for another
     // app, which is exactly when they do want the notification.
-    if (document.visibilityState !== "visible" || !document.hasFocus()) return null;
-    return this.#onScreen;
+    return isPushPageFocused() ? this.#onScreen : null;
   }
 
   #sync = (): void => {
