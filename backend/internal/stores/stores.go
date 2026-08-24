@@ -1,6 +1,7 @@
 package stores
 
 import (
+	"context"
 	"fmt"
 
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
@@ -25,9 +26,11 @@ type AuthStore interface {
 	serviceauth.Store
 }
 
-// PushStore adds VAPID key custody to the plain subscription repository.
+// PushStore exposes the subscription, account-cleanup, and VAPID capabilities
+// required at the application composition boundary.
 type PushStore interface {
 	servicepush.Repository
+	DeleteAll(ctx context.Context, email string) error
 	VAPIDKeys(generate func() (private string, public string, err error)) (string, string, error)
 }
 
