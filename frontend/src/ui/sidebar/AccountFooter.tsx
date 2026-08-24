@@ -1,19 +1,17 @@
 import { LogOut, Settings } from "../primitives/icons";
-import { pushSubscriptionApi } from "../../api/pushSubscriptionApi";
 
 export function AccountFooter({
   email,
   onOpenSettings,
+  onSignOut,
 }: {
   email: string;
   onOpenSettings?: () => void;
+  onSignOut: () => void;
 }) {
   function signOut(event: MouseEvent): void {
     event.preventDefault();
-    void pushSubscriptionApi
-      .prepareForLogout()
-      .catch(() => {})
-      .then(() => window.location.assign("/auth/logout"));
+    onSignOut();
   }
 
   return (
