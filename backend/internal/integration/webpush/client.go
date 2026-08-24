@@ -1,13 +1,11 @@
 package webpush
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -46,10 +44,8 @@ type Options struct {
 // Client sends encrypted notifications to push services on behalf of one
 // application server identity.
 type Client struct {
-	key     VAPIDKey
-	subject string
-	http    *http.Client
-	now     func() time.Time
+	requests requestBuilder
+	http     *http.Client
 }
 
 // NewClient binds a VAPID key pair to a contact subject (a mailto: or https://
@@ -63,60 +59,19 @@ func NewClient(key VAPIDKey, subject string) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		key:     key,
-		subject: subject,
-		http:    &http.Client{Timeout: 15 * time.Second},
-		now:     time.Now,
+		requests: requestBuilder{key: key, subject: subject, now: time.Now},
+		http:     &http.Client{Timeout: 15 * time.Second},
 	}, nil
 }
 
 // PublicKey is the applicationServerKey browsers need to subscribe.
-func (c *Client) PublicKey() string { return c.key.PublicKeyBase64() }
+func (c *Client) PublicKey() string { return c.requests.publicKey() }
 
 // Send encrypts payload for one subscription and hands it to its push service.
 func (c *Client) Send(ctx context.Context, sub Subscription, payload []byte, opts Options) error {
-	endpoint := strings.TrimSpace(sub.Endpoint)
-	if _, err := pushAudience(endpoint); err != nil {
-		return err
-	}
-	uaPublic, err := decodeBase64(sub.P256dh)
-	if err != nil {
-		return fmt.Errorf("decode subscription p256dh: %w", err)
-	}
-	authSecret, err := decodeBase64(sub.Auth)
-	if err != nil {
-		return fmt.Errorf("decode subscription auth: %w", err)
-	}
-
-	body, err := encrypt(payload, uaPublic, authSecret, nil)
+	request, err := c.requests.build(ctx, sub, payload, opts)
 	if err != nil {
 		return err
-	}
-	authorization, err := c.key.authorization(endpoint, c.subject, c.now())
-	if err != nil {
-		return err
-	}
-
-	ttl := opts.TTL
-	if ttl <= 0 {
-		ttl = 12 * time.Hour
-	}
-	urgency := opts.Urgency
-	if urgency == "" {
-		urgency = UrgencyNormal
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("build push request: %w", err)
-	}
-	request.Header.Set("Authorization", authorization)
-	request.Header.Set("Content-Encoding", "aes128gcm")
-	request.Header.Set("Content-Type", "application/octet-stream")
-	request.Header.Set("TTL", strconv.Itoa(int(ttl.Seconds())))
-	request.Header.Set("Urgency", string(urgency))
-	if opts.Topic != "" {
-		request.Header.Set("Topic", opts.Topic)
 	}
 
 	response, err := c.http.Do(request)
