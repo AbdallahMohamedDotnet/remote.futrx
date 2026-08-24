@@ -1,5 +1,5 @@
 /** The browser subscription shape needed by account ownership policy. */
-export interface EndpointSubscription {
+interface EndpointSubscription {
   endpoint: string;
 }
 
