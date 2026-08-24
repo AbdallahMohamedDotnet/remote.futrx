@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -18,17 +17,11 @@ type Service struct {
 	containerInspector   ContainerInspector
 	containerNetwork     ContainerNetwork
 	containerListeners   ContainerListeners
-	containerBrowser     ContainerBrowser
 	secrets              SecretsRepository
 	access               AccessRepository
 
-	agentBrowserMu    sync.Mutex
-	agentBrowserInfo  map[ID]AgentBrowserInfo
-	agentBrowserStart map[ID]int64
-
-	browserActivityMu sync.Mutex
-	browserSeen       map[ID]time.Time
-	reaperOn          bool
+	// browsers owns all Agent Browser state and its idle reaper.
+	browsers *agentBrowsers
 
 	// runState serializes container run-state transitions per project so a
 	// container deleted out-of-band (e.g. a workspace recycle onto a new base
@@ -51,11 +44,9 @@ func New(
 		containerInspector:   containers.Inspector,
 		containerNetwork:     containers.Network,
 		containerListeners:   containers.Listeners,
-		containerBrowser:     containers.Browser,
 		secrets:              secrets,
 		access:               access,
-		agentBrowserInfo:     make(map[ID]AgentBrowserInfo),
-		agentBrowserStart:    make(map[ID]int64),
+		browsers:             newAgentBrowsers(containers.Browser, repo),
 	}
 }
 
@@ -357,7 +348,7 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if err != nil {
 		return err
 	}
-	s.clearAgentBrowserState(id)
+	s.browsers.clearState(id)
 	if s.containerLifecycle != nil && m.ContainerName != "" {
 		if err := s.containerLifecycle.Delete(ctx, m.ContainerName); err != nil {
 			log.Printf("projects: delete container %s: %v", m.ContainerName, err)
@@ -447,7 +438,7 @@ func (s *Service) Upgrade(ctx context.Context, id ID, includeBusy bool) (Meta, e
 		if err := s.containerLifecycle.Ensure(ctx, m); err != nil {
 			return s.setStartError(ctx, id, err)
 		}
-		s.stopAgentBrowserBeforeUpgrade(ctx, id, m.ContainerName)
+		s.browsers.stopBeforeUpgrade(ctx, id, m.ContainerName)
 		if err := s.containerLifecycle.Delete(ctx, m.ContainerName); err != nil {
 			return s.setStartError(ctx, id, err)
 		}
@@ -459,21 +450,6 @@ func (s *Service) Upgrade(ctx context.Context, id ID, includeBusy bool) (Meta, e
 		log.Printf("projects: sync env to %s after upgrade: %v", m.ContainerName, syncErr)
 	}
 	return s.repo.SetStatus(ctx, id, StatusRunning, "")
-}
-
-// Browser profiles are durable host mounts. Stop Chromium gracefully so it
-// can remove its Singleton* locks before the disposable container is deleted.
-// A missing or legacy browser stack must not block the workspace upgrade; the
-// replacement container provisions it on demand.
-func (s *Service) stopAgentBrowserBeforeUpgrade(ctx context.Context, id ID, containerName string) {
-	if s.containerBrowser == nil {
-		return
-	}
-	if err := s.containerBrowser.Stop(ctx, containerName); err != nil {
-		log.Printf("projects: stop agent browser in %s before upgrade: %v", containerName, err)
-	}
-	s.clearAgentBrowserState(id)
-	s.forgetAgentBrowserActivity(id)
 }
 
 // setStartError keeps the persisted project status useful for the UI while
@@ -615,36 +591,7 @@ func (s *Service) ListContainerApps(ctx context.Context, id ID) ([]ContainerApp,
 // TouchAgentBrowserActivity records a browser-use heartbeat for idle reaping.
 func (s *Service) TouchAgentBrowserActivity(ctx context.Context, id ID) {
 	_ = ctx
-	if !ValidID(id) {
-		return
-	}
-	s.browserActivityMu.Lock()
-	defer s.browserActivityMu.Unlock()
-	if s.browserSeen == nil {
-		s.browserSeen = map[ID]time.Time{}
-	}
-	s.browserSeen[id] = time.Now()
-}
-
-func (s *Service) browserLastActivity(id ID) int64 {
-	s.browserActivityMu.Lock()
-	defer s.browserActivityMu.Unlock()
-	if s.browserSeen == nil {
-		return 0
-	}
-	t := s.browserSeen[id]
-	if t.IsZero() {
-		return 0
-	}
-	return t.UnixMilli()
-}
-
-func (s *Service) forgetAgentBrowserActivity(id ID) {
-	s.browserActivityMu.Lock()
-	defer s.browserActivityMu.Unlock()
-	if s.browserSeen != nil {
-		delete(s.browserSeen, id)
-	}
+	s.browsers.touch(id)
 }
 
 // StartAgentBrowser ensures the project's container is running, records the
@@ -655,28 +602,7 @@ func (s *Service) StartAgentBrowser(ctx context.Context, id ID) (AgentBrowserInf
 	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
-	if s.containerBrowser == nil || m.ContainerName == "" {
-		return AgentBrowserInfo{}, errors.New("project has no container to run the browser in")
-	}
-	s.TouchAgentBrowserActivity(ctx, id)
-	if info, ok := s.agentBrowserState(id); ok && info.Status == AgentBrowserStatusStarting {
-		return info, nil
-	}
-	current, err := s.containerBrowser.Status(ctx, m.ContainerName)
-	if err != nil {
-		return AgentBrowserInfo{}, err
-	}
-	if current.Status == AgentBrowserStatusReady {
-		current.Slug = m.Slug
-		current.Port = s.containerBrowser.Port()
-		current.LastActivity = s.browserLastActivity(id)
-		s.setAgentBrowserState(id, current)
-		return current, nil
-	}
-
-	info, startID := s.beginAgentBrowserStart(id, m)
-	go s.ensureAgentBrowserStarted(id, startID, m)
-	return info, nil
+	return s.browsers.start(ctx, id, m)
 }
 
 // AgentBrowserStatus returns split core/view browser state and records a
@@ -689,43 +615,7 @@ func (s *Service) AgentBrowserStatus(ctx context.Context, id ID) (AgentBrowserIn
 	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
-	s.TouchAgentBrowserActivity(ctx, id)
-	info := s.agentBrowserInfoFor(m, AgentBrowserStatusStopped, "")
-	if s.containerBrowser == nil || m.ContainerName == "" {
-		info.LastActivity = s.browserLastActivity(id)
-		return info, nil
-	}
-	stored, hasStored := s.agentBrowserState(id)
-	containerInfo, err := s.containerBrowser.Status(ctx, m.ContainerName)
-	if err != nil {
-		return AgentBrowserInfo{}, err
-	}
-	containerInfo.Slug = m.Slug
-	containerInfo.Port = s.containerBrowser.Port()
-	containerInfo.LastActivity = s.browserLastActivity(id)
-	if containerInfo.Core == "ready" {
-		info = containerInfo
-		if info.Status == AgentBrowserStatusCoreReady && info.View == "ready" {
-			info.Status = AgentBrowserStatusReady
-		}
-		s.setAgentBrowserState(id, info)
-		return info, nil
-	}
-	if hasStored {
-		switch stored.Status {
-		case AgentBrowserStatusStarting, AgentBrowserStatusError:
-			stored.LastActivity = s.browserLastActivity(id)
-			return stored, nil
-		case AgentBrowserStatusReady:
-			s.clearAgentBrowserState(id)
-		}
-	}
-	info.Core = containerInfo.Core
-	info.View = containerInfo.View
-	info.ViewerCount = containerInfo.ViewerCount
-	info.UptimeSec = containerInfo.UptimeSec
-	info.LastActivity = s.browserLastActivity(id)
-	return info, nil
+	return s.browsers.status(ctx, id, m)
 }
 
 // StopAgentBrowser tears down the Agent Browser stack in the project's
@@ -739,90 +629,7 @@ func (s *Service) StopAgentBrowser(ctx context.Context, id ID) error {
 	if err != nil {
 		return err
 	}
-	if s.containerBrowser == nil || m.ContainerName == "" {
-		s.clearAgentBrowserState(id)
-		s.forgetAgentBrowserActivity(id)
-		return nil
-	}
-	s.clearAgentBrowserState(id)
-	if err := s.containerBrowser.Stop(ctx, m.ContainerName); err != nil {
-		return err
-	}
-	s.forgetAgentBrowserActivity(id)
-	return nil
-}
-
-func (s *Service) ensureAgentBrowserStarted(id ID, startID int64, m Meta) {
-	if err := s.containerBrowser.Ensure(context.Background(), m.ContainerName); err != nil {
-		log.Printf("projects: start agent browser for %s: %v", id, err)
-		s.finishAgentBrowserStart(id, startID, s.agentBrowserInfoFor(m, AgentBrowserStatusError, err.Error()))
-		return
-	}
-	s.finishAgentBrowserStart(id, startID, s.agentBrowserInfoFor(m, AgentBrowserStatusReady, ""))
-}
-
-func (s *Service) agentBrowserInfoFor(m Meta, status AgentBrowserStatus, errMsg string) AgentBrowserInfo {
-	info := AgentBrowserInfo{
-		Status: status,
-		Slug:   m.Slug,
-		Error:  errMsg,
-	}
-	if s.containerBrowser != nil {
-		info.Port = s.containerBrowser.Port()
-	}
-	return info
-}
-
-func (s *Service) agentBrowserState(id ID) (AgentBrowserInfo, bool) {
-	s.agentBrowserMu.Lock()
-	defer s.agentBrowserMu.Unlock()
-	info, ok := s.agentBrowserInfo[id]
-	return info, ok
-}
-
-func (s *Service) setAgentBrowserState(id ID, info AgentBrowserInfo) {
-	s.agentBrowserMu.Lock()
-	defer s.agentBrowserMu.Unlock()
-	s.ensureAgentBrowserStateLocked()
-	s.agentBrowserInfo[id] = info
-}
-
-func (s *Service) beginAgentBrowserStart(id ID, m Meta) (AgentBrowserInfo, int64) {
-	s.agentBrowserMu.Lock()
-	defer s.agentBrowserMu.Unlock()
-	s.ensureAgentBrowserStateLocked()
-	s.agentBrowserStart[id]++
-	startID := s.agentBrowserStart[id]
-	info := s.agentBrowserInfoFor(m, AgentBrowserStatusStarting, "")
-	s.agentBrowserInfo[id] = info
-	return info, startID
-}
-
-func (s *Service) finishAgentBrowserStart(id ID, startID int64, info AgentBrowserInfo) {
-	s.agentBrowserMu.Lock()
-	defer s.agentBrowserMu.Unlock()
-	s.ensureAgentBrowserStateLocked()
-	if s.agentBrowserStart[id] != startID {
-		return
-	}
-	s.agentBrowserInfo[id] = info
-}
-
-func (s *Service) clearAgentBrowserState(id ID) {
-	s.agentBrowserMu.Lock()
-	defer s.agentBrowserMu.Unlock()
-	s.ensureAgentBrowserStateLocked()
-	s.agentBrowserStart[id]++
-	delete(s.agentBrowserInfo, id)
-}
-
-func (s *Service) ensureAgentBrowserStateLocked() {
-	if s.agentBrowserInfo == nil {
-		s.agentBrowserInfo = make(map[ID]AgentBrowserInfo)
-	}
-	if s.agentBrowserStart == nil {
-		s.agentBrowserStart = make(map[ID]int64)
-	}
+	return s.browsers.stop(ctx, id, m)
 }
 
 // StopAgentBrowserView tears down only the human noVNC layer.
@@ -834,93 +641,14 @@ func (s *Service) StopAgentBrowserView(ctx context.Context, id ID) error {
 	if err != nil {
 		return err
 	}
-	if s.containerBrowser == nil || m.ContainerName == "" {
-		return nil
-	}
-	return s.containerBrowser.StopView(ctx, m.ContainerName)
+	return s.browsers.stopView(ctx, m)
 }
 
 // StartAgentBrowserReaper stops browser stacks that have had no agent or pane
 // activity for ttl. It is safe to call multiple times; only the first call
 // starts a ticker.
 func (s *Service) StartAgentBrowserReaper(ctx context.Context, ttl time.Duration) {
-	if ttl <= 0 || s.containerBrowser == nil {
-		return
-	}
-	s.browserActivityMu.Lock()
-	if s.reaperOn {
-		s.browserActivityMu.Unlock()
-		return
-	}
-	s.reaperOn = true
-	s.browserActivityMu.Unlock()
-
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				s.reapIdleAgentBrowsers(ttl)
-			}
-		}
-	}()
-}
-
-func (s *Service) reapIdleAgentBrowsers(ttl time.Duration) {
-	metas, err := s.repo.List(context.Background())
-	if err != nil {
-		log.Printf("projects: browser reaper list: %v", err)
-		return
-	}
-	now := time.Now()
-	for _, m := range metas {
-		if m.ContainerName == "" {
-			continue
-		}
-		s.browserActivityMu.Lock()
-		last, ok := s.browserSeen[m.ID]
-		if !ok || last.IsZero() {
-			if s.browserSeen == nil {
-				s.browserSeen = map[ID]time.Time{}
-			}
-			s.browserSeen[m.ID] = now
-			s.browserActivityMu.Unlock()
-			continue
-		}
-		idle := now.Sub(last)
-		s.browserActivityMu.Unlock()
-		if idle < ttl {
-			continue
-		}
-		statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		info, statusErr := s.containerBrowser.Status(statusCtx, m.ContainerName)
-		statusCancel()
-		if statusErr != nil {
-			continue
-		}
-		if info.Core != "ready" {
-			s.clearAgentBrowserState(m.ID)
-			s.forgetAgentBrowserActivity(m.ID)
-			continue
-		}
-		if info.ViewerCount > 0 {
-			s.TouchAgentBrowserActivity(context.Background(), m.ID)
-			continue
-		}
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		err := s.containerBrowser.Stop(stopCtx, m.ContainerName)
-		stopCancel()
-		if err != nil {
-			log.Printf("projects: browser reap %s/%s after %s: %v", m.ID, m.ContainerName, idle.Round(time.Second), err)
-		} else {
-			s.clearAgentBrowserState(m.ID)
-			s.forgetAgentBrowserActivity(m.ID)
-			log.Printf("projects: browser reap %s/%s after %s", m.ID, m.ContainerName, idle.Round(time.Second))
-		}
-	}
+	s.browsers.startReaper(ctx, ttl)
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {
