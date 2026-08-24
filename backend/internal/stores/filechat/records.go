@@ -138,6 +138,7 @@ type eventRecord struct {
 	Usage           json.RawMessage `json:"usage,omitempty"`
 	Message         string          `json:"message,omitempty"`
 	Running         bool            `json:"running,omitempty"`
+	ScheduledTaskID string          `json:"scheduledTaskId,omitempty"`
 }
 
 func eventRecordFromDomain(ev servicechat.Event) eventRecord {
@@ -162,6 +163,7 @@ func eventRecordFromDomain(ev servicechat.Event) eventRecord {
 		Usage:           ev.Usage,
 		Message:         ev.Message,
 		Running:         ev.Running,
+		ScheduledTaskID: ev.ScheduledTaskID,
 	}
 }
 
@@ -187,5 +189,6 @@ func (r eventRecord) toDomain() servicechat.Event {
 		Usage:           r.Usage,
 		Message:         r.Message,
 		Running:         r.Running,
+		ScheduledTaskID: r.ScheduledTaskID,
 	}
 }
