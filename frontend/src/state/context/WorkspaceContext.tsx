@@ -1,11 +1,12 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
-import { useContext, useEffect, useReducer } from "preact/hooks";
+import { useCallback, useContext, useEffect, useReducer } from "preact/hooks";
 import type { ChatMeta, CreateChatInput } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatApi } from "../../api/chatApi";
 import { projectApi } from "../../api/projectApi";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
+import { useWorkspacePushLifecycle } from "../hooks/push/useWorkspacePushLifecycle";
 import { useUserSettingsContext } from "./UserSettingsContext";
 import {
   workspaceUiState,
@@ -13,9 +14,6 @@ import {
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
 import { takePushNotificationChatId } from "../push/pushNotificationNavigation";
-import { pushNotificationState } from "../push/pushNotificationState";
-import { pushPresenceState } from "../push/pushPresenceState";
-import { pushSubscriptionApi } from "../../api/pushSubscriptionApi";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];
@@ -55,24 +53,14 @@ export function WorkspaceProvider({
     () => workspaceUiState.createInitial(takePushNotificationChatId())
   );
   const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
-
-  // Register the worker on every boot so a deployed sw.js replaces the
-  // installed one, and route notification taps into chat selection.
-  useEffect(() => {
-    void pushSubscriptionApi.reconcileCurrentAccount();
-    pushNotificationState.connect((chatId) => {
-      if (chatId) dispatch({ type: "select-chat", chatId });
-    });
+  const openPushChat = useCallback((chatId: string) => {
+    dispatch({ type: "select-chat", chatId });
   }, []);
-
-  // Say which chat is on screen, so nothing interrupts the user about the one
-  // they are already watching. The worker covers this browser; the server
-  // covers the user's other devices, which the worker cannot see.
-  useEffect(() => {
-    const onScreen = ui.view === "chat" ? ui.activeChatId : null;
-    pushNotificationState.setVisibleChat(onScreen);
-    pushPresenceState.setWatchedChat(onScreen);
-  }, [ui.activeChatId, ui.view]);
+  useWorkspacePushLifecycle({
+    activeChatId: ui.activeChatId,
+    view: ui.view,
+    openChat: openPushChat,
+  });
 
   useEffect(() => {
     const chatId = workspaceSidebarState.initialChatId(enabled, ui.activeChatId, data.chats);
