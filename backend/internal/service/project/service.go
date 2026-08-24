@@ -54,10 +54,7 @@ func New(
 }
 
 func (s *Service) ListSecrets(ctx context.Context, id ID) ([]Secret, error) {
-	if !ValidID(id) {
-		return nil, ErrInvalidID
-	}
-	if _, err := s.repo.Get(ctx, id); err != nil {
+	if _, err := s.Get(ctx, id); err != nil {
 		return nil, err
 	}
 	return s.secrets.list(ctx, id)
@@ -548,10 +545,7 @@ func (s *Service) StartAgentBrowser(ctx context.Context, id ID) (AgentBrowserInf
 // AgentBrowserStatus returns split core/view browser state and records a
 // heartbeat so an open pane keeps the idle reaper from tearing down the stack.
 func (s *Service) AgentBrowserStatus(ctx context.Context, id ID) (AgentBrowserInfo, error) {
-	if !ValidID(id) {
-		return AgentBrowserInfo{}, ErrInvalidID
-	}
-	m, err := s.repo.Get(ctx, id)
+	m, err := s.Get(ctx, id)
 	if err != nil {
 		return AgentBrowserInfo{}, err
 	}
@@ -562,10 +556,7 @@ func (s *Service) AgentBrowserStatus(ctx context.Context, id ID) (AgentBrowserIn
 // container, leaving the container running and the persistent browser
 // profile on disk so logins survive.
 func (s *Service) StopAgentBrowser(ctx context.Context, id ID) error {
-	if !ValidID(id) {
-		return ErrInvalidID
-	}
-	m, err := s.repo.Get(ctx, id)
+	m, err := s.Get(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -574,10 +565,7 @@ func (s *Service) StopAgentBrowser(ctx context.Context, id ID) error {
 
 // StopAgentBrowserView tears down only the human noVNC layer.
 func (s *Service) StopAgentBrowserView(ctx context.Context, id ID) error {
-	if !ValidID(id) {
-		return ErrInvalidID
-	}
-	m, err := s.repo.Get(ctx, id)
+	m, err := s.Get(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -645,10 +633,7 @@ func (s *Service) HasAccess(ctx context.Context, id ID, email string) (bool, err
 
 // ListAccess returns the sorted, normalized membership list for a project.
 func (s *Service) ListAccess(ctx context.Context, id ID) ([]string, error) {
-	if !ValidID(id) {
-		return nil, ErrInvalidID
-	}
-	if _, err := s.repo.Get(ctx, id); err != nil {
+	if _, err := s.Get(ctx, id); err != nil {
 		return nil, err
 	}
 	return s.access.list(ctx, id)
@@ -657,10 +642,7 @@ func (s *Service) ListAccess(ctx context.Context, id ID) ([]string, error) {
 // AddAccess adds email to the project's membership list. Caller is
 // responsible for verifying the email belongs to a registered user.
 func (s *Service) AddAccess(ctx context.Context, id ID, email string) error {
-	if !ValidID(id) {
-		return ErrInvalidID
-	}
-	if _, err := s.repo.Get(ctx, id); err != nil {
+	if _, err := s.Get(ctx, id); err != nil {
 		return err
 	}
 	return s.access.add(ctx, id, email)
@@ -668,10 +650,7 @@ func (s *Service) AddAccess(ctx context.Context, id ID, email string) error {
 
 // RemoveAccess deletes email from the project's membership list.
 func (s *Service) RemoveAccess(ctx context.Context, id ID, email string) error {
-	if !ValidID(id) {
-		return ErrInvalidID
-	}
-	if _, err := s.repo.Get(ctx, id); err != nil {
+	if _, err := s.Get(ctx, id); err != nil {
 		return err
 	}
 	return s.access.remove(ctx, id, email)
