@@ -7,55 +7,19 @@ import {
   revokeSubscriptionForLogout,
 } from "./pushSubscriptionOwnership";
 
-type PushServerApi = Pick<
-  typeof pushApi,
-  "subscribe" | "unsubscribe" | "subscriptionStatus"
->;
-type PushWorkerApi = Pick<
-  typeof pushServiceWorkerApi,
-  "isSupported" | "register" | "ready" | "currentRegistration"
->;
-type PushBrowserTransport = Pick<
-  typeof webPushTransport,
-  | "isPushManagerSupported"
-  | "isNotificationSupported"
-  | "notificationPermission"
-  | "requestPermission"
-  | "currentSubscription"
-  | "subscribe"
-  | "unsubscribe"
-  | "matchesApplicationServerKey"
-  | "isIOS"
-  | "isStandalone"
->;
-
 class PushSubscriptionApi {
-  readonly #server: PushServerApi;
-  readonly #worker: PushWorkerApi;
-  readonly #browser: PushBrowserTransport;
-
-  constructor(
-    server: PushServerApi = pushApi,
-    worker: PushWorkerApi = pushServiceWorkerApi,
-    browser: PushBrowserTransport = webPushTransport
-  ) {
-    this.#server = server;
-    this.#worker = worker;
-    this.#browser = browser;
-  }
-
   /** Why this browser cannot subscribe, or null when it can. */
   blocker(serverEnabled: boolean): PushBlocker | null {
     if (!serverEnabled) return "server-disabled";
-    if (!this.#worker.isSupported || !this.#browser.isPushManagerSupported) {
+    if (!pushServiceWorkerApi.isSupported || !webPushTransport.isPushManagerSupported) {
       // Safari only exposes PushManager to installed web apps, so an iPhone in
       // the browser lands here and needs the home-screen hint.
-      return this.#browser.isIOS() && !this.#browser.isStandalone()
+      return webPushTransport.isIOS() && !webPushTransport.isStandalone()
         ? "install-required"
         : "unsupported";
     }
-    if (!this.#browser.isNotificationSupported) return "unsupported";
-    if (this.#browser.notificationPermission === "denied") return "denied";
+    if (!webPushTransport.isNotificationSupported) return "unsupported";
+    if (webPushTransport.notificationPermission === "denied") return "denied";
     return null;
   }
 
@@ -70,8 +34,8 @@ class PushSubscriptionApi {
 
     return reconcileSubscriptionOwnership(
       subscription,
-      async (endpoint) => (await this.#server.subscriptionStatus(endpoint)).owned,
-      (candidate) => this.#browser.unsubscribe(candidate)
+      async (endpoint) => (await pushApi.subscriptionStatus(endpoint)).owned,
+      (candidate) => webPushTransport.unsubscribe(candidate)
     );
   }
 
@@ -82,7 +46,7 @@ class PushSubscriptionApi {
   async enable(publicKey: string): Promise<void> {
     // Ask first, before any await. Safari ties requestPermission to the user
     // activation that triggered it, and awaiting anything first spends it.
-    const permission = await this.#browser.requestPermission();
+    const permission = await webPushTransport.requestPermission();
     if (permission !== "granted") {
       throw new Error(
         permission === "denied"
@@ -91,23 +55,23 @@ class PushSubscriptionApi {
       );
     }
 
-    const registration = await this.#worker.register();
+    const registration = await pushServiceWorkerApi.register();
     if (!registration) throw new Error("This browser cannot register a service worker.");
     // Registration only queues the install; PushManager needs an active worker.
-    await this.#worker.ready();
+    await pushServiceWorkerApi.ready();
 
-    const existing = await this.#browser.currentSubscription(registration);
+    const existing = await webPushTransport.currentSubscription(registration);
     // A stored subscription signed with a previous server key can never be
     // delivered to, so replace it rather than reporting success.
-    if (existing && !this.#browser.matchesApplicationServerKey(existing, publicKey)) {
-      await this.#browser.unsubscribe(existing);
+    if (existing && !webPushTransport.matchesApplicationServerKey(existing, publicKey)) {
+      await webPushTransport.unsubscribe(existing);
     }
 
     const subscription =
-      (await this.#browser.currentSubscription(registration)) ??
-      (await this.#browser.subscribe(registration, publicKey));
+      (await webPushTransport.currentSubscription(registration)) ??
+      (await webPushTransport.subscribe(registration, publicKey));
 
-    await this.#server.subscribe(this.#payload(subscription));
+    await pushApi.subscribe(this.#payload(subscription));
   }
 
   /** Removes this device, both locally and on the server. */
@@ -116,8 +80,8 @@ class PushSubscriptionApi {
     if (!subscription) return;
     // Tell the server first: if unsubscribing locally succeeded but the server
     // kept the endpoint, it would keep pushing to a dead registration.
-    await this.#server.unsubscribe(subscription.endpoint);
-    await this.#browser.unsubscribe(subscription);
+    await pushApi.unsubscribe(subscription.endpoint);
+    await webPushTransport.unsubscribe(subscription);
   }
 
   /** Revokes this browser on both sides before its session cookie is cleared. */
@@ -127,8 +91,8 @@ class PushSubscriptionApi {
 
     await revokeSubscriptionForLogout(
       subscription,
-      (endpoint) => this.#server.unsubscribe(endpoint),
-      (candidate) => this.#browser.unsubscribe(candidate)
+      (endpoint) => pushApi.unsubscribe(endpoint),
+      (candidate) => webPushTransport.unsubscribe(candidate)
     );
   }
 
@@ -139,9 +103,9 @@ class PushSubscriptionApi {
   }
 
   async #currentSubscription(): Promise<PushSubscription | null> {
-    const registration = await this.#worker.currentRegistration();
+    const registration = await pushServiceWorkerApi.currentRegistration();
     if (!registration) return null;
-    return this.#browser.currentSubscription(registration);
+    return webPushTransport.currentSubscription(registration);
   }
 }
 
