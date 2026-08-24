@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Deploy application code to QA without running the host/workspace updater.
+# QA application-only deploy wrapper for an existing QA installation.
+#
+# Unlike the production deployer, this accepts a pushed branch, tag, or commit
+# and intentionally does not enforce a semantic-version release boundary. Use
+# it only when the candidate needs frontend/backend deployment alone; use
+# infra/qa/update.sh when the candidate changes host or workspace
+# infrastructure. Connection settings come from .qa.env (see .qa.env.example).
 
 set -euo pipefail
 
@@ -14,8 +20,13 @@ Usage: bash infra/qa/deploy-app.sh <branch|tag|commit>
 Deploys application code only from one exact pushed commit: it builds the
 frontend and backend on the existing QA server, restarts remote.futrx.service,
 and verifies local and public health. It does not converge host dependencies,
-Caddy, LXD, the workspace base image, or project containers. Use update.sh to
-exercise those production update paths.
+Caddy, LXD, the workspace base image, or project containers. Use
+infra/qa/update.sh to exercise the full production infrastructure path.
+
+The requested ref must resolve to the clean local HEAD and to the same commit
+on origin. After the binary is replaced, restart or health-check failure
+restores the previous binary and checkout. A build failure leaves the live
+binary untouched, although the QA checkout remains on the candidate commit.
 EOF
 }
 

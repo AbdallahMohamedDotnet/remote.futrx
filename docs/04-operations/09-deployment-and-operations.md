@@ -92,7 +92,13 @@ The recipe is generated from the same provider profiles used by runtime CLI repa
 
 ```mermaid
 flowchart TD
-    Update["Run infra/update.sh"] --> Pull["Fetch and reset installed checkout to origin/main"]
+    Check["In-app updater finds newest release tag"] --> Line{"Installed and target major/minor match?"}
+    Line -->|"Yes: patch release"| App["Run infra/deploy-app.sh"]
+    App --> AppBuild["Build frontend/backend into a staged binary"]
+    AppBuild --> AppRestart["Replace binary, restart, and health-check"]
+    AppRestart --> AppDone["Keep host, base image, and containers unchanged"]
+    Line -->|"No: major/minor release"| Update["Run infra/update.sh"]
+    Update --> Pull["Fetch and reset installed checkout to release tag"]
     Pull --> Reexec["Re-execute the new updater"]
     Reexec --> Install["Converge dependencies, rebuild, restart, and health-check"]
     Install --> Rebuild["Rebuild base image"]
@@ -104,6 +110,22 @@ flowchart TD
     Relaunch --> Mount["Reattach persistent workspace and provider homes"]
     Mount --> Provision["Reprovision tools and compatibility links"]
 ```
+
+Release tags use `MAJOR.MINOR.PATCH`. Crossing a major or minor boundary runs
+the full infrastructure updater; movement within one major/minor line runs the
+application-only deployer. The decision is relative to the installed version:
+
+| Upgrade | Deployment path |
+| --- | --- |
+| `0.3.1` → `0.3.2` | Application only |
+| `0.3.1` → `0.4.0` | Infrastructure |
+| `0.3.1` → `0.4.2` | Infrastructure, because the host missed the `0.4` baseline |
+| `0.4.0` → `0.4.2` | Application only |
+
+The application deployer stages the new binary, restores the previous checkout
+and binary when restart or health verification fails, and refuses to cross a
+major/minor boundary. Unknown and legacy two-component installed versions take
+the conservative infrastructure path.
 
 `--include-busy` forces busy workspace recycling. `--skip-workspaces` updates only the host and application. `upgrade-workspaces.sh --dry-run` shows the workspace plan without changing it.
 
@@ -198,12 +220,14 @@ systemctl status remote.futrx
 systemctl status caddy
 journalctl -u remote.futrx -f
 sudo bash /opt/remote.futrx/infra/update.sh
+sudo bash /opt/remote.futrx/infra/deploy-app.sh --ref=0.4.2
 sudo bash /opt/remote.futrx/infra/upgrade-workspaces.sh --dry-run
 ```
 
 ## Code map
 
 - Installer: [`infra/install.sh`](../../infra/install.sh)
+- Application deployer: [`infra/deploy-app.sh`](../../infra/deploy-app.sh)
 - Updater: [`infra/update.sh`](../../infra/update.sh)
 - Workspace upgrade: [`infra/upgrade-workspaces.sh`](../../infra/upgrade-workspaces.sh)
 - Systemd template: [`infra/templates/remote.futrx.service.tmpl`](../../infra/templates/remote.futrx.service.tmpl)

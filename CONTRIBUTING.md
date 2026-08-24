@@ -70,6 +70,9 @@ bash infra/tests/health-check-test.sh
 bash infra/tests/go-toolchain-test.sh
 bash infra/tests/dns-resolve-test.sh
 bash infra/tests/container-forwarding-test.sh
+bash infra/tests/release-version-test.sh
+bash infra/tests/deploy-app-script-test.sh
+bash .github/scripts/classify-release-test.sh
 ```
 
 There is no CI that exercises the installer against a server. `infra/` changes reach a box only when its operator runs `sudo bash infra/update.sh` over SSH or applies a release tag from the in-app updater (both re-detect the box's hostname from the installed unit). Treat changes to `infra/` with extra care since they modify hosts in place.
@@ -98,6 +101,25 @@ test(state): pin chat event projection behavior
 ```
 
 Keep commits small and focused — one logical change per commit.
+
+## Releases
+
+Release tags use exactly `MAJOR.MINOR.PATCH`, without a `v` prefix. The version
+determines what an installed server runs:
+
+- Bump `PATCH` for frontend/backend-only releases.
+- Bump `MINOR` or `MAJOR` when the release changes host dependencies, Caddy or
+  systemd configuration, provider toolchains, workspace provisioning, or the
+  reusable base image.
+
+The tag workflow rejects patch releases that changed protected
+infrastructure-managed paths since the previous release. This guard is a
+minimum safety net, not a substitute for judgment: changes outside those paths
+that require a newer host toolchain must also use a minor or major release.
+
+The first release containing a change to the update machinery itself must be a
+minor or major release so existing installations receive the new scripts via
+full infrastructure convergence.
 
 ## Pull requests
 
