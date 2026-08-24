@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 #
-# remote.futrx — main installer / deployer.
-# Walks through infra/steps/*.sh in order. Idempotent: safe to re-run on
-# every CI deploy as well as the initial bootstrap.
+# remote.futrx — fresh installer and full host-convergence entry point.
+#
+# Use this for a first installation or an intentional repair/re-convergence of
+# an existing host. It runs infra/steps/*.sh in order to converge host packages
+# and pinned toolchains, select and build the application checkout, render
+# Caddy and systemd configuration, ensure the LXD base image exists, harden
+# SSH, and install the container-network repair timer.
+#
+# The steps are designed to be idempotent, but a re-run is not an
+# application-only deployment: it can change host configuration and restart
+# the backend. For normal releases, prefer Settings -> Updates. Manually use
+# infra/deploy-app.sh for a same-major/minor application release or
+# infra/update.sh for a major/minor infrastructure release.
 #
 # Usage (from a clone):
 #   sudo bash infra/install.sh <hostname> [flags]
@@ -17,12 +27,15 @@
 #                                               A record is set but propagation isn't done.
 #   --ref=<40-character commit SHA>             install an immutable candidate commit instead
 #                                               of origin/main (used by QA branch installs).
-#   --github-token=ghp_xxx                      private-repo PAT.
+#   --github-token=ghp_xxx                      private-repo PAT; prefer the
+#                                               GITHUB_TOKEN environment variable
+#                                               to avoid placing it in shell history.
 #   --google-client-id=...                      optional; can be added in Settings later.
 #   --google-client-secret=...                  optional; can be added in Settings later.
 #
 # Environment:
-#   GITHUB_TOKEN                                same as --github-token=.
+#   GITHUB_TOKEN                                same as --github-token.
+#   FUTRX_INSTALL_DIR                           override /opt/remote.futrx (QA/tests).
 
 set -euo pipefail
 
@@ -307,7 +320,9 @@ cat <<EOF
    systemctl status   caddy
    journalctl -u      remote.futrx -f
 
- Re-run this installer any time to pull latest + rebuild + restart.
+ For future releases, use Settings → Updates so Remote selects the safe
+ application or infrastructure path. Re-run this installer only for an
+ intentional full host repair/re-convergence.
 ═══════════════════════════════════════════════════════════════
 
 EOF
