@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
@@ -73,7 +74,7 @@ func TestAdapterProvisionPublishesRuntimeAssets(t *testing.T) {
 	}
 
 	want := []string{
-		"exec c1 -- sh -c command -v Xvfb >/dev/null 2>&1 && ls /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome >/dev/null 2>&1",
+		"exec c1 -- sh -c " + browserStackCheck(),
 		"exec c1 -- install -d -m 755 " + containerGUIDir,
 		"exec c1 -- cat " + containerGUIScriptHash,
 		"exec c1 -- cat " + containerHumanInputHash,
@@ -121,11 +122,30 @@ func (r *browserRecordingRunner) Run(_ context.Context, args ...string) (string,
 	r.calls = append(r.calls, strings.Join(args, " "))
 	switch args[len(args)-1] {
 	case containerGUIScriptHash:
-		return assets.Hash(guiUpScript), nil
+		return assets.Hash(renderedGUIUpScript()), nil
 	case containerHumanInputHash:
 		return assets.Hash(humanInputScript), nil
 	default:
 		return "", nil
+	}
+}
+
+func TestRenderedGUIUpScriptPinsAndValidatesChromium(t *testing.T) {
+	script := string(renderedGUIUpScript())
+	for _, want := range []string{
+		"EXPECTED_CHROME_VERSION=" + provisioning.MustPin("PW_CFT_VERSION"),
+		"clear_stale_profile_locks",
+		"browser core exited before CDP became ready",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("rendered GUI launcher is missing %q", want)
+		}
+	}
+	if strings.Contains(script, "__PW_CFT_VERSION__") {
+		t.Fatal("rendered GUI launcher still contains the Chrome version placeholder")
+	}
+	if strings.Contains(script, "--enable-unsafe-swiftshader") {
+		t.Fatal("rendered GUI launcher opts in to unsafe SwiftShader WebGL")
 	}
 }
 

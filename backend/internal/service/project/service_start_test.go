@@ -100,13 +100,17 @@ func TestUpgradeSkipsBusyProjectUnlessExplicitlyIncluded(t *testing.T) {
 		ID: ID("abcd"), Name: "project", ContainerName: "project", Status: StatusRunning,
 	}}
 	lifecycle := &startTestLifecycle{state: ContainerStateRunning, busy: true}
-	service := New(repo, ContainerDependencies{Lifecycle: lifecycle}, nil, nil)
+	browser := &upgradeTestBrowser{}
+	service := New(repo, ContainerDependencies{Lifecycle: lifecycle, Browser: browser}, nil, nil)
 
 	if _, err := service.Upgrade(context.Background(), repo.meta.ID, false); !errors.Is(err, ErrProjectBusy) {
 		t.Fatalf("Upgrade() error = %v, want busy", err)
 	}
 	if lifecycle.launchCalls != 0 {
 		t.Fatalf("busy project was changed: ensure calls = %d", lifecycle.launchCalls)
+	}
+	if browser.stopCalls != 0 {
+		t.Fatalf("busy project browser was stopped: calls = %d", browser.stopCalls)
 	}
 
 	if _, err := service.Upgrade(context.Background(), repo.meta.ID, true); err != nil {
@@ -118,7 +122,25 @@ func TestUpgradeSkipsBusyProjectUnlessExplicitlyIncluded(t *testing.T) {
 	if lifecycle.state != ContainerStateRunning {
 		t.Fatalf("state = %q, want running", lifecycle.state)
 	}
+	if browser.stopCalls != 1 {
+		t.Fatalf("browser Stop() calls = %d, want 1 before replacement", browser.stopCalls)
+	}
 }
+
+type upgradeTestBrowser struct {
+	stopCalls int
+}
+
+func (*upgradeTestBrowser) Ensure(context.Context, string) error { return nil }
+func (b *upgradeTestBrowser) Stop(context.Context, string) error {
+	b.stopCalls++
+	return nil
+}
+func (*upgradeTestBrowser) StopView(context.Context, string) error { return nil }
+func (*upgradeTestBrowser) Status(context.Context, string) (AgentBrowserInfo, error) {
+	return AgentBrowserInfo{}, nil
+}
+func (*upgradeTestBrowser) Port() int { return 6080 }
 
 func TestRunStateTransitionsWaitForConcurrentStart(t *testing.T) {
 	tests := []struct {
