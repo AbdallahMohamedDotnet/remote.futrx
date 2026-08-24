@@ -255,14 +255,14 @@ func TestAppendingATerminalEventRaisesANotification(t *testing.T) {
 
 func TestAppendingCopiedHistoryDoesNotRaiseNotifications(t *testing.T) {
 	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Forked chat"})
-	ctx := servicechat.SuppressEventNotifications(context.Background())
+	ctx := context.Background()
 
 	for _, event := range []servicechat.Event{
 		{Type: "tool_use_start", Name: "AskUserQuestion"},
 		{Type: "complete"},
 		{Type: "error", Message: "historical failure"},
 	} {
-		if _, err := repo.AppendEvent(ctx, "beefcafe", event); err != nil {
+		if _, err := repo.AppendCopiedEvent(ctx, "beefcafe", event); err != nil {
 			t.Fatal(err)
 		}
 	}

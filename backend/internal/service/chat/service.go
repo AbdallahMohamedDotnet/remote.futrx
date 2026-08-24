@@ -8,19 +8,41 @@ import (
 )
 
 type Service struct {
-	repo     Repository
-	projects ProjectResolver
-	tmux     TmuxResolver
-	runs     RunController
+	repo         Repository
+	copiedEvents CopiedEventAppender
+	projects     ProjectResolver
+	tmux         TmuxResolver
+	runs         RunController
 }
 
-func New(repo Repository, projects ProjectResolver, tmux TmuxResolver, runs RunController) *Service {
-	return &Service{
+// Option configures an optional chat-service collaborator.
+type Option func(*Service)
+
+// WithCopiedEventAppender preserves copied history without raising the side
+// effects reserved for newly produced events.
+func WithCopiedEventAppender(appender CopiedEventAppender) Option {
+	return func(service *Service) {
+		service.copiedEvents = appender
+	}
+}
+
+func New(
+	repo Repository,
+	projects ProjectResolver,
+	tmux TmuxResolver,
+	runs RunController,
+	options ...Option,
+) *Service {
+	service := &Service{
 		repo:     repo,
 		projects: projects,
 		tmux:     tmux,
 		runs:     runs,
 	}
+	for _, option := range options {
+		option(service)
+	}
+	return service
 }
 
 func (s *Service) List(ctx context.Context) ([]Meta, error) {
