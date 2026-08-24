@@ -41,11 +41,15 @@ type Options struct {
 	Topic string
 }
 
+type httpDoer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 // Client sends encrypted notifications to push services on behalf of one
 // application server identity.
 type Client struct {
 	requests requestBuilder
-	http     *http.Client
+	http     httpDoer
 }
 
 // NewClient binds a VAPID key pair to a contact subject (a mailto: or https://
