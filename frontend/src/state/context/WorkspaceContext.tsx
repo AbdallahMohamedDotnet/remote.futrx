@@ -13,7 +13,7 @@ import {
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
 import { pushNotificationState } from "../push/pushNotificationState";
-import { setWatchedChat } from "../push/presenceClient";
+import { pushPresenceState } from "../push/pushPresenceState";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];
@@ -68,7 +68,7 @@ export function WorkspaceProvider({
   useEffect(() => {
     const onScreen = ui.view === "chat" ? ui.activeChatId : null;
     pushNotificationState.setVisibleChat(onScreen);
-    setWatchedChat(onScreen);
+    pushPresenceState.setWatchedChat(onScreen);
   }, [ui.activeChatId, ui.view]);
 
   useEffect(() => {

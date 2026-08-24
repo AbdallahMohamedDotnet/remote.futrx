@@ -21,18 +21,21 @@ const HEARTBEAT_MS = 20_000;
  * actually on screen. The claim and its heartbeat change together in one
  * place, so a repeat can never outlive the claim it was repeating.
  */
-class PresenceReporter {
+class PushPresenceState {
   /** Identifies this client for the life of the page. */
-  readonly #clientId = newClientId();
+  readonly #clientId = this.#createClientId();
   /** The chat this client is showing, whether or not the user is looking. */
   #onScreen: string | null = null;
   /** The claim the server currently believes, so repeats stay cheap. */
   #claimed: string | null = null;
-  #heartbeat: number | undefined;
-  #listening = false;
+  #heartbeatTimer: number | undefined;
+  #isListening = false;
 
-  /** Reports the chat on screen, or null when the app shows something else. */
-  report(chatId: string | null) {
+  /**
+   * Reports the chat on screen, or null when the app shows something else.
+   * Safe to repeat: only a changed claim talks to the server.
+   */
+  setWatchedChat(chatId: string | null): void {
     this.#onScreen = chatId;
     this.#listen();
     this.#sync();
@@ -47,7 +50,7 @@ class PresenceReporter {
     return this.#onScreen;
   }
 
-  #sync = () => {
+  #sync = (): void => {
     this.#claim(this.#chatInFocus());
   };
 
@@ -55,7 +58,7 @@ class PresenceReporter {
    * The only place the claim changes. Restarting the heartbeat here is what
    * keeps "a claim is being repeated" and "there is a claim" the same fact.
    */
-  #claim(chatId: string | null) {
+  #claim(chatId: string | null): void {
     if (chatId === this.#claimed) return;
     this.#claimed = chatId;
     this.#restartHeartbeat();
@@ -65,18 +68,18 @@ class PresenceReporter {
     void this.#send(chatId, chatId === null);
   }
 
-  #restartHeartbeat() {
-    if (this.#heartbeat !== undefined) {
-      clearInterval(this.#heartbeat);
-      this.#heartbeat = undefined;
+  #restartHeartbeat(): void {
+    if (this.#heartbeatTimer !== undefined) {
+      clearInterval(this.#heartbeatTimer);
+      this.#heartbeatTimer = undefined;
     }
     if (!this.#claimed) return;
-    this.#heartbeat = window.setInterval(() => {
+    this.#heartbeatTimer = window.setInterval(() => {
       if (this.#claimed) void this.#send(this.#claimed, false);
     }, HEARTBEAT_MS);
   }
 
-  async #send(chatId: string | null, keepalive: boolean) {
+  async #send(chatId: string | null, keepalive: boolean): Promise<void> {
     try {
       await pushApi.presence({ chatId: chatId ?? "", clientId: this.#clientId }, keepalive);
     } catch {
@@ -85,9 +88,9 @@ class PresenceReporter {
     }
   }
 
-  #listen() {
-    if (this.#listening || typeof window === "undefined") return;
-    this.#listening = true;
+  #listen(): void {
+    if (this.#isListening || typeof window === "undefined") return;
+    this.#isListening = true;
 
     document.addEventListener("visibilitychange", this.#sync);
     window.addEventListener("focus", this.#sync);
@@ -96,22 +99,13 @@ class PresenceReporter {
     // may simply never be resumed.
     window.addEventListener("pagehide", () => this.#claim(null));
   }
-}
 
-const reporter = new PresenceReporter();
-
-/**
- * Reports the chat on screen, or null when the app is showing something else.
- * Safe to call on every render: it only talks to the server when the claim
- * actually changes.
- */
-export function setWatchedChat(chatId: string | null) {
-  reporter.report(chatId);
-}
-
-function newClientId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+  #createClientId(): string {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
+
+export const pushPresenceState = new PushPresenceState();
