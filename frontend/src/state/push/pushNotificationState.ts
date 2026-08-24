@@ -1,4 +1,5 @@
 import { pushServiceWorkerApi } from "../../api/pushServiceWorkerApi";
+import { pushNotificationNavigationState } from "./pushNotificationNavigationState";
 
 type ChatOpener = (chatId: string | null) => void;
 
@@ -28,19 +29,7 @@ class PushNotificationState {
    * from the address bar, so reloading later does not jump back to it.
    */
   takeRequestedChatId(): string | null {
-    if (typeof window === "undefined") return null;
-    const params = new URLSearchParams(window.location.search);
-    const chatId = params.get("chat");
-    if (!chatId) return null;
-
-    params.delete("chat");
-    const query = params.toString();
-    window.history.replaceState(
-      null,
-      "",
-      window.location.pathname + (query ? `?${query}` : "") + window.location.hash
-    );
-    return chatId;
+    return pushNotificationNavigationState.takeRequestedChatId();
   }
 
   #chatInFocus(): string | null {
