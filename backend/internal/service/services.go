@@ -208,8 +208,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	}
 
 	pushNotifier.push = pushService
-	pushNotifier.projects = projectService
-	pushNotifier.users = userService
+	pushNotifier.audience.projects = projectService
+	pushNotifier.audience.users = userService
 
 	return Services{
 		Chats:        chatService,

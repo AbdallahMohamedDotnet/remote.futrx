@@ -215,7 +215,7 @@ func newNotifyingChat(t *testing.T, meta servicechat.Meta) (
 		push: &chatPushNotifier{
 			push:     pushService,
 			chats:    chats,
-			users:    users,
+			audience: chatNotificationAudience{users: users},
 			presence: servicepresence.New(),
 		},
 	}, sender
@@ -278,7 +278,7 @@ func TestProjectAudienceExcludesAccessEntriesForRemovedUsers(t *testing.T) {
 	access := &cleanupProjectAccess{members: map[serviceproject.ID][]string{
 		"beefcafe": {"active@example.com", "removed@example.com"},
 	}}
-	notifier := &chatPushNotifier{
+	audience := chatNotificationAudience{
 		projects: serviceproject.New(
 			cleanupProjectRepository{projects: projects},
 			serviceproject.ContainerDependencies{},
@@ -291,7 +291,7 @@ func TestProjectAudienceExcludesAccessEntriesForRemovedUsers(t *testing.T) {
 		}}),
 	}
 
-	recipients, err := notifier.audience(context.Background(), servicechat.Meta{ProjectID: "beefcafe"})
+	recipients, err := audience.recipients(context.Background(), servicechat.Meta{ProjectID: "beefcafe"})
 	if err != nil {
 		t.Fatal(err)
 	}

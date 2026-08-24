@@ -11,9 +11,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
-	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
-	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 )
 
 // askUserQuestionTool is the agent tool that blocks a run on a human answer.
@@ -25,22 +23,13 @@ const askUserQuestionTool = "AskUserQuestion"
 // delivery itself runs separately, on the push service's own deadline.
 const audienceTimeout = 5 * time.Second
 
-type projectAccessReader interface {
-	ListAccess(ctx context.Context, projectID serviceproject.ID) ([]string, error)
-}
-
-type registeredUserReader interface {
-	List(ctx context.Context) ([]serviceuser.User, error)
-}
-
 // chatPushNotifier turns persisted chat events into push notifications. It
 // hangs off the chat repository so every path that appends an event —
 // interactive prompts, scheduled runs, recovery — is covered by construction.
 type chatPushNotifier struct {
 	push     *servicepush.Service
 	chats    servicechat.Repository
-	projects projectAccessReader
-	users    registeredUserReader
+	audience chatNotificationAudience
 	presence *servicepresence.Service
 
 	// parked records chats whose run stopped on an unanswered question. A run
@@ -73,7 +62,7 @@ func (n *chatPushNotifier) ChatEvent(chatID servicechat.ID, event servicechat.Ev
 		log.Printf("push: resolve chat %s: %v", chatID, err)
 		return
 	}
-	recipients, err := n.audience(ctx, meta)
+	recipients, err := n.audience.recipients(ctx, meta)
 	if err != nil {
 		log.Printf("push: resolve audience for chat %s: %v", chatID, err)
 		return
@@ -196,70 +185,6 @@ func withDetail(chatTitle, detail string) string {
 		detail = detail[:140] + "…"
 	}
 	return chatTitle + " — " + detail
-}
-
-// audience mirrors the chat visibility rule enforced by
-// servicechat.AccessService: a project chat reaches its members, a loose chat
-// reaches everyone registered, and admins see both.
-func (n *chatPushNotifier) audience(ctx context.Context, meta servicechat.Meta) ([]string, error) {
-	users, err := n.registeredUsers(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if meta.ProjectID == "" {
-		return userEmails(users), nil
-	}
-
-	members, err := n.projects.ListAccess(ctx, serviceproject.ID(meta.ProjectID))
-	if err != nil {
-		return nil, err
-	}
-	active := make(map[string]serviceuser.User, len(users))
-	for _, user := range users {
-		active[serviceuser.NormalizeEmail(user.Email)] = user
-	}
-	recipients := make([]string, 0, len(members)+len(users))
-	seen := make(map[string]struct{}, len(members)+len(users))
-	for _, member := range members {
-		email := serviceuser.NormalizeEmail(member)
-		if _, registered := active[email]; !registered {
-			continue
-		}
-		recipients = appendUniqueEmail(recipients, seen, email)
-	}
-	for _, user := range users {
-		if user.Role == serviceuser.RoleAdmin {
-			recipients = appendUniqueEmail(recipients, seen, user.Email)
-		}
-	}
-	return recipients, nil
-}
-
-func (n *chatPushNotifier) registeredUsers(ctx context.Context) ([]serviceuser.User, error) {
-	if n.users == nil {
-		return nil, nil
-	}
-	return n.users.List(ctx)
-}
-
-func userEmails(users []serviceuser.User) []string {
-	emails := make([]string, 0, len(users))
-	for _, user := range users {
-		emails = append(emails, serviceuser.NormalizeEmail(user.Email))
-	}
-	return emails
-}
-
-func appendUniqueEmail(emails []string, seen map[string]struct{}, email string) []string {
-	email = serviceuser.NormalizeEmail(email)
-	if email == "" {
-		return emails
-	}
-	if _, exists := seen[email]; exists {
-		return emails
-	}
-	seen[email] = struct{}{}
-	return append(emails, email)
 }
 
 // webPushSender adapts the Web Push integration to the push service's port,
