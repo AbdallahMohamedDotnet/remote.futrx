@@ -16,7 +16,9 @@ type Service struct {
 	containerInspector ContainerInspector
 	containerNetwork   ContainerNetwork
 	containerListeners ContainerListeners
-	access             AccessRepository
+
+	// access owns per-project membership and email normalization.
+	access *accessList
 
 	// secrets owns the project's environment variables and their propagation
 	// to the workspace .env file and the container environment.
@@ -45,7 +47,7 @@ func New(
 		containerInspector: containers.Inspector,
 		containerNetwork:   containers.Network,
 		containerListeners: containers.Listeners,
-		access:             access,
+		access:             newAccessList(access),
 		secrets:            newSecretStore(secrets, containers.Environment),
 		browsers:           newAgentBrowsers(containers.Browser, repo),
 	}
@@ -102,25 +104,10 @@ func (s *Service) ListVisible(ctx context.Context, callerEmail string, isAdmin b
 	if err != nil {
 		return nil, err
 	}
-	if isAdmin || s.access == nil {
+	if isAdmin {
 		return all, nil
 	}
-	callerEmail = strings.ToLower(strings.TrimSpace(callerEmail))
-	if callerEmail == "" {
-		return nil, nil
-	}
-	out := make([]Meta, 0, len(all))
-	for _, m := range all {
-		ok, err := s.access.Has(ctx, m.ID, callerEmail)
-		if err != nil {
-			log.Printf("projects: access check %s/%s: %v", m.ID, callerEmail, err)
-			continue
-		}
-		if ok {
-			out = append(out, m)
-		}
-	}
-	return out, nil
+	return s.access.filterVisible(ctx, all, callerEmail), nil
 }
 
 func (s *Service) Get(ctx context.Context, id ID) (Meta, error) {
@@ -162,14 +149,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput, callerEmail string
 		return Meta{}, err
 	}
 
-	if s.access != nil {
-		em := strings.ToLower(strings.TrimSpace(callerEmail))
-		if em != "" {
-			if addErr := s.access.Add(ctx, m.ID, em); addErr != nil {
-				log.Printf("projects: seed access for %s: %v", m.ID, addErr)
-			}
-		}
-	}
+	s.access.seed(ctx, m.ID, callerEmail)
 
 	if s.containerLifecycle != nil {
 		if err := s.containerLifecycle.Ensure(ctx, m); err != nil {
@@ -321,10 +301,8 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if err := s.secrets.deleteAll(ctx, id); err != nil {
 		log.Printf("projects: delete secrets %s: %v", id, err)
 	}
-	if s.access != nil {
-		if err := s.access.DeleteAll(ctx, id); err != nil {
-			log.Printf("projects: delete access %s: %v", id, err)
-		}
+	if err := s.access.deleteAll(ctx, id); err != nil {
+		log.Printf("projects: delete access %s: %v", id, err)
 	}
 	return s.repo.Delete(ctx, id)
 }
@@ -662,14 +640,7 @@ func (s *Service) HasAccess(ctx context.Context, id ID, email string) (bool, err
 	if !ValidID(id) {
 		return false, ErrInvalidID
 	}
-	if s.access == nil {
-		return false, nil
-	}
-	em := strings.ToLower(strings.TrimSpace(email))
-	if em == "" {
-		return false, nil
-	}
-	return s.access.Has(ctx, id, em)
+	return s.access.has(ctx, id, email)
 }
 
 // ListAccess returns the sorted, normalized membership list for a project.
@@ -680,10 +651,7 @@ func (s *Service) ListAccess(ctx context.Context, id ID) ([]string, error) {
 	if _, err := s.repo.Get(ctx, id); err != nil {
 		return nil, err
 	}
-	if s.access == nil {
-		return nil, nil
-	}
-	return s.access.List(ctx, id)
+	return s.access.list(ctx, id)
 }
 
 // AddAccess adds email to the project's membership list. Caller is
@@ -695,14 +663,7 @@ func (s *Service) AddAccess(ctx context.Context, id ID, email string) error {
 	if _, err := s.repo.Get(ctx, id); err != nil {
 		return err
 	}
-	if s.access == nil {
-		return errors.New("access store unavailable")
-	}
-	em := strings.ToLower(strings.TrimSpace(email))
-	if em == "" {
-		return errors.New("empty email")
-	}
-	return s.access.Add(ctx, id, em)
+	return s.access.add(ctx, id, email)
 }
 
 // RemoveAccess deletes email from the project's membership list.
@@ -713,14 +674,7 @@ func (s *Service) RemoveAccess(ctx context.Context, id ID, email string) error {
 	if _, err := s.repo.Get(ctx, id); err != nil {
 		return err
 	}
-	if s.access == nil {
-		return nil
-	}
-	em := strings.ToLower(strings.TrimSpace(email))
-	if em == "" {
-		return nil
-	}
-	return s.access.Remove(ctx, id, em)
+	return s.access.remove(ctx, id, email)
 }
 
 // CountAccess returns how many members the project has.
@@ -728,14 +682,7 @@ func (s *Service) CountAccess(ctx context.Context, id ID) (int, error) {
 	if !ValidID(id) {
 		return 0, ErrInvalidID
 	}
-	if s.access == nil {
-		return 0, nil
-	}
-	list, err := s.access.List(ctx, id)
-	if err != nil {
-		return 0, err
-	}
-	return len(list), nil
+	return s.access.count(ctx, id)
 }
 
 func statusForContainerState(state ContainerState) Status {
