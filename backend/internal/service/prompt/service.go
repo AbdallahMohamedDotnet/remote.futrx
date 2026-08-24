@@ -151,6 +151,9 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 			ctx,
 			input,
 			func(ev ChatEvent) {
+				// Stamp the originating task so a scheduled run's events stay
+				// distinguishable from an interactive turn's downstream.
+				ev.ScheduledTaskID = input.ScheduledTaskID
 				rnr.hub.Emit(input.ChatID, ev)
 				if ev.Type == "assistant_text" {
 					output.WriteString(ev.Text)

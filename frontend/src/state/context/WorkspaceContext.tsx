@@ -1,17 +1,19 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
-import { useContext, useEffect, useReducer } from "preact/hooks";
+import { useCallback, useContext, useEffect, useReducer } from "preact/hooks";
 import type { ChatMeta, CreateChatInput } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatApi } from "../../api/chatApi";
 import { projectApi } from "../../api/projectApi";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
+import { useWorkspacePushLifecycle } from "../hooks/push/useWorkspacePushLifecycle";
 import { useUserSettingsContext } from "./UserSettingsContext";
 import {
   workspaceUiState,
   type WorkspaceUiState,
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
+import { takePushNotificationChatId } from "../push/pushNotificationNavigation";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];
@@ -45,8 +47,20 @@ export function WorkspaceProvider({
 }) {
   const data = useWorkspaceData(enabled);
   const { settings } = useUserSettingsContext();
-  const [ui, dispatch] = useReducer(workspaceUiState.reduce, workspaceUiState.createInitial());
+  const [ui, dispatch] = useReducer(
+    workspaceUiState.reduce,
+    null,
+    () => workspaceUiState.createInitial(takePushNotificationChatId())
+  );
   const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
+  const openPushChat = useCallback((chatId: string) => {
+    dispatch({ type: "select-chat", chatId });
+  }, []);
+  useWorkspacePushLifecycle({
+    activeChatId: ui.activeChatId,
+    view: ui.view,
+    openChat: openPushChat,
+  });
 
   useEffect(() => {
     const chatId = workspaceSidebarState.initialChatId(enabled, ui.activeChatId, data.chats);
@@ -54,10 +68,13 @@ export function WorkspaceProvider({
   }, [data.chats, enabled, ui.activeChatId]);
 
   useEffect(() => {
+    // Wait for the first snapshot: a chat id handed over by a notification tap
+    // would otherwise be discarded against a not-yet-populated list.
+    if (!data.loaded) return;
     if (workspaceSidebarState.isActiveChatMissing(data.chats, ui.activeChatId)) {
       dispatch({ type: "select-chat", chatId: null });
     }
-  }, [data.chats, ui.activeChatId]);
+  }, [data.chats, data.loaded, ui.activeChatId]);
 
   async function createProject(name: string): Promise<ProjectMeta> {
     const project = await projectApi.create(name);
