@@ -15,6 +15,7 @@ import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
 import { takePushNotificationChatId } from "../push/pushNotificationNavigation";
 import { pushNotificationState } from "../push/pushNotificationState";
 import { pushPresenceState } from "../push/pushPresenceState";
+import { pushSubscriptionApi } from "../../api/pushSubscriptionApi";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];
@@ -58,6 +59,7 @@ export function WorkspaceProvider({
   // Register the worker on every boot so a deployed sw.js replaces the
   // installed one, and route notification taps into chat selection.
   useEffect(() => {
+    void pushSubscriptionApi.reconcileCurrentAccount();
     pushNotificationState.connect((chatId) => {
       if (chatId) dispatch({ type: "select-chat", chatId });
     });

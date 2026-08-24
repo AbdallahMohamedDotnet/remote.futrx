@@ -194,51 +194,64 @@ func withDetail(chatTitle, detail string) string {
 // servicechat.AccessService: a project chat reaches its members, a loose chat
 // reaches everyone registered, and admins see both.
 func (n *chatPushNotifier) audience(ctx context.Context, meta servicechat.Meta) ([]string, error) {
+	users, err := n.registeredUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if meta.ProjectID == "" {
-		return n.allUsers(ctx)
+		return userEmails(users), nil
 	}
 
-	recipients, err := n.projects.ListAccess(ctx, serviceproject.ID(meta.ProjectID))
+	members, err := n.projects.ListAccess(ctx, serviceproject.ID(meta.ProjectID))
 	if err != nil {
 		return nil, err
 	}
-	admins, err := n.admins(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return append(recipients, admins...), nil
-}
-
-func (n *chatPushNotifier) allUsers(ctx context.Context) ([]string, error) {
-	if n.users == nil {
-		return nil, nil
-	}
-	users, err := n.users.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	emails := make([]string, 0, len(users))
+	active := make(map[string]serviceuser.User, len(users))
 	for _, user := range users {
-		emails = append(emails, user.Email)
+		active[serviceuser.NormalizeEmail(user.Email)] = user
 	}
-	return emails, nil
-}
-
-func (n *chatPushNotifier) admins(ctx context.Context) ([]string, error) {
-	if n.users == nil {
-		return nil, nil
+	recipients := make([]string, 0, len(members)+len(users))
+	seen := make(map[string]struct{}, len(members)+len(users))
+	for _, member := range members {
+		email := serviceuser.NormalizeEmail(member)
+		if _, registered := active[email]; !registered {
+			continue
+		}
+		recipients = appendUniqueEmail(recipients, seen, email)
 	}
-	users, err := n.users.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	emails := make([]string, 0, len(users))
 	for _, user := range users {
 		if user.Role == serviceuser.RoleAdmin {
-			emails = append(emails, user.Email)
+			recipients = appendUniqueEmail(recipients, seen, user.Email)
 		}
 	}
-	return emails, nil
+	return recipients, nil
+}
+
+func (n *chatPushNotifier) registeredUsers(ctx context.Context) ([]serviceuser.User, error) {
+	if n.users == nil {
+		return nil, nil
+	}
+	return n.users.List(ctx)
+}
+
+func userEmails(users []serviceuser.User) []string {
+	emails := make([]string, 0, len(users))
+	for _, user := range users {
+		emails = append(emails, serviceuser.NormalizeEmail(user.Email))
+	}
+	return emails
+}
+
+func appendUniqueEmail(emails []string, seen map[string]struct{}, email string) []string {
+	email = serviceuser.NormalizeEmail(email)
+	if email == "" {
+		return emails
+	}
+	if _, exists := seen[email]; exists {
+		return emails
+	}
+	seen[email] = struct{}{}
+	return append(emails, email)
 }
 
 // webPushSender adapts the Web Push integration to the push service's port,

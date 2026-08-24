@@ -128,6 +128,25 @@ func (s *Store) Delete(ctx context.Context, email, endpoint string) error {
 	return s.write(email, record)
 }
 
+// DeleteAll removes every device registration for one account. The operation
+// is idempotent so account-removal cleanup can be retried safely.
+func (s *Store) DeleteAll(ctx context.Context, email string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path, err := s.path(email)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove push subscriptions: %w", err)
+	}
+	return nil
+}
+
 // VAPIDKeys loads the application server key pair, minting one on first use.
 // Both halves are base64url; the public half is handed to browsers.
 func (s *Store) VAPIDKeys(generate func() (private string, public string, err error)) (string, string, error) {

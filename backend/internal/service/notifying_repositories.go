@@ -57,7 +57,9 @@ func (r notifyingChatRepository) AppendEvent(
 	if eventUpdatesWorkspace(next.Type) {
 		r.publishChat(ctx, id)
 	}
-	r.push.ChatEvent(id, next)
+	if !servicechat.EventNotificationsSuppressed(ctx) {
+		r.push.ChatEvent(id, next)
+	}
 	return next, nil
 }
 

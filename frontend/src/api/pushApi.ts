@@ -5,6 +5,7 @@ import type {
   PushConfig,
   PushPresencePayload,
   PushSubscriptionPayload,
+  PushSubscriptionStatus,
 } from "../models/push";
 
 export const pushApi = {
@@ -13,6 +14,10 @@ export const pushApi = {
     requestJson<void>("POST", API_ROUTES.push.subscriptions, subscription),
   unsubscribe: (endpoint: string) =>
     requestJson<void>("DELETE", API_ROUTES.push.subscriptions, { endpoint }),
+  subscriptionStatus: (endpoint: string) =>
+    requestJson<PushSubscriptionStatus>("POST", API_ROUTES.push.subscriptionStatus, {
+      endpoint,
+    }),
   test: () => requestJson<void>("POST", API_ROUTES.push.test),
   presence: (payload: PushPresencePayload, keepalive = false) =>
     sendPresence(payload, keepalive),

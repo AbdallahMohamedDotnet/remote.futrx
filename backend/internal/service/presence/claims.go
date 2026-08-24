@@ -8,25 +8,25 @@ import "time"
 // notifying its owner again quickly.
 const TTL = 55 * time.Second
 
-// maxClientsPerUser bounds one user's tracked clients. Claims expire anyway,
-// so this only guards against a pathological reload loop minting ids faster
-// than they age out.
+// maxClientsPerUser bounds one user's tracked clients and ordering tombstones.
+// Once the cap is reached, the oldest report is retired first.
 const maxClientsPerUser = 20
 
-// clientPresence is one client's report: the chat it says it has on screen,
-// and when it last said so.
+// clientPresence is one client's latest ordered report. Blank chat IDs are
+// release tombstones: keeping them is what prevents a delayed older claim from
+// reviving presence after the client has already left.
 type clientPresence struct {
-	chatID string
-	seenAt time.Time
+	chatID   string
+	seenAt   time.Time
+	revision uint64
 }
 
 func (p clientPresence) isLive(now time.Time) bool {
-	return p.seenAt.After(now.Add(-TTL))
+	return p.chatID != "" && p.seenAt.After(now.Add(-TTL))
 }
 
-// userPresence is one user's set of live claims, keyed by client. It owns the
-// two rules that keep the set honest — a claim expires, and one user cannot
-// hold more than the cap — so no caller has to remember either.
+// userPresence is one user's latest reports, keyed by client. Reports include
+// both live claims and release tombstones.
 type userPresence struct {
 	byClient map[string]clientPresence
 }
@@ -35,22 +35,16 @@ func newUserPresence() *userPresence {
 	return &userPresence{byClient: map[string]clientPresence{}}
 }
 
-// claim stores a client's presence, retiring expired ones first so that clients
-// long gone never crowd out a live one.
-func (p *userPresence) claim(clientID, chatID string, now time.Time) {
-	p.retireExpired(now)
+// update applies a client report only when it is newer than the last one seen.
+// This makes concurrently arriving claims/releases deterministic.
+func (p *userPresence) update(clientID, chatID string, revision uint64, now time.Time) {
+	if current, known := p.byClient[clientID]; known && revision <= current.revision {
+		return
+	}
 	if _, known := p.byClient[clientID]; !known && len(p.byClient) >= maxClientsPerUser {
 		p.evictOldest()
 	}
-	p.byClient[clientID] = clientPresence{chatID: chatID, seenAt: now}
-}
-
-func (p *userPresence) release(clientID string) {
-	delete(p.byClient, clientID)
-}
-
-func (p *userPresence) isEmpty() bool {
-	return len(p.byClient) == 0
+	p.byClient[clientID] = clientPresence{chatID: chatID, seenAt: now, revision: revision}
 }
 
 func (p *userPresence) isWatching(chatID string, now time.Time) bool {
@@ -60,14 +54,6 @@ func (p *userPresence) isWatching(chatID string, now time.Time) bool {
 		}
 	}
 	return false
-}
-
-func (p *userPresence) retireExpired(now time.Time) {
-	for clientID, client := range p.byClient {
-		if !client.isLive(now) {
-			delete(p.byClient, clientID)
-		}
-	}
 }
 
 func (p *userPresence) evictOldest() {

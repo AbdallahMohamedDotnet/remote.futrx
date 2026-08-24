@@ -24,10 +24,16 @@ export interface PushSubscriptionPayload {
   };
 }
 
+export interface PushSubscriptionStatus {
+  owned: boolean;
+}
+
 /** What one client reports it currently has on screen. */
 export interface PushPresencePayload {
   /** The chat being watched, or "" when the user is not looking at one. */
   chatId: string;
   /** Identifies this tab, so one signing off cannot cancel another's claim. */
   clientId: string;
+  /** Monotonically increases so the server can reject delayed older reports. */
+  revision: number;
 }

@@ -33,6 +33,7 @@ func NewPushHandler(
 func (h *PushHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/push/config", h.HandleConfig)
 	mux.HandleFunc("/api/push/subscriptions", h.HandleSubscriptions)
+	mux.HandleFunc("/api/push/subscriptions/status", h.HandleSubscriptionStatus)
 	mux.HandleFunc("/api/push/test", h.HandleTest)
 	mux.HandleFunc("/api/push/presence", h.HandlePresence)
 }
@@ -51,6 +52,10 @@ type subscriptionRequest struct {
 		P256dh string `json:"p256dh"`
 		Auth   string `json:"auth"`
 	} `json:"keys"`
+}
+
+type subscriptionStatusResponse struct {
+	Owned bool `json:"owned"`
 }
 
 func (h *PushHandler) HandleConfig(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +128,32 @@ func (h *PushHandler) HandleSubscriptions(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// HandleSubscriptionStatus binds an origin-wide browser subscription to the
+// authenticated account. A local PushSubscription may have been created by a
+// different user who previously signed in from the same browser profile.
+func (h *PushHandler) HandleSubscriptionStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	email, err := h.caller(r)
+	if err != nil {
+		httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var body subscriptionRequest
+	if err := decodePushBody(r, &body); err != nil {
+		httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	owned, err := h.push.OwnsSubscription(r.Context(), email, body.Endpoint)
+	if err != nil {
+		sendPushError(w, err)
+		return
+	}
+	httptransport.SendJSON(w, http.StatusOK, subscriptionStatusResponse{Owned: owned})
+}
+
 // HandleTest delivers one notification to the caller's own devices, which is
 // the only way to tell a broken subscription from a quiet agent.
 func (h *PushHandler) HandleTest(w http.ResponseWriter, r *http.Request) {
@@ -155,6 +186,7 @@ func (h *PushHandler) HandleTest(w http.ResponseWriter, r *http.Request) {
 type presenceRequest struct {
 	ChatID   string `json:"chatId"`
 	ClientID string `json:"clientId"`
+	Revision uint64 `json:"revision"`
 }
 
 // HandlePresence records that the caller is watching a chat right now, which
@@ -176,12 +208,16 @@ func (h *PushHandler) HandlePresence(w http.ResponseWriter, r *http.Request) {
 		httptransport.SendErr(w, http.StatusBadRequest, "invalid json")
 		return
 	}
+	if body.Revision == 0 {
+		httptransport.SendErr(w, http.StatusBadRequest, "presence revision is required")
+		return
+	}
 
 	// No chat on screen is the client signing off, not a malformed claim.
 	if strings.TrimSpace(body.ChatID) == "" {
-		h.presence.Release(email, body.ClientID)
+		h.presence.Release(email, body.ClientID, body.Revision)
 	} else {
-		h.presence.Claim(email, body.ClientID, body.ChatID)
+		h.presence.Claim(email, body.ClientID, body.ChatID, body.Revision)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

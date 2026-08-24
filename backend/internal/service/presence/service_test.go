@@ -14,7 +14,7 @@ func at(now *time.Time) *Service {
 func TestAClaimHoldsUntilItExpires(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	service := at(&now)
-	service.Claim("dev@example.com", "tab-1", "chat-1")
+	service.Claim("dev@example.com", "tab-1", "chat-1", 1)
 
 	if !service.IsWatching("dev@example.com", "chat-1") {
 		t.Fatal("a fresh claim should mark the user as watching")
@@ -34,7 +34,7 @@ func TestAClaimHoldsUntilItExpires(t *testing.T) {
 func TestAClaimIsScopedToTheChatAndUser(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	service := at(&now)
-	service.Claim("dev@example.com", "tab-1", "chat-1")
+	service.Claim("dev@example.com", "tab-1", "chat-1", 1)
 
 	if service.IsWatching("dev@example.com", "chat-2") {
 		t.Fatal("watching one chat must not silence another")
@@ -50,7 +50,7 @@ func TestAClaimIsScopedToTheChatAndUser(t *testing.T) {
 func TestClaimsIgnoreEmailCaseAndSurroundingSpace(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	service := at(&now)
-	service.Claim("  Dev@Example.COM ", "tab-1", "chat-1")
+	service.Claim("  Dev@Example.COM ", "tab-1", "chat-1", 1)
 
 	if !service.IsWatching("dev@example.com", "chat-1") {
 		t.Fatal("presence should key on the same normalized email push does")
@@ -60,8 +60,8 @@ func TestClaimsIgnoreEmailCaseAndSurroundingSpace(t *testing.T) {
 func TestReleaseWithdrawsAClaimImmediately(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	service := at(&now)
-	service.Claim("dev@example.com", "tab-1", "chat-1")
-	service.Release("dev@example.com", "tab-1")
+	service.Claim("dev@example.com", "tab-1", "chat-1", 1)
+	service.Release("dev@example.com", "tab-1", 2)
 
 	if service.IsWatching("dev@example.com", "chat-1") {
 		t.Fatal("a released claim should not survive its TTL")
@@ -73,8 +73,8 @@ func TestReleaseWithdrawsAClaimImmediately(t *testing.T) {
 func TestClientsClaimIndependently(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	service := at(&now)
-	service.Claim("dev@example.com", "focused", "chat-1")
-	service.Release("dev@example.com", "background")
+	service.Claim("dev@example.com", "focused", "chat-1", 1)
+	service.Release("dev@example.com", "background", 1)
 
 	if !service.IsWatching("dev@example.com", "chat-1") {
 		t.Fatal("one client going away should leave another client's claim standing")
@@ -86,13 +86,13 @@ func TestClientsClaimIndependently(t *testing.T) {
 func TestAMissingClientIDStillClaims(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	service := at(&now)
-	service.Claim("dev@example.com", "", "chat-1")
+	service.Claim("dev@example.com", "", "chat-1", 1)
 
 	if !service.IsWatching("dev@example.com", "chat-1") {
 		t.Fatal("an absent client id should fall back to one implicit client")
 	}
 
-	service.Release("dev@example.com", "")
+	service.Release("dev@example.com", "", 2)
 	if service.IsWatching("dev@example.com", "chat-1") {
 		t.Fatal("that implicit client should be releasable the same way")
 	}
@@ -101,8 +101,8 @@ func TestAMissingClientIDStillClaims(t *testing.T) {
 func TestFilterRemovesOnlyWatchers(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	service := at(&now)
-	service.Claim("watcher@example.com", "tab-1", "chat-1")
-	service.Claim("elsewhere@example.com", "tab-1", "chat-2")
+	service.Claim("watcher@example.com", "tab-1", "chat-1", 1)
+	service.Claim("elsewhere@example.com", "tab-1", "chat-2", 1)
 
 	kept := service.Filter(
 		[]string{"watcher@example.com", "elsewhere@example.com", "away@example.com"},
@@ -132,15 +132,15 @@ func TestNilServiceFiltersNothing(t *testing.T) {
 		t.Fatal("nil presence should never report a watcher")
 	}
 	// Neither entry point may panic on a service that was never built.
-	service.Claim("dev@example.com", "tab-1", "chat-1")
-	service.Release("dev@example.com", "tab-1")
+	service.Claim("dev@example.com", "tab-1", "chat-1", 1)
+	service.Release("dev@example.com", "tab-1", 2)
 }
 
 func TestStaleClientsAreEvictedRatherThanAccumulating(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	service := at(&now)
 	for i := 0; i < maxClientsPerUser*2; i++ {
-		service.Claim("dev@example.com", string(rune('a'+i%26))+string(rune('0'+i/26)), "chat-1")
+		service.Claim("dev@example.com", string(rune('a'+i%26))+string(rune('0'+i/26)), "chat-1", 1)
 		now = now.Add(time.Second)
 	}
 
@@ -149,5 +149,33 @@ func TestStaleClientsAreEvictedRatherThanAccumulating(t *testing.T) {
 	service.mu.Unlock()
 	if tracked > maxClientsPerUser {
 		t.Fatalf("tracked %d clients for one user, cap is %d", tracked, maxClientsPerUser)
+	}
+}
+
+func TestDelayedClaimCannotOverrideANewerRelease(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	service := at(&now)
+
+	// The release reaches the server first; the earlier claim arrives late.
+	service.Release("dev@example.com", "tab-1", 2)
+	service.Claim("dev@example.com", "tab-1", "chat-1", 1)
+
+	if service.IsWatching("dev@example.com", "chat-1") {
+		t.Fatal("a delayed claim revived a client after its newer release")
+	}
+}
+
+func TestNewestPresenceRevisionWinsAcrossChatChanges(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	service := at(&now)
+
+	service.Claim("dev@example.com", "tab-1", "chat-2", 3)
+	service.Claim("dev@example.com", "tab-1", "chat-1", 2)
+
+	if service.IsWatching("dev@example.com", "chat-1") {
+		t.Fatal("an older claim replaced the current chat")
+	}
+	if !service.IsWatching("dev@example.com", "chat-2") {
+		t.Fatal("the newest claim was not retained")
 	}
 }

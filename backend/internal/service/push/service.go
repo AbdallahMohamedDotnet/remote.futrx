@@ -64,6 +64,26 @@ func (s *Service) HasSubscriptions(ctx context.Context, email string) (bool, err
 	return s.subscriptions.has(ctx, email)
 }
 
+// OwnsSubscription reports whether this exact browser endpoint belongs to the
+// signed-in account. Browser push subscriptions are origin-wide, so merely
+// finding one locally is not proof that it belongs to the current user.
+func (s *Service) OwnsSubscription(ctx context.Context, email, endpoint string) (bool, error) {
+	if s == nil || s.repo == nil {
+		return false, nil
+	}
+	return s.subscriptions.owns(ctx, email, endpoint)
+}
+
+// RemoveSubscriptions revokes every device for a removed account. It remains
+// available when delivery is disabled because account cleanup must not depend
+// on whether a VAPID sender could be initialized during this process start.
+func (s *Service) RemoveSubscriptions(ctx context.Context, email string) error {
+	if s == nil || s.repo == nil {
+		return nil
+	}
+	return s.subscriptions.removeAll(ctx, email)
+}
+
 // Notify delivers to every device of every recipient, pruning subscriptions
 // the push service reports as retired. It blocks; use NotifyAsync from
 // latency-sensitive paths.

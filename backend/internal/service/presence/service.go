@@ -37,14 +37,15 @@ func newAt(clock func() time.Time) *Service {
 	return &Service{clock: clock, users: map[string]*userPresence{}}
 }
 
-// Claim records that one of a user's clients has a chat on screen. A blank
-// user or chat cannot form a claim and is ignored.
-func (s *Service) Claim(email, clientID, chatID string) {
+// Claim records that one of a user's clients has a chat on screen. Revision is
+// monotonically increasing per client, so an older request arriving late is
+// ignored rather than overwriting newer state.
+func (s *Service) Claim(email, clientID, chatID string, revision uint64) {
 	if s == nil {
 		return
 	}
 	email, clientID, chatID = normalizeEmail(email), clientKey(clientID), trim(chatID)
-	if email == "" || chatID == "" {
+	if email == "" || chatID == "" || revision == 0 {
 		return
 	}
 
@@ -55,18 +56,18 @@ func (s *Service) Claim(email, clientID, chatID string) {
 		presence = newUserPresence()
 		s.users[email] = presence
 	}
-	presence.claim(clientID, chatID, s.clock())
+	presence.update(clientID, chatID, revision, s.clock())
 }
 
 // Release withdraws one client's claim — it went to the background, lost
 // focus, or navigated away — so the user hears from us again without waiting
 // out the TTL.
-func (s *Service) Release(email, clientID string) {
+func (s *Service) Release(email, clientID string, revision uint64) {
 	if s == nil {
 		return
 	}
 	email, clientID = normalizeEmail(email), clientKey(clientID)
-	if email == "" {
+	if email == "" || revision == 0 {
 		return
 	}
 
@@ -74,12 +75,10 @@ func (s *Service) Release(email, clientID string) {
 	defer s.mu.Unlock()
 	presence := s.users[email]
 	if presence == nil {
-		return
+		presence = newUserPresence()
+		s.users[email] = presence
 	}
-	presence.release(clientID)
-	if presence.isEmpty() {
-		delete(s.users, email)
-	}
+	presence.update(clientID, "", revision, s.clock())
 }
 
 // IsWatching reports whether any of a user's live clients has this chat on

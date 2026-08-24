@@ -72,3 +72,32 @@ func (r subscriptionRegistry) has(ctx context.Context, email string) (bool, erro
 	}
 	return len(subscriptions) > 0, nil
 }
+
+func (r subscriptionRegistry) owns(ctx context.Context, email, endpoint string) (bool, error) {
+	email = NormalizeEmail(email)
+	if email == "" {
+		return false, ErrInvalidIdentity
+	}
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return false, ErrInvalidEndpoint
+	}
+	subscriptions, err := r.repo.List(ctx, email)
+	if err != nil {
+		return false, err
+	}
+	for _, subscription := range subscriptions {
+		if subscription.Endpoint == endpoint {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r subscriptionRegistry) removeAll(ctx context.Context, email string) error {
+	email = NormalizeEmail(email)
+	if email == "" {
+		return ErrInvalidIdentity
+	}
+	return r.repo.DeleteAll(ctx, email)
+}

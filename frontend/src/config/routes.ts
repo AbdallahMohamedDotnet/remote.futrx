@@ -87,6 +87,7 @@ export const API_ROUTES = {
   push: {
     config: "/api/push/config",
     subscriptions: "/api/push/subscriptions",
+    subscriptionStatus: "/api/push/subscriptions/status",
     test: "/api/push/test",
     presence: "/api/push/presence",
   },

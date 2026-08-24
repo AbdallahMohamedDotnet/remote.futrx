@@ -160,7 +160,11 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			return Services{}, err
 		}
 	}
-	userService := serviceuser.New(deps.Users)
+	pushService := newPush(deps.Push, deps.AuthBaseURL)
+	userService := serviceuser.NewWithRemovalCleanup(deps.Users, userRemovalCleanup{
+		projects: projectService,
+		push:     pushService,
+	})
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
 	if err != nil {
 		return Services{}, err
@@ -199,7 +203,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxService = servicetmux.NewSessions(deps.TmuxClient)
 	}
 
-	pushService := newPush(deps.Push, deps.AuthBaseURL)
 	pushNotifier.push = pushService
 	pushNotifier.projects = projectService
 	pushNotifier.users = userService
@@ -240,19 +243,49 @@ func newPush(store PushStore, baseURL string) *servicepush.Service {
 	})
 	if err != nil {
 		log.Printf("push: notifications disabled: %v", err)
-		return servicepush.New(nil, nil)
+		return servicepush.New(store, nil)
 	}
 	key, err := webpush.ParseVAPIDKey(private, public)
 	if err != nil {
 		log.Printf("push: notifications disabled: %v", err)
-		return servicepush.New(nil, nil)
+		return servicepush.New(store, nil)
 	}
 	client, err := webpush.NewClient(key, baseURL)
 	if err != nil {
 		log.Printf("push: notifications disabled: %v", err)
-		return servicepush.New(nil, nil)
+		return servicepush.New(store, nil)
 	}
 	return servicepush.New(store, webPushSender{client: client})
+}
+
+// userRemovalCleanup removes identity-keyed authorization and delivery state
+// before the user record disappears. Each operation is idempotent, allowing a
+// failed removal to be retried without restoring already-revoked access.
+type userRemovalCleanup struct {
+	projects *serviceproject.Service
+	push     *servicepush.Service
+}
+
+func (c userRemovalCleanup) CleanupRemovedUser(ctx context.Context, email string) error {
+	var cleanupErrors []error
+	if c.projects != nil {
+		projects, err := c.projects.List(ctx)
+		if err != nil {
+			cleanupErrors = append(cleanupErrors, fmt.Errorf("list projects for user cleanup: %w", err))
+		} else {
+			for _, project := range projects {
+				if err := c.projects.RemoveAccess(ctx, project.ID, email); err != nil {
+					cleanupErrors = append(cleanupErrors, fmt.Errorf("remove access to project %s: %w", project.ID, err))
+				}
+			}
+		}
+	}
+	if c.push != nil {
+		if err := c.push.RemoveSubscriptions(ctx, email); err != nil {
+			cleanupErrors = append(cleanupErrors, fmt.Errorf("remove push subscriptions: %w", err))
+		}
+	}
+	return errors.Join(cleanupErrors...)
 }
 
 func (s Services) AuthEnabled() bool {

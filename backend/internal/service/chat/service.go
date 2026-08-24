@@ -141,9 +141,10 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 
 	// Copy the visible history so the fork opens on the same conversation.
 	// Zero seq so the store assigns fresh, monotonic sequence numbers.
+	copyContext := SuppressEventNotifications(ctx)
 	for _, ev := range events {
 		ev.Seq = 0
-		if _, err := s.repo.AppendEvent(ctx, forked.ID, ev); err != nil {
+		if _, err := s.repo.AppendEvent(copyContext, forked.ID, ev); err != nil {
 			return Meta{}, err
 		}
 	}

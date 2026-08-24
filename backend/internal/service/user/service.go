@@ -13,11 +13,16 @@ import (
 var emailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 
 type Service struct {
-	repo Repository
+	repo    Repository
+	cleanup RemovalCleanup
 }
 
 func New(repo Repository) *Service {
 	return &Service{repo: repo}
+}
+
+func NewWithRemovalCleanup(repo Repository, cleanup RemovalCleanup) *Service {
+	return &Service{repo: repo, cleanup: cleanup}
 }
 
 func (s *Service) List(ctx context.Context) ([]User, error) {
@@ -123,6 +128,11 @@ func (s *Service) Remove(ctx context.Context, email string) error {
 		}
 		if admins <= 1 {
 			return ErrCannotRemoveLastAdmin
+		}
+	}
+	if s.cleanup != nil {
+		if err := s.cleanup.CleanupRemovedUser(ctx, email); err != nil {
+			return err
 		}
 	}
 	return s.repo.Remove(ctx, email)

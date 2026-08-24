@@ -50,6 +50,13 @@ func (r *pushRepoStub) Delete(_ context.Context, email, endpoint string) error {
 	return nil
 }
 
+func (r *pushRepoStub) DeleteAll(_ context.Context, email string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.rows, email)
+	return nil
+}
+
 type pushSenderStub struct {
 	mu       sync.Mutex
 	payloads [][]byte
@@ -196,6 +203,46 @@ func TestUnsubscribeRemovesTheDevice(t *testing.T) {
 	}
 }
 
+func TestSubscriptionStatusChecksThisAccountsExactEndpoint(t *testing.T) {
+	handler, _, _ := newPushHandler()
+	post := httptest.NewRequest(http.MethodPost, "/api/push/subscriptions", strings.NewReader(browserSubscriptionJSON))
+	handler.HandleSubscriptions(httptest.NewRecorder(), post)
+
+	response := httptest.NewRecorder()
+	handler.HandleSubscriptionStatus(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/api/push/subscriptions/status",
+			strings.NewReader(`{"endpoint":"https://fcm.googleapis.com/fcm/send/abc123"}`),
+		),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body)
+	}
+	var body subscriptionStatusResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.Owned {
+		t.Fatal("the endpoint registered to this account was not recognized")
+	}
+
+	response = httptest.NewRecorder()
+	handler.HandleSubscriptionStatus(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/api/push/subscriptions/status",
+			strings.NewReader(`{"endpoint":"https://push.example.com/someone-elses-device"}`),
+		),
+	)
+	_ = json.NewDecoder(response.Body).Decode(&body)
+	if body.Owned {
+		t.Fatal("an endpoint not registered to this account was reported as owned")
+	}
+}
+
 func TestTestNotificationGoesOnlyToTheCaller(t *testing.T) {
 	handler, _, sender := newPushHandler()
 
@@ -252,7 +299,7 @@ func TestPresenceRecordsAndWithdrawsAClaim(t *testing.T) {
 		return response.Code
 	}
 
-	if code := post(`{"chatId":"beefcafe","clientId":"tab-1"}`); code != http.StatusNoContent {
+	if code := post(`{"chatId":"beefcafe","clientId":"tab-1","revision":1}`); code != http.StatusNoContent {
 		t.Fatalf("status = %d", code)
 	}
 	// local-admin is the identity a nil auth service falls back to.
@@ -260,7 +307,7 @@ func TestPresenceRecordsAndWithdrawsAClaim(t *testing.T) {
 		t.Fatal("posting a chat id should mark the caller as watching it")
 	}
 
-	if code := post(`{"chatId":"","clientId":"tab-1"}`); code != http.StatusNoContent {
+	if code := post(`{"chatId":"","clientId":"tab-1","revision":2}`); code != http.StatusNoContent {
 		t.Fatalf("status = %d", code)
 	}
 	if handler.presence.IsWatching("local-admin", "beefcafe") {
@@ -291,10 +338,27 @@ func TestPresenceTreatsABlankChatIDAsSigningOff(t *testing.T) {
 		)
 	}
 
-	post(`{"chatId":"beefcafe","clientId":"tab-1"}`)
-	post(`{"chatId":"   ","clientId":"tab-1"}`)
+	post(`{"chatId":"beefcafe","clientId":"tab-1","revision":1}`)
+	post(`{"chatId":"   ","clientId":"tab-1","revision":2}`)
 
 	if handler.presence.IsWatching("local-admin", "beefcafe") {
 		t.Fatal("a whitespace chat id should withdraw the claim, not be ignored")
+	}
+}
+
+func TestPresenceRejectsARequestWithoutAnOrderingRevision(t *testing.T) {
+	handler, _, _ := newPushHandler()
+	response := httptest.NewRecorder()
+	handler.HandlePresence(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/api/push/presence",
+			strings.NewReader(`{"chatId":"beefcafe","clientId":"tab-1"}`),
+		),
+	)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", response.Code)
 	}
 }

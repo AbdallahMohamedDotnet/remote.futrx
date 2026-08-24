@@ -26,6 +26,8 @@ class PushPresenceState {
   #onScreen: string | null = null;
   /** The claim the server currently believes, so repeats stay cheap. */
   #claimed: string | null = null;
+  /** Orders requests even when the network completes them out of order. */
+  #revision = 0;
   #heartbeatTimer: number | undefined;
   #isListening = false;
 
@@ -77,8 +79,12 @@ class PushPresenceState {
   }
 
   async #send(chatId: string | null, keepalive: boolean): Promise<void> {
+    const revision = ++this.#revision;
     try {
-      await pushApi.presence({ chatId: chatId ?? "", clientId: this.#clientId }, keepalive);
+      await pushApi.presence(
+        { chatId: chatId ?? "", clientId: this.#clientId, revision },
+        keepalive
+      );
     } catch {
       // A lost heartbeat costs one notification the user did not need, never
       // one they did, so there is nothing here worth surfacing or retrying.
