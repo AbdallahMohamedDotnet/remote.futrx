@@ -38,7 +38,7 @@ export function usePushNotifications(active: boolean): PushNotifications {
       // The server's record and this device's registration can disagree — a
       // second device, or a subscription the browser dropped — so trust the
       // browser for what *this* device receives.
-      setStatus((await pushSubscriptionApi.isSubscribed()) ? "on" : "off");
+      setStatus((await pushSubscriptionApi.reconcileCurrentAccount()) ? "on" : "off");
     } catch (cause) {
       setStatus("blocked");
       setError(messageOf(cause));

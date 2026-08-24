@@ -59,11 +59,6 @@ export class PushSubscriptionApi {
     return null;
   }
 
-  /** Whether this account already receives notifications on this device. */
-  async isSubscribed(): Promise<boolean> {
-    return this.reconcileCurrentAccount();
-  }
-
   /**
    * Removes an origin-wide browser subscription unless the server confirms
    * that its exact endpoint belongs to the signed-in account. This runs on
