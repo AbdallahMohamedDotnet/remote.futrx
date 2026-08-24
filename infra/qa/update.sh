@@ -5,6 +5,7 @@
 # production infra/update.sh on the QA host, and verifies local and public
 # health. This is disruptive and can rebuild the base image and recycle
 # eligible project containers. Use infra/qa/deploy-app.sh for an app-only
+# pushed candidate or infra/qa/deploy-local.sh for an uncommitted app-only
 # candidate. Connection settings come from .qa.env (see .qa.env.example).
 
 set -euo pipefail

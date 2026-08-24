@@ -3,9 +3,10 @@
 #
 # Unlike the production deployer, this accepts a pushed branch, tag, or commit
 # and intentionally does not enforce a semantic-version release boundary. Use
-# it only when the candidate needs frontend/backend deployment alone; use
-# infra/qa/update.sh when the candidate changes host or workspace
-# infrastructure. Connection settings come from .qa.env (see .qa.env.example).
+# it when an immutable, shareable candidate needs frontend/backend deployment
+# alone. Use deploy-local.sh for an uncommitted working tree, or update.sh when
+# the candidate changes host or workspace infrastructure. Connection settings
+# come from .qa.env (see .qa.env.example).
 
 set -euo pipefail
 
@@ -21,6 +22,7 @@ Deploys application code only from one exact pushed commit: it builds the
 frontend and backend on the existing QA server, restarts remote.futrx.service,
 and verifies local and public health. It does not converge host dependencies,
 Caddy, LXD, the workspace base image, or project containers. Use
+infra/qa/deploy-local.sh to test an uncommitted working tree, or
 infra/qa/update.sh to exercise the full production infrastructure path.
 
 The requested ref must resolve to the clean local HEAD and to the same commit

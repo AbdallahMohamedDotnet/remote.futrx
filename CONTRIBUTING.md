@@ -72,6 +72,7 @@ bash infra/tests/dns-resolve-test.sh
 bash infra/tests/container-forwarding-test.sh
 bash infra/tests/release-version-test.sh
 bash infra/tests/deploy-app-script-test.sh
+bash infra/tests/qa-scripts-test.sh
 bash .github/scripts/classify-release-test.sh
 ```
 
