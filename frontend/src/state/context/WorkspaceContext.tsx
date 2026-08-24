@@ -12,7 +12,7 @@ import {
   type WorkspaceUiState,
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
-import { pushNotificationNavigationState } from "../push/pushNotificationNavigationState";
+import { takePushNotificationChatId } from "../push/pushNotificationNavigation";
 import { pushNotificationState } from "../push/pushNotificationState";
 import { pushPresenceState } from "../push/pushPresenceState";
 
@@ -51,7 +51,7 @@ export function WorkspaceProvider({
   const [ui, dispatch] = useReducer(
     workspaceUiState.reduce,
     null,
-    () => workspaceUiState.createInitial(pushNotificationNavigationState.takeRequestedChatId())
+    () => workspaceUiState.createInitial(takePushNotificationChatId())
   );
   const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
 
