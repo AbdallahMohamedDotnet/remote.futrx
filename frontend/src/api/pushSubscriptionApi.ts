@@ -20,14 +20,8 @@ class PushSubscriptionApi {
   }
 
   /** Whether this account already receives notifications on this device. */
-  async currentSubscription(): Promise<PushSubscription | null> {
-    const registration = await pushServiceWorkerApi.currentRegistration();
-    if (!registration) return null;
-    return webPushTransport.currentSubscription(registration);
-  }
-
   async isSubscribed(): Promise<boolean> {
-    return (await this.currentSubscription()) !== null;
+    return (await this.#currentSubscription()) !== null;
   }
 
   /**
@@ -67,7 +61,7 @@ class PushSubscriptionApi {
 
   /** Removes this device, both locally and on the server. */
   async disable(): Promise<void> {
-    const subscription = await this.currentSubscription();
+    const subscription = await this.#currentSubscription();
     if (!subscription) return;
     // Tell the server first: if unsubscribing locally succeeded but the server
     // kept the endpoint, it would keep pushing to a dead registration.
@@ -79,6 +73,12 @@ class PushSubscriptionApi {
     // PushManager-created subscriptions contain the endpoint and both keys.
     // Keep the browser's serialized object intact at the server boundary.
     return subscription.toJSON() as PushSubscriptionPayload;
+  }
+
+  async #currentSubscription(): Promise<PushSubscription | null> {
+    const registration = await pushServiceWorkerApi.currentRegistration();
+    if (!registration) return null;
+    return webPushTransport.currentSubscription(registration);
   }
 }
 
