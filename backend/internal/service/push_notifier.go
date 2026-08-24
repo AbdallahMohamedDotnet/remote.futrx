@@ -25,14 +25,22 @@ const askUserQuestionTool = "AskUserQuestion"
 // delivery itself runs separately, on the push service's own deadline.
 const audienceTimeout = 5 * time.Second
 
+type projectAccessReader interface {
+	ListAccess(ctx context.Context, projectID serviceproject.ID) ([]string, error)
+}
+
+type registeredUserReader interface {
+	List(ctx context.Context) ([]serviceuser.User, error)
+}
+
 // chatPushNotifier turns persisted chat events into push notifications. It
 // hangs off the chat repository so every path that appends an event —
 // interactive prompts, scheduled runs, recovery — is covered by construction.
 type chatPushNotifier struct {
 	push     *servicepush.Service
 	chats    servicechat.Repository
-	projects *serviceproject.Service
-	users    *serviceuser.Service
+	projects projectAccessReader
+	users    registeredUserReader
 	presence *servicepresence.Service
 
 	// parked records chats whose run stopped on an unanswered question. A run
