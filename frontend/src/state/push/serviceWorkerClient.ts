@@ -6,7 +6,7 @@
 //               about a chat the user is already watching.
 //   open-chat   page <- SW, when a notification is tapped.
 
-const SERVICE_WORKER_URL = "/sw.js";
+import { pushServiceWorkerApi } from "../../api/pushServiceWorkerApi";
 
 type ChatOpener = (chatId: string | null) => void;
 
@@ -16,7 +16,7 @@ let openChat: ChatOpener | null = null;
 let listening = false;
 
 export function serviceWorkerSupported(): boolean {
-  return typeof navigator !== "undefined" && "serviceWorker" in navigator;
+  return pushServiceWorkerApi.isSupported;
 }
 
 /**
@@ -26,11 +26,7 @@ export function serviceWorkerSupported(): boolean {
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!serviceWorkerSupported()) return null;
   listen();
-  try {
-    return await navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: "/" });
-  } catch {
-    return null;
-  }
+  return pushServiceWorkerApi.register();
 }
 
 /** Reports which chat is on screen, so the worker can suppress its notification. */
@@ -48,23 +44,15 @@ function listen() {
   if (listening || !serviceWorkerSupported()) return;
   listening = true;
 
-  navigator.serviceWorker.addEventListener("message", (event: MessageEvent) => {
-    const message = event.data;
-    if (!message || typeof message !== "object") return;
-
-    if (message.type === "which-chat") {
+  pushServiceWorkerApi.listen({
+    visibleChatId: () => {
       // Only claim a chat when this window is genuinely in front; a
       // background tab showing the chat should still raise a notification.
-      const answer = document.visibilityState === "visible" && document.hasFocus()
+      return document.visibilityState === "visible" && document.hasFocus()
         ? visibleChatId
         : null;
-      event.ports[0]?.postMessage({ chatId: answer });
-      return;
-    }
-
-    if (message.type === "open-chat") {
-      openChat?.(message.chatId ?? null);
-    }
+    },
+    openChat: (chatId) => openChat?.(chatId),
   });
 }
 
