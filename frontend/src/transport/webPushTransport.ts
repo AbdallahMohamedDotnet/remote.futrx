@@ -1,6 +1,6 @@
 type StandaloneNavigator = Navigator & { standalone?: boolean };
 
-export class WebPushTransport {
+class WebPushTransport {
   get isPushManagerSupported(): boolean {
     return "PushManager" in window;
   }

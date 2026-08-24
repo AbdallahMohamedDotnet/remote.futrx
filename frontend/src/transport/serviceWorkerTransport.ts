@@ -1,4 +1,4 @@
-export class ServiceWorkerTransport {
+class ServiceWorkerTransport {
   get isSupported(): boolean {
     return typeof navigator !== "undefined" && "serviceWorker" in navigator;
   }
