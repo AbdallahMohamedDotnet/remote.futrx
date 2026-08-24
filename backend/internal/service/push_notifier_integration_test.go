@@ -428,7 +428,11 @@ func TestASecondRunAfterAnAbandonedQuestionStillNotifies(t *testing.T) {
 // about a question they are reading right now.
 func TestWatchingAChatSilencesEveryDeviceTheUserOwns(t *testing.T) {
 	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
-	repo.push.presence.Claim("owner@example.com", "laptop", "beefcafe", 1)
+	repo.push.presence.Record("owner@example.com", servicepresence.Report{
+		ClientID: "laptop",
+		ChatID:   "beefcafe",
+		Revision: 1,
+	})
 
 	_, err := repo.AppendEvent(context.Background(), "beefcafe", servicechat.Event{
 		Type: "tool_use_start",
@@ -447,7 +451,11 @@ func TestWatchingAChatSilencesEveryDeviceTheUserOwns(t *testing.T) {
 func TestWatchingADifferentChatStillNotifies(t *testing.T) {
 	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
 	// Reading one chat is no reason to miss another agent needing an answer.
-	repo.push.presence.Claim("owner@example.com", "laptop", "otherchat", 1)
+	repo.push.presence.Record("owner@example.com", servicepresence.Report{
+		ClientID: "laptop",
+		ChatID:   "otherchat",
+		Revision: 1,
+	})
 
 	_, err := repo.AppendEvent(context.Background(), "beefcafe", servicechat.Event{Type: "complete"})
 	if err != nil {
@@ -464,12 +472,19 @@ func TestLeavingAChatRestoresNotifications(t *testing.T) {
 	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
 	ctx := context.Background()
 
-	repo.push.presence.Claim("owner@example.com", "laptop", "beefcafe", 1)
+	repo.push.presence.Record("owner@example.com", servicepresence.Report{
+		ClientID: "laptop",
+		ChatID:   "beefcafe",
+		Revision: 1,
+	})
 	_, _ = repo.AppendEvent(ctx, "beefcafe", servicechat.Event{Type: "complete"})
 	repo.push.push.Wait()
 
 	// Backgrounding the tab withdraws the claim, and the next turn lands.
-	repo.push.presence.Release("owner@example.com", "laptop", 2)
+	repo.push.presence.Record("owner@example.com", servicepresence.Report{
+		ClientID: "laptop",
+		Revision: 2,
+	})
 	_, _ = repo.AppendEvent(ctx, "beefcafe", servicechat.Event{Type: "complete"})
 	repo.push.push.Wait()
 

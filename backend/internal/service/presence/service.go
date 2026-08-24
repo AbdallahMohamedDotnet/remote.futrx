@@ -68,23 +68,6 @@ func (s *Service) Record(email string, report Report) {
 	presence.update(report.ClientID, report.ChatID, report.Revision, s.clock())
 }
 
-// Claim records that one of a user's clients has a chat on screen. Revision is
-// monotonically increasing per client, so an older request arriving late is
-// ignored rather than overwriting newer state.
-func (s *Service) Claim(email, clientID, chatID string, revision uint64) {
-	if trim(chatID) == "" {
-		return
-	}
-	s.Record(email, Report{ClientID: clientID, ChatID: chatID, Revision: revision})
-}
-
-// Release withdraws one client's claim — it went to the background, lost
-// focus, or navigated away — so the user hears from us again without waiting
-// out the TTL.
-func (s *Service) Release(email, clientID string, revision uint64) {
-	s.Record(email, Report{ClientID: clientID, Revision: revision})
-}
-
 // IsWatching reports whether any of a user's live clients has this chat on
 // screen.
 func (s *Service) IsWatching(email, chatID string) bool {

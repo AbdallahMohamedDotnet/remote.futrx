@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strings"
 
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
@@ -213,12 +212,11 @@ func (h *PushHandler) HandlePresence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No chat on screen is the client signing off, not a malformed claim.
-	if strings.TrimSpace(body.ChatID) == "" {
-		h.presence.Release(email, body.ClientID, body.Revision)
-	} else {
-		h.presence.Claim(email, body.ClientID, body.ChatID, body.Revision)
-	}
+	h.presence.Record(email, servicepresence.Report{
+		ClientID: body.ClientID,
+		ChatID:   body.ChatID,
+		Revision: body.Revision,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
