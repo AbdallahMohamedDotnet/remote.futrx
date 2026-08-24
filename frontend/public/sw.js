@@ -36,6 +36,11 @@ async function handlePush(event) {
   const payload = readPayload(event);
   if (!payload) return;
 
+  // Push subscriptions belong to the origin, not to a login session. Verify
+  // this exact endpoint against the current cookie before showing anything,
+  // so logout or an account switch cannot expose the previous user's alert.
+  if (!(await subscriptionBelongsToCurrentAccount())) return;
+
   // Don't buzz a phone the user is already staring at the chat on.
   if (payload.chatId && (await isChatOnScreen(payload.chatId))) return;
 
@@ -53,6 +58,34 @@ async function handlePush(event) {
     vibrate: urgent ? [90, 60, 90] : undefined,
     timestamp: Date.now(),
   });
+}
+
+async function subscriptionBelongsToCurrentAccount() {
+  const subscription = await self.registration.pushManager.getSubscription();
+  if (!subscription) return false;
+
+  try {
+    const response = await fetch("/api/push/subscriptions/status", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+    if (response.status === 401) {
+      await subscription.unsubscribe();
+      return false;
+    }
+    if (!response.ok) return false;
+
+    const status = await response.json();
+    if (status.owned === true) return true;
+    await subscription.unsubscribe();
+    return false;
+  } catch {
+    // A transient server failure may cost one notification, but must never
+    // reveal an alert before account ownership can be proven.
+    return false;
+  }
 }
 
 function readPayload(event) {
