@@ -17,12 +17,22 @@ type Service struct {
 	cleanup RemovalCleanup
 }
 
-func New(repo Repository) *Service {
-	return &Service{repo: repo}
+// Option configures an optional user-service collaborator.
+type Option func(*Service)
+
+// WithRemovalCleanup revokes identity-keyed resources before user deletion.
+func WithRemovalCleanup(cleanup RemovalCleanup) Option {
+	return func(service *Service) {
+		service.cleanup = cleanup
+	}
 }
 
-func NewWithRemovalCleanup(repo Repository, cleanup RemovalCleanup) *Service {
-	return &Service{repo: repo, cleanup: cleanup}
+func New(repo Repository, options ...Option) *Service {
+	service := &Service{repo: repo}
+	for _, option := range options {
+		option(service)
+	}
+	return service
 }
 
 func (s *Service) List(ctx context.Context) ([]User, error) {

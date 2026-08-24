@@ -41,7 +41,7 @@ func TestRemoveCleansIdentityResourcesBeforeDeletingTheUser(t *testing.T) {
 		"member@example.com": {Email: "member@example.com", Role: RoleMember},
 	}}
 	cleanup := &removalCleanup{}
-	service := NewWithRemovalCleanup(repo, cleanup)
+	service := New(repo, WithRemovalCleanup(cleanup))
 
 	if err := service.Remove(context.Background(), " Member@Example.COM "); err != nil {
 		t.Fatal(err)
@@ -59,7 +59,7 @@ func TestRemoveKeepsTheUserActiveWhenRevocationFails(t *testing.T) {
 		"member@example.com": {Email: "member@example.com", Role: RoleMember},
 	}}
 	wantErr := errors.New("revoke failed")
-	service := NewWithRemovalCleanup(repo, &removalCleanup{err: wantErr})
+	service := New(repo, WithRemovalCleanup(&removalCleanup{err: wantErr}))
 
 	if err := service.Remove(context.Background(), "member@example.com"); !errors.Is(err, wantErr) {
 		t.Fatalf("err = %v, want cleanup failure", err)

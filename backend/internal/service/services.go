@@ -162,10 +162,13 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		}
 	}
 	pushService := newPush(deps.Push, deps.AuthBaseURL)
-	userService := serviceuser.NewWithRemovalCleanup(deps.Users, userRemovalCleanup{
-		projects:      projectService,
-		subscriptions: deps.Push,
-	})
+	userService := serviceuser.New(
+		deps.Users,
+		serviceuser.WithRemovalCleanup(userRemovalCleanup{
+			projects:      projectService,
+			subscriptions: deps.Push,
+		}),
+	)
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
 	if err != nil {
 		return Services{}, err
