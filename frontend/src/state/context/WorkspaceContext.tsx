@@ -12,12 +12,7 @@ import {
   type WorkspaceUiState,
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
-import {
-  onNotificationOpen,
-  registerServiceWorker,
-  setVisibleChat,
-  takeRequestedChatId,
-} from "../push/serviceWorkerClient";
+import { pushNotificationState } from "../push/pushNotificationState";
 import { setWatchedChat } from "../push/presenceClient";
 
 interface WorkspaceContextValue {
@@ -55,15 +50,14 @@ export function WorkspaceProvider({
   const [ui, dispatch] = useReducer(
     workspaceUiState.reduce,
     null,
-    () => workspaceUiState.createInitial(takeRequestedChatId())
+    () => workspaceUiState.createInitial(pushNotificationState.takeRequestedChatId())
   );
   const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
 
   // Register the worker on every boot so a deployed sw.js replaces the
   // installed one, and route notification taps into chat selection.
   useEffect(() => {
-    void registerServiceWorker();
-    onNotificationOpen((chatId) => {
+    pushNotificationState.connect((chatId) => {
       if (chatId) dispatch({ type: "select-chat", chatId });
     });
   }, []);
@@ -73,7 +67,7 @@ export function WorkspaceProvider({
   // covers the user's other devices, which the worker cannot see.
   useEffect(() => {
     const onScreen = ui.view === "chat" ? ui.activeChatId : null;
-    setVisibleChat(onScreen);
+    pushNotificationState.setVisibleChat(onScreen);
     setWatchedChat(onScreen);
   }, [ui.activeChatId, ui.view]);
 

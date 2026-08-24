@@ -8,12 +8,19 @@ interface PushServiceWorkerCallbacks {
 }
 
 class PushServiceWorkerApi {
+  #callbacks: PushServiceWorkerCallbacks = {
+    visibleChatId: () => null,
+    openChat: () => {},
+  };
+  #isListening = false;
+
   get isSupported(): boolean {
     return serviceWorkerTransport.isSupported;
   }
 
   async register(): Promise<ServiceWorkerRegistration | null> {
     if (!this.isSupported) return null;
+    this.#listen();
     try {
       return await serviceWorkerTransport.register(SERVICE_WORKER_URL, { scope: "/" });
     } catch {
@@ -21,18 +28,26 @@ class PushServiceWorkerApi {
     }
   }
 
-  listen(callbacks: PushServiceWorkerCallbacks): void {
+  connect(callbacks: PushServiceWorkerCallbacks): void {
+    this.#callbacks = callbacks;
+    this.#listen();
+  }
+
+  #listen(): void {
+    if (this.#isListening || !this.isSupported) return;
+    this.#isListening = true;
+
     serviceWorkerTransport.listen((event) => {
       const message = event.data;
       if (!message || typeof message !== "object") return;
 
       if (message.type === "which-chat") {
-        event.ports[0]?.postMessage({ chatId: callbacks.visibleChatId() });
+        event.ports[0]?.postMessage({ chatId: this.#callbacks.visibleChatId() });
         return;
       }
 
       if (message.type === "open-chat") {
-        callbacks.openChat(message.chatId ?? null);
+        this.#callbacks.openChat(message.chatId ?? null);
       }
     });
   }
