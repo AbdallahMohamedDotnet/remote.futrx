@@ -41,6 +41,7 @@ type TmuxClient interface {
 // thereafter; rotating it would invalidate every browser subscription.
 type PushStore interface {
 	servicepush.Repository
+	removedUserSubscriptions
 	VAPIDKeys(generate func() (private string, public string, err error)) (string, string, error)
 }
 
@@ -162,8 +163,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	}
 	pushService := newPush(deps.Push, deps.AuthBaseURL)
 	userService := serviceuser.NewWithRemovalCleanup(deps.Users, userRemovalCleanup{
-		projects: projectService,
-		push:     pushService,
+		projects:      projectService,
+		subscriptions: deps.Push,
 	})
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
 	if err != nil {

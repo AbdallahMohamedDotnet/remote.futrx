@@ -14,7 +14,6 @@ type Repository interface {
 	List(ctx context.Context, email string) ([]Subscription, error)
 	Save(ctx context.Context, email string, subscription Subscription) error
 	Delete(ctx context.Context, email, endpoint string) error
-	DeleteAll(ctx context.Context, email string) error
 }
 
 // Sender delivers one encrypted notification. The composition layer supplies

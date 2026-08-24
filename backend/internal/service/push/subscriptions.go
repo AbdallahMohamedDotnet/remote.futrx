@@ -93,11 +93,3 @@ func (r subscriptionRegistry) owns(ctx context.Context, email, endpoint string) 
 	}
 	return false, nil
 }
-
-func (r subscriptionRegistry) removeAll(ctx context.Context, email string) error {
-	email = NormalizeEmail(email)
-	if email == "" {
-		return ErrInvalidIdentity
-	}
-	return r.repo.DeleteAll(ctx, email)
-}

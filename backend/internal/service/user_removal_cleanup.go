@@ -6,15 +6,23 @@ import (
 	"fmt"
 
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
-	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 )
+
+type removedUserProjectAccess interface {
+	List(ctx context.Context) ([]serviceproject.Meta, error)
+	RemoveAccess(ctx context.Context, projectID serviceproject.ID, email string) error
+}
+
+type removedUserSubscriptions interface {
+	DeleteAll(ctx context.Context, email string) error
+}
 
 // userRemovalCleanup removes identity-keyed authorization and delivery state
 // before the user record disappears. Each operation is idempotent, allowing a
 // failed removal to be retried without restoring already-revoked access.
 type userRemovalCleanup struct {
-	projects *serviceproject.Service
-	push     *servicepush.Service
+	projects      removedUserProjectAccess
+	subscriptions removedUserSubscriptions
 }
 
 func (c userRemovalCleanup) CleanupRemovedUser(ctx context.Context, email string) error {
@@ -31,8 +39,8 @@ func (c userRemovalCleanup) CleanupRemovedUser(ctx context.Context, email string
 			}
 		}
 	}
-	if c.push != nil {
-		if err := c.push.RemoveSubscriptions(ctx, email); err != nil {
+	if c.subscriptions != nil {
+		if err := c.subscriptions.DeleteAll(ctx, email); err != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("remove push subscriptions: %w", err))
 		}
 	}

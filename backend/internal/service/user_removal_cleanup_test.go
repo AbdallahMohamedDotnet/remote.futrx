@@ -62,8 +62,8 @@ func TestUserRemovalCleanupRevokesProjectAccessAndPushDevices(t *testing.T) {
 		"member@example.com": {{Endpoint: "https://push.example.com/device"}},
 	}}
 	cleanup := userRemovalCleanup{
-		projects: projectService,
-		push:     servicepush.New(pushRepo, nil),
+		projects:      projectService,
+		subscriptions: pushRepo,
 	}
 
 	if err := cleanup.CleanupRemovedUser(context.Background(), "member@example.com"); err != nil {

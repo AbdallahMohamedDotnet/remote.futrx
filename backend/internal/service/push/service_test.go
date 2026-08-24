@@ -56,13 +56,6 @@ func (r *memoryRepo) Delete(_ context.Context, email, endpoint string) error {
 	return nil
 }
 
-func (r *memoryRepo) DeleteAll(_ context.Context, email string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.rows, email)
-	return nil
-}
-
 type recordingSender struct {
 	mu       sync.Mutex
 	sent     []Subscription
@@ -310,21 +303,5 @@ func TestOwnsSubscriptionChecksTheExactEndpointForThisAccount(t *testing.T) {
 	}
 	if owns, err := service.OwnsSubscription(ctx, "second@example.com", "https://push.example.com/device"); err != nil || owns {
 		t.Fatalf("second account ownership = %v, %v; want false", owns, err)
-	}
-}
-
-func TestRemoveSubscriptionsRevokesEveryDeviceEvenWithoutASender(t *testing.T) {
-	repo := newMemoryRepo()
-	repo.rows["ops@example.com"] = []Subscription{
-		validSubscription("https://push.example.com/a"),
-		validSubscription("https://push.example.com/b"),
-	}
-	service := New(repo, nil)
-
-	if err := service.RemoveSubscriptions(context.Background(), "OPS@example.com"); err != nil {
-		t.Fatal(err)
-	}
-	if subscriptions, _ := repo.List(context.Background(), "ops@example.com"); len(subscriptions) != 0 {
-		t.Fatalf("subscriptions survived account cleanup: %+v", subscriptions)
 	}
 }

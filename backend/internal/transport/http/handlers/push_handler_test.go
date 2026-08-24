@@ -50,13 +50,6 @@ func (r *pushRepoStub) Delete(_ context.Context, email, endpoint string) error {
 	return nil
 }
 
-func (r *pushRepoStub) DeleteAll(_ context.Context, email string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.rows, email)
-	return nil
-}
-
 type pushSenderStub struct {
 	mu       sync.Mutex
 	payloads [][]byte
