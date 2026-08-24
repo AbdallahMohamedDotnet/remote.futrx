@@ -1,0 +1,11 @@
+{
+  "name": "remote.futrx-web",
+  "version": "0.3.2",
+  "private": true,
+  "scripts": {
+    "build:frontend": "cd /opt/remote.futrx/frontend && npm install && npm run build",
+    "build:backend": "cd /opt/remote.futrx/backend && go build -trimpath -o /opt/remote.futrx/backend/remote ./cmd/remote",
+    "service:restart": "systemctl restart remote.futrx.service",
+    "build": "npm run build:frontend && npm run build:backend && npm run service:restart"
+  }
+}
