@@ -27,6 +27,14 @@ type Service struct {
 	users map[string]*userPresence
 }
 
+// Report is one client's ordered statement of what it currently has on
+// screen. A blank ChatID is a release tombstone.
+type Report struct {
+	ClientID string
+	ChatID   string
+	Revision uint64
+}
+
 func New() *Service {
 	return newAt(time.Now)
 }
@@ -37,15 +45,16 @@ func newAt(clock func() time.Time) *Service {
 	return &Service{clock: clock, users: map[string]*userPresence{}}
 }
 
-// Claim records that one of a user's clients has a chat on screen. Revision is
-// monotonically increasing per client, so an older request arriving late is
-// ignored rather than overwriting newer state.
-func (s *Service) Claim(email, clientID, chatID string, revision uint64) {
+// Record applies one ordered client report. Blank chat IDs are retained as
+// release tombstones so a delayed older claim cannot revive stale presence.
+func (s *Service) Record(email string, report Report) {
 	if s == nil {
 		return
 	}
-	email, clientID, chatID = normalizeEmail(email), clientKey(clientID), trim(chatID)
-	if email == "" || chatID == "" || revision == 0 {
+	email = normalizeEmail(email)
+	report.ClientID = clientKey(report.ClientID)
+	report.ChatID = trim(report.ChatID)
+	if email == "" || report.Revision == 0 {
 		return
 	}
 
@@ -56,29 +65,24 @@ func (s *Service) Claim(email, clientID, chatID string, revision uint64) {
 		presence = newUserPresence()
 		s.users[email] = presence
 	}
-	presence.update(clientID, chatID, revision, s.clock())
+	presence.update(report.ClientID, report.ChatID, report.Revision, s.clock())
+}
+
+// Claim records that one of a user's clients has a chat on screen. Revision is
+// monotonically increasing per client, so an older request arriving late is
+// ignored rather than overwriting newer state.
+func (s *Service) Claim(email, clientID, chatID string, revision uint64) {
+	if trim(chatID) == "" {
+		return
+	}
+	s.Record(email, Report{ClientID: clientID, ChatID: chatID, Revision: revision})
 }
 
 // Release withdraws one client's claim — it went to the background, lost
 // focus, or navigated away — so the user hears from us again without waiting
 // out the TTL.
 func (s *Service) Release(email, clientID string, revision uint64) {
-	if s == nil {
-		return
-	}
-	email, clientID = normalizeEmail(email), clientKey(clientID)
-	if email == "" || revision == 0 {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	presence := s.users[email]
-	if presence == nil {
-		presence = newUserPresence()
-		s.users[email] = presence
-	}
-	presence.update(clientID, "", revision, s.clock())
+	s.Record(email, Report{ClientID: clientID, Revision: revision})
 }
 
 // IsWatching reports whether any of a user's live clients has this chat on
