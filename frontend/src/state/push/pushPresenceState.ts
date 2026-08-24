@@ -11,10 +11,7 @@
 // the reason the phone should stay silent.
 
 import { pushApi } from "../../api/pushApi";
-
-// How often to repeat a standing claim. Comfortably inside the server's
-// expiry, so one dropped request does not un-mark the user.
-const HEARTBEAT_MS = 20_000;
+import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../config/push";
 
 /**
  * Keeps the server's idea of what this client is watching in step with what is
@@ -76,7 +73,7 @@ class PushPresenceState {
     if (!this.#claimed) return;
     this.#heartbeatTimer = window.setInterval(() => {
       if (this.#claimed) void this.#send(this.#claimed, false);
-    }, HEARTBEAT_MS);
+    }, PUSH_PRESENCE_HEARTBEAT_MS);
   }
 
   async #send(chatId: string | null, keepalive: boolean): Promise<void> {

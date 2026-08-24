@@ -1,6 +1,5 @@
 import { serviceWorkerTransport } from "../transport/serviceWorkerTransport";
-
-const SERVICE_WORKER_URL = "/sw.js";
+import { PUSH_SERVICE_WORKER } from "../config/push";
 
 interface PushServiceWorkerCallbacks {
   visibleChatId: () => string | null;
@@ -22,7 +21,9 @@ class PushServiceWorkerApi {
     if (!this.isSupported) return null;
     this.#listen();
     try {
-      return await serviceWorkerTransport.register(SERVICE_WORKER_URL, { scope: "/" });
+      return await serviceWorkerTransport.register(PUSH_SERVICE_WORKER.scriptUrl, {
+        scope: PUSH_SERVICE_WORKER.scope,
+      });
     } catch {
       return null;
     }
@@ -30,7 +31,7 @@ class PushServiceWorkerApi {
 
   async currentRegistration(): Promise<ServiceWorkerRegistration | null> {
     if (!this.isSupported) return null;
-    return (await serviceWorkerTransport.registration("/")) ?? null;
+    return (await serviceWorkerTransport.registration(PUSH_SERVICE_WORKER.scope)) ?? null;
   }
 
   ready(): Promise<ServiceWorkerRegistration> {
