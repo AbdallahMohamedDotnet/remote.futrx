@@ -7,6 +7,14 @@ export class ServiceWorkerTransport {
     return navigator.serviceWorker.register(scriptUrl, options);
   }
 
+  registration(scope: string): Promise<ServiceWorkerRegistration | undefined> {
+    return navigator.serviceWorker.getRegistration(scope);
+  }
+
+  ready(): Promise<ServiceWorkerRegistration> {
+    return navigator.serviceWorker.ready;
+  }
+
   listen(listener: (event: MessageEvent) => void): void {
     navigator.serviceWorker.addEventListener("message", listener);
   }

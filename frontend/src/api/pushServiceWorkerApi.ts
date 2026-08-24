@@ -28,6 +28,15 @@ class PushServiceWorkerApi {
     }
   }
 
+  async currentRegistration(): Promise<ServiceWorkerRegistration | null> {
+    if (!this.isSupported) return null;
+    return (await serviceWorkerTransport.registration("/")) ?? null;
+  }
+
+  ready(): Promise<ServiceWorkerRegistration> {
+    return serviceWorkerTransport.ready();
+  }
+
   connect(callbacks: PushServiceWorkerCallbacks): void {
     this.#callbacks = callbacks;
     this.#listen();
