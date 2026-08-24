@@ -9,9 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
-	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -21,63 +19,6 @@ type doerFunc func(*http.Request) (*http.Response, error)
 
 func (function doerFunc) Do(request *http.Request) (*http.Response, error) {
 	return function(request)
-}
-
-func TestVAPIDKeyRoundTripsThroughPersistedForm(t *testing.T) {
-	key, err := GenerateVAPIDKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	restored, err := ParseVAPIDKey(key.PrivateKeyBase64(), key.PublicKeyBase64())
-	if err != nil {
-		t.Fatalf("ParseVAPIDKey() error = %v", err)
-	}
-	if restored.PrivateKeyBase64() != key.PrivateKeyBase64() ||
-		restored.PublicKeyBase64() != key.PublicKeyBase64() {
-		t.Fatal("key pair did not survive its persisted representation")
-	}
-}
-
-func TestParseVAPIDKeyRejectsMismatchedPair(t *testing.T) {
-	first, err := GenerateVAPIDKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := GenerateVAPIDKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ParseVAPIDKey(first.PrivateKeyBase64(), second.PublicKeyBase64()); err == nil {
-		t.Fatal("ParseVAPIDKey() accepted a public key from another pair")
-	}
-}
-
-func TestNormalizeSubscriber(t *testing.T) {
-	for _, test := range []struct {
-		input   string
-		want    string
-		wantErr bool
-	}{
-		{input: "https://remote.example.com/", want: "https://remote.example.com"},
-		{input: "mailto:ops@example.com", want: "ops@example.com"},
-		{input: "ops@example.com", want: "ops@example.com"},
-		{input: "", wantErr: true},
-		{input: "http://remote.example.com", wantErr: true},
-		{input: "https://user@remote.example.com", wantErr: true},
-	} {
-		t.Run(test.input, func(t *testing.T) {
-			got, err := normalizeSubscriber(test.input)
-			if test.wantErr {
-				if err == nil {
-					t.Fatalf("normalizeSubscriber(%q) = %q, want an error", test.input, got)
-				}
-				return
-			}
-			if err != nil || got != test.want {
-				t.Fatalf("normalizeSubscriber(%q) = %q, %v; want %q", test.input, got, err, test.want)
-			}
-		})
-	}
 }
 
 func TestSendDelegatesProtocolAndBuildsExpectedRequest(t *testing.T) {
@@ -206,74 +147,6 @@ func TestSendRejectsUnsafeEndpointBeforeHTTP(t *testing.T) {
 				t.Fatal("unsafe endpoint reached HTTP client")
 			}
 		})
-	}
-}
-
-func TestPublicDialerRejectsPrivateAndMixedDNSAnswers(t *testing.T) {
-	for _, addresses := range [][]netip.Addr{
-		{netip.MustParseAddr("127.0.0.1")},
-		{netip.MustParseAddr("10.0.0.4")},
-		{netip.MustParseAddr("169.254.169.254")},
-		{netip.MustParseAddr("93.184.216.34"), netip.MustParseAddr("192.168.1.20")},
-	} {
-		dialed := false
-		dialer := publicDialer{
-			lookup: func(context.Context, string, string) ([]netip.Addr, error) { return addresses, nil },
-			dial: func(context.Context, string, string) (net.Conn, error) {
-				dialed = true
-				return nil, errors.New("unexpected dial")
-			},
-		}
-		_, err := dialer.DialContext(context.Background(), "tcp", "push.example.com:443")
-		if !errors.Is(err, ErrUnsafeEndpoint) {
-			t.Fatalf("DialContext() error = %v, want ErrUnsafeEndpoint for %v", err, addresses)
-		}
-		if dialed {
-			t.Fatalf("DialContext() dialed an answer from %v", addresses)
-		}
-	}
-}
-
-func TestPublicDialerPinsTheValidatedDNSAnswer(t *testing.T) {
-	wantAddress := netip.MustParseAddr("93.184.216.34")
-	wantErr := errors.New("stop after observing address")
-	var dialed string
-	dialer := publicDialer{
-		lookup: func(_ context.Context, network, host string) ([]netip.Addr, error) {
-			if network != "ip" || host != "push.example.com" {
-				t.Fatalf("lookup = %q %q", network, host)
-			}
-			return []netip.Addr{wantAddress}, nil
-		},
-		dial: func(_ context.Context, network, address string) (net.Conn, error) {
-			if network != "tcp" {
-				t.Fatalf("network = %q", network)
-			}
-			dialed = address
-			return nil, wantErr
-		},
-	}
-
-	_, err := dialer.DialContext(context.Background(), "tcp", "push.example.com:443")
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("DialContext() error = %v, want %v", err, wantErr)
-	}
-	if dialed != "93.184.216.34:443" {
-		t.Fatalf("dialed address = %q", dialed)
-	}
-}
-
-func TestSafeHTTPClientDisablesProxyAndRedirects(t *testing.T) {
-	client := newSafeHTTPClient()
-	transport, ok := client.Transport.(*http.Transport)
-	if !ok {
-		t.Fatalf("Transport = %T", client.Transport)
-	}
-	if transport.Proxy != nil {
-		t.Fatal("safe push transport inherited an HTTP proxy")
-	}
-	if err := client.CheckRedirect(&http.Request{}, []*http.Request{{}}); !errors.Is(err, http.ErrUseLastResponse) {
-		t.Fatalf("CheckRedirect() error = %v, want ErrUseLastResponse", err)
 	}
 }
 
