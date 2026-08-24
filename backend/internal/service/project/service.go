@@ -11,14 +11,16 @@ import (
 )
 
 type Service struct {
-	repo                 Repository
-	containerLifecycle   ContainerLifecycle
-	containerEnvironment ContainerEnvironment
-	containerInspector   ContainerInspector
-	containerNetwork     ContainerNetwork
-	containerListeners   ContainerListeners
-	secrets              SecretsRepository
-	access               AccessRepository
+	repo               Repository
+	containerLifecycle ContainerLifecycle
+	containerInspector ContainerInspector
+	containerNetwork   ContainerNetwork
+	containerListeners ContainerListeners
+	access             AccessRepository
+
+	// secrets owns the project's environment variables and their propagation
+	// to the workspace .env file and the container environment.
+	secrets *secretStore
 
 	// browsers owns all Agent Browser state and its idle reaper.
 	browsers *agentBrowsers
@@ -38,15 +40,14 @@ func New(
 	access AccessRepository,
 ) *Service {
 	return &Service{
-		repo:                 repo,
-		containerLifecycle:   containers.Lifecycle,
-		containerEnvironment: containers.Environment,
-		containerInspector:   containers.Inspector,
-		containerNetwork:     containers.Network,
-		containerListeners:   containers.Listeners,
-		secrets:              secrets,
-		access:               access,
-		browsers:             newAgentBrowsers(containers.Browser, repo),
+		repo:               repo,
+		containerLifecycle: containers.Lifecycle,
+		containerInspector: containers.Inspector,
+		containerNetwork:   containers.Network,
+		containerListeners: containers.Listeners,
+		access:             access,
+		secrets:            newSecretStore(secrets, containers.Environment),
+		browsers:           newAgentBrowsers(containers.Browser, repo),
 	}
 }
 
@@ -57,10 +58,7 @@ func (s *Service) ListSecrets(ctx context.Context, id ID) ([]Secret, error) {
 	if _, err := s.repo.Get(ctx, id); err != nil {
 		return nil, err
 	}
-	if s.secrets == nil {
-		return nil, nil
-	}
-	return s.secrets.List(ctx, id)
+	return s.secrets.list(ctx, id)
 }
 
 func (s *Service) SetSecret(ctx context.Context, id ID, key, value string) (Secret, error) {
@@ -74,25 +72,7 @@ func (s *Service) SetSecret(ctx context.Context, id ID, key, value string) (Secr
 	if err != nil {
 		return Secret{}, err
 	}
-	if s.secrets == nil {
-		return Secret{}, ErrSecretsUnavailable
-	}
-	saved, err := s.secrets.Set(ctx, id, key, value)
-	if err != nil {
-		return Secret{}, err
-	}
-	if syncErr := s.syncEnvFile(ctx, id, m.Cwd); syncErr != nil {
-		log.Printf("projects: sync .env for %s after set %s: %v", id, key, syncErr)
-	}
-	if s.containerEnvironment != nil && m.ContainerName != "" {
-		if envErr := s.containerEnvironment.ApplyDiff(
-			ctx, m.ContainerName,
-			map[string]string{key: value}, nil,
-		); envErr != nil {
-			log.Printf("projects: push env %s to %s: %v", key, m.ContainerName, envErr)
-		}
-	}
-	return saved, nil
+	return s.secrets.set(ctx, m, key, value)
 }
 
 func (s *Service) DeleteSecret(ctx context.Context, id ID, key string) error {
@@ -106,23 +86,7 @@ func (s *Service) DeleteSecret(ctx context.Context, id ID, key string) error {
 	if err != nil {
 		return err
 	}
-	if s.secrets == nil {
-		return ErrSecretsUnavailable
-	}
-	if err := s.secrets.Delete(ctx, id, key); err != nil {
-		return err
-	}
-	if syncErr := s.syncEnvFile(ctx, id, m.Cwd); syncErr != nil {
-		log.Printf("projects: sync .env for %s after delete %s: %v", id, key, syncErr)
-	}
-	if s.containerEnvironment != nil && m.ContainerName != "" {
-		if envErr := s.containerEnvironment.ApplyDiff(
-			ctx, m.ContainerName, nil, []string{key},
-		); envErr != nil {
-			log.Printf("projects: unset env %s on %s: %v", key, m.ContainerName, envErr)
-		}
-	}
-	return nil
+	return s.secrets.delete(ctx, m, key)
 }
 
 // List returns every project. Use ListVisible to apply per-caller filtering.
@@ -215,7 +179,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput, callerEmail string
 		// Push any pre-existing project secrets into the freshly launched
 		// container's env. Empty on first create; matters on recreate
 		// (delete + relaunch with secrets already stored).
-		if syncErr := s.syncContainerEnv(ctx, m.ID, m.ContainerName); syncErr != nil {
+		if syncErr := s.secrets.syncContainer(ctx, m.ID, m.ContainerName); syncErr != nil {
 			log.Printf("projects: sync env to %s after launch: %v", m.ContainerName, syncErr)
 		}
 	}
@@ -354,10 +318,8 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 			log.Printf("projects: delete container %s: %v", m.ContainerName, err)
 		}
 	}
-	if s.secrets != nil {
-		if err := s.secrets.DeleteAll(ctx, id); err != nil {
-			log.Printf("projects: delete secrets %s: %v", id, err)
-		}
+	if err := s.secrets.deleteAll(ctx, id); err != nil {
+		log.Printf("projects: delete secrets %s: %v", id, err)
 	}
 	if s.access != nil {
 		if err := s.access.DeleteAll(ctx, id); err != nil {
@@ -393,7 +355,7 @@ func (s *Service) startLocked(ctx context.Context, id ID) (Meta, error) {
 			return s.setStartError(ctx, id, err)
 		}
 		if state == ContainerStateMissing {
-			if syncErr := s.syncContainerEnv(ctx, id, m.ContainerName); syncErr != nil {
+			if syncErr := s.secrets.syncContainer(ctx, id, m.ContainerName); syncErr != nil {
 				log.Printf("projects: sync env to %s after ensure: %v", m.ContainerName, syncErr)
 			}
 		}
@@ -446,7 +408,7 @@ func (s *Service) Upgrade(ctx context.Context, id ID, includeBusy bool) (Meta, e
 	if err := s.containerLifecycle.Ensure(ctx, m); err != nil {
 		return s.setStartError(ctx, id, err)
 	}
-	if syncErr := s.syncContainerEnv(ctx, id, m.ContainerName); syncErr != nil {
+	if syncErr := s.secrets.syncContainer(ctx, id, m.ContainerName); syncErr != nil {
 		log.Printf("projects: sync env to %s after upgrade: %v", m.ContainerName, syncErr)
 	}
 	return s.repo.SetStatus(ctx, id, StatusRunning, "")
@@ -787,27 +749,4 @@ func statusForContainerState(state ContainerState) Status {
 	default:
 		return StatusUnknown
 	}
-}
-
-// syncContainerEnv pushes every stored secret for the project into the
-// container's LXD environment.* config. Best-effort; logs failures.
-func (s *Service) syncContainerEnv(ctx context.Context, id ID, containerName string) error {
-	if s.containerEnvironment == nil || containerName == "" {
-		return nil
-	}
-	if s.secrets == nil {
-		return nil
-	}
-	secs, err := s.secrets.List(ctx, id)
-	if err != nil {
-		return err
-	}
-	if len(secs) == 0 {
-		return nil
-	}
-	set := make(map[string]string, len(secs))
-	for _, sec := range secs {
-		set[sec.Key] = sec.Value
-	}
-	return s.containerEnvironment.ApplyDiff(ctx, containerName, set, nil)
 }
