@@ -30,11 +30,12 @@ type Service struct {
 	browserSeen       map[ID]time.Time
 	reaperOn          bool
 
-	// runStateLocks serializes container run-state transitions per project so a
+	// runState serializes container run-state transitions per project so a
 	// container deleted out-of-band (e.g. a workspace recycle onto a new base
-	// image) is relaunched exactly once even under concurrent prompts.
-	runStateMu    sync.Mutex
-	runStateLocks map[ID]*sync.Mutex
+	// image) is relaunched exactly once even under concurrent prompts. It also
+	// keeps an explicit stop, restart, or delete from racing an agent-triggered
+	// recovery. Different projects remain independent.
+	runState keyedMutex
 }
 
 func New(
@@ -350,7 +351,7 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if !ValidID(id) {
 		return ErrInvalidID
 	}
-	unlock := s.lockRunState(id)
+	unlock := s.runState.lock(id)
 	defer unlock()
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -375,29 +376,11 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// lockRunState serializes container lifecycle transitions for a single project.
-// This prevents double-launches and keeps an explicit stop, restart, or delete
-// from racing an agent-triggered recovery. Different projects remain independent.
-func (s *Service) lockRunState(id ID) func() {
-	s.runStateMu.Lock()
-	if s.runStateLocks == nil {
-		s.runStateLocks = make(map[ID]*sync.Mutex)
-	}
-	mu := s.runStateLocks[id]
-	if mu == nil {
-		mu = &sync.Mutex{}
-		s.runStateLocks[id] = mu
-	}
-	s.runStateMu.Unlock()
-	mu.Lock()
-	return mu.Unlock
-}
-
 func (s *Service) Start(ctx context.Context, id ID) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
 	}
-	unlock := s.lockRunState(id)
+	unlock := s.runState.lock(id)
 	defer unlock()
 	return s.startLocked(ctx, id)
 }
@@ -435,7 +418,7 @@ func (s *Service) Upgrade(ctx context.Context, id ID, includeBusy bool) (Meta, e
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
 	}
-	unlock := s.lockRunState(id)
+	unlock := s.runState.lock(id)
 	defer unlock()
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -509,7 +492,7 @@ func (s *Service) Stop(ctx context.Context, id ID) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
 	}
-	unlock := s.lockRunState(id)
+	unlock := s.runState.lock(id)
 	defer unlock()
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -532,7 +515,7 @@ func (s *Service) Restart(ctx context.Context, id ID) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
 	}
-	unlock := s.lockRunState(id)
+	unlock := s.runState.lock(id)
 	defer unlock()
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
