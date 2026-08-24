@@ -116,14 +116,7 @@ func (s *Store) Delete(ctx context.Context, email, endpoint string) error {
 	record.Subscriptions = kept
 
 	if len(record.Subscriptions) == 0 {
-		path, err := s.path(email)
-		if err != nil {
-			return err
-		}
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("remove push subscriptions: %w", err)
-		}
-		return nil
+		return s.removeUserRecord(email)
 	}
 	return s.write(email, record)
 }
@@ -136,7 +129,10 @@ func (s *Store) DeleteAll(ctx context.Context, email string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.removeUserRecord(email)
+}
 
+func (s *Store) removeUserRecord(email string) error {
 	path, err := s.path(email)
 	if err != nil {
 		return err
