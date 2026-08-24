@@ -7,8 +7,8 @@ import (
 
 type forkRepository struct {
 	Repository
-	events       []Event
-	suppressions []bool
+	events []Event
+	copied []Event
 }
 
 func (r *forkRepository) Get(context.Context, ID) (Meta, error) {
@@ -24,28 +24,32 @@ func (r *forkRepository) Create(_ context.Context, meta Meta) (Meta, error) {
 	return meta, nil
 }
 
-func (r *forkRepository) AppendEvent(ctx context.Context, _ ID, event Event) (Event, error) {
-	r.suppressions = append(r.suppressions, EventNotificationsSuppressed(ctx))
+func (r *forkRepository) AppendEvent(_ context.Context, _ ID, event Event) (Event, error) {
 	return event, nil
 }
 
-func TestForkMarksEveryCopiedEventAsNotificationSuppressed(t *testing.T) {
+func (r *forkRepository) AppendCopiedEvent(_ context.Context, _ ID, event Event) (Event, error) {
+	r.copied = append(r.copied, event)
+	return event, nil
+}
+
+func TestForkAppendsEveryHistoryEventThroughTheCopiedEventPort(t *testing.T) {
 	repo := &forkRepository{events: []Event{
 		{Seq: 1, Type: "tool_use_start", Name: "AskUserQuestion"},
 		{Seq: 2, Type: "complete"},
 		{Seq: 3, Type: "error", Message: "old failure"},
 	}}
-	service := New(repo, nil, nil, nil)
+	service := New(repo, nil, nil, nil, WithCopiedEventAppender(repo))
 
 	if _, err := service.Fork(context.Background(), "deadbeef"); err != nil {
 		t.Fatal(err)
 	}
-	if len(repo.suppressions) != len(repo.events) {
-		t.Fatalf("copied %d events, want %d", len(repo.suppressions), len(repo.events))
+	if len(repo.copied) != len(repo.events) {
+		t.Fatalf("copied %d events, want %d", len(repo.copied), len(repo.events))
 	}
-	for index, suppressed := range repo.suppressions {
-		if !suppressed {
-			t.Fatalf("copied event %d was not marked as notification-suppressed", index)
+	for index, event := range repo.copied {
+		if event.Seq != 0 {
+			t.Fatalf("copied event %d retained sequence %d", index, event.Seq)
 		}
 	}
 }

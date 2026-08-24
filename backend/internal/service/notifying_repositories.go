@@ -50,7 +50,7 @@ func (r notifyingChatRepository) AppendEvent(
 	id servicechat.ID,
 	ev servicechat.Event,
 ) (servicechat.Event, error) {
-	return r.appendEvent(ctx, id, ev, !servicechat.EventNotificationsSuppressed(ctx))
+	return r.appendEvent(ctx, id, ev, true)
 }
 
 func (r notifyingChatRepository) AppendCopiedEvent(
