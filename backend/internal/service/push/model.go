@@ -22,6 +22,13 @@ var (
 // user's file would grow forever.
 const MaxSubscriptionsPerUser = 20
 
+const (
+	maxEndpointLength     = 2048
+	maxUserAgentLength    = 256
+	publicKeyLengthBytes  = 65
+	authSecretLengthBytes = 16
+)
+
 // Subscription is one browser's push registration. Endpoint identifies it;
 // P256dh and Auth are the keys every payload for it is encrypted to.
 type Subscription struct {
@@ -69,16 +76,26 @@ type Notification struct {
 // Validate normalizes a subscription submitted by a browser and rejects
 // anything that could not be a real Web Push registration.
 func (s *Subscription) Validate() error {
+	s.normalize()
+	if err := validateSubscriptionEndpoint(s.Endpoint); err != nil {
+		return err
+	}
+	return validateSubscriptionKeys(s.P256dh, s.Auth)
+}
+
+func (s *Subscription) normalize() {
 	s.Endpoint = strings.TrimSpace(s.Endpoint)
 	s.P256dh = strings.TrimSpace(s.P256dh)
 	s.Auth = strings.TrimSpace(s.Auth)
-	s.UserAgent = truncate(strings.TrimSpace(s.UserAgent), 256)
+	s.UserAgent = truncate(strings.TrimSpace(s.UserAgent), maxUserAgentLength)
+}
 
-	endpoint, err := url.Parse(s.Endpoint)
+func validateSubscriptionEndpoint(rawEndpoint string) error {
+	endpoint, err := url.Parse(rawEndpoint)
 	if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" || endpoint.Hostname() == "" {
 		return ErrInvalidEndpoint
 	}
-	if len(s.Endpoint) > 2048 || endpoint.User != nil || endpoint.Fragment != "" || endpoint.Opaque != "" {
+	if len(rawEndpoint) > maxEndpointLength || endpoint.User != nil || endpoint.Fragment != "" || endpoint.Opaque != "" {
 		return ErrInvalidEndpoint
 	}
 	host := strings.TrimSuffix(strings.ToLower(endpoint.Hostname()), ".")
@@ -90,16 +107,19 @@ func (s *Subscription) Validate() error {
 			address.IsLinkLocalUnicast() || address.IsMulticast() || address.IsUnspecified()) {
 		return ErrInvalidEndpoint
 	}
+	return nil
+}
 
-	publicKey, err := decodeSubscriptionKey(s.P256dh)
-	if err != nil || len(publicKey) != 65 {
+func validateSubscriptionKeys(p256dh, auth string) error {
+	publicKey, err := decodeSubscriptionKey(p256dh)
+	if err != nil || len(publicKey) != publicKeyLengthBytes {
 		return ErrInvalidKeys
 	}
 	if _, err := ecdh.P256().NewPublicKey(publicKey); err != nil {
 		return ErrInvalidKeys
 	}
-	authSecret, err := decodeSubscriptionKey(s.Auth)
-	if err != nil || len(authSecret) != 16 {
+	authSecret, err := decodeSubscriptionKey(auth)
+	if err != nil || len(authSecret) != authSecretLengthBytes {
 		return ErrInvalidKeys
 	}
 	return nil
