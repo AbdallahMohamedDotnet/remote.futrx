@@ -58,6 +58,11 @@ func Profile() provisioning.Profile {
 			},
 			SeedOnLaunch: true,
 		},
+		PersistentState: []provisioning.PersistentDirectory{{
+			Device:        "claude-home",
+			HostDirectory: "claude",
+			ContainerPath: "/root/.claude",
+		}},
 		Instructions: &provisioning.InstructionTarget{
 			Path:     "/root/.claude/CLAUDE.md",
 			HashPath: "/root/.claude/.agents-md.sha256",

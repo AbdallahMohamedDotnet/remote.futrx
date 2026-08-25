@@ -41,6 +41,11 @@ var kimiProfile = provisioning.Profile{
 		},
 		SeedOnLaunch: false,
 	},
+	PersistentState: []provisioning.PersistentDirectory{{
+		Device:        "kimi-home",
+		HostDirectory: "kimi",
+		ContainerPath: containerKimiHome,
+	}},
 }
 
 // Profile returns Kimi's container-facing policy. The returned value is a

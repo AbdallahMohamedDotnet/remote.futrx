@@ -48,6 +48,11 @@ var antigravityProfile = provisioning.Profile{
 	// workspace: run `agy` once in the chat terminal and complete the URL +
 	// code flow. Runs without credentials fail with agy's own sign-in message.
 	Credentials: provisioning.CredentialSpec{Name: "antigravity"},
+	PersistentState: []provisioning.PersistentDirectory{{
+		Device:        "antigravity-home",
+		HostDirectory: "antigravity",
+		ContainerPath: "/root/" + stateDirUnderHome,
+	}},
 }
 
 // Profile returns Antigravity's container-facing policy as a defensive copy.

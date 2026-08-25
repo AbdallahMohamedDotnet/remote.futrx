@@ -224,6 +224,20 @@ func validateProfile(id agent.ProviderID, profile *provisioning.Profile) error {
 	default:
 		return fmt.Errorf("%w: provider %q has unknown install mode %q", ErrInvalidFactory, id, cli.InstallMode)
 	}
+	seenDevices := make(map[string]bool, len(profile.PersistentState))
+	seenHosts := make(map[string]bool, len(profile.PersistentState))
+	seenTargets := make(map[string]bool, len(profile.PersistentState))
+	for _, state := range profile.PersistentState {
+		if err := state.Validate(); err != nil {
+			return fmt.Errorf("%w: provider %q has invalid persistent state: %v", ErrInvalidFactory, id, err)
+		}
+		if seenDevices[state.Device] || seenHosts[state.HostDirectory] || seenTargets[state.ContainerPath] {
+			return fmt.Errorf("%w: provider %q repeats a persistent-state mount", ErrInvalidFactory, id)
+		}
+		seenDevices[state.Device] = true
+		seenHosts[state.HostDirectory] = true
+		seenTargets[state.ContainerPath] = true
+	}
 	return nil
 }
 

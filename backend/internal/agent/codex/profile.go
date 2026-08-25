@@ -49,6 +49,11 @@ var codexProfile = provisioning.Profile{
 		},
 		SeedOnLaunch: true,
 	},
+	PersistentState: []provisioning.PersistentDirectory{{
+		Device:        "codex-home",
+		HostDirectory: "codex",
+		ContainerPath: containerCodexDir,
+	}},
 	Instructions: &provisioning.InstructionTarget{
 		Path:     containerCodexInstructions,
 		HashPath: containerInstructionsHash,

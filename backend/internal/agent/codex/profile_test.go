@@ -39,6 +39,11 @@ func TestProfileMatchesCodexProvisioningPolicy(t *testing.T) {
 			},
 			SeedOnLaunch: true,
 		},
+		PersistentState: []provisioning.PersistentDirectory{{
+			Device:        "codex-home",
+			HostDirectory: "codex",
+			ContainerPath: "/root/.codex",
+		}},
 		Instructions: &provisioning.InstructionTarget{
 			Path:     "/root/.codex/AGENTS.md",
 			HashPath: "/root/.claude/.agents-md.sha256",

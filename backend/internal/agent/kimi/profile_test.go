@@ -37,6 +37,11 @@ func TestProfilePreservesKimiProvisioningPolicy(t *testing.T) {
 			},
 			SeedOnLaunch: false,
 		},
+		PersistentState: []provisioning.PersistentDirectory{{
+			Device:        "kimi-home",
+			HostDirectory: "kimi",
+			ContainerPath: "/root/.kimi-code",
+		}},
 	}
 
 	if got := Profile(); !reflect.DeepEqual(got, want) {
@@ -47,8 +52,12 @@ func TestProfilePreservesKimiProvisioningPolicy(t *testing.T) {
 func TestProfileReturnsDefensiveCopy(t *testing.T) {
 	profile := Profile()
 	profile.Credentials.Directory.ContainerDirs[0] = "/changed"
+	profile.PersistentState[0].ContainerPath = "/changed"
 
 	if got := Profile().Credentials.Directory.ContainerDirs[0]; got != containerKimiHome {
 		t.Fatalf("Profile() retained caller mutation: %q", got)
+	}
+	if got := Profile().PersistentState[0].ContainerPath; got != containerKimiHome {
+		t.Fatalf("Profile() retained persistent-state mutation: %q", got)
 	}
 }

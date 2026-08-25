@@ -44,6 +44,11 @@ func TestProfilePreservesClaudeProvisioningPolicy(t *testing.T) {
 	if len(credentials.Files) != 2 {
 		t.Fatalf("credential files = %#v", credentials.Files)
 	}
+	if len(profile.PersistentState) != 1 || profile.PersistentState[0] != (provisioning.PersistentDirectory{
+		Device: "claude-home", HostDirectory: "claude", ContainerPath: "/root/.claude",
+	}) {
+		t.Fatalf("persistent state = %#v", profile.PersistentState)
+	}
 	if got := credentials.Files[0]; got.HostPath != "/root/.claude.json" || got.ContainerPath != "/root/.claude.json" || got.Mode != "600" || !got.PushRequired || !got.PullRequired {
 		t.Fatalf("primary credential = %#v", got)
 	}

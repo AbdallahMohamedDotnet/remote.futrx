@@ -3,6 +3,7 @@ package module
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
@@ -27,6 +28,9 @@ func NewCatalog(factories ...Factory) (*Catalog, error) {
 	if len(catalog.factories) == 0 {
 		return nil, fmt.Errorf("%w: no factories", ErrInvalidCatalog)
 	}
+	stateDevices := make(map[string]agent.ProviderID)
+	stateHosts := make(map[string]agent.ProviderID)
+	stateTargets := make(map[string]agent.ProviderID)
 	for index, factory := range catalog.factories {
 		descriptor := factory.Descriptor()
 		if err := validateDescriptor(descriptor); err != nil {
@@ -38,9 +42,42 @@ func NewCatalog(factories ...Factory) (*Catalog, error) {
 		if _, exists := catalog.byID[descriptor.ID]; exists {
 			return nil, fmt.Errorf("%w: provider %q is duplicated", ErrInvalidCatalog, descriptor.ID)
 		}
+		if descriptor.Profile != nil {
+			for _, state := range descriptor.Profile.PersistentState {
+				if owner, exists := stateDevices[state.Device]; exists {
+					return nil, duplicateStateMountError(descriptor.ID, owner, "device", state.Device)
+				}
+				if owner, exists := stateHosts[state.HostDirectory]; exists {
+					return nil, duplicateStateMountError(descriptor.ID, owner, "host directory", state.HostDirectory)
+				}
+				for target, owner := range stateTargets {
+					if statePathsOverlap(target, state.ContainerPath) {
+						return nil, duplicateStateMountError(descriptor.ID, owner, "container path", state.ContainerPath)
+					}
+				}
+				stateDevices[state.Device] = descriptor.ID
+				stateHosts[state.HostDirectory] = descriptor.ID
+				stateTargets[state.ContainerPath] = descriptor.ID
+			}
+		}
 		catalog.byID[descriptor.ID] = index
 	}
 	return catalog, nil
+}
+
+func statePathsOverlap(left, right string) bool {
+	return left == right || strings.HasPrefix(left, right+"/") || strings.HasPrefix(right, left+"/")
+}
+
+func duplicateStateMountError(provider, owner agent.ProviderID, field, value string) error {
+	return fmt.Errorf(
+		"%w: providers %q and %q share persistent-state %s %q",
+		ErrInvalidCatalog,
+		owner,
+		provider,
+		field,
+		value,
+	)
 }
 
 func (c *Catalog) Descriptors() []Descriptor {

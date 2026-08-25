@@ -1,6 +1,11 @@
 package provisioning
 
-import "time"
+import (
+	"errors"
+	"path"
+	"strings"
+	"time"
+)
 
 type InstallMode string
 
@@ -95,12 +100,51 @@ type TemplateFile struct {
 	DirectoryMode string
 }
 
+// PersistentDirectory declares provider state that must survive project
+// container replacement. HostDirectory is a single directory name below the
+// project's private agent-home root; ContainerPath is the absolute location
+// used by the provider CLI. Device must be a stable LXD disk-device name.
+type PersistentDirectory struct {
+	Device        string
+	HostDirectory string
+	ContainerPath string
+}
+
+func (d PersistentDirectory) Validate() error {
+	if !validPersistentName(d.Device) || d.Device == "workspace" {
+		return errors.New("invalid or reserved device name")
+	}
+	if !validPersistentName(d.HostDirectory) {
+		return errors.New("invalid host directory name")
+	}
+	if !path.IsAbs(d.ContainerPath) || path.Clean(d.ContainerPath) != d.ContainerPath ||
+		d.ContainerPath == "/root" || !strings.HasPrefix(d.ContainerPath, "/root/") {
+		return errors.New("container path must be a clean path below /root")
+	}
+	return nil
+}
+
+func validPersistentName(value string) bool {
+	if value == "" || value != strings.TrimSpace(value) || value[0] < 'a' || value[0] > 'z' {
+		return false
+	}
+	for index := 1; index < len(value); index++ {
+		char := value[index]
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 // Profile is the complete container-facing definition supplied by one agent.
 // It contains policy only; no LXC or filesystem operation lives here.
 type Profile struct {
 	ID                  string
 	CLI                 CLISpec
 	Credentials         CredentialSpec
+	PersistentState     []PersistentDirectory
 	Instructions        *InstructionTarget
 	WorkspaceSkills     *WorkspaceSkills
 	BrowserMCPTemplates []TemplateFile
@@ -109,6 +153,7 @@ type Profile struct {
 func (p Profile) Clone() Profile {
 	p.Credentials.Files = append([]CredentialFile(nil), p.Credentials.Files...)
 	p.Credentials.LegacyDevices = append([]string(nil), p.Credentials.LegacyDevices...)
+	p.PersistentState = append([]PersistentDirectory(nil), p.PersistentState...)
 	if p.Credentials.Directory != nil {
 		directory := *p.Credentials.Directory
 		directory.ContainerDirs = append([]string(nil), directory.ContainerDirs...)

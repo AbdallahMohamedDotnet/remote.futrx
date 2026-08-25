@@ -92,6 +92,20 @@ func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
 			descriptor.Features.Sessions = SessionSupport{Fork: true}
 			return descriptor
 		}(),
+		"unsafe persistent host": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Profile.PersistentState = []provisioning.PersistentDirectory{{
+				Device: "future-home", HostDirectory: "../future", ContainerPath: "/root/.future",
+			}}
+			return descriptor
+		}(),
+		"relative persistent target": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Profile.PersistentState = []provisioning.PersistentDirectory{{
+				Device: "future-home", HostDirectory: "future", ContainerPath: "root/.future",
+			}}
+			return descriptor
+		}(),
 	}
 	for name, descriptor := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -102,6 +116,28 @@ func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
 	}
 	if _, err := NewFactory(valid, nil); !errors.Is(err, ErrInvalidFactory) {
 		t.Fatalf("nil builder error = %v, want ErrInvalidFactory", err)
+	}
+}
+
+func TestCatalogRejectsPersistentStateCollisions(t *testing.T) {
+	first := testDescriptor("first-agent")
+	first.Profile.PersistentState = []provisioning.PersistentDirectory{{
+		Device: "shared-home", HostDirectory: "first", ContainerPath: "/root/.first",
+	}}
+	second := testDescriptor("second-agent")
+	second.Profile.PersistentState = []provisioning.PersistentDirectory{{
+		Device: "shared-home", HostDirectory: "second", ContainerPath: "/root/.second",
+	}}
+	firstFactory, err := NewFactory(first, testBuild(first.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondFactory, err := NewFactory(second, testBuild(second.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewCatalog(firstFactory, secondFactory); !errors.Is(err, ErrInvalidCatalog) {
+		t.Fatalf("NewCatalog error = %v, want ErrInvalidCatalog", err)
 	}
 }
 
@@ -171,6 +207,9 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	firstDescriptor := testDescriptor("first-agent")
 	firstDescriptor.LegacySkillRoots = []string{"/root/.first/skills"}
 	firstDescriptor.Profile.Credentials.Files = []provisioning.CredentialFile{{HostPath: "original"}}
+	firstDescriptor.Profile.PersistentState = []provisioning.PersistentDirectory{{
+		Device: "first-home", HostDirectory: "first", ContainerPath: "/root/.first",
+	}}
 	firstDescriptor.Profile.BrowserMCPTemplates = []provisioning.TemplateFile{{Content: []byte("original")}}
 	firstFactory, err := NewFactory(firstDescriptor, testBuild(firstDescriptor.ID))
 	if err != nil {
@@ -185,6 +224,7 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	firstDescriptor.ExecutionScopes[0] = "changed"
 	firstDescriptor.LegacySkillRoots[0] = "/changed"
 	firstDescriptor.Profile.Credentials.Files[0].HostPath = "changed"
+	firstDescriptor.Profile.PersistentState[0].ContainerPath = "/changed"
 	firstDescriptor.Profile.BrowserMCPTemplates[0].Content[0] = 'x'
 
 	descriptors := catalog.Descriptors()
@@ -194,11 +234,14 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	descriptors[0].ExecutionScopes[0] = "changed-again"
 	descriptors[0].LegacySkillRoots[0] = "/changed-again"
 	descriptors[0].Profile.Credentials.Files[0].HostPath = "changed-again"
+	descriptors[0].Profile.PersistentState[0].ContainerPath = "/changed-again"
 	descriptors[0].Profile.BrowserMCPTemplates[0].Content[0] = 'y'
 
 	fresh := catalog.Descriptors()[0]
 	if fresh.ExecutionScopes[0] != ScopeHost || fresh.LegacySkillRoots[0] != "/root/.first/skills" ||
-		fresh.Profile.Credentials.Files[0].HostPath != "original" || string(fresh.Profile.BrowserMCPTemplates[0].Content) != "original" {
+		fresh.Profile.Credentials.Files[0].HostPath != "original" ||
+		fresh.Profile.PersistentState[0].ContainerPath != "/root/.first" ||
+		string(fresh.Profile.BrowserMCPTemplates[0].Content) != "original" {
 		t.Fatalf("catalog descriptor mutated through a snapshot: %#v", fresh)
 	}
 	profiles := catalog.Profiles()
