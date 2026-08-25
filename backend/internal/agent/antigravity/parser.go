@@ -6,10 +6,10 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-// Parser satisfies the provider contract for line-oriented callers. agy print
-// mode emits unstructured text, so every line is an assistant delta. The
-// provider's own run loop streams raw chunks instead (preserving blank lines
-// that line scanners drop); this parser exists for the interface and tests.
+// Parser translates line-oriented Antigravity output for focused parser tests.
+// agy print mode emits unstructured text, so every line is an assistant delta.
+// The provider's run loop streams raw chunks instead, preserving blank lines
+// that line scanners drop.
 type Parser struct {
 	req agent.RunRequest
 }

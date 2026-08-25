@@ -22,7 +22,10 @@ These are the constraints worth understanding before you deploy or rely on remot
 - **The backend runs as root.** With `KillMode=process`, a compromise of the app process is a compromise of the host. There is no privilege separation for the backend. *(`infra/templates/remote.futrx.service.tmpl`)*
 - **The installer disables SSH password login.** Confirm your SSH key works before running it (this is called out in the README, and repeated here because it is easy to lock yourself out).
 - **Deploy has no automatic rollback.** CI restarts the service *before* the health check, so a build that starts but fails the 30-second probe leaves the box running the broken binary; the workflow just exits non-zero. *(`.github/workflows/deploy.yml`)*
-- **`update.sh` hard-resets to `origin/main`.** There is no version pinning, staged rollout, or rollback path — you get whatever is on the tip of `main`, and any local source changes are discarded.
+- **Infrastructure updates hard-reset the installed checkout.** `update.sh`
+  selects the requested release tag/ref and defaults to `origin/main`, so any
+  local source changes are discarded. There is no staged rollout or automatic
+  rollback after a completed infrastructure update.
 
 ## Updates and workspace upgrades
 
@@ -47,17 +50,23 @@ These are the constraints worth understanding before you deploy or rely on remot
 
 ## Agents
 
+- **Agent modules are compiled in, not runtime plugins.** The validated factory
+  contract centralizes registration, auth UI/gating, defaults, scopes,
+  provisioning, and feature policy, but a new integration still requires an
+  adapter/profile plus an explicit reviewed entry in `service/agent/builtin`,
+  followed by a rebuild and deployment. Remote does not load third-party
+  provider modules from configuration or shared objects.
+
 - **Claude, Codex, and Kimi identity is a shared host singleton.** Those
   credentials are authenticated once at host level and seeded into every
   container, so all users and projects share the same provider accounts and
   subscription quotas. There is no per-user or per-project identity for those
   providers, and each allows only one interactive login at a time.
-- **The supported Antigravity authentication flow is project-local but not
-  durable across replacement.** Users run `agy` in the project Terminal. Its credential and
-  conversation state live under `/root/.gemini` in the replaceable container
-  root rather than a mounted provider home. It survives stop/start of the same
-  container but must be recreated after an upgrade or recovery replaces that
-  container. A loose chat can use operator-prepared host `agy` state, but Remote
+- **The supported Antigravity authentication flow is project-local.** Users
+  run `agy` in the project Terminal. Its credential and conversation state
+  under `/root/.gemini/antigravity-cli` is a durable provider mount and survives
+  container replacement. It remains shared by everyone with access to that
+  project. A loose chat can use operator-prepared host `agy` state, but Remote
   exposes no host Antigravity login UI and a loose-chat Terminal cannot create
   that state.
 - **Run control does not survive a backend restart.** Agent runs are owned by in-process state around an `lxc exec` child. A backend restart loses the run lock, cancellation handle, and event-stream ownership. With the production unit's `KillMode=process`, the child may remain alive but orphaned rather than being killed. There is no server-side run persistence, reattachment, or restart recovery.
@@ -80,8 +89,9 @@ These are the constraints worth understanding before you deploy or rely on remot
   and Kimi 0.38.0 rejects its advertised Plan flag with the prompt mode Remote
   requires. Antigravity forks also
   start fresh; print mode exposes plain streamed text rather than structured
-  tool/usage events, general selected skills are not injected, and Browser MCP
-  is unavailable. Model catalogs reflect the installed CLI, its configuration,
+  tool/usage events, selected skills use explicit `SKILL.md` instruction paths
+  rather than native triggers, and Browser MCP is unavailable. Model catalogs
+  reflect the installed CLI, its configuration,
   the signed-in account, and current entitlements; they are not a promise that
   every provider model in existence is available to that account. Claude Fast
   mode requires an eligible Opus model, usage credits, and provider/account
@@ -135,6 +145,10 @@ These are the constraints worth understanding before you deploy or rely on remot
 ## Frontend
 
 - **No URL routing.** The active chat, current view, and open drawers are all in-memory state — a page refresh loses your selection, and nothing is deep-linkable.
-- **No PWA on the main app.** Despite mobile positioning, the main chat UI ships no web app manifest, no service worker, and no push notifications — so there's no notification when a long-running agent finishes and no installable/offline shell. Only the separate IDE launcher at `code.<host>` is a PWA.
+- **The PWA is not an offline workspace.** The main app is installable and can
+  receive Web Push notifications, but navigation remains network-first. Its
+  service worker caches only a self-contained offline status page, not the app
+  shell, chats, API data, or project content. Work cannot continue without a
+  connection. The IDE launcher at `code.<host>` is a separate PWA.
 - **The terminal has no reconnect logic.** A network blip ends the terminal view (unlike the chat/workspace sockets, which reconnect).
 - **Automated tests cover only pure state modules.** Hooks, transport, API clients, and UI components are untested by the frontend test suite; CI does not run the Go `go test` suite either (run it locally — see [CONTRIBUTING.md](../CONTRIBUTING.md)).

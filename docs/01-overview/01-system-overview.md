@@ -42,7 +42,7 @@ flowchart LR
 | --- | --- |
 | Frontend | Authentication gates, workspace navigation, chat rendering, drawers, settings, and API clients |
 | HTTP and WebSocket transport | Routes, JSON responses, upgrades, session checks, and project membership checks |
-| Services | Chat, prompt, schedule, project, user, settings, skills, Git, files, browser, and container policy |
+| Services | Agent module/auth catalogs, chat, prompt, schedule, project, user, settings, skills, Git, files, browser, and container policy |
 | Integrations | LXD, Git, tmux, host filesystem, Google OAuth, host metrics, and container commands |
 | Stores | File-backed auth, users, settings, chats, scheduled tasks, projects, access lists, and secrets |
 | Infrastructure | Installation, systemd, Caddy, LXD image creation, updates, and recovery timers |
@@ -60,7 +60,7 @@ flowchart TD
     Chat --> Composer["Provider, model, mode, skills, attachments"]
     Chat --> Messages["Text, reasoning, tools, usage"]
     Chat --> Drawers["History, files, schedules, browser"]
-    Chat --> Terminal["Terminal overlay"]
+    Chat --> Terminal["Resizable Terminal pane"]
 
     Projects --> Lifecycle["Start, stop, restart, delete"]
     Projects --> Inspect["Resources, network, agent status"]
@@ -123,12 +123,17 @@ The main shell switches between three views without browser routing:
 ## Important boundaries
 
 - The host owns authentication, metadata, HTTPS, access decisions, and container orchestration.
+- Agent registration, defaults, execution scopes, authentication UI/gating,
+  feature policy, and provisioning profiles originate from one explicit
+  compiled-in module catalog.
 - Each project owns its `/workspace` files and processes.
-- Each project also has durable Codex, Claude, and Kimi homes mounted at their provider-native paths.
+- Each project also has durable Codex, Claude, Kimi, and Antigravity homes
+  mounted at their provider-native paths. Antigravity mounts only
+  `/root/.gemini/antigravity-cli`.
 - Agent-provider credentials are host-managed and synchronized into project credential locations, primarily those homes; Claude also uses `/root/.claude.json` outside its mounted home.
-- Remote's supported Antigravity flow authenticates inside each project and stores its current
-  `/root/.gemini` state in the replaceable container root rather than a durable
-  provider-home mount.
+- Remote's supported Antigravity flow authenticates inside each project and
+  stores its current state in the durable
+  `/root/.gemini/antigravity-cli` provider mount.
 - Scheduled-task definitions and claims live in the host control plane. A due
   task enters the same project chat and one-run-per-chat path as an interactive
   prompt.

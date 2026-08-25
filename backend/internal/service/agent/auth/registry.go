@@ -9,8 +9,9 @@ import (
 
 var ErrInvalidBinding = errors.New("invalid agent auth binding")
 
-// Registry owns the auth callers configured by the agent catalog. Bindings
-// retain catalog order so route registration and diagnostics are deterministic.
+// Registry owns the auth callers configured by the agent module catalog.
+// Bindings retain catalog order so route registration and diagnostics are
+// deterministic.
 type Registry struct {
 	bindings []Binding
 	byID     map[agent.ProviderID]int
@@ -59,9 +60,9 @@ func (r *Registry) Bindings() []Binding {
 	return append([]Binding(nil), r.bindings...)
 }
 
-// AnyAuthenticated reports whether at least one registered provider has a
-// usable host-side login. The application access gate uses this to keep the
-// workspace closed until initial provider setup is complete.
+// AnyAuthenticated reports whether at least one registered binding has a
+// usable host-side login. It remains a compatibility fallback for consumers
+// without module policy; the application gate uses module.Catalog.AccessReady.
 func (r *Registry) AnyAuthenticated() bool {
 	if r == nil {
 		return false

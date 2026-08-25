@@ -4,6 +4,11 @@ The controls above and below the composer define how the next prompt is run.
 They are stored on the chat, and most selections also become the starting
 preference for new chats.
 
+When a user has no stored provider preference, Remote asks the backend module
+catalog for the default compatible with the chat's host/project scope. Codex is
+the current explicit built-in default; a deployment that changes the compiled
+catalog can choose another without changing chat or frontend switch logic.
+
 ![Provider, model, skill, thinking, speed, and mode controls](/assets/docs/screenshots/05-chat-agent-controls-03m10s.webp)
 
 ## Configure a run
@@ -68,7 +73,7 @@ probe the current host or project container again.
 
 The shared backend result is normally reused for 24 hours. If any provider
 returned fallback data or a warning, Remote retries after 2 hours instead.
-Successful Claude, Codex, and Kimi authentication changes request a refresh for
+Successful managed-provider authentication changes request a refresh for
 catalog scopes currently open in the browser, and using the UI's project
 **Start** action in the sidebar requests a refresh for that project. Starting
 or restarting from **Project workspaces** does not; choose **Refresh models**
@@ -128,7 +133,7 @@ Remote uses, so that combination fails before a run begins.
 ## Select skills
 
 1. Select **Skill set**.
-2. Use **Search Claude skills** or **Search Codex skills** when needed.
+2. Use the provider-labeled skill search when needed.
 3. Select a skill by name. Its source badge identifies where it was found.
 4. Repeat to combine skills.
 5. Remove a selected-skill chip before sending if it is not needed.
@@ -142,12 +147,8 @@ Current provider caveats:
   Remote.
 - Codex receives a provider-specific dollar-style skill instruction generated
   by Remote.
-- Kimi can display and store selected skill references, but the current prompt
-  path does not inject an equivalent trigger. Do not rely on Kimi skill
-  selection yet.
-- Antigravity has the same general selected-skill limitation as Kimi. The
-  built-in **Scheduled Tasks** skill is the exception: Remote passes its
-  project skill path explicitly so Antigravity can use it.
+- Kimi and Antigravity receive an instruction to read the selected skills from
+  their canonical `SKILL.md` paths.
 - The browser skill prepares per-run browser MCP access for Claude and Codex,
   not Kimi or Antigravity.
 
@@ -156,8 +157,9 @@ not currently implement general-purpose user `@` mentions or slash commands.
 
 ## Antigravity sign-in and output
 
-Antigravity does not appear in **Settings → Agents** because its `agy` CLI has
-no host-wide login flow that Remote can safely complete and copy.
+Antigravity appears in the administrator's **Settings → Agents** list as a
+provider-managed, instruction-only card. Its `agy` CLI has no host-wide login flow that Remote
+can safely complete and copy.
 
 Before the first Antigravity prompt in a project:
 
@@ -168,10 +170,10 @@ Before the first Antigravity prompt in a project:
 5. Return to the chat and choose **Refresh models** in the provider/model picker.
 6. Choose **Antigravity**, select a discovered model if needed, and send the prompt.
 
-The sign-in is project-local. It survives normal container stop/start, but its
-files live under `/root/.gemini` in the replaceable container root and are lost
-when Remote replaces the container during an upgrade or recovery. Run `agy`
-again after replacement.
+The sign-in is project-local. Its provider-owned files under
+`/root/.gemini/antigravity-cli` are mounted from the host and survive normal
+stop/start as well as container replacement. Other files under `/root/.gemini`
+are not part of that durable mount.
 
 Antigravity print mode streams plain assistant text. It does not currently
 provide Remote's structured tool cards or usage totals. It can resume its

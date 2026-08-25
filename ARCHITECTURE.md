@@ -21,7 +21,7 @@ flowchart TB
 
     subgraph Host["Single host (Ubuntu/Debian, runs as root)"]
         Caddy["Caddy — public HTTPS edge<br/>on-demand TLS, forward_auth, cookie stripping"]
-        Go["Go backend — 127.0.0.1:7682<br/>embedded Preact SPA + REST + 5 WebSocket families"]
+        Go["Go backend — 127.0.0.1:7682<br/>embedded Preact SPA + REST + WebSockets"]
         Stores["File stores under DATA_DIR<br/>JSON metadata + JSONL chat logs"]
         LXD["LXD daemon"]
 
@@ -99,12 +99,13 @@ Three **separate** concerns, deliberately not conflated ([deep dive](docs/02-wor
 2. **Agent-provider credentials.** Host-wide OAuth tokens for
    Claude/Codex/Kimi, connected once by an admin and **shared by all projects
    and users** on the box. Antigravity instead authenticates through `agy`
-   inside one project and stores that state in the replaceable container root.
+   inside one project and stores that state in its project-specific durable
+   provider mount.
 3. **Per-project membership.** A flat email access-list per project (`projectaccess/<id>.json`). Any member — not only admins — can read/write that project's secrets and edit its member list.
 
 **Sessions** are stateless HMAC-SHA256 tokens (`{email, sub, iat, exp}`, 30-day expiry) signed by a random key at `DATA_DIR/session.key` ([`session_codec.go`](backend/internal/service/auth/session_codec.go)). The cookie is `HttpOnly; Secure; SameSite=Lax` and **domain-scoped to the base host** so it reaches the preview/IDE subdomains for `forward_auth`. There is no server-side session store: logout only clears the cookie, and per-request `IsRegistered` checks are the only way a session is invalidated early.
 
-**Request gating** ([`middleware/auth.go`](backend/internal/transport/http/middleware/auth.go)): the middleware covers `/api/*` and `/ws*` only. It requires a valid session for a registered user, then two setup preconditions (local admin claimed; at least one provider authenticated). Admin-only routes and project-membership routes re-check authorization per handler.
+**Request gating** ([`middleware/auth.go`](backend/internal/transport/http/middleware/auth.go)): the middleware covers `/api/*` and `/ws*` only. It requires a valid session for a registered user, then two setup preconditions: local admin claimed, and at least one module marked `SatisfiesAccessGate` ready. A no-auth gate module is ready immediately; managed code/device modules require an authenticated binding; external auth cannot be a gate because Remote has no authoritative status signal for it. The module-driven auth catalog and streams remain reachable while this gate is closed. Admin-only routes and project-membership routes re-check authorization per handler.
 
 ## Request lifecycle: a prompt
 
@@ -141,6 +142,36 @@ adapters ([`agent/claude`](backend/internal/agent/claude),
 CLI's available output into a shared event stream. Antigravity print mode
 provides plain streamed text rather than structured tool/usage events.
 
+Agent composition is centralized in a validated module catalog
+([`service/agent/module`](backend/internal/service/agent/module),
+[`service/agent/builtin`](backend/internal/service/agent/builtin)). Each factory
+declares one provider's stable ID and label, explicit default, allowed
+host/project execution scopes, authentication flow and onboarding-gate policy,
+session/skill/browser/scheduling features, legacy skill roots, and optional
+provisioning profile, then builds its runtime adapter and optional
+authentication binding together. `AuthNone` modules omit the binding;
+all other auth modes require one. Project-capable modules must provide a profile; a host-only
+module may provide one when it runs a locally installed CLI, or omit it for a
+remote integration. Catalog construction rejects duplicate or unsafe IDs,
+multiple defaults, invalid auth/scope/feature combinations, and overlapping
+persistent-state mounts before the server starts. The provider runtime contract itself stays
+narrow: identity, capability discovery, and execution. Provider-specific
+command construction, parsing, credentials, and profile policy remain private
+to the adapter. Compiled-in integrations are registered explicitly in
+`service/agent/builtin`; there is no plugin discovery or package `init`
+registration.
+
+When application authentication is enabled, service startup additionally
+requires at least one managed or no-auth module that declares
+`SatisfiesAccessGate`; this prevents a valid-looking catalog from leaving every
+application route permanently behind an impossible onboarding gate.
+
+The catalog also owns the provider default. At most one module may be marked
+default, and it must support host execution; Codex is the current built-in
+default. When no explicit provider is stored, chat creation, user settings,
+and skill lookup ask the catalog for the default compatible with the requested
+scope, falling back deterministically to the first compatible module.
+
 A chat with **no project** ("loose chat") runs the CLI directly on the host instead of in a container. This path is convenient but removes the container boundary; its consequences are the subject of several threat-model entries.
 
 ## Data and persistence model
@@ -159,7 +190,7 @@ A chat with **no project** ("loose chat") runs the CLI directly on the host inst
 | Session key | `DATA_DIR/session.key` | 32 random bytes | mode 0600 |
 | Google OAuth secret | `DATA_DIR/oauth.json` | JSON | plaintext, mode 0600 |
 | Provider tokens | `/root/.claude*`, `/root/.codex`, `/root/.kimi-code` | provider files | copied into every container |
-| Antigravity project auth/session | project container `/root/.gemini/antigravity-cli` | provider files | survives stop/start, not container replacement |
+| Antigravity project auth/session | `/var/lib/remote/projects/<slug>/agent-home/antigravity` | provider files | bind-mounted to `/root/.gemini/antigravity-cli`; survives container replacement |
 | Workspace files | `/var/lib/remote/projects/<slug>/workspace` | on-disk tree | bind-mounted to `/workspace` |
 | Agent homes | `/var/lib/remote/projects/<slug>/agent-home/*` | on-disk tree | bind-mounted to `/root/.claude` etc. |
 
@@ -169,9 +200,12 @@ JSON and metadata writes use temp-file + rename. Chat events are different: they
 
 Containers are **cattle**; durable state lives on the host and is bind-mounted in ([deep dive](docs/02-workspaces/03-projects-and-containers.md), [`lifecycle/service.go`](backend/internal/service/container/lifecycle/service.go)):
 
-- **Four bind mounts per project:** `workspace` → `/workspace`, and `agent-home/{claude,codex,kimi}` → `/root/.{claude,codex,kimi-code}`. Host dirs are chowned to uid/gid `1000000` (the unprivileged-root idmap) via `os.OpenRoot`+`Lchown` to defeat symlink-swap races.
-- **Antigravity is not a fifth mount.** Its `agy` state currently lives under
-  `/root/.gemini` in the replaceable rootfs.
+- **Five bind mounts per project:** `workspace` → `/workspace`, plus the
+  provider-declared persistent directories for Claude, Codex, Kimi, and
+  Antigravity. Antigravity mounts only `/root/.gemini/antigravity-cli`, not the
+  whole `.gemini` tree. Host dirs are chowned to uid/gid `1000000` (the
+  unprivileged-root idmap) via `os.OpenRoot`+`Lchown` to defeat symlink-swap
+  races.
 - **A managed LXD profile** (`futrx-workspace`, [`resources/manager.go`](backend/internal/integration/containers/resources/manager.go)) targets **4 GiB memory, 6 CPUs, 2000 processes** and sets `security.nesting=true` for nested-container workloads. Chromium currently launches with `--no-sandbox`, so that setting is not a Chromium sandbox guarantee. Default/profile resource convergence is best-effort because errors from the default `resources.Ensure` path are discarded; explicit per-project overrides fail launch when they cannot be applied. There is **no default disk quota.**
 - **Networking:** containers share LXD's default bridge; Caddy reaches them by `<slug>.lxd:<port>` DNS. The bridge has no inter-container ACLs by default.
 - **Everything else crosses via `lxc file push/pull` and `lxc exec`:** credentials, project secrets (as `environment.*` config and `--env` args), agent instructions, and skill links.
@@ -205,16 +239,41 @@ Three capabilities live inside each container ([deep dive](docs/03-platform/06-p
 
 ## Frontend
 
-A **Preact** (not React) SPA built with Vite + Tailwind, whose production build is embedded into the Go binary via `go:embed` and served same-origin ([deep dive](docs/03-platform/07-data-and-frontend-state.md)). It is an installable **PWA**: `frontend/public/` supplies the manifest, icons, and a service worker whose only job is Web Push — the app has no offline story, because a stale cached shell would be worse than an honest network error for a live agent control plane. (The `code.<host>` **IDE launcher** in [`infra/launcher/`](infra/launcher/) is a separate PWA on a separate origin, with its own manifest and worker.)
+A **Preact** (not React) SPA built with Vite + Tailwind, whose production build is embedded into the Go binary via `go:embed` and served same-origin ([deep dive](docs/03-platform/07-data-and-frontend-state.md)). It is an installable **PWA**: `frontend/public/` supplies the manifest, icons, and a service worker for Web Push plus network-first navigation. The worker deliberately does not cache the app shell or API data; it caches only the self-contained `/offline.html` fallback and serves it when navigation cannot reach the network. Cache cleanup is restricted to Remote-owned offline-cache names. (The `code.<host>` **IDE launcher** in [`infra/launcher/`](infra/launcher/) is a separate PWA on a separate origin, with its own manifest and worker.)
 
 **Notifications.** The backend raises a Web Push notification when an agent calls `AskUserQuestion`, when a turn completes or fails, and when a scheduled run finishes. The trigger hangs off the chat repository's append path ([`push_notifier.go`](backend/internal/service/push_notifier.go)), so every producer — interactive prompts, scheduled runs, crash recovery — is covered by construction. The audience mirrors chat visibility: project members plus admins, or every registered user for a loose chat. VAPID signing and RFC 8291 payload encryption are implemented against the standard library only ([`integration/webpush`](backend/internal/integration/webpush/)), so push services relay ciphertext they cannot read and the dependency list is unchanged. It is strictly layered (`config → models → transport → api → state → app → ui`), uses no external state store and no URL router, and talks to the backend over REST (`fetch`, cookie session) plus WebSockets for live data. All auth is the same-origin cookie — **no token ever touches JavaScript**, and there are no CSRF tokens (protection rests on `SameSite=Lax` and the same-origin edge). The markdown renderer emits vnodes only, with an href allowlist and no `innerHTML` anywhere, keeping the XSS surface narrow.
+
+**Agent authentication UI.** The frontend loads ordered module metadata and a
+normalized auth snapshot from `GET /api/agent-auth`, then subscribes to
+`/ws/agent-auth/<provider>` for each managed flow. The same descriptor fields
+drive onboarding eligibility, Settings cards, provider labels/instructions,
+and code-versus-device controls. External and no-auth modules render without
+inventing managed login actions. Legacy provider-specific status endpoints and
+WebSockets remain available for compatibility, but the current UI does not
+depend on their provider-specific payloads.
 
 ## Deployment and supply chain
 
 Deployment is a single-box, root-driven, idempotent-converge model ([deep dive](docs/04-operations/09-deployment-and-operations.md)):
 
-- **[`infra/install.sh`](infra/install.sh)** is both bootstrap and deployer. It clones to `/opt/remote.futrx`, walks `infra/steps/01..07` (host deps, app build, Caddy, systemd service, base image, SSH hardening, network-heal timer), and is re-runnable.
-- **[`infra/update.sh`](infra/update.sh)** fetches and hard-resets to `origin/main`, rebuilds, and recycles containers onto a fresh base image. Busy-workspace detection is intended to skip active runs but is not currently reliable; use a maintenance window or `--skip-workspaces` when interruption is unacceptable.
+- **[`infra/install.sh`](infra/install.sh)** is both bootstrap and deployer. It
+  clones/selects `/opt/remote.futrx`, re-executes the chosen checkout, then
+  walks `infra/steps/00..07` (checkout guard, host deps, host agents/app build,
+  Caddy, systemd service, base image, SSH hardening, network-heal timer). It is
+  re-runnable without mixing manifests from the old and selected commits.
+- **Host agent CLI installation is catalog-driven.** After selecting the target
+  checkout, the application step runs `cmd/install-host-agents`, which
+  converges every host-scoped module with
+  a local profile using that profile's binary, provider-declared version
+  arguments, exact semver pin, npm package or install script, timeout, and
+  verification policy. Host-only remote integrations may
+  omit a profile and install nothing. The base image and runtime repair consume
+  the same profiles for project-scoped modules.
+- **[`infra/update.sh`](infra/update.sh)** fetches and hard-resets to the
+  requested tag/ref (default `origin/main`), rebuilds, and recycles containers
+  onto a fresh base image. Busy-workspace detection is intended to skip active
+  runs but is not currently reliable; use a maintenance window or
+  `--skip-workspaces` when interruption is unacceptable.
 - **CI** ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)) deploys on push to `main` by SSHing to the box as root and running the fast build-and-restart path.
 - **Version pinning:** every pin — agent CLIs, host toolchain, code-server, Playwright/Chrome-for-Testing — lives in one manifest ([`versions.env`](backend/internal/agent/provisioning/versions.env), symlinked at [`infra/versions.env`](infra/versions.env)), embedded by the backend and sourced by the infra scripts. The Playwright browser archives additionally have sha256 pins backing a vendored fallback ([`vendors/`](vendors/README.md)) for servers geo-blocked by Google's CDN; the remaining upstream fetches (NodeSource, the Go tarball, the code-server `.deb`, the Ubuntu base image) are version-pinned but not checksum- or signature-verified.
 

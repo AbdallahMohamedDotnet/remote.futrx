@@ -1,10 +1,10 @@
-// remote.futrx: self-hosted Claude Code / Codex chat + terminal-PTY server.
+// remote.futrx is the self-hosted control plane for configured coding agents
+// and their isolated project workspaces.
 //
 // Backend serves:
 //   - Static SPA (Preact/Vite bundle) embedded via go:embed
-//   - HTTP API for chat metadata + per-chat upload
-//   - WS /ws for tmux PTY streaming (terminal SSH bridge, no UI surfaces it)
-//   - WS /ws/chat/{id} for agent streaming
+//   - HTTP APIs for users, agents, chats, projects, files, and operations
+//   - WebSockets for workspace state, agent runs, auth status, and terminals
 
 package main
 

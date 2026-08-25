@@ -74,6 +74,39 @@ flowchart LR
 
 The run request contains the prompt, working directory, model, mode, prior provider session ID, fork flag, project ID, reasoning effort, service tier, and browser enablement.
 
+The compiled-in integrations are composed through a validated module factory
+catalog. A module descriptor is the provider-neutral contract for extending
+Remote: stable ID and label, default-provider flag, host/project execution
+scopes, authentication mode/instructions and access-gate policy, resume/fork
+support, skill strategy, browser and scheduled-tool support, legacy skill
+roots, and the optional provisioning profile. The factory builds the runtime
+provider and its optional auth binding from that same declaration. `AuthNone`
+modules omit the binding; all other modes require one. Startup validation rejects inconsistent
+IDs, auth bindings, multiple defaults, project modules without profiles, fork
+without resume, external-auth gate providers, and duplicate or overlapping
+persistent mounts. Registration order is explicit
+and is preserved in provisioning, runtime, authentication, and capability
+views; adding an integration does not depend on package `init` hooks.
+Authenticated service startup also requires at least one managed or no-auth
+module marked as an access-gate provider, so onboarding cannot deadlock behind
+a catalog that has no observable way to become ready.
+For a project-capable agent, the profile is the concrete container contract:
+CLI binary, strict semver pin, version-command arguments, install/repair
+policy, credential synchronization, persistent directories,
+shared instruction destination, workspace-skill compatibility links, and any
+browser MCP templates. The built-ins define that policy in protected
+provider-local `profile*.go`, `install*.go`, `provisioning*.go`, and `assets/`
+paths. This is a release-classification convention rather than part of the Go
+interface: changes there require a minor/major full-infrastructure release.
+
+Execution scope is enforced at the service boundary. `host` permits loose-chat
+execution and host capability discovery; `project` permits project chats,
+project skills, and container provisioning. Project-capable modules must have
+a profile. A host-only module may include a profile when it runs a local CLI,
+or omit one when it calls a remote integration. Codex is the current explicit
+built-in default; if no default is declared, the catalog chooses the first
+compatible module in stable registration order.
+
 Each provider has its own command builder and parser. Claude, Codex, and Kimi
 produce structured streams; Antigravity print mode emits plain text, and its
 adapter recovers the conversation ID from the CLI brain directory. The shared
@@ -114,9 +147,12 @@ Adding `refresh=1` requests fresh discovery for that scope. Discovery does not
 start a stopped or missing project container; start the project before probing
 it or the provider adapters will return degraded results.
 
-On a cache miss, the backend probes all registered providers concurrently and
-preserves registry order in the response. Each adapter has a bounded timeout
-and normalizes the CLI-specific output into models, per-model reasoning
+On a cache miss, the backend probes all registered providers compatible with
+the selected host/project execution scope concurrently and
+preserves registry order in the response. One global
+`AGENT_CAPABILITY_TIMEOUT` bounds each provider's complete discovery operation
+(30 seconds by default; `0` disables the deadline). Each adapter normalizes
+the CLI-specific output into models, per-model reasoning
 efforts, service tiers, and provider-native modes. A failed probe can return a
 conservative fallback. A partial probe preserves usable live data when possible
 and attaches a concise `warning`; provider failures do not make the whole
@@ -141,6 +177,15 @@ prompts.
 Provider-required aliases remain model IDs, while the user-facing labels carry
 the resolved version and variant. This is particularly important for dynamic
 Claude aliases and Antigravity's parenthesized thinking variants.
+
+Each provider result also carries descriptor metadata: the module default flag,
+execution scopes,
+authentication mode and optional instructions, session resume/fork support,
+skill strategy, browser-tool support, and scheduled-tool support. An adapter
+can provide a structured `unavailableReason` for a provider that is installed
+but cannot currently run; this is separate from partial-discovery warnings.
+The catalog uses the registered provider's ID and the descriptor's label as
+authoritative rather than trusting CLI output for identity.
 
 Discovery and launch support are not identical for every provider. Kimi's
 per-model effort metadata is returned to the frontend, but the current Kimi run
@@ -177,8 +222,8 @@ scope mounts, keeps the previous response visible during a request, and
 coalesces duplicate requests in that page. This browser state does not set the
 catalog TTL and disappears on reload.
 
-The composer **Refresh models** action uses `refresh=1`. A detected Claude,
-Codex, or Kimi authentication change requests a refresh for the scopes currently
+The composer **Refresh models** action uses `refresh=1`. A detected managed
+provider authentication change requests a refresh for the scopes currently
 open in that browser, and using the sidebar's project **Start** action requests
 one for that project. The Project workspaces Start/Restart actions do not
 invalidate this cache. The project probe still sees the credentials and
@@ -228,18 +273,19 @@ flowchart LR
     Selected --> Trigger["Provider-specific prompt trigger"]
     Trigger --> Claude["Claude: /skill-name"]
     Trigger --> Codex["Codex: $skill-name instruction"]
-    Trigger --> Other["Kimi/Antigravity: Scheduled Tasks path only"]
+    Trigger --> Other["Kimi/Antigravity: SKILL.md instruction paths"]
     Selected --> Browser{"browser selected?"}
     Browser -->|"Yes"| MCP["Enable browser MCP and activity keepalive"]
 ```
 
-The catalog reads agent skill roots and, for project chats, project workspace
-skills after checking access. Provider changes clear incompatible selected
-skills. Current general prompt injection and per-run browser MCP preparation
-are implemented for Claude and Codex. Kimi and Antigravity selected-skill
-references normally remain metadata only; **Scheduled Tasks** is the explicit
-exception, injected as the canonical project skill path and accompanied by a
-scoped schedule capability.
+The catalog reads the canonical host or project skill roots and any
+provider-declared legacy roots after checking execution scope and project
+access. Provider changes clear incompatible selected skills. The module's
+declared skill strategy determines prompt preparation: Claude receives slash
+commands, Codex receives dollar mentions, and Kimi and Antigravity receive
+explicit paths to the selected `SKILL.md` files. The **Scheduled Tasks** skill
+also receives a scoped schedule capability. Browser MCP preparation is a
+separate feature flag and is currently declared only by Claude and Codex.
 
 ## Conversation controls
 
@@ -282,5 +328,7 @@ Rewind clears provider session IDs. On the next run, the backend converts remain
 - Prompt service: [`backend/internal/service/prompt/service.go`](../../backend/internal/service/prompt/service.go)
 - Run hub: [`backend/internal/service/runhub/hub.go`](../../backend/internal/service/runhub/hub.go)
 - Agent model: [`backend/internal/agent/model.go`](../../backend/internal/agent/model.go)
+- Agent module contract: [`backend/internal/service/agent/module/`](../../backend/internal/service/agent/module/)
+- Built-in composition root: [`backend/internal/service/agent/builtin/`](../../backend/internal/service/agent/builtin/)
 - Capability catalog: [`backend/internal/service/agentcatalog/catalog.go`](../../backend/internal/service/agentcatalog/catalog.go)
 - Frontend chat hook: [`frontend/src/state/hooks/chat/useChat.ts`](../../frontend/src/state/hooks/chat/useChat.ts)

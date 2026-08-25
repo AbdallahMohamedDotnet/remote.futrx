@@ -1,6 +1,6 @@
 // build-base-image rebuilds the futrx-remote-dev-base LXD image used by
-// every project container. Run it after bumping Node, Claude, or any apt
-// dependency in the install script.
+// every project container. Run it after changing Node, any configured agent
+// profile or CLI, or an apt dependency in the install script.
 //
 // Usage:
 //

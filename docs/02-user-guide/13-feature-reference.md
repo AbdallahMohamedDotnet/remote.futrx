@@ -85,21 +85,22 @@ There is no approval workflow in the current chat transport. Project agents run 
 | Plan mode | Declared native mode | Discovered app-server mode | Advertised but incompatible with Remote prompt mode in Kimi 0.38.0 | Discovered native mode |
 | Usage telemetry | Yes | Yes | No | No |
 | Provider session fork | Yes | Yes, native app-server fork | No; starts fresh | No; starts fresh |
-| Selected skill trigger | Yes | Yes | Stored but not injected | Scheduled Tasks only |
+| Selected skill trigger | Slash command | Dollar mention | Canonical `SKILL.md` instruction | Canonical `SKILL.md` instruction |
 | Browser MCP | Yes | Yes | No equivalent plumbing | No equivalent plumbing |
 | Structured tool stream | Yes | Yes | Yes | No; plain streamed text |
 
-Antigravity's project-local `/root/.gemini` state survives stop/start but not
-container replacement. After signing in with `agy` in the project Terminal,
-choose **Refresh models** so the picker replaces any signed-out fallback.
+Antigravity's project-local `/root/.gemini/antigravity-cli` state survives
+stop/start and container replacement. After signing in with `agy` in the
+project Terminal, choose **Refresh models** so the picker replaces any
+signed-out fallback.
 
 ## Workspace tools
 
 | Feature | How to use it | Limits or lifecycle |
 | --- | --- | --- |
 | Open in IDE | Choose **Open in IDE** in a project chat | code-server in `/workspace`; registered-user auth caveat |
-| Installable IDE launcher | Open `code.<host>` and use the browser's install action | PWA launcher with live project list; the main Remote app is not a PWA |
-| Open Terminal | Choose **Open Terminal** | New `bash -l` PTY; closing kills it; no reconnect |
+| Installable apps | Use the browser's install action on Remote or `code.<host>` | Main app is network-first with a cached offline status page; IDE launcher keeps a live project list |
+| Open Terminal | Choose **Open Terminal** | Resizable pane; hiding it in the same chat preserves the PTY; socket loss or page/chat change ends it |
 | Open History | Choose **History** | Git repositories only |
 | Open Files | Choose **Files** | Lazy workspace tree |
 | Open Browser | Choose **Open Browser** | Preview or Agent Browser |
@@ -196,8 +197,10 @@ Resource defaults are 6 CPUs, 4 GiB memory, and 2,000 processes. Admins alone ma
 | Tab | Features |
 | --- | --- |
 | Appearance | System, Dark, Light |
-| Agents | Admin sign-in/status/refresh for host-wide Claude, Codex, Kimi |
+| Notifications | Per-device Web Push permission, subscription, status, and test notification |
+| Agents | Module-driven admin cards: managed sign-in/status/refresh, external instructions, or no-auth status |
 | Users | Google OAuth configuration; add/remove users; member/admin roles |
+| Updates | Current release, update checks, and administrator-triggered update flow |
 | Info | Host CPU, memory, disks, network, OS/runtime, process, paths, role |
 
 ## Persistence reference
@@ -211,14 +214,14 @@ Resource defaults are 6 CPUs, 4 GiB memory, and 2,000 processes. Admins alone ma
 | Project secrets | Yes | Yes |
 | Agent Browser profile | Yes | Yes |
 | Scheduled-task definitions and run state | Yes | Yes |
-| Antigravity sign-in and conversation state | Yes, until container replacement | No |
+| Antigravity sign-in and conversation state | Yes | Yes |
 | Container root filesystem additions | Yes until replacement | No |
 | Active run control and event streaming | No; an `lxc exec` child can remain alive but orphaned after backend restart | No reattachment |
 | Active Terminal PTY | No | No |
 | Composer draft | Yes, in the same browser tab session | Not applicable |
 | Prompt queue | Yes, in the same browser tab session | Not applicable |
 | Active chat and open drawers | No | Not applicable |
-| Sidebar width/collapse and Browser drawer width | Yes, in the same browser | Yes, in the same browser |
+| Sidebar width/collapse, Browser drawer width, and Terminal pane width | Yes, in the same browser | Yes, in the same browser |
 | Project-group collapsed state | No | Recomputed from unread state rather than stored |
 
 ## Features Remote does not currently provide
@@ -234,7 +237,7 @@ Resource defaults are 6 CPUs, 4 GiB memory, and 2,000 processes. Admins alone ma
 - project IDE membership enforcement;
 - built-in backup/restore, audit log, metrics endpoint, or high availability;
 - content search in Files;
-- a main-app PWA, push notification, or offline mode;
+- offline access to the live app shell, chats, project data, or agent controls;
 - current application voice dictation;
 - implemented `@`-mention or slash-command composer menus.
 - a direct “create schedule” form in the current UI; schedule creation starts

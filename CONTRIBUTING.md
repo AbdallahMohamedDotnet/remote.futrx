@@ -1,6 +1,6 @@
 # Contributing to remote.futrx
 
-Thanks for your interest in improving remote.futrx — a self-hosted workspace for Claude Code, Codex, and Kimi Code.
+Thanks for your interest in improving remote.futrx — a self-hosted workspace for Claude Code, Codex, Kimi Code, Antigravity, and future agent integrations.
 
 Before you start, please read this document. It covers how the repository is laid out, how to build and test each part, and what we expect from commits and pull requests.
 
@@ -20,10 +20,50 @@ This appends a `Signed-off-by: Your Name <your@email>` line to the commit messag
 
 | Path | What it is |
 | --- | --- |
-| `backend/` | Go backend: HTTP/WebSocket transport, services, file-backed stores, LXD/Git/tmux integrations, agent providers (Claude, Codex, Kimi) |
+| `backend/` | Go backend: HTTP/WebSocket transport, services, file-backed stores, LXD/Git/tmux integrations, and compiled-in agent modules |
 | `frontend/` | Preact + Vite SPA. The production build is written to `backend/public/` and embedded into the Go binary via `go:embed` |
 | `infra/` | Installer, updater, systemd/Caddy templates, base-image tooling, and shell test suite |
 | `docs/` | Architecture and subsystem deep-dives — start with `docs/01-overview/01-system-overview.md` |
+
+## Adding an agent integration
+
+Agents are explicit compiled-in modules, not runtime plugins. A new integration
+must satisfy the validated contract before the server starts:
+
+1. Add a provider-local adapter under `backend/internal/agent/<id>/` that
+   implements the narrow `agent.Provider` contract: stable ID, capability
+   discovery, and run execution. Keep CLI arguments, parsing, credentials, and
+   protocol details inside that package.
+2. Add a provisioning `Profile()` when the module runs in projects or needs a
+   locally installed host CLI. Declare the binary, strict semver pin,
+   provider-specific version arguments, install mode/package or pinned script,
+   timeouts, verification, and any project credentials, persistent state,
+   instructions, skills, or Browser MCP templates. A host-only remote API
+   integration may omit the profile.
+3. Register one factory in
+   `backend/internal/service/agent/builtin/catalog.go`. Its descriptor declares
+   label/default, host/project scopes, one supported auth mode and its binding
+   (`none` deliberately has no binding), onboarding-gate eligibility,
+   resume/fork support, skill strategy, and
+   browser/scheduled-tool features.
+4. Use one of the existing normalized auth flows (`managed-code`,
+   `managed-device`, `external`, or `none`) so onboarding and Settings render
+   without provider-specific frontend code. A fundamentally new auth flow
+   requires an intentional contract and UI extension.
+5. Add provider tests plus a factory/catalog regression covering identity,
+   scope, auth, profile, and feature declarations. Update the agent and
+   operations docs. Any profile, CLI, persistent-state, host-install, or base
+   image change requires a minor/major release and the full updater. Keep
+   provider provisioning policy in `profile*.go`, `install*.go`,
+   `provisioning*.go`, or the provider's `assets/` tree so release
+   classification cannot mistake it for an application-only patch.
+
+Factory, catalog, and startup validation reject unsafe/duplicate IDs,
+inconsistent runtime or auth identity, invalid scopes and auth combinations,
+multiple defaults, missing project profiles, required version probes or
+positive install/wait timeouts, unsupported feature combinations, overlapping
+persistent mounts, and authenticated deployments with no usable access-gate
+module.
 
 ## Development setup
 
@@ -68,6 +108,7 @@ Installer and deployment logic has its own shell tests:
 ```bash
 bash infra/tests/health-check-test.sh
 bash infra/tests/go-toolchain-test.sh
+bash infra/tests/host-agent-install-test.sh
 bash infra/tests/dns-resolve-test.sh
 bash infra/tests/container-forwarding-test.sh
 bash infra/tests/release-version-test.sh
