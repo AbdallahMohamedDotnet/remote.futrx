@@ -10,7 +10,7 @@ import (
 	codexagent "github.com/futrx-com/remote.futrx.com/internal/agent/codex"
 	kimiagent "github.com/futrx-com/remote.futrx.com/internal/agent/kimi"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
-	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 )
 
 func Catalog() (*agentmodule.Catalog, error) {

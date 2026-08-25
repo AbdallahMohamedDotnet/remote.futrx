@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 )
 
 func TestDefaultSettingsUseCodexChatDefaults(t *testing.T) {

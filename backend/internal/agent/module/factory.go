@@ -1,4 +1,4 @@
-// Package module defines the application-level contract implemented by every
+// Package module defines the provider-neutral contract implemented by every
 // agent integration. A module combines static behavior metadata with the
 // factory that creates its runtime provider and optional auth binding.
 package module

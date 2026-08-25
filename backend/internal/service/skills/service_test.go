@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 )
 
 type skillTestProviderCatalog map[string]agentmodule.Descriptor
