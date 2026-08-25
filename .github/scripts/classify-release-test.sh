@@ -74,12 +74,36 @@ fi
 grep -Fq "backend/internal/agent/future/install_linux.go" <<<"$error" || \
     fail "future agent install-helper rejection did not identify the protected path"
 
+commit_file backend/internal/agent/future/factory.go future-factory protected-future-factory
+git -C "$TEST_REPO" tag 0.3.7
+if error="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.3.7 2>&1)"; then
+    fail "future agent factory was accepted as an application release"
+fi
+grep -Fq "backend/internal/agent/future/factory.go" <<<"$error" || \
+    fail "future agent factory rejection did not identify the protected path"
+
+commit_file backend/internal/agent/module/catalog.go module-contract protected-module-contract
+git -C "$TEST_REPO" tag 0.3.8
+if error="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.3.8 2>&1)"; then
+    fail "agent module contract was accepted as an application release"
+fi
+grep -Fq "backend/internal/agent/module/catalog.go" <<<"$error" || \
+    fail "agent module rejection did not identify the protected path"
+
+commit_file backend/internal/agent/builtin/catalog.go builtin-catalog protected-builtin-catalog
+git -C "$TEST_REPO" tag 0.3.9
+if error="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.3.9 2>&1)"; then
+    fail "built-in agent catalog was accepted as an application release"
+fi
+grep -Fq "backend/internal/agent/builtin/catalog.go" <<<"$error" || \
+    fail "built-in catalog rejection did not identify the protected path"
+
 commit_file README.md next-minor minor
 git -C "$TEST_REPO" tag 0.4.0
 output="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.4.0)"
 assert_output "$output" "kind=infrastructure"
 assert_output "$output" "label=Infrastructure"
-assert_output "$output" "previous=0.3.6"
+assert_output "$output" "previous=0.3.9"
 
 if error="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.4 2>&1)"; then
     fail "malformed release tag was accepted"
