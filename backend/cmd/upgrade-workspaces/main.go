@@ -14,7 +14,7 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/config"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
-	"github.com/futrx-com/remote.futrx.com/internal/service"
+	agentbuiltin "github.com/futrx-com/remote.futrx.com/internal/service/agent/builtin"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/futrx-com/remote.futrx.com/internal/stores"
 )
@@ -30,7 +30,11 @@ func main() {
 		log.Fatalf("init stores: %v", err)
 	}
 	lxcClient := lxc.New()
-	containerStack := config.NewContainerStack(lxcClient, service.AgentProfiles(), config.ContainerStackOptions{})
+	agentModules, err := agentbuiltin.Catalog()
+	if err != nil {
+		log.Fatalf("configure agent modules: %v", err)
+	}
+	containerStack := config.NewContainerStack(lxcClient, agentModules.Profiles(), config.ContainerStackOptions{})
 	projects := serviceproject.New(
 		storeSet.Projects,
 		containerStack.ProjectDependencies(),

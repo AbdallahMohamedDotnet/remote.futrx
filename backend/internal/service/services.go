@@ -7,11 +7,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/googleoauth"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	serviceagentcatalog "github.com/futrx-com/remote.futrx.com/internal/service/agentcatalog"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
@@ -59,6 +59,7 @@ type Dependencies struct {
 	AuthBaseURL       string
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
+	AgentModules      *agentmodule.Catalog
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
 	ScheduleLimits    ScheduleLimits
@@ -101,6 +102,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if deps.Schedules == nil {
 		return Services{}, errors.New("scheduled task repository is required")
 	}
+	if deps.AgentModules == nil {
+		return Services{}, errors.New("agent module catalog is required")
+	}
 
 	workspace := workspacehub.New()
 	var runs *runhub.Hub
@@ -118,9 +122,14 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		push: pushNotifier,
 	}
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
-	definitions := agentDefinitions()
-	profiles := profilesFromDefinitions(definitions)
 	projectService := serviceproject.New(projects, deps.ProjectContainers, deps.ProjectSecrets, deps.ProjectAccess)
+	agentRuntime, err := deps.AgentModules.Build(agentmodule.Dependencies{
+		Projects:   projectService,
+		Containers: deps.AgentContainers,
+	})
+	if err != nil {
+		return Services{}, fmt.Errorf("build agent modules: %w", err)
+	}
 	projectService.StartAgentBrowserReaper(ctx, 20*time.Minute)
 	runs = runhub.New(chats)
 	runs.SetRunningSubscriber(func(id servicechat.ID, _ bool) {
@@ -140,30 +149,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		servicechat.WithCopiedEventAppender(chats),
 	)
 	chatAccessService := servicechat.NewAccessService(chatService, projectService)
-	agents := agent.NewRegistry()
-	agentAuth := agentauth.NewRegistry()
-	for index, definition := range definitions {
-		provider := definition.provider(projectService, deps.AgentContainers)
-		if string(provider.ID()) != profiles[index].ID {
-			return Services{}, fmt.Errorf(
-				"agent registration mismatch: provider %q has profile %q",
-				provider.ID(), profiles[index].ID,
-			)
-		}
-		if err := agents.Register(provider); err != nil {
-			return Services{}, err
-		}
-		authBinding := definition.authBinding()
-		if authBinding.ID() != provider.ID() {
-			return Services{}, fmt.Errorf(
-				"agent auth registration mismatch: binding %q has provider %q",
-				authBinding.ID(), provider.ID(),
-			)
-		}
-		if err := agentAuth.Register(authBinding); err != nil {
-			return Services{}, err
-		}
-	}
+	agents := agentRuntime.Providers
+	agentAuth := agentRuntime.Auth
 	pushService := newPush(deps.Push, deps.AuthBaseURL)
 	userService := serviceuser.New(
 		deps.Users,

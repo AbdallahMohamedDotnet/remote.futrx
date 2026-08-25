@@ -3,14 +3,12 @@ package service
 import (
 	"context"
 	"errors"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	"github.com/futrx-com/remote.futrx.com/internal/service/prompt"
 	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
@@ -85,77 +83,6 @@ func TestNewRejectsPartialAgentContainerDependencies(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "incomplete container dependencies") {
 		t.Fatalf("New error = %q, want incomplete dependency error", err)
-	}
-}
-
-func TestAgentProfilesComeFromRegistrationCatalog(t *testing.T) {
-	// antigravity's CLI owns its auth (OS keyring / per-home token fallback
-	// with no stable token path), so it is the one profile allowed to ship
-	// without a credential sync policy — sign-in happens in the chat terminal.
-	credentialExempt := map[string]bool{"antigravity": true}
-
-	profiles := AgentProfiles()
-	ids := make([]string, 0, len(profiles))
-	for _, profile := range profiles {
-		ids = append(ids, profile.ID)
-		if profile.CLI.Binary == "" {
-			t.Fatalf("profile %q has incomplete CLI policy: %#v", profile.ID, profile.CLI)
-		}
-		if profile.CLI.InstallMode == provisioning.InstallWithScript {
-			if profile.CLI.InstallScript == "" {
-				t.Fatalf("profile %q uses script install without a script", profile.ID)
-			}
-		} else if profile.CLI.PackageName == "" {
-			t.Fatalf("profile %q has incomplete CLI policy: %#v", profile.ID, profile.CLI)
-		}
-		if profile.Credentials.Empty() && !credentialExempt[profile.ID] {
-			t.Fatalf("profile %q has no credential policy", profile.ID)
-		}
-	}
-	if want := []string{"claude", "codex", "kimi", "antigravity"}; !slices.Equal(ids, want) {
-		t.Fatalf("profile IDs = %v, want %v", ids, want)
-	}
-}
-
-func TestAgentAuthBindingsComeFromRegistrationCatalog(t *testing.T) {
-	definitions := agentDefinitions()
-	registry := agentauth.NewRegistry()
-	ids := make([]string, 0, len(definitions))
-	// antigravity deliberately registers a service-less binding: agy's bare
-	// TUI sign-in cannot run under the shared code/device auth services, so
-	// in-app auth reports unavailable and sign-in happens in the terminal.
-	availabilityExempt := map[agent.ProviderID]bool{agent.ProviderAntigravity: true}
-
-	for _, definition := range definitions {
-		binding := definition.authBinding()
-		profile := definition.profile()
-		if string(binding.ID()) != profile.ID {
-			t.Fatalf("auth binding %q has profile %q", binding.ID(), profile.ID)
-		}
-		if !binding.Available() && !availabilityExempt[binding.ID()] {
-			t.Fatalf("auth binding %q is unavailable", binding.ID())
-		}
-		if err := registry.Register(binding); err != nil {
-			t.Fatalf("register auth binding %q: %v", binding.ID(), err)
-		}
-		ids = append(ids, string(binding.ID()))
-	}
-	if want := []string{"claude", "codex", "kimi", "antigravity"}; !slices.Equal(ids, want) {
-		t.Fatalf("auth binding IDs = %v, want %v", ids, want)
-	}
-}
-
-func TestAgentProfilesReturnsDefensiveCopies(t *testing.T) {
-	first := AgentProfiles()
-	first[0].Credentials.Files[0].HostPath = "/changed"
-	first[0].BrowserMCPTemplates[0].Content[0] = 'x'
-
-	second := AgentProfiles()
-	if second[0].Credentials.Files[0].HostPath == "/changed" {
-		t.Fatal("credential policy mutation escaped the catalog")
-	}
-	if second[0].BrowserMCPTemplates[0].Content[0] == 'x' {
-		t.Fatal("template mutation escaped the catalog")
 	}
 }
 

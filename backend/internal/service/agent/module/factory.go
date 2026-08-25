@@ -1,0 +1,276 @@
+// Package module defines the application-level contract implemented by every
+// agent integration. A module combines static behavior metadata with the
+// factory that creates its runtime provider and optional managed-auth binding.
+package module
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
+)
+
+var (
+	ErrInvalidFactory = errors.New("invalid agent module factory")
+	providerIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+)
+
+type ExecutionScope string
+
+const (
+	ScopeHost    ExecutionScope = "host"
+	ScopeProject ExecutionScope = "project"
+)
+
+type AuthMode string
+
+const (
+	AuthManagedCode   AuthMode = "managed-code"
+	AuthManagedDevice AuthMode = "managed-device"
+	AuthExternal      AuthMode = "external"
+	AuthNone          AuthMode = "none"
+)
+
+type SkillStrategy string
+
+const (
+	SkillsNone          SkillStrategy = "none"
+	SkillsSlashCommand  SkillStrategy = "slash-command"
+	SkillsDollarMention SkillStrategy = "dollar-mention"
+	SkillsInstructions  SkillStrategy = "instructions"
+)
+
+// SessionSupport describes which provider-native conversation operations the
+// orchestration layer may use. Fork implies resume support.
+type SessionSupport struct {
+	Resume bool
+	Fork   bool
+}
+
+// Features describes optional behavior the platform may expose for an agent.
+// The provider still owns the concrete CLI flags and protocol translation.
+type Features struct {
+	Sessions       SessionSupport
+	Skills         SkillStrategy
+	BrowserTools   bool
+	ScheduledTools bool
+}
+
+// Descriptor is the stable, provider-neutral declaration for one agent. A
+// project-capable module must include a complete provisioning profile.
+type Descriptor struct {
+	ID               agent.ProviderID
+	Label            string
+	ExecutionScopes  []ExecutionScope
+	Auth             AuthMode
+	AuthInstructions string
+	Features         Features
+	Profile          *provisioning.Profile
+}
+
+// ProjectResolver is the exact project surface an agent adapter may use.
+type ProjectResolver interface {
+	Get(context.Context, serviceproject.ID) (serviceproject.Meta, error)
+	Start(context.Context, serviceproject.ID) (serviceproject.Meta, error)
+	ListSecrets(context.Context, serviceproject.ID) ([]serviceproject.Secret, error)
+}
+
+type Dependencies struct {
+	Projects   ProjectResolver
+	Containers provisioning.ContainerDependencies
+}
+
+// Components are the runtime objects produced by a module. Auth is nil only
+// when the descriptor explicitly declares AuthNone.
+type Components struct {
+	Provider agent.Provider
+	Auth     *agentauth.Binding
+}
+
+type BuildFunc func(Dependencies) (Components, error)
+
+// Factory is immutable after construction. Its descriptor is always returned
+// as a defensive copy so provisioning slices and embedded template bytes
+// cannot be mutated by callers.
+type Factory struct {
+	descriptor Descriptor
+	build      BuildFunc
+}
+
+func NewFactory(descriptor Descriptor, build BuildFunc) (Factory, error) {
+	descriptor = cloneDescriptor(descriptor)
+	if err := validateDescriptor(descriptor); err != nil {
+		return Factory{}, err
+	}
+	if build == nil {
+		return Factory{}, fmt.Errorf("%w: provider %q has no builder", ErrInvalidFactory, descriptor.ID)
+	}
+	return Factory{descriptor: descriptor, build: build}, nil
+}
+
+func (f Factory) Descriptor() Descriptor {
+	return cloneDescriptor(f.descriptor)
+}
+
+func (f Factory) buildComponents(deps Dependencies) (Components, error) {
+	if f.build == nil {
+		return Components{}, fmt.Errorf("%w: provider %q has no builder", ErrInvalidFactory, f.descriptor.ID)
+	}
+	components, err := f.build(deps)
+	if err != nil {
+		return Components{}, fmt.Errorf("build agent %q: %w", f.descriptor.ID, err)
+	}
+	if components.Provider == nil {
+		return Components{}, fmt.Errorf("%w: provider %q builder returned nil", ErrInvalidFactory, f.descriptor.ID)
+	}
+	if components.Provider.ID() != f.descriptor.ID {
+		return Components{}, fmt.Errorf(
+			"%w: descriptor %q built provider %q",
+			ErrInvalidFactory,
+			f.descriptor.ID,
+			components.Provider.ID(),
+		)
+	}
+	if err := validateAuth(f.descriptor, components.Auth); err != nil {
+		return Components{}, err
+	}
+	return components, nil
+}
+
+func validateDescriptor(descriptor Descriptor) error {
+	id := string(descriptor.ID)
+	if !providerIDPattern.MatchString(id) {
+		return fmt.Errorf("%w: provider ID %q must match %s", ErrInvalidFactory, id, providerIDPattern)
+	}
+	if strings.TrimSpace(descriptor.Label) == "" {
+		return fmt.Errorf("%w: provider %q has no label", ErrInvalidFactory, descriptor.ID)
+	}
+	if err := validateScopes(descriptor); err != nil {
+		return err
+	}
+	if err := validateAuthMode(descriptor); err != nil {
+		return err
+	}
+	if descriptor.Features.Sessions.Fork && !descriptor.Features.Sessions.Resume {
+		return fmt.Errorf("%w: provider %q declares fork without resume", ErrInvalidFactory, descriptor.ID)
+	}
+	switch descriptor.Features.Skills {
+	case SkillsNone, SkillsSlashCommand, SkillsDollarMention, SkillsInstructions:
+	default:
+		return fmt.Errorf("%w: provider %q has unknown skill strategy %q", ErrInvalidFactory, descriptor.ID, descriptor.Features.Skills)
+	}
+	return nil
+}
+
+func validateScopes(descriptor Descriptor) error {
+	if len(descriptor.ExecutionScopes) == 0 {
+		return fmt.Errorf("%w: provider %q has no execution scope", ErrInvalidFactory, descriptor.ID)
+	}
+	seen := make(map[ExecutionScope]bool, len(descriptor.ExecutionScopes))
+	projectScoped := false
+	for _, scope := range descriptor.ExecutionScopes {
+		if scope != ScopeHost && scope != ScopeProject {
+			return fmt.Errorf("%w: provider %q has unknown execution scope %q", ErrInvalidFactory, descriptor.ID, scope)
+		}
+		if seen[scope] {
+			return fmt.Errorf("%w: provider %q repeats execution scope %q", ErrInvalidFactory, descriptor.ID, scope)
+		}
+		seen[scope] = true
+		projectScoped = projectScoped || scope == ScopeProject
+	}
+	if projectScoped {
+		return validateProfile(descriptor.ID, descriptor.Profile)
+	}
+	if descriptor.Profile != nil {
+		return fmt.Errorf("%w: host-only provider %q has a project profile", ErrInvalidFactory, descriptor.ID)
+	}
+	return nil
+}
+
+func validateProfile(id agent.ProviderID, profile *provisioning.Profile) error {
+	if profile == nil {
+		return fmt.Errorf("%w: project provider %q has no profile", ErrInvalidFactory, id)
+	}
+	if profile.ID != string(id) {
+		return fmt.Errorf("%w: provider %q has profile %q", ErrInvalidFactory, id, profile.ID)
+	}
+	cli := profile.CLI
+	if strings.TrimSpace(cli.Name) == "" || strings.TrimSpace(cli.ImageLabel) == "" ||
+		strings.TrimSpace(cli.Binary) == "" || strings.TrimSpace(cli.Version) == "" {
+		return fmt.Errorf("%w: provider %q has incomplete CLI policy", ErrInvalidFactory, id)
+	}
+	switch cli.InstallMode {
+	case provisioning.InstallWithNPM, provisioning.InstallWithImageRepair:
+		if strings.TrimSpace(cli.PackageName) == "" {
+			return fmt.Errorf("%w: provider %q has no CLI package", ErrInvalidFactory, id)
+		}
+	case provisioning.InstallWithScript:
+		if strings.TrimSpace(cli.InstallScript) == "" {
+			return fmt.Errorf("%w: provider %q has no install script", ErrInvalidFactory, id)
+		}
+	default:
+		return fmt.Errorf("%w: provider %q has unknown install mode %q", ErrInvalidFactory, id, cli.InstallMode)
+	}
+	return nil
+}
+
+func validateAuthMode(descriptor Descriptor) error {
+	switch descriptor.Auth {
+	case AuthManagedCode, AuthManagedDevice, AuthNone:
+		if strings.TrimSpace(descriptor.AuthInstructions) != "" {
+			return fmt.Errorf("%w: provider %q has instructions for auth mode %q", ErrInvalidFactory, descriptor.ID, descriptor.Auth)
+		}
+	case AuthExternal:
+		if strings.TrimSpace(descriptor.AuthInstructions) == "" {
+			return fmt.Errorf("%w: provider %q external auth has no instructions", ErrInvalidFactory, descriptor.ID)
+		}
+	default:
+		return fmt.Errorf("%w: provider %q has unknown auth mode %q", ErrInvalidFactory, descriptor.ID, descriptor.Auth)
+	}
+	return nil
+}
+
+func validateAuth(descriptor Descriptor, binding *agentauth.Binding) error {
+	if descriptor.Auth == AuthNone {
+		if binding != nil {
+			return fmt.Errorf("%w: provider %q declares no auth but built a binding", ErrInvalidFactory, descriptor.ID)
+		}
+		return nil
+	}
+	if binding == nil {
+		return fmt.Errorf("%w: provider %q did not build an auth binding", ErrInvalidFactory, descriptor.ID)
+	}
+	if binding.ID() != descriptor.ID {
+		return fmt.Errorf("%w: provider %q built auth binding %q", ErrInvalidFactory, descriptor.ID, binding.ID())
+	}
+	wantFlow := map[AuthMode]agentauth.Flow{
+		AuthManagedCode:   agentauth.FlowCode,
+		AuthManagedDevice: agentauth.FlowDevice,
+		AuthExternal:      agentauth.FlowExternal,
+	}[descriptor.Auth]
+	if binding.Flow() != wantFlow {
+		return fmt.Errorf("%w: provider %q auth flow is %q, want %q", ErrInvalidFactory, descriptor.ID, binding.Flow(), wantFlow)
+	}
+	if descriptor.Auth == AuthExternal && binding.Available() {
+		return fmt.Errorf("%w: provider %q external auth exposes a managed service", ErrInvalidFactory, descriptor.ID)
+	}
+	if descriptor.Auth != AuthExternal && !binding.Available() {
+		return fmt.Errorf("%w: provider %q managed auth is unavailable", ErrInvalidFactory, descriptor.ID)
+	}
+	return nil
+}
+
+func cloneDescriptor(descriptor Descriptor) Descriptor {
+	descriptor.ExecutionScopes = append([]ExecutionScope(nil), descriptor.ExecutionScopes...)
+	if descriptor.Profile != nil {
+		profile := descriptor.Profile.Clone()
+		descriptor.Profile = &profile
+	}
+	return descriptor
+}

@@ -25,6 +25,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/tmuxcli"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/updatecli"
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
+	agentbuiltin "github.com/futrx-com/remote.futrx.com/internal/service/agent/builtin"
 	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
 	serviceselfupdate "github.com/futrx-com/remote.futrx.com/internal/service/selfupdate"
 	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
@@ -49,9 +50,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("configure public hostname: %v", err)
 	}
+	agentModules, err := agentbuiltin.Catalog()
+	if err != nil {
+		log.Fatalf("configure agent modules: %v", err)
+	}
 	containerStack := config.NewContainerStack(
 		lxcClient,
-		service.AgentProfiles(),
+		agentModules.Profiles(),
 		config.ContainerStackOptions{
 			AgentInstructions: provisioning.InstructionsTemplate(publicHostname),
 		},
@@ -70,6 +75,7 @@ func main() {
 		AuthBaseURL:       cfg.BaseURL,
 		ProjectContainers: containerStack.ProjectDependencies(),
 		AgentContainers:   containerStack.AgentDependencies(),
+		AgentModules:      agentModules,
 		TmuxClient:        tmuxClient,
 		ValidTmuxName:     tmuxcli.ValidName,
 		ScheduleLimits: service.ScheduleLimits{
