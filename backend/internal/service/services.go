@@ -154,6 +154,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxResolver,
 		runs,
 		servicechat.WithCopiedEventAppender(chats),
+		servicechat.WithSessionPolicy(deps.AgentModules),
 	)
 	chatAccessService := servicechat.NewAccessService(chatService, projectService)
 	agents := agentRuntime.Providers

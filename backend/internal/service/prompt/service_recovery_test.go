@@ -108,9 +108,14 @@ func TestRunPromptRecoversMissingCodexSessionFromVisibleTranscript(t *testing.T)
 }
 
 func TestClearSessionIDForProvider(t *testing.T) {
-	meta := &ChatMeta{ClaudeSessionID: "c", CodexSessionID: "o", KimiSessionID: "k"}
+	meta := &ChatMeta{
+		Sessions:        servicechat.SessionIDs{"future-agent": "future", servicechat.ProviderCodex: "o"},
+		ClaudeSessionID: "c",
+		CodexSessionID:  "o",
+		KimiSessionID:   "k",
+	}
 	clearSessionIDForProvider(meta, agent.ProviderCodex)
-	if meta.CodexSessionID != "" || meta.ClaudeSessionID != "c" || meta.KimiSessionID != "k" {
+	if meta.CodexSessionID != "" || meta.ClaudeSessionID != "c" || meta.KimiSessionID != "k" || meta.Sessions["future-agent"] != "future" {
 		t.Fatalf("wrong provider session cleared: %#v", meta)
 	}
 }

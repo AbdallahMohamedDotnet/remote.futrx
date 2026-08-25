@@ -30,6 +30,12 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 	if !slices.Equal(ids, want) {
 		t.Fatalf("agent order = %v, want %v", ids, want)
 	}
+	if !catalog.SupportsNativeFork(string(agent.ProviderClaude)) ||
+		!catalog.SupportsNativeFork(string(agent.ProviderCodex)) ||
+		catalog.SupportsNativeFork(string(agent.ProviderKimi)) ||
+		catalog.SupportsNativeFork(string(agent.ProviderAntigravity)) {
+		t.Fatal("catalog native-fork policies do not match provider behavior")
+	}
 
 	runtime, err := catalog.Build(agentmodule.Dependencies{})
 	if err != nil {

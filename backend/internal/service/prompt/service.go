@@ -327,16 +327,7 @@ func (rnr *Service) runPromptAs(
 }
 
 func clearSessionIDForProvider(meta *ChatMeta, provider agent.ProviderID) {
-	switch provider {
-	case agent.ProviderCodex:
-		meta.CodexSessionID = ""
-	case agent.ProviderKimi:
-		meta.KimiSessionID = ""
-	case agent.ProviderAntigravity:
-		meta.AntigravitySessionID = ""
-	default:
-		meta.ClaudeSessionID = ""
-	}
+	meta.SetSessionID(servicechat.Provider(provider), "")
 }
 
 func (rnr *Service) keepAgentBrowserActivity(ctx context.Context, projectID serviceproject.ID) func() {
@@ -375,16 +366,7 @@ func providerIDFromChatProvider(provider servicechat.Provider) agent.ProviderID 
 }
 
 func sessionIDForProvider(meta ChatMeta, provider agent.ProviderID) string {
-	switch provider {
-	case agent.ProviderCodex:
-		return meta.CodexSessionID
-	case agent.ProviderKimi:
-		return meta.KimiSessionID
-	case agent.ProviderAntigravity:
-		return meta.AntigravitySessionID
-	default:
-		return meta.ClaudeSessionID
-	}
+	return meta.SessionID(servicechat.Provider(provider))
 }
 
 func promptWithVisibleHistory(events []ChatEvent, prompt string) string {

@@ -15,17 +15,12 @@ func (rnr *Service) emitAgentEvent(
 	emit func(ChatEvent),
 ) {
 	if ev.Type == agent.EventSessionUpdated && ev.SessionID != "" {
+		provider := ev.Provider
+		if provider == "" {
+			provider = agent.ProviderClaude
+		}
 		_, _ = rnr.store.Update(ctx, id, func(m *ChatMeta) {
-			switch ev.Provider {
-			case agent.ProviderCodex:
-				m.CodexSessionID = ev.SessionID
-			case agent.ProviderKimi:
-				m.KimiSessionID = ev.SessionID
-			case agent.ProviderAntigravity:
-				m.AntigravitySessionID = ev.SessionID
-			default:
-				m.ClaudeSessionID = ev.SessionID
-			}
+			m.SetSessionID(servicechat.Provider(provider), ev.SessionID)
 			m.ForkPending = false
 			if m.Model == "" && ev.Model != "" {
 				m.Model = ev.Model
@@ -49,17 +44,11 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 	switch ev.Type {
 	case agent.EventSessionUpdated:
 		out.Type = "session"
-		out.Provider = chatProviderFromAgentProvider(ev.Provider)
-		switch ev.Provider {
-		case agent.ProviderCodex:
-			out.CodexSessionID = ev.SessionID
-		case agent.ProviderKimi:
-			out.KimiSessionID = ev.SessionID
-		case agent.ProviderAntigravity:
-			out.AntigravitySessionID = ev.SessionID
-		default:
-			out.ClaudeSessionID = ev.SessionID
+		provider := ev.Provider
+		if provider == "" {
+			provider = agent.ProviderClaude
 		}
+		out.SetSession(servicechat.Provider(provider), ev.SessionID)
 	case agent.EventSystem:
 		out.Type = "system"
 		out.Subtype = ev.Subtype
@@ -90,17 +79,4 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		return ChatEvent{}, false
 	}
 	return out, true
-}
-
-func chatProviderFromAgentProvider(provider agent.ProviderID) servicechat.Provider {
-	switch provider {
-	case agent.ProviderCodex:
-		return servicechat.ProviderCodex
-	case agent.ProviderKimi:
-		return servicechat.ProviderKimi
-	case agent.ProviderAntigravity:
-		return servicechat.ProviderAntigravity
-	default:
-		return servicechat.ProviderClaude
-	}
 }

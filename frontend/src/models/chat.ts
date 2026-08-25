@@ -7,6 +7,7 @@ export interface ChatMeta {
   id: string;
   title: string;
   provider?: ChatProvider;
+  sessions?: Record<string, string>;
   claudeSessionId?: string;
   codexSessionId?: string;
   kimiSessionId?: string;
@@ -42,7 +43,7 @@ export type ChatEvent = ChatEventBase & (
   | { type: "tool_use_end"; id: string; output?: string; isError?: boolean }
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
   | { type: "system"; subtype: string; data?: Record<string, unknown> }
-  | { type: "session"; provider?: ChatProvider; claudeSessionId?: string; codexSessionId?: string; kimiSessionId?: string; antigravitySessionId?: string }
+  | { type: "session"; provider?: ChatProvider; sessionId?: string; claudeSessionId?: string; codexSessionId?: string; kimiSessionId?: string; antigravitySessionId?: string }
   | {
       type: "complete";
       usage?: {

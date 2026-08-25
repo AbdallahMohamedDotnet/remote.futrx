@@ -54,6 +54,24 @@ func (c *Catalog) Descriptors() []Descriptor {
 	return descriptors
 }
 
+func (c *Catalog) Descriptor(provider string) (Descriptor, bool) {
+	if c == nil {
+		return Descriptor{}, false
+	}
+	index, ok := c.byID[agent.ProviderID(provider)]
+	if !ok {
+		return Descriptor{}, false
+	}
+	return c.factories[index].Descriptor(), true
+}
+
+// SupportsNativeFork lets orchestration decide whether a copied chat may send
+// the provider's session ID back with a native fork request.
+func (c *Catalog) SupportsNativeFork(provider string) bool {
+	descriptor, ok := c.Descriptor(provider)
+	return ok && descriptor.Features.Sessions.Fork
+}
+
 func (c *Catalog) Profiles() []provisioning.Profile {
 	if c == nil {
 		return nil

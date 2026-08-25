@@ -17,7 +17,7 @@ func TestChatEventFromAgentEventMapsSession(t *testing.T) {
 	if !ok {
 		t.Fatal("expected event to map")
 	}
-	if ev.Type != "session" || ev.ClaudeSessionID != "claude-session" || ev.T != 123 {
+	if ev.Type != "session" || ev.SessionID != "claude-session" || ev.ClaudeSessionID != "claude-session" || ev.T != 123 {
 		t.Fatalf("unexpected chat event: %#v", ev)
 	}
 }
@@ -32,7 +32,7 @@ func TestChatEventFromAgentEventMapsCodexSession(t *testing.T) {
 	if !ok {
 		t.Fatal("expected event to map")
 	}
-	if ev.Type != "session" || ev.CodexSessionID != "codex-thread" || ev.Provider != servicechat.ProviderCodex {
+	if ev.Type != "session" || ev.SessionID != "codex-thread" || ev.CodexSessionID != "codex-thread" || ev.Provider != servicechat.ProviderCodex {
 		t.Fatalf("unexpected chat event: %#v", ev)
 	}
 }

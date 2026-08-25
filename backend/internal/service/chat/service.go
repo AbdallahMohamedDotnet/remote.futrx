@@ -13,6 +13,13 @@ type Service struct {
 	projects     ProjectResolver
 	tmux         TmuxResolver
 	runs         RunController
+	sessions     SessionPolicy
+}
+
+// SessionPolicy supplies provider-native behavior from the agent module
+// catalog without coupling chat orchestration to concrete adapters.
+type SessionPolicy interface {
+	SupportsNativeFork(provider string) bool
 }
 
 // Option configures an optional chat-service collaborator.
@@ -23,6 +30,12 @@ type Option func(*Service)
 func WithCopiedEventAppender(appender CopiedEventAppender) Option {
 	return func(service *Service) {
 		service.copiedEvents = appender
+	}
+}
+
+func WithSessionPolicy(policy SessionPolicy) Option {
+	return func(service *Service) {
+		service.sessions = policy
 	}
 }
 
@@ -140,14 +153,16 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 	// Only pend a fork if there is a session to fork from; otherwise the copy
 	// just starts fresh on first prompt. TmuxSession is intentionally not
 	// copied — a fork must not hijack the parent's terminal.
-	forkPending := src.ClaudeSessionID != "" || src.CodexSessionID != "" || src.KimiSessionID != ""
-
-	forked, err := s.repo.Create(ctx, Meta{
+	sessions := src.SessionSnapshot()
+	nativeFork := s.sessions != nil && s.sessions.SupportsNativeFork(string(src.Provider))
+	forkPending := nativeFork && src.SessionID(src.Provider) != ""
+	if !nativeFork {
+		delete(sessions, src.Provider)
+	}
+	forkMeta := Meta{
 		Title:           title + " (fork)",
 		Provider:        src.Provider,
-		ClaudeSessionID: src.ClaudeSessionID,
-		CodexSessionID:  src.CodexSessionID,
-		KimiSessionID:   src.KimiSessionID,
+		Sessions:        sessions,
 		Cwd:             src.Cwd,
 		Model:           src.Model,
 		Mode:            src.Mode,
@@ -156,7 +171,9 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 		ProjectID:       src.ProjectID,
 		SelectedSkills:  src.SelectedSkills,
 		ForkPending:     forkPending,
-	})
+	}
+	forkMeta.NormalizeSessions()
+	forked, err := s.repo.Create(ctx, forkMeta)
 	if err != nil {
 		return Meta{}, err
 	}
