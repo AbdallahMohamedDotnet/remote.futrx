@@ -144,8 +144,9 @@ provides plain streamed text rather than structured tool/usage events.
 
 Agent composition uses a validated provider-owned factory contract
 ([`agent/module`](backend/internal/agent/module)). Each adapter package exposes
-one `Factory()` from its local `factory.go`; that factory declares the
-provider's stable ID and label, explicit default, allowed
+one `Factory()` from its local `factory.go` and is compile-time checked against
+`module.FactoryBuilder`; that factory declares the provider's stable ID and
+label, explicit default, allowed
 host/project execution scopes, authentication flow and onboarding-gate policy,
 session/skill/browser/scheduling features, legacy skill roots, and optional
 provisioning profile, then builds its runtime adapter and optional
@@ -161,6 +162,11 @@ to the adapter. The built-in composition root
 ([`agent/builtin`](backend/internal/agent/builtin)) only lists provider factory
 functions in deterministic order. There is no plugin discovery or package
 `init` registration.
+
+Provider factories receive only the narrow agent-layer project execution port
+([`agent/project.go`](backend/internal/agent/project.go)). The service
+composition root adapts project domain models into that view, so provider and
+module packages do not import the project service.
 
 When application authentication is enabled, service startup additionally
 requires at least one managed or no-auth module that declares

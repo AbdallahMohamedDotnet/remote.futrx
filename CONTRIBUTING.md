@@ -41,12 +41,13 @@ must satisfy the validated contract before the server starts:
    instructions, skills, or Browser MCP templates. A host-only remote API
    integration may omit the profile.
 3. Add `backend/internal/agent/<id>/factory.go` and expose
-   `Factory() (module.Factory, error)`. The provider-owned factory attaches its
-   `Profile()`, declares label/default, host/project scopes, one supported auth
-   mode and its binding (`none` deliberately has no binding), onboarding-gate
-   eligibility, resume/fork support, skill strategy, and browser/scheduled-tool
-   features. Construct fresh runtime and auth components inside the factory's
-   build callback; do not share mutable auth state across catalog builds.
+   `Factory() (module.Factory, error)`, with a compile-time assignment to
+   `module.FactoryBuilder`. The provider-owned factory attaches its `Profile()`,
+   declares label/default, host/project scopes, one supported auth mode and its
+   binding (`none` deliberately has no binding), onboarding-gate eligibility,
+   resume/fork support, skill strategy, and browser/scheduled-tool features.
+   Construct fresh runtime and auth components inside the factory's build
+   callback; do not share mutable auth state across catalog builds.
 4. Add that `Factory` function to the ordered list in
    `backend/internal/agent/builtin/catalog.go`. The composition root owns only
    explicit registration order; provider construction details do not belong

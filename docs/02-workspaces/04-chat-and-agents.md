@@ -90,6 +90,10 @@ persistent mounts. Registration order is explicit
 and is preserved in provisioning, runtime, authentication, and capability
 views. The built-in catalog only lists provider factory functions; adding an
 integration does not depend on package `init` hooks.
+Every registered function satisfies `module.FactoryBuilder` at compile time.
+Factories receive an agent-owned project execution port; the service
+composition root translates project domain models into that narrow view, so
+provider packages do not depend on project-service types.
 Authenticated service startup also requires at least one managed or no-auth
 module marked as an access-gate provider, so onboarding cannot deadlock behind
 a catalog that has no observable way to become ready.
