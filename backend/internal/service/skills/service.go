@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
 const skillFileName = "SKILL.md"
@@ -25,6 +26,8 @@ type Service struct {
 
 type ProviderCatalog interface {
 	HasProvider(provider string) bool
+	Descriptor(provider string) (agentmodule.Descriptor, bool)
+	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
 	LegacySkillRoots(provider string) []string
 }
 
@@ -67,6 +70,20 @@ func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace 
 	if !agent.ValidProviderID(provider) || (s.providers != nil && !s.providers.HasProvider(string(provider))) {
 		return nil, ErrInvalidProvider
 	}
+	descriptor := agentmodule.Descriptor{}
+	if s.providers != nil {
+		descriptor, _ = s.providers.Descriptor(string(provider))
+		scope := agentmodule.ScopeHost
+		if projectWorkspace != "" {
+			scope = agentmodule.ScopeProject
+		}
+		if !s.providers.SupportsScope(string(provider), scope) {
+			return nil, ErrInvalidProvider
+		}
+		if descriptor.Features.Skills == agentmodule.SkillsNone {
+			return []Skill{}, nil
+		}
+	}
 
 	var skills []Skill
 	for _, root := range s.roots(provider) {
@@ -77,12 +94,13 @@ func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace 
 	// .agents/skills is the project source of truth. The provider-specific
 	// paths are legacy compatibility fallbacks and are deduped below.
 	if projectWorkspace != "" {
-		for _, root := range projectRoots(projectWorkspace) {
+		for _, root := range s.projectRoots(projectWorkspace, descriptor) {
 			if err := collectSkills(ctx, provider, root, &skills); err != nil {
 				return nil, err
 			}
 		}
-		if !hasSkillCommand(skills, "scheduled-tasks") {
+		scheduledTools := s.providers == nil || descriptor.Features.ScheduledTools
+		if scheduledTools && !hasSkillCommand(skills, "scheduled-tasks") {
 			skills = append(skills, Skill{
 				Name:        "Scheduled Tasks",
 				Command:     "scheduled-tasks",
@@ -142,12 +160,25 @@ func (s *Service) roots(provider Provider) []rootSpec {
 	return roots
 }
 
-func projectRoots(projectWorkspace string) []rootSpec {
-	return []rootSpec{
-		{path: filepath.Join(projectWorkspace, ".agents", "skills"), source: "project"},
-		{path: filepath.Join(projectWorkspace, ".claude", "skills"), source: "project"},
-		{path: filepath.Join(projectWorkspace, ".codex", "skills"), source: "project"},
+func (s *Service) projectRoots(projectWorkspace string, descriptor agentmodule.Descriptor) []rootSpec {
+	roots := []rootSpec{{path: filepath.Join(projectWorkspace, ".agents", "skills"), source: "project"}}
+	if s.providers == nil {
+		return append(roots,
+			rootSpec{path: filepath.Join(projectWorkspace, ".claude", "skills"), source: "project"},
+			rootSpec{path: filepath.Join(projectWorkspace, ".codex", "skills"), source: "project"},
+		)
 	}
+	if descriptor.Profile == nil || descriptor.Profile.WorkspaceSkills == nil {
+		return roots
+	}
+	workspaceHome := filepath.Clean(descriptor.Profile.WorkspaceSkills.WorkspaceHome)
+	relative, err := filepath.Rel("/workspace", workspaceHome)
+	if err != nil || relative == "." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || relative == ".." {
+		return roots
+	}
+	return append(roots, rootSpec{
+		path: filepath.Join(projectWorkspace, relative, "skills"), source: "project",
+	})
 }
 
 func dedupeSkills(skills []Skill) []Skill {

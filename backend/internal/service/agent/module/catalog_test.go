@@ -251,6 +251,32 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	}
 }
 
+func TestCatalogEnforcesDeclaredExecutionScopes(t *testing.T) {
+	host := testDescriptor("host-agent")
+	host.ExecutionScopes = []ExecutionScope{ScopeHost}
+	host.Profile = nil
+	project := testDescriptor("project-agent")
+	project.ExecutionScopes = []ExecutionScope{ScopeProject}
+	hostFactory, err := NewFactory(host, testBuild(host.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectFactory, err := NewFactory(project, testBuild(project.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := NewCatalog(hostFactory, projectFactory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !catalog.SupportsScope("host-agent", ScopeHost) || catalog.SupportsScope("host-agent", ScopeProject) {
+		t.Fatal("host-agent scope policy is incorrect")
+	}
+	if !catalog.SupportsScope("project-agent", ScopeProject) || catalog.SupportsScope("project-agent", ScopeHost) {
+		t.Fatal("project-agent scope policy is incorrect")
+	}
+}
+
 func newTestFactory(t *testing.T, id agent.ProviderID) Factory {
 	t.Helper()
 	factory, err := NewFactory(testDescriptor(id), testBuild(id))

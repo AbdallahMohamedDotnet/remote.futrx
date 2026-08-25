@@ -16,6 +16,22 @@ func (p testAgentPolicy) Descriptor(provider string) (agentmodule.Descriptor, bo
 	return descriptor, ok
 }
 
+func (p testAgentPolicy) SupportsScope(provider string, scope agentmodule.ExecutionScope) bool {
+	descriptor, ok := p[provider]
+	if !ok {
+		return false
+	}
+	if len(descriptor.ExecutionScopes) == 0 {
+		return true
+	}
+	for _, configured := range descriptor.ExecutionScopes {
+		if configured == scope {
+			return true
+		}
+	}
+	return false
+}
+
 func codexTestAgentPolicy() testAgentPolicy {
 	return testAgentPolicy{"codex": {
 		ID:    agent.ProviderCodex,

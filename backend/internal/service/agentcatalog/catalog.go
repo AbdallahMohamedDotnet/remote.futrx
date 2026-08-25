@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
@@ -45,6 +46,10 @@ type CapabilityRegistry interface {
 	CapabilityProviders() []agent.CapabilityProvider
 }
 
+type ScopePolicy interface {
+	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
+}
+
 type ListQuery struct {
 	ProjectID     serviceproject.ID
 	SessionCookie string
@@ -56,8 +61,15 @@ type Catalog struct {
 	projects          ProjectCatalog
 	auth              Authorizer
 	capabilityTimeout time.Duration
+	scopes            ScopePolicy
 	cache             *catalogCache
 	flights           *catalogFlights
+}
+
+func WithScopePolicy(policy ScopePolicy) Option {
+	return func(catalog *Catalog) {
+		catalog.scopes = policy
+	}
 }
 
 type Option func(*Catalog)
@@ -92,6 +104,7 @@ func New(agents CapabilityRegistry, projects ProjectCatalog, auth Authorizer, op
 func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabilities, error) {
 	containerName := ""
 	flightKey := "host"
+	scope := agentmodule.ScopeHost
 	if query.ProjectID != "" {
 		if c.projects == nil {
 			return nil, ErrProjectLookupUnavailable
@@ -108,6 +121,7 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 		}
 		containerName = project.ContainerName
 		flightKey = "project:" + string(project.ID) + ":" + containerName
+		scope = agentmodule.ScopeProject
 	}
 
 	if !query.Refresh {
@@ -124,7 +138,7 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 				return cached, nil
 			}
 		}
-		providers := c.agents.CapabilityProviders()
+		providers := c.capabilityProviders(scope)
 		result := make([]agent.Capabilities, len(providers))
 		var wait sync.WaitGroup
 		for index, provider := range providers {
@@ -163,6 +177,20 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 		c.cache.store(flightKey, result)
 		return result, nil
 	})
+}
+
+func (c *Catalog) capabilityProviders(scope agentmodule.ExecutionScope) []agent.CapabilityProvider {
+	providers := c.agents.CapabilityProviders()
+	if c.scopes == nil {
+		return providers
+	}
+	filtered := make([]agent.CapabilityProvider, 0, len(providers))
+	for _, provider := range providers {
+		if c.scopes.SupportsScope(string(provider.ID()), scope) {
+			filtered = append(filtered, provider)
+		}
+	}
+	return filtered
 }
 
 func (c *Catalog) authorize(ctx context.Context, projectID serviceproject.ID, cookie string) error {

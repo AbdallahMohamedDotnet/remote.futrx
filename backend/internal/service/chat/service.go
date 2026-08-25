@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
 type Service struct {
@@ -25,6 +27,7 @@ type SessionPolicy interface {
 
 type ProviderPolicy interface {
 	HasProvider(provider string) bool
+	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
 }
 
 // Option configures an optional chat-service collaborator.
@@ -102,7 +105,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		mode = "default"
 	}
 	provider := NormalizeProvider(in.Provider)
-	if s.providers != nil && !s.providers.HasProvider(string(provider)) {
+	if !s.validProviderScope(provider, in.ProjectID) {
 		return Meta{}, ErrInvalidProvider
 	}
 
@@ -153,6 +156,9 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 	src, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return Meta{}, err
+	}
+	if !s.validProviderScope(src.Provider, src.ProjectID) {
+		return Meta{}, ErrInvalidProvider
 	}
 	events, err := s.repo.ReadEvents(ctx, id)
 	if err != nil {
@@ -219,7 +225,11 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 	var nextProvider Provider
 	if in.Provider != nil {
 		nextProvider = NormalizeProvider(*in.Provider)
-		if s.providers != nil && !s.providers.HasProvider(string(nextProvider)) {
+		current, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return Meta{}, err
+		}
+		if !s.validProviderScope(nextProvider, current.ProjectID) {
 			return Meta{}, ErrInvalidProvider
 		}
 	}
@@ -257,6 +267,20 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		return Meta{}, err
 	}
 	return s.withRunning(meta), nil
+}
+
+func (s *Service) validProviderScope(provider Provider, projectID ProjectID) bool {
+	if s.providers == nil {
+		return true
+	}
+	if !s.providers.HasProvider(string(provider)) {
+		return false
+	}
+	scope := agentmodule.ScopeHost
+	if projectID != "" {
+		scope = agentmodule.ScopeProject
+	}
+	return s.providers.SupportsScope(string(provider), scope)
 }
 
 func (s *Service) MarkRead(ctx context.Context, id ID) (Meta, error) {

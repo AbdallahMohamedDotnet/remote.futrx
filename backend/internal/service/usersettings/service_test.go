@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
 func TestDefaultSettingsUseCodexChatDefaults(t *testing.T) {
@@ -117,6 +119,9 @@ func TestUpdateRejectsInvalidChatPreferences(t *testing.T) {
 type testProviderCatalog map[string]bool
 
 func (c testProviderCatalog) HasProvider(provider string) bool { return c[provider] }
+func (c testProviderCatalog) SupportsScope(provider string, _ agentmodule.ExecutionScope) bool {
+	return c[provider]
+}
 
 func TestUpdateRejectsProviderMissingFromConfiguredCatalog(t *testing.T) {
 	provider := ChatProvider("future-agent")

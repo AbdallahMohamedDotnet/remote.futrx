@@ -35,6 +35,7 @@ type agentBrowserActivityRecorder interface {
 }
 
 var ErrPromptAlreadyRunning = errors.New("a previous prompt is still running")
+var ErrUnsupportedAgentScope = errors.New("agent does not support this chat execution scope")
 
 type Actor struct {
 	Email   string
@@ -88,6 +89,7 @@ func WithScheduleToolIssuer(issuer ScheduleToolIssuer) Option {
 
 type AgentPolicy interface {
 	Descriptor(provider string) (agentmodule.Descriptor, bool)
+	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
 }
 
 func WithAgentPolicy(policy AgentPolicy) Option {
@@ -237,6 +239,14 @@ func (rnr *Service) runPromptAs(
 	descriptor := agentmodule.Descriptor{}
 	if rnr.agentPolicy != nil {
 		descriptor, _ = rnr.agentPolicy.Descriptor(string(providerID))
+		scope := agentmodule.ScopeHost
+		if meta.ProjectID != "" {
+			scope = agentmodule.ScopeProject
+		}
+		if !rnr.agentPolicy.SupportsScope(string(providerID), scope) {
+			emitTransient(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: ErrUnsupportedAgentScope.Error()})
+			return ErrUnsupportedAgentScope
+		}
 	}
 	promptSkills := meta.SelectedSkills
 	if input.ScheduledTaskID != "" && !hasScheduledTasksSkill(promptSkills) {

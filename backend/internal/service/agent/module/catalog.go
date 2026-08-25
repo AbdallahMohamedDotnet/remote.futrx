@@ -110,6 +110,22 @@ func (c *Catalog) HasProvider(provider string) bool {
 	return ok
 }
 
+// SupportsScope reports whether a configured provider may execute in the
+// requested environment. Membership alone is insufficient: a host-only
+// adapter must never be launched for a project chat, and vice versa.
+func (c *Catalog) SupportsScope(provider string, scope ExecutionScope) bool {
+	descriptor, ok := c.Descriptor(provider)
+	if !ok {
+		return false
+	}
+	for _, configured := range descriptor.ExecutionScopes {
+		if configured == scope {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Catalog) LegacySkillRoots(provider string) []string {
 	descriptor, ok := c.Descriptor(provider)
 	if !ok {

@@ -3,6 +3,8 @@ package chat
 import (
 	"context"
 	"testing"
+
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
 type forkRepository struct {
@@ -22,6 +24,16 @@ func (p forkSessionPolicy) SupportsNativeFork(provider string) bool {
 type forkProviderPolicy map[string]bool
 
 func (p forkProviderPolicy) HasProvider(provider string) bool { return p[provider] }
+func (p forkProviderPolicy) SupportsScope(provider string, _ agentmodule.ExecutionScope) bool {
+	return p[provider]
+}
+
+type scopedProviderPolicy map[string]map[agentmodule.ExecutionScope]bool
+
+func (p scopedProviderPolicy) HasProvider(provider string) bool { return p[provider] != nil }
+func (p scopedProviderPolicy) SupportsScope(provider string, scope agentmodule.ExecutionScope) bool {
+	return p[provider][scope]
+}
 
 func TestCreateUsesConfiguredProviderCatalog(t *testing.T) {
 	repo := &forkRepository{}
@@ -44,6 +56,27 @@ func TestCreateUsesConfiguredProviderCatalog(t *testing.T) {
 	}
 }
 
+func TestCreateAndUpdateEnforceProviderExecutionScope(t *testing.T) {
+	policy := scopedProviderPolicy{
+		"host-agent":    {agentmodule.ScopeHost: true},
+		"project-agent": {agentmodule.ScopeProject: true},
+	}
+	service := New(&forkRepository{}, nil, nil, nil, WithProviderPolicy(policy))
+	if _, err := service.Create(context.Background(), CreateInput{Provider: "host-agent", ProjectID: "abcd"}); err != ErrInvalidProvider {
+		t.Fatalf("project chat with host agent error = %v", err)
+	}
+	if _, err := service.Create(context.Background(), CreateInput{Provider: "project-agent"}); err != ErrInvalidProvider {
+		t.Fatalf("host chat with project agent error = %v", err)
+	}
+
+	repo := &forkRepository{source: Meta{ID: "deadbeef", Provider: "project-agent", ProjectID: "abcd"}}
+	service = New(repo, nil, nil, nil, WithProviderPolicy(policy))
+	hostAgent := Provider("host-agent")
+	if _, err := service.Update(context.Background(), "deadbeef", UpdateInput{Provider: &hostAgent}); err != ErrInvalidProvider {
+		t.Fatalf("project update to host agent error = %v", err)
+	}
+}
+
 func (r *forkRepository) Get(context.Context, ID) (Meta, error) {
 	if r.source.ID != "" {
 		return r.source, nil
@@ -58,6 +91,16 @@ func (r *forkRepository) ReadEvents(context.Context, ID) ([]Event, error) {
 func (r *forkRepository) Create(_ context.Context, meta Meta) (Meta, error) {
 	meta.ID = "fadecafe"
 	r.created = meta
+	return meta, nil
+}
+
+func (r *forkRepository) Update(_ context.Context, _ ID, mutate func(*Meta)) (Meta, error) {
+	meta := r.source
+	if meta.ID == "" {
+		meta = Meta{ID: "deadbeef", Provider: ProviderCodex}
+	}
+	mutate(&meta)
+	r.source = meta
 	return meta, nil
 }
 

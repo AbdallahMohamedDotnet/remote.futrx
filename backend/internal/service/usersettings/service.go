@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
 type Service struct {
@@ -16,6 +17,7 @@ type Service struct {
 
 type ProviderCatalog interface {
 	HasProvider(provider string) bool
+	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
 }
 
 type Option func(*Service)
@@ -150,7 +152,8 @@ func (s *Service) validProvider(provider ChatProvider) bool {
 	if !ValidChatProvider(provider) {
 		return false
 	}
-	return s.providers == nil || s.providers.HasProvider(string(provider))
+	return s.providers == nil ||
+		(s.providers.HasProvider(string(provider)) && s.providers.SupportsScope(string(provider), agentmodule.ScopeHost))
 }
 
 func normalizeChatMode(mode ChatMode) ChatMode {

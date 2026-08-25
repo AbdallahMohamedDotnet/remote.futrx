@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
@@ -81,6 +82,12 @@ type catalogTestProjects struct {
 	project serviceproject.Meta
 }
 
+type catalogTestScopes map[agent.ProviderID]map[agentmodule.ExecutionScope]bool
+
+func (s catalogTestScopes) SupportsScope(provider string, scope agentmodule.ExecutionScope) bool {
+	return s[agent.ProviderID(provider)][scope]
+}
+
 func (p catalogTestProjects) Get(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
 	return p.project, nil
 }
@@ -118,6 +125,38 @@ func TestListUsesRegistryOrderProjectContainerAndSharedCache(t *testing.T) {
 	}
 	if claude.calls != 2 || codex.calls != 2 {
 		t.Fatalf("refreshed capability calls = claude:%d codex:%d", claude.calls, codex.calls)
+	}
+}
+
+func TestListOnlyDiscoversProvidersDeclaredForRequestedScope(t *testing.T) {
+	host := &catalogTestProvider{id: "host-agent", label: "Host"}
+	project := &catalogTestProvider{id: "project-agent", label: "Project"}
+	catalog := New(
+		catalogTestRegistry{providers: []agent.CapabilityProvider{host, project}},
+		catalogTestProjects{project: serviceproject.Meta{ID: "abcd", ContainerName: "remote-abcd"}},
+		nil,
+		WithScopePolicy(catalogTestScopes{
+			"host-agent":    {agentmodule.ScopeHost: true},
+			"project-agent": {agentmodule.ScopeProject: true},
+		}),
+	)
+
+	hostItems, err := catalog.List(context.Background(), ListQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hostItems) != 1 || hostItems[0].Provider != "host-agent" {
+		t.Fatalf("host capabilities = %#v", hostItems)
+	}
+	projectItems, err := catalog.List(context.Background(), ListQuery{ProjectID: "abcd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projectItems) != 1 || projectItems[0].Provider != "project-agent" {
+		t.Fatalf("project capabilities = %#v", projectItems)
+	}
+	if host.calls != 1 || project.calls != 1 {
+		t.Fatalf("scope-filtered calls = host:%d project:%d", host.calls, project.calls)
 	}
 }
 
