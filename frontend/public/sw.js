@@ -1,32 +1,66 @@
 // Service worker for remote.futrx.
 //
-// Its only job is Web Push: showing a notification when an agent asks a
+// Its main job is Web Push: showing a notification when an agent asks a
 // question, finishes a turn, fails, or a scheduled task runs. There is
-// deliberately no caching — this app is a live control plane for running
-// agents, and a stale cached shell would be worse than an honest network
-// error.
+// deliberately no app-shell caching — this app is a live control plane for
+// running agents, and a stale cached shell would be worse than an honest
+// network error. The one exception is a static offline page, shown only when
+// a navigation cannot reach the network at all.
 
 const ICON = "/icon-192.png";
 const BADGE = "/badge-96.png";
+
+// Bump the version when offline.html changes so installed clients refresh it.
+// Keep the prefix app-specific because Cache Storage is shared by every
+// service worker and feature on this origin.
+const OFFLINE_CACHE_PREFIX = "remote-futrx-offline-";
+const OFFLINE_CACHE = `${OFFLINE_CACHE_PREFIX}v1`;
+const LEGACY_OFFLINE_CACHES = new Set(["offline-v1"]);
+const OFFLINE_URL = "/offline.html";
 
 // How long to wait for an open tab to say which chat it is showing before
 // deciding the notification is worth raising anyway.
 const CLIENT_REPLY_TIMEOUT_MS = 400;
 
-self.addEventListener("install", () => {
+self.addEventListener("install", (event) => {
   // Take over immediately: a stale worker would keep using the old push
   // payload shape after a deploy.
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(OFFLINE_CACHE).then((cache) =>
+      // "reload" bypasses the HTTP cache so a deploy always ships the page.
+      cache.add(new Request(OFFLINE_URL, { cache: "reload" }))
+    )
+  );
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      const staleOfflineCaches = keys.filter(
+        (key) =>
+          key !== OFFLINE_CACHE &&
+          (key.startsWith(OFFLINE_CACHE_PREFIX) || LEGACY_OFFLINE_CACHES.has(key))
+      );
+      await Promise.all(staleOfflineCaches.map((key) => caches.delete(key)));
+      await self.clients.claim();
+    })()
+  );
 });
 
-// Present only so browsers register this as a fetch-handling worker, which
-// some still require before offering to install the app. Every request falls
-// through to the network untouched.
-self.addEventListener("fetch", () => {});
+// Navigations go to the network as always; the offline page appears only when
+// the network is unreachable. Every other request falls through untouched.
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate") return;
+  event.respondWith(
+    fetch(event.request).catch(async () => {
+      const cache = await caches.open(OFFLINE_CACHE);
+      const cached = await cache.match(OFFLINE_URL);
+      return cached || Response.error();
+    })
+  );
+});
 
 self.addEventListener("push", (event) => {
   event.waitUntil(handlePush(event));

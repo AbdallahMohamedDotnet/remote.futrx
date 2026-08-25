@@ -4,6 +4,7 @@ export interface WorkspaceUiState {
   activeChatId: string | null;
   containerProjectId: string | null;
   sidebarOpen: boolean;
+  createProjectOpen: boolean;
   view: WorkspaceView;
 }
 
@@ -11,6 +12,8 @@ export type WorkspaceUiAction =
   | { type: "select-chat"; chatId: string | null }
   | { type: "open-sidebar" }
   | { type: "close-sidebar" }
+  | { type: "open-create-project" }
+  | { type: "close-create-project" }
   | { type: "show-chat" }
   | { type: "show-settings" }
   | { type: "show-project-containers"; projectId: string | null };
@@ -23,6 +26,7 @@ class WorkspaceUiStateTransitions {
       activeChatId: requestedChatId,
       containerProjectId: null,
       sidebarOpen: false,
+      createProjectOpen: false,
       view: "chat",
     };
   }
@@ -43,6 +47,10 @@ class WorkspaceUiStateTransitions {
         return { ...state, sidebarOpen: true };
       case "close-sidebar":
         return { ...state, sidebarOpen: false };
+      case "open-create-project":
+        return { ...state, createProjectOpen: true };
+      case "close-create-project":
+        return { ...state, createProjectOpen: false };
       case "show-chat":
         return { ...state, view: "chat" };
       case "show-settings":
