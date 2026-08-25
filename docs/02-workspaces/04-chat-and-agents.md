@@ -74,19 +74,22 @@ flowchart LR
 
 The run request contains the prompt, working directory, model, mode, prior provider session ID, fork flag, project ID, reasoning effort, service tier, and browser enablement.
 
-The compiled-in integrations are composed through a validated module factory
-catalog. A module descriptor is the provider-neutral contract for extending
-Remote: stable ID and label, default-provider flag, host/project execution
-scopes, authentication mode/instructions and access-gate policy, resume/fork
-support, skill strategy, browser and scheduled-tool support, legacy skill
-roots, and the optional provisioning profile. The factory builds the runtime
-provider and its optional auth binding from that same declaration. `AuthNone`
-modules omit the binding; all other modes require one. Startup validation rejects inconsistent
+The compiled-in integrations are composed through validated provider-owned
+factories. Each `backend/internal/agent/<id>/factory.go` attaches that
+provider's provisioning `Profile()` and declares the provider-neutral
+extension contract: stable ID and label, default-provider flag, host/project
+execution scopes, authentication mode/instructions and access-gate policy,
+resume/fork support, skill strategy, browser and scheduled-tool support, and
+legacy skill roots. Its build callback creates the runtime provider and
+optional auth binding together from shared dependencies; mutable runtime and
+auth state is fresh for every catalog build. `AuthNone` modules omit the
+binding; all other modes require one. Startup validation rejects inconsistent
 IDs, auth bindings, multiple defaults, project modules without profiles, fork
 without resume, external-auth gate providers, and duplicate or overlapping
 persistent mounts. Registration order is explicit
 and is preserved in provisioning, runtime, authentication, and capability
-views; adding an integration does not depend on package `init` hooks.
+views. The built-in catalog only lists provider factory functions; adding an
+integration does not depend on package `init` hooks.
 Authenticated service startup also requires at least one managed or no-auth
 module marked as an access-gate provider, so onboarding cannot deadlock behind
 a catalog that has no observable way to become ready.
@@ -94,10 +97,10 @@ For a project-capable agent, the profile is the concrete container contract:
 CLI binary, strict semver pin, version-command arguments, install/repair
 policy, credential synchronization, persistent directories,
 shared instruction destination, workspace-skill compatibility links, and any
-browser MCP templates. The built-ins define that policy in protected
-provider-local `profile*.go`, `install*.go`, `provisioning*.go`, and `assets/`
-paths. This is a release-classification convention rather than part of the Go
-interface: changes there require a minor/major full-infrastructure release.
+browser MCP templates. The built-ins define their module and provisioning
+policy in protected provider-local `factory*.go`, `profile*.go`, `install*.go`,
+`provisioning*.go`, and `assets/` paths. Changes there require a minor/major
+full-infrastructure release.
 
 Execution scope is enforced at the service boundary. `host` permits loose-chat
 execution and host capability discovery; `project` permits project chats,
@@ -328,7 +331,9 @@ Rewind clears provider session IDs. On the next run, the backend converts remain
 - Prompt service: [`backend/internal/service/prompt/service.go`](../../backend/internal/service/prompt/service.go)
 - Run hub: [`backend/internal/service/runhub/hub.go`](../../backend/internal/service/runhub/hub.go)
 - Agent model: [`backend/internal/agent/model.go`](../../backend/internal/agent/model.go)
-- Agent module contract: [`backend/internal/service/agent/module/`](../../backend/internal/service/agent/module/)
-- Built-in composition root: [`backend/internal/service/agent/builtin/`](../../backend/internal/service/agent/builtin/)
+- Agent module contract: [`backend/internal/agent/module/`](../../backend/internal/agent/module/)
+- Agent authentication contract: [`backend/internal/agent/auth/`](../../backend/internal/agent/auth/)
+- Built-in composition root: [`backend/internal/agent/builtin/`](../../backend/internal/agent/builtin/)
+- Provider-owned factories: [`backend/internal/agent/`](../../backend/internal/agent/)
 - Capability catalog: [`backend/internal/service/agentcatalog/catalog.go`](../../backend/internal/service/agentcatalog/catalog.go)
 - Frontend chat hook: [`frontend/src/state/hooks/chat/useChat.ts`](../../frontend/src/state/hooks/chat/useChat.ts)

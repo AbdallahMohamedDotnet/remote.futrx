@@ -123,9 +123,9 @@ The main shell switches between three views without browser routing:
 ## Important boundaries
 
 - The host owns authentication, metadata, HTTPS, access decisions, and container orchestration.
-- Agent registration, defaults, execution scopes, authentication UI/gating,
-  feature policy, and provisioning profiles originate from one explicit
-  compiled-in module catalog.
+- Each agent package owns one factory that binds its runtime, authentication,
+  feature policy, and provisioning profile. One explicit compiled-in catalog
+  owns only registration order and cross-provider validation.
 - Each project owns its `/workspace` files and processes.
 - Each project also has durable Codex, Claude, Kimi, and Antigravity homes
   mounted at their provider-native paths. Antigravity mounts only

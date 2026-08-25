@@ -62,6 +62,8 @@ application step builds the explicit compiled-in agent module catalog and runs
 `backend/cmd/install-host-agents`, which selects profiles for modules declaring
 the `host` execution scope. A host-scoped local CLI module supplies a profile;
 a host-only remote integration may omit one and requires no local install.
+Each profile originates from the provider's local `Factory()`/`Profile()`;
+the installer applies the catalog without provider-specific branches.
 
 For each selected profile, the installer runs the provider-declared version
 arguments against its binary and compares the detected semver with the exact

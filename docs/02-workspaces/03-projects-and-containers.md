@@ -85,11 +85,13 @@ At backend startup, reconciliation compares stored status with actual LXD state 
 ## Container launch contents
 
 Project container policy is module-driven. Only modules declaring the
-`project` execution scope contribute a provisioning profile. That profile owns
-the CLI install/repair spec, credential synchronization, persistent-state
-mounts, shared instructions, workspace-skill compatibility, and optional
-browser MCP templates. A project-capable module without a complete matching
-profile is rejected when the module catalog is built.
+`project` execution scope contribute a provisioning profile. Each provider's
+local `Factory()` attaches its own `Profile()` to the module descriptor; the
+shared catalog and provisioning services never reconstruct provider policy.
+That profile owns the CLI install/repair spec, credential synchronization,
+persistent-state mounts, shared instructions, workspace-skill compatibility,
+and optional browser MCP templates. A project-capable module without a
+complete matching profile is rejected when the module catalog is built.
 
 The reusable Ubuntu 24.04 base image contains:
 

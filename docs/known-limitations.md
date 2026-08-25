@@ -50,12 +50,12 @@ These are the constraints worth understanding before you deploy or rely on remot
 
 ## Agents
 
-- **Agent modules are compiled in, not runtime plugins.** The validated factory
-  contract centralizes registration, auth UI/gating, defaults, scopes,
-  provisioning, and feature policy, but a new integration still requires an
-  adapter/profile plus an explicit reviewed entry in `service/agent/builtin`,
-  followed by a rebuild and deployment. Remote does not load third-party
-  provider modules from configuration or shared objects.
+- **Agent modules are compiled in, not runtime plugins.** Each provider package
+  owns a validated factory combining its adapter, auth, feature policy, and
+  provisioning profile. A new integration still requires an explicit reviewed
+  factory entry in `agent/builtin`, followed by a rebuild and deployment.
+  Remote does not load third-party provider modules from configuration or
+  shared objects.
 
 - **Claude, Codex, and Kimi identity is a shared host singleton.** Those
   credentials are authenticated once at host level and seeded into every

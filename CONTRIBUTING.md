@@ -40,21 +40,26 @@ must satisfy the validated contract before the server starts:
    timeouts, verification, and any project credentials, persistent state,
    instructions, skills, or Browser MCP templates. A host-only remote API
    integration may omit the profile.
-3. Register one factory in
-   `backend/internal/service/agent/builtin/catalog.go`. Its descriptor declares
-   label/default, host/project scopes, one supported auth mode and its binding
-   (`none` deliberately has no binding), onboarding-gate eligibility,
-   resume/fork support, skill strategy, and
-   browser/scheduled-tool features.
-4. Use one of the existing normalized auth flows (`managed-code`,
+3. Add `backend/internal/agent/<id>/factory.go` and expose
+   `Factory() (module.Factory, error)`. The provider-owned factory attaches its
+   `Profile()`, declares label/default, host/project scopes, one supported auth
+   mode and its binding (`none` deliberately has no binding), onboarding-gate
+   eligibility, resume/fork support, skill strategy, and browser/scheduled-tool
+   features. Construct fresh runtime and auth components inside the factory's
+   build callback; do not share mutable auth state across catalog builds.
+4. Add that `Factory` function to the ordered list in
+   `backend/internal/agent/builtin/catalog.go`. The composition root owns only
+   explicit registration order; provider construction details do not belong
+   there.
+5. Use one of the existing normalized auth flows (`managed-code`,
    `managed-device`, `external`, or `none`) so onboarding and Settings render
    without provider-specific frontend code. A fundamentally new auth flow
    requires an intentional contract and UI extension.
-5. Add provider tests plus a factory/catalog regression covering identity,
+6. Add provider tests plus a factory/catalog regression covering identity,
    scope, auth, profile, and feature declarations. Update the agent and
    operations docs. Any profile, CLI, persistent-state, host-install, or base
    image change requires a minor/major release and the full updater. Keep
-   provider provisioning policy in `profile*.go`, `install*.go`,
+   provider module/provisioning policy in `factory*.go`, `profile*.go`, `install*.go`,
    `provisioning*.go`, or the provider's `assets/` tree so release
    classification cannot mistake it for an application-only patch.
 

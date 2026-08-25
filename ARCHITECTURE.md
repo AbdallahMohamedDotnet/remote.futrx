@@ -142,10 +142,10 @@ adapters ([`agent/claude`](backend/internal/agent/claude),
 CLI's available output into a shared event stream. Antigravity print mode
 provides plain streamed text rather than structured tool/usage events.
 
-Agent composition is centralized in a validated module catalog
-([`service/agent/module`](backend/internal/service/agent/module),
-[`service/agent/builtin`](backend/internal/service/agent/builtin)). Each factory
-declares one provider's stable ID and label, explicit default, allowed
+Agent composition uses a validated provider-owned factory contract
+([`agent/module`](backend/internal/agent/module)). Each adapter package exposes
+one `Factory()` from its local `factory.go`; that factory declares the
+provider's stable ID and label, explicit default, allowed
 host/project execution scopes, authentication flow and onboarding-gate policy,
 session/skill/browser/scheduling features, legacy skill roots, and optional
 provisioning profile, then builds its runtime adapter and optional
@@ -157,9 +157,10 @@ multiple defaults, invalid auth/scope/feature combinations, and overlapping
 persistent-state mounts before the server starts. The provider runtime contract itself stays
 narrow: identity, capability discovery, and execution. Provider-specific
 command construction, parsing, credentials, and profile policy remain private
-to the adapter. Compiled-in integrations are registered explicitly in
-`service/agent/builtin`; there is no plugin discovery or package `init`
-registration.
+to the adapter. The built-in composition root
+([`agent/builtin`](backend/internal/agent/builtin)) only lists provider factory
+functions in deterministic order. There is no plugin discovery or package
+`init` registration.
 
 When application authentication is enabled, service startup additionally
 requires at least one managed or no-auth module that declares
