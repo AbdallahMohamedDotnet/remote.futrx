@@ -7,9 +7,8 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-// Documented kimi-code stream-json output for a tool-using turn (verified
-// against the @moonshot-ai/kimi-code v0.19.2 binary): assistant line(s),
-// a tool result line, and a trailing meta resume-hint line.
+// Representative kimi-code stream-json output for a tool-using turn:
+// assistant line(s), a tool result line, and a trailing meta resume-hint line.
 func TestParserToolUsingTurn(t *testing.T) {
 	p := NewParser(agent.RunRequest{ConversationID: "conv1"})
 	lines := []string{

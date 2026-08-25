@@ -30,9 +30,10 @@ This is the compact inventory of current Remote behavior. “Page” means the l
 | Feature | How to use it | Important behavior |
 | --- | --- | --- |
 | Provider | Choose **Codex**, **Claude**, **Kimi**, or **Antigravity** | Cannot change while streaming |
-| Model | Open **Model** and select a provider model or Auto | Stored per chat |
-| Thinking | Select Auto, None/Minimal where supported, or Low through Ultra | Provider-dependent |
-| Speed | Select Codex Auto, Default, Priority, or Fast | Codex only; model/provider may gate it |
+| Model | Open the provider/model picker and select a discovered model or Auto | Stored per chat; choices come from the current host/project CLI catalog |
+| Refresh models | Use the refresh action at the bottom of the provider/model picker | Force-probes the current scope; use after CLI, configuration, account, entitlement, or terminal-login changes |
+| Thinking | Select one of the efforts reported for the current provider/model | Hidden when no effort control is advertised; Kimi currently stores but does not forward the selection |
+| Speed | Select a service tier reported for the current provider/model | Codex tiers and eligible Claude Fast are supported; account/provider may gate them |
 | Mode | Choose Default or provider-native Plan | Hidden when Plan is unavailable |
 | Skill picker | Open **Skill set**, search, and select | Catalog depends on provider/project |
 | Skill chips | Review or remove selected skills | Cleared when provider changes |
@@ -78,9 +79,10 @@ There is no approval workflow in the current chat transport. Project agents run 
 | Capability | Claude | Codex | Kimi | Antigravity |
 | --- | ---: | ---: | ---: | ---: |
 | Sign-in | Host authorization URL and pasted code | Host device flow | Host device flow | Run `agy` in each project Terminal |
-| Model picker | Full CLI list with resolved versions | Full paginated app-server list | Every configured model | Every signed-in CLI model/variant |
-| Thinking control | Yes | Yes | Per model when configured | Auto, Low, Medium, High |
+| Model picker | Live `/model` list with attempted version resolution | Live paginated app-server list | Configured models from the provider catalog | Models/variants returned by signed-in `agy` |
+| Thinking control | Forwarded | Forwarded | Displayed/stored per model, not yet forwarded | Forwarded as Auto, Low, Medium, or High |
 | Speed/service tier | Fast for Auto and Opus | Yes | No | No |
+| Plan mode | Declared native mode | Discovered app-server mode | Advertised but incompatible with Remote prompt mode in Kimi 0.38.0 | Discovered native mode |
 | Usage telemetry | Yes | Yes | No | No |
 | Provider session fork | Yes | Yes, native app-server fork | No; starts fresh | No; starts fresh |
 | Selected skill trigger | Yes | Yes | Stored but not injected | Scheduled Tasks only |
@@ -88,7 +90,8 @@ There is no approval workflow in the current chat transport. Project agents run 
 | Structured tool stream | Yes | Yes | Yes | No; plain streamed text |
 
 Antigravity's project-local `/root/.gemini` state survives stop/start but not
-container replacement.
+container replacement. After signing in with `agy` in the project Terminal,
+choose **Refresh models** so the picker replaces any signed-out fallback.
 
 ## Workspace tools
 

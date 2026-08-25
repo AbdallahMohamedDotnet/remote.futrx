@@ -52,8 +52,8 @@ const (
 	RunModePlan    RunMode = "plan"
 )
 
-// RunPreferences contains provider-neutral launch preferences. Provider
-// adapters remain responsible for accepting only the values their CLI supports.
+// RunPreferences contains provider-neutral launch preferences. Each provider
+// adapter decides which preferences to forward and how to translate them.
 type RunPreferences struct {
 	ReasoningEffort ReasoningEffort
 	ServiceTier     ServiceTier

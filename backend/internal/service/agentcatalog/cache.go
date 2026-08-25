@@ -12,9 +12,10 @@ const (
 	degradedCatalogTTL = 2 * time.Hour
 )
 
-// catalogCache is the shared freshness boundary for every web client. It is
-// intentionally process-local: restarting or deploying the backend naturally
-// forces one fresh discovery, after which all connected clients share it.
+// catalogCache is the shared freshness boundary for every web client. Entries
+// are keyed by the host or by project ID plus container name and expire lazily
+// on the next read. The cache is intentionally process-local: restarting or
+// deploying the backend forces one fresh discovery per requested environment.
 type catalogCache struct {
 	mu      sync.Mutex
 	now     func() time.Time

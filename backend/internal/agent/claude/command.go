@@ -45,8 +45,8 @@ func (p *Provider) args(req agent.RunRequest) []string {
 	return args
 }
 
-// reasoningEffortArg forwards safe values from the live Claude capability
-// catalog. Empty or malformed values omit the flag so the CLI picks a default.
+// reasoningEffortArg syntax-checks the selected or saved value. Empty or
+// malformed values omit the flag so the CLI picks a default.
 func reasoningEffortArg(effort agent.ReasoningEffort) string {
 	return agent.NormalizeCapabilityValue(string(effort))
 }

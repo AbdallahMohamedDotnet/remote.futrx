@@ -250,7 +250,7 @@ Broad agent authority is paired with a complete control envelope. The human shou
 | Control | Human or host capability |
 | --- | --- |
 | Identity | Claim the server, sign in, manage registered users, and separate administrators from members |
-| Provider identity | Administrators connect, refresh, or replace host-wide Claude, Codex, and Kimi identities; Antigravity signs in per project and has no global card |
+| Provider identity | Administrators connect, refresh, or replace host-wide Claude, Codex, and Kimi identities; Antigravity's supported UI flow signs in per project and has no global card |
 | Project access | Current members can add or remove registered project members; the backend gates project API, chat, upload, terminal, and preview resources |
 | Project secrets | Current members can create, read, change, or delete the authoritative secret record; propagation to and removal from managed copies is currently best-effort |
 | Agent selection | Choose provider, model, reasoning effort, service tier or speed, mode, and selected skills |
@@ -380,7 +380,7 @@ Remote has four credential classes, each with a different scope:
 | Credential class | Scope | Current behavior |
 | --- | --- | --- |
 | Platform session | User and Remote control plane | Kept in secure HTTP-only cookies and stripped before requests enter project-controlled apps and IDEs |
-| Agent-provider identity | Host-wide for Claude, Codex, and Kimi; project runtime for Antigravity | The three host providers are connected by an administrator and synchronized bidirectionally with project state. Antigravity is authenticated inside each project and its current state is not durable across container replacement |
+| Agent-provider identity | Host-wide for Claude, Codex, and Kimi; supported project runtime for Antigravity | The three host providers are connected by an administrator and synchronized bidirectionally with project state. Remote's Antigravity UI flow authenticates inside each project and its current state is not durable across container replacement; operator-prepared host `agy` state can still be used by loose chats outside that flow |
 | Project secret | One project | Stored in a host file with mode `0600` but without application-level encryption; passed to agent runs, persisted as container environment when single-line, and mirrored into the managed `.env` file |
 | Browser-session identity | One project browser profile | Created through human login and persisted with the project so the agent can use the authenticated session |
 

@@ -40,7 +40,7 @@ All `/api/*` and `/ws*` requests require a signed session for a registered user.
 | GET, PATCH | `/api/me/settings` | Read or update current user's appearance and chat defaults |
 | GET | `/api/server/info` | Host, CPU, memory, storage, network, and process snapshot |
 
-## Agent authentication and skills
+## Agent authentication, capabilities, and skills
 
 | Method | Route | Purpose |
 | --- | --- | --- |
@@ -50,11 +50,27 @@ All `/api/*` and `/ws*` requests require a signed session for a registered user.
 | POST | `/api/claude/login/cancel` | Cancel Claude login; admin only |
 | POST | `/api/codex/login/device` | Start Codex device login; admin only |
 | POST | `/api/kimi/login/device` | Start Kimi device login; admin only |
+| GET | `/api/agent-capabilities[?projectId=<id>&refresh=1]` | Discover normalized provider/model controls on the host or in an accessible project; `refresh=1` bypasses the current backend cache entry |
 | GET | `/api/skills?provider=...&projectId=...` | List accessible provider and project skills |
 
 `{provider}` can also be `antigravity` for the generic status binding, but
 Antigravity has no host login route. Its status is unavailable by design
 because users authenticate `agy` inside each project.
+
+The capability response has a `providers` array in registry order. Each
+provider includes its `source` (`live` or `fallback`), optional warning,
+models, per-model reasoning efforts and service tiers, modes, and defaults.
+Omitting `projectId` selects the host/loose-chat scope. Supplying it requires
+admin status or project membership and selects that project's current
+container. Only the literal `refresh=1` forces discovery; other values use the
+normal cache path. Refresh bypasses a completed entry but joins a same-scope
+discovery already in flight. The route does not start a stopped project.
+
+The cache is backend-process memory, shared across web clients by execution
+scope. Fully live, warning-free results use a 24-hour TTL; any fallback or
+warning shortens the complete scope to 2 hours. A backend restart clears it.
+See [Capability discovery](../02-workspaces/04-chat-and-agents.md#capability-discovery)
+for provider probes and all refresh triggers.
 
 ## Project routes
 

@@ -131,6 +131,9 @@ export function WorkspaceProvider({
 
   async function startProject(projectId: string) {
     await projectApi.start(projectId);
+    // The sidebar Start command requests a probe inside the running container
+    // instead of intentionally reusing a pre-start catalog. Other lifecycle
+    // surfaces must invalidate separately or leave refresh to the user.
     agentCapabilityCatalogStore.invalidateProject(capabilityUserId, projectId);
   }
 

@@ -38,7 +38,8 @@ least one to enter the workspace; the others can be connected later.
 Antigravity is also available in project chats, but it does not use this
 host-wide onboarding screen and does not satisfy the initial provider gate.
 First connect Claude, Codex, or Kimi. You can then sign in to Antigravity from
-the Terminal of each project where you want to use it.
+the Terminal of each project where you want to use it, then choose **Refresh
+models** in that project's chat picker.
 
 ![Agent authentication cards for Claude, Codex, and Kimi](/assets/docs/screenshots/03-agent-authentication-01m05s.webp)
 

@@ -4,9 +4,12 @@
 // Catalog discovery may start several comparatively expensive CLI probes (for
 // example, Codex app-server and provider model-list commands). Simultaneous
 // requests for the same host or project container share one in-flight probe.
-// Completed live catalogs are cached here for 24 hours so every browser and
-// device sees the same result without repeating provider discovery. A manual
-// refresh bypasses and replaces the shared entry.
+// Completed catalogs are cached per execution environment so every browser
+// and device sees the same result without repeating provider discovery. A
+// fully live, warning-free catalog is retained for 24 hours; any fallback or
+// warning shortens that to 2 hours. A manual refresh bypasses a completed
+// cache entry and starts or joins one discovery flight whose result replaces
+// it. A backend restart clears every entry.
 package agentcatalog
 
 import (

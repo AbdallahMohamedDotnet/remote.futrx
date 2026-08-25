@@ -8,10 +8,10 @@ import (
 )
 
 // catalogFlights coalesces simultaneous discovery requests for the same
-// execution environment. Completed results are deliberately not retained:
-// persistence and freshness policy belong to the client that presents the
-// catalog, while this guard only prevents duplicate CLI processes when
-// several browser components ask at once.
+// execution environment. Completed results are deliberately removed from the
+// flight map: Catalog retains them in catalogCache according to the backend's
+// freshness policy, while this guard only prevents duplicate CLI processes
+// when several requests overlap.
 type catalogFlights struct {
 	mu      sync.Mutex
 	entries map[string]*catalogFlight

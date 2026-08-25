@@ -70,6 +70,22 @@ Only `/workspace` and provider homes survive container replacement. Reinstallabl
 
 An admin should open **Settings → Agents**, refresh the provider login, and wait for the authenticated state. Reopen or restart the project if credential propagation is stale.
 
+### Models or controls are missing or stale
+
+Make sure the project is running, then open the provider/model picker and
+choose **Refresh models**. This bypasses the
+shared backend entry and probes the CLIs in the active project container, or on
+the host for a loose chat. Use it after a CLI or configuration change, an
+account-entitlement change, or a manual terminal login.
+
+Healthy results are held in backend memory for 24 hours; a result containing
+any provider fallback or warning is held for 2 hours. Expiry is checked on the
+next request, and restarting the backend clears the cache. The browser keeps
+the previous catalog visible while refresh runs. Provider-level fallback and
+partial-discovery warnings are not generally rendered in the picker, so if
+choices remain absent or generic, inspect the API response or backend logs and
+verify the provider CLI directly.
+
 ### A run does not start
 
 Check:
@@ -112,7 +128,8 @@ Kimi currently has no usage telemetry, its fork starts fresh, selected skills ar
 
 Antigravity is authenticated per project, not from **Settings → Agents**. Open
 the project's **Terminal**, run `agy`, complete the displayed URL-and-code
-flow, then retry the chat prompt. A container replacement removes
+flow, exit the CLI, and choose **Refresh models** in the chat picker before
+retrying the prompt. A container replacement removes
 Antigravity's `/root/.gemini` state, so sign in again after that kind of
 upgrade or recovery.
 

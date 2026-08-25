@@ -32,6 +32,10 @@ different per-project flow described below.
 7. Wait for **Subscription signed in**.
 
 Use **Refresh Claude login** to replace an expired or unwanted host credential.
+When Remote detects the completed login, it requests a refresh for model
+catalogs currently open in that browser. A project probe sees the credentials
+currently present inside its container, so if a later run propagates new host
+credentials, choose **Refresh models** again afterward.
 
 ### Connect Codex
 
@@ -55,7 +59,8 @@ Remote may also detect a configured API key, but subscription/device authenticat
 
 Antigravity appears in the chat provider picker but not in the global
 **Agents** cards. Its `agy` CLI does not expose a host-wide sign-in flow that
-Remote can complete and distribute.
+Remote can complete and distribute, so Remote's supported sign-in workflow is
+project-local.
 
 Sign in separately in each project:
 
@@ -64,13 +69,22 @@ Sign in separately in each project:
 3. Run `agy`.
 4. Complete the URL-and-code flow displayed by Antigravity.
 5. Exit the interactive CLI.
-6. Return to the chat and select **Antigravity**.
+6. Return to the chat and choose **Refresh models** in the provider/model picker.
+7. Select **Antigravity** and a discovered model.
 
 That sign-in is shared with other users and agents inside the same project
 container. Its files live under `/root/.gemini`, not one of Remote's durable
 provider-home mounts. They survive ordinary stop/start but disappear when the
 container is replaced; sign in again after an upgrade or recovery that
 recreates the container.
+
+Remote cannot observe this terminal-based login, so it cannot invalidate the
+model cache automatically. Use **Refresh models** after every Antigravity
+sign-in or account change.
+
+A loose chat can probe `agy` state that an operator configured directly on the
+host, but Remote has no UI for establishing that state and its project Terminal
+is unavailable to a loose chat. Use a project chat for normal Antigravity work.
 
 Antigravity does not satisfy Remote's initial “at least one provider connected”
 gate. A server administrator must still connect Claude, Codex, or Kimi during

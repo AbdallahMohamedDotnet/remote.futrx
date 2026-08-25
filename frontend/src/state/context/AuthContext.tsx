@@ -76,6 +76,8 @@ export function AuthProvider({ children }: { children: ComponentChildren }) {
       || (!!current.codexCompleted && current.codexCompleted !== previous.codexCompleted)
       || (!!current.kimiCompleted && current.kimiCompleted !== previous.kimiCompleted);
     if (authenticationChanged || loginCompleted) {
+      // Provider identity and entitlements affect live model discovery. Request
+      // a refresh for every capability scope mounted in this browser.
       agentCapabilityCatalogStore.invalidateUser(current.userId);
     }
   }, [

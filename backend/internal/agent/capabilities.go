@@ -60,8 +60,9 @@ func ProviderModes(supportsPlan bool) []CapabilityOption {
 }
 
 // WithAutoModel prepends the provider-default selection. Its controls mirror
-// the provider's declared default model so dependent selectors remain valid
-// while the CLI chooses the actual model.
+// the provider's declared default model, or the first model when none is
+// marked as default, so dependent selectors remain usable while the CLI
+// chooses the actual model.
 func WithAutoModel(models []ModelCapability, description string) []ModelCapability {
 	auto := ModelCapability{ID: "", Label: "Auto", Description: description}
 	for _, model := range models {

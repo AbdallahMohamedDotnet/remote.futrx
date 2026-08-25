@@ -57,8 +57,9 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 		return buildCapabilities(models, modes), nil
 	}
 
-	// Older Codex builds may not expose app-server model/list. The debug catalog
-	// is still structured JSON and preserves live model/effort/speed data.
+	// If app-server discovery fails, including on older builds without
+	// model/list, the debug catalog preserves structured live model, effort, and
+	// service-tier data but cannot report collaboration modes.
 	debugCtx, cancelDebug := context.WithTimeout(ctx, capabilityTimeout)
 	defer cancelDebug()
 	debugModels, debugErr := queryDebugModels(debugCtx, req)

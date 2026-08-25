@@ -7,8 +7,8 @@ const (
 	CapabilitySourceFallback CapabilitySource = "fallback"
 )
 
-// CapabilityOption is the provider-neutral shape used by model, reasoning,
-// speed, and provider-native mode selectors.
+// CapabilityOption is the provider-neutral shape used by reasoning-effort,
+// service-tier (speed), and provider-native mode selectors.
 type CapabilityOption struct {
 	Value       string `json:"value"`
 	Label       string `json:"label"`

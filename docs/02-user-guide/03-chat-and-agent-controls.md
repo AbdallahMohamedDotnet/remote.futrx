@@ -19,9 +19,10 @@ Before sending a prompt:
 6. Set **Mode** for the task.
 7. Write and send the prompt.
 
-**Outcome:** Remote saves the selections to the chat and uses them to construct
-the next provider CLI run. Provider, model, thinking, and speed cannot be
-changed while that chat is streaming.
+**Outcome:** Remote saves the selections to the chat and uses supported values
+to construct the next provider CLI run. Provider, model, thinking, and speed
+cannot be changed while that chat is streaming. See the Kimi exception under
+[Thinking and speed](#thinking-and-speed).
 
 ## Provider and model choices
 
@@ -32,14 +33,14 @@ native-mode metadata into one catalog. Loose chats use the host CLIs instead.
 The composer therefore follows the installed CLI version and the connected
 account rather than a model list compiled into the frontend.
 
-The model picker uses the complete catalog published by the selected CLI and
-shows its exact versioned display names. Codex pages through the app-server
-catalog. Claude resolves every `/model` selection (including `best`, 1M-context,
-and `opusplan`) so an alias such as `opus` is displayed as the concrete Opus
-version selected for the connected account. Kimi shows every configured alias
-with its provider model/display name and per-model effort metadata. Antigravity
-preserves every full display name returned by `agy models`, including its
-thinking variant.
+On a successful live probe, the model picker uses the catalog published through
+the selected CLI's discovery surface and shows its versioned display names.
+Codex pages through the app-server catalog. Claude attempts to resolve every
+`/model` selection (including `best`, 1M-context, and `opusplan`) so an alias
+such as `opus` is displayed as the concrete Opus version selected for the
+connected account. Kimi shows configured aliases with their provider
+model/display name and per-model effort metadata. Antigravity preserves the
+full display names returned by `agy models`, including thinking variants.
 
 Remote still submits the provider's required selection value. For example, a
 Claude row labeled **Opus 5** can carry the dynamic `opus` alias underneath;
@@ -57,12 +58,38 @@ Switching providers clears the previous model, reasoning effort, service tier,
 and selected skills because those values may not be compatible with the new
 provider.
 
+### Refresh model choices
+
+Start the project first, then open the provider/model picker and choose
+**Refresh models** when the installed
+CLI, CLI configuration, signed-in account, or account entitlements have
+changed. Remote keeps the previous choices visible while it asks the backend to
+probe the current host or project container again.
+
+The shared backend result is normally reused for 24 hours. If any provider
+returned fallback data or a warning, Remote retries after 2 hours instead.
+Successful Claude, Codex, and Kimi authentication changes request a refresh for
+catalog scopes currently open in the browser, and using the UI's project
+**Start** action in the sidebar requests a refresh for that project. Starting
+or restarting from **Project workspaces** does not; choose **Refresh models**
+afterward. The result reflects the credentials currently present in the
+container, so if credential propagation happens during a later run, refresh
+again afterward. A backend restart also clears the in-memory cache.
+
+Remote cannot detect a provider login performed manually in a project
+terminal. Always choose **Refresh models** after signing in to Antigravity, or
+after changing a provider's configuration in the terminal.
+
 ![Switching among providers and their controls](/assets/docs/screenshots/20-agent-switching-controls-15m15s.webp)
 
 ## Thinking and speed
 
 **Thinking** contains the reasoning efforts reported for the selected model.
 It is hidden when that provider/model does not advertise an effort control.
+Claude, Codex, and Antigravity forward supported selections. Kimi currently
+shows and stores its per-model effort metadata but does not forward the chosen
+Thinking value when launching a run; Kimi uses its configured model/default
+effort instead.
 
 **Auto** omits the explicit effort flag. The provider or model then chooses its
 default. Higher labels request more reasoning; they can increase latency and
@@ -80,8 +107,10 @@ disabled by the connected organization or authentication provider.
 ## Provider modes
 
 **Default** uses the provider's normal agent behavior. **Plan** invokes the
-provider's own planning mode and is shown only when the selected CLI advertises
-it. If a provider exposes only Default, the mode control is hidden.
+provider's own planning mode and is shown when the backend adapter reports it.
+If a provider exposes only Default, the mode control is hidden. Claude's
+adapter declares its known native Plan mode; the other adapters derive it from
+their CLI surfaces.
 
 Remote does not prepend custom Chat, Code, Review, Debug, or Full auto prompts.
 Default project runs remain approval-free inside the isolated project
@@ -91,6 +120,10 @@ its native Plan collaboration instructions.
 
 Changing **Mode** while a run is already active affects a later prompt, not the
 provider process that is currently producing output.
+
+Do not select Plan for Kimi in this version. Kimi Code 0.38.0 advertises
+`--plan` in help but rejects it together with the non-interactive prompt mode
+Remote uses, so that combination fails before a run begins.
 
 ## Select skills
 
@@ -132,7 +165,8 @@ Before the first Antigravity prompt in a project:
 2. Run `agy`.
 3. Complete the URL-and-code sign-in shown by the CLI.
 4. Close the interactive CLI after sign-in.
-5. Return to the chat, choose **Antigravity**, and send the prompt.
+5. Return to the chat and choose **Refresh models** in the provider/model picker.
+6. Choose **Antigravity**, select a discovered model if needed, and send the prompt.
 
 The sign-in is project-local. It survives normal container stop/start, but its
 files live under `/root/.gemini` in the replaceable container root and are lost
@@ -143,6 +177,10 @@ Antigravity print mode streams plain assistant text. It does not currently
 provide Remote's structured tool cards or usage totals. It can resume its
 conversation while the CLI brain directory remains present; a fork starts a
 fresh Antigravity conversation.
+
+A loose chat probes any Antigravity state configured on the Remote host, but
+Remote provides no host `agy` sign-in UI and loose chats have no usable project
+Terminal. Use a project chat for the supported Antigravity sign-in flow.
 
 ## Running-state rules
 

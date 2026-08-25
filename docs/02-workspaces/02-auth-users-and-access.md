@@ -4,7 +4,8 @@ The application separates three concerns:
 
 1. Platform identity: who may open `remote.futrx`.
 2. Agent credentials: whether a provider can run, with host-wide onboarding
-   for Claude, Codex, and Kimi and project-local sign-in for Antigravity.
+   for Claude, Codex, and Kimi and a supported project-local sign-in flow for
+   Antigravity.
 3. Project membership: which registered users may access a project.
 
 ## Application gate
@@ -103,9 +104,14 @@ Claude uses an interactive authorization URL plus a pasted code. Codex and Kimi 
 Antigravity is deliberately outside this host-wide flow. Its bare `agy` sign-in
 never exits the interactive TUI, so Remote exposes no Antigravity card or
 onboarding status. A user runs `agy` once in a project Terminal and completes
-the URL-and-code flow there. That project-local state does not satisfy the
-application's initial provider gate and is not synchronized by the host
-credential service.
+the URL-and-code flow there, exits the CLI, and chooses **Refresh models** in
+the chat picker. That project-local state does not satisfy the application's
+initial provider gate and is not synchronized by the host credential service.
+
+Loose-chat Antigravity execution can technically read `agy` state already
+configured on the host, but Remote exposes no host Antigravity login surface
+and its chat Terminal requires a project. The supported interactive workflow is
+therefore project-local.
 
 ## Project access rules
 

@@ -83,16 +83,21 @@ usage, and error events that provider can supply.
 ## Modes
 
 Remote does not define workflow prompts. The mode selector contains the
-provider-native modes discovered from the selected CLI:
+provider-native modes reported by the selected provider adapter. Codex, Kimi,
+and Antigravity derive availability from CLI output; Claude declares its known
+native Default and Plan modes:
 
 | Mode | Behavior |
 | --- | --- |
 | Default | Use the provider's normal agent behavior |
-| Plan | Use the provider's native planning mode; shown only when advertised |
+| Plan | Use the provider's native planning mode; shown when the adapter reports it |
 
 The selector is hidden when Default is the provider's only available mode.
-Codex modes are sent through app-server collaboration modes. Claude, Kimi, and
-Antigravity receive their native Plan CLI flag.
+Codex modes are sent through app-server collaboration modes. Claude and
+Antigravity receive their native Plan CLI flag. Kimi currently advertises Plan
+from CLI help, but Kimi Code 0.38.0 rejects `--plan` together with the prompt
+mode Remote requires; Kimi runs must use Default until that integration is
+changed.
 
 Model, reasoning, and speed controls are stored per chat. The user's last
 selection also becomes the default for new chats. Codex forwards service tiers
@@ -101,27 +106,92 @@ for Auto and Opus selections.
 
 ## Capability discovery
 
-`GET /api/agent-capabilities?projectId=<id>` returns one provider-neutral
-catalog built from the registered backend agents. Project requests run probes
-against the CLI inside that project's container; loose-chat requests probe the
-host. Results are cached briefly and can be explicitly refreshed.
+`GET /api/agent-capabilities` returns one provider-neutral catalog built from
+the registered backend agents. With `projectId=<id>`, the request is authorized
+against that project and probes the CLIs inside its current container through
+`lxc exec`; without `projectId`, it probes the host CLIs for a loose chat.
+Adding `refresh=1` requests fresh discovery for that scope. Discovery does not
+start a stopped or missing project container; start the project before probing
+it or the provider adapters will return degraded results.
 
-Each provider owns its parser because the CLIs expose different surfaces:
+On a cache miss, the backend probes all registered providers concurrently and
+preserves registry order in the response. Each adapter has a bounded timeout
+and normalizes the CLI-specific output into models, per-model reasoning
+efforts, service tiers, and provider-native modes. A failed probe can return a
+conservative fallback. A partial probe preserves usable live data when possible
+and attaches a concise `warning`; provider failures do not make the whole
+catalog request fail.
+
+Each provider owns its parser because the CLIs expose different surfaces. The
+table describes the successful live-discovery path; failures can produce a
+smaller fallback catalog or partially resolved labels and controls.
 
 | Provider | Discovery source |
 | --- | --- |
 | Codex | Every page of app-server `model/list` plus `collaborationMode/list`, with `codex debug models` as a structured fallback |
-| Claude | The complete `/model` selection list, with every alias resolved through the CLI to an exact versioned label; efforts from CLI help; native Default/Plan and eligible Auto/Opus Fast controls declared by the adapter |
-| Kimi | Every configured alias and its exact display/provider model, effort metadata, and active default from `kimi provider list`; mode hints from CLI help |
-| Antigravity | Every complete display name from `agy models`; effort and mode choices from CLI help |
+| Claude | The `/model` selection list, with each alias resolved through the CLI to a versioned label; `/effort` is queried in parallel, with `--help` as its fallback; native Default/Plan and eligible Auto/Opus Fast controls are declared by the adapter |
+| Kimi | Configured aliases, display/provider models, and effort metadata from `kimi provider list --json`; the plain listing supplies the active default and CLI help supplies the Plan-mode hint |
+| Antigravity | Display names from `agy models`; effort and mode choices from `agy --help` |
 
 The normalized model record owns its reasoning-effort and service-tier lists,
 so the frontend can update dependent selectors when a model changes without a
 compiled model catalog. Mode discovery is reduced to Default plus a native
-Plan mode when the provider advertises one; Remote does not add mode prompts.
+Plan mode when the provider adapter reports one; Remote does not add mode
+prompts.
 Provider-required aliases remain model IDs, while the user-facing labels carry
 the resolved version and variant. This is particularly important for dynamic
 Claude aliases and Antigravity's parenthesized thinking variants.
+
+Discovery and launch support are not identical for every provider. Kimi's
+per-model effort metadata is returned to the frontend, but the current Kimi run
+adapter does not forward a selected Thinking value. It relies on the chosen
+Kimi model/configuration default. Its advertised Plan choice is also
+incompatible with Remote's required prompt mode in Kimi Code 0.38.0, as noted
+above.
+
+### Capability cache and refresh
+
+The authoritative cache lives only in the backend process and is keyed by the
+execution environment:
+
+- `host` for loose-chat discovery;
+- `project:<project-id>:<container-name>` for project discovery.
+
+A catalog in which every provider is live and warning-free is cached for 24
+hours. If any provider uses fallback data or carries a warning, the entire
+scope is cached for 2 hours so Remote retries sooner. Expired entries are
+removed lazily on the next request. Concurrent discovery requests for one
+scope share the same in-flight work, and stored/returned results are cloned so
+callers cannot mutate the shared entry.
+
+There is no persistent cache and no separate cache-delete endpoint. A backend
+restart or deployment clears every entry. `refresh=1` bypasses a completed
+entry; if discovery for the same scope is already running, the request joins
+that flight, whose result replaces the entry.
+Changing a CLI version, CLI configuration, or account entitlement does not by
+itself notify the backend cache.
+
+The frontend separately retains the last response in page memory, keyed by
+normalized user plus host/project scope. It always consults the backend when a
+scope mounts, keeps the previous response visible during a request, and
+coalesces duplicate requests in that page. This browser state does not set the
+catalog TTL and disappears on reload.
+
+The composer **Refresh models** action uses `refresh=1`. A detected Claude,
+Codex, or Kimi authentication change requests a refresh for the scopes currently
+open in that browser, and using the sidebar's project **Start** action requests
+one for that project. The Project workspaces Start/Restart actions do not
+invalidate this cache. The project probe still sees the credentials and
+configuration currently present inside the container; credential propagation
+performed later during a run has no follow-up invalidation. A login performed
+manually in a project terminal, including Antigravity login, is not observable
+by the frontend; use **Refresh models** afterward.
+
+For loose chats, the Antigravity adapter probes host `agy` state. Remote has no
+host Antigravity sign-in UI, and a loose chat has no project Terminal, so the
+supported interactive sign-in flow is a project chat. An operator can prepare
+host `agy` outside Remote, but that is host-level execution outside the
+project-local authentication and isolation workflow.
 
 ## Event model
 

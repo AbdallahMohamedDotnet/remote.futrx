@@ -41,7 +41,7 @@ func reasoningEffortArg(effort agent.ReasoningEffort) string {
 	return agent.NormalizeCapabilityValue(string(effort))
 }
 
-// serviceTierArg forwards safe values from the live Codex model catalog.
+// serviceTierArg syntax-checks the selected or saved service-tier value.
 func serviceTierArg(tier agent.ServiceTier) string {
 	return agent.NormalizeCapabilityValue(string(tier))
 }

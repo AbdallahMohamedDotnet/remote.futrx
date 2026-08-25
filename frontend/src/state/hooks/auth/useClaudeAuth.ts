@@ -15,12 +15,11 @@ export interface ClaudeAuthState {
 }
 
 // Subscribes to /ws/claude/auth-status for live auth state, matching how
-// useCodexAuth consumes Codex. Used by AuthContext to gate the workspace on
-// the claude CLI being authenticated against Anthropic on the server, and by
-// the settings pill so an admin re-login reflects instantly everywhere.
+// useCodexAuth consumes Codex. This is one input to AuthContext's
+// at-least-one-provider gate and also keeps the settings status current.
 //
-// `enabled` MUST be false until Google auth is confirmed — the auth middleware
-// wraps every route including this WS, so connecting pre-auth is pointless.
+// `enabled` remains false until application authentication and local-admin
+// setup are confirmed; auth middleware protects this WebSocket too.
 export function useClaudeAuth(enabled: boolean): ClaudeAuthState {
   const [loading, setLoading] = useState(false);
   const [checked, setChecked] = useState(false);

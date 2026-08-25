@@ -8,8 +8,9 @@ import (
 )
 
 // NewCapabilityCommand constructs a provider probe for the host or selected
-// project container. Provider adapters supply only the environment variables
-// their CLI needs for capability discovery.
+// project container. Host probes inherit the process environment with adapter
+// overrides. Project probes use lxc exec from /workspace and pass only the
+// adapter's explicit environment overrides to that invocation.
 func NewCapabilityCommand(
 	ctx context.Context,
 	req CapabilityRequest,

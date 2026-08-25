@@ -126,7 +126,7 @@ The main shell switches between three views without browser routing:
 - Each project owns its `/workspace` files and processes.
 - Each project also has durable Codex, Claude, and Kimi homes mounted at their provider-native paths.
 - Agent-provider credentials are host-managed and synchronized into project credential locations, primarily those homes; Claude also uses `/root/.claude.json` outside its mounted home.
-- Antigravity authenticates inside each project and stores its current
+- Remote's supported Antigravity flow authenticates inside each project and stores its current
   `/root/.gemini` state in the replaceable container root rather than a durable
   provider-home mount.
 - Scheduled-task definitions and claims live in the host control plane. A due

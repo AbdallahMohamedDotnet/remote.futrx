@@ -171,8 +171,29 @@ flowchart TD
 | Active view, selected chat, sidebar open state | In-memory reducer |
 | Chat events | Initial HTTP page plus reconnecting WebSocket updates |
 | Composer drafts and queued prompts | In-memory map mirrored to per-tab `sessionStorage`, keyed by chat ID |
+| Agent capability catalog | Last response in page memory, keyed by normalized user plus host/project scope; backend process memory owns TTL freshness |
 | Browser drawer width | Browser `localStorage` |
 | Answered interactive question state | Browser storage used by the question renderer |
+
+## Agent capability cache ownership
+
+Agent models and their dependent controls are runtime discovery data, not
+durable application records. The backend keeps one process-local entry for the
+host and one for each project ID plus current container name. Live,
+warning-free catalogs expire after 24 hours; a fallback or warning anywhere in
+the catalog reduces its TTL to 2 hours. Expiry is lazy, manual refresh replaces
+the entry, and a backend restart clears all entries. Overlapping requests for
+one scope share a single discovery operation.
+
+The frontend store holds the last response per normalized user and scope only
+in the current page. It leaves that response visible while requesting the
+backend and coalesces duplicate page-level requests, but it neither persists
+the catalog nor decides when backend data is fresh. Authentication changes for
+Claude, Codex, and Kimi request refreshes for currently subscribed scopes; the
+sidebar's project **Start** action requests one for that project, while the
+Project workspaces lifecycle actions do not. A request already in flight
+remains coalesced. Terminal-driven changes such as Antigravity sign-in require
+the user to choose **Refresh models**.
 
 ## Workspace synchronization
 

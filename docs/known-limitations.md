@@ -52,12 +52,14 @@ These are the constraints worth understanding before you deploy or rely on remot
   container, so all users and projects share the same provider accounts and
   subscription quotas. There is no per-user or per-project identity for those
   providers, and each allows only one interactive login at a time.
-- **Antigravity authentication is project-local but not durable across
-  replacement.** Users run `agy` in the project Terminal. Its credential and
+- **The supported Antigravity authentication flow is project-local but not
+  durable across replacement.** Users run `agy` in the project Terminal. Its credential and
   conversation state live under `/root/.gemini` in the replaceable container
   root rather than a mounted provider home. It survives stop/start of the same
   container but must be recreated after an upgrade or recovery replaces that
-  container.
+  container. A loose chat can use operator-prepared host `agy` state, but Remote
+  exposes no host Antigravity login UI and a loose-chat Terminal cannot create
+  that state.
 - **Run control does not survive a backend restart.** Agent runs are owned by in-process state around an `lxc exec` child. A backend restart loses the run lock, cancellation handle, and event-stream ownership. With the production unit's `KillMode=process`, the child may remain alive but orphaned rather than being killed. There is no server-side run persistence, reattachment, or restart recovery.
 - **One backend run per chat; interactive queueing remains browser-owned.** A
   direct concurrent run request is rejected. Drafts and queued prompts are
@@ -73,7 +75,10 @@ These are the constraints worth understanding before you deploy or rely on remot
   and Remote has no human-confirmation gate for irreversible or external
   actions.
 - **Provider-specific gaps.** Kimi has no fork primitive (forked Kimi chats
-  silently start fresh) and reports no usage data. Antigravity forks also
+  silently start fresh) and reports no usage data. Its discovered per-model
+  Thinking choice is displayed and saved but is not forwarded to the Kimi run,
+  and Kimi 0.38.0 rejects its advertised Plan flag with the prompt mode Remote
+  requires. Antigravity forks also
   start fresh; print mode exposes plain streamed text rather than structured
   tool/usage events, general selected skills are not injected, and Browser MCP
   is unavailable. Model catalogs reflect the installed CLI, its configuration,
@@ -81,6 +86,17 @@ These are the constraints worth understanding before you deploy or rely on remot
   every provider model in existence is available to that account. Claude Fast
   mode requires an eligible Opus model, usage credits, and provider/account
   enablement. Failed Claude tool calls are currently rendered as successes.
+- **Capability catalogs can lag external changes.** A fully live catalog is
+  cached in backend process memory for 24 hours; any fallback or warning uses a
+  2-hour TTL. CLI, configuration, and entitlement changes do not directly
+  invalidate it. Provider login transitions detected by the browser and the
+  sidebar's project **Start** action request selected refreshes; the Project
+  workspaces Start/Restart actions and terminal-based changes such as
+  Antigravity login require **Refresh models**. Restarting the backend clears
+  the entire cache. Provider-level fallback and
+  partial-discovery warnings are present in the API but, except for the
+  Antigravity sign-in disable reason, are not currently rendered in the
+  composer.
 
 ## Scheduled tasks
 

@@ -12,10 +12,11 @@ export interface AgentCapabilityCatalogSnapshot {
   error: string;
 }
 
-// This store holds only transient rendering state for the open application.
-// Catalog freshness and persistence belong to the backend so all browsers and
-// devices share one result. Keeping the last response in memory avoids a
-// visual reset while a fast backend cache lookup is in flight.
+// This store keeps the last response for each normalized user and host/project
+// scope only for the lifetime of the open application. The process-local
+// backend cache owns freshness across browsers and devices. Retaining the last
+// frontend response avoids a visual reset while a backend lookup or refresh is
+// in flight; in-flight requests for the same frontend scope are coalesced.
 export class AgentCapabilityCatalogStore {
   private readonly catalogs = new Map<string, AgentCapabilitiesCatalog>();
   private readonly errors = new Map<string, string>();
@@ -81,6 +82,9 @@ export class AgentCapabilityCatalogStore {
   }
 
   invalidateUser(userId: string): void {
+    // Host-wide Claude, Codex, or Kimi authentication changes can alter every
+    // catalog. Request a force-refresh for scopes currently observed by this
+    // browser; an existing request for the same scope remains coalesced.
     const normalizedUser = normalizeUserId(userId);
     for (const key of this.listeners.keys()) {
       const scope = parseCatalogKey(key);
@@ -91,6 +95,8 @@ export class AgentCapabilityCatalogStore {
   }
 
   invalidateProject(userId: string, projectId?: string): void {
+    // Starting a project may change its CLI/configuration. Request a fresh
+    // frontend snapshot and backend entry; reuse any request already in flight.
     void this.load(userId, projectId, { force: true }).catch(() => undefined);
   }
 

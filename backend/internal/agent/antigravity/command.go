@@ -18,9 +18,9 @@ import (
 const printTimeout = "240m"
 
 func (p *Provider) args(req agent.RunRequest) []string {
-	// agy takes the prompt via --print (positional value). Print mode is
-	// interactive-free but still enforces tool permission prompts, so
-	// --dangerously-skip-permissions is required for headless runs.
+	// agy takes the prompt via --print (positional value). Default mode disables
+	// interactive permission prompts for headless execution. Plan uses agy's
+	// native mode and deliberately omits that bypass.
 	args := []string{"--print", req.Prompt, "--print-timeout", printTimeout}
 	if req.Mode == agent.RunModePlan {
 		args = append(args, "--mode", string(agent.RunModePlan))
@@ -40,7 +40,7 @@ func (p *Provider) args(req agent.RunRequest) []string {
 }
 
 // effortFlag preserves the legacy mappings for Remote's older shared effort
-// ladder, then forwards any safe value advertised by a newer agy CLI.
+// ladder, then forwards any other syntactically safe value.
 func effortFlag(effort agent.ReasoningEffort) string {
 	switch strings.ToLower(strings.TrimSpace(string(effort))) {
 	case "none", "minimal", "low":

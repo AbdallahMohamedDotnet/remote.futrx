@@ -107,10 +107,10 @@ func buildCapabilities(catalog claudeModelCatalog, reasoning []agent.CapabilityO
 	}
 }
 
-// reasoningOptionsForModel turns Claude Code's provider-wide --help choices
-// into the per-model choices shown by its own effort picker. Ultracode is a
-// session setting layered on xhigh rather than an API effort level, so it is
-// offered only when the resolved model supports xhigh.
+// reasoningOptionsForModel turns Claude Code's provider-wide /effort choices
+// (or the --help fallback) into per-model choices. Ultracode is a session
+// setting layered on xhigh rather than an API effort level, so it is offered
+// only when the resolved model supports xhigh.
 func reasoningOptionsForModel(
 	options []agent.CapabilityOption,
 	modelLabel string,
@@ -128,7 +128,7 @@ func reasoningOptionsForModel(
 		case ultracodeEffort:
 			hasUltracode = true
 			// Re-add it below only for a compatible model. This also prevents a
-			// future --help response from applying it to every model globally.
+			// future provider-wide response from applying it to every model.
 			continue
 		case "xhigh":
 			if knownModel && !supportsXHigh {
