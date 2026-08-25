@@ -116,6 +116,5 @@ type CapabilityProvider interface {
 
 type Provider interface {
 	CapabilityProvider
-	Parser(req RunRequest) LineParser
 	Run(ctx context.Context, req RunRequest, emit func(Event)) error
 }
