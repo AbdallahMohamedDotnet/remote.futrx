@@ -1,6 +1,21 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestLoadUsesGlobalAgentCapabilityTimeout(t *testing.T) {
+	t.Setenv("AGENT_CAPABILITY_TIMEOUT", "42s")
+	if got := Load().Agent.CapabilityTimeout; got != 42*time.Second {
+		t.Fatalf("capability timeout = %s, want 42s", got)
+	}
+
+	t.Setenv("AGENT_CAPABILITY_TIMEOUT", "invalid")
+	if got := Load().Agent.CapabilityTimeout; got != 30*time.Second {
+		t.Fatalf("invalid capability timeout fallback = %s, want 30s", got)
+	}
+}
 
 func TestCodeServerBaseURLUsesInstalledDomain(t *testing.T) {
 	tests := []struct {

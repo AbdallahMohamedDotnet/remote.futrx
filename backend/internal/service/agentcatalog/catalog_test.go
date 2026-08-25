@@ -22,7 +22,7 @@ type catalogTestProvider struct {
 }
 
 func (p *catalogTestProvider) ID() agent.ProviderID { return p.id }
-func (p *catalogTestProvider) Capabilities(_ context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
+func (p *catalogTestProvider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	p.mu.Lock()
 	p.calls++
 	p.requests = append(p.requests, req)
@@ -31,12 +31,42 @@ func (p *catalogTestProvider) Capabilities(_ context.Context, req agent.Capabili
 		p.entered <- struct{}{}
 	}
 	if p.release != nil {
-		<-p.release
+		select {
+		case <-p.release:
+		case <-ctx.Done():
+			return agent.Capabilities{Provider: p.id, Label: p.label}, ctx.Err()
+		}
 	}
 	return agent.Capabilities{
 		Provider: p.id, Label: p.label, Source: agent.CapabilitySourceLive,
 		Models: []agent.ModelCapability{}, Modes: []agent.CapabilityOption{},
 	}, nil
+}
+
+func TestListAppliesOneConfiguredTimeoutPerProvider(t *testing.T) {
+	provider := &catalogTestProvider{
+		id:      "slow-agent",
+		label:   "Slow Agent",
+		release: make(chan struct{}),
+	}
+	catalog := New(
+		catalogTestRegistry{providers: []agent.CapabilityProvider{provider}},
+		nil,
+		nil,
+		WithCapabilityTimeout(20*time.Millisecond),
+	)
+
+	started := time.Now()
+	items, err := catalog.List(context.Background(), ListQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("capability discovery took %s despite configured timeout", elapsed)
+	}
+	if len(items) != 1 || items[0].Source != agent.CapabilitySourceFallback || items[0].Warning == "" {
+		t.Fatalf("timed-out capabilities = %#v", items)
+	}
 }
 
 type catalogTestRegistry struct {

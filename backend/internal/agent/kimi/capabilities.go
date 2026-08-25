@@ -3,23 +3,17 @@ package kimi
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-const capabilityTimeout = 12 * time.Second
-
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
-	probeCtx, cancel := context.WithTimeout(ctx, capabilityTimeout)
-	defer cancel()
-
 	kimiHome := containerKimiHome
 	if req.ContainerName == "" {
 		kimiHome = hostKimiHome()
 	}
 	modelsCmd := agent.NewCapabilityCommand(
-		probeCtx,
+		ctx,
 		req,
 		[]string{"HOME=/root", "KIMI_CODE_HOME=" + kimiHome},
 		"kimi",
@@ -29,7 +23,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	)
 	modelsOutput, modelsErr := modelsCmd.Output()
 	defaultsCmd := agent.NewCapabilityCommand(
-		probeCtx,
+		ctx,
 		req,
 		[]string{"HOME=/root", "KIMI_CODE_HOME=" + kimiHome},
 		"kimi",
@@ -38,7 +32,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	)
 	defaultsOutput, defaultsErr := defaultsCmd.Output()
 	helpCmd := agent.NewCapabilityCommand(
-		probeCtx,
+		ctx,
 		req,
 		[]string{"HOME=/root", "KIMI_CODE_HOME=" + kimiHome},
 		"kimi",

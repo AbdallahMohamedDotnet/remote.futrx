@@ -15,7 +15,15 @@ type Config struct {
 	DataDir    string
 	InstallDir string
 	BaseURL    string
+	Agent      AgentOptions
 	Schedule   ScheduleLimits
+}
+
+// AgentOptions are global execution policies shared by every configured agent.
+type AgentOptions struct {
+	// CapabilityTimeout bounds one provider's complete model/capability probe
+	// (AGENT_CAPABILITY_TIMEOUT, Go duration, default 30s, "0" disables).
+	CapabilityTimeout time.Duration
 }
 
 // ScheduleLimits are the scheduled-task guardrails. Zero disables a limit;
@@ -40,6 +48,9 @@ func Load() Config {
 		DataDir:    envDefault("DATA_DIR", "/opt/remote.futrx/data"),
 		InstallDir: envDefault("INSTALL_DIR", "/opt/remote.futrx"),
 		BaseURL:    envDefault("BASE_URL", ""),
+		Agent: AgentOptions{
+			CapabilityTimeout: envDuration("AGENT_CAPABILITY_TIMEOUT", 30*time.Second),
+		},
 		Schedule: ScheduleLimits{
 			MinInterval:        envDuration("SCHEDULE_MIN_INTERVAL", 5*time.Minute),
 			MaxConcurrentRuns:  envInt("SCHEDULE_MAX_CONCURRENT", 2),

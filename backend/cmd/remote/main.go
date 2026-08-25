@@ -76,8 +76,11 @@ func main() {
 		ProjectContainers: containerStack.ProjectDependencies(),
 		AgentContainers:   containerStack.AgentDependencies(),
 		AgentModules:      agentModules,
-		TmuxClient:        tmuxClient,
-		ValidTmuxName:     tmuxcli.ValidName,
+		AgentOptions: service.AgentOptions{
+			CapabilityTimeout: cfg.Agent.CapabilityTimeout,
+		},
+		TmuxClient:    tmuxClient,
+		ValidTmuxName: tmuxcli.ValidName,
 		ScheduleLimits: service.ScheduleLimits{
 			MinInterval:        cfg.Schedule.MinInterval,
 			MaxConcurrentRuns:  cfg.Schedule.MaxConcurrentRuns,

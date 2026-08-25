@@ -6,12 +6,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-const capabilityTimeout = 15 * time.Second
 const fastServiceTier = "fast"
 
 const ultracodeEffort = "ultracode"
@@ -24,22 +22,19 @@ type effortDiscoveryResult struct {
 }
 
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
-	probeCtx, cancel := context.WithTimeout(ctx, capabilityTimeout)
-	defer cancel()
-
 	// Effort and model commands are independent local CLI probes. Run them in
 	// parallel so detecting Ultracode does not add another startup delay to the
 	// first uncached catalog request.
 	effortDone := make(chan effortDiscoveryResult, 1)
 	go func() {
-		options, err := queryEffortOptions(probeCtx, req)
+		options, err := queryEffortOptions(ctx, req)
 		effortDone <- effortDiscoveryResult{options: options, err: err}
 	}()
-	catalog, fullyResolved, catalogErr := queryModelCatalog(probeCtx, req)
+	catalog, fullyResolved, catalogErr := queryModelCatalog(ctx, req)
 	effortResult := <-effortDone
 	reasoning, effortErr := effortResult.options, effortResult.err
 	if effortErr != nil || len(reasoning) == 0 {
-		reasoning = queryHelpEffortOptions(probeCtx, req)
+		reasoning = queryHelpEffortOptions(ctx, req)
 	}
 	if catalogErr != nil {
 		caps := buildCapabilities(fallbackModelCatalog(), reasoning)

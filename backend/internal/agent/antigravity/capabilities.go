@@ -3,21 +3,16 @@ package antigravity
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-const capabilityTimeout = 10 * time.Second
-
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
-	probeCtx, cancel := context.WithTimeout(ctx, capabilityTimeout)
-	defer cancel()
 	environment := []string{"HOME=" + containerAgentHome}
 
-	modelsCmd := agent.NewCapabilityCommand(probeCtx, req, environment, "agy", "models")
+	modelsCmd := agent.NewCapabilityCommand(ctx, req, environment, "agy", "models")
 	modelsOutput, modelsErr := modelsCmd.CombinedOutput()
-	helpCmd := agent.NewCapabilityCommand(probeCtx, req, environment, "agy", "--help")
+	helpCmd := agent.NewCapabilityCommand(ctx, req, environment, "agy", "--help")
 	helpOutput, helpErr := helpCmd.CombinedOutput()
 
 	if modelsErr != nil && helpErr != nil {

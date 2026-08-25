@@ -17,6 +17,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
@@ -51,21 +52,41 @@ type ListQuery struct {
 }
 
 type Catalog struct {
-	agents   CapabilityRegistry
-	projects ProjectCatalog
-	auth     Authorizer
-	cache    *catalogCache
-	flights  *catalogFlights
+	agents            CapabilityRegistry
+	projects          ProjectCatalog
+	auth              Authorizer
+	capabilityTimeout time.Duration
+	cache             *catalogCache
+	flights           *catalogFlights
 }
 
-func New(agents CapabilityRegistry, projects ProjectCatalog, auth Authorizer) *Catalog {
-	return &Catalog{
-		agents:   agents,
-		projects: projects,
-		auth:     auth,
-		cache:    newCatalogCache(),
-		flights:  newCatalogFlights(),
+type Option func(*Catalog)
+
+// WithCapabilityTimeout sets the deadline for each provider's complete
+// discovery operation. Zero disables the catalog-level deadline.
+func WithCapabilityTimeout(timeout time.Duration) Option {
+	return func(catalog *Catalog) {
+		if timeout >= 0 {
+			catalog.capabilityTimeout = timeout
+		}
 	}
+}
+
+func New(agents CapabilityRegistry, projects ProjectCatalog, auth Authorizer, options ...Option) *Catalog {
+	catalog := &Catalog{
+		agents:            agents,
+		projects:          projects,
+		auth:              auth,
+		capabilityTimeout: 30 * time.Second,
+		cache:             newCatalogCache(),
+		flights:           newCatalogFlights(),
+	}
+	for _, option := range options {
+		if option != nil {
+			option(catalog)
+		}
+	}
+	return catalog
 }
 
 func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabilities, error) {
@@ -110,8 +131,14 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 			wait.Add(1)
 			go func() {
 				defer wait.Done()
+				probeCtx := discoveryCtx
+				cancel := func() {}
+				if c.capabilityTimeout > 0 {
+					probeCtx, cancel = context.WithTimeout(discoveryCtx, c.capabilityTimeout)
+				}
+				defer cancel()
 				caps, err := provider.Capabilities(
-					discoveryCtx,
+					probeCtx,
 					agent.CapabilityRequest{ContainerName: containerName},
 				)
 				if caps.Provider == "" {

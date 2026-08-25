@@ -60,6 +60,7 @@ type Dependencies struct {
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
 	AgentModules      *agentmodule.Catalog
+	AgentOptions      AgentOptions
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
 	ScheduleLimits    ScheduleLimits
@@ -72,6 +73,12 @@ type ScheduleLimits struct {
 	MinInterval        time.Duration
 	MaxConcurrentRuns  int
 	MaxTasksPerProject int
+}
+
+// AgentOptions mirrors global agent execution policy without coupling the
+// service layer to the config package.
+type AgentOptions struct {
+	CapabilityTimeout time.Duration
 }
 
 type Services struct {
@@ -188,7 +195,12 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	userSettingsService := serviceusersettings.New(deps.UserSettings)
 	skillService := serviceskills.New()
 	skillCatalog := serviceskills.NewCatalog(skillService, projectService, authService)
-	agentCatalog := serviceagentcatalog.New(agents, projectService, authService)
+	agentCatalog := serviceagentcatalog.New(
+		agents,
+		projectService,
+		authService,
+		serviceagentcatalog.WithCapabilityTimeout(deps.AgentOptions.CapabilityTimeout),
+	)
 	var accessVerifier *serviceauth.AccessVerifier
 	if authService != nil {
 		accessVerifier = serviceauth.NewAccessVerifier(authService, projectService)

@@ -48,8 +48,8 @@ func (f *catalogFlights) do(
 	f.mu.Unlock()
 
 	// A browser navigating away should stop waiting, but it should not cancel
-	// discovery for other callers that joined the same flight. Every provider
-	// probe has its own bounded timeout.
+	// discovery for other callers that joined the same flight. Catalog applies
+	// the configured global deadline to each provider probe.
 	running.result, running.err = discover(context.WithoutCancel(ctx))
 
 	f.mu.Lock()

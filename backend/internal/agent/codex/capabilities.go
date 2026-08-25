@@ -5,12 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
-
-const capabilityTimeout = 12 * time.Second
 
 type modelListResponse struct {
 	Data       []modelListItem `json:"data"`
@@ -50,9 +47,7 @@ type collaborationModeItem struct {
 }
 
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
-	appServerCtx, cancelAppServer := context.WithTimeout(ctx, capabilityTimeout)
-	models, modes, err := queryAppServerCapabilities(appServerCtx, req)
-	cancelAppServer()
+	models, modes, err := queryAppServerCapabilities(ctx, req)
 	if err == nil {
 		return buildCapabilities(models, modes), nil
 	}
@@ -60,9 +55,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	// If app-server discovery fails, including on older builds without
 	// model/list, the debug catalog preserves structured live model, effort, and
 	// service-tier data but cannot report collaboration modes.
-	debugCtx, cancelDebug := context.WithTimeout(ctx, capabilityTimeout)
-	defer cancelDebug()
-	debugModels, debugErr := queryDebugModels(debugCtx, req)
+	debugModels, debugErr := queryDebugModels(ctx, req)
 	if debugErr == nil {
 		caps := buildCapabilities(debugModels, collaborationModeListResponse{})
 		caps.Warning = "Codex mode discovery is unavailable in this CLI version"
