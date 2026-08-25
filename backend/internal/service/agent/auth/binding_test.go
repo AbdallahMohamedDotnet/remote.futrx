@@ -51,6 +51,55 @@ func TestDeviceBindingPreservesConcreteStatus(t *testing.T) {
 	}
 }
 
+func TestBindingsExposeNormalizedSnapshots(t *testing.T) {
+	codeService := NewCodeService(CodeConfig{Authenticated: func() bool { return true }})
+	codeService.state = CodeLoginState{
+		Active: true, AuthURL: "https://login.example/code", AwaitingCode: true, StartedAt: 11,
+	}
+	code := NewCodeBinding("future-code", codeService)
+	codeSnapshot := code.Snapshot()
+	if !codeSnapshot.Authenticated || !codeSnapshot.Login.Active ||
+		codeSnapshot.Login.URL != "https://login.example/code" || !codeSnapshot.Login.AwaitingCode {
+		t.Fatalf("code snapshot = %#v", codeSnapshot)
+	}
+
+	deviceService := NewDeviceService(DeviceConfig[bindingTestStatus]{
+		Authenticated: func() bool { return false },
+		BuildStatus: func() DeviceStatusBuilder[bindingTestStatus] {
+			return func(state DeviceState) bindingTestStatus {
+				return bindingTestStatus{DeviceLogin: state}
+			}
+		},
+	})
+	deviceService.device = DeviceState{
+		Active: true, VerificationURI: "https://login.example/device",
+		UserCode: "ABCD-EFGH", StartedAt: 12, ExpiresAt: 34,
+	}
+	device := NewDeviceBinding("future-device", deviceService).WithWarning(func() string {
+		return "Use subscription authentication."
+	})
+	deviceSnapshot := device.Snapshot()
+	if deviceSnapshot.Authenticated || !deviceSnapshot.Login.Active ||
+		deviceSnapshot.Login.URL != "https://login.example/device" ||
+		deviceSnapshot.Login.UserCode != "ABCD-EFGH" ||
+		deviceSnapshot.Warning != "Use subscription authentication." {
+		t.Fatalf("device snapshot = %#v", deviceSnapshot)
+	}
+
+	subscription, err := device.SubscribeSnapshots()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer subscription.Close()
+	value, ok := subscription.Next(context.Background())
+	if !ok {
+		t.Fatal("normalized initial snapshot was not delivered")
+	}
+	if got, ok := value.(Snapshot); !ok || got.Login.UserCode != "ABCD-EFGH" || got.Warning == "" {
+		t.Fatalf("normalized stream value = %#v", value)
+	}
+}
+
 func TestExternalBindingDeclaresProviderOwnedAuthentication(t *testing.T) {
 	binding := NewExternalBinding(agent.ProviderAntigravity)
 	if binding.ID() != agent.ProviderAntigravity || binding.Flow() != FlowExternal {
@@ -58,6 +107,12 @@ func TestExternalBindingDeclaresProviderOwnedAuthentication(t *testing.T) {
 	}
 	if binding.Available() || binding.Authenticated() || binding.Status() != nil {
 		t.Fatalf("external binding unexpectedly exposes managed auth: %#v", binding)
+	}
+	if snapshot := binding.Snapshot(); snapshot.Authenticated || snapshot.Login.Active {
+		t.Fatalf("external snapshot = %#v", snapshot)
+	}
+	if _, err := binding.SubscribeSnapshots(); !errors.Is(err, ErrUnsupportedFlow) {
+		t.Fatalf("SubscribeSnapshots error = %v, want ErrUnsupportedFlow", err)
 	}
 	if _, err := binding.Subscribe(); !errors.Is(err, ErrUnsupportedFlow) {
 		t.Fatalf("Subscribe error = %v, want ErrUnsupportedFlow", err)
