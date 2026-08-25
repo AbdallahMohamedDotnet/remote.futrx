@@ -50,12 +50,36 @@ fi
 grep -Fq "patch release 0.3.3 changes infrastructure-managed paths:" <<<"$error" \
     || fail "protected-path rejection did not explain the failure"
 
+commit_file backend/cmd/install-host-agents/main.go host-installer protected-host-installer
+git -C "$TEST_REPO" tag 0.3.4
+if error="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.3.4 2>&1)"; then
+    fail "host installer change was accepted as an application release"
+fi
+grep -Fq "backend/cmd/install-host-agents/main.go" <<<"$error" || \
+    fail "host installer rejection did not identify the protected path"
+
+commit_file backend/internal/agent/future/profile.go future-profile protected-future-profile
+git -C "$TEST_REPO" tag 0.3.5
+if error="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.3.5 2>&1)"; then
+    fail "future agent profile was accepted as an application release"
+fi
+grep -Fq "backend/internal/agent/future/profile.go" <<<"$error" || \
+    fail "future agent profile rejection did not identify the protected path"
+
+commit_file backend/internal/agent/future/install_linux.go future-installer protected-future-installer
+git -C "$TEST_REPO" tag 0.3.6
+if error="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.3.6 2>&1)"; then
+    fail "future agent install helper was accepted as an application release"
+fi
+grep -Fq "backend/internal/agent/future/install_linux.go" <<<"$error" || \
+    fail "future agent install-helper rejection did not identify the protected path"
+
 commit_file README.md next-minor minor
 git -C "$TEST_REPO" tag 0.4.0
 output="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.4.0)"
 assert_output "$output" "kind=infrastructure"
 assert_output "$output" "label=Infrastructure"
-assert_output "$output" "previous=0.3.3"
+assert_output "$output" "previous=0.3.6"
 
 if error="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.4 2>&1)"; then
     fail "malformed release tag was accepted"

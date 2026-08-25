@@ -19,6 +19,7 @@ var kimiProfile = provisioning.Profile{
 		Name:               "kimi",
 		ImageLabel:         "kimi-code",
 		Binary:             "kimi",
+		VersionArgs:        []string{"--version"},
 		PackageName:        "@moonshot-ai/kimi-code",
 		Version:            provisioning.MustCLIVersion("KIMI_CODE_VERSION"),
 		ReportVersion:      true,
@@ -48,7 +49,7 @@ var kimiProfile = provisioning.Profile{
 	}},
 }
 
-// Profile returns Kimi's container-facing policy. The returned value is a
+// Profile returns Kimi's provisioning policy. The returned value is a
 // defensive copy so application wiring can compose profiles without mutating
 // the provider's definition.
 func Profile() provisioning.Profile {

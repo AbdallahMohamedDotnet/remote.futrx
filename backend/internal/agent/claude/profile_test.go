@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ func TestProfilePreservesClaudeProvisioningPolicy(t *testing.T) {
 		Name:               "Claude Code",
 		ImageLabel:         "claude-code",
 		Binary:             "claude",
+		VersionArgs:        []string{"--version"},
 		PackageName:        "@anthropic-ai/claude-code",
 		Version:            provisioning.MustCLIVersion("CLAUDE_CODE_VERSION"),
 		ReportVersion:      true,
@@ -27,7 +29,7 @@ func TestProfilePreservesClaudeProvisioningPolicy(t *testing.T) {
 		InstallTimeout:     5 * time.Minute,
 		WaitTimeout:        2 * time.Minute,
 	}
-	if profile.CLI != wantCLI {
+	if !reflect.DeepEqual(profile.CLI, wantCLI) {
 		t.Fatalf("CLI profile = %#v, want %#v", profile.CLI, wantCLI)
 	}
 

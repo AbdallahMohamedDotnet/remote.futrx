@@ -17,9 +17,9 @@ const (
 //go:embed assets/mcp.json
 var browserMCPConfig []byte
 
-// Profile defines all Claude-owned policy needed to provision a project
-// container. The container integration applies this data without knowing
-// anything about Claude's package, credentials, or filesystem layout.
+// Profile defines Claude-owned CLI and project-container provisioning policy.
+// Environment integrations apply it without knowing Claude's package,
+// credentials, or filesystem layout.
 func Profile() provisioning.Profile {
 	return provisioning.Profile{
 		ID: string(agent.ProviderClaude),
@@ -27,6 +27,7 @@ func Profile() provisioning.Profile {
 			Name:               "Claude Code",
 			ImageLabel:         "claude-code",
 			Binary:             "claude",
+			VersionArgs:        []string{"--version"},
 			PackageName:        "@anthropic-ai/claude-code",
 			Version:            provisioning.MustCLIVersion("CLAUDE_CODE_VERSION"),
 			ReportVersion:      true,

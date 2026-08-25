@@ -107,11 +107,16 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if err := deps.AgentContainers.Validate(); err != nil {
 		return Services{}, fmt.Errorf("agent container dependencies: %w", err)
 	}
-	if deps.Schedules == nil {
-		return Services{}, errors.New("scheduled task repository is required")
-	}
 	if deps.AgentModules == nil {
 		return Services{}, errors.New("agent module catalog is required")
+	}
+	if deps.Auth != nil {
+		if err := deps.AgentModules.ValidateAccessGate(); err != nil {
+			return Services{}, fmt.Errorf("agent module catalog: %w", err)
+		}
+	}
+	if deps.Schedules == nil {
+		return Services{}, errors.New("scheduled task repository is required")
 	}
 
 	workspace := workspacehub.New()

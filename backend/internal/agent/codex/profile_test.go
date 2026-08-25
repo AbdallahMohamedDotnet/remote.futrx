@@ -15,6 +15,7 @@ func TestProfileMatchesCodexProvisioningPolicy(t *testing.T) {
 			Name:               "Codex",
 			ImageLabel:         "codex",
 			Binary:             "codex",
+			VersionArgs:        []string{"--version"},
 			PackageName:        "@openai/codex",
 			Version:            provisioning.MustCLIVersion("CODEX_CLI_VERSION"),
 			ReportVersion:      true,

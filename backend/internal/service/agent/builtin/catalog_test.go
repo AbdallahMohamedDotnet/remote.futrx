@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
@@ -45,6 +46,18 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 		catalog.SupportsNativeFork(string(agent.ProviderAntigravity)) {
 		t.Fatal("catalog native-fork policies do not match provider behavior")
 	}
+	hostProfiles := catalog.HostProfiles()
+	hostIDs := make([]string, len(hostProfiles))
+	for index, profile := range hostProfiles {
+		hostIDs[index] = profile.ID
+	}
+	if !slices.Equal(hostIDs, []string{"claude", "codex", "kimi", "antigravity"}) {
+		t.Fatalf("host profile order = %v", hostIDs)
+	}
+	antigravityCLI := hostProfiles[len(hostProfiles)-1].CLI
+	if antigravityCLI.Binary != "agy" || antigravityCLI.InstallMode != provisioning.InstallWithScript || antigravityCLI.InstallScript == "" {
+		t.Fatalf("Antigravity host CLI policy = %#v", antigravityCLI)
+	}
 
 	runtime, err := catalog.Build(agentmodule.Dependencies{})
 	if err != nil {
@@ -80,5 +93,11 @@ func TestCatalogProfilesAreDefensiveCopies(t *testing.T) {
 	}
 	if second[0].BrowserMCPTemplates[0].Content[0] == 'x' {
 		t.Fatal("template mutation escaped the catalog")
+	}
+
+	hostFirst := catalog.HostProfiles()
+	hostFirst[0].CLI.Binary = "changed"
+	if got := catalog.HostProfiles()[0].CLI.Binary; got == "changed" {
+		t.Fatal("host CLI policy mutation escaped the catalog")
 	}
 }

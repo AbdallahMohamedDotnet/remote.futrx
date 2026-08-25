@@ -25,6 +25,7 @@ var codexProfile = provisioning.Profile{
 		Name:               "Codex",
 		ImageLabel:         "codex",
 		Binary:             "codex",
+		VersionArgs:        []string{"--version"},
 		PackageName:        "@openai/codex",
 		Version:            provisioning.MustCLIVersion("CODEX_CLI_VERSION"),
 		CheckVersion:       true,
@@ -64,7 +65,7 @@ var codexProfile = provisioning.Profile{
 	},
 }
 
-// Profile returns Codex's complete container-facing provisioning policy.
+// Profile returns Codex's complete provisioning policy.
 func Profile() provisioning.Profile {
 	return codexProfile.Clone()
 }

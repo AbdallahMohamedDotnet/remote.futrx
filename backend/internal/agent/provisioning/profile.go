@@ -12,17 +12,24 @@ type InstallMode string
 const (
 	InstallWithNPM         InstallMode = "npm"
 	InstallWithImageRepair InstallMode = "image-repair"
-	// InstallWithScript runs the spec's InstallScript inside the container.
-	// For CLIs that ship as standalone binaries rather than npm packages.
+	// InstallWithScript runs the spec's InstallScript in the target execution
+	// environment. It supports CLIs that ship as standalone binaries rather
+	// than npm packages.
 	InstallWithScript InstallMode = "script"
 )
 
-// CLISpec is the provider-owned description of a CLI installed in project
-// containers. Container integrations own how the description is applied.
+// CLISpec is the provider-owned description of a CLI installed on the host
+// and/or in project containers. Each execution-environment integration owns
+// how the shared policy is applied.
 type CLISpec struct {
-	Name               string
-	ImageLabel         string
-	Binary             string
+	Name       string
+	ImageLabel string
+	Binary     string
+	// VersionArgs are passed to Binary when reporting or checking its
+	// installed version. Output must contain a parseable semver; each execution
+	// environment owns whether readiness requires the exact pin or a compatible
+	// version at least as new as that pin.
+	VersionArgs        []string
 	PackageName        string
 	Version            string
 	ReportVersion      bool
@@ -138,8 +145,10 @@ func validPersistentName(value string) bool {
 	return true
 }
 
-// Profile is the complete container-facing definition supplied by one agent.
-// It contains policy only; no LXC or filesystem operation lives here.
+// Profile is the provisioning policy supplied by one agent. CLI policy may be
+// consumed for host and project execution; credential, mount, instruction,
+// skill, and browser policy applies to project containers. No LXC, process,
+// or filesystem operation lives here.
 type Profile struct {
 	ID                  string
 	CLI                 CLISpec
@@ -151,6 +160,7 @@ type Profile struct {
 }
 
 func (p Profile) Clone() Profile {
+	p.CLI.VersionArgs = append([]string(nil), p.CLI.VersionArgs...)
 	p.Credentials.Files = append([]CredentialFile(nil), p.Credentials.Files...)
 	p.Credentials.LegacyDevices = append([]string(nil), p.Credentials.LegacyDevices...)
 	p.PersistentState = append([]PersistentDirectory(nil), p.PersistentState...)

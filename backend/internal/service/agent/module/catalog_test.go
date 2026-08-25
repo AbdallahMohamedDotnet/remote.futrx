@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
@@ -102,6 +103,31 @@ func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
 		"incomplete CLI": func() Descriptor {
 			descriptor := cloneDescriptor(valid)
 			descriptor.Profile.CLI.Binary = ""
+			return descriptor
+		}(),
+		"invalid CLI version": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Profile.CLI.Version = "latest"
+			return descriptor
+		}(),
+		"zero CLI install timeout": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Profile.CLI.InstallTimeout = 0
+			return descriptor
+		}(),
+		"negative CLI wait timeout": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Profile.CLI.WaitTimeout = -time.Second
+			return descriptor
+		}(),
+		"checked CLI without version command": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Profile.CLI.VersionArgs = nil
+			return descriptor
+		}(),
+		"project CLI without image label": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Profile.CLI.ImageLabel = ""
 			return descriptor
 		}(),
 		"fork without resume": func() Descriptor {
@@ -297,6 +323,19 @@ func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
 	if !noAuthCatalog.AccessReady(nil) {
 		t.Fatal("no-auth gate provider was not immediately ready")
 	}
+	if err := noAuthCatalog.ValidateAccessGate(); err != nil {
+		t.Fatalf("ValidateAccessGate with no-auth gate = %v", err)
+	}
+}
+
+func TestCatalogRejectsMissingAccessGateWhenRequested(t *testing.T) {
+	catalog, err := NewCatalog(newTestFactory(t, "external-agent"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := catalog.ValidateAccessGate(); !errors.Is(err, ErrNoAccessGate) {
+		t.Fatalf("ValidateAccessGate error = %v, want ErrNoAccessGate", err)
+	}
 }
 
 type bindingTestAuthStatus struct {
@@ -378,6 +417,46 @@ func TestCatalogEnforcesDeclaredExecutionScopes(t *testing.T) {
 	}
 }
 
+func TestCatalogSeparatesHostAndProjectProvisioningProfiles(t *testing.T) {
+	hostOnly := testDescriptor("host-agent")
+	hostOnly.ExecutionScopes = []ExecutionScope{ScopeHost}
+	hostOnly.Profile.CLI.ImageLabel = ""
+	projectOnly := testDescriptor("project-agent")
+	projectOnly.ExecutionScopes = []ExecutionScope{ScopeProject}
+	both := testDescriptor("both-agent")
+	remoteHost := testDescriptor("remote-host-agent")
+	remoteHost.ExecutionScopes = []ExecutionScope{ScopeHost}
+	remoteHost.Profile = nil
+
+	descriptors := []Descriptor{hostOnly, projectOnly, both, remoteHost}
+	factories := make([]Factory, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		factory, err := NewFactory(descriptor, testBuild(descriptor.ID))
+		if err != nil {
+			t.Fatalf("NewFactory(%q): %v", descriptor.ID, err)
+		}
+		factories = append(factories, factory)
+	}
+	catalog, err := NewCatalog(factories...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	projectProfiles := catalog.Profiles()
+	if got := []string{projectProfiles[0].ID, projectProfiles[1].ID}; !slices.Equal(got, []string{"project-agent", "both-agent"}) {
+		t.Fatalf("project profiles = %v", got)
+	}
+	hostProfiles := catalog.HostProfiles()
+	if got := []string{hostProfiles[0].ID, hostProfiles[1].ID}; !slices.Equal(got, []string{"host-agent", "both-agent"}) {
+		t.Fatalf("host profiles = %v", got)
+	}
+
+	hostProfiles[0].CLI.Binary = "changed"
+	if got := catalog.HostProfiles()[0].CLI.Binary; got != "future-agent" {
+		t.Fatalf("host profile mutation escaped catalog: %q", got)
+	}
+}
+
 func newTestFactory(t *testing.T, id agent.ProviderID) Factory {
 	t.Helper()
 	factory, err := NewFactory(testDescriptor(id), testBuild(id))
@@ -398,12 +477,16 @@ func testDescriptor(id agent.ProviderID) Descriptor {
 	profile := provisioning.Profile{
 		ID: string(id),
 		CLI: provisioning.CLISpec{
-			Name:        "Future Agent",
-			ImageLabel:  "future-agent",
-			Binary:      "future-agent",
-			PackageName: "future-agent-cli",
-			Version:     "1.0.0",
-			InstallMode: provisioning.InstallWithNPM,
+			Name:           "Future Agent",
+			ImageLabel:     "future-agent",
+			Binary:         "future-agent",
+			VersionArgs:    []string{"version"},
+			PackageName:    "future-agent-cli",
+			Version:        "1.0.0",
+			CheckVersion:   true,
+			InstallMode:    provisioning.InstallWithNPM,
+			InstallTimeout: time.Minute,
+			WaitTimeout:    time.Minute,
 		},
 	}
 	return Descriptor{

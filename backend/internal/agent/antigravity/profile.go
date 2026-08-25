@@ -29,6 +29,7 @@ var antigravityProfile = provisioning.Profile{
 		Name:               "antigravity",
 		ImageLabel:         "antigravity",
 		Binary:             "agy",
+		VersionArgs:        []string{"--version"},
 		Version:            provisioning.MustCLIVersion("ANTIGRAVITY_CLI_VERSION"),
 		ReportVersion:      true,
 		CheckVersion:       true,
@@ -55,13 +56,13 @@ var antigravityProfile = provisioning.Profile{
 	}},
 }
 
-// Profile returns Antigravity's container-facing policy as a defensive copy.
+// Profile returns Antigravity's provisioning policy as a defensive copy.
 func Profile() provisioning.Profile {
 	return antigravityProfile.Clone()
 }
 
-// installScript downloads the pinned agy release for the container's
-// architecture, verifies its repository-pinned checksum, and installs
+// installScript downloads the pinned agy release for the target execution
+// environment's architecture, verifies its repository-pinned checksum, and installs
 // /usr/local/bin/agy. It never consults Antigravity's moving latest manifest.
 func installScript(version, linuxX64SHA512, linuxARM64SHA512 string) string {
 	return fmt.Sprintf(`set -euo pipefail

@@ -15,6 +15,7 @@ func TestProfilePreservesKimiProvisioningPolicy(t *testing.T) {
 			Name:               "kimi",
 			ImageLabel:         "kimi-code",
 			Binary:             "kimi",
+			VersionArgs:        []string{"--version"},
 			PackageName:        "@moonshot-ai/kimi-code",
 			Version:            provisioning.MustCLIVersion("KIMI_CODE_VERSION"),
 			ReportVersion:      true,

@@ -61,7 +61,8 @@ type Features struct {
 }
 
 // Descriptor is the stable, provider-neutral declaration for one agent. A
-// project-capable module must include a complete provisioning profile.
+// project-capable module must include a complete provisioning profile; a
+// host-only module may include one when it runs a locally installed CLI.
 type Descriptor struct {
 	ID                  agent.ProviderID
 	Label               string
@@ -196,26 +197,42 @@ func validateScopes(descriptor Descriptor) error {
 	if descriptor.Default && !seen[ScopeHost] {
 		return fmt.Errorf("%w: default provider %q does not support host execution", ErrInvalidFactory, descriptor.ID)
 	}
-	if projectScoped {
-		return validateProfile(descriptor.ID, descriptor.Profile)
+	if projectScoped && descriptor.Profile == nil {
+		return fmt.Errorf("%w: project provider %q has no profile", ErrInvalidFactory, descriptor.ID)
 	}
 	if descriptor.Profile != nil {
-		return fmt.Errorf("%w: host-only provider %q has a project profile", ErrInvalidFactory, descriptor.ID)
+		return validateProfile(descriptor.ID, descriptor.Profile, projectScoped)
 	}
 	return nil
 }
 
-func validateProfile(id agent.ProviderID, profile *provisioning.Profile) error {
-	if profile == nil {
-		return fmt.Errorf("%w: project provider %q has no profile", ErrInvalidFactory, id)
-	}
+func validateProfile(id agent.ProviderID, profile *provisioning.Profile, projectScoped bool) error {
 	if profile.ID != string(id) {
 		return fmt.Errorf("%w: provider %q has profile %q", ErrInvalidFactory, id, profile.ID)
 	}
 	cli := profile.CLI
-	if strings.TrimSpace(cli.Name) == "" || strings.TrimSpace(cli.ImageLabel) == "" ||
-		strings.TrimSpace(cli.Binary) == "" || strings.TrimSpace(cli.Version) == "" {
+	if strings.TrimSpace(cli.Name) == "" || strings.TrimSpace(cli.Binary) == "" || strings.TrimSpace(cli.Version) == "" {
 		return fmt.Errorf("%w: provider %q has incomplete CLI policy", ErrInvalidFactory, id)
+	}
+	if !provisioning.ValidCLIVersion(cli.Version) {
+		return fmt.Errorf("%w: provider %q has invalid CLI version %q", ErrInvalidFactory, id, cli.Version)
+	}
+	if cli.InstallTimeout <= 0 {
+		return fmt.Errorf("%w: provider %q has a non-positive CLI install timeout", ErrInvalidFactory, id)
+	}
+	if cli.WaitTimeout <= 0 {
+		return fmt.Errorf("%w: provider %q has a non-positive CLI wait timeout", ErrInvalidFactory, id)
+	}
+	if (cli.CheckVersion || cli.ReportVersion) && len(cli.VersionArgs) == 0 {
+		return fmt.Errorf("%w: provider %q has no CLI version arguments", ErrInvalidFactory, id)
+	}
+	for _, argument := range cli.VersionArgs {
+		if strings.TrimSpace(argument) == "" || strings.ContainsRune(argument, '\x00') {
+			return fmt.Errorf("%w: provider %q has an invalid CLI version argument", ErrInvalidFactory, id)
+		}
+	}
+	if projectScoped && strings.TrimSpace(cli.ImageLabel) == "" {
+		return fmt.Errorf("%w: project provider %q has no image label", ErrInvalidFactory, id)
 	}
 	switch cli.InstallMode {
 	case provisioning.InstallWithNPM, provisioning.InstallWithImageRepair:

@@ -10,7 +10,10 @@ import (
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
-var ErrInvalidCatalog = errors.New("invalid agent module catalog")
+var (
+	ErrInvalidCatalog = errors.New("invalid agent module catalog")
+	ErrNoAccessGate   = errors.New("agent module catalog has no access-gate provider")
+)
 
 // Catalog is the immutable composition source for all configured agents.
 // Order is intentional and is preserved in provisioning, runtime, auth, and
@@ -185,6 +188,20 @@ func (c *Catalog) AccessReady(bindings *agentauth.Registry) bool {
 	return false
 }
 
+// ValidateAccessGate rejects a catalog that would leave an authenticated
+// deployment permanently behind the provider-onboarding gate. Auth-disabled
+// consumers do not need to call this validation.
+func (c *Catalog) ValidateAccessGate() error {
+	if c != nil {
+		for _, factory := range c.factories {
+			if factory.Descriptor().SatisfiesAccessGate {
+				return nil
+			}
+		}
+	}
+	return ErrNoAccessGate
+}
+
 func (c *Catalog) LegacySkillRoots(provider string) []string {
 	descriptor, ok := c.Descriptor(provider)
 	if !ok {
@@ -206,7 +223,24 @@ func (c *Catalog) Profiles() []provisioning.Profile {
 	}
 	profiles := make([]provisioning.Profile, 0, len(c.factories))
 	for _, factory := range c.factories {
-		if profile := factory.Descriptor().Profile; profile != nil {
+		descriptor := factory.Descriptor()
+		if profile := descriptor.Profile; profile != nil && c.SupportsScope(string(descriptor.ID), ScopeProject) {
+			profiles = append(profiles, profile.Clone())
+		}
+	}
+	return profiles
+}
+
+// HostProfiles returns local CLI policies in module order. Host-only remote
+// integrations may omit a profile and therefore require no host installation.
+func (c *Catalog) HostProfiles() []provisioning.Profile {
+	if c == nil {
+		return nil
+	}
+	profiles := make([]provisioning.Profile, 0, len(c.factories))
+	for _, factory := range c.factories {
+		descriptor := factory.Descriptor()
+		if profile := descriptor.Profile; profile != nil && c.SupportsScope(string(descriptor.ID), ScopeHost) {
 			profiles = append(profiles, profile.Clone())
 		}
 	}

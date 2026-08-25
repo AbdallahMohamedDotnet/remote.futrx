@@ -9,6 +9,8 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	"github.com/futrx-com/remote.futrx.com/internal/service/prompt"
 	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
@@ -23,6 +25,20 @@ func (stubCLIProvisioner) Ensure(context.Context, string, provisioning.CLISpec) 
 
 type contextAwareScheduleProvider struct {
 	started chan struct{}
+}
+
+type serviceTestProvider struct {
+	id agent.ProviderID
+}
+
+func (p serviceTestProvider) ID() agent.ProviderID { return p.id }
+
+func (p serviceTestProvider) Capabilities(context.Context, agent.CapabilityRequest) (agent.Capabilities, error) {
+	return agent.Capabilities{Provider: p.id}, nil
+}
+
+func (p serviceTestProvider) Run(context.Context, agent.RunRequest, func(agent.Event)) error {
+	return nil
 }
 
 func (p *contextAwareScheduleProvider) ID() agent.ProviderID {
@@ -83,6 +99,39 @@ func TestNewRejectsPartialAgentContainerDependencies(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "incomplete container dependencies") {
 		t.Fatalf("New error = %q, want incomplete dependency error", err)
+	}
+}
+
+func TestNewRejectsAuthenticatedDeploymentWithoutAgentAccessGate(t *testing.T) {
+	descriptor := agentmodule.Descriptor{
+		ID:               "external-agent",
+		Label:            "External Agent",
+		ExecutionScopes:  []agentmodule.ExecutionScope{agentmodule.ScopeHost},
+		Auth:             agentmodule.AuthExternal,
+		AuthInstructions: "Authenticate outside Remote.",
+		Features:         agentmodule.Features{Skills: agentmodule.SkillsNone},
+	}
+	factory, err := agentmodule.NewFactory(descriptor, func(agentmodule.Dependencies) (agentmodule.Components, error) {
+		binding := agentauth.NewExternalBinding(descriptor.ID)
+		return agentmodule.Components{
+			Provider: serviceTestProvider{id: descriptor.ID},
+			Auth:     &binding,
+		}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := agentmodule.NewCatalog(factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = New(context.Background(), Dependencies{
+		Auth:         fileauth.New(t.TempDir()),
+		AgentModules: catalog,
+	})
+	if !errors.Is(err, agentmodule.ErrNoAccessGate) {
+		t.Fatalf("New error = %v, want ErrNoAccessGate", err)
 	}
 }
 

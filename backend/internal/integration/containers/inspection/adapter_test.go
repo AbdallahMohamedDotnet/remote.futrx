@@ -99,7 +99,7 @@ func TestAdapterGuestAndAgentProbesTranslateCommandOutput(t *testing.T) {
 		switch joined {
 		case "exec c1 -- which claude":
 			return inspectionResponse{}
-		case "exec c1 -- claude --version":
+		case "exec c1 -- claude version --short":
 			return inspectionResponse{output: "claude 1.2.3\n"}
 		case "exec c1 -- test -f /workspace/CLAUDE.md":
 			return inspectionResponse{}
@@ -127,7 +127,7 @@ Filesystem 1B-blocks Used Available Capacity MountedOn
 	}}
 	profiles := serviceprofiles.NewCatalog([]provisioning.Profile{{
 		ID:  "claude",
-		CLI: provisioning.CLISpec{Name: "Claude Code", Binary: "claude"},
+		CLI: provisioning.CLISpec{Name: "Claude Code", Binary: "claude", VersionArgs: []string{"version", "--short"}},
 		Instructions: &provisioning.InstructionTarget{
 			Path:     "/workspace/CLAUDE.md",
 			HashPath: "/workspace/.claude.hash",
