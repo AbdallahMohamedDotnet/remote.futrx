@@ -20,10 +20,12 @@ export interface AgentModelCapability {
 export interface AgentProviderCapabilities {
   provider: ChatProvider;
   label: string;
+  default?: boolean;
   executionScopes?: Array<"host" | "project">;
   authentication?: {
     mode: "managed-code" | "managed-device" | "external" | "none";
     instructions?: string;
+    satisfiesAccessGate: boolean;
   };
   features?: {
     sessions: { resume: boolean; fork: boolean };

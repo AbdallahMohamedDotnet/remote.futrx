@@ -43,19 +43,16 @@ export const API_ROUTES = {
     item: (id: string) => `/api/schedules/${encodeURIComponent(id)}`,
     run: (id: string) => `/api/schedules/${encodeURIComponent(id)}/run`,
   },
-  claudeAuth: {
-    status: "/api/claude/auth-status",
-    startLogin: "/api/claude/login/start",
-    submitCode: "/api/claude/login/code",
-    cancelLogin: "/api/claude/login/cancel",
-  },
-  codexAuth: {
-    status: "/api/codex/auth-status",
-    startDeviceLogin: "/api/codex/login/device",
-  },
-  kimiAuth: {
-    status: "/api/kimi/auth-status",
-    startDeviceLogin: "/api/kimi/login/device",
+  agentAuth: {
+    catalog: "/api/agent-auth",
+    startCodeLogin: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/login/start`,
+    submitCode: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/login/code`,
+    cancelCodeLogin: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/login/cancel`,
+    startDeviceLogin: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/login/device`,
   },
   projects: {
     collection: "/api/projects",
@@ -112,9 +109,8 @@ export const API_ROUTES = {
 
 export const WEB_SOCKET_ROUTES = {
   workspace: applicationPath("/ws/workspace"),
-  claudeAuthStatus: applicationPath("/ws/claude/auth-status"),
-  codexAuthStatus: applicationPath("/ws/codex/auth-status"),
-  kimiAuthStatus: applicationPath("/ws/kimi/auth-status"),
+  agentAuthStatus: (provider: string): ApplicationPath =>
+    applicationPath(`/ws/agent-auth/${encodeURIComponent(provider)}`),
   chat: (chatId: string, sinceSeq: number): ApplicationPath => {
     const route = applicationPath(`/ws/chat/${encodeURIComponent(chatId)}`);
     return sinceSeq > 0

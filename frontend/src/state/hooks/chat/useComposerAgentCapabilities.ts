@@ -6,6 +6,7 @@ import type {
   ServiceTier,
 } from "../../../models/chat";
 import { agentCapabilityState } from "../../chat/agentCapabilityState";
+import { unavailableManagedAgents } from "../../auth/agentAuthRegistryState";
 import { useAuthContext } from "../../context/AuthContext";
 import { useAgentCapabilities } from "./useAgentCapabilities";
 
@@ -32,25 +33,10 @@ export function useComposerAgentCapabilities({
   serviceTier: ServiceTier;
   actions: CapabilityPreferenceActions;
 }) {
-  const {
-    claudeAuth,
-    codexAuth,
-    kimiAuth,
-    providerAuthChecked,
-  } = useAuthContext();
+  const { agentAuth, providerAuthChecked } = useAuthContext();
   const capabilities = useAgentCapabilities(projectId);
-  const unavailableProviders: Partial<Record<ChatProvider, string>> = {};
-  if (providerAuthChecked) {
-    if (!claudeAuth.authenticated) {
-      unavailableProviders.claude = "Log in to Claude in Settings before selecting it.";
-    }
-    if (!codexAuth.authenticated) {
-      unavailableProviders.codex = "Log in to Codex in Settings before selecting it.";
-    }
-    if (!kimiAuth.authenticated) {
-      unavailableProviders.kimi = "Log in to Kimi in Settings before selecting it.";
-    }
-  }
+  const unavailableProviders: Partial<Record<ChatProvider, string>> =
+    unavailableManagedAgents(agentAuth.providers, providerAuthChecked);
   for (const item of capabilities.catalog?.providers ?? []) {
     if (item.unavailableReason) {
       unavailableProviders[item.provider] = item.unavailableReason;
