@@ -8,19 +8,41 @@ import (
 )
 
 type Service struct {
-	repo     Repository
-	projects ProjectResolver
-	tmux     TmuxResolver
-	runs     RunController
+	repo         Repository
+	copiedEvents CopiedEventAppender
+	projects     ProjectResolver
+	tmux         TmuxResolver
+	runs         RunController
 }
 
-func New(repo Repository, projects ProjectResolver, tmux TmuxResolver, runs RunController) *Service {
-	return &Service{
+// Option configures an optional chat-service collaborator.
+type Option func(*Service)
+
+// WithCopiedEventAppender preserves copied history without raising the side
+// effects reserved for newly produced events.
+func WithCopiedEventAppender(appender CopiedEventAppender) Option {
+	return func(service *Service) {
+		service.copiedEvents = appender
+	}
+}
+
+func New(
+	repo Repository,
+	projects ProjectResolver,
+	tmux TmuxResolver,
+	runs RunController,
+	options ...Option,
+) *Service {
+	service := &Service{
 		repo:     repo,
 		projects: projects,
 		tmux:     tmux,
 		runs:     runs,
 	}
+	for _, option := range options {
+		option(service)
+	}
+	return service
 }
 
 func (s *Service) List(ctx context.Context) ([]Meta, error) {
@@ -143,12 +165,19 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 	// Zero seq so the store assigns fresh, monotonic sequence numbers.
 	for _, ev := range events {
 		ev.Seq = 0
-		if _, err := s.repo.AppendEvent(ctx, forked.ID, ev); err != nil {
+		if _, err := s.appendCopiedEvent(ctx, forked.ID, ev); err != nil {
 			return Meta{}, err
 		}
 	}
 
 	return s.withRunning(forked), nil
+}
+
+func (s *Service) appendCopiedEvent(ctx context.Context, id ID, event Event) (Event, error) {
+	if s.copiedEvents != nil {
+		return s.copiedEvents.AppendCopiedEvent(ctx, id, event)
+	}
+	return s.repo.AppendEvent(ctx, id, event)
 }
 
 func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, error) {

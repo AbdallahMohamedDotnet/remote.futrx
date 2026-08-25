@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Repo clone/update + frontend & backend build + Google OAuth config seed.
+# Application checkout, frontend/backend build, and Google OAuth config seed.
 #
-# This step is normally a no-op on CI deploy (the repo's already cloned and
-# CI does the pull itself) but stays here so the first-time installer works
-# end-to-end from curl|bash.
+# On a fresh install this clones the repository. On a full convergence it
+# selects FUTRX_CHECKOUT_REF (set by update.sh) or origin/main, hard-resets the
+# installed checkout to that commit, and rebuilds the embedded application.
 #
 # Expects from caller:
 #   - log / ok / err helpers
@@ -26,8 +26,8 @@ if [ -n "${GITHUB_TOKEN:-}" ]; then
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
-    # FUTRX_CHECKOUT_REF pins the deploy to a release tag (set by
-    # `update.sh --ref=<tag>`); default stays tracking origin/main.
+    # FUTRX_CHECKOUT_REF pins the deploy to the tag or commit selected by
+    # `update.sh --ref=<ref>`; default stays tracking origin/main.
     CHECKOUT_REF="${FUTRX_CHECKOUT_REF:-origin/main}"
     log "Updating repo at $INSTALL_DIR (ref: $CHECKOUT_REF)"
     git -C "$INSTALL_DIR" fetch --quiet --tags origin

@@ -70,6 +70,10 @@ type Event struct {
 	Usage                json.RawMessage `json:"usage,omitempty"`
 	Message              string          `json:"message,omitempty"`
 	Running              bool            `json:"running,omitempty"`
+	// ScheduledTaskID marks events produced by a scheduled run rather than an
+	// interactive one, so consumers can tell "your turn finished" from "a task
+	// ran while you were away".
+	ScheduledTaskID string `json:"scheduledTaskId,omitempty"`
 }
 
 type EventPageQuery struct {

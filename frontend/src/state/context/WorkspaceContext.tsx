@@ -1,11 +1,12 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
-import { useContext, useEffect, useReducer } from "preact/hooks";
+import { useCallback, useContext, useEffect, useReducer } from "preact/hooks";
 import type { ChatMeta, CreateChatInput } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatApi } from "../../api/chatApi";
 import { projectApi } from "../../api/projectApi";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
+import { useWorkspacePushLifecycle } from "../hooks/push/useWorkspacePushLifecycle";
 import { useUserSettingsContext } from "./UserSettingsContext";
 import {
   workspaceUiState,
@@ -13,6 +14,7 @@ import {
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
 import { agentCapabilityCatalogStore } from "../agents/agentCapabilityCatalog";
+import { takePushNotificationChatId } from "../push/pushNotificationNavigation";
 import { useAuthContext } from "./AuthContext";
 
 interface WorkspaceContextValue {
@@ -26,6 +28,8 @@ interface WorkspaceContextValue {
   showChat: () => void;
   showSettings: () => void;
   showProjectContainers: (projectId: string | null) => void;
+  openCreateProject: () => void;
+  closeCreateProject: () => void;
   createProject: (name: string) => Promise<ProjectMeta>;
   createChat: (projectId?: string) => Promise<ChatMeta>;
   deleteChat: (chatId: string) => Promise<void>;
@@ -48,7 +52,11 @@ export function WorkspaceProvider({
   const data = useWorkspaceData(enabled);
   const { auth } = useAuthContext();
   const { settings } = useUserSettingsContext();
-  const [ui, dispatch] = useReducer(workspaceUiState.reduce, workspaceUiState.createInitial());
+  const [ui, dispatch] = useReducer(
+    workspaceUiState.reduce,
+    null,
+    () => workspaceUiState.createInitial(takePushNotificationChatId())
+  );
   const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
   const capabilityUserId = auth.email || auth.adminEmail || "anonymous";
   const activeCapabilityProjectId = activeChat?.projectId;
@@ -60,16 +68,28 @@ export function WorkspaceProvider({
       .catch(() => undefined);
   }, [enabled, capabilityUserId, activeCapabilityProjectId, activeChat?.id]);
 
+  const openPushChat = useCallback((chatId: string) => {
+    dispatch({ type: "select-chat", chatId });
+  }, []);
+  useWorkspacePushLifecycle({
+    activeChatId: ui.activeChatId,
+    view: ui.view,
+    openChat: openPushChat,
+  });
+
   useEffect(() => {
     const chatId = workspaceSidebarState.initialChatId(enabled, ui.activeChatId, data.chats);
     if (chatId) dispatch({ type: "select-chat", chatId });
   }, [data.chats, enabled, ui.activeChatId]);
 
   useEffect(() => {
+    // Wait for the first snapshot: a chat id handed over by a notification tap
+    // would otherwise be discarded against a not-yet-populated list.
+    if (!data.loaded) return;
     if (workspaceSidebarState.isActiveChatMissing(data.chats, ui.activeChatId)) {
       dispatch({ type: "select-chat", chatId: null });
     }
-  }, [data.chats, ui.activeChatId]);
+  }, [data.chats, data.loaded, ui.activeChatId]);
 
   async function createProject(name: string): Promise<ProjectMeta> {
     const project = await projectApi.create(name);
@@ -132,6 +152,8 @@ export function WorkspaceProvider({
         showSettings: () => dispatch({ type: "show-settings" }),
         showProjectContainers: (projectId) =>
           dispatch({ type: "show-project-containers", projectId }),
+        openCreateProject: () => dispatch({ type: "open-create-project" }),
+        closeCreateProject: () => dispatch({ type: "close-create-project" }),
         createProject,
         createChat,
         deleteChat,
