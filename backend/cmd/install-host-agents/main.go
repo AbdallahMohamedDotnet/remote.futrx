@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent/builtin"
 	hostcliruntime "github.com/futrx-com/remote.futrx.com/internal/integration/hostcli"
-	"github.com/futrx-com/remote.futrx.com/internal/service/agent/builtin"
 	"github.com/futrx-com/remote.futrx.com/internal/service/agent/hostcli"
 )
 

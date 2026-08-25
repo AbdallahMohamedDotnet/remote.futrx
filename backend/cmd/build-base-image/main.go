@@ -19,9 +19,9 @@ import (
 	"log"
 	"time"
 
+	agentbuiltin "github.com/futrx-com/remote.futrx.com/internal/agent/builtin"
 	"github.com/futrx-com/remote.futrx.com/internal/config"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
-	agentbuiltin "github.com/futrx-com/remote.futrx.com/internal/service/agent/builtin"
 	serviceimage "github.com/futrx-com/remote.futrx.com/internal/service/container/image"
 )
 

@@ -16,6 +16,7 @@ import (
 	"net/http"
 
 	remote "github.com/futrx-com/remote.futrx.com"
+	agentbuiltin "github.com/futrx-com/remote.futrx.com/internal/agent/builtin"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/config"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/gitcli"
@@ -25,7 +26,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/tmuxcli"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/updatecli"
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
-	agentbuiltin "github.com/futrx-com/remote.futrx.com/internal/service/agent/builtin"
 	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
 	serviceselfupdate "github.com/futrx-com/remote.futrx.com/internal/service/selfupdate"
 	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
