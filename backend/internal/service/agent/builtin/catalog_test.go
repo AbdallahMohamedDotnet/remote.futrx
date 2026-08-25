@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
 func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {

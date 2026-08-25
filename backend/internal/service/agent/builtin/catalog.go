@@ -6,10 +6,10 @@ package builtin
 import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	antigravityagent "github.com/futrx-com/remote.futrx.com/internal/agent/antigravity"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 	claudeagent "github.com/futrx-com/remote.futrx.com/internal/agent/claude"
 	codexagent "github.com/futrx-com/remote.futrx.com/internal/agent/codex"
 	kimiagent "github.com/futrx-com/remote.futrx.com/internal/agent/kimi"
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 )
 

@@ -7,11 +7,11 @@ import (
 	"log"
 	"time"
 
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/googleoauth"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
-	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 	serviceagentcatalog "github.com/futrx-com/remote.futrx.com/internal/service/agentcatalog"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"

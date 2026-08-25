@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 	"github.com/gorilla/websocket"
 )
 

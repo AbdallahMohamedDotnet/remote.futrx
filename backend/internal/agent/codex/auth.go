@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 )
 
 const (
