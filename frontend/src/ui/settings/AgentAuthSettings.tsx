@@ -1,6 +1,7 @@
 import { Fragment } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { AgentAuthProvider } from "../../models/auth";
+import { agentAuthStatusKind } from "../../state/auth/agentAuthRegistryState";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { Check, ExternalLink, Key, Loader } from "../primitives/icons";
 
@@ -44,6 +45,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
   const managedCode = entry.authentication.mode === "managed-code";
   const managedDevice = entry.authentication.mode === "managed-device";
   const managed = managedCode || managedDevice;
+  const statusKind = agentAuthStatusKind(entry);
   const error = agentAuth.actionErrors[entry.provider]
     || entry.status.login.error
     || entry.status.warning
@@ -91,13 +93,13 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             <div class="text-[14px] font-semibold text-ink-100">{entry.label} authentication</div>
-            {entry.status.authenticated ? (
+            {statusKind === "no-auth" ? (
+              <span class="text-[11px] text-accent-green">No sign-in required</span>
+            ) : statusKind === "authenticated" ? (
               <span class="inline-flex items-center gap-1 text-[11px] text-accent-green">
                 <Check class="h-3.5 w-3.5" /> Signed in
               </span>
-            ) : entry.authentication.mode === "none" ? (
-              <span class="text-[11px] text-accent-green">No sign-in required</span>
-            ) : entry.authentication.mode === "external" ? (
+            ) : statusKind === "external" ? (
               <span class="text-[11px] text-ink-400">Provider-managed</span>
             ) : (
               <span class="text-[11px] text-ink-400">not configured</span>

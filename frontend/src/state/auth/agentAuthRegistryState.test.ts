@@ -4,6 +4,7 @@ import type { AgentAuthProvider } from "../../models/auth.ts";
 import {
   agentAuthGateReady,
   agentAuthRevision,
+  agentAuthStatusKind,
   unavailableManagedAgents,
   updateAgentAuthProvider,
 } from "./agentAuthRegistryState.ts";
@@ -49,5 +50,13 @@ test("external modules neither block the managed gate nor receive login errors",
 });
 
 test("no-auth gate modules are immediately ready from the backend snapshot", () => {
-  assert.equal(agentAuthGateReady([provider("local-agent", "none", true, true)]), true);
+  const local = provider("local-agent", "none", true, true);
+  assert.equal(agentAuthGateReady([local]), true);
+  assert.equal(agentAuthStatusKind(local), "no-auth");
+});
+
+test("auth display state follows the declared flow before generic status", () => {
+  assert.equal(agentAuthStatusKind(provider("future-agent", "managed-device", true)), "authenticated");
+  assert.equal(agentAuthStatusKind(provider("external-agent", "external", false)), "external");
+  assert.equal(agentAuthStatusKind(provider("future-agent", "managed-code", false)), "unconfigured");
 });

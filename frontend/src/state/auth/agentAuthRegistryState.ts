@@ -1,5 +1,14 @@
 import type { AgentAuthProvider, AgentAuthSnapshot } from "../../models/auth";
 
+export type AgentAuthStatusKind = "no-auth" | "authenticated" | "external" | "unconfigured";
+
+export function agentAuthStatusKind(entry: AgentAuthProvider): AgentAuthStatusKind {
+  if (entry.authentication.mode === "none") return "no-auth";
+  if (entry.status.authenticated) return "authenticated";
+  if (entry.authentication.mode === "external") return "external";
+  return "unconfigured";
+}
+
 export function updateAgentAuthProvider(
   providers: AgentAuthProvider[],
   provider: string,

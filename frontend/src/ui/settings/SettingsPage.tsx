@@ -36,7 +36,7 @@ const tabs: Array<{
   {
     id: "agents",
     label: "Agents",
-    description: "Manage host authentication for coding agents.",
+    description: "Configure coding-agent access and authentication.",
     Icon: Bot,
   },
   {
@@ -187,7 +187,7 @@ export function SettingsPage({
                   <div class="px-4 py-3 border-b border-white/[0.06]">
                     <div class="text-[14.5px] font-semibold text-ink-50">Agent authentication</div>
                     <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug">
-                      Sign in once on the parent host and share the credentials with project containers.
+                      Configure each agent using its declared host-managed, project-external, or no-auth flow.
                     </div>
                   </div>
                   <div class="p-3 space-y-3">

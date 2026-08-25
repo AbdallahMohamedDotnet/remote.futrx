@@ -82,9 +82,9 @@ export class AgentCapabilityCatalogStore {
   }
 
   invalidateUser(userId: string): void {
-    // Host-wide Claude, Codex, or Kimi authentication changes can alter every
-    // catalog. Request a force-refresh for scopes currently observed by this
-    // browser; an existing request for the same scope remains coalesced.
+    // A managed host-auth change can alter every catalog. Request a
+    // force-refresh for scopes currently observed by this browser; an existing
+    // request for the same scope remains coalesced.
     const normalizedUser = normalizeUserId(userId);
     for (const key of this.listeners.keys()) {
       const scope = parseCatalogKey(key);
