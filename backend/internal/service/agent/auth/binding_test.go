@@ -51,6 +51,19 @@ func TestDeviceBindingPreservesConcreteStatus(t *testing.T) {
 	}
 }
 
+func TestExternalBindingDeclaresProviderOwnedAuthentication(t *testing.T) {
+	binding := NewExternalBinding(agent.ProviderAntigravity)
+	if binding.ID() != agent.ProviderAntigravity || binding.Flow() != FlowExternal {
+		t.Fatalf("binding identity = (%q, %q)", binding.ID(), binding.Flow())
+	}
+	if binding.Available() || binding.Authenticated() || binding.Status() != nil {
+		t.Fatalf("external binding unexpectedly exposes managed auth: %#v", binding)
+	}
+	if _, err := binding.Subscribe(); !errors.Is(err, ErrUnsupportedFlow) {
+		t.Fatalf("Subscribe error = %v, want ErrUnsupportedFlow", err)
+	}
+}
+
 func TestCodeBindingClassifiesConfiguredInputErrors(t *testing.T) {
 	required := errors.New("code required")
 	noSession := errors.New("no session")

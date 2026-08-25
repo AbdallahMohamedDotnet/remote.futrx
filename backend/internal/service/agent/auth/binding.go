@@ -11,8 +11,9 @@ import (
 type Flow string
 
 const (
-	FlowCode   Flow = "code"
-	FlowDevice Flow = "device"
+	FlowCode     Flow = "code"
+	FlowDevice   Flow = "device"
+	FlowExternal Flow = "external"
 )
 
 var ErrUnsupportedFlow = errors.New("operation is not supported by this agent auth flow")
@@ -59,6 +60,14 @@ func NewDeviceBinding[S any](id agent.ProviderID, service *DeviceService[S]) Bin
 	binding.authenticated = service.Authenticated
 	binding.startDevice = service.StartDeviceLogin
 	return binding
+}
+
+// NewExternalBinding describes authentication that is completed outside
+// Remote's managed code/device flows. It intentionally has no status stream
+// or mutation callbacks; callers can use the module descriptor to present the
+// provider-owned sign-in instructions instead.
+func NewExternalBinding(id agent.ProviderID) Binding {
+	return Binding{id: id, flow: FlowExternal}
 }
 
 func (b Binding) ID() agent.ProviderID { return b.id }
