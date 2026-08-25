@@ -264,6 +264,10 @@ func (rnr *Service) runPromptAs(
 	if rnr.agentPolicy != nil && !descriptor.Features.Sessions.Resume {
 		resumeID = ""
 	}
+	forkSession := meta.ForkPending
+	if rnr.agentPolicy != nil && !descriptor.Features.Sessions.Fork {
+		forkSession = false
+	}
 	effectivePrompt := prompt
 	enableBrowser := descriptor.Features.BrowserTools && hasBrowserSkill(meta.SelectedSkills)
 	if enableBrowser && meta.ProjectID != "" {
@@ -333,7 +337,7 @@ func (rnr *Service) runPromptAs(
 			Mode:           agent.RunMode(meta.Mode),
 			ResumeID:       runResumeID,
 			ProjectID:      string(meta.ProjectID),
-			Fork:           meta.ForkPending,
+			Fork:           forkSession,
 			Preferences: agent.RunPreferences{
 				ReasoningEffort: agent.ReasoningEffort(meta.ReasoningEffort),
 				ServiceTier:     agent.ServiceTier(meta.ServiceTier),
@@ -342,7 +346,7 @@ func (rnr *Service) runPromptAs(
 			EnableScheduleTools: enableScheduleTools,
 			RuntimeEnv:          runtimeEnv,
 		}, func(ev agent.Event) {
-			rnr.emitAgentEvent(ctx, id, ev, emit)
+			rnr.emitAgentEvent(ctx, id, providerID, ev, emit)
 		})
 	}
 

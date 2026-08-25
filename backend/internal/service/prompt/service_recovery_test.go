@@ -117,7 +117,7 @@ func TestRunPromptDoesNotResumeWhenModuleDisablesSessions(t *testing.T) {
 	}
 	meta, err := store.Create(ctx, servicechat.Meta{
 		ID: "abcdef123456", Provider: servicechat.ProviderCodex,
-		CodexSessionID: "old-thread", Cwd: t.TempDir(),
+		CodexSessionID: "old-thread", Cwd: t.TempDir(), ForkPending: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -147,6 +147,9 @@ func TestRunPromptDoesNotResumeWhenModuleDisablesSessions(t *testing.T) {
 	request := provider.requests[0]
 	if request.ResumeID != "" {
 		t.Fatalf("resume ID = %q, want empty", request.ResumeID)
+	}
+	if request.Fork {
+		t.Fatal("fork = true for module that disables native sessions")
 	}
 	if !strings.Contains(request.Prompt, "visible history") {
 		t.Fatalf("fresh prompt does not include visible history: %q", request.Prompt)

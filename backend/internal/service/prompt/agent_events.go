@@ -11,16 +11,16 @@ import (
 func (rnr *Service) emitAgentEvent(
 	ctx context.Context,
 	id servicechat.ID,
+	provider agent.ProviderID,
 	ev agent.Event,
 	emit func(ChatEvent),
 ) {
+	if ev.Provider == "" {
+		ev.Provider = provider
+	}
 	if ev.Type == agent.EventSessionUpdated && ev.SessionID != "" {
-		provider := ev.Provider
-		if provider == "" {
-			provider = agent.ProviderClaude
-		}
 		_, _ = rnr.store.Update(ctx, id, func(m *ChatMeta) {
-			m.SetSessionID(servicechat.Provider(provider), ev.SessionID)
+			m.SetSessionID(servicechat.Provider(ev.Provider), ev.SessionID)
 			m.ForkPending = false
 			if m.Model == "" && ev.Model != "" {
 				m.Model = ev.Model
@@ -44,11 +44,7 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 	switch ev.Type {
 	case agent.EventSessionUpdated:
 		out.Type = "session"
-		provider := ev.Provider
-		if provider == "" {
-			provider = agent.ProviderClaude
-		}
-		out.SetSession(servicechat.Provider(provider), ev.SessionID)
+		out.SetSession(servicechat.Provider(ev.Provider), ev.SessionID)
 	case agent.EventSystem:
 		out.Type = "system"
 		out.Subtype = ev.Subtype
