@@ -37,4 +37,7 @@ func Factory() (agentmodule.Factory, error) {
 	})
 }
 
-var _ agent.Provider = (*Provider)(nil)
+var (
+	_ agent.Provider             = (*Provider)(nil)
+	_ agentmodule.FactoryBuilder = Factory
+)

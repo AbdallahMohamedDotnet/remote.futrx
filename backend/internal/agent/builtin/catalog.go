@@ -11,10 +11,8 @@ import (
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 )
 
-type factoryBuilder func() (agentmodule.Factory, error)
-
 func Catalog() (*agentmodule.Catalog, error) {
-	builders := []factoryBuilder{
+	builders := []agentmodule.FactoryBuilder{
 		claudeagent.Factory,
 		codexagent.Factory,
 		kimiagent.Factory,
