@@ -11,7 +11,11 @@ const ICON = "/icon-192.png";
 const BADGE = "/badge-96.png";
 
 // Bump the version when offline.html changes so installed clients refresh it.
-const OFFLINE_CACHE = "offline-v1";
+// Keep the prefix app-specific because Cache Storage is shared by every
+// service worker and feature on this origin.
+const OFFLINE_CACHE_PREFIX = "remote-futrx-offline-";
+const OFFLINE_CACHE = `${OFFLINE_CACHE_PREFIX}v1`;
+const LEGACY_OFFLINE_CACHES = new Set(["offline-v1"]);
 const OFFLINE_URL = "/offline.html";
 
 // How long to wait for an open tab to say which chat it is showing before
@@ -34,7 +38,12 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((key) => key !== OFFLINE_CACHE).map((key) => caches.delete(key)));
+      const staleOfflineCaches = keys.filter(
+        (key) =>
+          key !== OFFLINE_CACHE &&
+          (key.startsWith(OFFLINE_CACHE_PREFIX) || LEGACY_OFFLINE_CACHES.has(key))
+      );
+      await Promise.all(staleOfflineCaches.map((key) => caches.delete(key)));
       await self.clients.claim();
     })()
   );
@@ -46,7 +55,8 @@ self.addEventListener("fetch", (event) => {
   if (event.request.mode !== "navigate") return;
   event.respondWith(
     fetch(event.request).catch(async () => {
-      const cached = await caches.match(OFFLINE_URL);
+      const cache = await caches.open(OFFLINE_CACHE);
+      const cached = await cache.match(OFFLINE_URL);
       return cached || Response.error();
     })
   );

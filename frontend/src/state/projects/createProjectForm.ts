@@ -39,16 +39,38 @@ class CreateProjectFormLogic {
     return out;
   }
 
+  // Mirrors fileproject.Store.resolveSlugLocked so distinct display names
+  // whose slugs collide preview the same numbered slug the backend allocates.
+  private availableSlug(base: string, projects: ProjectMeta[]): string | null {
+    const taken = new Set(projects.map((project) => project.slug));
+    if (!taken.has(base)) return base;
+
+    for (let i = 2; i < 1000; i += 1) {
+      const suffix = `-${i}`;
+      const stem = base.slice(0, MAX_SLUG_LEN - suffix.length);
+      const candidate = `${stem}${suffix}`;
+      if (!taken.has(candidate)) return candidate;
+    }
+    return null;
+  }
+
   validate(name: string, projects: ProjectMeta[]): CreateProjectValidation {
     const trimmed = name.trim();
-    const slug = this.slugify(name);
-    if (!trimmed) return { ok: false, slug, message: "" };
-    if (slug.length < 2) return { ok: false, slug, message: "Use at least 2 letters or numbers." };
-    const taken = projects.some(
-      (project) =>
-        project.slug === slug || project.name.trim().toLowerCase() === trimmed.toLowerCase()
+    const base = this.slugify(name);
+    if (!trimmed) return { ok: false, slug: base, message: "" };
+    if (base.length < 2) {
+      return { ok: false, slug: base, message: "Use at least 2 letters or numbers." };
+    }
+    const duplicateName = projects.some(
+      (project) => project.name.trim().toLowerCase() === trimmed.toLowerCase()
     );
-    if (taken) return { ok: false, slug, message: `A project named ${slug} already exists.` };
+    if (duplicateName) {
+      return { ok: false, slug: base, message: `A project named ${base} already exists.` };
+    }
+    const slug = this.availableSlug(base, projects);
+    if (!slug) {
+      return { ok: false, slug: base, message: "Could not find an available project name." };
+    }
     return { ok: true, slug, message: slug !== trimmed ? `Saved as ${slug}` : "" };
   }
 

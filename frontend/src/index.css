@@ -725,6 +725,10 @@ html[data-theme="light"] .codex-composer-card {
     padding-top: 0.5rem;
   }
 
+  .workspace-pane-header {
+    padding-top: 0.625rem;
+  }
+
   .safe-bottom-control,
   .composer-form {
     padding-bottom: 0.75rem;
