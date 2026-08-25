@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 // containerKimiHome is the KIMI_CODE_HOME inside a project container — where
@@ -53,7 +52,7 @@ func (p *Provider) buildCmd(
 		return cmd, "", nil
 	}
 
-	project, err := p.projects.Get(ctx, serviceproject.ID(req.ProjectID))
+	project, err := p.projects.Get(ctx, agent.ProjectID(req.ProjectID))
 	if err != nil {
 		return nil, "", fmt.Errorf("project not found (%s): %w", req.ProjectID, err)
 	}
@@ -65,7 +64,7 @@ func (p *Provider) buildCmd(
 	// new base image), leaving the cached Status stale. Always reconcile via
 	// Start — it relaunches a missing instance from the base image and is a
 	// no-op when already running; the cached Status only gates the indicator.
-	if project.Status != serviceproject.StatusRunning {
+	if project.Status != agent.ProjectStatusRunning {
 		emitSystem(req, emit, "container_starting")
 	}
 	if _, err := p.projects.Start(ctx, project.ID); err != nil {

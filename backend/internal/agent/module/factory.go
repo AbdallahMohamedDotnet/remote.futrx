@@ -4,7 +4,6 @@
 package module
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 var (
@@ -76,15 +74,8 @@ type Descriptor struct {
 	Profile             *provisioning.Profile
 }
 
-// ProjectResolver is the exact project surface an agent adapter may use.
-type ProjectResolver interface {
-	Get(context.Context, serviceproject.ID) (serviceproject.Meta, error)
-	Start(context.Context, serviceproject.ID) (serviceproject.Meta, error)
-	ListSecrets(context.Context, serviceproject.ID) ([]serviceproject.Secret, error)
-}
-
 type Dependencies struct {
-	Projects   ProjectResolver
+	Projects   agent.ProjectResolver
 	Containers provisioning.ContainerDependencies
 }
 

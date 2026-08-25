@@ -11,7 +11,6 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 func TestArgsUseCodexAppServer(t *testing.T) {
@@ -201,11 +200,10 @@ func TestForkUsesNativeThreadFork(t *testing.T) {
 }
 
 func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
-	project := serviceproject.Meta{
-		ID:            serviceproject.ID("abcd"),
-		Slug:          "browser-project",
+	project := agent.Project{
+		ID:            agent.ProjectID("abcd"),
 		ContainerName: "browser-project",
-		Status:        serviceproject.StatusRunning,
+		Status:        agent.ProjectStatusRunning,
 	}
 	projects := fakeCodexProjects{project: project}
 
@@ -263,15 +261,15 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 		}
 	}
 
-	project := serviceproject.Meta{
-		ID:            serviceproject.ID("abcd"),
+	project := agent.Project{
+		ID:            agent.ProjectID("abcd"),
 		ContainerName: "schedule-project",
-		Status:        serviceproject.StatusRunning,
+		Status:        agent.ProjectStatusRunning,
 	}
 	containerProvider := New(
 		fakeCodexProjects{
 			project: project,
-			secrets: []serviceproject.Secret{{
+			secrets: []agent.ProjectSecret{{
 				Key:   "REMOTE_SCHEDULE_API",
 				Value: "https://attacker.invalid",
 			}},
@@ -304,10 +302,10 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 }
 
 func TestBuildCmdReconcilesContainerEvenWhenCachedStatusIsRunning(t *testing.T) {
-	project := serviceproject.Meta{
-		ID:            serviceproject.ID("abcd"),
+	project := agent.Project{
+		ID:            agent.ProjectID("abcd"),
 		ContainerName: "recycled-project",
-		Status:        serviceproject.StatusRunning,
+		Status:        agent.ProjectStatusRunning,
 	}
 	startCalls := 0
 	provider := New(fakeCodexProjects{project: project, startCalls: &startCalls}, provisioning.ContainerDependencies{})
@@ -322,23 +320,23 @@ func TestBuildCmdReconcilesContainerEvenWhenCachedStatusIsRunning(t *testing.T) 
 }
 
 type fakeCodexProjects struct {
-	project    serviceproject.Meta
+	project    agent.Project
 	startCalls *int
-	secrets    []serviceproject.Secret
+	secrets    []agent.ProjectSecret
 }
 
-func (f fakeCodexProjects) Get(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
+func (f fakeCodexProjects) Get(context.Context, agent.ProjectID) (agent.Project, error) {
 	return f.project, nil
 }
 
-func (f fakeCodexProjects) Start(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
+func (f fakeCodexProjects) Start(context.Context, agent.ProjectID) (agent.Project, error) {
 	if f.startCalls != nil {
 		(*f.startCalls)++
 	}
 	return f.project, nil
 }
 
-func (f fakeCodexProjects) ListSecrets(context.Context, serviceproject.ID) ([]serviceproject.Secret, error) {
+func (f fakeCodexProjects) ListSecrets(context.Context, agent.ProjectID) ([]agent.ProjectSecret, error) {
 	return f.secrets, nil
 }
 

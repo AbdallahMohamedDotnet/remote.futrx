@@ -7,7 +7,6 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
@@ -139,11 +138,10 @@ func TestArgsIgnoreUnsupportedServiceTier(t *testing.T) {
 }
 
 func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
-	project := serviceproject.Meta{
-		ID:            serviceproject.ID("abcd"),
-		Slug:          "browser-project",
+	project := agent.Project{
+		ID:            agent.ProjectID("abcd"),
 		ContainerName: "browser-project",
-		Status:        serviceproject.StatusRunning,
+		Status:        agent.ProjectStatusRunning,
 	}
 	projects := fakeClaudeProjects{project: project}
 
@@ -200,15 +198,15 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 		}
 	}
 
-	project := serviceproject.Meta{
-		ID:            serviceproject.ID("abcd"),
+	project := agent.Project{
+		ID:            agent.ProjectID("abcd"),
 		ContainerName: "schedule-project",
-		Status:        serviceproject.StatusRunning,
+		Status:        agent.ProjectStatusRunning,
 	}
 	containerProvider := New(
 		fakeClaudeProjects{
 			project: project,
-			secrets: []serviceproject.Secret{{
+			secrets: []agent.ProjectSecret{{
 				Key:   "REMOTE_SCHEDULE_API",
 				Value: "https://attacker.invalid",
 			}},
@@ -241,10 +239,10 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 }
 
 func TestBuildCmdRejectsPartialContainerDependencies(t *testing.T) {
-	project := serviceproject.Meta{
-		ID:            serviceproject.ID("abcd"),
+	project := agent.Project{
+		ID:            agent.ProjectID("abcd"),
 		ContainerName: "partial-dependencies",
-		Status:        serviceproject.StatusRunning,
+		Status:        agent.ProjectStatusRunning,
 	}
 	provider := New(
 		fakeClaudeProjects{project: project},
@@ -263,19 +261,19 @@ func TestBuildCmdRejectsPartialContainerDependencies(t *testing.T) {
 }
 
 type fakeClaudeProjects struct {
-	project serviceproject.Meta
-	secrets []serviceproject.Secret
+	project agent.Project
+	secrets []agent.ProjectSecret
 }
 
-func (f fakeClaudeProjects) Get(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
+func (f fakeClaudeProjects) Get(context.Context, agent.ProjectID) (agent.Project, error) {
 	return f.project, nil
 }
 
-func (f fakeClaudeProjects) Start(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
+func (f fakeClaudeProjects) Start(context.Context, agent.ProjectID) (agent.Project, error) {
 	return f.project, nil
 }
 
-func (f fakeClaudeProjects) ListSecrets(context.Context, serviceproject.ID) ([]serviceproject.Secret, error) {
+func (f fakeClaudeProjects) ListSecrets(context.Context, agent.ProjectID) ([]agent.ProjectSecret, error) {
 	return f.secrets, nil
 }
 

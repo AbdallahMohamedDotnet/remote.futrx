@@ -137,7 +137,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
 	projectService := serviceproject.New(projects, deps.ProjectContainers, deps.ProjectSecrets, deps.ProjectAccess)
 	agentRuntime, err := deps.AgentModules.Build(agentmodule.Dependencies{
-		Projects:   projectService,
+		Projects:   agentProjectResolver{projects: projectService},
 		Containers: deps.AgentContainers,
 	})
 	if err != nil {

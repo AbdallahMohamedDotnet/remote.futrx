@@ -7,7 +7,6 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
@@ -40,15 +39,15 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 		}
 	}
 
-	project := serviceproject.Meta{
-		ID:            serviceproject.ID("abcd"),
+	project := agent.Project{
+		ID:            agent.ProjectID("abcd"),
 		ContainerName: "schedule-project",
-		Status:        serviceproject.StatusRunning,
+		Status:        agent.ProjectStatusRunning,
 	}
 	containerProvider := New(
 		fakeKimiScheduleProjects{
 			project: project,
-			secrets: []serviceproject.Secret{{
+			secrets: []agent.ProjectSecret{{
 				Key:   "REMOTE_SCHEDULE_API",
 				Value: "https://attacker.invalid",
 			}},
@@ -81,28 +80,28 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 }
 
 type fakeKimiScheduleProjects struct {
-	project serviceproject.Meta
-	secrets []serviceproject.Secret
+	project agent.Project
+	secrets []agent.ProjectSecret
 }
 
 func (f fakeKimiScheduleProjects) Get(
 	context.Context,
-	serviceproject.ID,
-) (serviceproject.Meta, error) {
+	agent.ProjectID,
+) (agent.Project, error) {
 	return f.project, nil
 }
 
 func (f fakeKimiScheduleProjects) Start(
 	context.Context,
-	serviceproject.ID,
-) (serviceproject.Meta, error) {
+	agent.ProjectID,
+) (agent.Project, error) {
 	return f.project, nil
 }
 
 func (f fakeKimiScheduleProjects) ListSecrets(
 	context.Context,
-	serviceproject.ID,
-) ([]serviceproject.Secret, error) {
+	agent.ProjectID,
+) ([]agent.ProjectSecret, error) {
 	return f.secrets, nil
 }
 

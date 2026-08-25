@@ -14,24 +14,17 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 const signInHint = "antigravity is not signed in — open this chat's Terminal, run `agy`, and complete the sign-in URL + code flow, then retry"
 
-type ProjectResolver interface {
-	Get(ctx context.Context, id serviceproject.ID) (serviceproject.Meta, error)
-	Start(ctx context.Context, id serviceproject.ID) (serviceproject.Meta, error)
-	ListSecrets(ctx context.Context, id serviceproject.ID) ([]serviceproject.Secret, error)
-}
-
 type Provider struct {
-	projects      ProjectResolver
+	projects      agent.ProjectResolver
 	containerDeps provisioning.ContainerDependencies
 	profile       provisioning.Profile
 }
 
-func New(projects ProjectResolver, containerDeps provisioning.ContainerDependencies) *Provider {
+func New(projects agent.ProjectResolver, containerDeps provisioning.ContainerDependencies) *Provider {
 	return &Provider{projects: projects, containerDeps: containerDeps, profile: Profile()}
 }
 
