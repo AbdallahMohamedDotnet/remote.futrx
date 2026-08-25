@@ -180,6 +180,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		runs,
 		agents,
 		prompt.WithScheduleToolIssuer(scheduleCaps),
+		prompt.WithAgentPolicy(deps.AgentModules),
 	)
 	scheduleService := serviceschedule.New(
 		deps.Schedules,

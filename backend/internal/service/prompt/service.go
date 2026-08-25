@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path"
 	"strings"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
@@ -84,12 +86,23 @@ func WithScheduleToolIssuer(issuer ScheduleToolIssuer) Option {
 	}
 }
 
+type AgentPolicy interface {
+	Descriptor(provider string) (agentmodule.Descriptor, bool)
+}
+
+func WithAgentPolicy(policy AgentPolicy) Option {
+	return func(service *Service) {
+		service.agentPolicy = policy
+	}
+}
+
 type Service struct {
 	store         servicechat.Repository
 	tmux          TmuxClient
 	projects      ProjectResolver
 	hub           *runhub.Hub
 	agents        *agent.Registry
+	agentPolicy   AgentPolicy
 	scheduleTools ScheduleToolIssuer
 }
 
@@ -221,6 +234,10 @@ func (rnr *Service) runPromptAs(
 	emit(ChatEvent{T: time.Now().UnixMilli(), Type: "user", Text: prompt})
 
 	providerID := providerIDFromChatProvider(meta.Provider)
+	descriptor := agentmodule.Descriptor{}
+	if rnr.agentPolicy != nil {
+		descriptor, _ = rnr.agentPolicy.Descriptor(string(providerID))
+	}
 	promptSkills := meta.SelectedSkills
 	if input.ScheduledTaskID != "" && !hasScheduledTasksSkill(promptSkills) {
 		promptSkills = append(
@@ -235,7 +252,7 @@ func (rnr *Service) runPromptAs(
 	}
 	resumeID := sessionIDForProvider(meta, providerID)
 	effectivePrompt := prompt
-	enableBrowser := hasBrowserSkill(meta.SelectedSkills)
+	enableBrowser := descriptor.Features.BrowserTools && hasBrowserSkill(meta.SelectedSkills)
 	if enableBrowser && meta.ProjectID != "" {
 		stopBrowserKeepalive := rnr.keepAgentBrowserActivity(ctx, serviceproject.ID(meta.ProjectID))
 		defer stopBrowserKeepalive()
@@ -243,7 +260,14 @@ func (rnr *Service) runPromptAs(
 	if resumeID == "" {
 		effectivePrompt = promptWithVisibleHistory(priorEvents, effectivePrompt)
 	}
-	effectivePrompt = promptWithSelectedSkills(providerID, promptSkills, effectivePrompt)
+	effectivePrompt = promptWithSelectedSkills(
+		descriptor.Features.Skills,
+		descriptor.Label,
+		providerID,
+		promptSkills,
+		meta.ProjectID != "",
+		effectivePrompt,
+	)
 
 	provider := rnr.agents.Lookup(providerID)
 	if provider == nil {
@@ -252,7 +276,8 @@ func (rnr *Service) runPromptAs(
 		return err
 	}
 
-	enableScheduleTools := hasScheduledTasksSkill(meta.SelectedSkills) || input.ScheduledTaskID != ""
+	enableScheduleTools := descriptor.Features.ScheduledTools &&
+		(hasScheduledTasksSkill(meta.SelectedSkills) || input.ScheduledTaskID != "")
 	runtimeEnv := map[string]string(nil)
 	if enableScheduleTools {
 		if meta.ProjectID == "" {
@@ -317,7 +342,14 @@ func (rnr *Service) runPromptAs(
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "system", Subtype: "session_recovered"})
 		freshPrompt := prompt
 		freshPrompt = promptWithVisibleHistory(priorEvents, freshPrompt)
-		freshPrompt = promptWithSelectedSkills(providerID, promptSkills, freshPrompt)
+		freshPrompt = promptWithSelectedSkills(
+			descriptor.Features.Skills,
+			descriptor.Label,
+			providerID,
+			promptSkills,
+			meta.ProjectID != "",
+			freshPrompt,
+		)
 		err = run(freshPrompt, "")
 	}
 	if err != nil && !errors.Is(err, agent.ErrRunFailed) {
@@ -399,8 +431,15 @@ func hasScheduledTasksSkill(skills []servicechat.SkillRef) bool {
 	return false
 }
 
-func promptWithSelectedSkills(provider agent.ProviderID, skills []servicechat.SkillRef, prompt string) string {
-	if len(skills) == 0 {
+func promptWithSelectedSkills(
+	strategy agentmodule.SkillStrategy,
+	providerLabel string,
+	provider agent.ProviderID,
+	skills []servicechat.SkillRef,
+	projectScoped bool,
+	prompt string,
+) string {
+	if len(skills) == 0 || strategy == agentmodule.SkillsNone {
 		return prompt
 	}
 
@@ -417,30 +456,35 @@ func promptWithSelectedSkills(provider agent.ProviderID, skills []servicechat.Sk
 			continue
 		}
 
-		switch provider {
-		case agent.ProviderClaude:
+		switch strategy {
+		case agentmodule.SkillsSlashCommand:
 			triggers = append(triggers, "/"+name)
-		case agent.ProviderCodex:
+		case agentmodule.SkillsDollarMention:
 			triggers = append(triggers, "$"+name)
-		case agent.ProviderKimi, agent.ProviderAntigravity:
-			if name == scheduledTasksSkillName {
-				triggers = append(
-					triggers,
-					"/workspace/.agents/skills/scheduled-tasks/SKILL.md",
-				)
+		case agentmodule.SkillsInstructions:
+			if name == "." || name == ".." || path.Base(name) != name {
+				continue
 			}
+			root := "/root/.agents/skills"
+			if projectScoped {
+				root = "/workspace/.agents/skills"
+			}
+			triggers = append(triggers, path.Join(root, name, "SKILL.md"))
 		}
 	}
 	if len(triggers) == 0 {
 		return prompt
 	}
 
-	switch provider {
-	case agent.ProviderClaude:
+	switch strategy {
+	case agentmodule.SkillsSlashCommand:
 		return strings.Join(triggers, "\n") + "\n\n" + prompt
-	case agent.ProviderCodex:
-		return "Use these Codex skills for this request: " + strings.Join(triggers, " ") + "\n\n" + prompt
-	case agent.ProviderKimi, agent.ProviderAntigravity:
+	case agentmodule.SkillsDollarMention:
+		if strings.TrimSpace(providerLabel) == "" {
+			providerLabel = string(provider)
+		}
+		return "Use these " + providerLabel + " skills for this request: " + strings.Join(triggers, " ") + "\n\n" + prompt
+	case agentmodule.SkillsInstructions:
 		return "Read and follow the selected skill instructions at " +
 			strings.Join(triggers, ", ") + ".\n\n" + prompt
 	default:

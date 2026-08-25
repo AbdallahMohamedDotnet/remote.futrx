@@ -135,6 +135,7 @@ func TestStartWithScheduledTasksSkillIssuesManageCapabilityAndReturnsOutput(t *t
 		runhub.New(store),
 		registry,
 		WithScheduleToolIssuer(issuer),
+		WithAgentPolicy(codexTestAgentPolicy()),
 	)
 
 	actor := Actor{Email: "owner@example.com", IsAdmin: true}
@@ -211,6 +212,7 @@ func TestStartScheduledTaskRequestsCompletionOnlyCapability(t *testing.T) {
 		runhub.New(store),
 		registry,
 		WithScheduleToolIssuer(issuer),
+		WithAgentPolicy(codexTestAgentPolicy()),
 	)
 
 	const scheduledTaskID = "task-123"
