@@ -20,9 +20,21 @@ export interface AgentModelCapability {
 export interface AgentProviderCapabilities {
   provider: ChatProvider;
   label: string;
+  executionScopes?: Array<"host" | "project">;
+  authentication?: {
+    mode: "managed-code" | "managed-device" | "external" | "none";
+    instructions?: string;
+  };
+  features?: {
+    sessions: { resume: boolean; fork: boolean };
+    skills: "none" | "slash-command" | "dollar-mention" | "instructions";
+    browserTools: boolean;
+    scheduledTools: boolean;
+  };
   version?: string;
   source: "live" | "fallback";
   warning?: string;
+  unavailableReason?: string;
   models: AgentModelCapability[];
   modes: AgentCapabilityOption[];
   defaultMode?: string;

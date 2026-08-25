@@ -97,6 +97,7 @@ export function ChatComposer({
     (option) => option.value === preferences.model,
   )?.label || modelShortLabel(preferences.model);
   const settingsSummary = `${providerLabel} · ${modelLabel}`;
+  const skillsEnabled = capabilityState.providerCapabilities?.features?.skills !== "none";
 
   function toggleMobileSettings() {
     setMobileSettingsOpen((open) => {
@@ -182,6 +183,8 @@ export function ChatComposer({
               modelsRefreshing={refreshing}
               modelError={capabilityError}
               selectedSkills={selectedSkills}
+              providerLabel={providerLabel}
+              skillsEnabled={skillsEnabled}
               onSelectSkill={onSelectSkill}
               onAgentChange={preferenceActions.changeAgent}
               onRefreshModels={refreshCapabilities}
@@ -213,6 +216,8 @@ export function ChatComposer({
             modelsRefreshing={refreshing}
             modelError={capabilityError}
             selectedSkills={selectedSkills}
+            providerLabel={providerLabel}
+            skillsEnabled={skillsEnabled}
             onSelectSkill={onSelectSkill}
             onAgentChange={preferenceActions.changeAgent}
             onRefreshModels={refreshCapabilities}

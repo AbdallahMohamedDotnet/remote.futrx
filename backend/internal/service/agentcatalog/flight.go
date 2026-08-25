@@ -64,6 +64,7 @@ func cloneCapabilities(input []agent.Capabilities) []agent.Capabilities {
 	output := make([]agent.Capabilities, len(input))
 	for index, caps := range input {
 		output[index] = caps
+		output[index].ExecutionScopes = append([]string(nil), caps.ExecutionScopes...)
 		output[index].Modes = append([]agent.CapabilityOption(nil), caps.Modes...)
 		output[index].Models = make([]agent.ModelCapability, len(caps.Models))
 		for modelIndex, model := range caps.Models {

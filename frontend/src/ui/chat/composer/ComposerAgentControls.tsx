@@ -18,6 +18,8 @@ export function ComposerAgentControls({
   modelsRefreshing,
   modelError,
   selectedSkills,
+  providerLabel,
+  skillsEnabled,
   onSelectSkill,
   onAgentChange,
   onRefreshModels,
@@ -32,6 +34,8 @@ export function ComposerAgentControls({
   modelsRefreshing: boolean;
   modelError: string;
   selectedSkills: SelectedSkill[];
+  providerLabel: string;
+  skillsEnabled: boolean;
   onSelectSkill: (skill: RegisteredSkill) => void;
   onAgentChange: (provider: ChatProvider, model: string) => void;
   onRefreshModels: () => Promise<void>;
@@ -52,12 +56,15 @@ export function ComposerAgentControls({
         onRefresh={onRefreshModels}
       />
 
-      <SkillPicker
-        provider={provider}
-        projectId={projectId}
-        selectedCount={selectedCount}
-        onSelect={(skill) => onSelectSkill(skill)}
-      />
+      {skillsEnabled && (
+        <SkillPicker
+          provider={provider}
+          providerLabel={providerLabel}
+          projectId={projectId}
+          selectedCount={selectedCount}
+          onSelect={(skill) => onSelectSkill(skill)}
+        />
+      )}
     </div>
   );
 }

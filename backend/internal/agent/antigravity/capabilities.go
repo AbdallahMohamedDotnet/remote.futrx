@@ -24,6 +24,10 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	if modelsErr != nil {
 		caps.Source = agent.CapabilitySourceFallback
 		caps.Warning = "Sign in to Antigravity in this project to load its model catalog"
+		caps.UnavailableReason = "Antigravity is not signed in on the host."
+		if req.ContainerName != "" {
+			caps.UnavailableReason = "Sign in to Antigravity in this project's terminal, then refresh models."
+		}
 		return caps, modelsErr
 	}
 	return caps, nil

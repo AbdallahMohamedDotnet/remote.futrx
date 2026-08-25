@@ -50,6 +50,10 @@ type ScopePolicy interface {
 	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
 }
 
+type DescriptorPolicy interface {
+	Descriptor(provider string) (agentmodule.Descriptor, bool)
+}
+
 type ListQuery struct {
 	ProjectID     serviceproject.ID
 	SessionCookie string
@@ -62,6 +66,7 @@ type Catalog struct {
 	auth              Authorizer
 	capabilityTimeout time.Duration
 	scopes            ScopePolicy
+	descriptors       DescriptorPolicy
 	cache             *catalogCache
 	flights           *catalogFlights
 }
@@ -69,6 +74,20 @@ type Catalog struct {
 func WithScopePolicy(policy ScopePolicy) Option {
 	return func(catalog *Catalog) {
 		catalog.scopes = policy
+	}
+}
+
+type ModuleCatalog interface {
+	ScopePolicy
+	DescriptorPolicy
+}
+
+// WithModuleCatalog applies the same validated module declarations to scope
+// filtering and public capability metadata.
+func WithModuleCatalog(catalog ModuleCatalog) Option {
+	return func(target *Catalog) {
+		target.scopes = catalog
+		target.descriptors = catalog
 	}
 }
 
@@ -155,9 +174,8 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 					probeCtx,
 					agent.CapabilityRequest{ContainerName: containerName},
 				)
-				if caps.Provider == "" {
-					caps.Provider = provider.ID()
-				}
+				caps.Provider = provider.ID()
+				c.decorate(&caps)
 				if caps.Source == "" {
 					caps.Source = agent.CapabilitySourceFallback
 				}
@@ -177,6 +195,33 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 		c.cache.store(flightKey, result)
 		return result, nil
 	})
+}
+
+func (c *Catalog) decorate(capabilities *agent.Capabilities) {
+	if capabilities == nil || c.descriptors == nil {
+		return
+	}
+	descriptor, ok := c.descriptors.Descriptor(string(capabilities.Provider))
+	if !ok {
+		return
+	}
+	capabilities.Label = descriptor.Label
+	capabilities.ExecutionScopes = make([]string, len(descriptor.ExecutionScopes))
+	for index, scope := range descriptor.ExecutionScopes {
+		capabilities.ExecutionScopes[index] = string(scope)
+	}
+	capabilities.Authentication = agent.CapabilityAuthentication{
+		Mode: string(descriptor.Auth), Instructions: descriptor.AuthInstructions,
+	}
+	capabilities.Features = agent.CapabilityFeatures{
+		Sessions: agent.CapabilitySessionSupport{
+			Resume: descriptor.Features.Sessions.Resume,
+			Fork:   descriptor.Features.Sessions.Fork,
+		},
+		Skills:         string(descriptor.Features.Skills),
+		BrowserTools:   descriptor.Features.BrowserTools,
+		ScheduledTools: descriptor.Features.ScheduledTools,
+	}
 }
 
 func (c *Catalog) capabilityProviders(scope agentmodule.ExecutionScope) []agent.CapabilityProvider {

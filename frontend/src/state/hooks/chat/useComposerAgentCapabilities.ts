@@ -51,16 +51,10 @@ export function useComposerAgentCapabilities({
       unavailableProviders.kimi = "Log in to Kimi in Settings before selecting it.";
     }
   }
-  const antigravityCapabilities = capabilities.catalog?.providers.find(
-    (item) => item.provider === "antigravity",
-  );
-  if (
-    antigravityCapabilities?.source === "fallback"
-    && antigravityCapabilities.warning?.startsWith("Sign in to Antigravity")
-  ) {
-    unavailableProviders.antigravity = projectId
-      ? "Log in to Antigravity in this project's terminal, then refresh models."
-      : "Log in to Antigravity in the terminal, then refresh models.";
+  for (const item of capabilities.catalog?.providers ?? []) {
+    if (item.unavailableReason) {
+      unavailableProviders[item.provider] = item.unavailableReason;
+    }
   }
   const state = agentCapabilityState.resolve(
     capabilities.catalog,

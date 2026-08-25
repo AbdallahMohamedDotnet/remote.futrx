@@ -13,13 +13,14 @@ import (
 )
 
 type catalogTestProvider struct {
-	id       agent.ProviderID
-	label    string
-	mu       sync.Mutex
-	calls    int
-	requests []agent.CapabilityRequest
-	entered  chan<- struct{}
-	release  <-chan struct{}
+	id         agent.ProviderID
+	reportedID agent.ProviderID
+	label      string
+	mu         sync.Mutex
+	calls      int
+	requests   []agent.CapabilityRequest
+	entered    chan<- struct{}
+	release    <-chan struct{}
 }
 
 func (p *catalogTestProvider) ID() agent.ProviderID { return p.id }
@@ -39,9 +40,18 @@ func (p *catalogTestProvider) Capabilities(ctx context.Context, req agent.Capabi
 		}
 	}
 	return agent.Capabilities{
-		Provider: p.id, Label: p.label, Source: agent.CapabilitySourceLive,
+		Provider: firstProviderID(p.reportedID, p.id), Label: p.label, Source: agent.CapabilitySourceLive,
 		Models: []agent.ModelCapability{}, Modes: []agent.CapabilityOption{},
 	}, nil
+}
+
+func firstProviderID(values ...agent.ProviderID) agent.ProviderID {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func TestListAppliesOneConfiguredTimeoutPerProvider(t *testing.T) {
@@ -86,6 +96,26 @@ type catalogTestScopes map[agent.ProviderID]map[agentmodule.ExecutionScope]bool
 
 func (s catalogTestScopes) SupportsScope(provider string, scope agentmodule.ExecutionScope) bool {
 	return s[agent.ProviderID(provider)][scope]
+}
+
+type catalogTestModules map[agent.ProviderID]agentmodule.Descriptor
+
+func (m catalogTestModules) Descriptor(provider string) (agentmodule.Descriptor, bool) {
+	descriptor, ok := m[agent.ProviderID(provider)]
+	return descriptor, ok
+}
+
+func (m catalogTestModules) SupportsScope(provider string, scope agentmodule.ExecutionScope) bool {
+	descriptor, ok := m[agent.ProviderID(provider)]
+	if !ok {
+		return false
+	}
+	for _, configured := range descriptor.ExecutionScopes {
+		if configured == scope {
+			return true
+		}
+	}
+	return false
 }
 
 func (p catalogTestProjects) Get(context.Context, serviceproject.ID) (serviceproject.Meta, error) {
@@ -157,6 +187,50 @@ func TestListOnlyDiscoversProvidersDeclaredForRequestedScope(t *testing.T) {
 	}
 	if host.calls != 1 || project.calls != 1 {
 		t.Fatalf("scope-filtered calls = host:%d project:%d", host.calls, project.calls)
+	}
+}
+
+func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
+	provider := &catalogTestProvider{id: "future-agent", reportedID: "wrong-agent", label: "Adapter Label"}
+	modules := catalogTestModules{"future-agent": {
+		ID:               "future-agent",
+		Label:            "Future Agent",
+		ExecutionScopes:  []agentmodule.ExecutionScope{agentmodule.ScopeHost},
+		Auth:             agentmodule.AuthExternal,
+		AuthInstructions: "Run future-agent login.",
+		Features: agentmodule.Features{
+			Sessions:       agentmodule.SessionSupport{Resume: true},
+			Skills:         agentmodule.SkillsInstructions,
+			ScheduledTools: true,
+		},
+	}}
+	catalog := New(
+		catalogTestRegistry{providers: []agent.CapabilityProvider{provider}},
+		nil,
+		nil,
+		WithModuleCatalog(modules),
+	)
+	items, err := catalog.List(context.Background(), ListQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("capabilities = %#v", items)
+	}
+	got := items[0]
+	if got.Provider != "future-agent" || got.Label != "Future Agent" ||
+		len(got.ExecutionScopes) != 1 || got.ExecutionScopes[0] != "host" ||
+		got.Authentication.Mode != "external" || got.Authentication.Instructions != "Run future-agent login." ||
+		!got.Features.Sessions.Resume || got.Features.Skills != "instructions" || !got.Features.ScheduledTools {
+		t.Fatalf("decorated capabilities = %#v", got)
+	}
+	items[0].ExecutionScopes[0] = "changed"
+	cached, err := catalog.List(context.Background(), ListQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cached[0].ExecutionScopes[0] != "host" {
+		t.Fatalf("cached metadata mutated through response: %#v", cached[0])
 	}
 }
 

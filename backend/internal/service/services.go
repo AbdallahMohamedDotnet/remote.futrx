@@ -206,7 +206,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		projectService,
 		authService,
 		serviceagentcatalog.WithCapabilityTimeout(deps.AgentOptions.CapabilityTimeout),
-		serviceagentcatalog.WithScopePolicy(deps.AgentModules),
+		serviceagentcatalog.WithModuleCatalog(deps.AgentModules),
 	)
 	var accessVerifier *serviceauth.AccessVerifier
 	if authService != nil {

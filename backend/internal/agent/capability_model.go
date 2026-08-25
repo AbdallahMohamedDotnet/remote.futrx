@@ -29,17 +29,38 @@ type ModelCapability struct {
 	DefaultServiceTier     string             `json:"defaultServiceTier,omitempty"`
 }
 
+type CapabilityAuthentication struct {
+	Mode         string `json:"mode"`
+	Instructions string `json:"instructions,omitempty"`
+}
+
+type CapabilitySessionSupport struct {
+	Resume bool `json:"resume"`
+	Fork   bool `json:"fork"`
+}
+
+type CapabilityFeatures struct {
+	Sessions       CapabilitySessionSupport `json:"sessions"`
+	Skills         string                   `json:"skills"`
+	BrowserTools   bool                     `json:"browserTools"`
+	ScheduledTools bool                     `json:"scheduledTools"`
+}
+
 // Capabilities is the normalized catalog returned by every agent adapter.
 // Warning is intentionally concise and must not contain raw provider output.
 type Capabilities struct {
-	Provider    ProviderID         `json:"provider"`
-	Label       string             `json:"label"`
-	Version     string             `json:"version,omitempty"`
-	Source      CapabilitySource   `json:"source"`
-	Warning     string             `json:"warning,omitempty"`
-	Models      []ModelCapability  `json:"models"`
-	Modes       []CapabilityOption `json:"modes"`
-	DefaultMode RunMode            `json:"defaultMode,omitempty"`
+	Provider          ProviderID               `json:"provider"`
+	Label             string                   `json:"label"`
+	ExecutionScopes   []string                 `json:"executionScopes,omitempty"`
+	Authentication    CapabilityAuthentication `json:"authentication"`
+	Features          CapabilityFeatures       `json:"features"`
+	Version           string                   `json:"version,omitempty"`
+	Source            CapabilitySource         `json:"source"`
+	Warning           string                   `json:"warning,omitempty"`
+	UnavailableReason string                   `json:"unavailableReason,omitempty"`
+	Models            []ModelCapability        `json:"models"`
+	Modes             []CapabilityOption       `json:"modes"`
+	DefaultMode       RunMode                  `json:"defaultMode,omitempty"`
 }
 
 type CapabilityRequest struct {
