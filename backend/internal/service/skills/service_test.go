@@ -112,9 +112,23 @@ func TestListMissingRootsReturnsEmptyList(t *testing.T) {
 
 func TestListRejectsInvalidProvider(t *testing.T) {
 	service := NewWithHomes(t.TempDir(), t.TempDir())
-	_, err := service.List(context.Background(), Provider("other"), "")
+	_, err := service.List(context.Background(), Provider("bad provider"), "")
 	if !errors.Is(err, ErrInvalidProvider) {
 		t.Fatalf("expected invalid provider error, got %v", err)
+	}
+}
+
+func TestListSupportsFutureProviderFromCanonicalSkillsRoot(t *testing.T) {
+	agentsHome := t.TempDir()
+	writeSkill(t, filepath.Join(agentsHome, "skills", "custom", "SKILL.md"), `# Custom Skill`)
+	service := NewWithSkillHomes(agentsHome, t.TempDir(), t.TempDir())
+
+	got, err := service.List(context.Background(), Provider("future-agent"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Provider != "future-agent" || got[0].Command != "custom" {
+		t.Fatalf("future provider skills = %#v", got)
 	}
 }
 

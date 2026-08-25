@@ -353,16 +353,7 @@ func (rnr *Service) keepAgentBrowserActivity(ctx context.Context, projectID serv
 }
 
 func providerIDFromChatProvider(provider servicechat.Provider) agent.ProviderID {
-	switch servicechat.NormalizeProvider(provider) {
-	case servicechat.ProviderCodex:
-		return agent.ProviderCodex
-	case servicechat.ProviderKimi:
-		return agent.ProviderKimi
-	case servicechat.ProviderAntigravity:
-		return agent.ProviderAntigravity
-	default:
-		return agent.ProviderClaude
-	}
+	return servicechat.NormalizeProvider(provider)
 }
 
 func sessionIDForProvider(meta ChatMeta, provider agent.ProviderID) string {

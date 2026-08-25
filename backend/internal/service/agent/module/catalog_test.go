@@ -169,6 +169,7 @@ func TestFactoryRejectsUnavailableManagedAuth(t *testing.T) {
 
 func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	firstDescriptor := testDescriptor("first-agent")
+	firstDescriptor.LegacySkillRoots = []string{"/root/.first/skills"}
 	firstDescriptor.Profile.Credentials.Files = []provisioning.CredentialFile{{HostPath: "original"}}
 	firstDescriptor.Profile.BrowserMCPTemplates = []provisioning.TemplateFile{{Content: []byte("original")}}
 	firstFactory, err := NewFactory(firstDescriptor, testBuild(firstDescriptor.ID))
@@ -182,6 +183,7 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	}
 
 	firstDescriptor.ExecutionScopes[0] = "changed"
+	firstDescriptor.LegacySkillRoots[0] = "/changed"
 	firstDescriptor.Profile.Credentials.Files[0].HostPath = "changed"
 	firstDescriptor.Profile.BrowserMCPTemplates[0].Content[0] = 'x'
 
@@ -190,11 +192,13 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 		t.Fatalf("descriptor order = %v", got)
 	}
 	descriptors[0].ExecutionScopes[0] = "changed-again"
+	descriptors[0].LegacySkillRoots[0] = "/changed-again"
 	descriptors[0].Profile.Credentials.Files[0].HostPath = "changed-again"
 	descriptors[0].Profile.BrowserMCPTemplates[0].Content[0] = 'y'
 
 	fresh := catalog.Descriptors()[0]
-	if fresh.ExecutionScopes[0] != ScopeHost || fresh.Profile.Credentials.Files[0].HostPath != "original" || string(fresh.Profile.BrowserMCPTemplates[0].Content) != "original" {
+	if fresh.ExecutionScopes[0] != ScopeHost || fresh.LegacySkillRoots[0] != "/root/.first/skills" ||
+		fresh.Profile.Credentials.Files[0].HostPath != "original" || string(fresh.Profile.BrowserMCPTemplates[0].Content) != "original" {
 		t.Fatalf("catalog descriptor mutated through a snapshot: %#v", fresh)
 	}
 	profiles := catalog.Profiles()

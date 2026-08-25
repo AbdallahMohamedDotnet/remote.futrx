@@ -1,4 +1,6 @@
-export type ChatProvider = "claude" | "codex" | "kimi" | "antigravity";
+// Provider identifiers come from the backend module catalog. Built-in string
+// literals remain valid, but future modules do not require a frontend type edit.
+export type ChatProvider = string;
 export type ChatMode = string;
 export type ReasoningEffort = string;
 export type ServiceTier = string;

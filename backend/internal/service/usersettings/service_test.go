@@ -62,6 +62,19 @@ func TestUpdatePreservesProviderDefinedCapabilityValues(t *testing.T) {
 	}
 }
 
+func TestUpdateAcceptsFutureProviderIdentifiers(t *testing.T) {
+	provider := ChatProvider("future-agent")
+	settings, err := New(&memoryRepo{}).Update(context.Background(), "sub:user", UpdateInput{
+		Chat: &ChatUpdate{Provider: &provider},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.Chat.Provider != provider {
+		t.Fatalf("provider = %q, want %q", settings.Chat.Provider, provider)
+	}
+}
+
 func TestUpdateRejectsInvalidChatPreferences(t *testing.T) {
 	tests := []struct {
 		name string
@@ -71,7 +84,7 @@ func TestUpdateRejectsInvalidChatPreferences(t *testing.T) {
 		{
 			name: "provider",
 			in: UpdateInput{Chat: &ChatUpdate{
-				Provider: ptr(ChatProvider("bad")),
+				Provider: ptr(ChatProvider("bad provider")),
 			}},
 			want: ErrInvalidChatProvider,
 		},
@@ -98,6 +111,21 @@ func TestUpdateRejectsInvalidChatPreferences(t *testing.T) {
 				t.Fatalf("expected %v, got %v", tt.want, err)
 			}
 		})
+	}
+}
+
+type testProviderCatalog map[string]bool
+
+func (c testProviderCatalog) HasProvider(provider string) bool { return c[provider] }
+
+func TestUpdateRejectsProviderMissingFromConfiguredCatalog(t *testing.T) {
+	provider := ChatProvider("future-agent")
+	_, err := New(
+		&memoryRepo{},
+		WithProviderCatalog(testProviderCatalog{"codex": true}),
+	).Update(context.Background(), "sub:user", UpdateInput{Chat: &ChatUpdate{Provider: &provider}})
+	if !errors.Is(err, ErrInvalidChatProvider) {
+		t.Fatalf("Update error = %v, want ErrInvalidChatProvider", err)
 	}
 }
 

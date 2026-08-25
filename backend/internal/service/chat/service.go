@@ -14,12 +14,17 @@ type Service struct {
 	tmux         TmuxResolver
 	runs         RunController
 	sessions     SessionPolicy
+	providers    ProviderPolicy
 }
 
 // SessionPolicy supplies provider-native behavior from the agent module
 // catalog without coupling chat orchestration to concrete adapters.
 type SessionPolicy interface {
 	SupportsNativeFork(provider string) bool
+}
+
+type ProviderPolicy interface {
+	HasProvider(provider string) bool
 }
 
 // Option configures an optional chat-service collaborator.
@@ -36,6 +41,12 @@ func WithCopiedEventAppender(appender CopiedEventAppender) Option {
 func WithSessionPolicy(policy SessionPolicy) Option {
 	return func(service *Service) {
 		service.sessions = policy
+	}
+}
+
+func WithProviderPolicy(policy ProviderPolicy) Option {
+	return func(service *Service) {
+		service.providers = policy
 	}
 }
 
@@ -91,6 +102,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		mode = "default"
 	}
 	provider := NormalizeProvider(in.Provider)
+	if s.providers != nil && !s.providers.HasProvider(string(provider)) {
+		return Meta{}, ErrInvalidProvider
+	}
 
 	cwd := strings.TrimSpace(in.Cwd)
 	if cwd == "" && in.ProjectID != "" && s.projects != nil {
@@ -202,6 +216,14 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		return Meta{}, ErrInvalidID
 	}
 
+	var nextProvider Provider
+	if in.Provider != nil {
+		nextProvider = NormalizeProvider(*in.Provider)
+		if s.providers != nil && !s.providers.HasProvider(string(nextProvider)) {
+			return Meta{}, ErrInvalidProvider
+		}
+	}
+
 	meta, err := s.repo.Update(ctx, id, func(m *Meta) {
 		if in.Title != nil {
 			m.Title = strings.TrimSpace(*in.Title)
@@ -210,7 +232,6 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 			m.Cwd = *in.Cwd
 		}
 		if in.Provider != nil {
-			nextProvider := NormalizeProvider(*in.Provider)
 			if nextProvider != m.Provider {
 				m.SelectedSkills = nil
 			}

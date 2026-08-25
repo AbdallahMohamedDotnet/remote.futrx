@@ -29,6 +29,9 @@ func Catalog() (*agentmodule.Catalog, error) {
 				Label:           "Claude",
 				ExecutionScopes: allScopes(),
 				Auth:            agentmodule.AuthManagedCode,
+				LegacySkillRoots: []string{
+					"/root/.claude/skills",
+				},
 				Features: agentmodule.Features{
 					Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
 					Skills:         agentmodule.SkillsSlashCommand,
@@ -51,6 +54,9 @@ func Catalog() (*agentmodule.Catalog, error) {
 				Label:           "Codex",
 				ExecutionScopes: allScopes(),
 				Auth:            agentmodule.AuthManagedDevice,
+				LegacySkillRoots: []string{
+					"/root/.codex/skills",
+				},
 				Features: agentmodule.Features{
 					Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
 					Skills:         agentmodule.SkillsDollarMention,

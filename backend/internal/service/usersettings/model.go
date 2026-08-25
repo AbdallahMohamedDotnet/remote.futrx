@@ -3,6 +3,8 @@ package usersettings
 import (
 	"errors"
 	"strings"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
 var (
@@ -37,13 +39,13 @@ type Appearance struct {
 	Theme Theme `json:"theme"`
 }
 
-type ChatProvider string
+type ChatProvider = agent.ProviderID
 
 const (
-	ChatProviderClaude      ChatProvider = "claude"
-	ChatProviderCodex       ChatProvider = "codex"
-	ChatProviderKimi        ChatProvider = "kimi"
-	ChatProviderAntigravity ChatProvider = "antigravity"
+	ChatProviderClaude      = agent.ProviderClaude
+	ChatProviderCodex       = agent.ProviderCodex
+	ChatProviderKimi        = agent.ProviderKimi
+	ChatProviderAntigravity = agent.ProviderAntigravity
 )
 
 type ChatMode string
@@ -124,12 +126,7 @@ func ValidTheme(theme Theme) bool {
 }
 
 func ValidChatProvider(provider ChatProvider) bool {
-	switch provider {
-	case ChatProviderClaude, ChatProviderCodex, ChatProviderKimi, ChatProviderAntigravity:
-		return true
-	default:
-		return false
-	}
+	return agent.ValidProviderID(provider)
 }
 
 func ValidChatMode(mode ChatMode) bool {

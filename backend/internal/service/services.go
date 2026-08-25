@@ -155,6 +155,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		runs,
 		servicechat.WithCopiedEventAppender(chats),
 		servicechat.WithSessionPolicy(deps.AgentModules),
+		servicechat.WithProviderPolicy(deps.AgentModules),
 	)
 	chatAccessService := servicechat.NewAccessService(chatService, projectService)
 	agents := agentRuntime.Providers
@@ -193,8 +194,11 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if err := scheduleService.Start(ctx); err != nil {
 		return Services{}, fmt.Errorf("start scheduled tasks: %w", err)
 	}
-	userSettingsService := serviceusersettings.New(deps.UserSettings)
-	skillService := serviceskills.New()
+	userSettingsService := serviceusersettings.New(
+		deps.UserSettings,
+		serviceusersettings.WithProviderCatalog(deps.AgentModules),
+	)
+	skillService := serviceskills.New(serviceskills.WithProviderCatalog(deps.AgentModules))
 	skillCatalog := serviceskills.NewCatalog(skillService, projectService, authService)
 	agentCatalog := serviceagentcatalog.New(
 		agents,

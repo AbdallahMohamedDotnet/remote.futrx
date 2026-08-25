@@ -17,6 +17,15 @@ func TestCapabilityValuesRemainProviderDefined(t *testing.T) {
 	}
 }
 
+func TestNormalizeProviderKeepsFutureSafeIdentifiers(t *testing.T) {
+	if got := NormalizeProvider(" Future-Agent "); got != "future-agent" {
+		t.Fatalf("future provider = %q", got)
+	}
+	if got := NormalizeProvider("unsafe provider"); got != ProviderCodex {
+		t.Fatalf("unsafe provider fallback = %q, want codex", got)
+	}
+}
+
 func TestMetaJSONPreservesExplicitAutoSelections(t *testing.T) {
 	raw, err := json.Marshal(Meta{ID: "abcd"})
 	if err != nil {

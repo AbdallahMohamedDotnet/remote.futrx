@@ -19,6 +19,31 @@ func (p forkSessionPolicy) SupportsNativeFork(provider string) bool {
 	return p[provider]
 }
 
+type forkProviderPolicy map[string]bool
+
+func (p forkProviderPolicy) HasProvider(provider string) bool { return p[provider] }
+
+func TestCreateUsesConfiguredProviderCatalog(t *testing.T) {
+	repo := &forkRepository{}
+	service := New(
+		repo,
+		nil,
+		nil,
+		nil,
+		WithProviderPolicy(forkProviderPolicy{"future-agent": true}),
+	)
+	created, err := service.Create(context.Background(), CreateInput{Provider: "future-agent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Provider != "future-agent" {
+		t.Fatalf("created provider = %q", created.Provider)
+	}
+	if _, err := service.Create(context.Background(), CreateInput{Provider: ProviderCodex}); err != ErrInvalidProvider {
+		t.Fatalf("unconfigured provider error = %v, want ErrInvalidProvider", err)
+	}
+}
+
 func (r *forkRepository) Get(context.Context, ID) (Meta, error) {
 	if r.source.ID != "" {
 		return r.source, nil

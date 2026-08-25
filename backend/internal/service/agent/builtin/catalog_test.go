@@ -30,6 +30,12 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 	if !slices.Equal(ids, want) {
 		t.Fatalf("agent order = %v, want %v", ids, want)
 	}
+	if !catalog.HasProvider("claude") || catalog.HasProvider("future-agent") {
+		t.Fatal("catalog provider membership is incorrect")
+	}
+	if roots := catalog.LegacySkillRoots("codex"); !slices.Equal(roots, []string{"/root/.codex/skills"}) {
+		t.Fatalf("Codex legacy skill roots = %v", roots)
+	}
 	if !catalog.SupportsNativeFork(string(agent.ProviderClaude)) ||
 		!catalog.SupportsNativeFork(string(agent.ProviderCodex)) ||
 		catalog.SupportsNativeFork(string(agent.ProviderKimi)) ||

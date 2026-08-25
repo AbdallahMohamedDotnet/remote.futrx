@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -18,7 +17,6 @@ import (
 
 var (
 	ErrInvalidFactory = errors.New("invalid agent module factory")
-	providerIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 )
 
 type ExecutionScope string
@@ -70,6 +68,7 @@ type Descriptor struct {
 	ExecutionScopes  []ExecutionScope
 	Auth             AuthMode
 	AuthInstructions string
+	LegacySkillRoots []string
 	Features         Features
 	Profile          *provisioning.Profile
 }
@@ -145,8 +144,8 @@ func (f Factory) buildComponents(deps Dependencies) (Components, error) {
 
 func validateDescriptor(descriptor Descriptor) error {
 	id := string(descriptor.ID)
-	if !providerIDPattern.MatchString(id) {
-		return fmt.Errorf("%w: provider ID %q must match %s", ErrInvalidFactory, id, providerIDPattern)
+	if !agent.ValidProviderID(descriptor.ID) {
+		return fmt.Errorf("%w: provider ID %q is invalid", ErrInvalidFactory, id)
 	}
 	if strings.TrimSpace(descriptor.Label) == "" {
 		return fmt.Errorf("%w: provider %q has no label", ErrInvalidFactory, descriptor.ID)
@@ -164,6 +163,14 @@ func validateDescriptor(descriptor Descriptor) error {
 	case SkillsNone, SkillsSlashCommand, SkillsDollarMention, SkillsInstructions:
 	default:
 		return fmt.Errorf("%w: provider %q has unknown skill strategy %q", ErrInvalidFactory, descriptor.ID, descriptor.Features.Skills)
+	}
+	if descriptor.Features.Skills == SkillsNone && len(descriptor.LegacySkillRoots) > 0 {
+		return fmt.Errorf("%w: provider %q has skill roots but disables skills", ErrInvalidFactory, descriptor.ID)
+	}
+	for _, root := range descriptor.LegacySkillRoots {
+		if strings.TrimSpace(root) == "" {
+			return fmt.Errorf("%w: provider %q has an empty legacy skill root", ErrInvalidFactory, descriptor.ID)
+		}
 	}
 	return nil
 }
@@ -268,6 +275,7 @@ func validateAuth(descriptor Descriptor, binding *agentauth.Binding) error {
 
 func cloneDescriptor(descriptor Descriptor) Descriptor {
 	descriptor.ExecutionScopes = append([]ExecutionScope(nil), descriptor.ExecutionScopes...)
+	descriptor.LegacySkillRoots = append([]string(nil), descriptor.LegacySkillRoots...)
 	if descriptor.Profile != nil {
 		profile := descriptor.Profile.Clone()
 		descriptor.Profile = &profile

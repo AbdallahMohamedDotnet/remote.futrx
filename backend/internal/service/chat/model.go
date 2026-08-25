@@ -5,18 +5,20 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
 type ID string
 type ProjectID string
-type Provider string
+type Provider = agent.ProviderID
 type SessionIDs map[Provider]string
 
 const (
-	ProviderClaude      Provider = "claude"
-	ProviderCodex       Provider = "codex"
-	ProviderKimi        Provider = "kimi"
-	ProviderAntigravity Provider = "antigravity"
+	ProviderClaude      = agent.ProviderClaude
+	ProviderCodex       = agent.ProviderCodex
+	ProviderKimi        = agent.ProviderKimi
+	ProviderAntigravity = agent.ProviderAntigravity
 )
 
 type Meta struct {
@@ -279,16 +281,11 @@ type UpdateInput struct {
 }
 
 func NormalizeProvider(provider Provider) Provider {
-	switch provider {
-	case ProviderClaude:
-		return ProviderClaude
-	case ProviderKimi:
-		return ProviderKimi
-	case ProviderAntigravity:
-		return ProviderAntigravity
-	default:
+	normalized := agent.NormalizeProviderID(string(provider))
+	if normalized == "" || !agent.ValidProviderID(normalized) {
 		return ProviderCodex
 	}
+	return normalized
 }
 
 func NormalizeReasoningEffort(effort string) string {
