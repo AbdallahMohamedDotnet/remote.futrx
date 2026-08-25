@@ -8,7 +8,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
-func TestProfilePreservesCodexProvisioningPolicy(t *testing.T) {
+func TestProfileMatchesCodexProvisioningPolicy(t *testing.T) {
 	want := provisioning.Profile{
 		ID: "codex",
 		CLI: provisioning.CLISpec{
