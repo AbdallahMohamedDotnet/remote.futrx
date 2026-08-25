@@ -261,6 +261,9 @@ func (rnr *Service) runPromptAs(
 		)
 	}
 	resumeID := sessionIDForProvider(meta, providerID)
+	if rnr.agentPolicy != nil && !descriptor.Features.Sessions.Resume {
+		resumeID = ""
+	}
 	effectivePrompt := prompt
 	enableBrowser := descriptor.Features.BrowserTools && hasBrowserSkill(meta.SelectedSkills)
 	if enableBrowser && meta.ProjectID != "" {
@@ -420,8 +423,8 @@ func promptWithVisibleHistory(events []ChatEvent, prompt string) string {
 const browserSkillName = "browser"
 const scheduledTasksSkillName = "scheduled-tasks"
 
-// hasBrowserSkill reports whether the user selected the `browser` skill for
-// this prompt — the signal to wire the @playwright/mcp browser tools.
+// hasBrowserSkill reports whether the user selected the `browser` skill. The
+// module descriptor must also enable browser tools before they are wired in.
 func hasBrowserSkill(skills []servicechat.SkillRef) bool {
 	for _, s := range skills {
 		if skillTriggerName(s.Command) == browserSkillName || skillTriggerName(s.Name) == browserSkillName {
