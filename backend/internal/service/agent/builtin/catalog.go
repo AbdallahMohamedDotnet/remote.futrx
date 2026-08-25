@@ -1,6 +1,6 @@
 // Package builtin is the explicit composition root for Remote's compiled-in
-// agent integrations. Adding an agent requires one reviewed entry here; module
-// construction and validation remain deterministic and free of init hooks.
+// agent integrations. Registering an implemented integration requires one
+// reviewed entry here; construction stays deterministic and free of init hooks.
 package builtin
 
 import (
@@ -25,10 +25,12 @@ func Catalog() (*agentmodule.Catalog, error) {
 	}{
 		{
 			descriptor: agentmodule.Descriptor{
-				ID:              agent.ProviderClaude,
-				Label:           "Claude",
-				ExecutionScopes: allScopes(),
-				Auth:            agentmodule.AuthManagedCode,
+				ID:                  agent.ProviderClaude,
+				Label:               "Claude",
+				ExecutionScopes:     allScopes(),
+				Auth:                agentmodule.AuthManagedCode,
+				AuthInstructions:    "Starts `claude auth login --claudeai` on the host. Sign in with your Anthropic subscription; credentials are shared with project containers.",
+				SatisfiesAccessGate: true,
 				LegacySkillRoots: []string{
 					"/root/.claude/skills",
 				},
@@ -50,10 +52,13 @@ func Catalog() (*agentmodule.Catalog, error) {
 		},
 		{
 			descriptor: agentmodule.Descriptor{
-				ID:              agent.ProviderCodex,
-				Label:           "Codex",
-				ExecutionScopes: allScopes(),
-				Auth:            agentmodule.AuthManagedDevice,
+				ID:                  agent.ProviderCodex,
+				Label:               "Codex",
+				Default:             true,
+				ExecutionScopes:     allScopes(),
+				Auth:                agentmodule.AuthManagedDevice,
+				AuthInstructions:    "Starts `codex login --device-auth` on the host. Sign in with ChatGPT so Codex uses subscription limits instead of API-key billing.",
+				SatisfiesAccessGate: true,
 				LegacySkillRoots: []string{
 					"/root/.codex/skills",
 				},
@@ -66,7 +71,13 @@ func Catalog() (*agentmodule.Catalog, error) {
 				Profile: &codexProfile,
 			},
 			build: func(deps agentmodule.Dependencies) (agentmodule.Components, error) {
-				binding := agentauth.NewDeviceBinding(agent.ProviderCodex, codexagent.NewAuth())
+				auth := codexagent.NewAuth()
+				binding := agentauth.NewDeviceBinding(agent.ProviderCodex, auth).WithWarning(func() string {
+					if auth.Status().UsesAPIKey {
+						return "Codex is logged in with an API key. Sign in with ChatGPT to use subscription limits."
+					}
+					return ""
+				})
 				return agentmodule.Components{
 					Provider: codexagent.New(deps.Projects, deps.Containers),
 					Auth:     &binding,
@@ -75,10 +86,12 @@ func Catalog() (*agentmodule.Catalog, error) {
 		},
 		{
 			descriptor: agentmodule.Descriptor{
-				ID:              agent.ProviderKimi,
-				Label:           "Kimi",
-				ExecutionScopes: allScopes(),
-				Auth:            agentmodule.AuthManagedDevice,
+				ID:                  agent.ProviderKimi,
+				Label:               "Kimi",
+				ExecutionScopes:     allScopes(),
+				Auth:                agentmodule.AuthManagedDevice,
+				AuthInstructions:    "Starts `kimi login` on the host. Sign in with your Kimi Code subscription using the displayed device code.",
+				SatisfiesAccessGate: true,
 				Features: agentmodule.Features{
 					Sessions:       agentmodule.SessionSupport{Resume: true},
 					Skills:         agentmodule.SkillsInstructions,

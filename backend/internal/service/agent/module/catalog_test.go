@@ -67,6 +67,23 @@ func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
 			descriptor.Label = "  "
 			return descriptor
 		}(),
+		"managed auth without instructions": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Auth = AuthManagedCode
+			descriptor.AuthInstructions = ""
+			return descriptor
+		}(),
+		"external auth gate": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.SatisfiesAccessGate = true
+			return descriptor
+		}(),
+		"project-only default": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Default = true
+			descriptor.ExecutionScopes = []ExecutionScope{ScopeProject}
+			return descriptor
+		}(),
 		"missing scope": func() Descriptor {
 			descriptor := cloneDescriptor(valid)
 			descriptor.ExecutionScopes = nil
@@ -148,6 +165,24 @@ func TestCatalogRejectsDuplicateFactories(t *testing.T) {
 	}
 }
 
+func TestCatalogRejectsMultipleDefaultProviders(t *testing.T) {
+	first := testDescriptor("first-agent")
+	first.Default = true
+	second := testDescriptor("second-agent")
+	second.Default = true
+	firstFactory, err := NewFactory(first, testBuild(first.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondFactory, err := NewFactory(second, testBuild(second.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewCatalog(firstFactory, secondFactory); !errors.Is(err, ErrInvalidCatalog) {
+		t.Fatalf("NewCatalog error = %v, want ErrInvalidCatalog", err)
+	}
+}
+
 func TestFactoryRejectsRuntimeIdentityAndAuthMismatches(t *testing.T) {
 	tests := map[string]BuildFunc{
 		"provider ID": func(Dependencies) (Components, error) {
@@ -186,7 +221,7 @@ func TestFactoryRejectsRuntimeIdentityAndAuthMismatches(t *testing.T) {
 func TestFactoryRejectsUnavailableManagedAuth(t *testing.T) {
 	descriptor := testDescriptor("future-agent")
 	descriptor.Auth = AuthManagedCode
-	descriptor.AuthInstructions = ""
+	descriptor.AuthInstructions = "Complete the code flow."
 	factory, err := NewFactory(descriptor, func(Dependencies) (Components, error) {
 		binding := agentauth.NewCodeBinding("future-agent", nil)
 		return Components{Provider: testProvider{id: "future-agent"}, Auth: &binding}, nil
@@ -201,6 +236,72 @@ func TestFactoryRejectsUnavailableManagedAuth(t *testing.T) {
 	if _, err := catalog.Build(Dependencies{}); !errors.Is(err, ErrInvalidFactory) {
 		t.Fatalf("Build error = %v, want ErrInvalidFactory", err)
 	}
+}
+
+func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
+	authenticated := false
+	managed := testDescriptor("managed-agent")
+	managed.Default = true
+	managed.Auth = AuthManagedDevice
+	managed.AuthInstructions = "Complete the device flow."
+	managed.SatisfiesAccessGate = true
+	managedFactory, err := NewFactory(managed, func(Dependencies) (Components, error) {
+		service := agentauth.NewDeviceService(agentauth.DeviceConfig[bindingTestAuthStatus]{
+			Authenticated: func() bool { return authenticated },
+			BuildStatus: func() agentauth.DeviceStatusBuilder[bindingTestAuthStatus] {
+				return func(state agentauth.DeviceState) bindingTestAuthStatus {
+					return bindingTestAuthStatus{Authenticated: authenticated, DeviceLogin: state}
+				}
+			},
+		})
+		binding := agentauth.NewDeviceBinding(managed.ID, service)
+		return Components{Provider: testProvider{id: managed.ID}, Auth: &binding}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	externalFactory := newTestFactory(t, "external-agent")
+	catalog, err := NewCatalog(externalFactory, managedFactory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := catalog.DefaultProvider(ScopeHost); got != managed.ID {
+		t.Fatalf("default provider = %q, want %q", got, managed.ID)
+	}
+	runtime, err := catalog.Build(Dependencies{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if catalog.AccessReady(runtime.Auth) {
+		t.Fatal("access gate opened before managed authentication")
+	}
+	authenticated = true
+	if !catalog.AccessReady(runtime.Auth) {
+		t.Fatal("access gate stayed closed after managed authentication")
+	}
+
+	noAuth := testDescriptor("no-auth-agent")
+	noAuth.Auth = AuthNone
+	noAuth.AuthInstructions = ""
+	noAuth.SatisfiesAccessGate = true
+	noAuthFactory, err := NewFactory(noAuth, func(Dependencies) (Components, error) {
+		return Components{Provider: testProvider{id: noAuth.ID}}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	noAuthCatalog, err := NewCatalog(noAuthFactory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !noAuthCatalog.AccessReady(nil) {
+		t.Fatal("no-auth gate provider was not immediately ready")
+	}
+}
+
+type bindingTestAuthStatus struct {
+	Authenticated bool                  `json:"authenticated"`
+	DeviceLogin   agentauth.DeviceState `json:"deviceLogin"`
 }
 
 func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {

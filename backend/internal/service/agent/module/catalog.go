@@ -31,6 +31,7 @@ func NewCatalog(factories ...Factory) (*Catalog, error) {
 	stateDevices := make(map[string]agent.ProviderID)
 	stateHosts := make(map[string]agent.ProviderID)
 	stateTargets := make(map[string]agent.ProviderID)
+	var defaultProvider agent.ProviderID
 	for index, factory := range catalog.factories {
 		descriptor := factory.Descriptor()
 		if err := validateDescriptor(descriptor); err != nil {
@@ -41,6 +42,17 @@ func NewCatalog(factories ...Factory) (*Catalog, error) {
 		}
 		if _, exists := catalog.byID[descriptor.ID]; exists {
 			return nil, fmt.Errorf("%w: provider %q is duplicated", ErrInvalidCatalog, descriptor.ID)
+		}
+		if descriptor.Default {
+			if defaultProvider != "" {
+				return nil, fmt.Errorf(
+					"%w: providers %q and %q are both defaults",
+					ErrInvalidCatalog,
+					defaultProvider,
+					descriptor.ID,
+				)
+			}
+			defaultProvider = descriptor.ID
 		}
 		if descriptor.Profile != nil {
 			for _, state := range descriptor.Profile.PersistentState {
@@ -120,6 +132,53 @@ func (c *Catalog) SupportsScope(provider string, scope ExecutionScope) bool {
 	}
 	for _, configured := range descriptor.ExecutionScopes {
 		if configured == scope {
+			return true
+		}
+	}
+	return false
+}
+
+// DefaultProvider returns the explicitly preferred provider for a scope, or
+// the first compatible module when no preference is declared. Catalog order
+// is deterministic, so this fallback is stable.
+func (c *Catalog) DefaultProvider(scope ExecutionScope) agent.ProviderID {
+	if c == nil {
+		return ""
+	}
+	var first agent.ProviderID
+	for _, factory := range c.factories {
+		descriptor := factory.Descriptor()
+		if !c.SupportsScope(string(descriptor.ID), scope) {
+			continue
+		}
+		if first == "" {
+			first = descriptor.ID
+		}
+		if descriptor.Default {
+			return descriptor.ID
+		}
+	}
+	return first
+}
+
+// AccessReady reports whether any module declared as an onboarding gate can
+// run. No-auth modules are immediately ready; managed flows require a live
+// authenticated binding. External flows cannot be gate providers because the
+// platform has no authoritative status signal for them.
+func (c *Catalog) AccessReady(bindings *agentauth.Registry) bool {
+	if c == nil {
+		return false
+	}
+	for _, factory := range c.factories {
+		descriptor := factory.Descriptor()
+		if !descriptor.SatisfiesAccessGate {
+			continue
+		}
+		if descriptor.Auth == AuthNone {
+			return true
+		}
+		binding, ok := bindings.Lookup(descriptor.ID)
+		if ok && binding.Authenticated() {
 			return true
 		}
 	}

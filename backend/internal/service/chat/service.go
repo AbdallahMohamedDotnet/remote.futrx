@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
@@ -28,6 +29,10 @@ type SessionPolicy interface {
 type ProviderPolicy interface {
 	HasProvider(provider string) bool
 	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
+}
+
+type defaultProviderPolicy interface {
+	DefaultProvider(scope agentmodule.ExecutionScope) agent.ProviderID
 }
 
 // Option configures an optional chat-service collaborator.
@@ -104,8 +109,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 	if mode == "" {
 		mode = "default"
 	}
-	provider := NormalizeProvider(in.Provider)
-	if !s.validProviderScope(provider, in.ProjectID) {
+	provider, ok := s.providerForScope(in.Provider, in.ProjectID)
+	if !ok {
 		return Meta{}, ErrInvalidProvider
 	}
 
@@ -224,12 +229,13 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 
 	var nextProvider Provider
 	if in.Provider != nil {
-		nextProvider = NormalizeProvider(*in.Provider)
 		current, err := s.repo.Get(ctx, id)
 		if err != nil {
 			return Meta{}, err
 		}
-		if !s.validProviderScope(nextProvider, current.ProjectID) {
+		var valid bool
+		nextProvider, valid = s.providerForScope(*in.Provider, current.ProjectID)
+		if !valid {
 			return Meta{}, ErrInvalidProvider
 		}
 	}
@@ -281,6 +287,24 @@ func (s *Service) validProviderScope(provider Provider, projectID ProjectID) boo
 		scope = agentmodule.ScopeProject
 	}
 	return s.providers.SupportsScope(string(provider), scope)
+}
+
+func (s *Service) providerForScope(input Provider, projectID ProjectID) (Provider, bool) {
+	scope := agentmodule.ScopeHost
+	if projectID != "" {
+		scope = agentmodule.ScopeProject
+	}
+	normalized := agent.NormalizeProviderID(string(input))
+	if normalized == "" {
+		normalized = ProviderCodex
+		if defaults, ok := s.providers.(defaultProviderPolicy); ok {
+			normalized = defaults.DefaultProvider(scope)
+		}
+	}
+	if !agent.ValidProviderID(normalized) || !s.validProviderScope(normalized, projectID) {
+		return "", false
+	}
+	return normalized, true
 }
 
 func (s *Service) MarkRead(ctx context.Context, id ID) (Meta, error) {

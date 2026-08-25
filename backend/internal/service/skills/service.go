@@ -31,6 +31,10 @@ type ProviderCatalog interface {
 	LegacySkillRoots(provider string) []string
 }
 
+type defaultProviderCatalog interface {
+	DefaultProvider(scope agentmodule.ExecutionScope) agent.ProviderID
+}
+
 type Option func(*Service)
 
 func WithProviderCatalog(providers ProviderCatalog) Option {
@@ -124,6 +128,15 @@ func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace 
 		return left < right
 	})
 	return skills, nil
+}
+
+func (s *Service) DefaultProvider(scope agentmodule.ExecutionScope) Provider {
+	if providers, ok := s.providers.(defaultProviderCatalog); ok {
+		if provider := providers.DefaultProvider(scope); provider != "" {
+			return provider
+		}
+	}
+	return ProviderCodex
 }
 
 func hasSkillCommand(skills []Skill, command string) bool {

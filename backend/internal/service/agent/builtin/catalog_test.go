@@ -33,6 +33,9 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 	if !catalog.HasProvider("claude") || catalog.HasProvider("future-agent") {
 		t.Fatal("catalog provider membership is incorrect")
 	}
+	if got := catalog.DefaultProvider(agentmodule.ScopeHost); got != agent.ProviderCodex {
+		t.Fatalf("host default = %q, want codex", got)
+	}
 	if roots := catalog.LegacySkillRoots("codex"); !slices.Equal(roots, []string{"/root/.codex/skills"}) {
 		t.Fatalf("Codex legacy skill roots = %v", roots)
 	}
@@ -56,6 +59,9 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 		if !ok || binding.ID() != descriptor.ID {
 			t.Fatalf("auth binding %q was not built consistently", descriptor.ID)
 		}
+	}
+	if runtime.Auth.AnyAuthenticated() != catalog.AccessReady(runtime.Auth) {
+		t.Fatal("built-in access gate drifted from managed auth readiness")
 	}
 }
 

@@ -35,6 +35,15 @@ func (p scopedProviderPolicy) SupportsScope(provider string, scope agentmodule.E
 	return p[provider][scope]
 }
 
+type defaultScopedProviderPolicy struct {
+	scopedProviderPolicy
+	provider Provider
+}
+
+func (p defaultScopedProviderPolicy) DefaultProvider(agentmodule.ExecutionScope) Provider {
+	return p.provider
+}
+
 func TestCreateUsesConfiguredProviderCatalog(t *testing.T) {
 	repo := &forkRepository{}
 	service := New(
@@ -53,6 +62,27 @@ func TestCreateUsesConfiguredProviderCatalog(t *testing.T) {
 	}
 	if _, err := service.Create(context.Background(), CreateInput{Provider: ProviderCodex}); err != ErrInvalidProvider {
 		t.Fatalf("unconfigured provider error = %v, want ErrInvalidProvider", err)
+	}
+}
+
+func TestCreateUsesCatalogDefaultAndRejectsUnsafeExplicitProvider(t *testing.T) {
+	repo := &forkRepository{}
+	policy := defaultScopedProviderPolicy{
+		scopedProviderPolicy: scopedProviderPolicy{
+			"future-agent": {agentmodule.ScopeHost: true},
+		},
+		provider: "future-agent",
+	}
+	service := New(repo, nil, nil, nil, WithProviderPolicy(policy))
+	created, err := service.Create(context.Background(), CreateInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Provider != "future-agent" {
+		t.Fatalf("default provider = %q, want future-agent", created.Provider)
+	}
+	if _, err := service.Create(context.Background(), CreateInput{Provider: "bad provider"}); err != ErrInvalidProvider {
+		t.Fatalf("unsafe provider error = %v, want ErrInvalidProvider", err)
 	}
 }
 

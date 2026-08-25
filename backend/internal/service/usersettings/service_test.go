@@ -123,6 +123,32 @@ func (c testProviderCatalog) SupportsScope(provider string, _ agentmodule.Execut
 	return c[provider]
 }
 
+type defaultTestProviderCatalog struct {
+	testProviderCatalog
+	provider ChatProvider
+}
+
+func (c defaultTestProviderCatalog) DefaultProvider(agentmodule.ExecutionScope) ChatProvider {
+	return c.provider
+}
+
+func TestGetUsesConfiguredDefaultProvider(t *testing.T) {
+	service := New(
+		&memoryRepo{},
+		WithProviderCatalog(defaultTestProviderCatalog{
+			testProviderCatalog: testProviderCatalog{"future-agent": true},
+			provider:            "future-agent",
+		}),
+	)
+	settings, err := service.Get(context.Background(), "sub:user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.Chat.Provider != "future-agent" {
+		t.Fatalf("default provider = %q, want future-agent", settings.Chat.Provider)
+	}
+}
+
 func TestUpdateRejectsProviderMissingFromConfiguredCatalog(t *testing.T) {
 	provider := ChatProvider("future-agent")
 	_, err := New(

@@ -37,6 +37,28 @@ func (c skillTestProviderCatalog) SupportsScope(provider string, scope agentmodu
 
 func (c skillTestProviderCatalog) LegacySkillRoots(string) []string { return nil }
 
+type defaultSkillTestProviderCatalog struct {
+	skillTestProviderCatalog
+	provider Provider
+}
+
+func (c defaultSkillTestProviderCatalog) DefaultProvider(agentmodule.ExecutionScope) Provider {
+	return c.provider
+}
+
+func TestDefaultProviderUsesModuleCatalog(t *testing.T) {
+	catalog := defaultSkillTestProviderCatalog{
+		skillTestProviderCatalog: skillTestProviderCatalog{"future-agent": {
+			ID: "future-agent", ExecutionScopes: []agentmodule.ExecutionScope{agentmodule.ScopeHost},
+		}},
+		provider: "future-agent",
+	}
+	service := NewWithSkillHomes(t.TempDir(), t.TempDir(), t.TempDir(), WithProviderCatalog(catalog))
+	if got := service.DefaultProvider(agentmodule.ScopeHost); got != "future-agent" {
+		t.Fatalf("default provider = %q, want future-agent", got)
+	}
+}
+
 func TestListSkillsFiltersBundled(t *testing.T) {
 	// CLI-bundled skills live under .system and plugins/cache; the
 	// picker should ignore both and only surface user-authored skills.

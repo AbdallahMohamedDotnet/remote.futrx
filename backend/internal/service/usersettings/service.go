@@ -20,6 +20,10 @@ type ProviderCatalog interface {
 	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
 }
 
+type defaultProviderCatalog interface {
+	DefaultProvider(scope agentmodule.ExecutionScope) agent.ProviderID
+}
+
 type Option func(*Service)
 
 func WithProviderCatalog(providers ProviderCatalog) Option {
@@ -60,7 +64,7 @@ func (s *Service) Get(ctx context.Context, key Key) (Settings, error) {
 	settings, err := s.repo.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			return DefaultSettings(), nil
+			return s.defaultSettings(), nil
 		}
 		return Settings{}, err
 	}
@@ -120,7 +124,7 @@ func (s *Service) Update(ctx context.Context, key Key, input UpdateInput) (Setti
 }
 
 func (s *Service) normalize(settings Settings) Settings {
-	defaults := DefaultSettings()
+	defaults := s.defaultSettings()
 	if !ValidTheme(settings.Appearance.Theme) {
 		settings.Appearance.Theme = defaults.Appearance.Theme
 	}
@@ -140,6 +144,16 @@ func (s *Service) normalize(settings Settings) Settings {
 	settings.Chat.ServiceTier = normalizeServiceTier(settings.Chat.ServiceTier)
 	if !ValidServiceTier(settings.Chat.ServiceTier) {
 		settings.Chat.ServiceTier = defaults.Chat.ServiceTier
+	}
+	return settings
+}
+
+func (s *Service) defaultSettings() Settings {
+	settings := DefaultSettings()
+	if providers, ok := s.providers.(defaultProviderCatalog); ok {
+		if provider := providers.DefaultProvider(agentmodule.ScopeHost); provider != "" {
+			settings.Chat.Provider = provider
+		}
 	}
 	return settings
 }

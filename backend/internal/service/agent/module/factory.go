@@ -1,6 +1,6 @@
 // Package module defines the application-level contract implemented by every
 // agent integration. A module combines static behavior metadata with the
-// factory that creates its runtime provider and optional managed-auth binding.
+// factory that creates its runtime provider and optional auth binding.
 package module
 
 import (
@@ -63,14 +63,16 @@ type Features struct {
 // Descriptor is the stable, provider-neutral declaration for one agent. A
 // project-capable module must include a complete provisioning profile.
 type Descriptor struct {
-	ID               agent.ProviderID
-	Label            string
-	ExecutionScopes  []ExecutionScope
-	Auth             AuthMode
-	AuthInstructions string
-	LegacySkillRoots []string
-	Features         Features
-	Profile          *provisioning.Profile
+	ID                  agent.ProviderID
+	Label               string
+	Default             bool
+	ExecutionScopes     []ExecutionScope
+	Auth                AuthMode
+	AuthInstructions    string
+	SatisfiesAccessGate bool
+	LegacySkillRoots    []string
+	Features            Features
+	Profile             *provisioning.Profile
 }
 
 // ProjectResolver is the exact project surface an agent adapter may use.
@@ -191,6 +193,9 @@ func validateScopes(descriptor Descriptor) error {
 		seen[scope] = true
 		projectScoped = projectScoped || scope == ScopeProject
 	}
+	if descriptor.Default && !seen[ScopeHost] {
+		return fmt.Errorf("%w: default provider %q does not support host execution", ErrInvalidFactory, descriptor.ID)
+	}
 	if projectScoped {
 		return validateProfile(descriptor.ID, descriptor.Profile)
 	}
@@ -243,13 +248,16 @@ func validateProfile(id agent.ProviderID, profile *provisioning.Profile) error {
 
 func validateAuthMode(descriptor Descriptor) error {
 	switch descriptor.Auth {
-	case AuthManagedCode, AuthManagedDevice, AuthNone:
+	case AuthManagedCode, AuthManagedDevice, AuthExternal:
+		if strings.TrimSpace(descriptor.AuthInstructions) == "" {
+			return fmt.Errorf("%w: provider %q auth has no instructions", ErrInvalidFactory, descriptor.ID)
+		}
+		if descriptor.Auth == AuthExternal && descriptor.SatisfiesAccessGate {
+			return fmt.Errorf("%w: provider %q external auth cannot satisfy the access gate", ErrInvalidFactory, descriptor.ID)
+		}
+	case AuthNone:
 		if strings.TrimSpace(descriptor.AuthInstructions) != "" {
 			return fmt.Errorf("%w: provider %q has instructions for auth mode %q", ErrInvalidFactory, descriptor.ID, descriptor.Auth)
-		}
-	case AuthExternal:
-		if strings.TrimSpace(descriptor.AuthInstructions) == "" {
-			return fmt.Errorf("%w: provider %q external auth has no instructions", ErrInvalidFactory, descriptor.ID)
 		}
 	default:
 		return fmt.Errorf("%w: provider %q has unknown auth mode %q", ErrInvalidFactory, descriptor.ID, descriptor.Auth)
