@@ -89,6 +89,7 @@ type Services struct {
 	Schedules    *serviceschedule.Service
 	ScheduleCaps *schedulecapability.Registry
 	AgentAuth    *agentauth.Registry
+	AgentModules *agentmodule.Catalog
 	AgentCatalog *serviceagentcatalog.Catalog
 	Runs         *runhub.Hub
 	Workspace    *workspacehub.Hub
@@ -229,6 +230,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Schedules:    scheduleService,
 		ScheduleCaps: scheduleCaps,
 		AgentAuth:    agentAuth,
+		AgentModules: deps.AgentModules,
 		AgentCatalog: agentCatalog,
 		Runs:         runs,
 		Workspace:    workspace,

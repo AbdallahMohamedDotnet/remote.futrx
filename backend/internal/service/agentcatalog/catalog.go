@@ -206,12 +206,15 @@ func (c *Catalog) decorate(capabilities *agent.Capabilities) {
 		return
 	}
 	capabilities.Label = descriptor.Label
+	capabilities.Default = descriptor.Default
 	capabilities.ExecutionScopes = make([]string, len(descriptor.ExecutionScopes))
 	for index, scope := range descriptor.ExecutionScopes {
 		capabilities.ExecutionScopes[index] = string(scope)
 	}
 	capabilities.Authentication = agent.CapabilityAuthentication{
-		Mode: string(descriptor.Auth), Instructions: descriptor.AuthInstructions,
+		Mode:                string(descriptor.Auth),
+		Instructions:        descriptor.AuthInstructions,
+		SatisfiesAccessGate: descriptor.SatisfiesAccessGate,
 	}
 	capabilities.Features = agent.CapabilityFeatures{
 		Sessions: agent.CapabilitySessionSupport{

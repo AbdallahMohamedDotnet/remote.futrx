@@ -195,6 +195,7 @@ func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
 	modules := catalogTestModules{"future-agent": {
 		ID:               "future-agent",
 		Label:            "Future Agent",
+		Default:          true,
 		ExecutionScopes:  []agentmodule.ExecutionScope{agentmodule.ScopeHost},
 		Auth:             agentmodule.AuthExternal,
 		AuthInstructions: "Run future-agent login.",
@@ -218,7 +219,7 @@ func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
 		t.Fatalf("capabilities = %#v", items)
 	}
 	got := items[0]
-	if got.Provider != "future-agent" || got.Label != "Future Agent" ||
+	if got.Provider != "future-agent" || got.Label != "Future Agent" || !got.Default ||
 		len(got.ExecutionScopes) != 1 || got.ExecutionScopes[0] != "host" ||
 		got.Authentication.Mode != "external" || got.Authentication.Instructions != "Run future-agent login." ||
 		!got.Features.Sessions.Resume || got.Features.Skills != "instructions" || !got.Features.ScheduledTools {

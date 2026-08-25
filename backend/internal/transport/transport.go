@@ -52,10 +52,17 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 				"/ws/"+provider+"/auth-status",
 			)
 		}
+		providerAuthPrefixes = append(providerAuthPrefixes, "/api/agent-auth", "/ws/agent-auth/")
+		providerReady := deps.Services.AgentAuth.AnyAuthenticated
+		if deps.Services.AgentModules != nil {
+			providerReady = func() bool {
+				return deps.Services.AgentModules.AccessReady(deps.Services.AgentAuth)
+			}
+		}
 		middleware = httpmiddleware.NewAuth(deps.Services.Auth).
 			RequireLocalAdminSetup(deps.Services.Auth.LocalAdminConfigured).
 			RequireProviderLogin(
-				deps.Services.AgentAuth.AnyAuthenticated,
+				providerReady,
 				providerAuthPrefixes...,
 			)
 	}
@@ -105,6 +112,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		AgentAuth: httphandlers.NewAgentAuthHandler(
 			agentAuthBindings,
 			deps.Services.Auth,
+			deps.Services.AgentModules,
 		),
 		AgentCapabilities: httphandlers.NewAgentCapabilitiesHandler(deps.Services.AgentCatalog),
 		UserSettings: httphandlers.NewUserSettingsHandler(

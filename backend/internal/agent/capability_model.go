@@ -30,8 +30,9 @@ type ModelCapability struct {
 }
 
 type CapabilityAuthentication struct {
-	Mode         string `json:"mode"`
-	Instructions string `json:"instructions,omitempty"`
+	Mode                string `json:"mode"`
+	Instructions        string `json:"instructions,omitempty"`
+	SatisfiesAccessGate bool   `json:"satisfiesAccessGate"`
 }
 
 type CapabilitySessionSupport struct {
@@ -51,6 +52,7 @@ type CapabilityFeatures struct {
 type Capabilities struct {
 	Provider          ProviderID               `json:"provider"`
 	Label             string                   `json:"label"`
+	Default           bool                     `json:"default,omitempty"`
 	ExecutionScopes   []string                 `json:"executionScopes,omitempty"`
 	Authentication    CapabilityAuthentication `json:"authentication"`
 	Features          CapabilityFeatures       `json:"features"`
