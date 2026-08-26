@@ -84,7 +84,13 @@ func newTestProvider(
 	projects agent.ProjectResolver,
 	dependencies provisioning.ContainerDependencies,
 ) *Provider {
-	return newProvider(projects, dependencies, Profile(), 30*time.Second)
+	profile := Profile()
+	return newProvider(
+		newProjectPreparer(projects, dependencies, profile),
+		dependencies,
+		profile,
+		30*time.Second,
+	)
 }
 
 type fakeKimiScheduleProjects struct {

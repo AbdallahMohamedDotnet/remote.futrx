@@ -2,12 +2,11 @@ package kimi
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
-	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/agent/runtime"
 )
 
 // containerKimiHome is the KIMI_CODE_HOME inside a project container — where
@@ -44,7 +43,7 @@ func (p *Provider) buildCmd(
 		}
 	}
 
-	if req.ProjectID == "" || p.projects == nil {
+	if req.ProjectID == "" || p.projectPreparer == nil {
 		cmd := exec.CommandContext(ctx, "kimi", args...)
 		cmd.Dir = cwd
 		cmd.Env = append(os.Environ(), "KIMI_CODE_HOME="+hostKimiHome())
@@ -52,83 +51,23 @@ func (p *Provider) buildCmd(
 		return cmd, "", nil
 	}
 
-	project, err := p.projects.Get(ctx, agent.ProjectID(req.ProjectID))
+	project, err := p.projectPreparer.Prepare(ctx, agent.ProjectPreparationRequest{
+		ProjectID:           agent.ProjectID(req.ProjectID),
+		ConversationID:      req.ConversationID,
+		EnableBrowser:       req.EnableBrowser,
+		EnableScheduleTools: req.EnableScheduleTools,
+	}, emit)
 	if err != nil {
-		return nil, "", fmt.Errorf("project not found (%s): %w", req.ProjectID, err)
-	}
-	if project.ContainerName == "" {
-		return nil, "", fmt.Errorf("project %s has no container - recreate the project", project.ID)
-	}
-
-	// The container can be deleted out-of-band (e.g. a workspace recycle onto a
-	// new base image), leaving the cached Status stale. Always reconcile via
-	// Start — it relaunches a missing instance from the base image and is a
-	// no-op when already running; the cached Status only gates the indicator.
-	if project.Status != agent.ProjectStatusRunning {
-		emitSystem(req, emit, "container_starting")
-	}
-	if _, err := p.projects.Start(ctx, project.ID); err != nil {
-		return nil, "", fmt.Errorf("start container: %w", err)
-	}
-
-	if err := p.containerDeps.Validate(); err != nil {
 		return nil, "", err
 	}
-	if !p.containerDeps.IsZero() {
-		emitSystem(req, emit, "container_preparing")
-		if err := p.containerDeps.CLI.Ensure(ctx, project.ContainerName, p.profile.CLI); err != nil {
-			return nil, "", fmt.Errorf("install kimi in container: %w", err)
-		}
-		if err := p.containerDeps.Credentials.Ensure(ctx, project.ContainerName, p.profile.Credentials); err != nil {
-			return nil, "", fmt.Errorf("seed kimi auth in container: %w", err)
-		}
-		if err := p.containerDeps.Workspace.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
-			return nil, "", fmt.Errorf("push agent instructions to container: %w", err)
-		}
-		if err := p.containerDeps.Workspace.EnsureSkillLinks(ctx, project.ContainerName); err != nil {
-			// Best-effort: a stale skill shim shouldn't block a kimi run.
-			_ = err
-		}
-		if err := p.containerDeps.Browser.EnsureSkill(ctx, project.ContainerName); err != nil {
-			// Best-effort migration for containers created before the skill.
-			_ = err
-		}
-		if err := p.containerDeps.Browser.EnsureScript(ctx, project.ContainerName); err != nil {
-			// Best-effort: only matters if the agent runs scripts/browser.mjs.
-			_ = err
-		}
-		if req.EnableScheduleTools {
-			if err := p.containerDeps.ScheduleTools.Ensure(ctx, project.ContainerName); err != nil {
-				return nil, "", fmt.Errorf("provision scheduled-task tools: %w", err)
-			}
-		}
-		if err := p.containerDeps.Lifecycle.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
-			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
-		}
-	}
-
-	lxcArgs := []string{
-		"exec",
-		"--cwd", "/workspace",
-		"--env", "HOME=/root",
-		"--env", "KIMI_CODE_HOME=" + containerKimiHome,
-	}
-	if p.projects != nil {
-		if secrets, err := p.projects.ListSecrets(ctx, project.ID); err == nil {
-			for _, sec := range secrets {
-				if _, backendIssued := req.RuntimeEnv[sec.Key]; backendIssued {
-					continue
-				}
-				lxcArgs = append(lxcArgs, "--env", sec.Key+"="+sec.Value)
-			}
-		}
-	}
-	for _, entry := range agent.RuntimeEnvironment(req.RuntimeEnv) {
-		lxcArgs = append(lxcArgs, "--env", entry)
-	}
-	lxcArgs = append(lxcArgs, project.ContainerName, "--", "kimi")
-	lxcArgs = append(lxcArgs, args...)
-	cmd := exec.CommandContext(ctx, "lxc", lxcArgs...)
+	cmd := agentruntime.BuildContainerCommand(ctx, agentruntime.ContainerCommandSpec{
+		ContainerName:      project.ContainerName,
+		PrefixEnvironment:  []string{"HOME=/root", "KIMI_CODE_HOME=" + containerKimiHome},
+		Secrets:            project.Secrets,
+		RuntimeEnvironment: req.RuntimeEnv,
+		Binary:             p.profile.CLI.Binary,
+		Arguments:          args,
+	})
 	return cmd, project.ContainerName, nil
 }
 
@@ -140,14 +79,4 @@ func hostKimiHome() string {
 		return home + "/.kimi-code"
 	}
 	return "/root/.kimi-code"
-}
-
-func emitSystem(req agent.RunRequest, emit func(agent.Event), subtype string) {
-	emit(agent.Event{
-		T:              time.Now().UnixMilli(),
-		Type:           agent.EventSystem,
-		Provider:       agent.ProviderKimi,
-		ConversationID: req.ConversationID,
-		Subtype:        subtype,
-	})
 }
