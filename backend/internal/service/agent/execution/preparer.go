@@ -13,14 +13,27 @@ import (
 )
 
 type Options struct {
-	Provider                 agent.ProviderID
-	Profile                  provisioning.Profile
+	// Provider identifies system events and supplies default error wording.
+	Provider agent.ProviderID
+	// Profile is the exact provisioning policy already validated by the module
+	// factory. New clones it before retaining any slices or template bytes.
+	Profile provisioning.Profile
+	// CLIErrorOperation and CredentialErrorOperation override the provider-based
+	// default prefixes when compatibility requires established user-facing text.
 	CLIErrorOperation        string
 	CredentialErrorOperation string
-	BeforeCredentials        func() error
-	SkillLinksRequired       bool
-	BrowserAssets            bool
-	BrowserRuntime           bool
+	// BeforeCredentials performs provider-specific validation immediately before
+	// the profile's generic credential synchronizer is invoked.
+	BeforeCredentials func() error
+	// SkillLinksRequired turns the otherwise best-effort compatibility-link
+	// migration into a fatal run prerequisite.
+	SkillLinksRequired bool
+	// BrowserAssets migrates the shared browser skill and script on every
+	// prepared run. Both operations remain best effort.
+	BrowserAssets bool
+	// BrowserMCPRuntime provisions MCP configuration and starts browser core when
+	// the already policy-gated run request enables Browser tools.
+	BrowserMCPRuntime bool
 }
 
 type Preparer struct {
@@ -106,7 +119,7 @@ func (p *Preparer) prepareContainer(
 		_ = p.containers.Browser.EnsureSkill(ctx, containerName)
 		_ = p.containers.Browser.EnsureScript(ctx, containerName)
 	}
-	if p.options.BrowserRuntime && request.EnableBrowser {
+	if p.options.BrowserMCPRuntime && request.EnableBrowser {
 		if err := p.containers.Browser.EnsureMCP(ctx, containerName); err != nil {
 			return fmt.Errorf("provision browser MCP: %w", err)
 		}

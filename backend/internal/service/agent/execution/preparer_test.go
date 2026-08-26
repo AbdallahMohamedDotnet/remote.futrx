@@ -17,10 +17,10 @@ func TestPreparerAppliesSharedWorkflowInOrder(t *testing.T) {
 		preparationProjects{recorder: recorder},
 		preparationDependencies(recorder),
 		Options{
-			Provider:       "future-agent",
-			Profile:        profile,
-			BrowserAssets:  true,
-			BrowserRuntime: true,
+			Provider:          "future-agent",
+			Profile:           profile,
+			BrowserAssets:     true,
+			BrowserMCPRuntime: true,
 			BeforeCredentials: func() error {
 				recorder.calls = append(recorder.calls, "before-credentials")
 				return nil

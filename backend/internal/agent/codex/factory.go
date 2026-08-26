@@ -65,7 +65,7 @@ func newProjectPreparer(
 		},
 		SkillLinksRequired: true,
 		BrowserAssets:      true,
-		BrowserRuntime:     true,
+		BrowserMCPRuntime:  true,
 	})
 }
 

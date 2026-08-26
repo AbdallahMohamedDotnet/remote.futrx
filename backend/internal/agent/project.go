@@ -25,9 +25,9 @@ type ProjectSecret struct {
 	Value string
 }
 
-// ProjectResolver is the complete project surface available to agent
-// adapters. Service-layer project models are translated at the composition
-// boundary and never leak into provider packages.
+// ProjectResolver is the complete project surface available to shared agent
+// execution services. Service-layer project models are translated at the
+// composition boundary and never leak into provider packages.
 type ProjectResolver interface {
 	Get(context.Context, ProjectID) (Project, error)
 	Start(context.Context, ProjectID) (Project, error)

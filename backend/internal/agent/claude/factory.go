@@ -49,10 +49,10 @@ func newProjectPreparer(
 	profile provisioning.Profile,
 ) agent.ProjectPreparer {
 	return agentexecution.New(projects, containers, agentexecution.Options{
-		Provider:       agent.ProviderClaude,
-		Profile:        profile,
-		BrowserAssets:  true,
-		BrowserRuntime: true,
+		Provider:          agent.ProviderClaude,
+		Profile:           profile,
+		BrowserAssets:     true,
+		BrowserMCPRuntime: true,
 	})
 }
 
