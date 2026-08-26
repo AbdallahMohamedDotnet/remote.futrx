@@ -2,9 +2,9 @@ package codex
 
 import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
 // Factory returns Codex's complete module definition. Runtime and auth state

@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
 const missingAgentCLI = "futrx-test-agent-cli-that-does-not-exist"

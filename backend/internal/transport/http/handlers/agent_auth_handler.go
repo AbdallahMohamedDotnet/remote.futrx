@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )

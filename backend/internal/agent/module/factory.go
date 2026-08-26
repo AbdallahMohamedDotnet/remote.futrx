@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
 var (
