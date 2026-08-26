@@ -271,7 +271,7 @@ type Runtime struct {
 	auth      *agentauth.Registry
 }
 
-func (c *Catalog) Build(deps Dependencies) (*Runtime, error) {
+func (c *Catalog) Build(deps BuildDependencies) (*Runtime, error) {
 	if c == nil {
 		return nil, fmt.Errorf("%w: catalog is nil", ErrInvalidCatalog)
 	}

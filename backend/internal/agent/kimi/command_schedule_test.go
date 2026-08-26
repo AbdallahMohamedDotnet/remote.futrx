@@ -8,6 +8,7 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
 func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
@@ -84,13 +85,23 @@ func newTestProvider(
 	projects agent.ProjectResolver,
 	dependencies provisioning.ContainerDependencies,
 ) *Provider {
-	profile := Profile()
-	return newProvider(
-		newProjectPreparer(projects, dependencies, profile),
-		dependencies,
-		profile,
-		30*time.Second,
-	)
+	factory, err := NewFactory()
+	if err != nil {
+		panic(err)
+	}
+	catalog, err := agentmodule.NewCatalog(factory)
+	if err != nil {
+		panic(err)
+	}
+	runtime, err := catalog.Build(agentmodule.BuildDependencies{
+		Projects:              projects,
+		Containers:            dependencies,
+		CredentialSyncTimeout: 30 * time.Second,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return runtime.Lookup(agent.ProviderKimi).(*Provider)
 }
 
 type fakeKimiScheduleProjects struct {

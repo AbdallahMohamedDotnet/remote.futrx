@@ -12,12 +12,23 @@ type CLIProvisioner interface {
 	Ensure(context.Context, string, CLISpec) error
 }
 
-// CredentialSynchronizer is the agent-execution port for moving credentials
-// into and out of a project container. Shared preparation owns the push path;
-// providers that support post-run pull-back retain the same narrow port.
-type CredentialSynchronizer interface {
+// CredentialProvisioner is the shared-preparation port for seeding credentials
+// into a project container before an agent starts.
+type CredentialProvisioner interface {
 	Ensure(context.Context, string, CredentialSpec) error
+}
+
+// CredentialCollector is the provider-facing port for retaining credentials
+// that a successful project run may have refreshed inside its container.
+type CredentialCollector interface {
 	SyncFromContainer(context.Context, string, CredentialSpec) error
+}
+
+// CredentialSynchronizer combines the preparation and post-run roles for the
+// concrete adapter wired by config. Consumers depend on the narrower role.
+type CredentialSynchronizer interface {
+	CredentialProvisioner
+	CredentialCollector
 }
 
 // WorkspaceProvisioner publishes shared agent assets and workspace links.
@@ -46,8 +57,8 @@ type ContainerLifecycle interface {
 }
 
 // ContainerDependencies groups the focused ports used by shared agent project
-// preparation and optional post-run credential sync. A zero value disables
-// container preparation for host-only runs and focused tests.
+// preparation. A zero value disables container preparation for host-only runs
+// and focused tests.
 type ContainerDependencies struct {
 	CLI           CLIProvisioner
 	Credentials   CredentialSynchronizer

@@ -60,7 +60,7 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 		t.Fatalf("Antigravity host CLI policy = %#v", antigravityCLI)
 	}
 
-	runtime, err := catalog.Build(agentmodule.Dependencies{})
+	runtime, err := catalog.Build(agentmodule.BuildDependencies{})
 	if err != nil {
 		t.Fatal(err)
 	}

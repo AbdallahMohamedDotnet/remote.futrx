@@ -21,7 +21,7 @@ func TestPreparerAppliesSharedWorkflowInOrder(t *testing.T) {
 			Profile:           profile,
 			BrowserAssets:     true,
 			BrowserMCPRuntime: true,
-			BeforeCredentials: func() error {
+			BeforeCredentials: func(provisioning.Profile) error {
 				recorder.calls = append(recorder.calls, "before-credentials")
 				return nil
 			},

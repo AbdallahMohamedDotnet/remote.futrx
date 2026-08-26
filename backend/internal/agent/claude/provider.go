@@ -12,20 +12,20 @@ import (
 
 type Provider struct {
 	projectPreparer       agent.ProjectPreparer
-	containerDeps         provisioning.ContainerDependencies
+	credentialCollector   provisioning.CredentialCollector
 	profile               provisioning.Profile
 	credentialSyncTimeout time.Duration
 }
 
 func newProvider(
 	projectPreparer agent.ProjectPreparer,
-	containerDeps provisioning.ContainerDependencies,
+	credentialCollector provisioning.CredentialCollector,
 	profile provisioning.Profile,
 	credentialSyncTimeout time.Duration,
 ) *Provider {
 	return &Provider{
 		projectPreparer:       projectPreparer,
-		containerDeps:         containerDeps,
+		credentialCollector:   credentialCollector,
 		profile:               profile.Clone(),
 		credentialSyncTimeout: credentialSyncTimeout,
 	}
@@ -57,10 +57,10 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 		Provider:       agent.ProviderClaude,
 		ConversationID: req.ConversationID,
 	})
-	if err == nil && containerName != "" && p.containerDeps.Credentials != nil {
+	if err == nil && containerName != "" && p.credentialCollector != nil {
 		syncCtx, cancel := context.WithTimeout(context.Background(), p.credentialSyncTimeout)
 		defer cancel()
-		if syncErr := p.containerDeps.Credentials.SyncFromContainer(syncCtx, containerName, p.profile.Credentials); syncErr != nil {
+		if syncErr := p.credentialCollector.SyncFromContainer(syncCtx, containerName, p.profile.Credentials); syncErr != nil {
 			log.Printf("claude[%s] sync auth from %s: %v", req.ConversationID, containerName, syncErr)
 		}
 	}

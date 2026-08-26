@@ -34,7 +34,7 @@ func TestCatalogBuildsFakeFifthAgentWithoutProviderSwitches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runtime, err := catalog.Build(Dependencies{})
+	runtime, err := catalog.Build(BuildDependencies{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestFactoryBuildReceivesValidatedProfileSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := catalog.Build(Dependencies{}); err != nil {
+	if _, err := catalog.Build(BuildDependencies{}); err != nil {
 		t.Fatal(err)
 	}
 	if received == nil || received.CLI.Binary != "future-agent" {
@@ -78,6 +78,97 @@ func TestFactoryBuildReceivesValidatedProfileSnapshot(t *testing.T) {
 	if got := catalog.Profiles()[0].CLI.Binary; got != "future-agent" {
 		t.Fatalf("provider mutated catalog profile: %q", got)
 	}
+}
+
+func TestFactoryProjectsApplicationDependenciesBeforeProviderBuild(t *testing.T) {
+	descriptor := testDescriptor("future-agent")
+	profile := testProfile(descriptor.ID)
+	var received Dependencies
+	factory, err := NewFactory(
+		descriptor,
+		&profile,
+		func(deps Dependencies, _ *provisioning.Profile) (Components, error) {
+			received = deps
+			binding := agentauth.NewExternalBinding(descriptor.ID)
+			return Components{Provider: testProvider{id: descriptor.ID}, Auth: &binding}, nil
+		},
+		WithProjectPreparation(ProjectPreparationPolicy{BrowserAssets: true}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := NewCatalog(factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := catalog.Build(BuildDependencies{
+		Projects:              moduleTestProjects{},
+		CredentialSyncTimeout: 45 * time.Second,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if received.ProjectPreparer == nil {
+		t.Fatal("project provider did not receive the factory-owned preparer")
+	}
+	if received.CredentialSyncTimeout != 45*time.Second {
+		t.Fatalf("credential sync timeout = %s", received.CredentialSyncTimeout)
+	}
+}
+
+func TestNewFactoryRejectsInvalidProjectPreparationPolicy(t *testing.T) {
+	t.Run("nil option", func(t *testing.T) {
+		descriptor := testDescriptor("future-agent")
+		profile := testProfile(descriptor.ID)
+		if _, err := NewFactory(descriptor, &profile, testBuild(descriptor.ID), nil); !errors.Is(err, ErrInvalidFactory) {
+			t.Fatalf("NewFactory error = %v, want ErrInvalidFactory", err)
+		}
+	})
+
+	t.Run("host-only provider", func(t *testing.T) {
+		descriptor := testDescriptor("future-agent")
+		descriptor.ExecutionScopes = []ExecutionScope{ScopeHost}
+		profile := testProfile(descriptor.ID)
+		profile.CLI.ImageLabel = ""
+		_, err := NewFactory(
+			descriptor,
+			&profile,
+			testBuild(descriptor.ID),
+			WithProjectPreparation(ProjectPreparationPolicy{BrowserAssets: true}),
+		)
+		if !errors.Is(err, ErrInvalidFactory) {
+			t.Fatalf("NewFactory error = %v, want ErrInvalidFactory", err)
+		}
+	})
+
+	t.Run("browser runtime without feature", func(t *testing.T) {
+		descriptor := testDescriptor("future-agent")
+		profile := testProfile(descriptor.ID)
+		_, err := NewFactory(
+			descriptor,
+			&profile,
+			testBuild(descriptor.ID),
+			WithProjectPreparation(ProjectPreparationPolicy{BrowserMCPRuntime: true}),
+		)
+		if !errors.Is(err, ErrInvalidFactory) {
+			t.Fatalf("NewFactory error = %v, want ErrInvalidFactory", err)
+		}
+	})
+
+	t.Run("credential hook without credentials", func(t *testing.T) {
+		descriptor := testDescriptor("future-agent")
+		profile := testProfile(descriptor.ID)
+		_, err := NewFactory(
+			descriptor,
+			&profile,
+			testBuild(descriptor.ID),
+			WithProjectPreparation(ProjectPreparationPolicy{
+				BeforeCredentials: func(provisioning.Profile) error { return nil },
+			}),
+		)
+		if !errors.Is(err, ErrInvalidFactory) {
+			t.Fatalf("NewFactory error = %v, want ErrInvalidFactory", err)
+		}
+	})
 }
 
 func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
@@ -256,7 +347,7 @@ func TestFactoryRejectsRuntimeIdentityAndAuthMismatches(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := catalog.Build(Dependencies{}); !errors.Is(err, ErrInvalidFactory) {
+			if _, err := catalog.Build(BuildDependencies{}); !errors.Is(err, ErrInvalidFactory) {
 				t.Fatalf("Build error = %v, want ErrInvalidFactory", err)
 			}
 		})
@@ -279,7 +370,7 @@ func TestFactoryRejectsUnavailableManagedAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := catalog.Build(Dependencies{}); !errors.Is(err, ErrInvalidFactory) {
+	if _, err := catalog.Build(BuildDependencies{}); !errors.Is(err, ErrInvalidFactory) {
 		t.Fatalf("Build error = %v, want ErrInvalidFactory", err)
 	}
 }
@@ -315,7 +406,7 @@ func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
 	if got := catalog.DefaultProvider(ScopeHost); got != managed.ID {
 		t.Fatalf("default provider = %q, want %q", got, managed.ID)
 	}
-	runtime, err := catalog.Build(Dependencies{})
+	runtime, err := catalog.Build(BuildDependencies{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +433,7 @@ func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	noAuthRuntime, err := noAuthCatalog.Build(Dependencies{})
+	noAuthRuntime, err := noAuthCatalog.Build(BuildDependencies{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,6 +458,20 @@ func TestCatalogRejectsMissingAccessGateWhenRequested(t *testing.T) {
 type bindingTestAuthStatus struct {
 	Authenticated bool                  `json:"authenticated"`
 	DeviceLogin   agentauth.DeviceState `json:"deviceLogin"`
+}
+
+type moduleTestProjects struct{}
+
+func (moduleTestProjects) Get(context.Context, agent.ProjectID) (agent.Project, error) {
+	return agent.Project{}, nil
+}
+
+func (moduleTestProjects) Start(context.Context, agent.ProjectID) (agent.Project, error) {
+	return agent.Project{}, nil
+}
+
+func (moduleTestProjects) ListSecrets(context.Context, agent.ProjectID) ([]agent.ProjectSecret, error) {
+	return nil, nil
 }
 
 func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
 func TestArgsComposition(t *testing.T) {
@@ -80,18 +81,29 @@ func TestBuildCmdUsesAntigravityProjectPreparationPolicy(t *testing.T) {
 		Status:        "stopped",
 	}
 	calls := &antigravityPreparationCalls{}
-	profile := Profile()
-	provider := newProvider(
-		newProjectPreparer(antigravityTestProjects{
+	factory, err := NewFactory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := agentmodule.NewCatalog(factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := catalog.Build(agentmodule.BuildDependencies{
+		Projects: antigravityTestProjects{
 			project: project,
 			secrets: []agent.ProjectSecret{
 				{Key: "REMOTE_SCHEDULE_API", Value: "https://attacker.invalid"},
 				{Key: "SAFE_SECRET", Value: "safe"},
 			},
 			calls: calls,
-		}, antigravityContainerDependencies(calls), profile),
-		profile.CLI.Binary,
-	)
+		},
+		Containers: antigravityContainerDependencies(calls),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := runtime.Lookup(agent.ProviderAntigravity).(*Provider)
 	request := agent.RunRequest{
 		ProjectID:           string(project.ID),
 		Prompt:              "test",

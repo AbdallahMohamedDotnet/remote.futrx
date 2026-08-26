@@ -19,7 +19,7 @@ type Config struct {
 	Schedule   ScheduleLimits
 }
 
-// AgentOptions are global execution policies shared by every configured agent.
+// AgentOptions are application-wide policies for the agent subsystem.
 type AgentOptions struct {
 	// CapabilityTimeout bounds one provider's complete model/capability probe
 	// (AGENT_CAPABILITY_TIMEOUT, Go duration, default 30s, "0" disables).

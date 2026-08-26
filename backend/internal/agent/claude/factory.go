@@ -4,7 +4,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
-	agentexecution "github.com/futrx-com/remote.futrx.com/internal/service/agent/execution"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
@@ -33,27 +32,17 @@ func NewFactory() (agentmodule.Factory, error) {
 		binding := agentauth.NewCodeBinding(agent.ProviderClaude, NewAuth())
 		return agentmodule.Components{
 			Provider: newProvider(
-				newProjectPreparer(deps.Projects, deps.Containers, *validatedProfile),
-				deps.Containers,
+				deps.ProjectPreparer,
+				deps.CredentialCollector,
 				*validatedProfile,
 				deps.CredentialSyncTimeout,
 			),
 			Auth: &binding,
 		}, nil
-	})
-}
-
-func newProjectPreparer(
-	projects agent.ProjectResolver,
-	containers provisioning.ContainerDependencies,
-	profile provisioning.Profile,
-) agent.ProjectPreparer {
-	return agentexecution.New(projects, containers, agentexecution.Options{
-		Provider:          agent.ProviderClaude,
-		Profile:           profile,
+	}, agentmodule.WithProjectPreparation(agentmodule.ProjectPreparationPolicy{
 		BrowserAssets:     true,
 		BrowserMCPRuntime: true,
-	})
+	}))
 }
 
 var (

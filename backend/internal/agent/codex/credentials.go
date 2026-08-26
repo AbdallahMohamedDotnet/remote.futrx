@@ -17,7 +17,7 @@ func validateSubscriptionCredentials(profile provisioning.Profile) error {
 }
 
 func (p *Provider) syncCredentialsFromContainer(ctx context.Context, containerName string) error {
-	if err := p.containerDeps.Credentials.SyncFromContainer(ctx, containerName, p.profile.Credentials); err != nil {
+	if err := p.credentialCollector.SyncFromContainer(ctx, containerName, p.profile.Credentials); err != nil {
 		return err
 	}
 	if codexAuthUsesAPIKey(p.profile.Credentials.Files[0].HostPath) {

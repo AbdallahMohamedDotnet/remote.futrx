@@ -74,7 +74,7 @@ type ScheduleLimits struct {
 	MaxTasksPerProject int
 }
 
-// AgentOptions mirrors global agent execution policy without coupling the
+// AgentOptions mirrors application-wide agent policy without coupling the
 // service layer to the config package.
 type AgentOptions struct {
 	CapabilityTimeout          time.Duration
@@ -138,7 +138,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	}
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
 	projectService := serviceproject.New(projects, deps.ProjectContainers, deps.ProjectSecrets, deps.ProjectAccess)
-	agentRuntime, err := deps.AgentModules.Build(agentmodule.Dependencies{
+	agentRuntime, err := deps.AgentModules.Build(agentmodule.BuildDependencies{
 		Projects:              agentProjectResolver{projects: projectService},
 		Containers:            deps.AgentContainers,
 		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,

@@ -12,6 +12,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	agentexecution "github.com/futrx-com/remote.futrx.com/internal/service/agent/execution"
 )
 
 var (
@@ -74,10 +75,42 @@ type Descriptor struct {
 	Features            Features
 }
 
-type Dependencies struct {
+// BuildDependencies are application-owned collaborators supplied once when a
+// catalog builds its runtime. Factory owns their provider-specific projection.
+type BuildDependencies struct {
 	Projects              agent.ProjectResolver
 	Containers            provisioning.ContainerDependencies
 	CredentialSyncTimeout time.Duration
+}
+
+// Dependencies are the already-projected collaborators exposed to one
+// provider build callback. Project adapters receive a shared preparer rather
+// than the resolver and provisioning workflow separately.
+type Dependencies struct {
+	ProjectPreparer       agent.ProjectPreparer
+	CredentialCollector   provisioning.CredentialCollector
+	CredentialSyncTimeout time.Duration
+}
+
+// ProjectPreparationPolicy declares the few provider-specific choices in the
+// otherwise shared project lifecycle and provisioning workflow.
+type ProjectPreparationPolicy struct {
+	// CLIErrorOperation and CredentialErrorOperation retain established
+	// provider-specific error prefixes instead of the shared defaults.
+	CLIErrorOperation        string
+	CredentialErrorOperation string
+	// BeforeCredentials receives an isolated profile snapshot immediately before
+	// the factory-owned preparer invokes the generic credential provisioner.
+	BeforeCredentials func(provisioning.Profile) error
+	// SkillLinksRequired makes compatibility-link migration fatal. It is best
+	// effort by default.
+	SkillLinksRequired bool
+	// BrowserAssets migrates shared browser files on every prepared run. The
+	// migration remains best effort.
+	BrowserAssets bool
+	// BrowserMCPRuntime provisions MCP configuration and starts browser core when
+	// the already policy-gated request enables browser tools.
+	BrowserMCPRuntime bool
 }
 
 // Components are the runtime objects produced by a module. Auth is nil only
@@ -87,9 +120,9 @@ type Components struct {
 	Auth     *agentauth.Binding
 }
 
-// BuildFunc creates one provider runtime from application dependencies and the
-// exact provisioning profile already validated by the factory. The profile is
-// nil only for a host-only module that requires no local CLI installation.
+// BuildFunc creates one provider runtime from projected provider dependencies
+// and the exact provisioning profile already validated by the factory. The
+// profile is nil only for a host-only module with no local CLI installation.
 type BuildFunc func(Dependencies, *provisioning.Profile) (Components, error)
 
 // FactoryBuilder is the compile-time constructor contract implemented by each
@@ -99,32 +132,62 @@ type FactoryBuilder func() (Factory, error)
 // Factory is immutable after construction. Descriptor and provisioning profile
 // data are cloned at the boundary so callers cannot mutate registered policy.
 type Factory struct {
-	descriptor Descriptor
-	profile    *provisioning.Profile
-	build      BuildFunc
+	descriptor         Descriptor
+	profile            *provisioning.Profile
+	projectPreparation ProjectPreparationPolicy
+	build              BuildFunc
+}
+
+// FactoryOption declares optional provider policy without exposing mutable
+// factory state to provider packages.
+type FactoryOption func(*Factory) error
+
+// WithProjectPreparation declares provider-specific choices applied when the
+// factory constructs its shared ProjectPreparer. Project modules receive the
+// common default policy when this option is omitted.
+func WithProjectPreparation(policy ProjectPreparationPolicy) FactoryOption {
+	return func(factory *Factory) error {
+		factory.projectPreparation = policy
+		return nil
+	}
 }
 
 func NewFactory(
 	descriptor Descriptor,
 	profile *provisioning.Profile,
 	build BuildFunc,
+	options ...FactoryOption,
 ) (Factory, error) {
-	descriptor = cloneDescriptor(descriptor)
-	profile = cloneProfile(profile)
-	if err := validateDescriptor(descriptor, profile); err != nil {
+	factory := Factory{
+		descriptor: cloneDescriptor(descriptor),
+		profile:    cloneProfile(profile),
+		build:      build,
+	}
+	for _, option := range options {
+		if option == nil {
+			return Factory{}, fmt.Errorf("%w: provider %q has a nil option", ErrInvalidFactory, factory.descriptor.ID)
+		}
+		if err := option(&factory); err != nil {
+			return Factory{}, fmt.Errorf("%w: provider %q option: %v", ErrInvalidFactory, factory.descriptor.ID, err)
+		}
+	}
+	if err := validateDescriptor(factory.descriptor, factory.profile); err != nil {
 		return Factory{}, err
 	}
-	if build == nil {
-		return Factory{}, fmt.Errorf("%w: provider %q has no builder", ErrInvalidFactory, descriptor.ID)
+	if err := validateProjectPreparation(factory.descriptor, factory.profile, factory.projectPreparation); err != nil {
+		return Factory{}, err
 	}
-	return Factory{descriptor: descriptor, profile: profile, build: build}, nil
+	if factory.build == nil {
+		return Factory{}, fmt.Errorf("%w: provider %q has no builder", ErrInvalidFactory, factory.descriptor.ID)
+	}
+	return factory, nil
 }
 
 func (f Factory) Descriptor() Descriptor {
 	return cloneDescriptor(f.descriptor)
 }
 
-func (f Factory) buildComponents(deps Dependencies) (Components, error) {
+func (f Factory) buildComponents(deps BuildDependencies) (Components, error) {
 	if f.build == nil {
 		return Components{}, fmt.Errorf("%w: provider %q has no builder", ErrInvalidFactory, f.descriptor.ID)
 	}
@@ -133,7 +196,27 @@ func (f Factory) buildComponents(deps Dependencies) (Components, error) {
 		cloned := f.profile.Clone()
 		profile = &cloned
 	}
-	components, err := f.build(deps, profile)
+	providerDependencies := Dependencies{
+		CredentialCollector:   deps.Containers.Credentials,
+		CredentialSyncTimeout: deps.CredentialSyncTimeout,
+	}
+	if supportsExecutionScope(f.descriptor, ScopeProject) {
+		providerDependencies.ProjectPreparer = agentexecution.New(
+			deps.Projects,
+			deps.Containers,
+			agentexecution.Options{
+				Provider:                 f.descriptor.ID,
+				Profile:                  *profile,
+				CLIErrorOperation:        f.projectPreparation.CLIErrorOperation,
+				CredentialErrorOperation: f.projectPreparation.CredentialErrorOperation,
+				BeforeCredentials:        f.projectPreparation.BeforeCredentials,
+				SkillLinksRequired:       f.projectPreparation.SkillLinksRequired,
+				BrowserAssets:            f.projectPreparation.BrowserAssets,
+				BrowserMCPRuntime:        f.projectPreparation.BrowserMCPRuntime,
+			},
+		)
+	}
+	components, err := f.build(providerDependencies, profile)
 	if err != nil {
 		return Components{}, fmt.Errorf("build agent %q: %w", f.descriptor.ID, err)
 	}
@@ -152,6 +235,46 @@ func (f Factory) buildComponents(deps Dependencies) (Components, error) {
 		return Components{}, err
 	}
 	return components, nil
+}
+
+func validateProjectPreparation(
+	descriptor Descriptor,
+	profile *provisioning.Profile,
+	policy ProjectPreparationPolicy,
+) error {
+	projectScoped := supportsExecutionScope(descriptor, ScopeProject)
+	if !projectScoped && hasProjectPreparationPolicy(policy) {
+		return fmt.Errorf("%w: host-only provider %q declares project preparation", ErrInvalidFactory, descriptor.ID)
+	}
+	if !projectScoped {
+		return nil
+	}
+	if policy.BrowserMCPRuntime && !descriptor.Features.BrowserTools {
+		return fmt.Errorf("%w: provider %q prepares browser MCP without browser support", ErrInvalidFactory, descriptor.ID)
+	}
+	if profile != nil && profile.Credentials.Empty() &&
+		(policy.CredentialErrorOperation != "" || policy.BeforeCredentials != nil) {
+		return fmt.Errorf("%w: provider %q customizes credentials without credential policy", ErrInvalidFactory, descriptor.ID)
+	}
+	return nil
+}
+
+func hasProjectPreparationPolicy(policy ProjectPreparationPolicy) bool {
+	return policy.CLIErrorOperation != "" ||
+		policy.CredentialErrorOperation != "" ||
+		policy.BeforeCredentials != nil ||
+		policy.SkillLinksRequired ||
+		policy.BrowserAssets ||
+		policy.BrowserMCPRuntime
+}
+
+func supportsExecutionScope(descriptor Descriptor, scope ExecutionScope) bool {
+	for _, candidate := range descriptor.ExecutionScopes {
+		if candidate == scope {
+			return true
+		}
+	}
+	return false
 }
 
 func validateDescriptor(descriptor Descriptor, profile *provisioning.Profile) error {

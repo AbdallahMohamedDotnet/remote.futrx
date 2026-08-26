@@ -22,9 +22,9 @@ type Options struct {
 	// default prefixes when compatibility requires established user-facing text.
 	CLIErrorOperation        string
 	CredentialErrorOperation string
-	// BeforeCredentials performs provider-specific validation immediately before
-	// the profile's generic credential synchronizer is invoked.
-	BeforeCredentials func() error
+	// BeforeCredentials receives an isolated profile snapshot for provider-specific
+	// validation immediately before the generic credential synchronizer is invoked.
+	BeforeCredentials func(provisioning.Profile) error
 	// SkillLinksRequired turns the otherwise best-effort compatibility-link
 	// migration into a fatal run prerequisite.
 	SkillLinksRequired bool
@@ -101,7 +101,7 @@ func (p *Preparer) prepareContainer(
 	}
 	if !p.options.Profile.Credentials.Empty() {
 		if p.options.BeforeCredentials != nil {
-			if err := p.options.BeforeCredentials(); err != nil {
+			if err := p.options.BeforeCredentials(p.options.Profile.Clone()); err != nil {
 				return fmt.Errorf("%s: %w", p.credentialErrorOperation(), err)
 			}
 		}
