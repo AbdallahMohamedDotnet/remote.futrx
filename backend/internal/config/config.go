@@ -32,6 +32,9 @@ type AgentOptions struct {
 	// CredentialSyncTimeout bounds the best-effort post-run copy of refreshed
 	// provider credentials from a project container back to the host.
 	CredentialSyncTimeout time.Duration
+	// BrowserIdleTTL controls how long an agent browser stack may remain idle
+	// before the project service stops it.
+	BrowserIdleTTL time.Duration
 }
 
 // ScheduleLimits are the scheduled-task guardrails. Zero disables a limit;
@@ -61,6 +64,7 @@ func Load() Config {
 			CapabilityCacheTTL:         24 * time.Hour,
 			DegradedCapabilityCacheTTL: 2 * time.Hour,
 			CredentialSyncTimeout:      30 * time.Second,
+			BrowserIdleTTL:             20 * time.Minute,
 		},
 		Schedule: ScheduleLimits{
 			MinInterval:        envDuration("SCHEDULE_MIN_INTERVAL", 5*time.Minute),

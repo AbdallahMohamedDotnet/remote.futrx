@@ -17,7 +17,7 @@ func TestLoadUsesGlobalAgentCapabilityTimeout(t *testing.T) {
 	}
 }
 
-func TestLoadUsesGlobalAgentCapabilityCachePolicy(t *testing.T) {
+func TestLoadUsesGlobalAgentPolicyDefaults(t *testing.T) {
 	options := Load().Agent
 	if options.CapabilityCacheTTL != 24*time.Hour {
 		t.Fatalf("live capability cache TTL = %s, want 24h", options.CapabilityCacheTTL)
@@ -27,6 +27,9 @@ func TestLoadUsesGlobalAgentCapabilityCachePolicy(t *testing.T) {
 	}
 	if options.CredentialSyncTimeout != 30*time.Second {
 		t.Fatalf("credential sync timeout = %s, want 30s", options.CredentialSyncTimeout)
+	}
+	if options.BrowserIdleTTL != 20*time.Minute {
+		t.Fatalf("browser idle TTL = %s, want 20m", options.BrowserIdleTTL)
 	}
 }
 

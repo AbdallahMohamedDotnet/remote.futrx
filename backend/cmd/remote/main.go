@@ -80,6 +80,7 @@ func main() {
 			CapabilityCacheTTL:         cfg.Agent.CapabilityCacheTTL,
 			DegradedCapabilityCacheTTL: cfg.Agent.DegradedCapabilityCacheTTL,
 			CredentialSyncTimeout:      cfg.Agent.CredentialSyncTimeout,
+			BrowserIdleTTL:             cfg.Agent.BrowserIdleTTL,
 		},
 		TmuxClient:    tmuxClient,
 		ValidTmuxName: tmuxcli.ValidName,

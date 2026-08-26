@@ -81,6 +81,7 @@ type AgentOptions struct {
 	CapabilityCacheTTL         time.Duration
 	DegradedCapabilityCacheTTL time.Duration
 	CredentialSyncTimeout      time.Duration
+	BrowserIdleTTL             time.Duration
 }
 
 type Services struct {
@@ -145,7 +146,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if err != nil {
 		return Services{}, fmt.Errorf("build agent modules: %w", err)
 	}
-	projectService.StartAgentBrowserReaper(ctx, 20*time.Minute)
+	projectService.StartAgentBrowserReaper(ctx, deps.AgentOptions.BrowserIdleTTL)
 	runs = runhub.New(chats)
 	runs.SetRunningSubscriber(func(id servicechat.ID, _ bool) {
 		chats.publishChat(context.Background(), id)
