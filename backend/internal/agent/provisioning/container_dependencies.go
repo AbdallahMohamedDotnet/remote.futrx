@@ -6,14 +6,15 @@ import (
 	"strings"
 )
 
-// CLIProvisioner is the provider-facing port for making an agent CLI
+// CLIProvisioner is the agent-execution port for making an agent CLI
 // available inside a project container.
 type CLIProvisioner interface {
 	Ensure(context.Context, string, CLISpec) error
 }
 
-// CredentialSynchronizer is the provider-facing port for moving agent
-// credentials into and out of a project container.
+// CredentialSynchronizer is the agent-execution port for moving credentials
+// into and out of a project container. Shared preparation owns the push path;
+// providers that support post-run pull-back retain the same narrow port.
 type CredentialSynchronizer interface {
 	Ensure(context.Context, string, CredentialSpec) error
 	SyncFromContainer(context.Context, string, CredentialSpec) error
@@ -44,8 +45,9 @@ type ContainerLifecycle interface {
 	EnsureBootAutostart(context.Context, string) error
 }
 
-// ContainerDependencies groups the focused container ports used by agent
-// providers. A zero value disables container preparation for host-only runs.
+// ContainerDependencies groups the focused ports used by shared agent project
+// preparation and optional post-run credential sync. A zero value disables
+// container preparation for host-only runs and focused tests.
 type ContainerDependencies struct {
 	CLI           CLIProvisioner
 	Credentials   CredentialSynchronizer
