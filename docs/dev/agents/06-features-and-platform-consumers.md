@@ -43,7 +43,7 @@ does not change the catalog.
 
 ## Current built-in declarations
 
-| Provider | Default | Scopes | Auth | Sessions | Skills | Browser | Schedules |
+| Provider | Default | Scopes | Auth | Sessions | Skills | Browser | Scheduled Tasks |
 | --- | ---: | --- | --- | --- | --- | ---: | ---: |
 | Claude | No | host, project | managed code | resume, fork | slash-style skill trigger | Yes | Yes |
 | Codex | Yes | host, project | managed device | resume, fork | dollar mention | Yes | Yes |
@@ -64,8 +64,8 @@ starts. The current feature contracts are:
 | --- | --- | --- | --- | --- |
 | Sessions | `Features.Sessions.Resume` and `.Fork` | Persists provider-keyed session IDs, controls resume input, and preserves eligible sessions when chats fork. | Emit native session IDs and translate resume/fork into the native command or protocol. | Automatic when a saved session exists; fork is requested by the chat workflow. |
 | Skills | `Features.Skills` strategy | Discovers skill metadata, stores explicit chat selections, and renders the selected skills into the effective prompt. | Make the declared slash, dollar, or instruction-path form usable in the provider runtime. | User selection in the skill picker; scheduled runs may add the reserved Scheduled Tasks skill. |
-| Browser tools | `Features.BrowserTools` | Gates Browser skill selection, project preparation, activity keepalive, and public capability metadata. | Pass working native MCP/tool configuration into the run. | The `browser` skill is selected and the provider declaration permits it. |
-| Scheduled tools | `Features.ScheduledTools` | Advertises the reserved project skill, issues and revokes a scoped grant, provisions the schedule CLI/skill, and injects runtime-only variables. | Preserve the runtime environment through the native host/container launch. | The Scheduled Tasks skill is selected, or the turn is executing a scheduled task. |
+| Browser tools | `Features.BrowserTools` | Publishes support metadata and gates browser preparation and activity keepalive after the Browser skill is selected. | Pass working native MCP/tool configuration into the run. | The `browser` skill is selected and the provider declaration permits it. |
+| Scheduled Tasks | `Features.ScheduledTools` | Advertises the reserved project skill, issues and revokes a scoped grant, provisions the schedule CLI/skill, and injects runtime-only variables. | Preserve the runtime environment through the native host/container launch. | The Scheduled Tasks skill is selected, or the turn is executing a scheduled task. |
 
 Several adjacent contracts are deliberately not fields of `Features`:
 
@@ -272,7 +272,7 @@ record:
 | Field | Source |
 | --- | --- |
 | `command` | Parent directory name. A `command` front-matter field is not read. |
-| `name` | Front-matter `name`, otherwise the first Markdown H1, otherwise `command`. |
+| `name` | Front-matter `name`; for a file without front matter, the first Markdown H1; otherwise `command`. |
 | `description` | Front-matter `description`, when present. |
 | `source` | The scanned root: normally `user` or `project`; `remote` is used for a synthetic platform skill. |
 | `provider` | The provider requested from the catalog. It is not inferred from the file contents. |
@@ -330,7 +330,7 @@ skill exists.
 The prompt service also keeps project browser activity alive once per minute
 during an enabled run so the browser reaper does not stop an active session.
 
-## Scheduled-tool consumers
+## Scheduled Tasks consumers
 
 `ScheduledTools=true` allows both interactive and scheduled turns to use
 Remote's provider-neutral schedule tooling. The prompt service rejects this
@@ -383,7 +383,7 @@ cross several layers, but each piece still has one role:
 | Does Remote own a workflow, authorization decision, state transition, or lifecycle? | Add an application service under `internal/service`; depend on a narrow provider-neutral port when native work is required. |
 | Is this native CLI syntax, protocol, input translation, or output translation? | Keep it in `internal/integration/agents/<provider>`. Output parsers translate native output only. |
 | Does a run require files, packages, credentials, durable directories, or container preparation? | Extend the provisioning profile or shared preparer policy instead of copying setup into provider command code. |
-| Must a browser client list or invoke it? | Expose a normalized HTTP/WebSocket contract and implement generic frontend state/UI against that contract. |
+| Must the frontend list or invoke it? | Expose a normalized HTTP/WebSocket contract and implement generic frontend state/UI against that contract. |
 
 One feature often needs several rows. That does not justify putting the whole
 feature in one package: the application service owns the use case, adapters own
