@@ -37,29 +37,36 @@ import (
 )
 
 func main() {
+	// Prepare configuration
 	ctx := context.Background()
 	cfg := config.Load()
-
-	storeSet, err := stores.New(cfg.DataDir)
-	if err != nil {
-		log.Fatalf("init stores: %v", err)
-	}
-	lxcClient := lxc.New()
 	publicHostname, err := config.PublicHostname(cfg.BaseURL)
 	if err != nil {
 		log.Fatalf("configure public hostname: %v", err)
 	}
+
+	// Register agent modules
 	agentModules, err := config.NewAgentModules()
 	if err != nil {
 		log.Fatalf("configure agent modules: %v", err)
 	}
+
+	// Prepare container stack
 	containerStack := config.NewContainerStack(
-		lxcClient,
+		lxc.New(),
 		agentModules.Profiles(),
 		config.ContainerStackOptions{
 			AgentInstructions: provisioning.InstructionsTemplate(publicHostname),
 		},
 	)
+
+	// Prepare stores
+	storeSet, err := stores.New(cfg.DataDir)
+	if err != nil {
+		log.Fatalf("init stores: %v", err)
+	}
+
+	// Register application services
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:             storeSet.Chats,
@@ -102,39 +109,48 @@ func main() {
 		log.Printf("services: reconcile warning: %v", err)
 	}
 
+	// Prepare HTTP dependencies
 	static, err := fs.Sub(remote.PublicFS, "public")
 	if err != nil {
 		log.Fatal(err)
 	}
-	serverInfoService := serviceserverinfo.New(hostinfo.New(), version.Version, cfg.DataDir, fileproject.WorkspaceRoot)
-	selfUpdateService := serviceselfupdate.New(version.Version, cfg.InstallDir, cfg.DataDir, updatecli.New())
-	workspaceFileService := serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore())
-	gitHistoryService := servicegithistory.New(gitcli.NewHistoryClient())
 	codeServerBaseURL, err := config.CodeServerBaseURL(cfg.BaseURL)
 	if err != nil {
 		log.Fatalf("configure IDE URL: %v", err)
 	}
-	workspaceIDEService := serviceworkspaceide.New(codeServerBaseURL, fileproject.WorkspaceRoot)
 
+	// Register HTTP transport
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:       serviceSet,
 		TmuxClient:     tmuxClient,
 		Static:         static,
 		DataDir:        cfg.DataDir,
 		PublicHostname: publicHostname,
-		ServerInfo:     serverInfoService,
-		SelfUpdate:     selfUpdateService,
-		Files:          workspaceFileService,
-		GitHistory:     gitHistoryService,
-		IDE:            workspaceIDEService,
+		ServerInfo: serviceserverinfo.New(
+			hostinfo.New(),
+			version.Version,
+			cfg.DataDir,
+			fileproject.WorkspaceRoot,
+		),
+		SelfUpdate: serviceselfupdate.New(
+			version.Version,
+			cfg.InstallDir,
+			cfg.DataDir,
+			updatecli.New(),
+		),
+		Files:      serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore()),
+		GitHistory: servicegithistory.New(gitcli.NewHistoryClient()),
+		IDE:        serviceworkspaceide.New(codeServerBaseURL, fileproject.WorkspaceRoot),
 	})
 	if err != nil {
 		log.Fatalf("init http handler: %v", err)
 	}
 
-	srv := transport.NewHTTPServer(cfg.Addr(), handler)
-	log.Printf("remote.futrx listening on %s", cfg.Addr())
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	// Start HTTP server
+	address := cfg.Addr()
+	server := transport.NewHTTPServer(address, handler)
+	log.Printf("remote.futrx listening on %s", address)
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }
