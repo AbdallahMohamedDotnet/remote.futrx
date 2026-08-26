@@ -13,7 +13,9 @@ import {
   type WorkspaceUiState,
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
+import { agentCapabilityCatalogStore } from "../agents/agentCapabilityCatalog";
 import { takePushNotificationChatId } from "../push/pushNotificationNavigation";
+import { useAuthContext } from "./AuthContext";
 
 interface WorkspaceContextValue {
   chats: ChatMeta[];
@@ -26,6 +28,8 @@ interface WorkspaceContextValue {
   showChat: () => void;
   showSettings: () => void;
   showProjectContainers: (projectId: string | null) => void;
+  openCreateProject: () => void;
+  closeCreateProject: () => void;
   createProject: (name: string) => Promise<ProjectMeta>;
   createChat: (projectId?: string) => Promise<ChatMeta>;
   deleteChat: (chatId: string) => Promise<void>;
@@ -46,6 +50,7 @@ export function WorkspaceProvider({
   children: ComponentChildren;
 }) {
   const data = useWorkspaceData(enabled);
+  const { auth } = useAuthContext();
   const { settings } = useUserSettingsContext();
   const [ui, dispatch] = useReducer(
     workspaceUiState.reduce,
@@ -53,6 +58,16 @@ export function WorkspaceProvider({
     () => workspaceUiState.createInitial(takePushNotificationChatId())
   );
   const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
+  const capabilityUserId = auth.email || auth.adminEmail || "anonymous";
+  const activeCapabilityProjectId = activeChat?.projectId;
+
+  useEffect(() => {
+    if (!enabled || !activeChat) return;
+    void agentCapabilityCatalogStore
+      .load(capabilityUserId, activeCapabilityProjectId)
+      .catch(() => undefined);
+  }, [enabled, capabilityUserId, activeCapabilityProjectId, activeChat?.id]);
+
   const openPushChat = useCallback((chatId: string) => {
     dispatch({ type: "select-chat", chatId });
   }, []);
@@ -107,6 +122,7 @@ export function WorkspaceProvider({
 
   async function deleteProject(projectId: string) {
     await projectApi.delete(projectId);
+    agentCapabilityCatalogStore.removeProject(capabilityUserId, projectId);
   }
 
   async function reorderProjects(projectIds: string[]) {
@@ -115,6 +131,10 @@ export function WorkspaceProvider({
 
   async function startProject(projectId: string) {
     await projectApi.start(projectId);
+    // The sidebar Start command requests a probe inside the running container
+    // instead of intentionally reusing a pre-start catalog. Other lifecycle
+    // surfaces must invalidate separately or leave refresh to the user.
+    agentCapabilityCatalogStore.invalidateProject(capabilityUserId, projectId);
   }
 
   async function stopProject(projectId: string) {
@@ -135,6 +155,8 @@ export function WorkspaceProvider({
         showSettings: () => dispatch({ type: "show-settings" }),
         showProjectContainers: (projectId) =>
           dispatch({ type: "show-project-containers", projectId }),
+        openCreateProject: () => dispatch({ type: "open-create-project" }),
+        closeCreateProject: () => dispatch({ type: "close-create-project" }),
         createProject,
         createChat,
         deleteChat,
