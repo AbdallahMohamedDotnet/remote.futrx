@@ -22,7 +22,7 @@ runtime: each provider still has to implement the behavior it advertises.
 | `SatisfiesAccessGate` | startup validation and auth middleware | Allows an authenticated deployment to open after a managed binding authenticates, or immediately for `none`. External auth cannot satisfy the gate. |
 | `LegacySkillRoots` | skill catalog | Adds provider-specific host skill locations behind the canonical `.agents/skills` root. |
 | `Features.Sessions` | prompt service and chat forking | Enables saved-session resume and, separately, native fork. Fork requires resume. |
-| `Features.Skills` | skill catalog and prompt preparation | Chooses no injection, slash commands, dollar mentions, or `SKILL.md` instructions. |
+| `Features.Skills` | skill catalog and prompt preparation | Chooses no selected-skill injection, slash-style skill triggers, dollar mentions, or `SKILL.md` instructions. `slash-command` describes skill delivery; it is not a general composer-command system. |
 | `Features.BrowserTools` | capability API and prompt service | Allows the selected `browser` skill to request browser provisioning and provider launch wiring. |
 | `Features.ScheduledTools` | skill catalog, prompt service, capability API/frontend | Advertises the Scheduled Tasks skill and permits issue/provisioning of a scoped schedule grant. |
 
@@ -45,7 +45,7 @@ does not change the catalog.
 
 | Provider | Default | Scopes | Auth | Sessions | Skills | Browser | Schedules |
 | --- | ---: | --- | --- | --- | --- | ---: | ---: |
-| Claude | No | host, project | managed code | resume, fork | slash command | Yes | Yes |
+| Claude | No | host, project | managed code | resume, fork | slash-style skill trigger | Yes | Yes |
 | Codex | Yes | host, project | managed device | resume, fork | dollar mention | Yes | Yes |
 | Kimi | No | host, project | managed device | resume | instructions | No | Yes |
 | Antigravity | No | host, project | external | resume | instructions | No | Yes |
@@ -53,6 +53,35 @@ does not change the catalog.
 All four current modules run local CLIs and attach provisioning profiles. The
 contract also permits a host-only remote integration with no profile and a
 no-auth module with no binding.
+
+## Current feature inventory
+
+`module.Features` is intentionally small. A field belongs there only when
+shared platform consumers need a stable provider declaration before a run
+starts. The current feature contracts are:
+
+| Feature | Declaration | Shared platform behavior | Provider responsibility | Activation |
+| --- | --- | --- | --- | --- |
+| Sessions | `Features.Sessions.Resume` and `.Fork` | Persists provider-keyed session IDs, controls resume input, and preserves eligible sessions when chats fork. | Emit native session IDs and translate resume/fork into the native command or protocol. | Automatic when a saved session exists; fork is requested by the chat workflow. |
+| Skills | `Features.Skills` strategy | Discovers skill metadata, stores explicit chat selections, and renders the selected skills into the effective prompt. | Make the declared slash, dollar, or instruction-path form usable in the provider runtime. | User selection in the skill picker; scheduled runs may add the reserved Scheduled Tasks skill. |
+| Browser tools | `Features.BrowserTools` | Gates Browser skill selection, project preparation, activity keepalive, and public capability metadata. | Pass working native MCP/tool configuration into the run. | The `browser` skill is selected and the provider declaration permits it. |
+| Scheduled tools | `Features.ScheduledTools` | Advertises the reserved project skill, issues and revokes a scoped grant, provisions the schedule CLI/skill, and injects runtime-only variables. | Preserve the runtime environment through the native host/container launch. | The Scheduled Tasks skill is selected, or the turn is executing a scheduled task. |
+
+Several adjacent contracts are deliberately not fields of `Features`:
+
+- identity, label, default, execution scope, and authentication are stable
+  module descriptor policy with their own validation and consumers;
+- models, modes, reasoning efforts, and service tiers are environment/account
+  data returned by live capability discovery rather than static promises;
+- CLI installation, credentials, persistent state, instructions, workspace
+  links, and Browser templates are private provisioning-profile policy;
+- parser formats, command flags, protocol deadlines, and fallback behavior are
+  provider adapter details unless a shared application workflow needs to see
+  them.
+
+Do not add a boolean to `Features` merely because one provider has a new CLI
+flag. Add a declaration only when it changes what generic services or the
+frontend may safely expose.
 
 ## Where the catalog is consumed
 
@@ -222,11 +251,60 @@ from the validated profile; the skill service uses it only when it resolves
 safely below `/workspace`. Hidden subdirectories are skipped and duplicate
 provider/source/command entries are removed.
 
+Remote does not semantically infer a skill from prompt text. Catalog discovery
+is a deterministic filesystem operation, and activation is an explicit chat
+selection:
+
+```mermaid
+flowchart LR
+    Context["Provider + optional project"] --> API["GET /api/skills"]
+    API --> Scan["Scan roots for SKILL.md"]
+    Scan --> Metadata["Derive registered-skill metadata"]
+    Metadata --> Picker["User selects in skill picker"]
+    Picker --> Chat["Persist chat.selectedSkills"]
+    Chat --> Prompt["Render provider-specific trigger/path"]
+    Prompt --> Run["Provider.Run"]
+```
+
+For each readable `SKILL.md`, the catalog derives only this small public
+record:
+
+| Field | Source |
+| --- | --- |
+| `command` | Parent directory name. A `command` front-matter field is not read. |
+| `name` | Front-matter `name`, otherwise the first Markdown H1, otherwise `command`. |
+| `description` | Front-matter `description`, when present. |
+| `source` | The scanned root: normally `user` or `project`; `remote` is used for a synthetic platform skill. |
+| `provider` | The provider requested from the catalog. It is not inferred from the file contents. |
+
+The canonical skill root is queried in the context of the selected provider.
+Remote therefore does not prove that a skill is semantically compatible with
+that provider; the module declaration and provider implementation are the
+compatibility promise. Provider-specific legacy roots limit discovery by
+location, not by metadata embedded in `SKILL.md`.
+
+The frontend loads this catalog through
+[`skillApi`](../../../frontend/src/api/agents/skillApi.ts), and the picker
+performs only a text filter over catalog metadata. Selecting an entry stores a
+normalized `SkillRef` on the chat. The prompt WebSocket still carries prompt
+text only; the prompt service reads the durable selection from chat metadata.
+Changing providers clears the selection. Remote does not automatically select
+a skill because its name or description resembles the current prompt. Any
+additional automatic matching performed after launch is provider-native and
+outside this catalog.
+
 `Features.Skills=none` returns an empty provider skill list. Other strategies
-control prompt injection, but do not install or translate provider-native
-skills by themselves. The profile declares required workspace/home links, and
-the factory's preparation policy plus the shared preparer must make them
-usable.
+control how an already selected skill reaches the provider:
+
+- `slash-command` prefixes `/skill-name` lines (currently Claude);
+- `dollar-mention` adds a `$skill-name` instruction (currently Codex);
+- `instructions` tells the provider to read the canonical host/project
+  `SKILL.md` path (currently Kimi and Antigravity).
+
+These are selected-skill delivery strategies, not a general-purpose user
+command parser. They do not install or translate provider-native skills by
+themselves. The profile declares required workspace/home links, and the
+factory's preparation policy plus the shared preparer must make them usable.
 
 When project scoped and `ScheduledTools=true`, the skill catalog adds Remote's
 reserved Scheduled Tasks skill if no copy already exists. The prompt service
@@ -292,6 +370,137 @@ project response with another named field.
 Any new or changed CLI/profile affects host or container state. It must be
 released as a minor/major full-infrastructure update; an app-only deploy does
 not install host CLIs, rebuild the base image, or recycle existing workspaces.
+
+## Adding a cross-provider feature
+
+Start with ownership, not with a new descriptor flag. A product feature may
+cross several layers, but each piece still has one role:
+
+| Question | Correct extension point |
+| --- | --- |
+| Must generic consumers know a stable provider promise before execution? | Add the smallest precise field or strategy to `module.Descriptor.Features`. |
+| Does support vary with CLI version, account, project, or environment? | Add normalized data to `agent.Capabilities` and discover it in each provider capability adapter. |
+| Does Remote own a workflow, authorization decision, state transition, or lifecycle? | Add an application service under `internal/service`; depend on a narrow provider-neutral port when native work is required. |
+| Is this native CLI syntax, protocol, input translation, or output translation? | Keep it in `internal/integration/agents/<provider>`. Output parsers translate native output only. |
+| Does a run require files, packages, credentials, durable directories, or container preparation? | Extend the provisioning profile or shared preparer policy instead of copying setup into provider command code. |
+| Must a browser client list or invoke it? | Expose a normalized HTTP/WebSocket contract and implement generic frontend state/UI against that contract. |
+
+One feature often needs several rows. That does not justify putting the whole
+feature in one package: the application service owns the use case, adapters own
+native translation, provisioning owns environment convergence, and transports
+own delivery.
+
+Use this sequence:
+
+1. **Define behavior and lifecycle.** State what activates the feature, whether
+   it is per request, per chat, per provider session, or persistent, what state
+   survives restart, and what unsupported means. Preserve that distinction in
+   types; for example, do not represent a one-turn action as a durable chat
+   preference.
+2. **Choose the neutral contract.** Put shared request/result data in
+   `internal/agent` only when application policy and concrete adapters both need
+   it. Introduce a role-specific interface rather than adding unrelated methods
+   to `agent.Provider`. An interface needs a real policy/detail boundary, test
+   seam, or multiple implementations.
+3. **Declare only shared policy.** Use a boolean for a true yes/no promise, a
+   strategy enum when supported providers deliver the behavior differently, or
+   capability records when the available values are dynamic. Add factory and
+   catalog validation for cross-field invariants and invalid combinations.
+4. **Implement the application workflow.** A service owns authorization,
+   orchestration, persistence, cancellation, and errors. Add behavior to the
+   prompt service only when it is genuinely part of assembling or supervising
+   every agent run; otherwise give the capability its own service. Shared
+   services must not import or switch on Claude, Codex, Kimi, or Antigravity.
+5. **Implement provider adapters.** Translate the neutral operation into each
+   native CLI/protocol, and translate native results back into neutral types.
+   Keep provider command builders and protocol deadlines local. Change an
+   event parser only when the provider emits a new output shape—not to recognize
+   application input.
+6. **Wire registration and dependencies.** The provider factory advertises the
+   demonstrated behavior and builds any provider implementation from narrowed
+   dependencies. If the feature produces another live provider component,
+   extend `module.Components` and `module.Runtime` with an explicit optional
+   registry projection and validate its provider identity; do not scatter type
+   assertions across consumers. Application config composes generic services
+   once. Adding a supporting provider should extend registration, not add
+   branches throughout consumers.
+7. **Add provisioning only when required.** Declare install/state/file policy
+   in the profile and add a shared preparer option when several adapters need the
+   same lifecycle. Keep host/project scope differences explicit. Reassess the
+   infrastructure release class whenever host or container state changes.
+8. **Expose a normalized transport.** Controllers/WebSockets validate external
+   input, call one application service, and map its result. Prefer structured
+   messages over making multiple clients parse the same command string. The
+   frontend renders catalogs by identity and capability rather than provider
+   switches.
+9. **Prove both declaration and behavior.** Test contract validation, service
+   policy, every native translation, unsupported paths, transport mapping, and
+   generic frontend rendering. Preserve error text, ordering, timing, and event
+   shape where the change extends existing behavior.
+10. **Update the extension guide and release rules.** Document activation,
+    ownership, provider support, persistence, security implications, and any
+    provisioning/release consequence. A declaration without adapter and
+    end-to-end evidence remains an incomplete feature.
+
+### Worked design: general chat commands
+
+General user commands are not implemented today. In particular,
+`SkillsSlashCommand` means “deliver an explicitly selected skill as
+`/skill-name`”; it must not be widened into a general command system.
+
+If general commands are added, model the semantic capability as **chat
+commands**. “Slash command” is only the composer syntax—the same operation may
+later be invoked by a button, shortcut, API client, or automation. The
+recommended application owner is a dedicated `chatcommand.Service`, separate
+from `skills.Service` and provider event parsers.
+
+The presentation catalog may combine three sources while preserving their
+different execution semantics:
+
+| Source | Example | Execution owner | Lifecycle |
+| --- | --- | --- | --- |
+| Remote application | `/clear`, `/cancel`, `/new` | Registered application command handler | One invocation; may mutate Remote state without launching a provider. |
+| Provider-native | `/compact`, `/context` | Selected provider's narrow command adapter | One native operation against the relevant provider/session. |
+| Skill entry | `/code-review` | Existing skill catalog plus prompt-skill renderer | Today selection is durable chat metadata; a future one-turn skill invocation must be represented separately. |
+
+```mermaid
+flowchart TD
+    Composer["Composer: '/' suggestions"] --> Catalog["Normalized command catalog"]
+    Composer --> Message["Structured command invocation"]
+    Message --> Service["chatcommand.Service"]
+    Service --> Remote["Remote command handler"]
+    Service --> Native["Provider command adapter"]
+    Service --> Skill["Skill invocation bridge"]
+    Native --> Provider["Provider CLI or protocol"]
+    Provider --> Parser["Provider output/event parser"]
+    Skill --> Prompt["Prompt skill rendering"]
+```
+
+The command service should own command identity, availability, argument
+validation, authorization, dispatch, and collision rules. The backend remains
+authoritative even if the frontend recognizes the leading `/` for suggestions.
+Send a structured invocation such as command name plus raw/typed arguments over
+the transport rather than sending ambiguous prompt text and independently
+parsing it in the browser and server.
+
+Do not add `Features.Commands=true` for Remote-owned commands: they are platform
+capabilities, not provider promises. For provider-native commands, use static
+module metadata only when support is stable; use live capability records when
+the command set varies by CLI/account/environment. If native execution differs
+from `Provider.Run`, introduce a narrow optional command-execution port and let
+supporting factories register it. If all supported providers can safely accept
+the command as ordinary prompt input, no extra interface is earned.
+
+Decide namespace precedence before implementation. A Remote command, a native
+provider command, and a skill may share the same visible name; silently choosing
+one is unsafe. The normalized descriptor should retain source/kind identity,
+and the UI should label ambiguous entries. Likewise, do not store a one-shot
+command in `chat.SelectedSkills`: selected skills currently persist across
+future prompts and have a different lifecycle.
+
+The existing provider event parser remains downstream. It changes only if a
+native command produces a previously unsupported output event. Command
+recognition, validation, and dispatch never belong in `parser.go`.
 
 ## Declaration does not equal implementation
 

@@ -37,7 +37,7 @@ flowchart TD
     Runtime --> API["Authentication API, WebSocket, and UI"]
     Runtime --> Runs["Prompt execution and normalized events"]
     Runs --> Preparation
-    Preparation --> NativeCommand["Provider-native command and protocol"]
+    Preparation --> NativeCommand["Provider-native launch and protocol"]
     ProjectProfiles --> Containers["Base image, launch, repair, and durable mounts"]
     HostProfiles --> Host["Host CLI convergence"]
 ```
@@ -85,7 +85,7 @@ never owns the model catalog.
 | [Capabilities, cache, and refresh](03-capabilities-cache-and-refresh.md) | Host/project discovery, provider probes, normalization, timeout, fallback behavior, cache keys, and invalidation |
 | [Authentication and access](04-authentication-and-access.md) | Auth modes and bindings, onboarding gate policy, credentials, API routes, WebSockets, and generic frontend rendering |
 | [Provisioning and updates](05-provisioning-and-updates.md) | Profiles, host installation, base images, runtime repair, persistent state, and release paths |
-| [Features and platform consumers](06-features-and-platform-consumers.md) | Scope, defaults, sessions, skills, Browser tools, scheduled tools, and the services that consume declarations |
+| [Features and platform consumers](06-features-and-platform-consumers.md) | Current feature inventory, consumers, cross-layer extension workflow, and a worked general-command design |
 | [Adding an agent](07-adding-an-agent.md) | End-to-end implementation checklist, example factory, required tests, documentation, and release validation |
 
 ## Core invariants

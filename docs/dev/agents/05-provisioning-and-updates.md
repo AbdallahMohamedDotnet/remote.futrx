@@ -277,8 +277,8 @@ The canonical project skill directory is `/workspace/.agents/skills`.
 children into the canonical directory when safe, and can mirror canonical
 skills into a provider-home directory (currently Codex's
 `/root/.codex/skills`). The module descriptor's skill strategy controls how a
-selected skill reaches the prompt: slash command, dollar mention, explicit
-instruction path, or disabled.
+selected skill reaches the prompt: slash-style skill trigger, dollar mention,
+explicit instruction path, or disabled.
 
 Browser installation is shared, but provider launch wiring is opt-in through
 `Features.BrowserTools`. Claude declares an MCP JSON template in its profile;

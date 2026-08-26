@@ -97,7 +97,7 @@ bytes. Tool output and reasoning are not copied into that transcript. See
 Selected skills are translated from the module's declared strategy by
 [`promptWithSelectedSkills`](../../../backend/internal/service/prompt/service.go):
 
-- `slash-command` prefixes `/skill-name` lines;
+- `slash-command` prefixes slash-style `/skill-name` triggers;
 - `dollar-mention` adds `$skill-name` instructions;
 - `instructions` points at the selected `SKILL.md` files;
 - `none` leaves the prompt unchanged.
