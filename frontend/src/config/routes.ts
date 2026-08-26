@@ -93,6 +93,13 @@ export const API_ROUTES = {
     preferences: "/api/me/security/preferences",
     ackAlert: "/api/me/security/alerts/ack",
   },
+  push: {
+    config: "/api/push/config",
+    subscriptions: "/api/push/subscriptions",
+    subscriptionStatus: "/api/push/subscriptions/status",
+    test: "/api/push/test",
+    presence: "/api/push/presence",
+  },
   auth2fa: {
     verify: "/auth/2fa/verify",
     cancel: "/auth/2fa/cancel",

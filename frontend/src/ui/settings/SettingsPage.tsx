@@ -5,8 +5,10 @@ import type { ServerInfo } from "../../models/serverInfo";
 import type { SelfUpdateStatus } from "../../models/selfUpdate";
 import type { SecuritySettingsController } from "../../state/hooks/auth/useSecuritySettings";
 import type { ComponentType } from "preact";
-import { Bot, ChevronLeft, Download, Info, Menu, Monitor, ShieldCheck, Users } from "../primitives/icons";
+import type { PushNotifications } from "../../state/hooks/push/usePushNotifications";
+import { Bell, Bot, ChevronLeft, Download, Info, Menu, Monitor, ShieldCheck, Users } from "../primitives/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
+import { NotificationSettings } from "./NotificationSettings";
 import { ClaudeAuthSettings } from "./ClaudeAuthSettings";
 import { CodexAuthSettings } from "./CodexAuthSettings";
 import { KimiAuthSettings } from "./KimiAuthSettings";
@@ -16,7 +18,14 @@ import { ServerInfoSettings } from "./ServerInfoSettings";
 import { UpdatesSettings } from "./UpdatesSettings";
 import { UsersPanel } from "../account/UsersPanel";
 
-export type SettingsTab = "appearance" | "agents" | "users" | "security" | "updates" | "info";
+export type SettingsTab =
+  | "appearance"
+  | "notifications"
+  | "agents"
+  | "users"
+  | "security"
+  | "updates"
+  | "info";
 
 const tabs: Array<{
   id: SettingsTab;
@@ -29,6 +38,12 @@ const tabs: Array<{
     label: "Appearance",
     description: "Choose how Remote looks on this device.",
     Icon: Monitor,
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    description: "Get alerted when an agent needs you.",
+    Icon: Bell,
   },
   {
     id: "agents",
@@ -82,6 +97,7 @@ export function SettingsPage({
   appearanceLoading,
   appearanceSaving,
   appearanceError,
+  push,
   codexAuthenticated,
   codexUsesApiKey,
   codexDeviceLogin,
@@ -123,6 +139,7 @@ export function SettingsPage({
   appearanceLoading: boolean;
   appearanceSaving: boolean;
   appearanceError: string | null;
+  push: PushNotifications;
   codexAuthenticated: boolean;
   codexUsesApiKey: boolean;
   codexDeviceLogin?: CodexDeviceLogin;
@@ -207,6 +224,8 @@ export function SettingsPage({
                 onThemeChange={onAppearanceThemeChange}
               />
             )}
+
+            {activeTab === "notifications" && <NotificationSettings push={push} />}
 
             {activeTab === "agents" && (
               isAdmin ? (

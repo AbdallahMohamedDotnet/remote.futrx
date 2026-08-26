@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useLayoutEffect, useRef } from "preact/hooks";
 
 export function useAutosizeTextarea(value: string, maxHeight = 220) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = "auto";

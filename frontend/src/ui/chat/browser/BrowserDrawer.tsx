@@ -216,13 +216,11 @@ export function BrowserDrawer({
   return (
     <aside
       ref={asideRef}
-      class={`relative z-20 h-full flex-none overflow-hidden bg-[#101318] border-l border-white/10
+      id="workspace-browser-pane"
+      class={`workspace-pane workspace-browser-pane relative z-20 h-full flex-none overflow-hidden bg-[#101318] border-l border-white/10
               ${resizing ? "transition-none" : "transition-[width,opacity] duration-200 ease-out"}
               ${open ? "opacity-100 shadow-2xl" : "opacity-0 border-l-0 shadow-none pointer-events-none"}`}
-      style={{
-        width: open ? `${browserWidth}px` : "0px",
-        maxWidth: open ? `max(${minBrowserWidth}px, calc(100% - ${minChatWidth}px))` : "0px",
-      }}
+      style={`--workspace-browser-width: ${browserWidth}px; --workspace-browser-max-width: max(${minBrowserWidth}px, calc(100% - ${minChatWidth}px));`}
       aria-hidden={!open}
       aria-label="Browser preview"
     >

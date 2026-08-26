@@ -57,7 +57,7 @@ export function SkillPicker({
   const providerLabel = provider === "codex" ? "Codex" : "Claude";
 
   return (
-    <div ref={rootRef} class="relative w-[130px] flex-none sm:w-[148px]">
+    <div ref={rootRef} class="codex-skill-control-root relative w-[130px] flex-none sm:w-[148px]">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

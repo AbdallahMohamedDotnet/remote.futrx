@@ -1,4 +1,4 @@
-import type { RefObject } from "preact";
+import type { ComponentChildren, RefObject } from "preact";
 import type { ChatMeta, ChatStatus } from "../../models/chat";
 import type { ChatMessageBlock } from "../../models/chatMessage";
 import { ChatComposer, type ChatComposerProps } from "./composer/ChatComposer";
@@ -24,6 +24,7 @@ export function ChatThread({
   onAnswerQuestion,
   onLoadOlder,
   onRewind,
+  mobileToolbar,
 }: {
   chat: ChatMeta;
   blocks: ChatMessageBlock[];
@@ -42,6 +43,7 @@ export function ChatThread({
   onAnswerQuestion: (text: string) => void;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
+  mobileToolbar: ComponentChildren;
 }) {
   return (
     <div class="codex-thread flex-1 h-full flex min-h-0 overflow-hidden bg-[#0b0d11]">
@@ -51,6 +53,7 @@ export function ChatThread({
           streaming={composer.streaming}
           onHamburger={onHamburger}
         />
+        {mobileToolbar}
 
         <div class="relative flex-1 min-h-0">
           <MessageList

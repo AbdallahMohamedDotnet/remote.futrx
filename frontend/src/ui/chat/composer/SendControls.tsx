@@ -12,7 +12,7 @@ export function SendControls({
   onCancel: () => void;
 }) {
   return (
-    <>
+    <div class="codex-send-controls flex flex-none items-center gap-1.5">
       <button
         type="submit"
         disabled={!canSend}
@@ -37,6 +37,6 @@ export function SendControls({
           <Square class="w-3.5 h-3.5" />
         </button>
       )}
-    </>
+    </div>
   );
 }

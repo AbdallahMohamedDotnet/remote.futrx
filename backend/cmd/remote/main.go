@@ -68,6 +68,7 @@ func main() {
 		UserSettings:      storeSet.UserSettings,
 		TwoFactor:         storeSet.TwoFactor,
 		SessionRegistry:   storeSet.SessionRegistry,
+		Push:              storeSet.Push,
 		AuthBaseURL:       cfg.BaseURL,
 		ProjectContainers: containerStack.ProjectDependencies(),
 		AgentContainers:   containerStack.AgentDependencies(),

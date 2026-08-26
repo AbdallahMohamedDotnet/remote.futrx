@@ -19,6 +19,7 @@ export function WorkspaceActions({
   schedulesOpen,
   showHistory,
   showSchedules,
+  orientation,
 }: {
   cwd: string;
   onOpenTerminal: () => void;
@@ -32,23 +33,27 @@ export function WorkspaceActions({
   schedulesOpen: boolean;
   showHistory: boolean;
   showSchedules: boolean;
+  orientation: "horizontal" | "vertical";
 }) {
   const workspacePath = cwd && cwd !== "~" ? cwd : defaultWorkspacePath;
   const ideUrl = buildIdeUrl(workspacePath);
+  const tooltipPlacement = orientation === "horizontal" ? "below" : "left";
 
   return (
-    <div class="flex flex-col items-center gap-2">
+    <div class={`flex items-center gap-2 ${orientation === "horizontal" ? "flex-row" : "flex-col"}`}>
       <WorkspaceAction
         Icon={Code}
         href={ideUrl}
         label="Workspace IDE"
         tooltip="Open workspace in IDE"
+        tooltipPlacement={tooltipPlacement}
       />
       <WorkspaceAction
         Icon={Terminal}
         onClick={onOpenTerminal}
         label="Container terminal"
         tooltip="Open container terminal"
+        tooltipPlacement={tooltipPlacement}
       />
       {showHistory && (
         <WorkspaceAction
@@ -57,6 +62,9 @@ export function WorkspaceActions({
           label={historyOpen ? "Close git history" : "Git history"}
           tooltip={historyOpen ? "Close git history" : "Review git history"}
           expanded={historyOpen}
+          controls="workspace-history-pane"
+          action="history"
+          tooltipPlacement={tooltipPlacement}
         />
       )}
       <WorkspaceAction
@@ -65,6 +73,9 @@ export function WorkspaceActions({
         label={filesOpen ? "Close workspace files" : "Workspace files"}
         tooltip={filesOpen ? "Close workspace files" : "Browse workspace files"}
         expanded={filesOpen}
+        controls="workspace-files-pane"
+        action="files"
+        tooltipPlacement={tooltipPlacement}
       />
       {showSchedules && (
         <WorkspaceAction
@@ -73,6 +84,9 @@ export function WorkspaceActions({
           label={schedulesOpen ? "Close scheduled tasks" : "Scheduled tasks"}
           tooltip={schedulesOpen ? "Close scheduled tasks" : "View scheduled tasks"}
           expanded={schedulesOpen}
+          controls="workspace-schedules-pane"
+          action="schedules"
+          tooltipPlacement={tooltipPlacement}
         />
       )}
       <WorkspaceAction
@@ -81,6 +95,9 @@ export function WorkspaceActions({
         label={browserOpen ? "Close browser preview" : "Browser preview"}
         tooltip={browserOpen ? "Close browser preview" : "Open browser preview"}
         expanded={browserOpen}
+        controls="workspace-browser-pane"
+        action="browser"
+        tooltipPlacement={tooltipPlacement}
       />
     </div>
   );
@@ -93,6 +110,9 @@ function WorkspaceAction({
   href,
   onClick,
   expanded,
+  controls,
+  action,
+  tooltipPlacement,
 }: {
   Icon: typeof Code;
   label: string;
@@ -100,6 +120,9 @@ function WorkspaceAction({
   href?: string;
   onClick?: () => void;
   expanded?: boolean;
+  controls?: string;
+  action?: "history" | "files" | "schedules" | "browser";
+  tooltipPlacement: "below" | "left";
 }) {
   const tooltipId = useId();
   const [isHovered, setIsHovered] = useState(false);
@@ -134,8 +157,10 @@ function WorkspaceAction({
       <span
         id={tooltipId}
         role="tooltip"
-        class={`workspace-action-tooltip pointer-events-none absolute right-full top-1/2 z-50 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#191a1f] px-2 py-1.5 text-[11px] font-medium text-ink-100 shadow-xl transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
-          isTooltipOpen ? "translate-x-0 opacity-100" : "translate-x-1 opacity-0"
+        class={`workspace-action-tooltip pointer-events-none absolute z-50 whitespace-nowrap rounded-md border border-white/10 bg-[#191a1f] px-2 py-1.5 text-[11px] font-medium text-ink-100 shadow-xl transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
+          tooltipPlacement === "below"
+            ? `right-0 top-full mt-2 ${isTooltipOpen ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"}`
+            : `right-full top-1/2 mr-2 -translate-y-1/2 ${isTooltipOpen ? "translate-x-0 opacity-100" : "translate-x-1 opacity-0"}`
         }`}
       >
         {tooltip}
@@ -163,6 +188,8 @@ function WorkspaceAction({
       type="button"
       onClick={onClick}
       aria-expanded={expanded}
+      aria-controls={controls}
+      data-workspace-action={action}
       class={`${actionClass} ${expanded ? "border-accent-blue/40 bg-white/[0.09] text-accent-blue" : ""}`}
     >
       {content}

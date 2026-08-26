@@ -25,16 +25,16 @@ export function FileManagerDrawer({
 
   return (
     <aside
-      class={`relative z-20 h-full flex-none overflow-hidden bg-[#101318] border-l border-white/10 shadow-2xl
+      id="workspace-files-pane"
+      class={`workspace-pane workspace-files-pane relative z-20 h-full flex-none overflow-hidden bg-[#101318] border-l border-white/10 shadow-2xl
               transition-[width,opacity] duration-200 ease-out ${open ? "opacity-100" : "opacity-0 border-l-0 pointer-events-none"}`}
-      style={{ width: open ? "min(560px, calc(100vw - 320px))" : "0px" }}
       aria-hidden={!open}
       aria-label="Files"
     >
       <div
         class={`h-full min-h-0 w-full flex flex-col transition-transform duration-200 ease-out ${open ? "translate-x-0" : "translate-x-full"}`}
       >
-        <header class="codex-header flex-none bg-[#191a1f] border-b border-white/10 px-3 md:px-4 py-2.5 flex items-center gap-2">
+        <header class="workspace-pane-header codex-header flex-none bg-[#191a1f] border-b border-white/10 px-3 md:px-4 pb-2.5 flex items-center gap-2">
           <div class="h-9 w-9 rounded-md bg-white/[0.06] border border-white/10 grid place-items-center flex-none">
             <Folder class="w-4 h-4 text-accent-blue" />
           </div>
@@ -58,6 +58,7 @@ export function FileManagerDrawer({
             class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center"
             title="Close files"
             aria-label="Close files"
+            data-workspace-pane-close
           >
             <X class="w-4 h-4" />
           </button>

@@ -45,7 +45,7 @@ export function BrowserDrawerHeader({
   onClose: () => void;
 }) {
   return (
-    <header class="codex-header flex-none bg-[#191a1f] border-b border-white/10 px-3 md:px-4 py-2.5 flex items-center gap-2">
+    <header class="workspace-pane-header codex-header flex flex-none flex-wrap items-center gap-2 border-b border-white/10 bg-[#191a1f] px-3 pb-2.5 md:flex-nowrap md:px-4">
       <div class="h-9 w-9 rounded-md bg-white/[0.06] border border-white/10 grid place-items-center flex-none">
         <Monitor class="w-4 h-4 text-accent-blue" />
       </div>
@@ -91,82 +91,85 @@ export function BrowserDrawerHeader({
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onToggleGuiMode}
-        class={`h-9 w-9 rounded-md border grid place-items-center
-                ${guiMode
-                  ? "bg-accent-blue/[0.18] border-accent-blue/35 text-accent-blue"
-                  : "bg-white/5 hover:bg-white/[0.09] border-white/10 text-ink-200"}`}
-        title="Agent browser — log into a site and let the agent drive it"
-        aria-label="Toggle agent browser"
-        aria-pressed={guiMode}
-      >
-        <Key class="w-4 h-4" />
-      </button>
-
-      {guiMode && (
+      <div class="order-4 flex w-full items-center justify-end gap-2 pt-0.5 md:contents">
         <button
           type="button"
-          onClick={onStopGui}
-          disabled={guiStatus !== "ready"}
-          class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Stop the agent browser"
-          aria-label="Stop the agent browser"
-        >
-          <Square class="w-4 h-4" />
-        </button>
-      )}
-
-      {!guiMode && (
-        <button
-          type="button"
-          onClick={onToggleInspectMode}
-          disabled={!canLoad}
-          class={`h-9 w-9 rounded-md border grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed
-                  ${inspectMode
+          onClick={onToggleGuiMode}
+          class={`h-9 w-9 flex-none rounded-md border grid place-items-center
+                  ${guiMode
                     ? "bg-accent-blue/[0.18] border-accent-blue/35 text-accent-blue"
                     : "bg-white/5 hover:bg-white/[0.09] border-white/10 text-ink-200"}`}
-          title="Inspect element"
-          aria-label="Inspect element"
-          aria-pressed={inspectMode}
+          title="Agent browser — log into a site and let the agent drive it"
+          aria-label="Toggle agent browser"
+          aria-pressed={guiMode}
         >
-          <Crosshair class="w-4 h-4" />
+          <Key class="w-4 h-4" />
         </button>
-      )}
 
-      <button
-        type="button"
-        onClick={onRefresh}
-        disabled={guiMode ? guiStatus !== "ready" : appsLoading}
-        class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:opacity-50 disabled:cursor-wait"
-        title={guiMode ? "Reload the agent browser" : "Refresh apps and reload preview"}
-        aria-label={guiMode ? "Reload the agent browser" : "Refresh apps and reload preview"}
-      >
-        {appsLoading && !guiMode ? <Loader class="w-4 h-4 animate-spin" /> : <RotateCcw class="w-4 h-4" />}
-      </button>
+        {guiMode && (
+          <button
+            type="button"
+            onClick={onStopGui}
+            disabled={guiStatus !== "ready"}
+            class="h-9 w-9 flex-none rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Stop the agent browser"
+            aria-label="Stop the agent browser"
+          >
+            <Square class="w-4 h-4" />
+          </button>
+        )}
 
-      {!guiMode && (
-        <a
-          href={canLoad ? url : undefined}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-disabled={!canLoad}
-          class={`h-9 w-9 rounded-md bg-white/5 border border-white/10 text-ink-200 grid place-items-center
-                  ${canLoad ? "hover:bg-white/[0.09]" : "opacity-50 cursor-not-allowed pointer-events-none"}`}
-          title="Open in new tab"
-          aria-label="Open browser in new tab"
+        {!guiMode && (
+          <button
+            type="button"
+            onClick={onToggleInspectMode}
+            disabled={!canLoad}
+            class={`h-9 w-9 flex-none rounded-md border grid place-items-center disabled:opacity-50 disabled:cursor-not-allowed
+                    ${inspectMode
+                      ? "bg-accent-blue/[0.18] border-accent-blue/35 text-accent-blue"
+                      : "bg-white/5 hover:bg-white/[0.09] border-white/10 text-ink-200"}`}
+            title="Inspect element"
+            aria-label="Inspect element"
+            aria-pressed={inspectMode}
+          >
+            <Crosshair class="w-4 h-4" />
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={guiMode ? guiStatus !== "ready" : appsLoading}
+          class="h-9 w-9 flex-none rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center disabled:opacity-50 disabled:cursor-wait"
+          title={guiMode ? "Reload the agent browser" : "Refresh apps and reload preview"}
+          aria-label={guiMode ? "Reload the agent browser" : "Refresh apps and reload preview"}
         >
-          <ExternalLink class="w-4 h-4" />
-        </a>
-      )}
+          {appsLoading && !guiMode ? <Loader class="w-4 h-4 animate-spin" /> : <RotateCcw class="w-4 h-4" />}
+        </button>
+
+        {!guiMode && (
+          <a
+            href={canLoad ? url : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-disabled={!canLoad}
+            class={`h-9 w-9 flex-none rounded-md bg-white/5 border border-white/10 text-ink-200 grid place-items-center
+                    ${canLoad ? "hover:bg-white/[0.09]" : "opacity-50 cursor-not-allowed pointer-events-none"}`}
+            title="Open in new tab"
+            aria-label="Open browser in new tab"
+          >
+            <ExternalLink class="w-4 h-4" />
+          </a>
+        )}
+      </div>
 
       <button
         type="button"
         onClick={onClose}
-        class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center"
+        class="order-3 h-9 w-9 flex-none rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center md:order-none"
         title="Close browser"
         aria-label="Close browser"
+        data-workspace-pane-close
       >
         <X class="w-4 h-4" />
       </button>
