@@ -96,9 +96,8 @@ type BuildFunc func(Dependencies, *provisioning.Profile) (Components, error)
 // provider package and consumed by the explicit config composition root.
 type FactoryBuilder func() (Factory, error)
 
-// Factory is immutable after construction. Its descriptor is always returned
-// as a defensive copy so provisioning slices and embedded template bytes
-// cannot be mutated by callers.
+// Factory is immutable after construction. Descriptor and provisioning profile
+// data are cloned at the boundary so callers cannot mutate registered policy.
 type Factory struct {
 	descriptor Descriptor
 	profile    *provisioning.Profile
