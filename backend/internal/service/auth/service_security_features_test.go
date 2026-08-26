@@ -70,7 +70,7 @@ func TestTwoFactorEnabledRequiresChallengeIndependentlyOfOtherFlags(t *testing.T
 		t.Fatalf("decode enrollment token: %v", err)
 	}
 	code := TOTPCode(pending.Secret, time.Now())
-	if _, _, err := service.twoFactor.ConfirmEnrollment(context.Background(), enrollToken, code); err != nil {
+	if _, _, err := service.twoFactor.ConfirmEnrollment(context.Background(), email, enrollToken, code); err != nil {
 		t.Fatalf("ConfirmEnrollment: %v", err)
 	}
 
@@ -171,7 +171,7 @@ func TestRecoveryCodeAlertRequiresTwoFactorAndFiresOnRecoveryCodeUse(t *testing.
 		t.Fatalf("decode enrollment token: %v", err)
 	}
 	code := TOTPCode(pending.Secret, time.Now())
-	recoveryCodes, _, err := service.twoFactor.ConfirmEnrollment(context.Background(), enrollToken, code)
+	recoveryCodes, _, err := service.twoFactor.ConfirmEnrollment(context.Background(), email, enrollToken, code)
 	if err != nil {
 		t.Fatalf("ConfirmEnrollment: %v", err)
 	}

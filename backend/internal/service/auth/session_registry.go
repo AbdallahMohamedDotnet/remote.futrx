@@ -20,6 +20,11 @@ import (
 type SessionRegistry struct {
 	store SessionRegistryStore
 
+	// account serializes each account's read-modify-write of its record so
+	// concurrent sign-ins cannot clobber each other's history or active
+	// session id; mu only guards the cache map itself.
+	account keyedMutex
+
 	mu    sync.RWMutex
 	cache map[string]*SessionRegistryRecord
 }
@@ -76,6 +81,7 @@ func (r *SessionRegistry) Preferences(ctx context.Context, email string) (Securi
 // own read-modify-write for partial updates.
 func (r *SessionRegistry) SetPreferences(ctx context.Context, email string, prefs SecurityPreferences) error {
 	email = normalizeEmail(email)
+	defer r.account.lock(email)()
 	record, err := r.load(ctx, email)
 	if err != nil {
 		return err
@@ -107,6 +113,7 @@ func (r *SessionRegistry) IssueForAccount(ctx context.Context, email string, met
 		return "", err
 	}
 
+	defer r.account.lock(email)()
 	record, err := r.load(ctx, email)
 	if err != nil {
 		return "", err
@@ -163,6 +170,7 @@ func (r *SessionRegistry) IsActive(ctx context.Context, email, sid string) bool 
 // account has no registry record.
 func (r *SessionRegistry) Revoke(ctx context.Context, email string) error {
 	email = normalizeEmail(email)
+	defer r.account.lock(email)()
 	record, err := r.load(ctx, email)
 	if err != nil {
 		return err
@@ -205,6 +213,7 @@ func (r *SessionRegistry) PendingAlert(ctx context.Context, email string) (*Secu
 // AckAlert clears email's pending alert, a no-op if there is none.
 func (r *SessionRegistry) AckAlert(ctx context.Context, email string) error {
 	email = normalizeEmail(email)
+	defer r.account.lock(email)()
 	record, err := r.load(ctx, email)
 	if err != nil {
 		return err

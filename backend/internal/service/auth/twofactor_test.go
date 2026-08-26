@@ -25,7 +25,7 @@ func enrollTestAccount(t *testing.T, a *TwoFactorAuthenticator, email string) []
 		t.Fatalf("decode enrollment token: %v", err)
 	}
 	code := TOTPCode(secret.Secret, time.Now())
-	codes, confirmedEmail, err := a.ConfirmEnrollment(context.Background(), token, code)
+	codes, confirmedEmail, err := a.ConfirmEnrollment(context.Background(), email, token, code)
 	if err != nil {
 		t.Fatalf("ConfirmEnrollment: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestConfirmEnrollmentRejectsWrongCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeginEnrollment: %v", err)
 	}
-	if _, _, err := a.ConfirmEnrollment(context.Background(), token, "000000"); !errors.Is(err, ErrInvalidTwoFactorCode) {
+	if _, _, err := a.ConfirmEnrollment(context.Background(), "user@example.com", token, "000000"); !errors.Is(err, ErrInvalidTwoFactorCode) {
 		t.Fatalf("ConfirmEnrollment with wrong code error = %v, want %v", err, ErrInvalidTwoFactorCode)
 	}
 }

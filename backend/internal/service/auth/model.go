@@ -91,6 +91,11 @@ type TwoFactorRecord struct {
 	Secret             []byte   `json:"secret"`
 	RecoveryCodeHashes []string `json:"recoveryCodeHashes"`
 	EnabledAt          int64    `json:"enabledAt"`
+	// LastUsedTOTPCounter is the time-step counter of the most recent code
+	// accepted for a sign-in, so the same code cannot be replayed inside its
+	// validity window. Zero for records written before replay tracking
+	// existed, which simply means the next code is unconstrained.
+	LastUsedTOTPCounter uint64 `json:"lastUsedTotpCounter,omitempty"`
 }
 
 // SessionRecord is one entry in an account's bounded sign-in history.

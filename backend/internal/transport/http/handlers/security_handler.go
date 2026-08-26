@@ -106,9 +106,11 @@ func (h *SecurityHandler) handleConfirm(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	codes, email, err := h.auth.ConfirmTwoFactorEnrollment(r.Context(), body.EnrollmentToken, body.Code)
+	codes, email, err := h.auth.ConfirmTwoFactorEnrollment(r.Context(), session.Email, body.EnrollmentToken, body.Code)
 	if err != nil {
 		switch {
+		case errors.Is(err, serviceauth.ErrEnrollmentTokenMismatch):
+			httptransport.SendErr(w, http.StatusForbidden, err.Error())
 		case errors.Is(err, serviceauth.ErrInvalidEnrollmentToken):
 			httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, serviceauth.ErrInvalidTwoFactorCode):
@@ -118,11 +120,6 @@ func (h *SecurityHandler) handleConfirm(w http.ResponseWriter, r *http.Request) 
 		}
 		return
 	}
-	if email != session.Email {
-		httptransport.SendErr(w, http.StatusForbidden, "enrollment token does not match the current session")
-		return
-	}
-
 	// Enrolling 2FA does not itself turn on any SecurityPreferences flag
 	// (they're independent toggles) - only re-issue the current session as
 	// tracked if one is already on, so an enrolling user whose browser is

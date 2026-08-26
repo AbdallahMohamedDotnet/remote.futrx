@@ -12,10 +12,16 @@ var (
 	ErrTwoFactorNotEnabled     = errors.New("two-factor authentication is not enabled")
 	ErrTwoFactorAlreadyEnabled = errors.New("two-factor authentication is already enabled")
 	ErrInvalidTwoFactorCode    = errors.New("invalid two-factor code")
+	ErrTwoFactorCodeReused     = errors.New("two-factor code has already been used")
 	ErrInvalidEnrollmentToken  = errors.New("invalid or expired enrollment token")
+	ErrEnrollmentTokenMismatch = errors.New("enrollment token does not match the current session")
 )
 
 const enrollmentTTL = 10 * time.Minute
+
+// pendingEnrollmentDomain keeps an in-flight enrollment token from verifying
+// as any other payload signed with the same session key (notably Session).
+const pendingEnrollmentDomain = "2fa-enrollment/v1"
 
 // pendingEnrollment is the signed, stateless payload carried by an
 // enrollment token between BeginEnrollment and ConfirmEnrollment - nothing
@@ -45,6 +51,10 @@ type TwoFactorAuthenticator struct {
 	issuer string
 	codec  signedPayload[pendingEnrollment]
 
+	// account serializes each account's read-modify-write of its record;
+	// mu only guards the cache map itself.
+	account keyedMutex
+
 	mu    sync.RWMutex
 	cache map[string]*TwoFactorRecord
 }
@@ -53,7 +63,7 @@ func newTwoFactorAuthenticator(store TwoFactorStore, issuer string, key []byte) 
 	return &TwoFactorAuthenticator{
 		store:  store,
 		issuer: issuer,
-		codec:  newSignedPayload[pendingEnrollment](key),
+		codec:  newSignedPayload[pendingEnrollment](key, pendingEnrollmentDomain),
 		cache:  map[string]*TwoFactorRecord{},
 	}
 }
@@ -114,14 +124,22 @@ func (a *TwoFactorAuthenticator) BeginEnrollment(ctx context.Context, email stri
 // ConfirmEnrollment verifies the first code from the user's authenticator
 // app, persists the TwoFactorRecord, and returns a fresh set of recovery
 // codes (shown to the user exactly once).
-func (a *TwoFactorAuthenticator) ConfirmEnrollment(ctx context.Context, enrollmentToken, code string) (recoveryCodes []string, email string, err error) {
+//
+// expectedEmail is the account the caller is authenticated as. It is checked
+// before anything is written, so presenting another account's enrollment
+// token cannot enroll a secret onto that account.
+func (a *TwoFactorAuthenticator) ConfirmEnrollment(ctx context.Context, expectedEmail, enrollmentToken, code string) (recoveryCodes []string, email string, err error) {
 	pending, verifyErr := a.codec.verify(enrollmentToken)
 	if verifyErr != nil {
 		return nil, "", ErrInvalidEnrollmentToken
 	}
+	if normalizeEmail(pending.Email) != normalizeEmail(expectedEmail) {
+		return nil, "", ErrEnrollmentTokenMismatch
+	}
 	if !VerifyTOTPCode(pending.Secret, code, time.Now()) {
 		return nil, "", ErrInvalidTwoFactorCode
 	}
+	defer a.account.lock(normalizeEmail(pending.Email))()
 	codes, err := GenerateRecoveryCodes(recoveryCodeCount)
 	if err != nil {
 		return nil, "", err
@@ -147,6 +165,9 @@ func (a *TwoFactorAuthenticator) ConfirmEnrollment(ctx context.Context, enrollme
 // caller can record the precise SignInMethod.
 func (a *TwoFactorAuthenticator) VerifyChallenge(ctx context.Context, email, code string) (usedRecoveryCode bool, err error) {
 	email = normalizeEmail(email)
+	// Held across load/verify/save so a recovery code cannot be redeemed
+	// twice by two concurrent challenges.
+	defer a.account.lock(email)()
 	record, err := a.load(ctx, email)
 	if err != nil {
 		return false, err
@@ -154,7 +175,18 @@ func (a *TwoFactorAuthenticator) VerifyChallenge(ctx context.Context, email, cod
 	if record == nil {
 		return false, ErrTwoFactorNotEnabled
 	}
-	if VerifyTOTPCode(record.Secret, code, time.Now()) {
+	if counter, matched := verifyTOTPCounter(record.Secret, code, time.Now()); matched {
+		// RFC 6238 SS5.2: a code is good for exactly one sign-in. Without this
+		// an observed code stays usable for the rest of its ~90s window.
+		if counter <= record.LastUsedTOTPCounter {
+			return false, ErrTwoFactorCodeReused
+		}
+		updated := *record
+		updated.LastUsedTOTPCounter = counter
+		if err := a.store.Save(ctx, email, updated); err != nil {
+			return false, err
+		}
+		a.setCache(email, &updated)
 		return false, nil
 	}
 	remaining, ok := ConsumeRecoveryCode(record.RecoveryCodeHashes, code)
@@ -174,6 +206,7 @@ func (a *TwoFactorAuthenticator) VerifyChallenge(ctx context.Context, email, cod
 // recovery code) before removing the account's TwoFactorRecord entirely.
 func (a *TwoFactorAuthenticator) Disable(ctx context.Context, email, code string) error {
 	email = normalizeEmail(email)
+	defer a.account.lock(email)()
 	record, err := a.load(ctx, email)
 	if err != nil {
 		return err
@@ -197,6 +230,7 @@ func (a *TwoFactorAuthenticator) Disable(ctx context.Context, email, code string
 // after verifying a current TOTP code.
 func (a *TwoFactorAuthenticator) RegenerateRecoveryCodes(ctx context.Context, email, code string) ([]string, error) {
 	email = normalizeEmail(email)
+	defer a.account.lock(email)()
 	record, err := a.load(ctx, email)
 	if err != nil {
 		return nil, err

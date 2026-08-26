@@ -63,8 +63,17 @@ func pow10(n int) uint32 {
 // of clock skew (the ±1 step window recommended by RFC 6238 §5.2), using a
 // constant-time comparison to avoid leaking timing information.
 func VerifyTOTPCode(secret []byte, code string, at time.Time) bool {
+	_, ok := verifyTOTPCounter(secret, code, at)
+	return ok
+}
+
+// verifyTOTPCounter is VerifyTOTPCode plus the time-step counter the code
+// matched on. Callers that must reject replays (RFC 6238 SS5.2: a code should
+// only ever be accepted once) record that counter and refuse anything at or
+// below it next time.
+func verifyTOTPCounter(secret []byte, code string, at time.Time) (uint64, bool) {
 	if len(code) != totpDigits {
-		return false
+		return 0, false
 	}
 	counter := uint64(at.Unix()) / uint64(totpStep.Seconds())
 	for skew := -totpSkewSteps; skew <= totpSkewSteps; skew++ {
@@ -79,10 +88,10 @@ func VerifyTOTPCode(secret []byte, code string, at time.Time) bool {
 		}
 		want := hotpCode(secret, c)
 		if subtle.ConstantTimeCompare([]byte(want), []byte(code)) == 1 {
-			return true
+			return c, true
 		}
 	}
-	return false
+	return 0, false
 }
 
 // TOTPProvisioningURI builds the otpauth://totp/... URI that authenticator

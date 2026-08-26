@@ -23,21 +23,44 @@ type expirer interface {
 // (b64(json) + "." + b64(hmac)) can back real sessions, pending 2FA-login
 // challenges, and pending 2FA-enrollment tokens without three copies of this
 // logic.
+//
+// Every payload type is signed with the same account-wide session key, and
+// their JSON shapes overlap (Session, pendingLogin and pendingEnrollment all
+// carry "email"/"exp"). Without separation a token minted for one purpose
+// verifies as another - in particular a pending-2FA-login token would decode
+// into a fully valid Session, letting a caller who knows only the first
+// factor skip the second. domain fixes the purpose into the MAC so a token
+// only ever verifies against the codec that produced it.
+//
+// The session codec deliberately uses the empty domain, which reproduces the
+// original MAC byte-for-byte, so sessions issued before this change keep
+// verifying. Every non-session payload must use a non-empty domain.
 type signedPayload[T expirer] struct {
-	key []byte
+	key    []byte
+	domain string
 }
 
-func newSignedPayload[T expirer](key []byte) signedPayload[T] {
-	return signedPayload[T]{key: key}
+func newSignedPayload[T expirer](key []byte, domain string) signedPayload[T] {
+	return signedPayload[T]{key: key, domain: domain}
+}
+
+// mac binds the codec's domain to the payload so the same key cannot produce
+// an interchangeable token for two different purposes. The 0x00 separator
+// keeps the domain unambiguously delimited from the payload.
+func (p signedPayload[T]) mac(b64 string) string {
+	mac := hmac.New(sha256.New, p.key)
+	if p.domain != "" {
+		mac.Write([]byte(p.domain))
+		mac.Write([]byte{0})
+	}
+	mac.Write([]byte(b64))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
 func (p signedPayload[T]) sign(v T) string {
 	body, _ := json.Marshal(v)
 	b64 := base64.RawURLEncoding.EncodeToString(body)
-	mac := hmac.New(sha256.New, p.key)
-	mac.Write([]byte(b64))
-	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return b64 + "." + sig
+	return b64 + "." + p.mac(b64)
 }
 
 func (p signedPayload[T]) verify(raw string) (T, error) {
@@ -46,9 +69,7 @@ func (p signedPayload[T]) verify(raw string) (T, error) {
 	if len(parts) != 2 {
 		return zero, errors.New("malformed")
 	}
-	mac := hmac.New(sha256.New, p.key)
-	mac.Write([]byte(parts[0]))
-	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	want := p.mac(parts[0])
 	if !hmac.Equal([]byte(parts[1]), []byte(want)) {
 		return zero, errors.New("bad signature")
 	}
