@@ -127,15 +127,63 @@ ensure_agent_cli "Codex" codex @openai/codex "$CODEX_CLI_VERSION"
 ensure_agent_cli "Kimi Code" kimi @moonshot-ai/kimi-code "$KIMI_CODE_VERSION"
 
 # ───────────────── LXD (one container per project) ─────────────────
-if ! command -v lxc >/dev/null; then
-    log "Installing LXD via snap"
-    if ! command -v snap >/dev/null; then
-        apt-get install -y -qq snapd
-        systemctl enable --now snapd.socket
-        for _ in 1 2 3 4 5; do snap wait system seed.loaded && break; sleep 1; done
+LXD_HOST_HELPERS="$INFRA_DIR/lib/lxd-host.sh"
+if [ ! -r "$LXD_HOST_HELPERS" ]; then
+    err "missing LXD host helpers: $LXD_HOST_HELPERS"
+    exit 1
+fi
+# shellcheck source=../lib/lxd-host.sh
+. "$LXD_HOST_HELPERS"
+
+NESTED_UNPRIVILEGED_LXC=0
+LXD_IDMAP_BASE=1000000
+LXD_IDMAP_SIZE=65536
+if unprivileged_lxc_host; then
+    NESTED_UNPRIVILEGED_LXC=1
+
+    # Remote deliberately keeps every project container unprivileged. The
+    # backend also chowns bind-mounted project data to this exact LXD idmap.
+    # An outer Proxmox LXC must therefore delegate the complete range; falling
+    # back to privileged inner containers would remove a primary isolation
+    # boundary and would make the existing ownership contract incorrect.
+    if ! nested_lxd_idmap_available \
+        /proc/self/uid_map /proc/self/gid_map "$LXD_IDMAP_BASE" "$LXD_IDMAP_SIZE"; then
+        err "This is an unprivileged LXC host without Remote's nested UID/GID allocation."
+        cat >&2 <<EOF
+
+  Remote project containers are intentionally unprivileged and map their root
+  user to host UID/GID $LXD_IDMAP_BASE. The outer Proxmox container must expose
+  the full $LXD_IDMAP_SIZE-ID range beginning at $LXD_IDMAP_BASE in both
+  /proc/self/uid_map and /proc/self/gid_map.
+
+  Configure that subordinate range and enable nesting in the Proxmox container
+  settings, restart the container, then run this installer again. The installer
+  will not silently use privileged project containers because that weakens the
+  security boundary between agent workspaces and the host.
+EOF
+        exit 1
     fi
-    snap install lxd
-    export PATH="/snap/bin:$PATH"
+fi
+
+if ! command -v lxc >/dev/null; then
+    if [ "$NESTED_UNPRIVILEGED_LXC" = "1" ] && [ "${ID:-}" = "debian" ]; then
+        # Snap packages need SquashFS loop/FUSE mounts and access to the host
+        # AppArmor security filesystem, which Proxmox does not expose to an
+        # unprivileged LXC by default. Debian's native package avoids that
+        # packaging-layer requirement while providing the same LXD API/CLI.
+        log "Installing native Debian LXD packages for nested LXC"
+        apt-get install -y -qq lxd lxd-client
+        systemctl enable --now lxd.socket
+    else
+        log "Installing LXD via snap"
+        if ! command -v snap >/dev/null; then
+            apt-get install -y -qq snapd
+            systemctl enable --now snapd.socket
+            for _ in 1 2 3 4 5; do snap wait system seed.loaded && break; sleep 1; done
+        fi
+        snap install lxd
+        export PATH="/snap/bin:$PATH"
+    fi
 fi
 
 # Initialize storage + bridge on fresh installs. `lxc network show lxdbr0`
@@ -143,6 +191,12 @@ fi
 if ! lxc network show lxdbr0 >/dev/null 2>&1; then
     log "lxd init --auto"
     lxd init --auto
+fi
+if [ "$NESTED_UNPRIVILEGED_LXC" = "1" ]; then
+    # Debian's native package takes its initial allocation from /etc/subuid;
+    # pin the profile to the idmap Remote's host-file ownership code expects.
+    lxc profile set default security.idmap.base "$LXD_IDMAP_BASE"
+    ok "nested LXD uses unprivileged idmap ${LXD_IDMAP_BASE}-$((LXD_IDMAP_BASE + LXD_IDMAP_SIZE - 1))"
 fi
 ok "lxd $(lxc version --format=csv 2>/dev/null | tr ',' ' ' | awk '{print $1}' || echo ok)"
 

@@ -8,6 +8,7 @@ DEPLOY_APP_SCRIPT="$TESTS_DIR/../qa/deploy-app.sh"
 DEPLOY_LOCAL_SCRIPT="$TESTS_DIR/../qa/deploy-local.sh"
 COMMON_SCRIPT="$TESTS_DIR/../qa/common.sh"
 CORE_INSTALL_SCRIPT="$TESTS_DIR/../install.sh"
+HOST_DEPS_SCRIPT="$TESTS_DIR/../steps/01-host-deps.sh"
 ROOT_PACKAGE_JSON="$TESTS_DIR/../../package.json"
 TEST_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$TEST_DIR"' EXIT
@@ -101,6 +102,10 @@ grep -Fq '"--ref=$candidate_sha"' "$INSTALL_SCRIPT" || \
 if grep -Eq 'apt-get|git clone' "$INSTALL_SCRIPT"; then
     fail "install.sh bootstraps dependencies or clones the repository itself"
 fi
+grep -Fq 'apt-get install -y -qq lxd lxd-client' "$HOST_DEPS_SCRIPT" || \
+    fail "host dependencies do not use native Debian LXD inside nested LXC"
+grep -Fq 'lxc profile set default security.idmap.base "$LXD_IDMAP_BASE"' "$HOST_DEPS_SCRIPT" || \
+    fail "nested LXD does not preserve Remote's expected unprivileged idmap"
 if grep -Eq 'infra/tests|npm --prefix|go (test|vet)' "$COMMON_SCRIPT"; then
     fail "QA install/update scripts run local project tests"
 fi
@@ -127,5 +132,7 @@ for package_contract in \
     grep -Fq "$package_contract" "$ROOT_PACKAGE_JSON" || \
         fail "root package is missing QA command: $package_contract"
 done
+
+bash "$TESTS_DIR/lxd-host-test.sh"
 
 echo "QA install/update/app-deploy/local-deploy script tests passed"
