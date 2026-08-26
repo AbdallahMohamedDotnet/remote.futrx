@@ -21,11 +21,12 @@ These are the constraints worth understanding before you deploy or rely on remot
 - **Ubuntu/Debian only.** The installer hard-exits on any other distro and assumes systemd, snap (LXD is installed via snap), Caddy, root execution, public DNS pointing at the box, and outbound reachability to Let's Encrypt. There is no air-gapped, Docker, or non-Linux deployment path. *(`infra/install.sh`, `infra/steps/01-host-deps.sh`)*
 - **The backend runs as root.** With `KillMode=process`, a compromise of the app process is a compromise of the host. There is no privilege separation for the backend. *(`infra/templates/remote.futrx.service.tmpl`)*
 - **The installer disables SSH password login.** Confirm your SSH key works before running it (this is called out in the README, and repeated here because it is easy to lock yourself out).
-- **Deploy has no automatic rollback.** CI restarts the service *before* the health check, so a build that starts but fails the 30-second probe leaves the box running the broken binary; the workflow just exits non-zero. *(`.github/workflows/deploy.yml`)*
 - **Infrastructure updates hard-reset the installed checkout.** `update.sh`
   selects the requested release tag/ref and defaults to `origin/main`, so any
-  local source changes are discarded. There is no staged rollout or automatic
-  rollback after a completed infrastructure update.
+  local source changes are discarded. It converges the host, application, base
+  image, and workspaces incrementally, with no transaction-wide rollback if a
+  later step fails. Patch-only `deploy-app.sh` is narrower and does restore its
+  previous checkout/binary when build, restart, or health validation fails.
 
 ## Updates and workspace upgrades
 
@@ -53,7 +54,8 @@ These are the constraints worth understanding before you deploy or rely on remot
 - **Agent modules are compiled in, not runtime plugins.** Each provider package
   owns a validated factory combining its adapter, auth, feature policy, and
   provisioning profile. A new integration still requires an explicit reviewed
-  factory entry in `agent/builtin`, followed by a rebuild and deployment.
+  factory entry in `internal/config/agents.go`, followed by a rebuild and
+  deployment.
   Remote does not load third-party provider modules from configuration or
   shared objects.
 
@@ -62,6 +64,12 @@ These are the constraints worth understanding before you deploy or rely on remot
   container, so all users and projects share the same provider accounts and
   subscription quotas. There is no per-user or per-project identity for those
   providers, and each allows only one interactive login at a time.
+- **Codex's API-key guard does not inspect newer project-local auth before a
+  run.** Remote rejects a host `auth.json` explicitly marked `apikey` and clears
+  `OPENAI_API_KEY`, but credential seeding does not overwrite a newer
+  project-local record. That record can therefore drive a project run. A
+  successful pull detects the API-key mode only afterward, and the sync error
+  is logged without failing the completed run.
 - **The supported Antigravity authentication flow is project-local.** Users
   run `agy` in the project Terminal. Its credential and conversation state
   under `/root/.gemini/antigravity-cli` is a durable provider mount and survives
@@ -86,8 +94,8 @@ These are the constraints worth understanding before you deploy or rely on remot
 - **Provider-specific gaps.** Kimi has no fork primitive (forked Kimi chats
   silently start fresh) and reports no usage data. Its discovered per-model
   Thinking choice is displayed and saved but is not forwarded to the Kimi run,
-  and Kimi 0.38.0 rejects its advertised Plan flag with the prompt mode Remote
-  requires. Antigravity forks also
+  and the currently pinned Kimi CLI rejects its advertised Plan flag with the
+  prompt mode Remote requires. Antigravity forks also
   start fresh; print mode exposes plain streamed text rather than structured
   tool/usage events, selected skills use explicit `SKILL.md` instruction paths
   rather than native triggers, and Browser MCP is unavailable. Model catalogs
@@ -99,9 +107,10 @@ These are the constraints worth understanding before you deploy or rely on remot
 - **Capability catalogs can lag external changes.** A fully live catalog is
   cached in backend process memory for 24 hours; any fallback or warning uses a
   2-hour TTL. CLI, configuration, and entitlement changes do not directly
-  invalidate it. Provider login transitions detected by the browser and the
-  sidebar's project **Start** action request selected refreshes; the Project
-  workspaces Start/Restart actions and terminal-based changes such as
+  invalidate it. Managed authenticated-state changes and completed-login
+  revisions detected by the browser, plus the sidebar's project **Start**
+  action, request selected refreshes; intermediate login-status changes, the
+  Project workspaces Start/Restart actions, and terminal-based changes such as
   Antigravity login require **Refresh models**. Restarting the backend clears
   the entire cache. Provider-level fallback and
   partial-discovery warnings are present in the API but, except for the

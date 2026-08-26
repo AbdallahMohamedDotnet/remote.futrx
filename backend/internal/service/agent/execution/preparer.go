@@ -42,8 +42,8 @@ type Preparer struct {
 	options    Options
 }
 
-// New returns nil when no project resolver is available, preserving the
-// existing host-only/test behavior for a request that carries a project ID.
+// New returns nil when no project resolver is available, allowing host-only
+// runtime composition and focused tests without a project service.
 func New(
 	projects agent.ProjectResolver,
 	containers provisioning.ContainerDependencies,

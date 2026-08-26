@@ -188,12 +188,13 @@ one scope share a single discovery operation.
 The frontend store holds the last response per normalized user and scope only
 in the current page. It leaves that response visible while requesting the
 backend and coalesces duplicate page-level requests, but it neither persists
-the catalog nor decides when backend data is fresh. Authentication changes for
-managed module bindings request refreshes for currently subscribed scopes; the
-sidebar's project **Start** action requests one for that project, while the
-Project workspaces lifecycle actions do not. A request already in flight
-remains coalesced. Terminal-driven changes such as Antigravity sign-in require
-the user to choose **Refresh models**.
+the catalog nor decides when backend data is fresh. A managed provider's
+authenticated flag changing, or a login reaching completed with a new start
+revision, requests refreshes for currently subscribed scopes; intermediate
+login-status changes do not. The sidebar's project **Start** action requests
+one for that project, while the Project workspaces lifecycle actions do not. A
+request already in flight remains coalesced. Terminal-driven changes such as
+Antigravity sign-in require the user to choose **Refresh models**.
 
 The capability payload also exposes immutable module metadata alongside live
 CLI discovery: execution scopes, authentication mode and instructions,

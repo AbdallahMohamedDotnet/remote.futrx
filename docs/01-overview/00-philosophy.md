@@ -169,7 +169,7 @@ Maximum agency does not mean the agent controls both planes. It means the capabi
 
 ## The project home and provider homes
 
-Remote gives the agent a home in the product sense: the durable project. It is the continuity that lets an agent or human return to the same work, skills, browser identity, provider state, and host-stored history. In filesystem terms, **provider homes** are narrower: they are the four CLI-owned directories mounted under `/root`.
+Remote gives the agent a home in the product sense: the durable project. It is the continuity that lets an agent or human return to the same work, skills, browser identity, provider state, and host-stored history. In filesystem terms, **provider homes** are narrower: they are CLI-owned directories declared by registered module profiles and mounted under `/root`. The current built-in catalog contributes four.
 
 Each converged project currently has five required writable mounts. They live on the host under the project root and are attached before a new container's first work run. A legacy migration may briefly start an existing container to recover old provider state before stopping it, attaching the missing homes, and returning it to the converged layout.
 
@@ -209,9 +209,10 @@ flowchart LR
 | Host control-plane data | Application data directory | Project metadata, chats, event logs, scheduled tasks, access lists, settings, and the authoritative secret store |
 | Replaceable runtime | Container root filesystem outside the mounts | Base image, installed packages, temporary files, and operating-system state |
 
-The workspace is shared by all agents in the project. The four mounted
-provider homes are separate because each CLI owns a different configuration
-and session format; they are **format-separated, not security-separated**.
+The workspace is shared by all agents in the project. The four currently
+mounted provider homes are separate because each CLI owns a different
+configuration and session format; they are **format-separated, not
+security-separated**.
 Container root can read and modify all four regardless of the selected
 provider. Antigravity mounts only `/root/.gemini/antigravity-cli`, not the
 whole `.gemini` directory.
@@ -282,7 +283,7 @@ flowchart TD
     Upgrade --> Prompt["Receive prompt and acquire per-chat run lock"]
     Prompt --> Project["Resolve project and converge lifecycle"]
     Project --> LXD["Create, migrate, start, or repair LXD container"]
-    LXD --> Mounts["Verify workspace and four provider-home mounts"]
+    LXD --> Mounts["Verify workspace and registered provider-home mounts"]
     Mounts --> Limits["Apply configured resource envelope"]
     Limits --> Prep["Prepare selected provider, credentials, instructions, and supported skills/browser integration"]
     Prep --> Exec["Run selected CLI as container root in /workspace"]
@@ -298,7 +299,7 @@ sequenceDiagram
     participant Adapter as Provider adapter
     participant Events as Event store
 
-    CLI-->>Adapter: Provider-specific JSON stream
+    CLI-->>Adapter: Provider-native stream/protocol
     Adapter-->>Run: Normalized agent event
     Run->>Events: Append sequence-numbered event
     Run-->>UI: Broadcast live chat event
@@ -551,8 +552,8 @@ If those questions have no concrete answers, the feature is not yet compatible w
 - Resource envelope: [`backend/internal/integration/containers/resources/manager.go`](../../backend/internal/integration/containers/resources/manager.go)
 - Agent provisioning contract: [`backend/internal/agent/provisioning/container_dependencies.go`](../../backend/internal/agent/provisioning/container_dependencies.go)
 - Shared agent instructions: [`backend/internal/agent/provisioning/assets/AGENTS.md`](https://github.com/futrx-com/remote.futrx.com/blob/main/backend/internal/agent/provisioning/assets/AGENTS.md)
-- Codex execution: [`backend/internal/agent/codex/command.go`](../../backend/internal/agent/codex/command.go)
-- Claude execution: [`backend/internal/agent/claude/command.go`](../../backend/internal/agent/claude/command.go)
-- Kimi execution: [`backend/internal/agent/kimi/command.go`](../../backend/internal/agent/kimi/command.go)
+- Codex execution: [`backend/internal/integration/agents/codex/command.go`](../../backend/internal/integration/agents/codex/command.go)
+- Claude execution: [`backend/internal/integration/agents/claude/command.go`](../../backend/internal/integration/agents/claude/command.go)
+- Kimi execution: [`backend/internal/integration/agents/kimi/command.go`](../../backend/internal/integration/agents/kimi/command.go)
 - Project secrets and `.env`: [`backend/internal/service/project/env_writer.go`](../../backend/internal/service/project/env_writer.go)
 - Reverse-proxy boundary: [`infra/templates/Caddyfile.tmpl`](../../infra/templates/Caddyfile.tmpl)

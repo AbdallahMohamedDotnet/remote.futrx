@@ -62,17 +62,19 @@ application step builds the explicit compiled-in agent module catalog and runs
 `backend/cmd/install-host-agents`, which selects profiles for modules declaring
 the `host` execution scope. A host-scoped local CLI module supplies a profile;
 a host-only remote integration may omit one and requires no local install.
-Each profile originates from the provider's local `Factory()`/`Profile()`;
+Each profile originates from the provider's local `NewFactory()`/`Profile()`;
 the installer applies the catalog without provider-specific branches.
 
 For each selected profile, the installer runs the provider-declared version
 arguments against its binary and compares the detected semver with the exact
-pin (or checks binary existence when version checks are disabled). Each host
-version command is capped at 15 seconds. It
+pin (or checks binary existence when version checks are disabled). The global
+`config.AgentOptions.HostCLIVersionTimeout` currently caps each host version
+command at 15 seconds. The installer
 installs stale/missing npm CLIs at the exact package pin or runs the profile's
 pinned install script, then applies the profile's post-install verification
-policy with a fresh 15-second version-probe budget. The provider-declared
-timeout bounds only the mutating install command. Providers are converged
+policy with a fresh version-probe budget from that same global setting. The
+provider-declared profile timeout bounds only the mutating install command.
+Providers are converged
 sequentially because global npm state is shared. Each install runs in an
 isolated process group; cancellation terminates its descendants before the
 updater returns. Any provider-scoped install or verification error aborts the

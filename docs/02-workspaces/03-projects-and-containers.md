@@ -1,8 +1,9 @@
 # Projects and containers
 
-A project is a durable workspace, four mounted provider agent homes, and an
-LXD container that supplies processes and tools for four agent providers. The
-durable directories survive container rebuilds; the container can be replaced.
+A project is a durable workspace, the persistent provider state declared by
+registered project-capable agent modules, and an LXD container that supplies
+their processes and tools. The durable directories survive container rebuilds;
+the container can be replaced.
 
 ## Project creation
 
@@ -53,9 +54,10 @@ flowchart LR
     Container --> Processes["Agent, terminal, and app processes"]
 ```
 
-Files in `/workspace` and the four provider homes survive stop, restart,
-container deletion during upgrades, and image replacement. Provider homes
-preserve most provider-owned configuration, authentication, and session state.
+Files in `/workspace` and every registered provider-state mount survive stop,
+restart, container deletion during upgrades, and image replacement. Provider
+homes preserve most provider-owned configuration, authentication, and session
+state.
 Antigravity persists only `/root/.gemini/antigravity-cli`, not the rest of
 `/root/.gemini`. Claude also uses `/root/.claude.json` outside its mounted home
 and relies on host credential synchronization to restore it. Ad-hoc packages or
@@ -86,12 +88,17 @@ At backend startup, reconciliation compares stored status with actual LXD state 
 
 Project container policy is module-driven. Only modules declaring the
 `project` execution scope contribute a provisioning profile. Each provider's
-local `Factory()` attaches its own `Profile()` to the module descriptor; the
-shared catalog and provisioning services never reconstruct provider policy.
-That profile owns the CLI install/repair spec, credential synchronization,
-persistent-state mounts, shared instructions, workspace-skill compatibility,
-and optional browser MCP templates. A project-capable module without a
-complete matching profile is rejected when the module catalog is built.
+local `NewFactory()` passes its `Profile()` separately from the public module
+descriptor; the shared catalog and provisioning services never reconstruct
+provider policy. The factory retains a defensive profile snapshot and passes
+independent exact validated clones to its shared project preparer and provider
+build callback. That profile owns the CLI install/repair spec, credential
+synchronization, persistent-state mounts, shared instructions, workspace-skill
+compatibility, and optional browser MCP templates. A project-capable module
+without a complete matching profile is rejected when the module catalog is
+built. Shared workspace provisioners converge all catalog-configured
+instruction and skill targets rather than only the currently selected
+provider's target.
 
 The reusable Ubuntu 24.04 base image contains:
 
@@ -122,7 +129,7 @@ flowchart TD
     Ensure --> State{"Container exists?"}
     State -->|"No"| Init["Initialize stopped container from base image"]
     State -->|"Yes"| Inspect["Inspect state and required mounts"]
-    Init --> Attach["Attach workspace and four provider homes"]
+    Init --> Attach["Attach workspace and registered provider homes"]
     Inspect --> Missing{"Any provider-home mount missing?"}
     Missing -->|"Yes"| Migrate["Recover legacy provider state, stopping the container when needed"]
     Migrate --> Attach

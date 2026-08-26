@@ -27,49 +27,21 @@ This appends a `Signed-off-by: Your Name <your@email>` line to the commit messag
 
 ## Adding an agent integration
 
-Agents are explicit compiled-in modules, not runtime plugins. A new integration
-must satisfy the validated contract before the server starts:
+Agents are explicit compiled-in modules, not runtime plugins. Each provider
+owns one validated factory declaration that binds its static descriptor,
+provisioning profile, and project-preparation policy to fresh runtime and
+authentication components. The generic factory constructs shared project
+preparation and narrows application dependencies before invoking provider
+code. The configuration composition root owns only reviewed order and
+application-wide policy; the module catalog validates the complete set,
+selects defaults, projects host/project profiles, and builds one consistent
+runtime.
 
-1. Add a provider-local adapter under `backend/internal/agent/<id>/` that
-   implements the narrow `agent.Provider` contract: stable ID, capability
-   discovery, and run execution. Keep CLI arguments, parsing, credentials, and
-   protocol details inside that package.
-2. Add a provisioning `Profile()` when the module runs in projects or needs a
-   locally installed host CLI. Declare the binary, strict semver pin,
-   provider-specific version arguments, install mode/package or pinned script,
-   timeouts, verification, and any project credentials, persistent state,
-   instructions, skills, or Browser MCP templates. A host-only remote API
-   integration may omit the profile.
-3. Add `backend/internal/agent/<id>/factory.go` and expose
-   `Factory() (module.Factory, error)`, with a compile-time assignment to
-   `module.FactoryBuilder`. The provider-owned factory attaches its `Profile()`,
-   declares label/default, host/project scopes, one supported auth mode and its
-   binding (`none` deliberately has no binding), onboarding-gate eligibility,
-   resume/fork support, skill strategy, and browser/scheduled-tool features.
-   Construct fresh runtime and auth components inside the factory's build
-   callback; do not share mutable auth state across catalog builds.
-4. Add that `Factory` function to the ordered list in
-   `backend/internal/agent/builtin/catalog.go`. The composition root owns only
-   explicit registration order; provider construction details do not belong
-   there.
-5. Use one of the existing normalized auth flows (`managed-code`,
-   `managed-device`, `external`, or `none`) so onboarding and Settings render
-   without provider-specific frontend code. A fundamentally new auth flow
-   requires an intentional contract and UI extension.
-6. Add provider tests plus a factory/catalog regression covering identity,
-   scope, auth, profile, and feature declarations. Update the agent and
-   operations docs. Any profile, CLI, persistent-state, host-install, or base
-   image change requires a minor/major release and the full updater. Keep
-   provider module/provisioning policy in `factory*.go`, `profile*.go`, `install*.go`,
-   `provisioning*.go`, or the provider's `assets/` tree so release
-   classification cannot mistake it for an application-only patch.
-
-Factory, catalog, and startup validation reject unsafe/duplicate IDs,
-inconsistent runtime or auth identity, invalid scopes and auth combinations,
-multiple defaults, missing project profiles, required version probes or
-positive install/wait timeouts, unsupported feature combinations, overlapping
-persistent mounts, and authenticated deployments with no usable access-gate
-module.
+Read the [agent integration developer guide](docs/dev/agents/README.md) for the
+complete registration, capability-discovery, authentication, execution,
+event-parsing, provisioning, frontend, testing, and release flow. Its
+[adding-an-agent checklist](docs/dev/agents/07-adding-an-agent.md) is the source
+of truth for new integrations.
 
 ## Development setup
 

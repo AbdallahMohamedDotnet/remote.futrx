@@ -35,19 +35,27 @@ sequenceDiagram
 
     User->>UI: Send prompt
     UI->>WS: {type: prompt, text, optional clientId}
-    WS->>Hub: Acquire one-run-per-chat lock
-    Hub-->>UI: sync running=true
-    WS->>Prompt: Start prompt asynchronously
+    WS->>Prompt: Start prompt
+    Prompt->>Hub: Acquire one-run-per-chat lock
+    Hub-->>WS: Broadcast sync running=true
+    WS-->>UI: sync running=true
     Prompt->>Store: Load metadata and prior events
-    Prompt->>Store: Append user event
+    Prompt->>Hub: Emit user event
+    Hub->>Store: Append user event
+    Hub-->>WS: Broadcast user event
+    WS-->>UI: Render user event
     Prompt->>Prompt: Apply mode, history, and selected skills
     Prompt->>Provider: Provider-neutral run request
-    Provider->>CLI: Launch or resume in selected cwd
-    CLI-->>Provider: Provider-specific JSON stream
+    Provider->>CLI: Launch in selected host cwd or project /workspace
+    CLI-->>Provider: Provider-native stream/protocol
     Provider-->>Prompt: Normalized agent events
-    Prompt->>Store: Persist chat events with sequence numbers
-    Prompt-->>UI: Broadcast text, reasoning, tools, session, usage
-    Hub-->>UI: sync running=false
+    Prompt->>Hub: Emit normalized chat events
+    Hub->>Store: Persist events with sequence numbers
+    Hub-->>WS: Broadcast persisted events
+    WS-->>UI: Render text, reasoning, tools, session, usage
+    Prompt->>Hub: Finish run
+    Hub-->>WS: Broadcast sync running=false
+    WS-->>UI: sync running=false
 ```
 
 Only one prompt may run in a chat while the current backend process owns its in-memory lock. A second send is queued in the browser until the run unlocks, or rejected by the server if another client races it. Provider children may survive a backend restart while that lock and cancellation state do not, so the control plane does not yet reattach to an orphaned run.
@@ -56,44 +64,56 @@ Only one prompt may run in a chat while the current backend process owns its in-
 
 ```mermaid
 flowchart LR
-    Request["Provider-neutral run request"] --> Registry["Agent registry"]
-    Registry --> Claude["Claude adapter"]
-    Registry --> Codex["Codex adapter"]
-    Registry --> Kimi["Kimi adapter"]
-    Registry --> Antigravity["Antigravity adapter"]
-    Claude --> ClaudeCLI["Claude Code CLI"]
-    Codex --> CodexCLI["Codex CLI"]
-    Kimi --> KimiCLI["Kimi Code CLI"]
-    Antigravity --> AntigravityCLI["agy print mode"]
-    ClaudeCLI --> Normalize["Normalized agent events"]
-    CodexCLI --> Normalize
-    KimiCLI --> Normalize
-    AntigravityCLI --> Normalize
+    Request["Provider-neutral run request"] --> Runtime["module.Runtime"]
+    Runtime --> Provider["Selected integration/agents adapter"]
+    Provider -->|project chat| Prep["Factory-owned ProjectPreparer"]
+    Prep -->|prepared target + secrets| Provider
+    Provider -->|project chat| Cmd["runtime.BuildContainerCommand"]
+    Provider -->|loose chat| HostCmd["Provider-native host command/protocol"]
+    Cmd --> ContainerCmd["Provider-native container command/protocol"]
+    HostCmd --> CLI["Claude, Codex, Kimi, or agy CLI"]
+    ContainerCmd --> CLI
+    CLI --> Provider
+    Provider --> Normalize["Normalized agent events"]
     Normalize --> ChatEvents["Persisted chat event stream"]
 ```
 
-The run request contains the prompt, working directory, model, mode, prior provider session ID, fork flag, project ID, reasoning effort, service tier, and browser enablement.
+The run request contains the prompt, working directory, model, mode, prior
+provider session ID, fork flag, project ID, reasoning effort, service tier,
+browser and scheduled-tool enablement, and short-lived backend runtime
+environment.
 
 The compiled-in integrations are composed through validated provider-owned
-factories. Each `backend/internal/agent/<id>/factory.go` attaches that
-provider's provisioning `Profile()` and declares the provider-neutral
-extension contract: stable ID and label, default-provider flag, host/project
-execution scopes, authentication mode/instructions and access-gate policy,
-resume/fork support, skill strategy, browser and scheduled-tool support, and
-legacy skill roots. Its build callback creates the runtime provider and
-optional auth binding together from shared dependencies; mutable runtime and
-auth state is fresh for every catalog build. `AuthNone` modules omit the
-binding; all other modes require one. Startup validation rejects inconsistent
-IDs, auth bindings, multiple defaults, project modules without profiles, fork
-without resume, external-auth gate providers, and duplicate or overlapping
-persistent mounts. Registration order is explicit
-and is preserved in provisioning, runtime, authentication, and capability
-views. The built-in catalog only lists provider factory functions; adding an
-integration does not depend on package `init` hooks.
-Every registered function satisfies `module.FactoryBuilder` at compile time.
-Factories receive an agent-owned project execution port; the service
-composition root translates project domain models into that narrow view, so
-provider packages do not depend on project-service types.
+factories. Each `backend/internal/integration/agents/<id>/factory.go` attaches
+the provider's provisioning `Profile()` separately from its public descriptor
+and declares the provider-neutral extension contract: stable ID and label,
+default-provider flag, host/project execution scopes, authentication
+mode/instructions and access-gate policy, resume/fork support, skill strategy,
+browser and scheduled-tool support, legacy skill roots, and the few
+project-preparation differences it needs.
+
+`Catalog.Build` receives application-facing `BuildDependencies` containing the
+project resolver, full container ports, and global credential-sync timeout.
+For every project-scoped module, `module.Factory` constructs the shared
+`ProjectPreparer` from the exact validated profile and its
+`ProjectPreparationPolicy`. It then invokes the provider build callback with
+only that preparer, the optional post-run `CredentialCollector`, the sync
+timeout, and an independent validated profile clone. Those callback
+dependencies do not expose project-service models or the full container port
+set. Current adapters use the shared preparer; direct project-service imports
+or copied CLI/workspace/browser/lifecycle orchestration would violate the
+integration contract. The callback creates the runtime provider and optional
+auth binding; mutable runtime and auth state is fresh for every catalog build.
+
+`AuthNone` modules omit the binding; all other modes require one. Startup
+validation rejects inconsistent IDs, auth bindings, multiple defaults, project
+modules without profiles, invalid preparation policy, fork without resume,
+external-auth gate providers, and duplicate or overlapping persistent mounts.
+Registration order is explicit in `internal/config/agents.go` and is preserved
+in provisioning, runtime, authentication, and capability views.
+`Catalog.Build` exposes those live views through one `module.Runtime`; adding
+an integration does not depend on package `init` hooks. Every registered
+function satisfies `module.FactoryBuilder` at compile time.
 Authenticated service startup also requires at least one managed or no-auth
 module marked as an access-gate provider, so onboarding cannot deadlock behind
 a catalog that has no observable way to become ready.
@@ -103,8 +123,8 @@ policy, credential synchronization, persistent directories,
 shared instruction destination, workspace-skill compatibility links, and any
 browser MCP templates. The built-ins define their module and provisioning
 policy in protected provider-local `factory*.go`, `profile*.go`, `install*.go`,
-`provisioning*.go`, and `assets/` paths. Changes there require a minor/major
-full-infrastructure release.
+`provisioning*.go`, and `assets/` paths under `internal/integration/agents`.
+Changes there require a minor/major full-infrastructure release.
 
 Execution scope is enforced at the service boundary. `host` permits loose-chat
 execution and host capability discovery; `project` permits project chats,
@@ -135,9 +155,9 @@ native Default and Plan modes:
 The selector is hidden when Default is the provider's only available mode.
 Codex modes are sent through app-server collaboration modes. Claude and
 Antigravity receive their native Plan CLI flag. Kimi currently advertises Plan
-from CLI help, but Kimi Code 0.38.0 rejects `--plan` together with the prompt
-mode Remote requires; Kimi runs must use Default until that integration is
-changed.
+from CLI help, but the currently pinned Kimi CLI rejects `--plan` together with
+the prompt mode Remote requires; Kimi runs must use Default until that
+integration is changed.
 
 Model, reasoning, and speed controls are stored per chat. The user's last
 selection also becomes the default for new chats. Codex forwards service tiers
@@ -198,8 +218,8 @@ Discovery and launch support are not identical for every provider. Kimi's
 per-model effort metadata is returned to the frontend, but the current Kimi run
 adapter does not forward a selected Thinking value. It relies on the chosen
 Kimi model/configuration default. Its advertised Plan choice is also
-incompatible with Remote's required prompt mode in Kimi Code 0.38.0, as noted
-above.
+incompatible with Remote's required prompt mode in the currently pinned Kimi
+CLI, as noted above.
 
 ### Capability cache and refresh
 
@@ -229,15 +249,17 @@ scope mounts, keeps the previous response visible during a request, and
 coalesces duplicate requests in that page. This browser state does not set the
 catalog TTL and disappears on reload.
 
-The composer **Refresh models** action uses `refresh=1`. A detected managed
-provider authentication change requests a refresh for the scopes currently
-open in that browser, and using the sidebar's project **Start** action requests
-one for that project. The Project workspaces Start/Restart actions do not
-invalidate this cache. The project probe still sees the credentials and
-configuration currently present inside the container; credential propagation
-performed later during a run has no follow-up invalidation. A login performed
-manually in a project terminal, including Antigravity login, is not observable
-by the frontend; use **Refresh models** afterward.
+The composer **Refresh models** action uses `refresh=1`. A managed provider's
+authenticated flag changing, or a login reaching completed with a new start
+revision, requests a refresh for the scopes currently open in that browser;
+intermediate login-status changes do not. Using the sidebar's project **Start**
+action requests one for that project. The Project workspaces Start/Restart
+actions do not invalidate this cache. The project probe still sees the
+credentials and configuration currently present inside the container;
+credential propagation performed later during a run has no follow-up
+invalidation. A login performed manually in a project terminal, including
+Antigravity login, is not observable by the frontend; use **Refresh models**
+afterward.
 
 For loose chats, the Antigravity adapter probes host `agy` state. Remote has no
 host Antigravity sign-in UI, and a loose chat has no project Terminal, so the
@@ -335,9 +357,10 @@ Rewind clears provider session IDs. On the next run, the backend converts remain
 - Prompt service: [`backend/internal/service/prompt/service.go`](../../backend/internal/service/prompt/service.go)
 - Run hub: [`backend/internal/service/runhub/hub.go`](../../backend/internal/service/runhub/hub.go)
 - Agent model: [`backend/internal/agent/model.go`](../../backend/internal/agent/model.go)
-- Agent module contract: [`backend/internal/agent/module/`](../../backend/internal/agent/module/)
-- Agent authentication contract: [`backend/internal/agent/auth/`](../../backend/internal/agent/auth/)
-- Built-in composition root: [`backend/internal/agent/builtin/`](../../backend/internal/agent/builtin/)
-- Provider-owned factories: [`backend/internal/agent/`](../../backend/internal/agent/)
-- Capability catalog: [`backend/internal/service/agentcatalog/catalog.go`](../../backend/internal/service/agentcatalog/catalog.go)
+- Agent module contract and runtime: [`backend/internal/service/agent/module/`](../../backend/internal/service/agent/module/)
+- Agent authentication: [`backend/internal/service/agent/auth/`](../../backend/internal/service/agent/auth/)
+- Agent composition root: [`backend/internal/config/agents.go`](../../backend/internal/config/agents.go)
+- Provider-owned adapters and factories: [`backend/internal/integration/agents/`](../../backend/internal/integration/agents/)
+- Project-run preparation: [`backend/internal/service/agent/execution/`](../../backend/internal/service/agent/execution/)
+- Capability catalog: [`backend/internal/service/agent/capability/`](../../backend/internal/service/agent/capability/)
 - Frontend chat hook: [`frontend/src/state/hooks/chat/useChat.ts`](../../frontend/src/state/hooks/chat/useChat.ts)

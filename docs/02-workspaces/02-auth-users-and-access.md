@@ -176,9 +176,9 @@ sequenceDiagram
 
 - Frontend gate: [`frontend/src/app/containers/AuthGate.tsx`](../../frontend/src/app/containers/AuthGate.tsx)
 - Frontend agent-auth registry: [`frontend/src/state/hooks/auth/useAgentAuthRegistry.ts`](../../frontend/src/state/hooks/auth/useAgentAuthRegistry.ts)
-- Agent module contract: [`backend/internal/agent/module/`](../../backend/internal/agent/module/)
-- Agent authentication contract: [`backend/internal/agent/auth/`](../../backend/internal/agent/auth/)
-- Built-in agent registry: [`backend/internal/agent/builtin/`](../../backend/internal/agent/builtin/)
+- Agent module contract and runtime: [`backend/internal/service/agent/module/`](../../backend/internal/service/agent/module/)
+- Agent authentication bindings and lifecycle: [`backend/internal/service/agent/auth/`](../../backend/internal/service/agent/auth/)
+- Agent composition root: [`backend/internal/config/agents.go`](../../backend/internal/config/agents.go)
 - Agent-auth handler: [`backend/internal/transport/http/handlers/agent_auth_handler.go`](../../backend/internal/transport/http/handlers/agent_auth_handler.go)
 - Auth middleware: [`backend/internal/transport/http/middleware/auth.go`](../../backend/internal/transport/http/middleware/auth.go)
 - Auth service: [`backend/internal/service/auth/service.go`](../../backend/internal/service/auth/service.go)

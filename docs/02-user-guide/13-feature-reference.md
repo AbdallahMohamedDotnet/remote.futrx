@@ -82,7 +82,7 @@ There is no approval workflow in the current chat transport. Project agents run 
 | Model picker | Live `/model` list with attempted version resolution | Live paginated app-server list | Configured models from the provider catalog | Models/variants returned by signed-in `agy` |
 | Thinking control | Forwarded | Forwarded | Displayed/stored per model, not yet forwarded | Forwarded as Auto, Low, Medium, or High |
 | Speed/service tier | Fast for Auto and Opus | Yes | No | No |
-| Plan mode | Declared native mode | Discovered app-server mode | Advertised but incompatible with Remote prompt mode in Kimi 0.38.0 | Discovered native mode |
+| Plan mode | Declared native mode | Discovered app-server mode | Advertised but incompatible with Remote prompt mode in the currently pinned Kimi CLI | Discovered native mode |
 | Usage telemetry | Yes | Yes | No | No |
 | Provider session fork | Yes | Yes, native app-server fork | No; starts fresh | No; starts fresh |
 | Selected skill trigger | Slash command | Dollar mention | Canonical `SKILL.md` instruction | Canonical `SKILL.md` instruction |

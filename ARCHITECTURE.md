@@ -115,58 +115,92 @@ sequenceDiagram
     participant SPA as Preact SPA
     participant WS as /ws/chat/{id}
     participant Prompt as prompt.Service
-    participant Life as container lifecycle
+    participant Runtime as module.Runtime
+    participant Provider as agent.Provider
+    participant Prep as execution.Preparer
+    participant Cmd as integration/agents/runtime
+    participant Projects as agent.ProjectResolver
     participant LXD as LXD container
     participant CLI as Agent CLI
 
     User->>SPA: Type prompt, send
     SPA->>WS: {type:"prompt", text}
     WS->>Prompt: StartPrompt (single run per chat)
-    Prompt->>Life: ensure container running
-    Life->>LXD: lxc start / reconcile mounts
-    Prompt->>LXD: push credentials, skills, instructions
-    Prompt->>CLI: lxc exec selected provider CLI (root, skip-permissions)
-    CLI-->>Prompt: provider JSONL stream
+    Prompt->>Runtime: validate scope + lookup provider
+    Prompt->>Provider: Run(provider-neutral request)
+    opt Project chat
+        Provider->>Prep: Prepare(project + selected features)
+        Prep->>Projects: resolve + start/reconcile
+        Projects->>LXD: enforce lifecycle
+        Prep->>LXD: provision CLI, credentials, and assets
+        Prep->>Projects: load project secrets
+        Prep-->>Provider: prepared container target
+        Provider->>Cmd: build common lxc exec envelope
+    end
+    Provider->>CLI: execute native host/container command
+    CLI-->>Provider: provider-native stream/protocol
+    Provider-->>Prompt: normalized agent events
     Prompt-->>WS: normalized events (persisted to JSONL, broadcast)
     WS-->>SPA: live text / reasoning / tool calls / usage
-    Prompt->>LXD: on success, sync refreshed credentials back to host
+    opt Successful project run with managed credentials
+        Provider->>LXD: best-effort credential sync to host
+    end
 ```
 
 The run hub ([`service/runhub/hub.go`](backend/internal/service/runhub/hub.go))
 enforces **one run per chat**, persists every event through the chat repository,
 and replays history to reconnecting subscribers by sequence number. Provider
-adapters ([`agent/claude`](backend/internal/agent/claude),
-[`agent/codex`](backend/internal/agent/codex),
-[`agent/kimi`](backend/internal/agent/kimi), and
-[`agent/antigravity`](backend/internal/agent/antigravity)) normalize each
+adapters ([`integration/agents/claude`](backend/internal/integration/agents/claude),
+[`integration/agents/codex`](backend/internal/integration/agents/codex),
+[`integration/agents/kimi`](backend/internal/integration/agents/kimi), and
+[`integration/agents/antigravity`](backend/internal/integration/agents/antigravity)) normalize each
 CLI's available output into a shared event stream. Antigravity print mode
 provides plain streamed text rather than structured tool/usage events.
 
-Agent composition uses a validated provider-owned factory contract
-([`agent/module`](backend/internal/agent/module)). Each adapter package exposes
-one `Factory()` from its local `factory.go` and is compile-time checked against
-`module.FactoryBuilder`; that factory declares the provider's stable ID and
-label, explicit default, allowed
-host/project execution scopes, authentication flow and onboarding-gate policy,
-session/skill/browser/scheduling features, legacy skill roots, and optional
-provisioning profile, then builds its runtime adapter and optional
-authentication binding together. `AuthNone` modules omit the binding;
-all other auth modes require one. Project-capable modules must provide a profile; a host-only
+Agent composition uses the validated provider-owned factory contract in
+[`service/agent/module`](backend/internal/service/agent/module). Each adapter
+package exposes one `NewFactory()` from its local `factory.go` and is
+compile-time checked against `module.FactoryBuilder`. The factory keeps public
+descriptor metadata separate from its private provisioning profile and
+project-preparation policy. `AuthNone` modules omit the binding; all other auth
+modes require one. Project-capable modules must provide a profile; a host-only
 module may provide one when it runs a locally installed CLI, or omit it for a
-remote integration. Catalog construction rejects duplicate or unsafe IDs,
-multiple defaults, invalid auth/scope/feature combinations, and overlapping
-persistent-state mounts before the server starts. The provider runtime contract itself stays
-narrow: identity, capability discovery, and execution. Provider-specific
-command construction, parsing, credentials, and profile policy remain private
-to the adapter. The built-in composition root
-([`agent/builtin`](backend/internal/agent/builtin)) only lists provider factory
-functions in deterministic order. There is no plugin discovery or package
-`init` registration.
+remote integration.
 
-Provider factories receive only the narrow agent-layer project execution port
-([`agent/project.go`](backend/internal/agent/project.go)). The service
-composition root adapts project domain models into that view, so provider and
-module packages do not import the project service.
+Catalog construction rejects duplicate or unsafe IDs, multiple defaults,
+invalid auth/scope/feature combinations, and overlapping persistent-state
+mounts before the server starts. `Catalog.Build` then returns one
+`module.Runtime` that owns matching provider and authentication registries, so
+consumers cannot combine state built from different catalogs. The provider
+runtime contract itself stays narrow: identity, capability discovery, and
+execution.
+
+Provider-specific commands, protocols, parsers, credentials, capability
+probes, and profiles live in the concrete
+[`integration/agents`](backend/internal/integration/agents) adapters. Neutral
+provider contracts remain in [`agent`](backend/internal/agent), and shared project
+start/provision/secret orchestration lives in
+[`service/agent/execution`](backend/internal/service/agent/execution), while
+[`integration/agents/runtime`](backend/internal/integration/agents/runtime)
+assembles the common process and `lxc exec` command shapes used by those
+adapters. Each provider factory declares its small preparation policy and
+retains native CLI argument and transport ownership.
+
+The explicit composition root in
+[`config/agents.go`](backend/internal/config/agents.go) only lists provider
+`NewFactory` functions in deterministic order. There is no plugin discovery or
+package `init` registration. `service.New` passes application-facing
+`module.BuildDependencies`—the narrow
+[`ProjectResolver`](backend/internal/agent/project.go), full container ports,
+and global credential-sync timeout—to `Catalog.Build`. For every project-scoped
+module, `module.Factory` constructs `execution.Preparer` from a deep clone of
+the validated profile and the provider's `ProjectPreparationPolicy`. It then
+projects only `ProjectPreparer`, `CredentialCollector`, and the sync timeout
+into the provider callback, alongside an independent validated profile clone.
+Those factory dependencies do not expose project-service models or the full
+container port set. Current adapters use the shared preparer; importing project
+services directly or copying its CLI/workspace/browser/lifecycle workflow would
+violate the integration contract.
 
 When application authentication is enabled, service startup additionally
 requires at least one managed or no-auth module that declares
@@ -281,10 +315,16 @@ Deployment is a single-box, root-driven, idempotent-converge model ([deep dive](
   onto a fresh base image. Busy-workspace detection is intended to skip active
   runs but is not currently reliable; use a maintenance window or
   `--skip-workspaces` when interruption is unacceptable.
-- **CI** ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)) deploys on push to `main` by SSHing to the box as root and running the fast build-and-restart path.
+- **CI publishes releases; it does not deploy production.**
+  [`.github/workflows/release-on-tag.yml`](.github/workflows/release-on-tag.yml)
+  creates a GitHub Release for a semantic-version tag after classifying it.
+  Production changes are applied separately by an operator through Remote's
+  updater or `infra/update.sh`.
 - **Version pinning:** every pin — agent CLIs, host toolchain, code-server, Playwright/Chrome-for-Testing — lives in one manifest ([`versions.env`](backend/internal/agent/provisioning/versions.env), symlinked at [`infra/versions.env`](infra/versions.env)), embedded by the backend and sourced by the infra scripts. The Playwright browser archives additionally have sha256 pins backing a vendored fallback ([`vendors/`](vendors/README.md)) for servers geo-blocked by Google's CDN; the remaining upstream fetches (NodeSource, the Go tarball, the code-server `.deb`, the Ubuntu base image) are version-pinned but not checksum- or signature-verified.
 
-The security consequences of the root-on-push deploy chain and the unverified fetches are covered in the [threat model](docs/threat-model.md).
+The security consequences of applying unsigned update refs as root and of
+unverified upstream fetches are covered in the
+[threat model](docs/threat-model.md).
 
 ## Trust boundaries at a glance
 
@@ -294,12 +334,15 @@ These are the boundaries the [threat model](docs/threat-model.md) reasons about:
 2. **Registered user → other users' projects.** Enforced per-resource in handlers and at `forward_auth` — but unevenly (dev previews check membership; the IDE host class does not).
 3. **Container → host, and container → sibling container.** Unprivileged LXC namespaces plus resource caps are the boundary; the shared bridge and in-container `auth: none` services are the soft spots.
 4. **Agent → everything it can reach.** The agent runs as root inside its container (or on the host for loose chats) with safety rails off, so any content it ingests (web pages, files, attachments) is a potential injection vector.
-5. **Host → upstreams.** The installer, updater, base-image build, and CI all pull code from GitHub and package registries as root.
+5. **Host → upstreams.** The root-run installer, updater, and base-image build
+   pull code and packages from GitHub and external registries; release CI is a
+   separate publication path and does not deploy the host.
 
 ## Where to read next
 
 - [`docs/01-overview/`](docs/01-overview/) — system overview and the code map
 - [`docs/02-workspaces/`](docs/02-workspaces/) — auth, projects/containers, chat/agents, workspace tools
+- [`docs/dev/agents/`](docs/dev/agents/) — agent module contracts and the complete extension guide
 - [`docs/03-platform/`](docs/03-platform/) — previews & browser, data & frontend state, API & realtime
 - [`docs/04-operations/`](docs/04-operations/) — deployment and operations
 - [Threat model](docs/threat-model.md) · [Known limitations](docs/known-limitations.md)

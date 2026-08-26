@@ -126,7 +126,7 @@ its native Plan collaboration instructions.
 Changing **Mode** while a run is already active affects a later prompt, not the
 provider process that is currently producing output.
 
-Do not select Plan for Kimi in this version. Kimi Code 0.38.0 advertises
+Do not select Plan for Kimi in the currently pinned release. Its CLI advertises
 `--plan` in help but rejects it together with the non-interactive prompt mode
 Remote uses, so that combination fails before a run begins.
 

@@ -57,8 +57,8 @@ type ContainerLifecycle interface {
 }
 
 // ContainerDependencies groups the focused ports used by shared agent project
-// preparation. A zero value disables container preparation for host-only runs
-// and focused tests.
+// preparation. A zero value lets focused/test composition reconcile a project
+// while skipping the container-provisioning phase.
 type ContainerDependencies struct {
 	CLI           CLIProvisioner
 	Credentials   CredentialSynchronizer
@@ -78,9 +78,9 @@ func (d ContainerDependencies) IsZero() bool {
 		d.Lifecycle == nil
 }
 
-// Validate accepts either the zero value used by host-only providers or a
-// complete set of container ports. Partial wiring is rejected before an agent
-// preparation workflow can dereference a missing collaborator.
+// Validate accepts either that zero value or a complete set of container ports.
+// Partial wiring is rejected before a preparation workflow can dereference a
+// missing collaborator.
 func (d ContainerDependencies) Validate() error {
 	if d.IsZero() {
 		return nil
