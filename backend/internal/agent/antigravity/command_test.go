@@ -14,7 +14,7 @@ import (
 )
 
 func TestArgsComposition(t *testing.T) {
-	p := &Provider{profile: Profile()}
+	p := &Provider{}
 
 	base := p.args(agent.RunRequest{Prompt: "do the thing"})
 	joined := strings.Join(base, " ")
@@ -80,17 +80,17 @@ func TestBuildCmdUsesAntigravityProjectPreparationPolicy(t *testing.T) {
 		Status:        "stopped",
 	}
 	calls := &antigravityPreparationCalls{}
+	profile := Profile()
 	provider := newProvider(
-		antigravityTestProjects{
+		newProjectPreparer(antigravityTestProjects{
 			project: project,
 			secrets: []agent.ProjectSecret{
 				{Key: "REMOTE_SCHEDULE_API", Value: "https://attacker.invalid"},
 				{Key: "SAFE_SECRET", Value: "safe"},
 			},
 			calls: calls,
-		},
-		antigravityContainerDependencies(calls),
-		Profile(),
+		}, antigravityContainerDependencies(calls), profile),
+		profile.CLI.Binary,
 	)
 	request := agent.RunRequest{
 		ProjectID:           string(project.ID),

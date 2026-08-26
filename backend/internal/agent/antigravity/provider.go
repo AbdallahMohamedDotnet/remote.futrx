@@ -13,23 +13,17 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
 const signInHint = "antigravity is not signed in — open this chat's Terminal, run `agy`, and complete the sign-in URL + code flow, then retry"
 
 type Provider struct {
-	projects      agent.ProjectResolver
-	containerDeps provisioning.ContainerDependencies
-	profile       provisioning.Profile
+	projectPreparer agent.ProjectPreparer
+	binary          string
 }
 
-func newProvider(
-	projects agent.ProjectResolver,
-	containerDeps provisioning.ContainerDependencies,
-	profile provisioning.Profile,
-) *Provider {
-	return &Provider{projects: projects, containerDeps: containerDeps, profile: profile.Clone()}
+func newProvider(projectPreparer agent.ProjectPreparer, binary string) *Provider {
+	return &Provider{projectPreparer: projectPreparer, binary: binary}
 }
 
 func (p *Provider) ID() agent.ProviderID {
