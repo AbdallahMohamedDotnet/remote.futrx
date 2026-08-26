@@ -23,8 +23,7 @@ func Factory() (agentmodule.Factory, error) {
 			Skills:         agentmodule.SkillsInstructions,
 			ScheduledTools: true,
 		},
-		Profile: &profile,
-	}, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
+	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
 		binding := agentauth.NewExternalBinding(agent.ProviderAntigravity)
 		return agentmodule.Components{
 			Provider: newWithProfile(deps.Projects, deps.Containers, *validatedProfile),

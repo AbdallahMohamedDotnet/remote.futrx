@@ -52,8 +52,9 @@ func TestCatalogBuildsFakeFifthAgentWithoutProviderSwitches(t *testing.T) {
 
 func TestFactoryBuildReceivesValidatedProfileSnapshot(t *testing.T) {
 	descriptor := testDescriptor("future-agent")
+	profile := testProfile(descriptor.ID)
 	var received *provisioning.Profile
-	factory, err := NewFactory(descriptor, func(_ Dependencies, profile *provisioning.Profile) (Components, error) {
+	factory, err := NewFactory(descriptor, &profile, func(_ Dependencies, profile *provisioning.Profile) (Components, error) {
 		received = profile
 		binding := agentauth.NewExternalBinding(descriptor.ID)
 		return Components{Provider: testProvider{id: descriptor.ID}, Auth: &binding}, nil
@@ -62,7 +63,7 @@ func TestFactoryBuildReceivesValidatedProfileSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	descriptor.Profile.CLI.Binary = "changed-after-registration"
+	profile.CLI.Binary = "changed-after-registration"
 	catalog, err := NewCatalog(factory)
 	if err != nil {
 		t.Fatal(err)
@@ -81,6 +82,7 @@ func TestFactoryBuildReceivesValidatedProfileSnapshot(t *testing.T) {
 
 func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
 	valid := testDescriptor("future-agent")
+	validProfile := testProfile(valid.ID)
 	tests := map[string]Descriptor{
 		"empty ID": func() Descriptor {
 			descriptor := cloneDescriptor(valid)
@@ -124,87 +126,71 @@ func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
 			descriptor.ExecutionScopes = []ExecutionScope{ScopeProject, ScopeProject}
 			return descriptor
 		}(),
-		"profile mismatch": func() Descriptor {
-			descriptor := cloneDescriptor(valid)
-			descriptor.Profile.ID = "other"
-			return descriptor
-		}(),
-		"incomplete CLI": func() Descriptor {
-			descriptor := cloneDescriptor(valid)
-			descriptor.Profile.CLI.Binary = ""
-			return descriptor
-		}(),
-		"invalid CLI version": func() Descriptor {
-			descriptor := cloneDescriptor(valid)
-			descriptor.Profile.CLI.Version = "latest"
-			return descriptor
-		}(),
-		"zero CLI install timeout": func() Descriptor {
-			descriptor := cloneDescriptor(valid)
-			descriptor.Profile.CLI.InstallTimeout = 0
-			return descriptor
-		}(),
-		"negative CLI wait timeout": func() Descriptor {
-			descriptor := cloneDescriptor(valid)
-			descriptor.Profile.CLI.WaitTimeout = -time.Second
-			return descriptor
-		}(),
-		"checked CLI without version command": func() Descriptor {
-			descriptor := cloneDescriptor(valid)
-			descriptor.Profile.CLI.VersionArgs = nil
-			return descriptor
-		}(),
-		"project CLI without image label": func() Descriptor {
-			descriptor := cloneDescriptor(valid)
-			descriptor.Profile.CLI.ImageLabel = ""
-			return descriptor
-		}(),
 		"fork without resume": func() Descriptor {
 			descriptor := cloneDescriptor(valid)
 			descriptor.Features.Sessions = SessionSupport{Fork: true}
 			return descriptor
 		}(),
-		"unsafe persistent host": func() Descriptor {
-			descriptor := cloneDescriptor(valid)
-			descriptor.Profile.PersistentState = []provisioning.PersistentDirectory{{
-				Device: "future-home", HostDirectory: "../future", ContainerPath: "/root/.future",
-			}}
-			return descriptor
-		}(),
-		"relative persistent target": func() Descriptor {
-			descriptor := cloneDescriptor(valid)
-			descriptor.Profile.PersistentState = []provisioning.PersistentDirectory{{
-				Device: "future-home", HostDirectory: "future", ContainerPath: "root/.future",
-			}}
-			return descriptor
-		}(),
 	}
 	for name, descriptor := range tests {
 		t.Run(name, func(t *testing.T) {
-			if _, err := NewFactory(descriptor, testBuild(descriptor.ID)); !errors.Is(err, ErrInvalidFactory) {
+			if _, err := NewFactory(descriptor, &validProfile, testBuild(descriptor.ID)); !errors.Is(err, ErrInvalidFactory) {
 				t.Fatalf("NewFactory error = %v, want ErrInvalidFactory", err)
 			}
 		})
 	}
-	if _, err := NewFactory(valid, nil); !errors.Is(err, ErrInvalidFactory) {
+	profileTests := map[string]func(*provisioning.Profile){
+		"profile mismatch":                    func(profile *provisioning.Profile) { profile.ID = "other" },
+		"incomplete CLI":                      func(profile *provisioning.Profile) { profile.CLI.Binary = "" },
+		"invalid CLI version":                 func(profile *provisioning.Profile) { profile.CLI.Version = "latest" },
+		"zero CLI install timeout":            func(profile *provisioning.Profile) { profile.CLI.InstallTimeout = 0 },
+		"negative CLI wait timeout":           func(profile *provisioning.Profile) { profile.CLI.WaitTimeout = -time.Second },
+		"checked CLI without version command": func(profile *provisioning.Profile) { profile.CLI.VersionArgs = nil },
+		"project CLI without image label":     func(profile *provisioning.Profile) { profile.CLI.ImageLabel = "" },
+		"unsafe persistent host": func(profile *provisioning.Profile) {
+			profile.PersistentState = []provisioning.PersistentDirectory{{
+				Device: "future-home", HostDirectory: "../future", ContainerPath: "/root/.future",
+			}}
+		},
+		"relative persistent target": func(profile *provisioning.Profile) {
+			profile.PersistentState = []provisioning.PersistentDirectory{{
+				Device: "future-home", HostDirectory: "future", ContainerPath: "root/.future",
+			}}
+		},
+	}
+	for name, mutate := range profileTests {
+		t.Run(name, func(t *testing.T) {
+			profile := validProfile.Clone()
+			mutate(&profile)
+			if _, err := NewFactory(valid, &profile, testBuild(valid.ID)); !errors.Is(err, ErrInvalidFactory) {
+				t.Fatalf("NewFactory error = %v, want ErrInvalidFactory", err)
+			}
+		})
+	}
+	if _, err := NewFactory(valid, nil, testBuild(valid.ID)); !errors.Is(err, ErrInvalidFactory) {
+		t.Fatalf("missing project profile error = %v, want ErrInvalidFactory", err)
+	}
+	if _, err := NewFactory(valid, &validProfile, nil); !errors.Is(err, ErrInvalidFactory) {
 		t.Fatalf("nil builder error = %v, want ErrInvalidFactory", err)
 	}
 }
 
 func TestCatalogRejectsPersistentStateCollisions(t *testing.T) {
 	first := testDescriptor("first-agent")
-	first.Profile.PersistentState = []provisioning.PersistentDirectory{{
+	firstProfile := testProfile(first.ID)
+	firstProfile.PersistentState = []provisioning.PersistentDirectory{{
 		Device: "shared-home", HostDirectory: "first", ContainerPath: "/root/.first",
 	}}
 	second := testDescriptor("second-agent")
-	second.Profile.PersistentState = []provisioning.PersistentDirectory{{
+	secondProfile := testProfile(second.ID)
+	secondProfile.PersistentState = []provisioning.PersistentDirectory{{
 		Device: "shared-home", HostDirectory: "second", ContainerPath: "/root/.second",
 	}}
-	firstFactory, err := NewFactory(first, testBuild(first.ID))
+	firstFactory, err := NewFactory(first, &firstProfile, testBuild(first.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondFactory, err := NewFactory(second, testBuild(second.ID))
+	secondFactory, err := NewFactory(second, &secondProfile, testBuild(second.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,11 +211,13 @@ func TestCatalogRejectsMultipleDefaultProviders(t *testing.T) {
 	first.Default = true
 	second := testDescriptor("second-agent")
 	second.Default = true
-	firstFactory, err := NewFactory(first, testBuild(first.ID))
+	firstProfile := testProfile(first.ID)
+	firstFactory, err := NewFactory(first, &firstProfile, testBuild(first.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondFactory, err := NewFactory(second, testBuild(second.ID))
+	secondProfile := testProfile(second.ID)
+	secondFactory, err := NewFactory(second, &secondProfile, testBuild(second.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +246,9 @@ func TestFactoryRejectsRuntimeIdentityAndAuthMismatches(t *testing.T) {
 	}
 	for name, build := range tests {
 		t.Run(name, func(t *testing.T) {
-			factory, err := NewFactory(testDescriptor("future-agent"), build)
+			descriptor := testDescriptor("future-agent")
+			profile := testProfile(descriptor.ID)
+			factory, err := NewFactory(descriptor, &profile, build)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -277,7 +267,8 @@ func TestFactoryRejectsUnavailableManagedAuth(t *testing.T) {
 	descriptor := testDescriptor("future-agent")
 	descriptor.Auth = AuthManagedCode
 	descriptor.AuthInstructions = "Complete the code flow."
-	factory, err := NewFactory(descriptor, func(Dependencies, *provisioning.Profile) (Components, error) {
+	profile := testProfile(descriptor.ID)
+	factory, err := NewFactory(descriptor, &profile, func(Dependencies, *provisioning.Profile) (Components, error) {
 		binding := agentauth.NewCodeBinding("future-agent", nil)
 		return Components{Provider: testProvider{id: "future-agent"}, Auth: &binding}, nil
 	})
@@ -300,7 +291,8 @@ func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
 	managed.Auth = AuthManagedDevice
 	managed.AuthInstructions = "Complete the device flow."
 	managed.SatisfiesAccessGate = true
-	managedFactory, err := NewFactory(managed, func(Dependencies, *provisioning.Profile) (Components, error) {
+	managedProfile := testProfile(managed.ID)
+	managedFactory, err := NewFactory(managed, &managedProfile, func(Dependencies, *provisioning.Profile) (Components, error) {
 		service := agentauth.NewDeviceService(agentauth.DeviceConfig[bindingTestAuthStatus]{
 			Authenticated: func() bool { return authenticated },
 			BuildStatus: func() agentauth.DeviceStatusBuilder[bindingTestAuthStatus] {
@@ -339,7 +331,8 @@ func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
 	noAuth.Auth = AuthNone
 	noAuth.AuthInstructions = ""
 	noAuth.SatisfiesAccessGate = true
-	noAuthFactory, err := NewFactory(noAuth, func(Dependencies, *provisioning.Profile) (Components, error) {
+	noAuthProfile := testProfile(noAuth.ID)
+	noAuthFactory, err := NewFactory(noAuth, &noAuthProfile, func(Dependencies, *provisioning.Profile) (Components, error) {
 		return Components{Provider: testProvider{id: noAuth.ID}}, nil
 	})
 	if err != nil {
@@ -375,12 +368,13 @@ type bindingTestAuthStatus struct {
 func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	firstDescriptor := testDescriptor("first-agent")
 	firstDescriptor.LegacySkillRoots = []string{"/root/.first/skills"}
-	firstDescriptor.Profile.Credentials.Files = []provisioning.CredentialFile{{HostPath: "original"}}
-	firstDescriptor.Profile.PersistentState = []provisioning.PersistentDirectory{{
+	firstProfile := testProfile(firstDescriptor.ID)
+	firstProfile.Credentials.Files = []provisioning.CredentialFile{{HostPath: "original"}}
+	firstProfile.PersistentState = []provisioning.PersistentDirectory{{
 		Device: "first-home", HostDirectory: "first", ContainerPath: "/root/.first",
 	}}
-	firstDescriptor.Profile.BrowserMCPTemplates = []provisioning.TemplateFile{{Content: []byte("original")}}
-	firstFactory, err := NewFactory(firstDescriptor, testBuild(firstDescriptor.ID))
+	firstProfile.BrowserMCPTemplates = []provisioning.TemplateFile{{Content: []byte("original")}}
+	firstFactory, err := NewFactory(firstDescriptor, &firstProfile, testBuild(firstDescriptor.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,9 +386,9 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 
 	firstDescriptor.ExecutionScopes[0] = "changed"
 	firstDescriptor.LegacySkillRoots[0] = "/changed"
-	firstDescriptor.Profile.Credentials.Files[0].HostPath = "changed"
-	firstDescriptor.Profile.PersistentState[0].ContainerPath = "/changed"
-	firstDescriptor.Profile.BrowserMCPTemplates[0].Content[0] = 'x'
+	firstProfile.Credentials.Files[0].HostPath = "changed"
+	firstProfile.PersistentState[0].ContainerPath = "/changed"
+	firstProfile.BrowserMCPTemplates[0].Content[0] = 'x'
 
 	descriptors := catalog.Descriptors()
 	if got := []agent.ProviderID{descriptors[0].ID, descriptors[1].ID}; !slices.Equal(got, []agent.ProviderID{"first-agent", "second-agent"}) {
@@ -402,18 +396,17 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	}
 	descriptors[0].ExecutionScopes[0] = "changed-again"
 	descriptors[0].LegacySkillRoots[0] = "/changed-again"
-	descriptors[0].Profile.Credentials.Files[0].HostPath = "changed-again"
-	descriptors[0].Profile.PersistentState[0].ContainerPath = "/changed-again"
-	descriptors[0].Profile.BrowserMCPTemplates[0].Content[0] = 'y'
 
 	fresh := catalog.Descriptors()[0]
-	if fresh.ExecutionScopes[0] != ScopeHost || fresh.LegacySkillRoots[0] != "/root/.first/skills" ||
-		fresh.Profile.Credentials.Files[0].HostPath != "original" ||
-		fresh.Profile.PersistentState[0].ContainerPath != "/root/.first" ||
-		string(fresh.Profile.BrowserMCPTemplates[0].Content) != "original" {
+	if fresh.ExecutionScopes[0] != ScopeHost || fresh.LegacySkillRoots[0] != "/root/.first/skills" {
 		t.Fatalf("catalog descriptor mutated through a snapshot: %#v", fresh)
 	}
 	profiles := catalog.Profiles()
+	if profiles[0].Credentials.Files[0].HostPath != "original" ||
+		profiles[0].PersistentState[0].ContainerPath != "/root/.first" ||
+		string(profiles[0].BrowserMCPTemplates[0].Content) != "original" {
+		t.Fatalf("catalog profile mutated before snapshot: %#v", profiles[0])
+	}
 	profiles[0].Credentials.Files[0].HostPath = "profile-change"
 	if got := catalog.Profiles()[0].Credentials.Files[0].HostPath; got != "original" {
 		t.Fatalf("catalog profile mutated through a snapshot: %q", got)
@@ -423,14 +416,14 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 func TestCatalogEnforcesDeclaredExecutionScopes(t *testing.T) {
 	host := testDescriptor("host-agent")
 	host.ExecutionScopes = []ExecutionScope{ScopeHost}
-	host.Profile = nil
 	project := testDescriptor("project-agent")
 	project.ExecutionScopes = []ExecutionScope{ScopeProject}
-	hostFactory, err := NewFactory(host, testBuild(host.ID))
+	hostFactory, err := NewFactory(host, nil, testBuild(host.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectFactory, err := NewFactory(project, testBuild(project.ID))
+	projectProfile := testProfile(project.ID)
+	projectFactory, err := NewFactory(project, &projectProfile, testBuild(project.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -449,20 +442,30 @@ func TestCatalogEnforcesDeclaredExecutionScopes(t *testing.T) {
 func TestCatalogSeparatesHostAndProjectProvisioningProfiles(t *testing.T) {
 	hostOnly := testDescriptor("host-agent")
 	hostOnly.ExecutionScopes = []ExecutionScope{ScopeHost}
-	hostOnly.Profile.CLI.ImageLabel = ""
+	hostProfile := testProfile(hostOnly.ID)
+	hostProfile.CLI.ImageLabel = ""
 	projectOnly := testDescriptor("project-agent")
 	projectOnly.ExecutionScopes = []ExecutionScope{ScopeProject}
+	projectProfile := testProfile(projectOnly.ID)
 	both := testDescriptor("both-agent")
+	bothProfile := testProfile(both.ID)
 	remoteHost := testDescriptor("remote-host-agent")
 	remoteHost.ExecutionScopes = []ExecutionScope{ScopeHost}
-	remoteHost.Profile = nil
 
-	descriptors := []Descriptor{hostOnly, projectOnly, both, remoteHost}
-	factories := make([]Factory, 0, len(descriptors))
-	for _, descriptor := range descriptors {
-		factory, err := NewFactory(descriptor, testBuild(descriptor.ID))
+	definitions := []struct {
+		descriptor Descriptor
+		profile    *provisioning.Profile
+	}{
+		{hostOnly, &hostProfile},
+		{projectOnly, &projectProfile},
+		{both, &bothProfile},
+		{remoteHost, nil},
+	}
+	factories := make([]Factory, 0, len(definitions))
+	for _, definition := range definitions {
+		factory, err := NewFactory(definition.descriptor, definition.profile, testBuild(definition.descriptor.ID))
 		if err != nil {
-			t.Fatalf("NewFactory(%q): %v", descriptor.ID, err)
+			t.Fatalf("NewFactory(%q): %v", definition.descriptor.ID, err)
 		}
 		factories = append(factories, factory)
 	}
@@ -488,7 +491,9 @@ func TestCatalogSeparatesHostAndProjectProvisioningProfiles(t *testing.T) {
 
 func newTestFactory(t *testing.T, id agent.ProviderID) Factory {
 	t.Helper()
-	factory, err := NewFactory(testDescriptor(id), testBuild(id))
+	descriptor := testDescriptor(id)
+	profile := testProfile(id)
+	factory, err := NewFactory(descriptor, &profile, testBuild(id))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -503,7 +508,22 @@ func testBuild(id agent.ProviderID) BuildFunc {
 }
 
 func testDescriptor(id agent.ProviderID) Descriptor {
-	profile := provisioning.Profile{
+	return Descriptor{
+		ID:               id,
+		Label:            strings.ToUpper(string(id[:1])) + string(id[1:]),
+		ExecutionScopes:  []ExecutionScope{ScopeHost, ScopeProject},
+		Auth:             AuthExternal,
+		AuthInstructions: "Run the provider login command.",
+		Features: Features{
+			Sessions:       SessionSupport{Resume: true},
+			Skills:         SkillsInstructions,
+			ScheduledTools: true,
+		},
+	}
+}
+
+func testProfile(id agent.ProviderID) provisioning.Profile {
+	return provisioning.Profile{
 		ID: string(id),
 		CLI: provisioning.CLISpec{
 			Name:           "Future Agent",
@@ -517,18 +537,5 @@ func testDescriptor(id agent.ProviderID) Descriptor {
 			InstallTimeout: time.Minute,
 			WaitTimeout:    time.Minute,
 		},
-	}
-	return Descriptor{
-		ID:               id,
-		Label:            strings.ToUpper(string(id[:1])) + string(id[1:]),
-		ExecutionScopes:  []ExecutionScope{ScopeHost, ScopeProject},
-		Auth:             AuthExternal,
-		AuthInstructions: "Run the provider login command.",
-		Features: Features{
-			Sessions:       SessionSupport{Resume: true},
-			Skills:         SkillsInstructions,
-			ScheduledTools: true,
-		},
-		Profile: &profile,
 	}
 }

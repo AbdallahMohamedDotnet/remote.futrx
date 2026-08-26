@@ -22,14 +22,14 @@ func Factory() (agentmodule.Factory, error) {
 		LegacySkillRoots: []string{
 			"/root/.claude/skills",
 		},
+		WorkspaceSkillHome: profile.WorkspaceSkills.WorkspaceHome,
 		Features: agentmodule.Features{
 			Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
 			Skills:         agentmodule.SkillsSlashCommand,
 			BrowserTools:   true,
 			ScheduledTools: true,
 		},
-		Profile: &profile,
-	}, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
+	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
 		binding := agentauth.NewCodeBinding(agent.ProviderClaude, NewAuth())
 		return agentmodule.Components{
 			Provider: newWithProfile(deps.Projects, deps.Containers, *validatedProfile),

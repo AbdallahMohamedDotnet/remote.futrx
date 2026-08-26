@@ -58,9 +58,9 @@ type Features struct {
 	ScheduledTools bool
 }
 
-// Descriptor is the stable, provider-neutral declaration for one agent. A
-// project-capable module must include a complete provisioning profile; a
-// host-only module may include one when it runs a locally installed CLI.
+// Descriptor is the stable, provider-neutral declaration consumed by runtime
+// policy and presentation. Installation and filesystem policy is deliberately
+// kept in the factory's separate provisioning profile.
 type Descriptor struct {
 	ID                  agent.ProviderID
 	Label               string
@@ -70,8 +70,8 @@ type Descriptor struct {
 	AuthInstructions    string
 	SatisfiesAccessGate bool
 	LegacySkillRoots    []string
+	WorkspaceSkillHome  string
 	Features            Features
-	Profile             *provisioning.Profile
 }
 
 type Dependencies struct {
@@ -100,18 +100,24 @@ type FactoryBuilder func() (Factory, error)
 // cannot be mutated by callers.
 type Factory struct {
 	descriptor Descriptor
+	profile    *provisioning.Profile
 	build      BuildFunc
 }
 
-func NewFactory(descriptor Descriptor, build BuildFunc) (Factory, error) {
+func NewFactory(
+	descriptor Descriptor,
+	profile *provisioning.Profile,
+	build BuildFunc,
+) (Factory, error) {
 	descriptor = cloneDescriptor(descriptor)
-	if err := validateDescriptor(descriptor); err != nil {
+	profile = cloneProfile(profile)
+	if err := validateDescriptor(descriptor, profile); err != nil {
 		return Factory{}, err
 	}
 	if build == nil {
 		return Factory{}, fmt.Errorf("%w: provider %q has no builder", ErrInvalidFactory, descriptor.ID)
 	}
-	return Factory{descriptor: descriptor, build: build}, nil
+	return Factory{descriptor: descriptor, profile: profile, build: build}, nil
 }
 
 func (f Factory) Descriptor() Descriptor {
@@ -123,8 +129,8 @@ func (f Factory) buildComponents(deps Dependencies) (Components, error) {
 		return Components{}, fmt.Errorf("%w: provider %q has no builder", ErrInvalidFactory, f.descriptor.ID)
 	}
 	var profile *provisioning.Profile
-	if f.descriptor.Profile != nil {
-		cloned := f.descriptor.Profile.Clone()
+	if f.profile != nil {
+		cloned := f.profile.Clone()
 		profile = &cloned
 	}
 	components, err := f.build(deps, profile)
@@ -148,7 +154,7 @@ func (f Factory) buildComponents(deps Dependencies) (Components, error) {
 	return components, nil
 }
 
-func validateDescriptor(descriptor Descriptor) error {
+func validateDescriptor(descriptor Descriptor, profile *provisioning.Profile) error {
 	id := string(descriptor.ID)
 	if !agent.ValidProviderID(descriptor.ID) {
 		return fmt.Errorf("%w: provider ID %q is invalid", ErrInvalidFactory, id)
@@ -156,7 +162,7 @@ func validateDescriptor(descriptor Descriptor) error {
 	if strings.TrimSpace(descriptor.Label) == "" {
 		return fmt.Errorf("%w: provider %q has no label", ErrInvalidFactory, descriptor.ID)
 	}
-	if err := validateScopes(descriptor); err != nil {
+	if err := validateScopes(descriptor, profile); err != nil {
 		return err
 	}
 	if err := validateAuthMode(descriptor); err != nil {
@@ -181,7 +187,7 @@ func validateDescriptor(descriptor Descriptor) error {
 	return nil
 }
 
-func validateScopes(descriptor Descriptor) error {
+func validateScopes(descriptor Descriptor, profile *provisioning.Profile) error {
 	if len(descriptor.ExecutionScopes) == 0 {
 		return fmt.Errorf("%w: provider %q has no execution scope", ErrInvalidFactory, descriptor.ID)
 	}
@@ -200,11 +206,11 @@ func validateScopes(descriptor Descriptor) error {
 	if descriptor.Default && !seen[ScopeHost] {
 		return fmt.Errorf("%w: default provider %q does not support host execution", ErrInvalidFactory, descriptor.ID)
 	}
-	if projectScoped && descriptor.Profile == nil {
+	if projectScoped && profile == nil {
 		return fmt.Errorf("%w: project provider %q has no profile", ErrInvalidFactory, descriptor.ID)
 	}
-	if descriptor.Profile != nil {
-		return validateProfile(descriptor.ID, descriptor.Profile, projectScoped)
+	if profile != nil {
+		return validateProfile(descriptor.ID, profile, projectScoped)
 	}
 	return nil
 }
@@ -318,9 +324,13 @@ func validateAuth(descriptor Descriptor, binding *agentauth.Binding) error {
 func cloneDescriptor(descriptor Descriptor) Descriptor {
 	descriptor.ExecutionScopes = append([]ExecutionScope(nil), descriptor.ExecutionScopes...)
 	descriptor.LegacySkillRoots = append([]string(nil), descriptor.LegacySkillRoots...)
-	if descriptor.Profile != nil {
-		profile := descriptor.Profile.Clone()
-		descriptor.Profile = &profile
-	}
 	return descriptor
+}
+
+func cloneProfile(profile *provisioning.Profile) *provisioning.Profile {
+	if profile == nil {
+		return nil
+	}
+	cloned := profile.Clone()
+	return &cloned
 }

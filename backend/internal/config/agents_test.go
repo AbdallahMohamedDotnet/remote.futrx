@@ -15,11 +15,12 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	descriptors := catalog.Descriptors()
+	profiles := catalog.Profiles()
 	ids := make([]agent.ProviderID, len(descriptors))
 	for index, descriptor := range descriptors {
 		ids[index] = descriptor.ID
-		if descriptor.Profile == nil || descriptor.Profile.ID != string(descriptor.ID) {
-			t.Fatalf("descriptor %q has profile %#v", descriptor.ID, descriptor.Profile)
+		if index >= len(profiles) || profiles[index].ID != string(descriptor.ID) {
+			t.Fatalf("descriptor %q has no aligned profile", descriptor.ID)
 		}
 	}
 	want := []agent.ProviderID{

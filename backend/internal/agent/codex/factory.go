@@ -23,14 +23,14 @@ func Factory() (agentmodule.Factory, error) {
 		LegacySkillRoots: []string{
 			"/root/.codex/skills",
 		},
+		WorkspaceSkillHome: profile.WorkspaceSkills.WorkspaceHome,
 		Features: agentmodule.Features{
 			Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
 			Skills:         agentmodule.SkillsDollarMention,
 			BrowserTools:   true,
 			ScheduledTools: true,
 		},
-		Profile: &profile,
-	}, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
+	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
 		auth := NewAuth()
 		binding := agentauth.NewDeviceBinding(agent.ProviderCodex, auth).WithWarning(func() string {
 			if auth.Status().UsesAPIKey {

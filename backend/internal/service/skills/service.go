@@ -181,10 +181,10 @@ func (s *Service) projectRoots(projectWorkspace string, descriptor agentmodule.D
 			rootSpec{path: filepath.Join(projectWorkspace, ".codex", "skills"), source: "project"},
 		)
 	}
-	if descriptor.Profile == nil || descriptor.Profile.WorkspaceSkills == nil {
+	if descriptor.WorkspaceSkillHome == "" {
 		return roots
 	}
-	workspaceHome := filepath.Clean(descriptor.Profile.WorkspaceSkills.WorkspaceHome)
+	workspaceHome := filepath.Clean(descriptor.WorkspaceSkillHome)
 	relative, err := filepath.Rel("/workspace", workspaceHome)
 	if err != nil || relative == "." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || relative == ".." {
 		return roots

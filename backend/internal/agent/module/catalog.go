@@ -37,7 +37,7 @@ func NewCatalog(factories ...Factory) (*Catalog, error) {
 	var defaultProvider agent.ProviderID
 	for index, factory := range catalog.factories {
 		descriptor := factory.Descriptor()
-		if err := validateDescriptor(descriptor); err != nil {
+		if err := validateDescriptor(descriptor, factory.profile); err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidCatalog, err)
 		}
 		if factory.build == nil {
@@ -57,8 +57,8 @@ func NewCatalog(factories ...Factory) (*Catalog, error) {
 			}
 			defaultProvider = descriptor.ID
 		}
-		if descriptor.Profile != nil {
-			for _, state := range descriptor.Profile.PersistentState {
+		if factory.profile != nil {
+			for _, state := range factory.profile.PersistentState {
 				if owner, exists := stateDevices[state.Device]; exists {
 					return nil, duplicateStateMountError(descriptor.ID, owner, "device", state.Device)
 				}
@@ -224,7 +224,7 @@ func (c *Catalog) Profiles() []provisioning.Profile {
 	profiles := make([]provisioning.Profile, 0, len(c.factories))
 	for _, factory := range c.factories {
 		descriptor := factory.Descriptor()
-		if profile := descriptor.Profile; profile != nil && c.SupportsScope(string(descriptor.ID), ScopeProject) {
+		if profile := factory.profile; profile != nil && c.SupportsScope(string(descriptor.ID), ScopeProject) {
 			profiles = append(profiles, profile.Clone())
 		}
 	}
@@ -240,7 +240,7 @@ func (c *Catalog) HostProfiles() []provisioning.Profile {
 	profiles := make([]provisioning.Profile, 0, len(c.factories))
 	for _, factory := range c.factories {
 		descriptor := factory.Descriptor()
-		if profile := descriptor.Profile; profile != nil && c.SupportsScope(string(descriptor.ID), ScopeHost) {
+		if profile := factory.profile; profile != nil && c.SupportsScope(string(descriptor.ID), ScopeHost) {
 			profiles = append(profiles, profile.Clone())
 		}
 	}

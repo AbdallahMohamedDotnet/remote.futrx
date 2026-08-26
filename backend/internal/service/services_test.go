@@ -111,7 +111,7 @@ func TestNewRejectsAuthenticatedDeploymentWithoutAgentAccessGate(t *testing.T) {
 		AuthInstructions: "Authenticate outside Remote.",
 		Features:         agentmodule.Features{Skills: agentmodule.SkillsNone},
 	}
-	factory, err := agentmodule.NewFactory(descriptor, func(agentmodule.Dependencies, *provisioning.Profile) (agentmodule.Components, error) {
+	factory, err := agentmodule.NewFactory(descriptor, nil, func(agentmodule.Dependencies, *provisioning.Profile) (agentmodule.Components, error) {
 		binding := agentauth.NewExternalBinding(descriptor.ID)
 		return agentmodule.Components{
 			Provider: serviceTestProvider{id: descriptor.ID},
