@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
@@ -15,7 +16,7 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 		"REMOTE_SCHEDULE_GRANT": "short-lived-grant",
 	}
 
-	hostProvider := New(nil, provisioning.ContainerDependencies{})
+	hostProvider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	hostRequest := agent.RunRequest{
 		Prompt:     "resume",
 		Cwd:        t.TempDir(),
@@ -44,7 +45,7 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 		ContainerName: "schedule-project",
 		Status:        agent.ProjectStatusRunning,
 	}
-	containerProvider := New(
+	containerProvider := newTestProvider(
 		fakeKimiScheduleProjects{
 			project: project,
 			secrets: []agent.ProjectSecret{{
@@ -77,6 +78,13 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 	if slices.Contains(containerCmd.Args, "REMOTE_SCHEDULE_API=https://attacker.invalid") {
 		t.Fatal("project secret overrode the backend-issued schedule API")
 	}
+}
+
+func newTestProvider(
+	projects agent.ProjectResolver,
+	dependencies provisioning.ContainerDependencies,
+) *Provider {
+	return newProvider(projects, dependencies, Profile(), 30*time.Second)
 }
 
 type fakeKimiScheduleProjects struct {

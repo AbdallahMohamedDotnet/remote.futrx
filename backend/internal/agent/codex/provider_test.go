@@ -8,13 +8,21 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
+func newTestProvider(
+	projects agent.ProjectResolver,
+	dependencies provisioning.ContainerDependencies,
+) *Provider {
+	return newProvider(projects, dependencies, Profile(), 30*time.Second)
+}
+
 func TestArgsUseCodexAppServer(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{Model: "gpt-5.5 [fast]"})
 
 	want := []string{"app-server"}
@@ -90,7 +98,7 @@ func TestAppServerTurnIgnoresInvalidServiceTier(t *testing.T) {
 }
 
 func TestArgsIncludeBrowserMCPConfig(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{EnableBrowser: true})
 
 	want := []string{
@@ -126,7 +134,7 @@ func TestContainerCredentialsRejectAPIKeyAuthBeforeProvisioning(t *testing.T) {
 	}
 
 	credentials := &fakeCodexCredentials{}
-	provider := New(nil, provisioning.ContainerDependencies{Credentials: credentials})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{Credentials: credentials})
 	provider.profile.Credentials.Files[0].HostPath = authPath
 
 	err := provider.ensureCredentials(context.Background(), "project")
@@ -208,7 +216,7 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 	projects := fakeCodexProjects{project: project}
 
 	withoutBrowser := &fakeCodexBrowser{}
-	provider := New(projects, codexContainerDependencies(nil, withoutBrowser))
+	provider := newTestProvider(projects, codexContainerDependencies(nil, withoutBrowser))
 	req := agent.RunRequest{ProjectID: string(project.ID)}
 	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
 		t.Fatal(err)
@@ -221,7 +229,7 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 	}
 
 	withBrowser := &fakeCodexBrowser{}
-	provider = New(projects, codexContainerDependencies(nil, withBrowser))
+	provider = newTestProvider(projects, codexContainerDependencies(nil, withBrowser))
 	req.EnableBrowser = true
 	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
 		t.Fatal(err)
@@ -241,7 +249,7 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 	}
 
 	t.Setenv("CODEX_HOME", t.TempDir())
-	hostProvider := New(nil, provisioning.ContainerDependencies{})
+	hostProvider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	hostRequest := agent.RunRequest{Cwd: t.TempDir(), RuntimeEnv: runtimeEnv}
 	hostCmd, containerName, err := hostProvider.buildCmd(
 		context.Background(),
@@ -266,7 +274,7 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 		ContainerName: "schedule-project",
 		Status:        agent.ProjectStatusRunning,
 	}
-	containerProvider := New(
+	containerProvider := newTestProvider(
 		fakeCodexProjects{
 			project: project,
 			secrets: []agent.ProjectSecret{{
@@ -308,7 +316,7 @@ func TestBuildCmdReconcilesContainerEvenWhenCachedStatusIsRunning(t *testing.T) 
 		Status:        agent.ProjectStatusRunning,
 	}
 	startCalls := 0
-	provider := New(fakeCodexProjects{project: project, startCalls: &startCalls}, provisioning.ContainerDependencies{})
+	provider := newTestProvider(fakeCodexProjects{project: project, startCalls: &startCalls}, provisioning.ContainerDependencies{})
 	req := agent.RunRequest{ProjectID: string(project.ID)}
 
 	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {

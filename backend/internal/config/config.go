@@ -29,6 +29,9 @@ type AgentOptions struct {
 	// DegradedCapabilityCacheTTL retries fallback or warning-bearing catalogs
 	// sooner than healthy catalogs.
 	DegradedCapabilityCacheTTL time.Duration
+	// CredentialSyncTimeout bounds the best-effort post-run copy of refreshed
+	// provider credentials from a project container back to the host.
+	CredentialSyncTimeout time.Duration
 }
 
 // ScheduleLimits are the scheduled-task guardrails. Zero disables a limit;
@@ -57,6 +60,7 @@ func Load() Config {
 			CapabilityTimeout:          envDuration("AGENT_CAPABILITY_TIMEOUT", 30*time.Second),
 			CapabilityCacheTTL:         24 * time.Hour,
 			DegradedCapabilityCacheTTL: 2 * time.Hour,
+			CredentialSyncTimeout:      30 * time.Second,
 		},
 		Schedule: ScheduleLimits{
 			MinInterval:        envDuration("SCHEDULE_MIN_INTERVAL", 5*time.Minute),

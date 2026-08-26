@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
@@ -75,8 +76,9 @@ type Descriptor struct {
 }
 
 type Dependencies struct {
-	Projects   agent.ProjectResolver
-	Containers provisioning.ContainerDependencies
+	Projects              agent.ProjectResolver
+	Containers            provisioning.ContainerDependencies
+	CredentialSyncTimeout time.Duration
 }
 
 // Components are the runtime objects produced by a module. Auth is nil only

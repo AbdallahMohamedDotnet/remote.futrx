@@ -81,6 +81,7 @@ type AgentOptions struct {
 	CapabilityTimeout          time.Duration
 	CapabilityCacheTTL         time.Duration
 	DegradedCapabilityCacheTTL time.Duration
+	CredentialSyncTimeout      time.Duration
 }
 
 type Services struct {
@@ -139,8 +140,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
 	projectService := serviceproject.New(projects, deps.ProjectContainers, deps.ProjectSecrets, deps.ProjectAccess)
 	agentRuntime, err := deps.AgentModules.Build(agentmodule.Dependencies{
-		Projects:   agentProjectResolver{projects: projectService},
-		Containers: deps.AgentContainers,
+		Projects:              agentProjectResolver{projects: projectService},
+		Containers:            deps.AgentContainers,
+		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,
 	})
 	if err != nil {
 		return Services{}, fmt.Errorf("build agent modules: %w", err)

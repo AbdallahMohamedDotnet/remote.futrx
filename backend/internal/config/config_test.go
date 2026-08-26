@@ -25,6 +25,9 @@ func TestLoadUsesGlobalAgentCapabilityCachePolicy(t *testing.T) {
 	if options.DegradedCapabilityCacheTTL != 2*time.Hour {
 		t.Fatalf("degraded capability cache TTL = %s, want 2h", options.DegradedCapabilityCacheTTL)
 	}
+	if options.CredentialSyncTimeout != 30*time.Second {
+		t.Fatalf("credential sync timeout = %s, want 30s", options.CredentialSyncTimeout)
+	}
 }
 
 func TestCodeServerBaseURLUsesInstalledDomain(t *testing.T) {

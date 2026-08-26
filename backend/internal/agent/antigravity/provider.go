@@ -24,11 +24,7 @@ type Provider struct {
 	profile       provisioning.Profile
 }
 
-func New(projects agent.ProjectResolver, containerDeps provisioning.ContainerDependencies) *Provider {
-	return newWithProfile(projects, containerDeps, Profile())
-}
-
-func newWithProfile(
+func newProvider(
 	projects agent.ProjectResolver,
 	containerDeps provisioning.ContainerDependencies,
 	profile provisioning.Profile,

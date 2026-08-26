@@ -79,6 +79,7 @@ func main() {
 			CapabilityTimeout:          cfg.Agent.CapabilityTimeout,
 			CapabilityCacheTTL:         cfg.Agent.CapabilityCacheTTL,
 			DegradedCapabilityCacheTTL: cfg.Agent.DegradedCapabilityCacheTTL,
+			CredentialSyncTimeout:      cfg.Agent.CredentialSyncTimeout,
 		},
 		TmuxClient:    tmuxClient,
 		ValidTmuxName: tmuxcli.ValidName,

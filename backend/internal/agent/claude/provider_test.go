@@ -4,13 +4,21 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
+func newTestProvider(
+	projects agent.ProjectResolver,
+	dependencies provisioning.ContainerDependencies,
+) *Provider {
+	return newProvider(projects, dependencies, Profile(), 30*time.Second)
+}
+
 func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{Model: "sonnet[1m]", ResumeID: "session-123"})
 
 	want := []string{
@@ -31,7 +39,7 @@ func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
 }
 
 func TestArgsUseNativePlanModeWithoutPermissionBypass(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{Mode: agent.RunModePlan})
 
 	modeIndex := slices.Index(args, "--permission-mode")
@@ -44,7 +52,7 @@ func TestArgsUseNativePlanModeWithoutPermissionBypass(t *testing.T) {
 }
 
 func TestArgsIncludeBrowserMCPConfigOnlyWhenEnabled(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	withoutBrowser := provider.args(agent.RunRequest{})
 	if slices.Contains(withoutBrowser, "--mcp-config") {
 		t.Fatalf("unexpected browser MCP config: %#v", withoutBrowser)
@@ -61,7 +69,7 @@ func TestArgsIncludeBrowserMCPConfigOnlyWhenEnabled(t *testing.T) {
 }
 
 func TestArgsIncludeReasoningEffort(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
 		Model: "opus",
 		Preferences: agent.RunPreferences{
@@ -79,7 +87,7 @@ func TestArgsIncludeReasoningEffort(t *testing.T) {
 }
 
 func TestArgsEnableUltracodeForRun(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
 		Model: "opus",
 		Preferences: agent.RunPreferences{
@@ -97,7 +105,7 @@ func TestArgsEnableUltracodeForRun(t *testing.T) {
 }
 
 func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
 		Model: "opus",
 		Preferences: agent.RunPreferences{
@@ -110,7 +118,7 @@ func TestArgsIgnoreInvalidReasoningEffort(t *testing.T) {
 }
 
 func TestArgsEnableFastModeForRun(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
 		Model: "opus",
 		Preferences: agent.RunPreferences{
@@ -128,7 +136,7 @@ func TestArgsEnableFastModeForRun(t *testing.T) {
 }
 
 func TestArgsIgnoreUnsupportedServiceTier(t *testing.T) {
-	provider := New(nil, provisioning.ContainerDependencies{})
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{
 		Preferences: agent.RunPreferences{ServiceTier: "priority"},
 	})
@@ -146,7 +154,7 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 	projects := fakeClaudeProjects{project: project}
 
 	withoutBrowser := &fakeClaudeBrowser{}
-	provider := New(projects, claudeContainerDependencies(withoutBrowser))
+	provider := newTestProvider(projects, claudeContainerDependencies(withoutBrowser))
 	req := agent.RunRequest{ProjectID: string(project.ID)}
 	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
 		t.Fatal(err)
@@ -159,7 +167,7 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 	}
 
 	withBrowser := &fakeClaudeBrowser{}
-	provider = New(projects, claudeContainerDependencies(withBrowser))
+	provider = newTestProvider(projects, claudeContainerDependencies(withBrowser))
 	req.EnableBrowser = true
 	if _, _, err := provider.buildCmd(context.Background(), req, provider.args(req), func(agent.Event) {}); err != nil {
 		t.Fatal(err)
@@ -178,7 +186,7 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 		"REMOTE_SCHEDULE_GRANT": "short-lived-grant",
 	}
 
-	hostProvider := New(nil, provisioning.ContainerDependencies{})
+	hostProvider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	hostRequest := agent.RunRequest{Cwd: t.TempDir(), RuntimeEnv: runtimeEnv}
 	hostCmd, containerName, err := hostProvider.buildCmd(
 		context.Background(),
@@ -203,7 +211,7 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 		ContainerName: "schedule-project",
 		Status:        agent.ProjectStatusRunning,
 	}
-	containerProvider := New(
+	containerProvider := newTestProvider(
 		fakeClaudeProjects{
 			project: project,
 			secrets: []agent.ProjectSecret{{
@@ -244,7 +252,7 @@ func TestBuildCmdRejectsPartialContainerDependencies(t *testing.T) {
 		ContainerName: "partial-dependencies",
 		Status:        agent.ProjectStatusRunning,
 	}
-	provider := New(
+	provider := newTestProvider(
 		fakeClaudeProjects{project: project},
 		provisioning.ContainerDependencies{CLI: fakeClaudeCLI{}},
 	)

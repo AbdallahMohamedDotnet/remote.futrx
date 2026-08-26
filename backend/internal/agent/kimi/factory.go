@@ -26,7 +26,7 @@ func Factory() (agentmodule.Factory, error) {
 	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
 		binding := agentauth.NewDeviceBinding(agent.ProviderKimi, NewAuth())
 		return agentmodule.Components{
-			Provider: newWithProfile(deps.Projects, deps.Containers, *validatedProfile),
+			Provider: newProvider(deps.Projects, deps.Containers, *validatedProfile, deps.CredentialSyncTimeout),
 			Auth:     &binding,
 		}, nil
 	})

@@ -11,21 +11,24 @@ import (
 )
 
 type Provider struct {
-	projects      agent.ProjectResolver
-	containerDeps provisioning.ContainerDependencies
-	profile       provisioning.Profile
+	projects              agent.ProjectResolver
+	containerDeps         provisioning.ContainerDependencies
+	profile               provisioning.Profile
+	credentialSyncTimeout time.Duration
 }
 
-func New(projects agent.ProjectResolver, containerDeps provisioning.ContainerDependencies) *Provider {
-	return newWithProfile(projects, containerDeps, Profile())
-}
-
-func newWithProfile(
+func newProvider(
 	projects agent.ProjectResolver,
 	containerDeps provisioning.ContainerDependencies,
 	profile provisioning.Profile,
+	credentialSyncTimeout time.Duration,
 ) *Provider {
-	return &Provider{projects: projects, containerDeps: containerDeps, profile: profile.Clone()}
+	return &Provider{
+		projects:              projects,
+		containerDeps:         containerDeps,
+		profile:               profile.Clone(),
+		credentialSyncTimeout: credentialSyncTimeout,
+	}
 }
 
 func (p *Provider) ID() agent.ProviderID {
@@ -59,7 +62,7 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 		ConversationID: req.ConversationID,
 	})
 	if err == nil && containerName != "" && p.containerDeps.Credentials != nil {
-		syncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		syncCtx, cancel := context.WithTimeout(context.Background(), p.credentialSyncTimeout)
 		defer cancel()
 		if syncErr := p.containerDeps.Credentials.SyncFromContainer(syncCtx, containerName, p.profile.Credentials); syncErr != nil {
 			log.Printf("kimi[%s] sync auth from %s: %v", req.ConversationID, containerName, syncErr)
