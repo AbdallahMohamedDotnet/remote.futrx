@@ -2,9 +2,9 @@ package claude
 
 import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
 // Factory returns Claude's complete module definition. The profile and

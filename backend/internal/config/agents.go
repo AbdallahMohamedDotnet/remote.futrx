@@ -9,7 +9,7 @@ import (
 	claudeagent "github.com/futrx-com/remote.futrx.com/internal/agent/claude"
 	codexagent "github.com/futrx-com/remote.futrx.com/internal/agent/codex"
 	kimiagent "github.com/futrx-com/remote.futrx.com/internal/agent/kimi"
-	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
+	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
 func NewAgentModules() (*agentmodule.Catalog, error) {
