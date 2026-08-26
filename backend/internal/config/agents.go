@@ -1,7 +1,8 @@
-// Package builtin is the explicit composition root for Remote's compiled-in
-// agent integrations. Providers own their complete factory; this package owns
-// only the reviewed registration order and has no construction details.
-package builtin
+package config
+
+// This file is the composition root for Remote's compiled-in agent
+// integrations. Providers own their complete factory; config owns only the
+// reviewed registration order and has no provider construction details.
 
 import (
 	antigravityagent "github.com/futrx-com/remote.futrx.com/internal/agent/antigravity"
@@ -11,7 +12,7 @@ import (
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
 )
 
-func Catalog() (*agentmodule.Catalog, error) {
+func NewAgentModules() (*agentmodule.Catalog, error) {
 	builders := []agentmodule.FactoryBuilder{
 		claudeagent.Factory,
 		codexagent.Factory,

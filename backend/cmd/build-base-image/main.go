@@ -19,7 +19,6 @@ import (
 	"log"
 	"time"
 
-	agentbuiltin "github.com/futrx-com/remote.futrx.com/internal/agent/builtin"
 	"github.com/futrx-com/remote.futrx.com/internal/config"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
 	serviceimage "github.com/futrx-com/remote.futrx.com/internal/service/container/image"
@@ -36,7 +35,7 @@ func main() {
 	if !lxcClient.Available() {
 		log.Fatalf("lxc CLI not found on PATH - install LXD on the host first")
 	}
-	agentModules, err := agentbuiltin.Catalog()
+	agentModules, err := config.NewAgentModules()
 	if err != nil {
 		log.Fatalf("configure agent modules: %v", err)
 	}

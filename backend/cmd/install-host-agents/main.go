@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/futrx-com/remote.futrx.com/internal/agent/builtin"
+	"github.com/futrx-com/remote.futrx.com/internal/config"
 	hostcliruntime "github.com/futrx-com/remote.futrx.com/internal/integration/hostcli"
 	"github.com/futrx-com/remote.futrx.com/internal/service/agent/hostcli"
 )
@@ -19,7 +19,7 @@ func main() {
 	flag.Parse()
 	log.SetFlags(0)
 
-	catalog, err := builtin.Catalog()
+	catalog, err := config.NewAgentModules()
 	if err != nil {
 		log.Fatalf("configure agent modules: %v", err)
 	}

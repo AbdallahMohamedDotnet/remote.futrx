@@ -16,7 +16,6 @@ import (
 	"net/http"
 
 	remote "github.com/futrx-com/remote.futrx.com"
-	agentbuiltin "github.com/futrx-com/remote.futrx.com/internal/agent/builtin"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/config"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/gitcli"
@@ -50,7 +49,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("configure public hostname: %v", err)
 	}
-	agentModules, err := agentbuiltin.Catalog()
+	agentModules, err := config.NewAgentModules()
 	if err != nil {
 		log.Fatalf("configure agent modules: %v", err)
 	}

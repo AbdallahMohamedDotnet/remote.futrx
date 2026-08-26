@@ -12,7 +12,6 @@ import (
 	"os"
 	"time"
 
-	agentbuiltin "github.com/futrx-com/remote.futrx.com/internal/agent/builtin"
 	"github.com/futrx-com/remote.futrx.com/internal/config"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
@@ -30,7 +29,7 @@ func main() {
 		log.Fatalf("init stores: %v", err)
 	}
 	lxcClient := lxc.New()
-	agentModules, err := agentbuiltin.Catalog()
+	agentModules, err := config.NewAgentModules()
 	if err != nil {
 		log.Fatalf("configure agent modules: %v", err)
 	}

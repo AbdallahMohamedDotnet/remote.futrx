@@ -1,4 +1,4 @@
-package builtin
+package config
 
 import (
 	"slices"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
-	catalog, err := Catalog()
+	catalog, err := NewAgentModules()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 }
 
 func TestCatalogProfilesAreDefensiveCopies(t *testing.T) {
-	catalog, err := Catalog()
+	catalog, err := NewAgentModules()
 	if err != nil {
 		t.Fatal(err)
 	}
