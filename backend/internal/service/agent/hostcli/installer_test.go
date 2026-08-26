@@ -78,7 +78,7 @@ func (r *fakeRuntime) InstallScript(_ context.Context, script string) (string, e
 
 func TestEnsureAllSkipsMatchingPinnedVersion(t *testing.T) {
 	runtime := newFakeRuntime("future 1.2.3")
-	results, err := New(runtime).EnsureAll(context.Background(), []provisioning.Profile{testProfile(provisioning.InstallWithNPM)})
+	results, err := New(runtime, time.Second).EnsureAll(context.Background(), []provisioning.Profile{testProfile(provisioning.InstallWithNPM)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestEnsureAllInstallsNPMModesAtExactPin(t *testing.T) {
 		t.Run(string(mode), func(t *testing.T) {
 			runtime := newFakeRuntime("future 1.2.2")
 			runtime.installedOutput = "future version 1.2.3"
-			results, err := New(runtime).EnsureAll(context.Background(), []provisioning.Profile{testProfile(mode)})
+			results, err := New(runtime, time.Second).EnsureAll(context.Background(), []provisioning.Profile{testProfile(mode)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -121,7 +121,7 @@ func TestEnsureAllRunsPinnedScriptPolicy(t *testing.T) {
 	profile.CLI.InstallScript = "install future 1.2.3"
 	runtime := newFakeRuntime("")
 	runtime.installedOutput = "1.2.3"
-	if _, err := New(runtime).EnsureAll(context.Background(), []provisioning.Profile{profile}); err != nil {
+	if _, err := New(runtime, time.Second).EnsureAll(context.Background(), []provisioning.Profile{profile}); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtime.scriptInstalls) != 1 || runtime.scriptInstalls[0] != profile.CLI.InstallScript {
@@ -135,7 +135,7 @@ func TestEnsureAllRunsPinnedScriptPolicy(t *testing.T) {
 func TestEnsureAllRejectsSuccessfulInstallWithWrongVersion(t *testing.T) {
 	runtime := newFakeRuntime("future 1.2.2")
 	runtime.installedOutput = "future 1.2.4"
-	_, err := New(runtime).EnsureAll(context.Background(), []provisioning.Profile{testProfile(provisioning.InstallWithNPM)})
+	_, err := New(runtime, time.Second).EnsureAll(context.Background(), []provisioning.Profile{testProfile(provisioning.InstallWithNPM)})
 	if err == nil || !strings.Contains(err.Error(), "required binary/version is unavailable") {
 		t.Fatalf("error = %v", err)
 	}
@@ -144,7 +144,7 @@ func TestEnsureAllRejectsSuccessfulInstallWithWrongVersion(t *testing.T) {
 func TestEnsureAllReturnsProviderScopedInstallFailure(t *testing.T) {
 	runtime := newFakeRuntime("")
 	runtime.installErr = errors.New("registry unavailable")
-	_, err := New(runtime).EnsureAll(context.Background(), []provisioning.Profile{testProfile(provisioning.InstallWithNPM)})
+	_, err := New(runtime, time.Second).EnsureAll(context.Background(), []provisioning.Profile{testProfile(provisioning.InstallWithNPM)})
 	if err == nil || !strings.Contains(err.Error(), `converge host agent "future-agent"`) ||
 		!strings.Contains(err.Error(), "registry unavailable") {
 		t.Fatalf("error = %v", err)
@@ -156,7 +156,7 @@ func TestEnsureAllSupportsExistenceOnlyPolicies(t *testing.T) {
 	profile.CLI.CheckVersion = false
 	runtime := newFakeRuntime("")
 	runtime.exists["future"] = true
-	results, err := New(runtime).EnsureAll(context.Background(), []provisioning.Profile{profile})
+	results, err := New(runtime, time.Second).EnsureAll(context.Background(), []provisioning.Profile{profile})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestEnsureAllBoundsEachInstallation(t *testing.T) {
 	runtime := newFakeRuntime("")
 	runtime.waitForCancel = true
 	started := time.Now()
-	_, err := New(runtime).EnsureAll(context.Background(), []provisioning.Profile{profile})
+	_, err := New(runtime, time.Second).EnsureAll(context.Background(), []provisioning.Profile{profile})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error = %v, want deadline exceeded", err)
 	}
@@ -195,8 +195,7 @@ func TestEnsureAllBoundsVersionChecks(t *testing.T) {
 			runtime := newFakeRuntime("future 1.2.2")
 			runtime.installedOutput = "future 1.2.3"
 			runtime.blockVersionCall = testCase.blockedCall
-			installer := New(runtime)
-			installer.versionTimeout = 20 * time.Millisecond
+			installer := New(runtime, 20*time.Millisecond)
 			started := time.Now()
 			_, err := installer.EnsureAll(context.Background(), []provisioning.Profile{testProfile(provisioning.InstallWithNPM)})
 			if (err != nil) != testCase.wantError {
@@ -209,6 +208,16 @@ func TestEnsureAllBoundsVersionChecks(t *testing.T) {
 	}
 }
 
+func TestEnsureAllRejectsNonPositiveVersionTimeout(t *testing.T) {
+	_, err := New(newFakeRuntime("future 1.2.3"), 0).EnsureAll(
+		context.Background(),
+		[]provisioning.Profile{testProfile(provisioning.InstallWithNPM)},
+	)
+	if err == nil || !strings.Contains(err.Error(), "version timeout must be positive") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestEnsureAllGivesPostInstallVerificationAnIndependentDeadline(t *testing.T) {
 	runtime := newFakeRuntime("future 1.2.2")
 	runtime.installedOutput = "future 1.2.3"
@@ -217,8 +226,7 @@ func TestEnsureAllGivesPostInstallVerificationAnIndependentDeadline(t *testing.T
 	}
 	profile := testProfile(provisioning.InstallWithNPM)
 	profile.CLI.InstallTimeout = 200 * time.Millisecond
-	installer := New(runtime)
-	installer.versionTimeout = time.Second
+	installer := New(runtime, time.Second)
 
 	if _, err := installer.EnsureAll(context.Background(), []provisioning.Profile{profile}); err != nil {
 		t.Fatal(err)

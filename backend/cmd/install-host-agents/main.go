@@ -18,6 +18,7 @@ func main() {
 	plan := flag.Bool("plan", false, "print the catalog-derived host CLI plan without changing the host")
 	flag.Parse()
 	log.SetFlags(0)
+	cfg := config.Load()
 
 	catalog, err := config.NewAgentModules()
 	if err != nil {
@@ -35,7 +36,10 @@ func main() {
 		return
 	}
 
-	results, err := hostcli.New(hostcliruntime.New()).EnsureAll(context.Background(), profiles)
+	results, err := hostcli.New(
+		hostcliruntime.New(),
+		cfg.Agent.HostCLIVersionTimeout,
+	).EnsureAll(context.Background(), profiles)
 	if err != nil {
 		log.Fatal(err)
 	}

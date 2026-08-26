@@ -17,10 +17,7 @@ import (
 
 var semanticVersionPattern = regexp.MustCompile(`(?:^|[^0-9A-Za-z])v?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?:$|[^0-9A-Za-z.-])`)
 
-const (
-	defaultInstallTimeout = 10 * time.Minute
-	defaultVersionTimeout = 15 * time.Second
-)
+const defaultInstallTimeout = 10 * time.Minute
 
 // Runtime is the host command surface needed by Installer. Keeping command
 // execution behind this port makes convergence deterministic in tests.
@@ -47,8 +44,10 @@ type Installer struct {
 	versionTimeout time.Duration
 }
 
-func New(runtime Runtime) *Installer {
-	return &Installer{runtime: runtime, versionTimeout: defaultVersionTimeout}
+// New creates the host CLI convergence workflow with the application-wide
+// deadline used for each version probe.
+func New(runtime Runtime, versionTimeout time.Duration) *Installer {
+	return &Installer{runtime: runtime, versionTimeout: versionTimeout}
 }
 
 // EnsureAll converges every host profile in catalog order. Installations run
@@ -56,6 +55,9 @@ func New(runtime Runtime) *Installer {
 func (i *Installer) EnsureAll(ctx context.Context, profiles []provisioning.Profile) ([]Result, error) {
 	if i == nil || i.runtime == nil {
 		return nil, errors.New("host agent CLI runtime is unavailable")
+	}
+	if i.versionTimeout <= 0 {
+		return nil, errors.New("host agent CLI version timeout must be positive")
 	}
 	results := make([]Result, 0, len(profiles))
 	for _, profile := range profiles {

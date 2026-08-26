@@ -24,6 +24,9 @@ type AgentOptions struct {
 	// CapabilityTimeout bounds one provider's complete model/capability probe
 	// (AGENT_CAPABILITY_TIMEOUT, Go duration, default 30s, "0" disables).
 	CapabilityTimeout time.Duration
+	// HostCLIVersionTimeout bounds each host-side CLI version probe performed
+	// by the infrastructure convergence command.
+	HostCLIVersionTimeout time.Duration
 	// CapabilityCacheTTL retains a fully live, warning-free catalog.
 	CapabilityCacheTTL time.Duration
 	// DegradedCapabilityCacheTTL retries fallback or warning-bearing catalogs
@@ -61,6 +64,7 @@ func Load() Config {
 		BaseURL:    envDefault("BASE_URL", ""),
 		Agent: AgentOptions{
 			CapabilityTimeout:          envDuration("AGENT_CAPABILITY_TIMEOUT", 30*time.Second),
+			HostCLIVersionTimeout:      15 * time.Second,
 			CapabilityCacheTTL:         24 * time.Hour,
 			DegradedCapabilityCacheTTL: 2 * time.Hour,
 			CredentialSyncTimeout:      30 * time.Second,

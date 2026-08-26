@@ -22,6 +22,9 @@ func TestLoadUsesGlobalAgentPolicyDefaults(t *testing.T) {
 	if options.CapabilityCacheTTL != 24*time.Hour {
 		t.Fatalf("live capability cache TTL = %s, want 24h", options.CapabilityCacheTTL)
 	}
+	if options.HostCLIVersionTimeout != 15*time.Second {
+		t.Fatalf("host CLI version timeout = %s, want 15s", options.HostCLIVersionTimeout)
+	}
 	if options.DegradedCapabilityCacheTTL != 2*time.Hour {
 		t.Fatalf("degraded capability cache TTL = %s, want 2h", options.DegradedCapabilityCacheTTL)
 	}
