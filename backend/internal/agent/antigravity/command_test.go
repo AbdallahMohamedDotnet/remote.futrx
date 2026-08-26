@@ -2,8 +2,10 @@ package antigravity
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -69,6 +71,189 @@ func TestEffortFlagClamping(t *testing.T) {
 			t.Fatalf("effortFlag(%q) = %q, want %q", effort, got, want)
 		}
 	}
+}
+
+func TestBuildCmdUsesAntigravityProjectPreparationPolicy(t *testing.T) {
+	project := agent.Project{
+		ID:            "project-id",
+		ContainerName: "antigravity-project",
+		Status:        "stopped",
+	}
+	calls := &antigravityPreparationCalls{}
+	provider := newProvider(
+		antigravityTestProjects{
+			project: project,
+			secrets: []agent.ProjectSecret{
+				{Key: "REMOTE_SCHEDULE_API", Value: "https://attacker.invalid"},
+				{Key: "SAFE_SECRET", Value: "safe"},
+			},
+			calls: calls,
+		},
+		antigravityContainerDependencies(calls),
+		Profile(),
+	)
+	request := agent.RunRequest{
+		ProjectID:           string(project.ID),
+		Prompt:              "test",
+		EnableBrowser:       true,
+		EnableScheduleTools: true,
+		RuntimeEnv: map[string]string{
+			"REMOTE_SCHEDULE_API": "https://remote.test/agent-api/schedules",
+		},
+	}
+	var subtypes []string
+	command, containerName, err := provider.buildCmd(
+		context.Background(),
+		request,
+		provider.args(request),
+		func(event agent.Event) { subtypes = append(subtypes, event.Subtype) },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containerName != project.ContainerName {
+		t.Fatalf("container name = %q, want %q", containerName, project.ContainerName)
+	}
+	if !slices.Equal(subtypes, []string{"container_starting", "container_preparing"}) {
+		t.Fatalf("preparation events = %v", subtypes)
+	}
+	if calls.start != 1 || calls.cli != 1 || calls.instructions != 1 ||
+		calls.skillLinks != 1 || calls.schedule != 1 || calls.lifecycle != 1 {
+		t.Fatalf("required preparation calls = %#v", calls)
+	}
+	if calls.credentials != 0 || calls.browserSkill != 0 || calls.browserScript != 0 ||
+		calls.browserMCP != 0 || calls.browserCore != 0 {
+		t.Fatalf("unsupported preparation calls = %#v", calls)
+	}
+	requireAntigravityArgPair(t, command.Args, "--env", "HOME=/root")
+	requireAntigravityArgPair(t, command.Args, "--env", "SAFE_SECRET=safe")
+	requireAntigravityArgPair(t, command.Args, "--env", "REMOTE_SCHEDULE_API=https://remote.test/agent-api/schedules")
+	if slices.Contains(command.Args, "REMOTE_SCHEDULE_API=https://attacker.invalid") {
+		t.Fatal("project secret overrode the backend-issued runtime environment")
+	}
+	if !slices.Contains(command.Args, project.ContainerName) || !slices.Contains(command.Args, "agy") {
+		t.Fatalf("container command = %#v", command.Args)
+	}
+}
+
+type antigravityPreparationCalls struct {
+	start         int
+	cli           int
+	credentials   int
+	instructions  int
+	skillLinks    int
+	browserSkill  int
+	browserScript int
+	browserMCP    int
+	browserCore   int
+	schedule      int
+	lifecycle     int
+}
+
+type antigravityTestProjects struct {
+	project agent.Project
+	secrets []agent.ProjectSecret
+	calls   *antigravityPreparationCalls
+}
+
+func (f antigravityTestProjects) Get(context.Context, agent.ProjectID) (agent.Project, error) {
+	return f.project, nil
+}
+
+func (f antigravityTestProjects) Start(context.Context, agent.ProjectID) (agent.Project, error) {
+	f.calls.start++
+	return f.project, nil
+}
+
+func (f antigravityTestProjects) ListSecrets(context.Context, agent.ProjectID) ([]agent.ProjectSecret, error) {
+	return f.secrets, nil
+}
+
+type antigravityTestCLI struct{ calls *antigravityPreparationCalls }
+
+func (f antigravityTestCLI) Ensure(context.Context, string, provisioning.CLISpec) error {
+	f.calls.cli++
+	return nil
+}
+
+type antigravityTestCredentials struct{ calls *antigravityPreparationCalls }
+
+func (f antigravityTestCredentials) Ensure(context.Context, string, provisioning.CredentialSpec) error {
+	f.calls.credentials++
+	return nil
+}
+
+func (f antigravityTestCredentials) SyncFromContainer(context.Context, string, provisioning.CredentialSpec) error {
+	return nil
+}
+
+type antigravityTestWorkspace struct{ calls *antigravityPreparationCalls }
+
+func (f antigravityTestWorkspace) EnsureAgentInstructions(context.Context, string) error {
+	f.calls.instructions++
+	return nil
+}
+
+func (f antigravityTestWorkspace) EnsureSkillLinks(context.Context, string) error {
+	f.calls.skillLinks++
+	return errors.New("stale skill link")
+}
+
+type antigravityTestBrowser struct{ calls *antigravityPreparationCalls }
+
+func (f antigravityTestBrowser) EnsureSkill(context.Context, string) error {
+	f.calls.browserSkill++
+	return nil
+}
+
+func (f antigravityTestBrowser) EnsureScript(context.Context, string) error {
+	f.calls.browserScript++
+	return nil
+}
+
+func (f antigravityTestBrowser) EnsureMCP(context.Context, string) error {
+	f.calls.browserMCP++
+	return nil
+}
+
+func (f antigravityTestBrowser) EnsureCore(context.Context, string) error {
+	f.calls.browserCore++
+	return nil
+}
+
+type antigravityTestSchedule struct{ calls *antigravityPreparationCalls }
+
+func (f antigravityTestSchedule) Ensure(context.Context, string) error {
+	f.calls.schedule++
+	return nil
+}
+
+type antigravityTestLifecycle struct{ calls *antigravityPreparationCalls }
+
+func (f antigravityTestLifecycle) EnsureBootAutostart(context.Context, string) error {
+	f.calls.lifecycle++
+	return nil
+}
+
+func antigravityContainerDependencies(calls *antigravityPreparationCalls) provisioning.ContainerDependencies {
+	return provisioning.ContainerDependencies{
+		CLI:           antigravityTestCLI{calls},
+		Credentials:   antigravityTestCredentials{calls},
+		Workspace:     antigravityTestWorkspace{calls},
+		Browser:       antigravityTestBrowser{calls},
+		ScheduleTools: antigravityTestSchedule{calls},
+		Lifecycle:     antigravityTestLifecycle{calls},
+	}
+}
+
+func requireAntigravityArgPair(t *testing.T, args []string, first, second string) {
+	t.Helper()
+	for index := 0; index+1 < len(args); index++ {
+		if args[index] == first && args[index+1] == second {
+			return
+		}
+	}
+	t.Fatalf("command args missing pair %q %q: %#v", first, second, args)
 }
 
 func TestInstallScriptPinsVersionedRelease(t *testing.T) {
