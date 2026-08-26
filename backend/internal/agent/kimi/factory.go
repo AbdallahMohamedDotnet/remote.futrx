@@ -7,9 +7,9 @@ import (
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
-// Factory returns Kimi's complete module definition, including its runtime,
+// NewFactory returns Kimi's complete module definition, including its runtime,
 // authentication flow, feature declarations, and provisioning profile.
-func Factory() (agentmodule.Factory, error) {
+func NewFactory() (agentmodule.Factory, error) {
 	profile := Profile()
 	return agentmodule.NewFactory(agentmodule.Descriptor{
 		ID:                  agent.ProviderKimi,
@@ -34,5 +34,5 @@ func Factory() (agentmodule.Factory, error) {
 
 var (
 	_ agent.Provider             = (*Provider)(nil)
-	_ agentmodule.FactoryBuilder = Factory
+	_ agentmodule.FactoryBuilder = NewFactory
 )

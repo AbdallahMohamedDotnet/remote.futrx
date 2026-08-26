@@ -14,10 +14,10 @@ import (
 
 func NewAgentModules() (*agentmodule.Catalog, error) {
 	builders := []agentmodule.FactoryBuilder{
-		claudeagent.Factory,
-		codexagent.Factory,
-		kimiagent.Factory,
-		antigravityagent.Factory,
+		claudeagent.NewFactory,
+		codexagent.NewFactory,
+		kimiagent.NewFactory,
+		antigravityagent.NewFactory,
 	}
 	factories := make([]agentmodule.Factory, 0, len(builders))
 	for _, build := range builders {

@@ -7,10 +7,10 @@ import (
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
-// Factory returns Claude's complete module definition. The profile and
+// NewFactory returns Claude's complete module definition. The profile and
 // descriptor are immutable policy; runtime and auth state are created afresh
 // each time the catalog builds an application runtime.
-func Factory() (agentmodule.Factory, error) {
+func NewFactory() (agentmodule.Factory, error) {
 	profile := Profile()
 	return agentmodule.NewFactory(agentmodule.Descriptor{
 		ID:                  agent.ProviderClaude,
@@ -40,5 +40,5 @@ func Factory() (agentmodule.Factory, error) {
 
 var (
 	_ agent.Provider             = (*Provider)(nil)
-	_ agentmodule.FactoryBuilder = Factory
+	_ agentmodule.FactoryBuilder = NewFactory
 )

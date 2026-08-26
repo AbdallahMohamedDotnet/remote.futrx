@@ -7,10 +7,10 @@ import (
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
-// Factory returns Codex's complete module definition. Runtime and auth state
+// NewFactory returns Codex's complete module definition. Runtime and auth state
 // are constructed together for each application runtime so the normalized
 // warning observes the same auth instance as the binding.
-func Factory() (agentmodule.Factory, error) {
+func NewFactory() (agentmodule.Factory, error) {
 	profile := Profile()
 	return agentmodule.NewFactory(agentmodule.Descriptor{
 		ID:                  agent.ProviderCodex,
@@ -47,5 +47,5 @@ func Factory() (agentmodule.Factory, error) {
 
 var (
 	_ agent.Provider             = (*Provider)(nil)
-	_ agentmodule.FactoryBuilder = Factory
+	_ agentmodule.FactoryBuilder = NewFactory
 )
