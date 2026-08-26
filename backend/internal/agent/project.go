@@ -33,3 +33,26 @@ type ProjectResolver interface {
 	Start(context.Context, ProjectID) (Project, error)
 	ListSecrets(context.Context, ProjectID) ([]ProjectSecret, error)
 }
+
+// ProjectPreparationRequest contains only the provider-neutral run state used
+// to reconcile and prepare a project workspace.
+type ProjectPreparationRequest struct {
+	ProjectID           ProjectID
+	ConversationID      string
+	EnableBrowser       bool
+	EnableScheduleTools bool
+}
+
+// PreparedProject is the stable container target and environment policy
+// returned to a provider after shared workspace preparation succeeds.
+type PreparedProject struct {
+	ID            ProjectID
+	ContainerName string
+	Secrets       []ProjectSecret
+}
+
+// ProjectPreparer owns the shared project lifecycle and provisioning workflow.
+// Providers retain responsibility for their CLI arguments and wire protocol.
+type ProjectPreparer interface {
+	Prepare(context.Context, ProjectPreparationRequest, func(Event)) (PreparedProject, error)
+}
