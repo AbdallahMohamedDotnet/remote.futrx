@@ -8,17 +8,17 @@ import (
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	serviceagentcatalog "github.com/futrx-com/remote.futrx.com/internal/service/agentcatalog"
+	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 )
 
 type stubAgentCapabilitiesService struct {
-	query serviceagentcatalog.ListQuery
+	query agentcapability.ListQuery
 }
 
 func (s *stubAgentCapabilitiesService) List(
 	_ context.Context,
-	query serviceagentcatalog.ListQuery,
+	query agentcapability.ListQuery,
 ) ([]agent.Capabilities, error) {
 	s.query = query
 	return []agent.Capabilities{{

@@ -1,4 +1,4 @@
-package agentcatalog
+package capability
 
 import (
 	"context"

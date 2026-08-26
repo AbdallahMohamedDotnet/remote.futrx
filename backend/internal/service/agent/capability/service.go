@@ -1,7 +1,7 @@
-// Package agentcatalog aggregates the provider-specific capability catalogs
+// Package capability aggregates the provider-specific capability catalogs
 // exposed by the registered agent CLIs.
 //
-// Catalog discovery may start several comparatively expensive CLI probes (for
+// Capability discovery may start several comparatively expensive CLI probes (for
 // example, Codex app-server and provider model-list commands). Simultaneous
 // requests for the same host or project container share one in-flight probe.
 // Completed catalogs are cached per execution environment so every browser
@@ -10,7 +10,7 @@
 // warning shortens that to 2 hours. A manual refresh bypasses a completed
 // cache entry and starts or joins one discovery flight whose result replaces
 // it. A backend restart clears every entry.
-package agentcatalog
+package capability
 
 import (
 	"context"
@@ -60,7 +60,7 @@ type ListQuery struct {
 	Refresh       bool
 }
 
-type Catalog struct {
+type Service struct {
 	agents            CapabilityRegistry
 	projects          ProjectCatalog
 	auth              Authorizer
@@ -80,7 +80,7 @@ type Settings struct {
 }
 
 func WithScopePolicy(policy ScopePolicy) Option {
-	return func(catalog *Catalog) {
+	return func(catalog *Service) {
 		catalog.scopes = policy
 	}
 }
@@ -93,13 +93,13 @@ type ModuleCatalog interface {
 // WithModuleCatalog applies the same validated module declarations to scope
 // filtering and public capability metadata.
 func WithModuleCatalog(catalog ModuleCatalog) Option {
-	return func(target *Catalog) {
+	return func(target *Service) {
 		target.scopes = catalog
 		target.descriptors = catalog
 	}
 }
 
-type Option func(*Catalog)
+type Option func(*Service)
 
 func New(
 	agents CapabilityRegistry,
@@ -107,8 +107,8 @@ func New(
 	auth Authorizer,
 	settings Settings,
 	options ...Option,
-) *Catalog {
-	catalog := &Catalog{
+) *Service {
+	catalog := &Service{
 		agents:            agents,
 		projects:          projects,
 		auth:              auth,
@@ -127,7 +127,7 @@ func New(
 	return catalog
 }
 
-func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabilities, error) {
+func (c *Service) List(ctx context.Context, query ListQuery) ([]agent.Capabilities, error) {
 	containerName := ""
 	flightKey := "host"
 	scope := agentmodule.ScopeHost
@@ -204,7 +204,7 @@ func (c *Catalog) List(ctx context.Context, query ListQuery) ([]agent.Capabiliti
 	})
 }
 
-func (c *Catalog) decorate(capabilities *agent.Capabilities) {
+func (c *Service) decorate(capabilities *agent.Capabilities) {
 	if capabilities == nil || c.descriptors == nil {
 		return
 	}
@@ -234,7 +234,7 @@ func (c *Catalog) decorate(capabilities *agent.Capabilities) {
 	}
 }
 
-func (c *Catalog) capabilityProviders(scope agentmodule.ExecutionScope) []agent.CapabilityProvider {
+func (c *Service) capabilityProviders(scope agentmodule.ExecutionScope) []agent.CapabilityProvider {
 	providers := c.agents.CapabilityProviders()
 	if c.scopes == nil {
 		return providers
@@ -248,7 +248,7 @@ func (c *Catalog) capabilityProviders(scope agentmodule.ExecutionScope) []agent.
 	return filtered
 }
 
-func (c *Catalog) authorize(ctx context.Context, projectID serviceproject.ID, cookie string) error {
+func (c *Service) authorize(ctx context.Context, projectID serviceproject.ID, cookie string) error {
 	if c.auth == nil {
 		return nil
 	}

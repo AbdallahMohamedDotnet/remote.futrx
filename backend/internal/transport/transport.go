@@ -114,7 +114,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Auth,
 			deps.Services.AgentModules,
 		),
-		AgentCapabilities: httphandlers.NewAgentCapabilitiesHandler(deps.Services.AgentCatalog),
+		AgentCapabilities: httphandlers.NewAgentCapabilitiesHandler(deps.Services.AgentCapabilities),
 		UserSettings: httphandlers.NewUserSettingsHandler(
 			deps.Services.UserSettings,
 			deps.Services.Auth,

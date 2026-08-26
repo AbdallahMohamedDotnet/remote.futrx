@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	serviceagentcatalog "github.com/futrx-com/remote.futrx.com/internal/service/agentcatalog"
+	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 type AgentCapabilitiesService interface {
-	List(context.Context, serviceagentcatalog.ListQuery) ([]agent.Capabilities, error)
+	List(context.Context, agentcapability.ListQuery) ([]agent.Capabilities, error)
 }
 
 type AgentCapabilitiesHandler struct {
@@ -37,7 +37,7 @@ func (h *AgentCapabilitiesHandler) HandleCollection(w http.ResponseWriter, r *ht
 		httptransport.SendErr(w, http.StatusServiceUnavailable, "agent capabilities unavailable")
 		return
 	}
-	items, err := h.catalog.List(r.Context(), serviceagentcatalog.ListQuery{
+	items, err := h.catalog.List(r.Context(), agentcapability.ListQuery{
 		ProjectID:     serviceproject.ID(strings.TrimSpace(r.URL.Query().Get("projectId"))),
 		SessionCookie: httptransport.SessionCookieValue(r),
 		Refresh:       r.URL.Query().Get("refresh") == "1",
@@ -51,13 +51,13 @@ func (h *AgentCapabilitiesHandler) HandleCollection(w http.ResponseWriter, r *ht
 
 func sendAgentCapabilitiesError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, serviceagentcatalog.ErrProjectLookupUnavailable):
+	case errors.Is(err, agentcapability.ErrProjectLookupUnavailable):
 		httptransport.SendErr(w, http.StatusServiceUnavailable, err.Error())
-	case errors.Is(err, serviceagentcatalog.ErrProjectNotFound):
+	case errors.Is(err, agentcapability.ErrProjectNotFound):
 		httptransport.SendErr(w, http.StatusNotFound, err.Error())
-	case errors.Is(err, serviceagentcatalog.ErrAuthenticationRequired):
+	case errors.Is(err, agentcapability.ErrAuthenticationRequired):
 		httptransport.SendErr(w, http.StatusUnauthorized, err.Error())
-	case errors.Is(err, serviceagentcatalog.ErrProjectAccessDenied):
+	case errors.Is(err, agentcapability.ErrProjectAccessDenied):
 		httptransport.SendErr(w, http.StatusForbidden, err.Error())
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())

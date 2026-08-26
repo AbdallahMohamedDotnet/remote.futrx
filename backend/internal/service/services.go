@@ -11,8 +11,8 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/googleoauth"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
-	serviceagentcatalog "github.com/futrx-com/remote.futrx.com/internal/service/agentcatalog"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
@@ -85,25 +85,25 @@ type AgentOptions struct {
 }
 
 type Services struct {
-	Chats        *servicechat.Service
-	ChatAccess   *servicechat.AccessService
-	Projects     *serviceproject.Service
-	Prompt       *prompt.Service
-	Schedules    *serviceschedule.Service
-	ScheduleCaps *schedulecapability.Registry
-	AgentAuth    *agentauth.Registry
-	AgentModules *agentmodule.Catalog
-	AgentCatalog *serviceagentcatalog.Catalog
-	Runs         *runhub.Hub
-	Workspace    *workspacehub.Hub
-	Auth         *serviceauth.Service
-	Users        *serviceuser.Service
-	UserSettings *serviceusersettings.Service
-	Skills       *serviceskills.Catalog
-	Tmux         *servicetmux.Service
-	Access       *serviceauth.AccessVerifier
-	Push         *servicepush.Service
-	Presence     *servicepresence.Service
+	Chats             *servicechat.Service
+	ChatAccess        *servicechat.AccessService
+	Projects          *serviceproject.Service
+	Prompt            *prompt.Service
+	Schedules         *serviceschedule.Service
+	ScheduleCaps      *schedulecapability.Registry
+	AgentAuth         *agentauth.Registry
+	AgentModules      *agentmodule.Catalog
+	AgentCapabilities *agentcapability.Service
+	Runs              *runhub.Hub
+	Workspace         *workspacehub.Hub
+	Auth              *serviceauth.Service
+	Users             *serviceuser.Service
+	UserSettings      *serviceusersettings.Service
+	Skills            *serviceskills.Catalog
+	Tmux              *servicetmux.Service
+	Access            *serviceauth.AccessVerifier
+	Push              *servicepush.Service
+	Presence          *servicepresence.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -211,16 +211,16 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	)
 	skillService := serviceskills.New(serviceskills.WithProviderCatalog(deps.AgentModules))
 	skillCatalog := serviceskills.NewCatalog(skillService, projectService, authService)
-	agentCatalog := serviceagentcatalog.New(
+	agentCapabilities := agentcapability.New(
 		agents,
 		projectService,
 		authService,
-		serviceagentcatalog.Settings{
+		agentcapability.Settings{
 			CapabilityTimeout:          deps.AgentOptions.CapabilityTimeout,
 			CapabilityCacheTTL:         deps.AgentOptions.CapabilityCacheTTL,
 			DegradedCapabilityCacheTTL: deps.AgentOptions.DegradedCapabilityCacheTTL,
 		},
-		serviceagentcatalog.WithModuleCatalog(deps.AgentModules),
+		agentcapability.WithModuleCatalog(deps.AgentModules),
 	)
 	var accessVerifier *serviceauth.AccessVerifier
 	if authService != nil {
@@ -236,25 +236,25 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	pushNotifier.audience.users = userService
 
 	return Services{
-		Chats:        chatService,
-		ChatAccess:   chatAccessService,
-		Projects:     projectService,
-		Prompt:       promptService,
-		Schedules:    scheduleService,
-		ScheduleCaps: scheduleCaps,
-		AgentAuth:    agentAuth,
-		AgentModules: deps.AgentModules,
-		AgentCatalog: agentCatalog,
-		Runs:         runs,
-		Workspace:    workspace,
-		Auth:         authService,
-		Users:        userService,
-		UserSettings: userSettingsService,
-		Skills:       skillCatalog,
-		Tmux:         tmuxService,
-		Access:       accessVerifier,
-		Push:         pushService,
-		Presence:     presenceService,
+		Chats:             chatService,
+		ChatAccess:        chatAccessService,
+		Projects:          projectService,
+		Prompt:            promptService,
+		Schedules:         scheduleService,
+		ScheduleCaps:      scheduleCaps,
+		AgentAuth:         agentAuth,
+		AgentModules:      deps.AgentModules,
+		AgentCapabilities: agentCapabilities,
+		Runs:              runs,
+		Workspace:         workspace,
+		Auth:              authService,
+		Users:             userService,
+		UserSettings:      userSettingsService,
+		Skills:            skillCatalog,
+		Tmux:              tmuxService,
+		Access:            accessVerifier,
+		Push:              pushService,
+		Presence:          presenceService,
 	}, nil
 }
 

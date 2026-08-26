@@ -1,4 +1,4 @@
-package agentcatalog
+package capability
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 // catalogFlights coalesces simultaneous discovery requests for the same
 // execution environment. Completed results are deliberately removed from the
-// flight map: Catalog retains them in catalogCache according to the backend's
+// flight map: Service retains them in catalogCache according to the backend's
 // freshness policy, while this guard only prevents duplicate CLI processes
 // when several requests overlap.
 type catalogFlights struct {
@@ -48,7 +48,7 @@ func (f *catalogFlights) do(
 	f.mu.Unlock()
 
 	// A browser navigating away should stop waiting, but it should not cancel
-	// discovery for other callers that joined the same flight. Catalog applies
+	// discovery for other callers that joined the same flight. Service applies
 	// the configured global deadline to each provider probe.
 	running.result, running.err = discover(context.WithoutCancel(ctx))
 
