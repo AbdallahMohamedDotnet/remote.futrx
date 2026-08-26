@@ -217,7 +217,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			CapabilityCacheTTL:         deps.AgentOptions.CapabilityCacheTTL,
 			DegradedCapabilityCacheTTL: deps.AgentOptions.DegradedCapabilityCacheTTL,
 		},
-		agentcapability.WithModuleCatalog(agentRuntime),
+		agentcapability.WithModulePolicy(agentRuntime),
 	)
 	var accessVerifier *serviceauth.AccessVerifier
 	if authService != nil {

@@ -215,7 +215,7 @@ func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
 		nil,
 		nil,
 		testSettings(),
-		WithModuleCatalog(modules),
+		WithModulePolicy(modules),
 	)
 	items, err := catalog.List(context.Background(), ListQuery{})
 	if err != nil {

@@ -4,12 +4,10 @@
 // Capability discovery may start several comparatively expensive CLI probes (for
 // example, Codex app-server and provider model-list commands). Simultaneous
 // requests for the same host or project container share one in-flight probe.
-// Completed catalogs are cached per execution environment so every browser
-// and device sees the same result without repeating provider discovery. A
-// fully live, warning-free catalog is retained for 24 hours; any fallback or
-// warning shortens that to 2 hours. A manual refresh bypasses a completed
-// cache entry and starts or joins one discovery flight whose result replaces
-// it. A backend restart clears every entry.
+// Completed catalogs are cached per execution environment using the healthy
+// and degraded TTLs supplied by application configuration. A manual refresh
+// bypasses a completed cache entry and starts or joins one discovery flight
+// whose result replaces it. A backend restart clears every entry.
 package capability
 
 import (
@@ -85,17 +83,17 @@ func WithScopePolicy(policy ScopePolicy) Option {
 	}
 }
 
-type ModuleCatalog interface {
+type ModulePolicy interface {
 	ScopePolicy
 	DescriptorPolicy
 }
 
-// WithModuleCatalog applies the same validated module declarations to scope
+// WithModulePolicy applies the same validated module declarations to scope
 // filtering and public capability metadata.
-func WithModuleCatalog(catalog ModuleCatalog) Option {
+func WithModulePolicy(policy ModulePolicy) Option {
 	return func(target *Service) {
-		target.scopes = catalog
-		target.descriptors = catalog
+		target.scopes = policy
+		target.descriptors = policy
 	}
 }
 

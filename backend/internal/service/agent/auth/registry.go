@@ -61,8 +61,8 @@ func (r *Registry) Bindings() []Binding {
 }
 
 // AnyAuthenticated reports whether at least one registered binding has a
-// usable host-side login. It remains a compatibility fallback for consumers
-// without module policy; the application gate uses module.Catalog.AccessReady.
+// usable host-side login. Module runtime readiness additionally applies each
+// descriptor's access-gate policy.
 func (r *Registry) AnyAuthenticated() bool {
 	if r == nil {
 		return false

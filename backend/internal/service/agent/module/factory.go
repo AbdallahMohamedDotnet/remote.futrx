@@ -94,7 +94,7 @@ type Components struct {
 type BuildFunc func(Dependencies, *provisioning.Profile) (Components, error)
 
 // FactoryBuilder is the compile-time constructor contract implemented by each
-// provider package and consumed by the explicit built-in registry.
+// provider package and consumed by the explicit config composition root.
 type FactoryBuilder func() (Factory, error)
 
 // Factory is immutable after construction. Its descriptor is always returned
