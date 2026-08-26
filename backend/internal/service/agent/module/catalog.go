@@ -164,11 +164,11 @@ func (c *Catalog) DefaultProvider(scope ExecutionScope) agent.ProviderID {
 	return first
 }
 
-// AccessReady reports whether any module declared as an onboarding gate can
+// accessReady reports whether any module declared as an onboarding gate can
 // run. No-auth modules are immediately ready; managed flows require a live
 // authenticated binding. External flows cannot be gate providers because the
 // platform has no authoritative status signal for them.
-func (c *Catalog) AccessReady(bindings *agentauth.Registry) bool {
+func (c *Catalog) accessReady(bindings *agentauth.Registry) bool {
 	if c == nil {
 		return false
 	}
@@ -314,7 +314,7 @@ func (r *Runtime) AnyAuthenticated() bool {
 }
 
 func (r *Runtime) AccessReady() bool {
-	return r != nil && r.catalog.AccessReady(r.auth)
+	return r != nil && r.catalog.accessReady(r.auth)
 }
 
 func (r *Runtime) Descriptors() []Descriptor {

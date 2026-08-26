@@ -342,7 +342,11 @@ func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !noAuthCatalog.AccessReady(nil) {
+	noAuthRuntime, err := noAuthCatalog.Build(Dependencies{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !noAuthRuntime.AccessReady() {
 		t.Fatal("no-auth gate provider was not immediately ready")
 	}
 	if err := noAuthCatalog.ValidateAccessGate(); err != nil {
