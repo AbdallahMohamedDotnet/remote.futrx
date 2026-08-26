@@ -17,6 +17,16 @@ func TestLoadUsesGlobalAgentCapabilityTimeout(t *testing.T) {
 	}
 }
 
+func TestLoadUsesGlobalAgentCapabilityCachePolicy(t *testing.T) {
+	options := Load().Agent
+	if options.CapabilityCacheTTL != 24*time.Hour {
+		t.Fatalf("live capability cache TTL = %s, want 24h", options.CapabilityCacheTTL)
+	}
+	if options.DegradedCapabilityCacheTTL != 2*time.Hour {
+		t.Fatalf("degraded capability cache TTL = %s, want 2h", options.DegradedCapabilityCacheTTL)
+	}
+}
+
 func TestCodeServerBaseURLUsesInstalledDomain(t *testing.T) {
 	tests := []struct {
 		base string

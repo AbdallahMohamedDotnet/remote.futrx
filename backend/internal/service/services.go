@@ -78,7 +78,9 @@ type ScheduleLimits struct {
 // AgentOptions mirrors global agent execution policy without coupling the
 // service layer to the config package.
 type AgentOptions struct {
-	CapabilityTimeout time.Duration
+	CapabilityTimeout          time.Duration
+	CapabilityCacheTTL         time.Duration
+	DegradedCapabilityCacheTTL time.Duration
 }
 
 type Services struct {
@@ -211,7 +213,11 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		agents,
 		projectService,
 		authService,
-		serviceagentcatalog.WithCapabilityTimeout(deps.AgentOptions.CapabilityTimeout),
+		serviceagentcatalog.Settings{
+			CapabilityTimeout:          deps.AgentOptions.CapabilityTimeout,
+			CapabilityCacheTTL:         deps.AgentOptions.CapabilityCacheTTL,
+			DegradedCapabilityCacheTTL: deps.AgentOptions.DegradedCapabilityCacheTTL,
+		},
 		serviceagentcatalog.WithModuleCatalog(deps.AgentModules),
 	)
 	var accessVerifier *serviceauth.AccessVerifier

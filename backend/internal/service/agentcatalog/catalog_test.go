@@ -64,7 +64,11 @@ func TestListAppliesOneConfiguredTimeoutPerProvider(t *testing.T) {
 		catalogTestRegistry{providers: []agent.CapabilityProvider{provider}},
 		nil,
 		nil,
-		WithCapabilityTimeout(20*time.Millisecond),
+		Settings{
+			CapabilityTimeout:          20 * time.Millisecond,
+			CapabilityCacheTTL:         24 * time.Hour,
+			DegradedCapabilityCacheTTL: 2 * time.Hour,
+		},
 	)
 
 	started := time.Now()
@@ -132,7 +136,7 @@ func TestListUsesRegistryOrderProjectContainerAndSharedCache(t *testing.T) {
 	registry := catalogTestRegistry{providers: []agent.CapabilityProvider{claude, codex}}
 	catalog := New(registry, catalogTestProjects{project: serviceproject.Meta{
 		ID: "abcd", ContainerName: "remote-abcd", Status: serviceproject.StatusRunning,
-	}}, nil)
+	}}, nil, testSettings())
 
 	for call := 0; call < 2; call++ {
 		items, err := catalog.List(context.Background(), ListQuery{ProjectID: "abcd"})
@@ -165,6 +169,7 @@ func TestListOnlyDiscoversProvidersDeclaredForRequestedScope(t *testing.T) {
 		catalogTestRegistry{providers: []agent.CapabilityProvider{host, project}},
 		catalogTestProjects{project: serviceproject.Meta{ID: "abcd", ContainerName: "remote-abcd"}},
 		nil,
+		testSettings(),
 		WithScopePolicy(catalogTestScopes{
 			"host-agent":    {agentmodule.ScopeHost: true},
 			"project-agent": {agentmodule.ScopeProject: true},
@@ -209,6 +214,7 @@ func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
 		catalogTestRegistry{providers: []agent.CapabilityProvider{provider}},
 		nil,
 		nil,
+		testSettings(),
 		WithModuleCatalog(modules),
 	)
 	items, err := catalog.List(context.Background(), ListQuery{})
@@ -241,7 +247,7 @@ func TestListCoalescesOnlyOverlappingRequests(t *testing.T) {
 	provider := &catalogTestProvider{
 		id: agent.ProviderClaude, label: "Claude", entered: entered, release: release,
 	}
-	catalog := New(catalogTestRegistry{providers: []agent.CapabilityProvider{provider}}, nil, nil)
+	catalog := New(catalogTestRegistry{providers: []agent.CapabilityProvider{provider}}, nil, nil, testSettings())
 	firstDone := make(chan error, 1)
 	go func() {
 		_, err := catalog.List(context.Background(), ListQuery{})
@@ -286,13 +292,22 @@ func TestListCoalescesOnlyOverlappingRequests(t *testing.T) {
 }
 
 func TestCatalogTTLUsesShortRetryForDegradedResults(t *testing.T) {
-	if got := catalogTTL([]agent.Capabilities{{Source: agent.CapabilitySourceLive}}); got != liveCatalogTTL {
+	cache := newCatalogCache(24*time.Hour, 2*time.Hour)
+	if got := cache.ttl([]agent.Capabilities{{Source: agent.CapabilitySourceLive}}); got != 24*time.Hour {
 		t.Fatalf("live TTL = %s", got)
 	}
-	if got := catalogTTL([]agent.Capabilities{{Source: agent.CapabilitySourceFallback}}); got != degradedCatalogTTL {
+	if got := cache.ttl([]agent.Capabilities{{Source: agent.CapabilitySourceFallback}}); got != 2*time.Hour {
 		t.Fatalf("fallback TTL = %s", got)
 	}
-	if got := catalogTTL([]agent.Capabilities{{Source: agent.CapabilitySourceLive, Warning: "partial"}}); got != degradedCatalogTTL {
+	if got := cache.ttl([]agent.Capabilities{{Source: agent.CapabilitySourceLive, Warning: "partial"}}); got != 2*time.Hour {
 		t.Fatalf("warning TTL = %s", got)
+	}
+}
+
+func testSettings() Settings {
+	return Settings{
+		CapabilityTimeout:          30 * time.Second,
+		CapabilityCacheTTL:         24 * time.Hour,
+		DegradedCapabilityCacheTTL: 2 * time.Hour,
 	}
 }

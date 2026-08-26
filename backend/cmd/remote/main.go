@@ -76,7 +76,9 @@ func main() {
 		AgentContainers:   containerStack.AgentDependencies(),
 		AgentModules:      agentModules,
 		AgentOptions: service.AgentOptions{
-			CapabilityTimeout: cfg.Agent.CapabilityTimeout,
+			CapabilityTimeout:          cfg.Agent.CapabilityTimeout,
+			CapabilityCacheTTL:         cfg.Agent.CapabilityCacheTTL,
+			DegradedCapabilityCacheTTL: cfg.Agent.DegradedCapabilityCacheTTL,
 		},
 		TmuxClient:    tmuxClient,
 		ValidTmuxName: tmuxcli.ValidName,

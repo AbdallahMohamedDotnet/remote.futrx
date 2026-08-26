@@ -71,6 +71,14 @@ type Catalog struct {
 	flights           *catalogFlights
 }
 
+// Settings are cross-provider discovery policies supplied by the application
+// composition root. Provider-specific probe behavior remains in each adapter.
+type Settings struct {
+	CapabilityTimeout          time.Duration
+	CapabilityCacheTTL         time.Duration
+	DegradedCapabilityCacheTTL time.Duration
+}
+
 func WithScopePolicy(policy ScopePolicy) Option {
 	return func(catalog *Catalog) {
 		catalog.scopes = policy
@@ -93,24 +101,23 @@ func WithModuleCatalog(catalog ModuleCatalog) Option {
 
 type Option func(*Catalog)
 
-// WithCapabilityTimeout sets the deadline for each provider's complete
-// discovery operation. Zero disables the catalog-level deadline.
-func WithCapabilityTimeout(timeout time.Duration) Option {
-	return func(catalog *Catalog) {
-		if timeout >= 0 {
-			catalog.capabilityTimeout = timeout
-		}
-	}
-}
-
-func New(agents CapabilityRegistry, projects ProjectCatalog, auth Authorizer, options ...Option) *Catalog {
+func New(
+	agents CapabilityRegistry,
+	projects ProjectCatalog,
+	auth Authorizer,
+	settings Settings,
+	options ...Option,
+) *Catalog {
 	catalog := &Catalog{
 		agents:            agents,
 		projects:          projects,
 		auth:              auth,
-		capabilityTimeout: 30 * time.Second,
-		cache:             newCatalogCache(),
-		flights:           newCatalogFlights(),
+		capabilityTimeout: settings.CapabilityTimeout,
+		cache: newCatalogCache(
+			settings.CapabilityCacheTTL,
+			settings.DegradedCapabilityCacheTTL,
+		),
+		flights: newCatalogFlights(),
 	}
 	for _, option := range options {
 		if option != nil {

@@ -24,6 +24,11 @@ type AgentOptions struct {
 	// CapabilityTimeout bounds one provider's complete model/capability probe
 	// (AGENT_CAPABILITY_TIMEOUT, Go duration, default 30s, "0" disables).
 	CapabilityTimeout time.Duration
+	// CapabilityCacheTTL retains a fully live, warning-free catalog.
+	CapabilityCacheTTL time.Duration
+	// DegradedCapabilityCacheTTL retries fallback or warning-bearing catalogs
+	// sooner than healthy catalogs.
+	DegradedCapabilityCacheTTL time.Duration
 }
 
 // ScheduleLimits are the scheduled-task guardrails. Zero disables a limit;
@@ -49,7 +54,9 @@ func Load() Config {
 		InstallDir: envDefault("INSTALL_DIR", "/opt/remote.futrx"),
 		BaseURL:    envDefault("BASE_URL", ""),
 		Agent: AgentOptions{
-			CapabilityTimeout: envDuration("AGENT_CAPABILITY_TIMEOUT", 30*time.Second),
+			CapabilityTimeout:          envDuration("AGENT_CAPABILITY_TIMEOUT", 30*time.Second),
+			CapabilityCacheTTL:         24 * time.Hour,
+			DegradedCapabilityCacheTTL: 2 * time.Hour,
 		},
 		Schedule: ScheduleLimits{
 			MinInterval:        envDuration("SCHEDULE_MIN_INTERVAL", 5*time.Minute),
