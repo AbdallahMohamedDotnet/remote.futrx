@@ -50,6 +50,35 @@ func TestCatalogBuildsFakeFifthAgentWithoutProviderSwitches(t *testing.T) {
 	}
 }
 
+func TestFactoryBuildReceivesValidatedProfileSnapshot(t *testing.T) {
+	descriptor := testDescriptor("future-agent")
+	var received *provisioning.Profile
+	factory, err := NewFactory(descriptor, func(_ Dependencies, profile *provisioning.Profile) (Components, error) {
+		received = profile
+		binding := agentauth.NewExternalBinding(descriptor.ID)
+		return Components{Provider: testProvider{id: descriptor.ID}, Auth: &binding}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	descriptor.Profile.CLI.Binary = "changed-after-registration"
+	catalog, err := NewCatalog(factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := catalog.Build(Dependencies{}); err != nil {
+		t.Fatal(err)
+	}
+	if received == nil || received.CLI.Binary != "future-agent" {
+		t.Fatalf("build profile = %#v", received)
+	}
+	received.CLI.Binary = "changed-by-provider"
+	if got := catalog.Profiles()[0].CLI.Binary; got != "future-agent" {
+		t.Fatalf("provider mutated catalog profile: %q", got)
+	}
+}
+
 func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
 	valid := testDescriptor("future-agent")
 	tests := map[string]Descriptor{
@@ -211,19 +240,19 @@ func TestCatalogRejectsMultipleDefaultProviders(t *testing.T) {
 
 func TestFactoryRejectsRuntimeIdentityAndAuthMismatches(t *testing.T) {
 	tests := map[string]BuildFunc{
-		"provider ID": func(Dependencies) (Components, error) {
+		"provider ID": func(Dependencies, *provisioning.Profile) (Components, error) {
 			binding := agentauth.NewExternalBinding("future-agent")
 			return Components{Provider: testProvider{id: "other"}, Auth: &binding}, nil
 		},
-		"auth ID": func(Dependencies) (Components, error) {
+		"auth ID": func(Dependencies, *provisioning.Profile) (Components, error) {
 			binding := agentauth.NewExternalBinding("other")
 			return Components{Provider: testProvider{id: "future-agent"}, Auth: &binding}, nil
 		},
-		"auth flow": func(Dependencies) (Components, error) {
+		"auth flow": func(Dependencies, *provisioning.Profile) (Components, error) {
 			binding := agentauth.NewCodeBinding("future-agent", agentauth.NewCodeService(agentauth.CodeConfig{}))
 			return Components{Provider: testProvider{id: "future-agent"}, Auth: &binding}, nil
 		},
-		"missing auth": func(Dependencies) (Components, error) {
+		"missing auth": func(Dependencies, *provisioning.Profile) (Components, error) {
 			return Components{Provider: testProvider{id: "future-agent"}}, nil
 		},
 	}
@@ -248,7 +277,7 @@ func TestFactoryRejectsUnavailableManagedAuth(t *testing.T) {
 	descriptor := testDescriptor("future-agent")
 	descriptor.Auth = AuthManagedCode
 	descriptor.AuthInstructions = "Complete the code flow."
-	factory, err := NewFactory(descriptor, func(Dependencies) (Components, error) {
+	factory, err := NewFactory(descriptor, func(Dependencies, *provisioning.Profile) (Components, error) {
 		binding := agentauth.NewCodeBinding("future-agent", nil)
 		return Components{Provider: testProvider{id: "future-agent"}, Auth: &binding}, nil
 	})
@@ -271,7 +300,7 @@ func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
 	managed.Auth = AuthManagedDevice
 	managed.AuthInstructions = "Complete the device flow."
 	managed.SatisfiesAccessGate = true
-	managedFactory, err := NewFactory(managed, func(Dependencies) (Components, error) {
+	managedFactory, err := NewFactory(managed, func(Dependencies, *provisioning.Profile) (Components, error) {
 		service := agentauth.NewDeviceService(agentauth.DeviceConfig[bindingTestAuthStatus]{
 			Authenticated: func() bool { return authenticated },
 			BuildStatus: func() agentauth.DeviceStatusBuilder[bindingTestAuthStatus] {
@@ -310,7 +339,7 @@ func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
 	noAuth.Auth = AuthNone
 	noAuth.AuthInstructions = ""
 	noAuth.SatisfiesAccessGate = true
-	noAuthFactory, err := NewFactory(noAuth, func(Dependencies) (Components, error) {
+	noAuthFactory, err := NewFactory(noAuth, func(Dependencies, *provisioning.Profile) (Components, error) {
 		return Components{Provider: testProvider{id: noAuth.ID}}, nil
 	})
 	if err != nil {
@@ -467,7 +496,7 @@ func newTestFactory(t *testing.T, id agent.ProviderID) Factory {
 }
 
 func testBuild(id agent.ProviderID) BuildFunc {
-	return func(Dependencies) (Components, error) {
+	return func(Dependencies, *provisioning.Profile) (Components, error) {
 		binding := agentauth.NewExternalBinding(id)
 		return Components{Provider: testProvider{id: id}, Auth: &binding}, nil
 	}

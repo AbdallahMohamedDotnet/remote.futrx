@@ -86,7 +86,10 @@ type Components struct {
 	Auth     *agentauth.Binding
 }
 
-type BuildFunc func(Dependencies) (Components, error)
+// BuildFunc creates one provider runtime from application dependencies and the
+// exact provisioning profile already validated by the factory. The profile is
+// nil only for a host-only module that requires no local CLI installation.
+type BuildFunc func(Dependencies, *provisioning.Profile) (Components, error)
 
 // FactoryBuilder is the compile-time constructor contract implemented by each
 // provider package and consumed by the explicit built-in registry.
@@ -119,7 +122,12 @@ func (f Factory) buildComponents(deps Dependencies) (Components, error) {
 	if f.build == nil {
 		return Components{}, fmt.Errorf("%w: provider %q has no builder", ErrInvalidFactory, f.descriptor.ID)
 	}
-	components, err := f.build(deps)
+	var profile *provisioning.Profile
+	if f.descriptor.Profile != nil {
+		cloned := f.descriptor.Profile.Clone()
+		profile = &cloned
+	}
+	components, err := f.build(deps, profile)
 	if err != nil {
 		return Components{}, fmt.Errorf("build agent %q: %w", f.descriptor.ID, err)
 	}

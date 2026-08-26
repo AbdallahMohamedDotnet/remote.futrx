@@ -4,6 +4,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
 // Factory returns Kimi's complete module definition, including its runtime,
@@ -23,10 +24,10 @@ func Factory() (agentmodule.Factory, error) {
 			ScheduledTools: true,
 		},
 		Profile: &profile,
-	}, func(deps agentmodule.Dependencies) (agentmodule.Components, error) {
+	}, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
 		binding := agentauth.NewDeviceBinding(agent.ProviderKimi, NewAuth())
 		return agentmodule.Components{
-			Provider: New(deps.Projects, deps.Containers),
+			Provider: newWithProfile(deps.Projects, deps.Containers, *validatedProfile),
 			Auth:     &binding,
 		}, nil
 	})

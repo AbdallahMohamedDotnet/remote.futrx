@@ -17,10 +17,18 @@ type Provider struct {
 }
 
 func New(projects agent.ProjectResolver, containerDeps provisioning.ContainerDependencies) *Provider {
+	return newWithProfile(projects, containerDeps, Profile())
+}
+
+func newWithProfile(
+	projects agent.ProjectResolver,
+	containerDeps provisioning.ContainerDependencies,
+	profile provisioning.Profile,
+) *Provider {
 	return &Provider{
 		projects:      projects,
 		containerDeps: containerDeps,
-		profile:       Profile(),
+		profile:       profile.Clone(),
 	}
 }
 

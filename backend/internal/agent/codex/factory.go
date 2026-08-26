@@ -4,6 +4,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/agent/auth"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/agent/module"
+	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
 // Factory returns Codex's complete module definition. Runtime and auth state
@@ -29,7 +30,7 @@ func Factory() (agentmodule.Factory, error) {
 			ScheduledTools: true,
 		},
 		Profile: &profile,
-	}, func(deps agentmodule.Dependencies) (agentmodule.Components, error) {
+	}, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
 		auth := NewAuth()
 		binding := agentauth.NewDeviceBinding(agent.ProviderCodex, auth).WithWarning(func() string {
 			if auth.Status().UsesAPIKey {
@@ -38,7 +39,7 @@ func Factory() (agentmodule.Factory, error) {
 			return ""
 		})
 		return agentmodule.Components{
-			Provider: New(deps.Projects, deps.Containers),
+			Provider: newWithProfile(deps.Projects, deps.Containers, *validatedProfile),
 			Auth:     &binding,
 		}, nil
 	})
