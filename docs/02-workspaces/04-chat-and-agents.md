@@ -310,11 +310,12 @@ flowchart LR
 The catalog reads the canonical host or project skill roots and any
 provider-declared legacy roots after checking execution scope and project
 access. Provider changes clear incompatible selected skills. The module's
-declared skill strategy determines prompt preparation: Claude receives slash
-commands, Codex receives dollar mentions, and Kimi and Antigravity receive
-explicit paths to the selected `SKILL.md` files. The **Scheduled Tasks** skill
-also receives a scoped schedule capability. Browser MCP preparation is a
-separate feature flag and is currently declared only by Claude and Codex.
+declared skill strategy determines prompt preparation: Claude receives
+slash-style skill triggers, Codex receives dollar mentions, and Kimi and
+Antigravity receive explicit paths to the selected `SKILL.md` files. The
+**Scheduled Tasks** skill also receives a scoped schedule capability. Browser
+MCP preparation is a separate feature flag and is currently declared only by
+Claude and Codex.
 
 ## Conversation controls
 
