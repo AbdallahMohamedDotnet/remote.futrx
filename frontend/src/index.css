@@ -281,16 +281,11 @@
 
   .codex-mobile-settings-panel .codex-composer-agent-controls {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 8.5rem;
     gap: 0.5rem !important;
   }
 
-  .codex-mobile-settings-panel .codex-provider-control {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-
-  .codex-mobile-settings-panel .codex-model-control,
+  .codex-mobile-settings-panel .codex-agent-picker,
   .codex-mobile-settings-panel .codex-skill-control-root {
     width: 100% !important;
   }
