@@ -71,7 +71,6 @@ type Descriptor struct {
 	AuthInstructions    string
 	SatisfiesAccessGate bool
 	LegacySkillRoots    []string
-	WorkspaceSkillHome  string
 	Features            Features
 }
 

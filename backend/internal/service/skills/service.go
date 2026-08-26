@@ -29,6 +29,7 @@ type ProviderCatalog interface {
 	Descriptor(provider string) (agentmodule.Descriptor, bool)
 	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
 	LegacySkillRoots(provider string) []string
+	WorkspaceSkillHome(provider string) string
 }
 
 type defaultProviderCatalog interface {
@@ -98,7 +99,7 @@ func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace 
 	// .agents/skills is the project source of truth. The provider-specific
 	// paths are legacy compatibility fallbacks and are deduped below.
 	if projectWorkspace != "" {
-		for _, root := range s.projectRoots(projectWorkspace, descriptor) {
+		for _, root := range s.projectRoots(projectWorkspace, string(provider)) {
 			if err := collectSkills(ctx, provider, root, &skills); err != nil {
 				return nil, err
 			}
@@ -173,7 +174,7 @@ func (s *Service) roots(provider Provider) []rootSpec {
 	return roots
 }
 
-func (s *Service) projectRoots(projectWorkspace string, descriptor agentmodule.Descriptor) []rootSpec {
+func (s *Service) projectRoots(projectWorkspace, provider string) []rootSpec {
 	roots := []rootSpec{{path: filepath.Join(projectWorkspace, ".agents", "skills"), source: "project"}}
 	if s.providers == nil {
 		return append(roots,
@@ -181,10 +182,11 @@ func (s *Service) projectRoots(projectWorkspace string, descriptor agentmodule.D
 			rootSpec{path: filepath.Join(projectWorkspace, ".codex", "skills"), source: "project"},
 		)
 	}
-	if descriptor.WorkspaceSkillHome == "" {
+	configuredHome := s.providers.WorkspaceSkillHome(provider)
+	if configuredHome == "" {
 		return roots
 	}
-	workspaceHome := filepath.Clean(descriptor.WorkspaceSkillHome)
+	workspaceHome := filepath.Clean(configuredHome)
 	relative, err := filepath.Rel("/workspace", workspaceHome)
 	if err != nil || relative == "." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || relative == ".." {
 		return roots

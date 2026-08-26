@@ -23,7 +23,6 @@ func NewFactory() (agentmodule.Factory, error) {
 		LegacySkillRoots: []string{
 			"/root/.codex/skills",
 		},
-		WorkspaceSkillHome: profile.WorkspaceSkills.WorkspaceHome,
 		Features: agentmodule.Features{
 			Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
 			Skills:         agentmodule.SkillsDollarMention,

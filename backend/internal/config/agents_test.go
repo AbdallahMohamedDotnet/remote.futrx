@@ -74,6 +74,12 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 			t.Fatalf("auth binding %q was not built consistently", descriptor.ID)
 		}
 	}
+	if got := runtime.WorkspaceSkillHome("claude"); got != "/workspace/.claude" {
+		t.Fatalf("Claude workspace skill home = %q", got)
+	}
+	if got := runtime.WorkspaceSkillHome("codex"); got != "/workspace/.codex" {
+		t.Fatalf("Codex workspace skill home = %q", got)
+	}
 	if runtime.AnyAuthenticated() != runtime.AccessReady() {
 		t.Fatal("built-in access gate drifted from managed auth readiness")
 	}

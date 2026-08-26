@@ -37,6 +37,13 @@ func (c skillTestProviderCatalog) SupportsScope(provider string, scope agentmodu
 
 func (c skillTestProviderCatalog) LegacySkillRoots(string) []string { return nil }
 
+func (c skillTestProviderCatalog) WorkspaceSkillHome(provider string) string {
+	if provider == "future-agent" {
+		return "/workspace/.future"
+	}
+	return ""
+}
+
 type defaultSkillTestProviderCatalog struct {
 	skillTestProviderCatalog
 	provider Provider
@@ -186,6 +193,7 @@ func TestListSupportsFutureProviderFromCanonicalSkillsRoot(t *testing.T) {
 func TestListUsesFutureProviderSkillAndScopeDeclaration(t *testing.T) {
 	workspace := t.TempDir()
 	writeSkill(t, filepath.Join(workspace, ".agents", "skills", "future", "SKILL.md"), `# Future Skill`)
+	writeSkill(t, filepath.Join(workspace, ".future", "skills", "compatible", "SKILL.md"), `# Compatible Skill`)
 	writeSkill(t, filepath.Join(workspace, ".claude", "skills", "claude-only", "SKILL.md"), `# Claude Only`)
 	catalog := skillTestProviderCatalog{"future-agent": {
 		ID:              "future-agent",
@@ -200,7 +208,7 @@ func TestListUsesFutureProviderSkillAndScopeDeclaration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Command != "future" {
+	if len(got) != 2 || got[0].Command != "compatible" || got[1].Command != "future" {
 		t.Fatalf("future project skills = %#v", got)
 	}
 	if _, err := service.List(context.Background(), "future-agent", ""); !errors.Is(err, ErrInvalidProvider) {

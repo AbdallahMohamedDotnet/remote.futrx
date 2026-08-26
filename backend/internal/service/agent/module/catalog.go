@@ -210,6 +210,21 @@ func (c *Catalog) LegacySkillRoots(provider string) []string {
 	return append([]string(nil), descriptor.LegacySkillRoots...)
 }
 
+func (c *Catalog) workspaceSkillHome(provider string) string {
+	if c == nil {
+		return ""
+	}
+	index, ok := c.byID[agent.ProviderID(provider)]
+	if !ok {
+		return ""
+	}
+	profile := c.factories[index].profile
+	if profile == nil || profile.WorkspaceSkills == nil {
+		return ""
+	}
+	return profile.WorkspaceSkills.WorkspaceHome
+}
+
 // SupportsNativeFork lets orchestration decide whether a copied chat may send
 // the provider's session ID back with a native fork request.
 func (c *Catalog) SupportsNativeFork(provider string) bool {
@@ -351,6 +366,15 @@ func (r *Runtime) LegacySkillRoots(provider string) []string {
 		return nil
 	}
 	return r.catalog.LegacySkillRoots(provider)
+}
+
+// WorkspaceSkillHome returns the provider's project compatibility directory
+// from the exact provisioning profile validated for this runtime.
+func (r *Runtime) WorkspaceSkillHome(provider string) string {
+	if r == nil {
+		return ""
+	}
+	return r.catalog.workspaceSkillHome(provider)
 }
 
 func (r *Runtime) SupportsNativeFork(provider string) bool {
