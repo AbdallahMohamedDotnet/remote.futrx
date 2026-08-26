@@ -50,8 +50,8 @@ if [ -n "$previous" ] && [ "${previous%.*}" = "$current_train" ]; then
         ':(glob)backend/internal/agent/*/profile*.go' \
         ':(glob)backend/internal/agent/*/install*.go' \
         ':(glob)backend/internal/agent/*/provisioning*.go' \
-        backend/internal/agent/builtin \
-        backend/internal/agent/module \
+        backend/internal/config/agents.go \
+        backend/internal/service/agent/module \
         backend/cmd/install-host-agents \
         backend/internal/integration/hostcli \
         backend/internal/service/agent/hostcli \
