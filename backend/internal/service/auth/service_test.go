@@ -58,6 +58,56 @@ func (s *authTestStore) DeleteLocalAdmin(ctx context.Context, expected LocalAdmi
 }
 func (s *authTestStore) SessionKey(context.Context) ([]byte, error) { return s.key, nil }
 
+type authTestTwoFactorStore struct {
+	records map[string]TwoFactorRecord
+}
+
+func newAuthTestTwoFactorStore() *authTestTwoFactorStore {
+	return &authTestTwoFactorStore{records: map[string]TwoFactorRecord{}}
+}
+
+func (s *authTestTwoFactorStore) Get(_ context.Context, email string) (*TwoFactorRecord, error) {
+	record, ok := s.records[normalizeEmail(email)]
+	if !ok {
+		return nil, nil
+	}
+	copy := record
+	return &copy, nil
+}
+func (s *authTestTwoFactorStore) Save(_ context.Context, email string, record TwoFactorRecord) error {
+	s.records[normalizeEmail(email)] = record
+	return nil
+}
+func (s *authTestTwoFactorStore) Delete(_ context.Context, email string) error {
+	delete(s.records, normalizeEmail(email))
+	return nil
+}
+
+type authTestSessionRegistryStore struct {
+	records map[string]SessionRegistryRecord
+}
+
+func newAuthTestSessionRegistryStore() *authTestSessionRegistryStore {
+	return &authTestSessionRegistryStore{records: map[string]SessionRegistryRecord{}}
+}
+
+func (s *authTestSessionRegistryStore) Get(_ context.Context, email string) (*SessionRegistryRecord, error) {
+	record, ok := s.records[normalizeEmail(email)]
+	if !ok {
+		return nil, nil
+	}
+	copy := record
+	return &copy, nil
+}
+func (s *authTestSessionRegistryStore) Save(_ context.Context, email string, record SessionRegistryRecord) error {
+	s.records[normalizeEmail(email)] = record
+	return nil
+}
+func (s *authTestSessionRegistryStore) Delete(_ context.Context, email string) error {
+	delete(s.records, normalizeEmail(email))
+	return nil
+}
+
 type authTestUsers struct {
 	roles                map[string]bool
 	isRegisteredErr      error
@@ -115,6 +165,8 @@ func newAuthTestService(t *testing.T, store *authTestStore, users *authTestUsers
 		func(string, string, string) OAuthProvider { return authTestOAuth{user: googleUser} },
 		"https://remote.example.com",
 		[]byte("test-session-key"),
+		newAuthTestTwoFactorStore(),
+		newAuthTestSessionRegistryStore(),
 	)
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -274,7 +326,7 @@ func TestClaimInvalidatesLegacyGoogleAdminSession(t *testing.T) {
 	users := newAuthTestUsers()
 	users.roles["admin@example.com"] = true
 	service := newAuthTestService(t, store, users, User{})
-	legacySession := service.SignSession(User{Email: "admin@example.com", Sub: "google-subject"})
+	legacySession := service.codec.sign(User{Email: "admin@example.com", Sub: "google-subject"}, "")
 
 	if _, err := service.ClaimLocalAdmin(
 		context.Background(),
@@ -284,12 +336,12 @@ func TestClaimInvalidatesLegacyGoogleAdminSession(t *testing.T) {
 	); err != nil {
 		t.Fatalf("ClaimLocalAdmin: %v", err)
 	}
-	if _, err := service.CurrentSession(legacySession); !errors.Is(err, ErrLocalAdminPasswordOnly) {
+	if _, err := service.CurrentSession(context.Background(), legacySession); !errors.Is(err, ErrLocalAdminPasswordOnly) {
 		t.Fatalf("legacy Google session error = %v, want %v", err, ErrLocalAdminPasswordOnly)
 	}
 
-	localSession := service.SignSession(User{Email: "admin@example.com", Sub: "local-admin"})
-	if _, err := service.CurrentSession(localSession); err != nil {
+	localSession := service.codec.sign(User{Email: "admin@example.com", Sub: "local-admin"}, "")
+	if _, err := service.CurrentSession(context.Background(), localSession); err != nil {
 		t.Fatalf("local admin session: %v", err)
 	}
 }

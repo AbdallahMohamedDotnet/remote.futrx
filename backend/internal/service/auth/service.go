@@ -31,13 +31,46 @@ type UserDirectoryEntry struct {
 	Email string
 }
 
+var (
+	ErrSessionSuperseded   = errors.New("session superseded by a newer sign-in")
+	ErrInvalidPendingLogin = errors.New("invalid or expired pending login")
+)
+
+// pendingLogin is the signed, stateless payload carried between
+// CompletePasswordLogin/CompleteGoogleLogin (once credentials check out but
+// before the second factor is checked) and CompleteTwoFactorChallenge.
+type pendingLogin struct {
+	Email  string       `json:"email"`
+	Sub    string       `json:"sub"`
+	Method SignInMethod `json:"method"`
+	Exp    int64        `json:"exp"`
+}
+
+func (p pendingLogin) expired(now time.Time) bool {
+	return now.Unix() > p.Exp
+}
+
+const pendingLoginTTL = 5 * time.Minute
+
+// LoginResult is returned by the Complete*Login methods: either a login
+// completed outright (CookieValue set) or it needs a second factor
+// (PendingToken set, to be presented back to CompleteTwoFactorChallenge).
+type LoginResult struct {
+	Completed    bool
+	CookieValue  string
+	PendingToken string
+}
+
 type Service struct {
-	users        UserDirectory
-	local        *LocalAdminAuthenticator
-	google       *GoogleAuthenticator
-	baseURL      string
-	cookieDomain string
-	sessions     *SessionCodec
+	users             UserDirectory
+	local             *LocalAdminAuthenticator
+	google            *GoogleAuthenticator
+	baseURL           string
+	cookieDomain      string
+	codec             *SessionCodec
+	twoFactor         *TwoFactorAuthenticator
+	registry          *SessionRegistry
+	pendingLoginCodec signedPayload[pendingLogin]
 }
 
 func NormalizeBaseURL(baseURL string) (string, error) {
@@ -54,12 +87,20 @@ func New(
 	oauthFactory OAuthProviderFactory,
 	baseURL string,
 	sessionKey []byte,
+	twoFactorStore TwoFactorStore,
+	sessionRegistryStore SessionRegistryStore,
 ) (*Service, error) {
 	if store == nil {
 		return nil, errors.New("auth store is required")
 	}
 	if oauthFactory == nil {
 		return nil, errors.New("OAuth provider factory is required")
+	}
+	if twoFactorStore == nil {
+		return nil, errors.New("two-factor store is required")
+	}
+	if sessionRegistryStore == nil {
+		return nil, errors.New("session registry store is required")
 	}
 	baseURL, err := NormalizeBaseURL(baseURL)
 	if err != nil {
@@ -89,12 +130,15 @@ func New(
 	}
 
 	service := &Service{
-		users:        users,
-		local:        local,
-		google:       google,
-		baseURL:      baseURL,
-		cookieDomain: cookieDomain,
-		sessions:     newSessionCodec(sessionKey),
+		users:             users,
+		local:             local,
+		google:            google,
+		baseURL:           baseURL,
+		cookieDomain:      cookieDomain,
+		codec:             newSessionCodec(sessionKey),
+		twoFactor:         newTwoFactorAuthenticator(twoFactorStore, "remote.futrx", sessionKey),
+		registry:          newSessionRegistry(sessionRegistryStore),
+		pendingLoginCodec: newSignedPayload[pendingLogin](sessionKey),
 	}
 	return service, nil
 }
@@ -143,15 +187,106 @@ func (s *Service) IsLocalAdmin(email string) bool {
 	return s.local.isLocalAdmin(email)
 }
 
-func (s *Service) SignSession(user User) string {
-	return s.sessions.sign(user)
+// IssueSession signs a new session for user, first consulting the account's
+// SecurityPreferences: if any of the three flags (single-session, history,
+// recovery-code alert) is on, it registers the sign-in with SessionRegistry
+// and embeds the resulting session id; otherwise it behaves exactly like
+// SignSession (no registry write, no per-request registry lookup cost for
+// accounts that opt into nothing).
+func (s *Service) IssueSession(ctx context.Context, user User, method SignInMethod, ip, userAgent string) (string, error) {
+	prefs, err := s.registry.Preferences(ctx, user.Email)
+	if err != nil {
+		return "", err
+	}
+	sid := ""
+	if prefs.SingleSessionEnabled || prefs.HistoryEnabled || prefs.RecoveryCodeAlertEnabled {
+		sid, err = s.registry.IssueForAccount(ctx, user.Email, method, ip, userAgent)
+		if err != nil {
+			return "", err
+		}
+	}
+	return s.codec.sign(user, sid), nil
 }
 
-func (s *Service) CurrentSession(cookieValue string) (*Session, error) {
+// CompletePasswordLogin verifies credentials and either issues a session
+// outright (2FA off for this account) or returns a pending token that must
+// be completed via CompleteTwoFactorChallenge.
+func (s *Service) CompletePasswordLogin(ctx context.Context, email, password, ip, userAgent string) (LoginResult, error) {
+	user, err := s.LoginLocal(ctx, email, password)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	return s.completeLogin(ctx, user, SignInMethodPassword, ip, userAgent)
+}
+
+// CompleteGoogleLogin is the Google analogue of CompletePasswordLogin.
+func (s *Service) CompleteGoogleLogin(ctx context.Context, code, ip, userAgent string) (LoginResult, error) {
+	user, err := s.LoginGoogle(ctx, code)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	return s.completeLogin(ctx, user, SignInMethodGoogle, ip, userAgent)
+}
+
+func (s *Service) completeLogin(ctx context.Context, user User, method SignInMethod, ip, userAgent string) (LoginResult, error) {
+	if s.twoFactor.Enabled(ctx, user.Email) {
+		token := s.pendingLoginCodec.sign(pendingLogin{
+			Email:  user.Email,
+			Sub:    user.Sub,
+			Method: method,
+			Exp:    time.Now().Add(pendingLoginTTL).Unix(),
+		})
+		return LoginResult{Completed: false, PendingToken: token}, nil
+	}
+	cookieValue, err := s.IssueSession(ctx, user, method, ip, userAgent)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	return LoginResult{Completed: true, CookieValue: cookieValue}, nil
+}
+
+// CompleteTwoFactorChallenge verifies a pending login's second factor and,
+// on success, issues the real session with the combined SignInMethod
+// (e.g. "password+totp", "google+recovery-code").
+func (s *Service) CompleteTwoFactorChallenge(ctx context.Context, pendingToken, code, ip, userAgent string) (LoginResult, error) {
+	pending, err := s.pendingLoginCodec.verify(pendingToken)
+	if err != nil {
+		return LoginResult{}, ErrInvalidPendingLogin
+	}
+	usedRecoveryCode, err := s.twoFactor.VerifyChallenge(ctx, pending.Email, code)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	method := combineSignInMethod(pending.Method, usedRecoveryCode)
+	cookieValue, err := s.IssueSession(ctx, User{Email: pending.Email, Sub: pending.Sub}, method, ip, userAgent)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	return LoginResult{Completed: true, CookieValue: cookieValue}, nil
+}
+
+func combineSignInMethod(base SignInMethod, usedRecoveryCode bool) SignInMethod {
+	switch base {
+	case SignInMethodPassword:
+		if usedRecoveryCode {
+			return SignInMethodPasswordRecoveryCode
+		}
+		return SignInMethodPasswordTOTP
+	case SignInMethodGoogle:
+		if usedRecoveryCode {
+			return SignInMethodGoogleRecoveryCode
+		}
+		return SignInMethodGoogleTOTP
+	default:
+		return base
+	}
+}
+
+func (s *Service) CurrentSession(ctx context.Context, cookieValue string) (*Session, error) {
 	if cookieValue == "" {
 		return nil, errors.New("missing session cookie")
 	}
-	session, err := s.sessions.verify(cookieValue)
+	session, err := s.codec.verify(cookieValue)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +296,105 @@ func (s *Service) CurrentSession(cookieValue string) (*Session, error) {
 	if s.IsLocalAdmin(session.Email) && session.Sub != "local-admin" {
 		return nil, ErrLocalAdminPasswordOnly
 	}
+	// Single active session is one more account-scoped rule here, consulted
+	// only when the account has independently turned SingleSessionEnabled on
+	// (SessionRegistry.IsActive treats every session as active otherwise).
+	if !s.registry.IsActive(ctx, session.Email, session.SID) {
+		return nil, ErrSessionSuperseded
+	}
 	return session, nil
+}
+
+// RevokeSession clears email's active session id (used on logout), a no-op
+// for an account with no SessionRegistry record.
+func (s *Service) RevokeSession(ctx context.Context, email string) error {
+	return s.registry.Revoke(ctx, email)
+}
+
+// TwoFactorEnabled reports whether email has completed TOTP enrollment.
+func (s *Service) TwoFactorEnabled(ctx context.Context, email string) bool {
+	return s.twoFactor.Enabled(ctx, email)
+}
+
+// BeginTwoFactorEnrollment starts TOTP enrollment for email; see
+// TwoFactorAuthenticator.BeginEnrollment.
+func (s *Service) BeginTwoFactorEnrollment(ctx context.Context, email string) (enrollmentToken, secretBase32, otpauthURL string, err error) {
+	return s.twoFactor.BeginEnrollment(ctx, email)
+}
+
+// ConfirmTwoFactorEnrollment completes TOTP enrollment; see
+// TwoFactorAuthenticator.ConfirmEnrollment.
+func (s *Service) ConfirmTwoFactorEnrollment(ctx context.Context, enrollmentToken, code string) (recoveryCodes []string, email string, err error) {
+	return s.twoFactor.ConfirmEnrollment(ctx, enrollmentToken, code)
+}
+
+// DisableTwoFactor removes email's 2FA enrollment after verifying proof of
+// possession; see TwoFactorAuthenticator.Disable.
+func (s *Service) DisableTwoFactor(ctx context.Context, email, code string) error {
+	return s.twoFactor.Disable(ctx, email, code)
+}
+
+// RegenerateRecoveryCodes replaces email's recovery codes; see
+// TwoFactorAuthenticator.RegenerateRecoveryCodes.
+func (s *Service) RegenerateRecoveryCodes(ctx context.Context, email, code string) ([]string, error) {
+	return s.twoFactor.RegenerateRecoveryCodes(ctx, email, code)
+}
+
+// SecurityPreferences returns email's current SecurityPreferences.
+func (s *Service) SecurityPreferences(ctx context.Context, email string) (SecurityPreferences, error) {
+	return s.registry.Preferences(ctx, email)
+}
+
+// SetSecurityPreferences overwrites email's SecurityPreferences.
+func (s *Service) SetSecurityPreferences(ctx context.Context, email string, prefs SecurityPreferences) error {
+	return s.registry.SetPreferences(ctx, email, prefs)
+}
+
+// AckSecurityAlert clears email's pending SecurityAlert, if any.
+func (s *Service) AckSecurityAlert(ctx context.Context, email string) error {
+	return s.registry.AckAlert(ctx, email)
+}
+
+// SecuritySummary aggregates 2FA status, SecurityPreferences, sign-in
+// history, and any pending alert for the Security settings tab.
+func (s *Service) SecuritySummary(ctx context.Context, email string) (SecuritySummary, error) {
+	prefs, err := s.registry.Preferences(ctx, email)
+	if err != nil {
+		return SecuritySummary{}, err
+	}
+	history, err := s.registry.History(ctx, email)
+	if err != nil {
+		return SecuritySummary{}, err
+	}
+	alert, err := s.registry.PendingAlert(ctx, email)
+	if err != nil {
+		return SecuritySummary{}, err
+	}
+	return SecuritySummary{
+		TwoFactorEnabled:         s.twoFactor.Enabled(ctx, email),
+		RecoveryCodesRemaining:   s.twoFactor.RecoveryCodesRemaining(ctx, email),
+		SingleSessionEnabled:     prefs.SingleSessionEnabled,
+		HistoryEnabled:           prefs.HistoryEnabled,
+		RecoveryCodeAlertEnabled: prefs.RecoveryCodeAlertEnabled,
+		Sessions:                 history.Entries,
+		SecurityAlert:            alert,
+	}, nil
+}
+
+// ReissueTrackedSession re-signs a new session for an already-authenticated
+// user, going through the same IssueSession path a fresh login would. Used
+// right after a Security-tab change (enabling 2FA, single-session, etc.) so
+// the browser that just made the change is immediately recognized as the
+// account's active/tracked session, instead of waiting for its next login.
+// The SignInMethod recorded is inferred from the session's Sub (local-admin
+// implies password; anything else implies Google) since this isn't a fresh
+// credential check.
+func (s *Service) ReissueTrackedSession(ctx context.Context, user User, ip, userAgent string) (string, error) {
+	method := SignInMethodGoogle
+	if user.Sub == "local-admin" {
+		method = SignInMethodPassword
+	}
+	return s.IssueSession(ctx, user, method, ip, userAgent)
 }
 
 func (s *Service) IsAdmin(ctx context.Context, email string) (bool, error) {
@@ -203,7 +436,7 @@ func (s *Service) Status(ctx context.Context, cookieValue string) Status {
 		}
 	}
 
-	session, err := s.CurrentSession(cookieValue)
+	session, err := s.CurrentSession(ctx, cookieValue)
 	if err != nil {
 		return status
 	}
@@ -212,6 +445,11 @@ func (s *Service) Status(ctx context.Context, cookieValue string) Status {
 	status.Sub = session.Sub
 	status.IsAdmin, _ = s.IsAdmin(ctx, session.Email)
 	status.IsRegistered, _ = s.IsRegistered(ctx, session.Email)
+	if prefs, _ := s.registry.Preferences(ctx, session.Email); prefs.RecoveryCodeAlertEnabled {
+		if alert, _ := s.registry.PendingAlert(ctx, session.Email); alert != nil {
+			status.SecurityAlert = alert
+		}
+	}
 	return status
 }
 

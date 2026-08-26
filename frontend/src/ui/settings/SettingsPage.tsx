@@ -2,18 +2,27 @@ import type { AppearanceTheme } from "../../models/settings";
 import type { UserDirectory } from "../../state/hooks/users/useUserDirectory";
 import type { ServerInfo } from "../../models/serverInfo";
 import type { SelfUpdateStatus } from "../../models/selfUpdate";
+import type { SecuritySettingsController } from "../../state/hooks/auth/useSecuritySettings";
 import type { ComponentType } from "preact";
 import type { PushNotifications } from "../../state/hooks/push/usePushNotifications";
-import { Bell, Bot, ChevronLeft, Download, Info, Menu, Monitor, Users } from "../primitives/icons";
+import { Bell, Bot, ChevronLeft, Download, Info, Menu, Monitor, ShieldCheck, Users } from "../primitives/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { AgentAuthSettingsList } from "./AgentAuthSettings";
 import { GoogleOAuthSettings } from "./GoogleOAuthSettings";
+import { SecuritySettings } from "./SecuritySettings";
 import { ServerInfoSettings } from "./ServerInfoSettings";
 import { UpdatesSettings } from "./UpdatesSettings";
 import { UsersPanel } from "../account/UsersPanel";
 
-export type SettingsTab = "appearance" | "notifications" | "agents" | "users" | "updates" | "info";
+export type SettingsTab =
+  | "appearance"
+  | "notifications"
+  | "agents"
+  | "users"
+  | "security"
+  | "updates"
+  | "info";
 
 const tabs: Array<{
   id: SettingsTab;
@@ -44,6 +53,12 @@ const tabs: Array<{
     label: "Users",
     description: "Control who can access this server.",
     Icon: Users,
+  },
+  {
+    id: "security",
+    label: "Security",
+    description: "Manage two-factor authentication, sessions, and sign-in history.",
+    Icon: ShieldCheck,
   },
   {
     id: "updates",
@@ -80,6 +95,7 @@ export function SettingsPage({
   appearanceSaving,
   appearanceError,
   push,
+  security,
   onBack,
   onHamburger,
   onTabChange,
@@ -108,6 +124,7 @@ export function SettingsPage({
   appearanceSaving: boolean;
   appearanceError: string | null;
   push: PushNotifications;
+  security: SecuritySettingsController;
   onBack: () => void;
   onHamburger: () => void;
   onTabChange: (tab: SettingsTab) => void;
@@ -217,6 +234,8 @@ export function SettingsPage({
                 />
               </div>
             )}
+
+            {activeTab === "security" && <SecuritySettings controller={security} />}
 
             {activeTab === "updates" &&
               (isAdmin ? (

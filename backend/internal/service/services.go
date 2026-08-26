@@ -54,6 +54,8 @@ type Dependencies struct {
 	Auth              AuthStore
 	Users             serviceuser.Repository
 	UserSettings      serviceusersettings.Repository
+	TwoFactor         serviceauth.TwoFactorStore
+	SessionRegistry   serviceauth.SessionRegistryStore
 	Push              PushStore
 	AuthBaseURL       string
 	ProjectContainers serviceproject.ContainerDependencies
@@ -175,7 +177,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			subscriptions: deps.Push,
 		}),
 	)
-	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
+	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL, deps.TwoFactor, deps.SessionRegistry)
 	if err != nil {
 		return Services{}, err
 	}
@@ -397,6 +399,8 @@ func newAuth(
 	store AuthStore,
 	users *serviceuser.Service,
 	baseURL string,
+	twoFactor serviceauth.TwoFactorStore,
+	sessionRegistry serviceauth.SessionRegistryStore,
 ) (*serviceauth.Service, error) {
 	if store == nil {
 		return nil, errors.New("authentication store is required")
@@ -423,6 +427,8 @@ func newAuth(
 		},
 		baseURL,
 		sessionKey,
+		twoFactor,
+		sessionRegistry,
 	)
 }
 

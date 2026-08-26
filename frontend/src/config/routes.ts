@@ -81,12 +81,25 @@ export const API_ROUTES = {
       `/api/projects/${encodeURIComponent(id)}/access/${encodeURIComponent(email)}`,
   },
   settings: "/api/me/settings",
+  security: {
+    summary: "/api/me/security",
+    enroll: "/api/me/security/2fa/enroll",
+    confirm: "/api/me/security/2fa/confirm",
+    disable: "/api/me/security/2fa/disable",
+    regenerateRecoveryCodes: "/api/me/security/2fa/recovery-codes/regenerate",
+    preferences: "/api/me/security/preferences",
+    ackAlert: "/api/me/security/alerts/ack",
+  },
   push: {
     config: "/api/push/config",
     subscriptions: "/api/push/subscriptions",
     subscriptionStatus: "/api/push/subscriptions/status",
     test: "/api/push/test",
     presence: "/api/push/presence",
+  },
+  auth2fa: {
+    verify: "/auth/2fa/verify",
+    cancel: "/auth/2fa/cancel",
   },
   serverInfo: "/api/server/info",
   selfUpdate: {

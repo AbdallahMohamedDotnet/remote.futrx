@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { localAuthApi } from "../../../api/authApi";
+import { localAuthApi, twoFactorApi } from "../../../api/authApi";
 import { returnUrlPolicy } from "../../auth/returnUrlPolicy";
 
 export type LoginMode = "claim" | "login" | "legacy-setup";
@@ -26,6 +26,17 @@ export function useLocalAuthController({
   const [error, setError] = useState<string | null>(null);
   const setup = mode === "claim" || mode === "legacy-setup";
 
+  // A password or Google login can come back asking for a second factor
+  // instead of completing outright. The Google callback signals the same
+  // thing via a `?twoFactorRequired=1` redirect, since it has no JSON
+  // response to branch on.
+  const [pendingTwoFactor, setPendingTwoFactor] = useState(
+    mode === "login" && params.get("twoFactorRequired") === "1"
+  );
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
+  const [twoFactorSubmitting, setTwoFactorSubmitting] = useState(false);
+
   async function submit(event: Event) {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
@@ -45,14 +56,53 @@ export function useLocalAuthController({
     setSubmitting(true);
     setError(null);
     try {
-      if (setup) await localAuthApi.claim(normalizedEmail, password);
-      else await localAuthApi.login(normalizedEmail, password);
+      if (setup) {
+        await localAuthApi.claim(normalizedEmail, password);
+        await onSuccess();
+        return;
+      }
+      const result = await localAuthApi.login(normalizedEmail, password);
+      if (result.twoFactorRequired) {
+        setPendingTwoFactor(true);
+        return;
+      }
       await onSuccess();
-      if (mode === "login" && returnTo) location.assign(returnTo);
+      if (returnTo) location.assign(returnTo);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function submitTwoFactorCode(event: Event) {
+    event.preventDefault();
+    if (!twoFactorCode.trim()) {
+      setTwoFactorError("Enter a code from your authenticator app or a recovery code.");
+      return;
+    }
+    setTwoFactorSubmitting(true);
+    setTwoFactorError(null);
+    try {
+      await twoFactorApi.verify(twoFactorCode.trim());
+      setPendingTwoFactor(false);
+      await onSuccess();
+      if (returnTo) location.assign(returnTo);
+    } catch (cause) {
+      setTwoFactorError((cause as Error).message);
+    } finally {
+      setTwoFactorSubmitting(false);
+    }
+  }
+
+  async function cancelTwoFactor() {
+    setTwoFactorCode("");
+    setTwoFactorError(null);
+    setPendingTwoFactor(false);
+    try {
+      await twoFactorApi.cancel();
+    } catch {
+      // Best-effort: the pending cookie also just expires on its own.
     }
   }
 
@@ -70,5 +120,12 @@ export function useLocalAuthController({
     setup,
     submit,
     submitting,
+    pendingTwoFactor,
+    twoFactorCode,
+    setTwoFactorCode,
+    twoFactorError,
+    twoFactorSubmitting,
+    submitTwoFactorCode,
+    cancelTwoFactor,
   };
 }

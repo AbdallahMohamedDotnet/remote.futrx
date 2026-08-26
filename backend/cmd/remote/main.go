@@ -77,6 +77,8 @@ func main() {
 		Auth:              storeSet.Auth,
 		Users:             storeSet.Users,
 		UserSettings:      storeSet.UserSettings,
+		TwoFactor:         storeSet.TwoFactor,
+		SessionRegistry:   storeSet.SessionRegistry,
 		Push:              storeSet.Push,
 		AuthBaseURL:       cfg.BaseURL,
 		ProjectContainers: containerStack.ProjectDependencies(),
