@@ -38,10 +38,10 @@ func TestCatalogBuildsFakeFifthAgentWithoutProviderSwitches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if runtime.Providers.Lookup("minimax") == nil {
+	if runtime.Lookup("minimax") == nil {
 		t.Fatal("fake fifth provider was not registered")
 	}
-	if binding, ok := runtime.Auth.Lookup("minimax"); !ok || binding.Flow() != agentauth.FlowExternal {
+	if binding, ok := runtime.AuthBinding("minimax"); !ok || binding.Flow() != agentauth.FlowExternal {
 		t.Fatalf("fake fifth auth binding = (%#v, %t)", binding, ok)
 	}
 	profiles := catalog.Profiles()
@@ -319,11 +319,11 @@ func TestCatalogSelectsDefaultsAndEvaluatesAccessGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if catalog.AccessReady(runtime.Auth) {
+	if runtime.AccessReady() {
 		t.Fatal("access gate opened before managed authentication")
 	}
 	authenticated = true
-	if !catalog.AccessReady(runtime.Auth) {
+	if !runtime.AccessReady() {
 		t.Fatal("access gate stayed closed after managed authentication")
 	}
 

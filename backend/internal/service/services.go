@@ -10,7 +10,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/googleoauth"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
-	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
@@ -91,8 +90,7 @@ type Services struct {
 	Prompt            *prompt.Service
 	Schedules         *serviceschedule.Service
 	ScheduleCaps      *schedulecapability.Registry
-	AgentAuth         *agentauth.Registry
-	AgentModules      *agentmodule.Catalog
+	Agents            *agentmodule.Runtime
 	AgentCapabilities *agentcapability.Service
 	Runs              *runhub.Hub
 	Workspace         *workspacehub.Hub
@@ -164,12 +162,10 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxResolver,
 		runs,
 		servicechat.WithCopiedEventAppender(chats),
-		servicechat.WithSessionPolicy(deps.AgentModules),
-		servicechat.WithProviderPolicy(deps.AgentModules),
+		servicechat.WithSessionPolicy(agentRuntime),
+		servicechat.WithProviderPolicy(agentRuntime),
 	)
 	chatAccessService := servicechat.NewAccessService(chatService, projectService)
-	agents := agentRuntime.Providers
-	agentAuth := agentRuntime.Auth
 	pushService := newPush(deps.Push, deps.AuthBaseURL)
 	userService := serviceuser.New(
 		deps.Users,
@@ -188,9 +184,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		deps.TmuxClient,
 		projectService,
 		runs,
-		agents,
+		agentRuntime,
 		prompt.WithScheduleToolIssuer(scheduleCaps),
-		prompt.WithAgentPolicy(deps.AgentModules),
+		prompt.WithAgentPolicy(agentRuntime),
 	)
 	scheduleService := serviceschedule.New(
 		deps.Schedules,
@@ -207,12 +203,12 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	}
 	userSettingsService := serviceusersettings.New(
 		deps.UserSettings,
-		serviceusersettings.WithProviderCatalog(deps.AgentModules),
+		serviceusersettings.WithProviderCatalog(agentRuntime),
 	)
-	skillService := serviceskills.New(serviceskills.WithProviderCatalog(deps.AgentModules))
+	skillService := serviceskills.New(serviceskills.WithProviderCatalog(agentRuntime))
 	skillCatalog := serviceskills.NewCatalog(skillService, projectService, authService)
 	agentCapabilities := agentcapability.New(
-		agents,
+		agentRuntime,
 		projectService,
 		authService,
 		agentcapability.Settings{
@@ -220,7 +216,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			CapabilityCacheTTL:         deps.AgentOptions.CapabilityCacheTTL,
 			DegradedCapabilityCacheTTL: deps.AgentOptions.DegradedCapabilityCacheTTL,
 		},
-		agentcapability.WithModuleCatalog(deps.AgentModules),
+		agentcapability.WithModuleCatalog(agentRuntime),
 	)
 	var accessVerifier *serviceauth.AccessVerifier
 	if authService != nil {
@@ -242,8 +238,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Prompt:            promptService,
 		Schedules:         scheduleService,
 		ScheduleCaps:      scheduleCaps,
-		AgentAuth:         agentAuth,
-		AgentModules:      deps.AgentModules,
+		Agents:            agentRuntime,
 		AgentCapabilities: agentCapabilities,
 		Runs:              runs,
 		Workspace:         workspace,

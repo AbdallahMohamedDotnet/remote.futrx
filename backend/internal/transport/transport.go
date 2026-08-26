@@ -38,7 +38,7 @@ type Dependencies struct {
 }
 
 func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
-	agentAuthBindings := deps.Services.AgentAuth.Bindings()
+	agentAuthBindings := deps.Services.Agents.Bindings()
 	var auth httptransport.RouteRegistrar
 	var middleware httptransport.Middleware
 	if deps.Services.Auth != nil {
@@ -53,16 +53,10 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			)
 		}
 		providerAuthPrefixes = append(providerAuthPrefixes, "/api/agent-auth", "/ws/agent-auth/")
-		providerReady := deps.Services.AgentAuth.AnyAuthenticated
-		if deps.Services.AgentModules != nil {
-			providerReady = func() bool {
-				return deps.Services.AgentModules.AccessReady(deps.Services.AgentAuth)
-			}
-		}
 		middleware = httpmiddleware.NewAuth(deps.Services.Auth).
 			RequireLocalAdminSetup(deps.Services.Auth.LocalAdminConfigured).
 			RequireProviderLogin(
-				providerReady,
+				deps.Services.Agents.AccessReady,
 				providerAuthPrefixes...,
 			)
 	}
@@ -112,7 +106,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		AgentAuth: httphandlers.NewAgentAuthHandler(
 			agentAuthBindings,
 			deps.Services.Auth,
-			deps.Services.AgentModules,
+			deps.Services.Agents,
 		),
 		AgentCapabilities: httphandlers.NewAgentCapabilitiesHandler(deps.Services.AgentCapabilities),
 		UserSettings: httphandlers.NewUserSettingsHandler(

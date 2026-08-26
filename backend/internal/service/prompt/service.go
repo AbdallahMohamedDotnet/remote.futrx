@@ -92,6 +92,10 @@ type AgentPolicy interface {
 	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
 }
 
+type AgentRegistry interface {
+	Lookup(agent.ProviderID) agent.Provider
+}
+
 func WithAgentPolicy(policy AgentPolicy) Option {
 	return func(service *Service) {
 		service.agentPolicy = policy
@@ -103,7 +107,7 @@ type Service struct {
 	tmux          TmuxClient
 	projects      ProjectResolver
 	hub           *runhub.Hub
-	agents        *agent.Registry
+	agents        AgentRegistry
 	agentPolicy   AgentPolicy
 	scheduleTools ScheduleToolIssuer
 }
@@ -113,7 +117,7 @@ func New(
 	tmux TmuxClient,
 	projects ProjectResolver,
 	hub *runhub.Hub,
-	agents *agent.Registry,
+	agents AgentRegistry,
 	options ...Option,
 ) *Service {
 	if hub == nil {

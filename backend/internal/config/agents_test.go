@@ -65,16 +65,16 @@ func TestCatalogBuildsEveryDeclaredAgentInStableOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, descriptor := range descriptors {
-		provider := runtime.Providers.Lookup(descriptor.ID)
+		provider := runtime.Lookup(descriptor.ID)
 		if provider == nil || provider.ID() != descriptor.ID {
 			t.Fatalf("provider %q was not built consistently", descriptor.ID)
 		}
-		binding, ok := runtime.Auth.Lookup(descriptor.ID)
+		binding, ok := runtime.AuthBinding(descriptor.ID)
 		if !ok || binding.ID() != descriptor.ID {
 			t.Fatalf("auth binding %q was not built consistently", descriptor.ID)
 		}
 	}
-	if runtime.Auth.AnyAuthenticated() != catalog.AccessReady(runtime.Auth) {
+	if runtime.AnyAuthenticated() != runtime.AccessReady() {
 		t.Fatal("built-in access gate drifted from managed auth readiness")
 	}
 }

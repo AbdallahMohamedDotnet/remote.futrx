@@ -247,32 +247,112 @@ func (c *Catalog) HostProfiles() []provisioning.Profile {
 	return profiles
 }
 
-// Runtime contains the two registries built from the same validated factories.
-// Keeping this operation atomic prevents provider/profile/auth drift.
+// Runtime is the single validated view of configured agents. It owns the
+// provider and authentication registries so callers cannot combine runtime
+// components built from different catalogs.
 type Runtime struct {
-	Providers *agent.Registry
-	Auth      *agentauth.Registry
+	catalog   *Catalog
+	providers *agent.Registry
+	auth      *agentauth.Registry
 }
 
-func (c *Catalog) Build(deps Dependencies) (Runtime, error) {
+func (c *Catalog) Build(deps Dependencies) (*Runtime, error) {
 	if c == nil {
-		return Runtime{}, fmt.Errorf("%w: catalog is nil", ErrInvalidCatalog)
+		return nil, fmt.Errorf("%w: catalog is nil", ErrInvalidCatalog)
 	}
 	providers := agent.NewRegistry()
 	auth := agentauth.NewRegistry()
 	for _, factory := range c.factories {
 		components, err := factory.buildComponents(deps)
 		if err != nil {
-			return Runtime{}, err
+			return nil, err
 		}
 		if err := providers.Register(components.Provider); err != nil {
-			return Runtime{}, err
+			return nil, err
 		}
 		if components.Auth != nil {
 			if err := auth.Register(*components.Auth); err != nil {
-				return Runtime{}, err
+				return nil, err
 			}
 		}
 	}
-	return Runtime{Providers: providers, Auth: auth}, nil
+	return &Runtime{catalog: c, providers: providers, auth: auth}, nil
+}
+
+// Lookup returns a configured provider by stable ID.
+func (r *Runtime) Lookup(id agent.ProviderID) agent.Provider {
+	if r == nil {
+		return nil
+	}
+	return r.providers.Lookup(id)
+}
+
+// CapabilityProviders returns providers in validated module order.
+func (r *Runtime) CapabilityProviders() []agent.CapabilityProvider {
+	if r == nil {
+		return nil
+	}
+	return r.providers.CapabilityProviders()
+}
+
+func (r *Runtime) Bindings() []agentauth.Binding {
+	if r == nil {
+		return nil
+	}
+	return r.auth.Bindings()
+}
+
+func (r *Runtime) AuthBinding(id agent.ProviderID) (agentauth.Binding, bool) {
+	if r == nil {
+		return agentauth.Binding{}, false
+	}
+	return r.auth.Lookup(id)
+}
+
+func (r *Runtime) AnyAuthenticated() bool {
+	return r != nil && r.auth.AnyAuthenticated()
+}
+
+func (r *Runtime) AccessReady() bool {
+	return r != nil && r.catalog.AccessReady(r.auth)
+}
+
+func (r *Runtime) Descriptors() []Descriptor {
+	if r == nil {
+		return nil
+	}
+	return r.catalog.Descriptors()
+}
+
+func (r *Runtime) Descriptor(provider string) (Descriptor, bool) {
+	if r == nil {
+		return Descriptor{}, false
+	}
+	return r.catalog.Descriptor(provider)
+}
+
+func (r *Runtime) HasProvider(provider string) bool {
+	return r != nil && r.catalog.HasProvider(provider)
+}
+
+func (r *Runtime) SupportsScope(provider string, scope ExecutionScope) bool {
+	return r != nil && r.catalog.SupportsScope(provider, scope)
+}
+
+func (r *Runtime) DefaultProvider(scope ExecutionScope) agent.ProviderID {
+	if r == nil {
+		return ""
+	}
+	return r.catalog.DefaultProvider(scope)
+}
+
+func (r *Runtime) LegacySkillRoots(provider string) []string {
+	if r == nil {
+		return nil
+	}
+	return r.catalog.LegacySkillRoots(provider)
+}
+
+func (r *Runtime) SupportsNativeFork(provider string) bool {
+	return r != nil && r.catalog.SupportsNativeFork(provider)
 }
