@@ -4,6 +4,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
+	agentexecution "github.com/futrx-com/remote.futrx.com/internal/service/agent/execution"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
@@ -38,9 +39,33 @@ func NewFactory() (agentmodule.Factory, error) {
 			return ""
 		})
 		return agentmodule.Components{
-			Provider: newProvider(deps.Projects, deps.Containers, *validatedProfile, deps.CredentialSyncTimeout),
-			Auth:     &binding,
+			Provider: newProvider(
+				newProjectPreparer(deps.Projects, deps.Containers, *validatedProfile),
+				deps.Containers,
+				*validatedProfile,
+				deps.CredentialSyncTimeout,
+			),
+			Auth: &binding,
 		}, nil
+	})
+}
+
+func newProjectPreparer(
+	projects agent.ProjectResolver,
+	containers provisioning.ContainerDependencies,
+	profile provisioning.Profile,
+) agent.ProjectPreparer {
+	profile = profile.Clone()
+	return agentexecution.New(projects, containers, agentexecution.Options{
+		Provider:          agent.ProviderCodex,
+		Profile:           profile,
+		CLIErrorOperation: "codex CLI unavailable in container",
+		BeforeCredentials: func() error {
+			return validateSubscriptionCredentials(profile)
+		},
+		SkillLinksRequired: true,
+		BrowserAssets:      true,
+		BrowserRuntime:     true,
 	})
 }
 

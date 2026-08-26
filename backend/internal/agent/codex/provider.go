@@ -10,20 +10,20 @@ import (
 )
 
 type Provider struct {
-	projects              agent.ProjectResolver
+	projectPreparer       agent.ProjectPreparer
 	containerDeps         provisioning.ContainerDependencies
 	profile               provisioning.Profile
 	credentialSyncTimeout time.Duration
 }
 
 func newProvider(
-	projects agent.ProjectResolver,
+	projectPreparer agent.ProjectPreparer,
 	containerDeps provisioning.ContainerDependencies,
 	profile provisioning.Profile,
 	credentialSyncTimeout time.Duration,
 ) *Provider {
 	return &Provider{
-		projects:              projects,
+		projectPreparer:       projectPreparer,
 		containerDeps:         containerDeps,
 		profile:               profile.Clone(),
 		credentialSyncTimeout: credentialSyncTimeout,

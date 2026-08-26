@@ -3,14 +3,13 @@ package codex
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/agent/runtime"
 )
 
 func (p *Provider) args(req agent.RunRequest) []string {
@@ -59,7 +58,7 @@ func (p *Provider) buildCmd(
 		}
 	}
 
-	if req.ProjectID == "" || p.projects == nil {
+	if req.ProjectID == "" || p.projectPreparer == nil {
 		if err := ensureHostSubscriptionAuth(); err != nil {
 			return nil, "", err
 		}
@@ -69,95 +68,25 @@ func (p *Provider) buildCmd(
 		return cmd, "", nil
 	}
 
-	project, err := p.projects.Get(ctx, agent.ProjectID(req.ProjectID))
+	project, err := p.projectPreparer.Prepare(ctx, agent.ProjectPreparationRequest{
+		ProjectID:           agent.ProjectID(req.ProjectID),
+		ConversationID:      req.ConversationID,
+		EnableBrowser:       req.EnableBrowser,
+		EnableScheduleTools: req.EnableScheduleTools,
+	}, emit)
 	if err != nil {
-		return nil, "", fmt.Errorf("project not found (%s): %w", req.ProjectID, err)
-	}
-	if project.ContainerName == "" {
-		return nil, "", fmt.Errorf("project %s has no container - recreate the project", project.ID)
-	}
-
-	// The container can be deleted out-of-band (e.g. a workspace recycle onto a
-	// new base image), leaving the cached Status stale. Always reconcile via
-	// Start — it relaunches a missing instance from the base image and is a
-	// no-op when already running; the cached Status only gates the indicator.
-	if project.Status != agent.ProjectStatusRunning {
-		emitSystem(req, emit, "container_starting")
-	}
-	if _, err := p.projects.Start(ctx, project.ID); err != nil {
-		return nil, "", fmt.Errorf("start container: %w", err)
-	}
-
-	if err := p.containerDeps.Validate(); err != nil {
 		return nil, "", err
 	}
-	if !p.containerDeps.IsZero() {
-		emitSystem(req, emit, "container_preparing")
-		if err := p.containerDeps.CLI.Ensure(ctx, project.ContainerName, p.profile.CLI); err != nil {
-			return nil, "", fmt.Errorf("codex CLI unavailable in container: %w", err)
-		}
-		if err := p.ensureCredentials(ctx, project.ContainerName); err != nil {
-			return nil, "", fmt.Errorf("seed codex auth in container: %w", err)
-		}
-		if err := p.containerDeps.Workspace.EnsureAgentInstructions(ctx, project.ContainerName); err != nil {
-			return nil, "", fmt.Errorf("push agent instructions to container: %w", err)
-		}
-		if err := p.containerDeps.Workspace.EnsureSkillLinks(ctx, project.ContainerName); err != nil {
-			return nil, "", fmt.Errorf("prepare workspace skill links: %w", err)
-		}
-		if err := p.containerDeps.Browser.EnsureSkill(ctx, project.ContainerName); err != nil {
-			// Best-effort migration for containers created before the skill.
-			_ = err
-		}
-		if err := p.containerDeps.Browser.EnsureScript(ctx, project.ContainerName); err != nil {
-			// Browser script provisioning is best-effort: its absence only
-			// matters when the agent tries to run scripts/browser.mjs.
-			_ = err
-		}
-		if req.EnableBrowser {
-			if err := p.containerDeps.Browser.EnsureMCP(ctx, project.ContainerName); err != nil {
-				return nil, "", fmt.Errorf("provision browser MCP: %w", err)
-			}
-			if err := p.containerDeps.Browser.EnsureCore(ctx, project.ContainerName); err != nil {
-				return nil, "", fmt.Errorf("start browser core: %w", err)
-			}
-		}
-		if req.EnableScheduleTools {
-			if err := p.containerDeps.ScheduleTools.Ensure(ctx, project.ContainerName); err != nil {
-				return nil, "", fmt.Errorf("provision scheduled-task tools: %w", err)
-			}
-		}
-		if err := p.containerDeps.Lifecycle.EnsureBootAutostart(ctx, project.ContainerName); err != nil {
-			return nil, "", fmt.Errorf("set container boot.autostart: %w", err)
-		}
-	}
-
-	lxcArgs := []string{
-		"exec",
-		"--cwd", "/workspace",
-		"--env", "HOME=/root",
-		"--env", "CODEX_HOME=/root/.codex",
-	}
-	if p.projects != nil {
-		if secrets, err := p.projects.ListSecrets(ctx, project.ID); err == nil {
-			for _, sec := range secrets {
-				if sec.Key == "OPENAI_API_KEY" {
-					continue
-				}
-				if _, backendIssued := req.RuntimeEnv[sec.Key]; backendIssued {
-					continue
-				}
-				lxcArgs = append(lxcArgs, "--env", sec.Key+"="+sec.Value)
-			}
-		}
-	}
-	lxcArgs = append(lxcArgs, "--env", "OPENAI_API_KEY=")
-	for _, entry := range agent.RuntimeEnvironment(req.RuntimeEnv) {
-		lxcArgs = append(lxcArgs, "--env", entry)
-	}
-	lxcArgs = append(lxcArgs, project.ContainerName, "--", "codex")
-	lxcArgs = append(lxcArgs, args...)
-	cmd := exec.CommandContext(ctx, "lxc", lxcArgs...)
+	cmd := agentruntime.BuildContainerCommand(ctx, agentruntime.ContainerCommandSpec{
+		ContainerName:      project.ContainerName,
+		PrefixEnvironment:  []string{"HOME=/root", "CODEX_HOME=/root/.codex"},
+		Secrets:            project.Secrets,
+		ExcludedSecrets:    []string{"OPENAI_API_KEY"},
+		SuffixEnvironment:  []string{"OPENAI_API_KEY="},
+		RuntimeEnvironment: req.RuntimeEnv,
+		Binary:             p.profile.CLI.Binary,
+		Arguments:          args,
+	})
 	return cmd, project.ContainerName, nil
 }
 
@@ -213,14 +142,4 @@ func hostCodexHome() string {
 		return filepath.Join(home, ".codex")
 	}
 	return "/root/.codex"
-}
-
-func emitSystem(req agent.RunRequest, emit func(agent.Event), subtype string) {
-	emit(agent.Event{
-		T:              time.Now().UnixMilli(),
-		Type:           agent.EventSystem,
-		Provider:       agent.ProviderCodex,
-		ConversationID: req.ConversationID,
-		Subtype:        subtype,
-	})
 }

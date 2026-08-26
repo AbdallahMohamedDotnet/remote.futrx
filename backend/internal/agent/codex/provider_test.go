@@ -18,7 +18,13 @@ func newTestProvider(
 	projects agent.ProjectResolver,
 	dependencies provisioning.ContainerDependencies,
 ) *Provider {
-	return newProvider(projects, dependencies, Profile(), 30*time.Second)
+	profile := Profile()
+	return newProvider(
+		newProjectPreparer(projects, dependencies, profile),
+		dependencies,
+		profile,
+		30*time.Second,
+	)
 }
 
 func TestArgsUseCodexAppServer(t *testing.T) {
@@ -134,12 +140,24 @@ func TestContainerCredentialsRejectAPIKeyAuthBeforeProvisioning(t *testing.T) {
 	}
 
 	credentials := &fakeCodexCredentials{}
-	provider := newTestProvider(nil, provisioning.ContainerDependencies{Credentials: credentials})
-	provider.profile.Credentials.Files[0].HostPath = authPath
+	profile := Profile()
+	profile.Credentials.Files[0].HostPath = authPath
+	project := agent.Project{
+		ID:            agent.ProjectID("project-id"),
+		ContainerName: "project",
+		Status:        agent.ProjectStatusRunning,
+	}
+	preparer := newProjectPreparer(
+		fakeCodexProjects{project: project},
+		codexContainerDependencies(credentials, &fakeCodexBrowser{}),
+		profile,
+	)
 
-	err := provider.ensureCredentials(context.Background(), "project")
+	_, err := preparer.Prepare(context.Background(), agent.ProjectPreparationRequest{
+		ProjectID: project.ID,
+	}, func(agent.Event) {})
 	if !errors.Is(err, ErrCodexAPIKeyAuth) {
-		t.Fatalf("ensure credentials error = %v, want %v", err, ErrCodexAPIKeyAuth)
+		t.Fatalf("prepare project error = %v, want %v", err, ErrCodexAPIKeyAuth)
 	}
 	if credentials.ensureCalls != 0 {
 		t.Fatalf("credentials provisioned despite API-key auth: %d", credentials.ensureCalls)
