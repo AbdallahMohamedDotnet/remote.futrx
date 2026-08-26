@@ -1,10 +1,12 @@
-package agent
+package runtime
 
 import (
 	"context"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
 // NewCapabilityCommand constructs a provider probe for the host or selected
@@ -13,7 +15,7 @@ import (
 // adapter's explicit environment overrides to that invocation.
 func NewCapabilityCommand(
 	ctx context.Context,
-	req CapabilityRequest,
+	req agent.CapabilityRequest,
 	environment []string,
 	binary string,
 	args ...string,

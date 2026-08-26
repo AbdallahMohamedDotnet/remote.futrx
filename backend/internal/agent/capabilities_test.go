@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"slices"
 	"testing"
 )
 
@@ -43,17 +42,5 @@ func TestWithAutoModelUsesProviderDefaultControls(t *testing.T) {
 	got := WithAutoModel(models, "provider default")
 	if len(got) != 3 || got[0].ID != "" || got[0].ReasoningEfforts[0].Value != "high" || got[0].ServiceTiers[0].Value != "priority" {
 		t.Fatalf("unexpected auto model: %+v", got[0])
-	}
-}
-
-func TestMergeEnvironmentReplacesInheritedValues(t *testing.T) {
-	merged := mergeEnvironment(
-		[]string{"HOME=/old", "PATH=/bin", "OPENAI_API_KEY=secret"},
-		[]string{"HOME=/provider", "OPENAI_API_KEY="},
-	)
-
-	want := []string{"PATH=/bin", "HOME=/provider", "OPENAI_API_KEY="}
-	if !slices.Equal(merged, want) {
-		t.Fatalf("mergeEnvironment() = %v, want %v", merged, want)
 	}
 }

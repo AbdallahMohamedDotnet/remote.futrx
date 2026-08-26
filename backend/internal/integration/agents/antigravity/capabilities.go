@@ -5,14 +5,15 @@ import (
 	"fmt"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	environment := []string{"HOME=" + containerAgentHome}
 
-	modelsCmd := agent.NewCapabilityCommand(ctx, req, environment, "agy", "models")
+	modelsCmd := agentruntime.NewCapabilityCommand(ctx, req, environment, "agy", "models")
 	modelsOutput, modelsErr := modelsCmd.CombinedOutput()
-	helpCmd := agent.NewCapabilityCommand(ctx, req, environment, "agy", "--help")
+	helpCmd := agentruntime.NewCapabilityCommand(ctx, req, environment, "agy", "--help")
 	helpOutput, helpErr := helpCmd.CombinedOutput()
 
 	if modelsErr != nil && helpErr != nil {

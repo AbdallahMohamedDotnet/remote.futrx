@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
@@ -12,7 +13,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	if req.ContainerName == "" {
 		kimiHome = hostKimiHome()
 	}
-	modelsCmd := agent.NewCapabilityCommand(
+	modelsCmd := agentruntime.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "KIMI_CODE_HOME=" + kimiHome},
@@ -22,7 +23,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 		"--json",
 	)
 	modelsOutput, modelsErr := modelsCmd.Output()
-	defaultsCmd := agent.NewCapabilityCommand(
+	defaultsCmd := agentruntime.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "KIMI_CODE_HOME=" + kimiHome},
@@ -31,7 +32,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 		"list",
 	)
 	defaultsOutput, defaultsErr := defaultsCmd.Output()
-	helpCmd := agent.NewCapabilityCommand(
+	helpCmd := agentruntime.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "KIMI_CODE_HOME=" + kimiHome},

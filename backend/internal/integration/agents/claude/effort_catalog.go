@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 // queryEffortOptions asks Claude Code's local /effort command for the choices
@@ -17,7 +18,7 @@ func queryEffortOptions(
 	ctx context.Context,
 	req agent.CapabilityRequest,
 ) ([]agent.CapabilityOption, error) {
-	cmd := agent.NewCapabilityCommand(
+	cmd := agentruntime.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "IS_SANDBOX=1"},

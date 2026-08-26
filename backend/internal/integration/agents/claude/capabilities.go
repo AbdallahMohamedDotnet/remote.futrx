@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 const fastServiceTier = "fast"
@@ -53,7 +54,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 }
 
 func queryHelpEffortOptions(ctx context.Context, req agent.CapabilityRequest) []agent.CapabilityOption {
-	helpCmd := agent.NewCapabilityCommand(
+	helpCmd := agentruntime.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "IS_SANDBOX=1"},

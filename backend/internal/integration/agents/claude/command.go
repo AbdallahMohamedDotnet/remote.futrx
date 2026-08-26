@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	agentruntime "github.com/futrx-com/remote.futrx.com/internal/agent/runtime"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 func (p *Provider) args(req agent.RunRequest) []string {

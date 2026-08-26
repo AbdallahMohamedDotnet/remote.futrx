@@ -6,7 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	agentruntime "github.com/futrx-com/remote.futrx.com/internal/agent/runtime"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 // containerKimiHome is the KIMI_CODE_HOME inside a project container — where

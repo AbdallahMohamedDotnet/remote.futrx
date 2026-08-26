@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 type rpcResponse struct {
@@ -24,7 +25,7 @@ func queryAppServerCapabilities(
 	ctx context.Context,
 	req agent.CapabilityRequest,
 ) (modelListResponse, collaborationModeListResponse, error) {
-	cmd := agent.NewCapabilityCommand(
+	cmd := agentruntime.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "CODEX_HOME=/root/.codex", "OPENAI_API_KEY="},

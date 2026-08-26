@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 const modelResolutionWorkers = 4
@@ -101,7 +102,7 @@ func runModelCommand(
 		args = append(args, "--model", selection)
 	}
 	args = append(args, "/model")
-	cmd := agent.NewCapabilityCommand(
+	cmd := agentruntime.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "IS_SANDBOX=1"},

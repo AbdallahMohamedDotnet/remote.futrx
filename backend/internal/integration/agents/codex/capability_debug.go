@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 type debugCatalog struct {
@@ -28,7 +29,7 @@ type debugReasoningItem struct {
 }
 
 func queryDebugModels(ctx context.Context, req agent.CapabilityRequest) (modelListResponse, error) {
-	cmd := agent.NewCapabilityCommand(
+	cmd := agentruntime.NewCapabilityCommand(
 		ctx,
 		req,
 		[]string{"HOME=/root", "CODEX_HOME=/root/.codex", "OPENAI_API_KEY="},

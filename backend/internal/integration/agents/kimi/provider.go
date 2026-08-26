@@ -7,7 +7,7 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	agentruntime "github.com/futrx-com/remote.futrx.com/internal/agent/runtime"
+	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 type Provider struct {
