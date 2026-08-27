@@ -102,6 +102,9 @@ grep -Fq 'git clone --depth=1 --branch main --single-branch "$CLONE_URL" "$TARGE
     fail "core install.sh does not pin production bootstrap clones to main"
 grep -Fq 'MAIN_REFSPEC="+refs/heads/main:refs/remotes/origin/main"' "$CORE_INSTALL_SCRIPT" || \
     fail "core install.sh does not explicitly fetch main for existing narrow clones"
+if [ "$(grep -Fc 'config remote.origin.fetch "$MAIN_REFSPEC"' "$CORE_INSTALL_SCRIPT")" -ne 2 ]; then
+    fail "core install.sh does not persist the main refspec for both existing-checkout repair paths (legacy + primary), so later plain fetches would go stale"
+fi
 if grep -Eq 'apt-get|git clone' "$INSTALL_SCRIPT"; then
     fail "install.sh bootstraps dependencies or clones the repository itself"
 fi

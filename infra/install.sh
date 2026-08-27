@@ -90,7 +90,12 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
             else
                 # Existing shallow clones may follow a different default branch,
                 # so fetch main explicitly instead of relying on their refspec.
-                git -C "$LEGACY_TARGET" fetch --quiet --tags origin "$MAIN_REFSPEC"
+                # Persist that refspec too — otherwise remote.origin.fetch stays
+                # on the stale branch and a later plain `git fetch origin` (in
+                # update.sh, steps/00-checkout.sh, ...) silently stops refreshing
+                # origin/main.
+                git -C "$LEGACY_TARGET" config remote.origin.fetch "$MAIN_REFSPEC"
+                git -C "$LEGACY_TARGET" fetch --quiet --tags origin
                 git -C "$LEGACY_TARGET" reset --hard origin/main
             fi
             exec bash "$LEGACY_TARGET/infra/install.sh" "$@"
@@ -127,7 +132,12 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
             git -C "$TARGET" reset --hard "$BOOTSTRAP_REF"
         else
             echo "==> repo already at $TARGET, pulling latest"
-            git -C "$TARGET" fetch --quiet --tags origin "$MAIN_REFSPEC"
+            # Persist the main refspec (not just this one-off fetch) so later
+            # plain `git fetch origin` calls — update.sh, steps/00-checkout.sh —
+            # keep refreshing origin/main instead of silently going stale on a
+            # checkout whose remote.origin.fetch still points at another branch.
+            git -C "$TARGET" config remote.origin.fetch "$MAIN_REFSPEC"
+            git -C "$TARGET" fetch --quiet --tags origin
             git -C "$TARGET" reset --hard origin/main
         fi
     fi
