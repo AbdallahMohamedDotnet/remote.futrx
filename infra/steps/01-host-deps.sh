@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host-level system dependencies: apt base, Node 22, Go, Caddy, agent CLIs, LXD.
+# Host-level system dependencies: apt base, Node 22, Go, Caddy, and LXD.
 # Idempotent — re-runs are fast no-ops when everything's already installed.
 #
 # Expects from caller:
@@ -19,6 +19,16 @@ log "apt update + base packages"
 apt-get update -qq
 apt-get install -y -qq git curl ca-certificates gnupg jq tmux gettext-base
 
+# ───────────────── swap (spike buffer) ─────────────────
+# Running several dev servers at once produces a large, short-lived RSS spike
+# (~5x steady state) that a swapless box can't survive — it OOM-kills the dev
+# servers. Provision a swap file sized from RAM and free disk before the
+# memory-heavy work below (Go build, base-image build). Skips gracefully when
+# swap already exists or the disk has no room. See lib/swap-provision.sh.
+# shellcheck source=../lib/swap-provision.sh
+. "$INFRA_DIR/lib/swap-provision.sh"
+ensure_swap
+
 # ───────────────── version pins ─────────────────
 # infra/versions.env (a symlink to the canonical manifest embedded by the
 # backend) declares the exact versions the host must run. Every section
@@ -31,8 +41,7 @@ if [ ! -r "$VERSIONS_FILE" ]; then
 fi
 # shellcheck source=/dev/null
 . "$VERSIONS_FILE"
-for v in NODE_MAJOR NODE_MIN_VERSION GO_VERSION \
-         CLAUDE_CODE_VERSION CODEX_CLI_VERSION KIMI_CODE_VERSION; do
+for v in NODE_MAJOR NODE_MIN_VERSION GO_VERSION; do
     if [ -z "${!v:-}" ]; then
         err "version manifest is missing $v: $VERSIONS_FILE"
         exit 1
@@ -100,32 +109,6 @@ if ! command -v caddy >/dev/null; then
 fi
 ok "$(caddy version | head -1)"
 
-# ───────────────── agent CLIs (host-side auth/provisioning) ─────────────────
-# Pins come from the same versions.env sourced above (also embedded by the Go
-# container manager). Re-running the installer upgrades stale host binaries
-# instead of only checking existence.
-agent_cli_version() {
-    "$1" --version 2>&1 \
-        | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?' \
-        | head -1 || true
-}
-
-ensure_agent_cli() {
-    local label="$1" binary="$2" package="$3" expected="$4" current=""
-    if command -v "$binary" >/dev/null; then
-        current="$(agent_cli_version "$binary")"
-    fi
-    if [ "$current" != "$expected" ]; then
-        log "Installing $label $expected (was ${current:-missing})"
-        npm install -g "${package}@${expected}" --silent 2>&1 | tail -3
-    fi
-    ok "$label $("$binary" --version 2>&1 | head -1)"
-}
-
-ensure_agent_cli "Claude Code" claude @anthropic-ai/claude-code "$CLAUDE_CODE_VERSION"
-ensure_agent_cli "Codex" codex @openai/codex "$CODEX_CLI_VERSION"
-ensure_agent_cli "Kimi Code" kimi @moonshot-ai/kimi-code "$KIMI_CODE_VERSION"
-
 # ───────────────── LXD (one container per project) ─────────────────
 LXD_HOST_HELPERS="$INFRA_DIR/lib/lxd-host.sh"
 if [ ! -r "$LXD_HOST_HELPERS" ]; then
@@ -165,16 +148,26 @@ EOF
     fi
 fi
 
-if ! command -v lxc >/dev/null; then
-    if [ "$NESTED_UNPRIVILEGED_LXC" = "1" ] && [ "${ID:-}" = "debian" ]; then
-        # Snap packages need SquashFS loop/FUSE mounts and access to the host
-        # AppArmor security filesystem, which Proxmox does not expose to an
-        # unprivileged LXC by default. Debian's native package avoids that
-        # packaging-layer requirement while providing the same LXD API/CLI.
+if [ "$NESTED_UNPRIVILEGED_LXC" = "1" ] && [ "${ID:-}" = "debian" ]; then
+    # Snap packages need SquashFS loop/FUSE mounts and access to the host
+    # AppArmor security filesystem, which Proxmox does not expose to an
+    # unprivileged LXC by default. Debian's native package avoids that
+    # packaging-layer requirement while providing the same LXD API/CLI.
+    if ! command -v lxc >/dev/null; then
         log "Installing native Debian LXD packages for nested LXC"
         apt-get install -y -qq lxd lxd-client
         systemctl enable --now lxd.socket
-    else
+    fi
+else
+    # Checked via `snap list lxd`, not `command -v lxc`: Ubuntu 24.04 ships the
+    # `lxd-installer` transitional package, which pre-populates /usr/bin/lxc and
+    # /usr/sbin/lxd as shims that lazily install the snap on first invocation.
+    # `command -v lxc` finds those shims on a completely fresh box, so this step
+    # would silently skip the real install — and the first real LXD command
+    # later in this script (or `lxd init --auto` below) would trigger the
+    # shim's own uncontrolled auto-install instead, outside our retry/wait
+    # logic and prone to leaving the host half-installed on any hiccup.
+    if ! snap list lxd >/dev/null 2>&1; then
         log "Installing LXD via snap"
         if ! command -v snap >/dev/null; then
             apt-get install -y -qq snapd
@@ -182,8 +175,8 @@ if ! command -v lxc >/dev/null; then
             for _ in 1 2 3 4 5; do snap wait system seed.loaded && break; sleep 1; done
         fi
         snap install lxd
-        export PATH="/snap/bin:$PATH"
     fi
+    export PATH="/snap/bin:$PATH"
 fi
 
 # Initialize storage + bridge on fresh installs. `lxc network show lxdbr0`
