@@ -1,14 +1,13 @@
 import type { AppearanceTheme } from "../../models/settings";
-import type { CodexDeviceLogin, KimiDeviceLogin } from "../../models/auth";
 import type { UserDirectory } from "../../state/hooks/users/useUserDirectory";
 import type { ServerInfo } from "../../models/serverInfo";
 import type { SelfUpdateStatus } from "../../models/selfUpdate";
 import type { ComponentType } from "preact";
-import { Activity, Bot, ChevronLeft, Download, Info, Menu, Monitor, Users } from "../primitives/icons";
+import type { PushNotifications } from "../../state/hooks/push/usePushNotifications";
+import { Activity, Bell, Bot, ChevronLeft, Download, Info, Menu, Monitor, Users } from "../primitives/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
-import { ClaudeAuthSettings } from "./ClaudeAuthSettings";
-import { CodexAuthSettings } from "./CodexAuthSettings";
-import { KimiAuthSettings } from "./KimiAuthSettings";
+import { NotificationSettings } from "./NotificationSettings";
+import { AgentAuthSettingsList } from "./AgentAuthSettings";
 import { GoogleOAuthSettings } from "./GoogleOAuthSettings";
 import { ServerInfoSettings } from "./ServerInfoSettings";
 import { UpdatesSettings } from "./UpdatesSettings";
@@ -16,7 +15,15 @@ import { UsageSettings } from "./UsageSettings";
 import { UsersPanel } from "../account/UsersPanel";
 import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
 
-export type SettingsTab = "appearance" | "agents" | "usage" | "users" | "updates" | "info";
+
+export type SettingsTab =
+  | "appearance"
+  | "notifications"
+  | "agents"
+  | "users"
+  | "updates"
+  | "info"
+  | "usage";
 
 const tabs: Array<{
   id: SettingsTab;
@@ -31,9 +38,15 @@ const tabs: Array<{
     Icon: Monitor,
   },
   {
+    id: "notifications",
+    label: "Notifications",
+    description: "Get alerted when an agent needs you.",
+    Icon: Bell,
+  },
+  {
     id: "agents",
     label: "Agents",
-    description: "Manage host authentication for coding agents.",
+    description: "Configure coding-agent access and authentication.",
     Icon: Bot,
   },
   {
@@ -86,17 +99,7 @@ export function SettingsPage({
   appearanceLoading,
   appearanceSaving,
   appearanceError,
-  codexAuthenticated,
-  codexUsesApiKey,
-  codexDeviceLogin,
-  codexLoading,
-  codexStarting,
-  codexError,
-  kimiAuthenticated,
-  kimiDeviceLogin,
-  kimiLoading,
-  kimiStarting,
-  kimiError,
+  push,
   onBack,
   onHamburger,
   onTabChange,
@@ -104,8 +107,6 @@ export function SettingsPage({
   onCheckForUpdates,
   onApplyUpdate,
   onAppearanceThemeChange,
-  onStartCodexDeviceLogin,
-  onStartKimiDeviceLogin,
 }: {
   activeTab: SettingsTab;
   currentEmail: string;
@@ -130,17 +131,7 @@ export function SettingsPage({
   appearanceLoading: boolean;
   appearanceSaving: boolean;
   appearanceError: string | null;
-  codexAuthenticated: boolean;
-  codexUsesApiKey: boolean;
-  codexDeviceLogin?: CodexDeviceLogin;
-  codexLoading: boolean;
-  codexStarting: boolean;
-  codexError: string | null;
-  kimiAuthenticated: boolean;
-  kimiDeviceLogin?: KimiDeviceLogin;
-  kimiLoading: boolean;
-  kimiStarting: boolean;
-  kimiError: string | null;
+  push: PushNotifications;
   onBack: () => void;
   onHamburger: () => void;
   onTabChange: (tab: SettingsTab) => void;
@@ -148,8 +139,6 @@ export function SettingsPage({
   onCheckForUpdates: () => Promise<void>;
   onApplyUpdate: (tag?: string) => Promise<void>;
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
-  onStartCodexDeviceLogin: () => Promise<void>;
-  onStartKimiDeviceLogin: () => Promise<void>;
 }) {
   const activeTabDetails = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 
@@ -214,34 +203,19 @@ export function SettingsPage({
               />
             )}
 
+            {activeTab === "notifications" && <NotificationSettings push={push} />}
+
             {activeTab === "agents" && (
               isAdmin ? (
                 <div class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
                   <div class="px-4 py-3 border-b border-white/[0.06]">
                     <div class="text-[14.5px] font-semibold text-ink-50">Agent authentication</div>
                     <div class="text-[12.5px] text-ink-300 mt-0.5 leading-snug">
-                      Sign in once on the parent host and share the credentials with project containers.
+                      Configure each agent using its declared host-managed, project-external, or no-auth flow.
                     </div>
                   </div>
                   <div class="p-3 space-y-3">
-                    <ClaudeAuthSettings />
-                    <CodexAuthSettings
-                      authenticated={codexAuthenticated}
-                      usesApiKey={codexUsesApiKey}
-                      deviceLogin={codexDeviceLogin}
-                      loading={codexLoading}
-                      starting={codexStarting}
-                      error={codexError}
-                      onStartDeviceLogin={onStartCodexDeviceLogin}
-                    />
-                    <KimiAuthSettings
-                      authenticated={kimiAuthenticated}
-                      deviceLogin={kimiDeviceLogin}
-                      loading={kimiLoading}
-                      starting={kimiStarting}
-                      error={kimiError}
-                      onStartDeviceLogin={onStartKimiDeviceLogin}
-                    />
+                    <AgentAuthSettingsList />
                   </div>
                 </div>
               ) : (
