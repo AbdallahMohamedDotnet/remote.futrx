@@ -17,7 +17,7 @@ export function SettingsContainer({
   onBack: () => void;
   onHamburger: () => void;
 }) {
-  const { auth, codexAuth, kimiAuth } = useAuthContext();
+  const { auth } = useAuthContext();
   const userSettings = useUserSettingsContext();
   const userDirectory = useUserDirectory(auth.isAdmin);
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
@@ -47,12 +47,6 @@ export function SettingsContainer({
       appearanceSaving={userSettings.saving}
       appearanceError={userSettings.error}
       push={push}
-      codexAuthenticated={codexAuth.authenticated}
-      codexUsesApiKey={codexAuth.usesApiKey}
-      codexDeviceLogin={codexAuth.deviceLogin}
-      codexLoading={codexAuth.loading}
-      codexStarting={codexAuth.starting}
-      codexError={codexAuth.error}
       onBack={onBack}
       onHamburger={onHamburger}
       onTabChange={setActiveTab}
@@ -60,13 +54,6 @@ export function SettingsContainer({
       onCheckForUpdates={selfUpdate.check}
       onApplyUpdate={selfUpdate.apply}
       onAppearanceThemeChange={(theme) => void userSettings.setTheme(theme)}
-      onStartCodexDeviceLogin={codexAuth.startDeviceLogin}
-      kimiAuthenticated={kimiAuth.authenticated}
-      kimiDeviceLogin={kimiAuth.deviceLogin}
-      kimiLoading={kimiAuth.loading}
-      kimiStarting={kimiAuth.starting}
-      kimiError={kimiAuth.error}
-      onStartKimiDeviceLogin={kimiAuth.startDeviceLogin}
     />
   );
 }
