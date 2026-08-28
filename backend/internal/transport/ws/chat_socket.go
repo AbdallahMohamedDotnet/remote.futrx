@@ -25,6 +25,11 @@ type ChatLookup interface {
 type PromptRunner interface {
 	Start(serviceprompt.StartInput, func(servicechat.Event)) (serviceprompt.RunHandle, error)
 	CancelPrompt(id servicechat.ID) bool
+	RespondInteraction(servicechat.ID, string, agent.InteractionResponse) bool
+}
+
+type interactionAutoResolutionSnoozer interface {
+	SnoozeInteractionAutoResolution(servicechat.ID, string) bool
 }
 
 // ProjectAccessChecker is the subset of the auth gate the chat WS needs:
@@ -175,6 +180,21 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 					Type:    "error",
 					Message: "no prompt is currently running",
 				})
+			}
+		case "interaction_response":
+			if !s.runner.RespondInteraction(id, msg.ID, agent.InteractionResponse{
+				Answers:  msg.Answers,
+				Decision: msg.Decision,
+			}) {
+				sub.SendTransient(servicechat.Event{
+					T:       time.Now().UnixMilli(),
+					Type:    "error",
+					Message: "that agent interaction is no longer pending",
+				})
+			}
+		case "interaction_activity":
+			if snoozer, ok := s.runner.(interactionAutoResolutionSnoozer); ok {
+				snoozer.SnoozeInteractionAutoResolution(id, msg.ID)
 			}
 		}
 	}

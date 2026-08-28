@@ -210,6 +210,27 @@ func TestAppServerResumesThread(t *testing.T) {
 	}
 }
 
+func TestAppServerThreadsEnableDefaultModeUserInput(t *testing.T) {
+	tests := []struct {
+		name string
+		req  agent.RunRequest
+	}{
+		{name: "start"},
+		{name: "resume", req: agent.RunRequest{ResumeID: "thread-123"}},
+		{name: "fork", req: agent.RunRequest{ResumeID: "thread-123", Fork: true}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := buildAppServerThreadRequest(test.req)
+			value, exists := request.Params.Config["features.default_mode_request_user_input"]
+			if !exists || value != true {
+				t.Fatalf("thread config = %#v", request.Params.Config)
+			}
+		})
+	}
+}
+
 func TestNativePlanTurnUsesCollaborationMode(t *testing.T) {
 	params := buildAppServerTurnParams(
 		agent.RunRequest{Mode: agent.RunModePlan},

@@ -46,3 +46,53 @@ test("projects chat events into the existing message and usage model", () => {
     cacheWriteTokens: 0,
   });
 });
+
+test("projects a correlated interaction as an interactive question tool", () => {
+  const input = {
+    questions: [{
+      id: "environment",
+      question: "Where should I deploy?",
+      options: [{ label: "QA" }],
+    }],
+  };
+  const events: ChatEvent[] = [
+    {
+      type: "interaction_request",
+      id: "interaction-1",
+      toolName: "AskUserQuestion",
+      input,
+      t: 1,
+    },
+    {
+      type: "interaction_resolved",
+      id: "interaction-1",
+      output: "QA",
+      isError: false,
+      t: 2,
+    },
+  ];
+
+  const state = chatEventStateProjector.fromEvents(events, {
+    hasMore: false,
+    lastSeq: 0,
+  });
+
+  assert.deepEqual(state.blocks, [
+    {
+      type: "assistant",
+      parts: [{
+        kind: "tool",
+        id: "interaction-1",
+        name: "AskUserQuestion",
+        input,
+        output: "QA",
+        isError: false,
+        status: "done",
+        interactive: true,
+        interactionRequestedAt: 1,
+      }],
+      t: 1,
+      isComplete: false,
+    },
+  ]);
+});

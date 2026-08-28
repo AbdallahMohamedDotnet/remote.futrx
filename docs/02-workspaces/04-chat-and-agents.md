@@ -9,6 +9,9 @@ stateDiagram-v2
     [*] --> New: create chat
     New --> Ready: metadata and event log exist
     Ready --> Running: send prompt
+    Running --> WaitingForInput: correlated interaction_request
+    WaitingForInput --> Running: response or Remote auto-resolution
+    WaitingForInput --> Ready: cancel
     Running --> Ready: complete or error, then sync unlocked
     Running --> Ready: cancel
     Ready --> Rewound: remove selected prompt and later events
@@ -283,6 +286,12 @@ flowchart TD
     Parser --> Thinking["thinking"]
     Parser --> ToolStart["tool_use_start"]
     Parser --> ToolEnd["tool_use_end"]
+    Provider --> Interaction["blocking harness interaction"]
+    Interaction --> Request["interaction_request"]
+    Request --> Activity["transient interaction_activity"]
+    Activity --> Request
+    Request --> Response["correlated interaction_response"]
+    Response --> Resolved["interaction_resolved"]
     Parser --> System["system"]
     Parser --> Complete["complete with usage"]
     Parser --> Error["error"]
@@ -294,7 +303,29 @@ Persisted events receive a monotonic `seq`. On reconnect, the UI sends its last 
 
 The UI groups text, reasoning, and tool events into readable assistant messages. Known read, write, edit, search, shell, and question tools receive specialized renderers; unknown tools use a generic view.
 
-The thread also provides Markdown and syntax-highlighted code, grouped tool calls, visible reasoning blocks, token-usage totals, a working indicator, older-history loading, jump-to-latest behavior, and an error block. An `AskUserQuestion` tool call becomes a paged answer form whose submitted answer is sent as the next prompt.
+The thread also provides Markdown and syntax-highlighted code, grouped tool
+calls, visible reasoning blocks, token-usage totals, a working indicator,
+older-history loading, jump-to-latest behavior, and an error block. Question
+cards have two deliberately different submission paths:
+
+- a Codex app-server `requestUserInput` persists an `interaction_request` while
+  the app-server scanner continues handling later notifications. The browser sends
+  `interaction_response` with the request ID and answers keyed by question ID;
+  Remote resumes that JSON-RPC request and persists `interaction_resolved`;
+- a legacy/non-interactive `AskUserQuestion` tool card has no live correlated
+  request, so its text summary is sent as a new prompt after the run unlocks.
+
+Pending interaction correlation is backend-memory state. The frontend enables
+submission only while the chat is streaming and its socket is open and
+synchronized; the backend accepts it only while that exact request remains
+pending. Codex non-blocking questions auto-resolve empty after 120 seconds, but
+the final 60 seconds are shown as a countdown and the first browser selection,
+keypress, or paste sends `interaction_activity` and snoozes that deadline.
+Freeform-only `options:null` questions remain answerable, and an option can be
+submitted with an additional note. Secret values use a masked input and are not
+written to Remote chat events or browser storage, but they are sent to Codex and
+may persist in Codex-owned rollout/session state. Cancellation or restart makes
+a late response invalid.
 
 Antigravity currently contributes streamed assistant text and session/error
 state, not structured reasoning, tools, or usage.

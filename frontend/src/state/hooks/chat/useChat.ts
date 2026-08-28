@@ -6,6 +6,7 @@ import type {
   ChatEventPage,
   ChatMeta,
   ChatStatus,
+  InteractionAnswers,
   PromptExecutionPreferences,
   PromptOutcome,
 } from "../../../models/chat";
@@ -15,6 +16,7 @@ import {
 } from "../../chat/chatEventStateProjector";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 import type { ChatUsageTotals } from "../../../models/chatUsage";
+import { canSendInteractionResponse } from "../../chat/chatInteractionState";
 
 const CHAT_EVENT_PAGE_LIMIT = 240;
 
@@ -34,6 +36,8 @@ interface UseChatResult {
     preferences: PromptExecutionPreferences,
     clientId?: string,
   ) => boolean;
+  sendInteractionResponse: (id: string, answers: InteractionAnswers) => boolean;
+  sendInteractionActivity: (id: string) => boolean;
   promptOutcome: PromptOutcome | null;
   cancel: () => void;
   rewind: (beforeT: number) => Promise<ChatEventPage>;
@@ -210,6 +214,32 @@ export function useChat(chatId: string): UseChatResult {
     return true;
   }, [status, wsReady, synced]);
 
+  const sendInteractionResponse = useCallback((id: string, answers: InteractionAnswers) => {
+    const stream = streamRef.current;
+    if (!canSendInteractionResponse({
+      status,
+      wsReady,
+      synced,
+      streamOpen: stream?.isOpen ?? false,
+    })) {
+      return false;
+    }
+    return stream?.sendInteractionResponse(id, answers) ?? false;
+  }, [status, wsReady, synced]);
+
+  const sendInteractionActivity = useCallback((id: string) => {
+    const stream = streamRef.current;
+    if (!canSendInteractionResponse({
+      status,
+      wsReady,
+      synced,
+      streamOpen: stream?.isOpen ?? false,
+    })) {
+      return false;
+    }
+    return stream?.sendInteractionActivity(id) ?? false;
+  }, [status, wsReady, synced]);
+
   const cancel = useCallback(() => {
     const stream = streamRef.current;
     if (stream?.isOpen) stream.cancel();
@@ -261,6 +291,8 @@ export function useChat(chatId: string): UseChatResult {
     canSendPrompt: wsReady && synced && status === "ready",
     transportReady: wsReady && synced,
     sendPrompt,
+    sendInteractionResponse,
+    sendInteractionActivity,
     promptOutcome,
     cancel,
     rewind,

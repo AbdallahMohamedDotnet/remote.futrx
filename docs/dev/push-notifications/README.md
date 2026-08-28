@@ -37,7 +37,7 @@ There are two paths into the same system:
 
 | Event | Notification |
 | --- | --- |
-| Agent calls `AskUserQuestion` | The agent needs an answer |
+| Legacy `AskUserQuestion` tool or correlated `interaction_request` | The agent needs an answer |
 | Interactive turn completes | Turn finished |
 | Interactive run fails | Run failed |
 | Scheduled run completes or fails | Scheduled task result |

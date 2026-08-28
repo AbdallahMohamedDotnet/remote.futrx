@@ -1,88 +1,119 @@
-import { useEffect, useMemo, useState } from "preact/hooks";
-import { readAnswered, writeAnswered } from "./storage";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import {
+  activateQuestionFreeform,
+  createQuestionChoiceState,
+  toggleQuestionOption,
+} from "./answerSelection";
+import { summarizeQuestionAnswers } from "./questionSummary";
+import { clearAnswered, readAnswered, writeAnswered } from "./storage";
 import type { AskUserQuestionInput, QuestionSummary } from "./types";
 
-function createSelectionState(count: number): Record<number, Set<number>> {
-  const init: Record<number, Set<number>> = {};
-  for (let i = 0; i < count; i++) init[i] = new Set();
-  return init;
-}
-
 export function useAskUserQuestion({
+  chatId,
   toolUseId,
   input,
   onSubmit,
+  awaitResolution = false,
+  allowOptionNotes = false,
+  onActivity,
 }: {
+  chatId: string;
   toolUseId: string;
   input: AskUserQuestionInput;
-  onSubmit: (text: string) => void;
+  onSubmit: (answer: QuestionSummary) => boolean;
+  awaitResolution?: boolean;
+  allowOptionNotes?: boolean;
+  onActivity?: () => boolean;
 }) {
   const questions = input.questions ?? [];
   const total = questions.length;
-  const initialAnswered = useMemo(() => readAnswered(toolUseId), [toolUseId]);
+  const sensitive = questions.some((question) => question.isSecret);
+  const initialAnswered = useMemo(
+    () => sensitive || awaitResolution ? null : readAnswered(chatId, toolUseId),
+    [awaitResolution, chatId, sensitive, toolUseId],
+  );
   const [answered, setAnswered] = useState<string | null>(initialAnswered);
   const [page, setPage] = useState(0);
-  const [selections, setSelections] = useState<Record<number, Set<number>>>(() =>
-    createSelectionState(total)
+  const [choices, setChoices] = useState(() =>
+    createQuestionChoiceState(total)
   );
   const [other, setOther] = useState<Record<number, string>>({});
-  const [otherActive, setOtherActive] = useState<Record<number, boolean>>({});
+  const [autoResolutionSnoozed, setAutoResolutionSnoozed] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const activityReported = useRef(false);
 
   useEffect(() => {
     setAnswered(initialAnswered);
   }, [initialAnswered]);
 
   useEffect(() => {
+    if (sensitive) clearAnswered(chatId, toolUseId);
+  }, [chatId, sensitive, toolUseId]);
+
+  useEffect(() => {
+    activityReported.current = false;
     setPage(0);
-    setSelections(createSelectionState(total));
+    setChoices(createQuestionChoiceState(total));
     setOther({});
-    setOtherActive({});
+    setAutoResolutionSnoozed(false);
+    setSubmissionError(null);
   }, [toolUseId, total]);
 
-  function toggle(qi: number, oi: number, multi: boolean) {
-    setSelections((prev) => {
-      const next = { ...prev };
-      const set = new Set(next[qi] ?? []);
-      if (multi) {
-        if (set.has(oi)) set.delete(oi);
-        else set.add(oi);
-      } else {
-        set.clear();
-        set.add(oi);
-      }
-      next[qi] = set;
-      return next;
-    });
-    setOtherActive((prev) => ({ ...prev, [qi]: false }));
-  }
-
-  function activateOther(qi: number, multi: boolean) {
-    setOtherActive((prev) => ({ ...prev, [qi]: true }));
-    if (!multi) {
-      setSelections((prev) => ({ ...prev, [qi]: new Set() }));
+  function reportActivity() {
+    if (activityReported.current || !onActivity) return;
+    if (onActivity()) {
+      activityReported.current = true;
+      setAutoResolutionSnoozed(true);
     }
   }
 
+  function toggle(qi: number, oi: number, multi: boolean) {
+    reportActivity();
+    setChoices((previous) => ({
+      ...previous,
+      [qi]: toggleQuestionOption(
+        previous[qi] ?? { selected: new Set(), freeformActive: false },
+        oi,
+        multi,
+        allowOptionNotes,
+      ),
+    }));
+  }
+
+  function activateOther(qi: number, multi: boolean) {
+    reportActivity();
+    setChoices((previous) => ({
+      ...previous,
+      [qi]: activateQuestionFreeform(
+        previous[qi] ?? { selected: new Set(), freeformActive: false },
+        multi,
+        allowOptionNotes,
+      ),
+    }));
+  }
+
   function setOtherText(qi: number, value: string) {
+    reportActivity();
     setOther((prev) => ({ ...prev, [qi]: value }));
   }
 
   function questionAnswered(qi: number): boolean {
-    const sel = selections[qi] ?? new Set<number>();
-    const otherText = otherActive[qi] ? (other[qi] || "").trim() : "";
+    const choice = choices[qi] ?? { selected: new Set<number>(), freeformActive: false };
+    const otherText = choice.freeformActive ? (other[qi] || "").trim() : "";
     if (otherText.length > 0) return true;
-    return sel.size > 0;
+    return choice.selected.size > 0;
   }
 
   function chosenLabels(qi: number): string[] {
     const question = questions[qi];
     if (!question) return [];
     const chosen: string[] = [];
-    (selections[qi] ?? new Set<number>()).forEach((optionIndex) => {
-      const option = question.options[optionIndex];
+    const choice = choices[qi] ?? { selected: new Set<number>(), freeformActive: false };
+    choice.selected.forEach((optionIndex) => {
+      const option = question.options?.[optionIndex];
       if (option) chosen.push(option.label);
     });
-    if (otherActive[qi]) {
+    if (choice.freeformActive) {
       const text = (other[qi] || "").trim();
       if (text) chosen.push(text);
     }
@@ -90,22 +121,31 @@ export function useAskUserQuestion({
   }
 
   function summarize(): QuestionSummary {
-    const parts: string[] = [];
-    const preview: string[] = [];
-    for (let qi = 0; qi < questions.length; qi++) {
-      const question = questions[qi];
-      const chosen = chosenLabels(qi);
-      parts.push(`Q: ${question.question}\nA: ${chosen.join("; ")}`);
-      preview.push(`${question.header ?? "Answer"}: ${chosen.join(", ")}`);
-    }
-    return { text: parts.join("\n\n"), preview: preview.join(" · ") };
+    return summarizeQuestionAnswers(questions, chosenLabels);
   }
 
   function submit() {
     const summary = summarize();
-    writeAnswered(toolUseId, summary.preview);
+    if (!onSubmit(summary)) {
+      setSubmissionError(
+        "The agent is no longer waiting for this response. Restart the turn and try again.",
+      );
+      return;
+    }
+    setSubmissionError(null);
+    if (sensitive) {
+      // Clear Remote-owned UI state once the provider channel accepts the
+      // response. Codex still receives the value and owns its session history.
+      setChoices(createQuestionChoiceState(total));
+      setOther({});
+    }
+    if (awaitResolution) return;
+    if (sensitive) {
+      setAnswered("Secret response received");
+      return;
+    }
+    writeAnswered(chatId, toolUseId, summary.preview);
     setAnswered(summary.preview);
-    onSubmit(summary.text);
   }
 
   return {
@@ -115,11 +155,14 @@ export function useAskUserQuestion({
     page,
     setPage,
     currentQuestion: questions[page],
-    selectedOptions: selections[page] ?? new Set<number>(),
-    isOtherActive: !!otherActive[page],
+    selectedOptions: choices[page]?.selected ?? new Set<number>(),
+    isOtherActive: choices[page]?.freeformActive ?? false,
     otherText: other[page] || "",
+    autoResolutionSnoozed,
+    submissionError,
     canAdvance: questionAnswered(page),
     questionAnswered,
+    reportActivity,
     toggle,
     activateOther,
     setOtherText,

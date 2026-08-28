@@ -34,6 +34,17 @@ sequenceDiagram
         Provider->>Cmd: BuildContainerCommand
     end
     Provider->>CLI: execute host process or lxc exec
+    opt CLI requests blocking user input
+        CLI->>Provider: native request with correlation ID
+        Provider->>Prompt: RunRequest.Interact(request)
+        Prompt->>Store: persist interaction_request
+        Prompt-->>Browser: render interactive question card
+        Browser->>Socket: {type: "interaction_response", id, answers}
+        Socket->>Prompt: resolve pending interaction
+        Prompt->>Store: persist interaction_resolved
+        Prompt-->>Provider: correlated response
+        Provider-->>CLI: native protocol response
+    end
     CLI-->>Provider: provider-native output
     Provider-->>Prompt: normalized agent.Event values
     Prompt->>Store: update session metadata and persist ChatEvent
@@ -46,7 +57,7 @@ The concrete entry points are:
 
 1. [`ChatSocket.handle`](../../../backend/internal/transport/ws/chat_socket.go)
    validates the chat and caller, subscribes to replay plus live events, and
-   accepts `prompt` and `cancel` messages.
+   accepts `prompt`, `cancel`, and correlated `interaction_response` messages.
 2. [`prompt.Service.Start`](../../../backend/internal/service/prompt/service.go)
    acquires the process-local, one-run-per-chat lock in
    [`runhub.Hub`](../../../backend/internal/service/runhub/hub.go). A racing
@@ -89,6 +100,7 @@ input a provider receives.
 | `EnableBrowser` | True only when the selected `browser` skill and the module's `BrowserTools` declaration both permit it. |
 | `EnableScheduleTools` | True only for a project run when scheduled tools are declared and selected or the turn itself is scheduled. |
 | `RuntimeEnv` | Short-lived backend-issued schedule API URL and grant. Invalid environment names are discarded and these values override same-named project secrets. |
+| `Interact` | Callback for a provider-native request. It persists a correlated request, waits for a browser response, Remote auto-resolution, or cancellation, then returns the answer to the same active run. |
 
 If no native session is available, the prompt service prepends visible `user`
 and `assistant_text` history. The transcript is bounded to the last 24,000
@@ -237,6 +249,49 @@ so current adapters must not rely on them for user-visible state. Raw native
 payloads may be kept in `agent.Event.Raw` for diagnostics, but that field is
 not copied into the persisted chat event.
 
+## Native harness interactions
+
+Provider requests that require a correlated browser response do not masquerade
+as ordinary agent events.
+`RunRequest.Interact` accepts an `agent.InteractionRequest` containing a stable
+ID, kind, tool name, JSON input, blocking/sensitive flags, and an optional
+Remote-owned auto-resolution delay. The prompt service registers that ID under
+the chat and persists `interaction_request`. Multiple IDs may be pending in one
+turn. The browser may answer only while the socket is open, synchronized, and
+the chat is still streaming:
+
+```json
+{"type":"interaction_response","id":"item-123","answers":{"environment":["QA"]}}
+```
+
+The service resolves the in-memory waiter, persists `interaction_resolved`,
+and returns the structured answer to the provider adapter. Cancellation emits
+an error resolution. Blocking requests never arm a timeout. For Codex
+`isBlocking:false`, Remote ignores the protocol's deprecated
+`autoResolutionMs` field and returns an empty outer answer map after a fixed
+120-second window. The browser hides the first 60 seconds and shows the final
+60 seconds as a countdown. The first selection, keypress, or paste sends the
+transient activity signal below and permanently snoozes that auto-resolution,
+matching the pinned Codex TUI's engaged-user behavior:
+
+```json
+{"type":"interaction_activity","id":"item-123"}
+```
+
+Timeout, activity, cancellation, and response race under one broker lock, so
+only one terminal outcome wins. Persisting the request/resolution makes the
+card and its final state replayable, but the pending channel is process-local;
+a backend restart cannot resume it. Duplicate or late responses are rejected.
+Sensitive answers are returned to the active provider request: neither the
+Remote resolved event nor browser storage contains their value. Codex receives
+the plaintext answer and may persist it in provider-owned rollout/session
+state; `isSecret` is not an end-to-end non-persistence guarantee.
+
+The frontend marks these cards interactive and uses question IDs as answer
+keys. A normal `tool.started` event named `AskUserQuestion` has no live waiter;
+that legacy print-tool path intentionally submits its readable text as a later
+prompt instead.
+
 ## Provider parsing behavior
 
 ### Claude
@@ -293,10 +348,21 @@ whole-text snapshots contribute only the missing suffix.
 [`appServerRequestHandler`](../../../backend/internal/integration/agents/codex/app_server_requests.go)
 also answers server-to-client requests:
 
-- user-input requests emit an `AskUserQuestion` tool start and receive empty
-  answers; the UI's eventual answer is a later Remote prompt, not a reply on
-  that JSON-RPC request;
-- mutation approvals are accepted in Default and declined/denied in Plan;
+- user-input requests require unique non-empty question IDs and run on
+  asynchronous workers so later native deltas keep streaming. The scanner
+  waits only until the request card is registered, preserving protocol order.
+  Each thread start/resume/fork opts into the pinned CLI's disabled-by-default
+  `features.default_mode_request_user_input` feature so Default may issue these
+  requests.
+  `isBlocking:true` waits without a timeout; `isBlocking:false` uses Remote's
+  fixed 120-second empty-answer policy and can be snoozed by browser activity.
+  `options:null` is a freeform question, and additional notes are encoded with
+  Codex's native `user_note: ` prefix. Secret answers are excluded from Remote
+  events and browser storage but may persist in Codex-owned session state;
+- `serverRequest/resolved`, terminal notification, or run cancellation cancels
+  the matching pending worker without writing a late JSON-RPC response;
+- mutation approvals are accepted under the current approval-free Default
+  policy. Plan is not executable or advertised yet;
 - MCP elicitation is cancelled;
 - unknown requests receive JSON-RPC `-32601`.
 
@@ -388,7 +454,10 @@ bounded visible transcript, and retries the turn once without `ResumeID`.
 
 In the concrete provider package, pin the behavior the adapter owns:
 
-- exact Default and Plan command/protocol translation;
+- exact Default translation and fail-closed rejection of stale unsupported
+  Plan requests without changing their semantics;
+- correlated blocking interaction requests, responses, cancellation, timeout,
+  duplicate IDs, and missing-handler behavior when the harness supports them;
 - model, effort, service-tier, resume, fork, browser, and schedule behavior the
   descriptor claims;
 - provider preparation-policy declarations;

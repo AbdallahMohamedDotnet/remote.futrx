@@ -107,8 +107,18 @@ During a run, Remote can show:
 Antigravity currently emits plain streamed text rather than structured
 reasoning, tool, or usage events.
 
-Answer a displayed question and submit it to send that answer as the next
-prompt. Use **Jump to latest** after scrolling away from new output.
+For a Codex app-server question, the same run remains active while the card is
+open. Submitting sends the structured choices back to that exact provider
+request and the agent continues without creating another user prompt. An
+option can include an additional note. Non-blocking questions auto-resolve
+after two minutes; the final minute is visible, and selecting or typing snoozes
+that timer. A masked secret answer is omitted from Remote chat history and
+browser storage, but is sent to Codex and may remain in its provider-owned
+session history. A question card emitted by a legacy print/tool stream has no
+live request to resume; after that run unlocks, submitting its readable answer
+starts a new prompt. Resolved interactive cards are no longer actionable,
+including when viewed from another browser. Use **Jump to latest** after
+scrolling away from new output.
 
 Select **Cancel** or press Escape to request cancellation. Cancellation stops
 the active provider context known to the current backend process and releases

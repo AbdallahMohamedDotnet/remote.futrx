@@ -1,4 +1,8 @@
 import type { ComponentChildren } from "preact";
+import type {
+  AnswerQuestionHandler,
+  InteractionActivityHandler,
+} from "../../../models/chat";
 import type { AssistantMessagePart } from "../../../models/chatMessage";
 import { ToolCall } from "../tool-calls/ToolCall";
 import { StreamingText } from "./StreamingText";
@@ -12,19 +16,33 @@ export function AssistantPartList({
   chatId,
   cwd,
   onAnswerQuestion,
+  onInteractionActivity,
 }: {
   parts: AssistantMessagePart[];
   streaming: boolean;
   chatId?: string;
   cwd?: string;
-  onAnswerQuestion?: (text: string) => void;
+  onAnswerQuestion?: AnswerQuestionHandler;
+  onInteractionActivity?: InteractionActivityHandler;
 }) {
-  return <>{renderAssistantParts(parts, { streaming, chatId, cwd, onAnswerQuestion })}</>;
+  return <>{renderAssistantParts(parts, {
+    streaming,
+    chatId,
+    cwd,
+    onAnswerQuestion,
+    onInteractionActivity,
+  })}</>;
 }
 
 function renderAssistantParts(
   parts: AssistantMessagePart[],
-  context: { streaming: boolean; chatId?: string; cwd?: string; onAnswerQuestion?: (text: string) => void }
+  context: {
+    streaming: boolean;
+    chatId?: string;
+    cwd?: string;
+    onAnswerQuestion?: AnswerQuestionHandler;
+    onInteractionActivity?: InteractionActivityHandler;
+  }
 ): ComponentChildren[] {
   const rendered: ComponentChildren[] = [];
   let toolGroup: ToolPart[] = [];
@@ -39,6 +57,7 @@ function renderAssistantParts(
         startIndex={toolGroupStart}
         chatId={context.chatId}
         onAnswerQuestion={context.onAnswerQuestion}
+        onInteractionActivity={context.onInteractionActivity}
       />
     );
     toolGroup = [];
@@ -81,7 +100,10 @@ function renderAssistantParts(
         output={part.output}
         isError={part.isError}
         status={part.status}
+        interactive={part.interactive}
+        interactionRequestedAt={part.interactionRequestedAt}
         onAnswerQuestion={context.onAnswerQuestion}
+        onInteractionActivity={context.onInteractionActivity}
       />
     );
   });

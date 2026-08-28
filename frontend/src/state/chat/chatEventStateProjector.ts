@@ -164,7 +164,26 @@ class ChatEventStateProjector {
         });
         return next;
       }
+      case "interaction_request": {
+        const { blocks: next, assistant } = this.ensureTrailingAssistant(blocks, event.t);
+        assistant.parts.push({
+          kind: "tool",
+          id: event.id,
+          name: event.toolName,
+          input: event.input ?? {},
+          status: "running",
+          interactive: true,
+          interactionRequestedAt: event.t,
+        });
+        return next;
+      }
       case "tool_use_end":
+        return this.updateTrailingTool(blocks, event.id, {
+          output: event.output,
+          isError: event.isError,
+          status: "done",
+        });
+      case "interaction_resolved":
         return this.updateTrailingTool(blocks, event.id, {
           output: event.output,
           isError: event.isError,

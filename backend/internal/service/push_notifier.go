@@ -30,12 +30,12 @@ type chatPushNotifier struct {
 	audience chatNotificationAudience
 	presence *servicepresence.Service
 
-	// parked records chats whose run stopped on an unanswered question. A run
-	// ends right after AskUserQuestion, so without this the "turn finished"
-	// notification that follows would replace the question in the tray —
-	// burying the one notification that actually needs the user.
+	// parked records every unanswered question by native interaction ID. Legacy
+	// print transports end immediately after AskUserQuestion; interactive
+	// transports can have multiple non-blocking questions in flight and clear
+	// each marker independently with interaction_resolved.
 	mu     sync.Mutex
-	parked map[servicechat.ID]struct{}
+	parked map[servicechat.ID]map[string]struct{}
 }
 
 // ChatEvent decides whether an appended event deserves a notification and, if
@@ -98,19 +98,31 @@ func (n *chatPushNotifier) trackParkedRun(
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.parked == nil {
-		n.parked = map[servicechat.ID]struct{}{}
+		n.parked = map[servicechat.ID]map[string]struct{}{}
 	}
 
 	switch {
 	case isQuestion:
-		n.parked[chatID] = struct{}{}
+		pending := n.parked[chatID]
+		if pending == nil {
+			pending = map[string]struct{}{}
+			n.parked[chatID] = pending
+		}
+		pending[parkedQuestionKey(event)] = struct{}{}
+		return true
+	case event.Type == "interaction_resolved":
+		pending := n.parked[chatID]
+		delete(pending, "interaction:"+strings.TrimSpace(event.ID))
+		if len(pending) == 0 {
+			delete(n.parked, chatID)
+		}
 		return true
 	case event.Type == "user":
 		// A new prompt answers the question and starts a fresh run.
 		delete(n.parked, chatID)
 		return true
 	case event.Type == "complete" || event.Type == "error":
-		if _, waiting := n.parked[chatID]; waiting {
+		if len(n.parked[chatID]) > 0 {
 			delete(n.parked, chatID)
 			return false
 		}
@@ -118,6 +130,14 @@ func (n *chatPushNotifier) trackParkedRun(
 	default:
 		return true
 	}
+}
+
+func parkedQuestionKey(event servicechat.Event) string {
+	prefix := "legacy:"
+	if event.Type == "interaction_request" {
+		prefix = "interaction:"
+	}
+	return prefix + strings.TrimSpace(event.ID)
 }
 
 // notificationKind maps a chat event onto a notification, or reports that the
@@ -131,6 +151,11 @@ func notificationKind(event servicechat.Event) (kind servicepush.Kind, urgent, o
 			return "", false, false
 		}
 		// The run is now parked waiting on a human, so this one is urgent.
+		return servicepush.KindQuestion, true, true
+	case "interaction_request":
+		if event.ToolName != askUserQuestionTool {
+			return "", false, false
+		}
 		return servicepush.KindQuestion, true, true
 	case "complete":
 		if scheduled {

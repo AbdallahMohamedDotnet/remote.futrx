@@ -1,3 +1,7 @@
+import type {
+  AnswerQuestionHandler,
+  InteractionActivityHandler,
+} from "../../../models/chat";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { AssistantMessage } from "./AssistantMessage";
 import { ErrorMessage } from "./ErrorMessage";
@@ -9,13 +13,15 @@ export function MessageBlock({
   chatId,
   cwd,
   onAnswerQuestion,
+  onInteractionActivity,
   onRewind,
 }: {
   block: ChatMessageBlock;
   streaming: boolean;
   chatId?: string;
   cwd?: string;
-  onAnswerQuestion?: (text: string) => void;
+  onAnswerQuestion?: AnswerQuestionHandler;
+  onInteractionActivity?: InteractionActivityHandler;
   onRewind?: (t: number, text: string) => void;
 }) {
   if (block.type === "user") {
@@ -33,6 +39,7 @@ export function MessageBlock({
       chatId={chatId}
       cwd={cwd}
       onAnswerQuestion={onAnswerQuestion}
+      onInteractionActivity={onInteractionActivity}
     />
   );
 }

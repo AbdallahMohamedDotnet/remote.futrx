@@ -122,6 +122,17 @@ These are the constraints worth understanding before you deploy or rely on remot
   partial-discovery warnings are present in the API but, except for the
   Antigravity sign-in disable reason, are not currently rendered in the
   composer.
+- **Native interaction state is process-local.** Codex app-server user-input
+  requests remain in the active run and are correlated through persisted
+  `interaction_request`/`interaction_resolved` events, but the pending response
+  channel itself is backend memory. A backend restart or cancellation makes a
+  later browser response invalid. Legacy print-tool question cards still send
+  their answer as a new prompt rather than resuming the original process.
+  Non-blocking Codex questions use Remote's fixed 120-second auto-resolution
+  policy (snoozed after user activity), not a provider-configurable deadline.
+  Secret-question answers are masked from Remote chat history and browser
+  storage, but are sent to Codex and may persist in provider-owned rollout or
+  session state.
 
 ## Scheduled tasks
 

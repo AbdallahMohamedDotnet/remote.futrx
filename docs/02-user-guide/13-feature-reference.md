@@ -60,7 +60,7 @@ The placeholder mentions `@` files and `/` commands, but the current source has 
 | Generic tools | Unknown tools use a generic renderer |
 | Markdown | Headings, lists, links, tables, blockquotes, and code render in messages |
 | Syntax highlighting | Code fences receive language-aware highlighting |
-| AskUserQuestion | Agent questions become a paged single/multi-select form with **Other** |
+| AskUserQuestion | Agent questions become a paged form; Codex options can include notes and resume the same correlated run, with a visible final-minute auto-resolution countdown for non-blocking requests. Masked secret answers stay out of Remote chat/browser storage but still go to Codex. Legacy print-tool cards send a new prompt. |
 | Usage | Supported providers report accumulated token usage |
 | Working state | Header dot, provider label, sidebar spinner, and composer state update |
 | Load older | Older JSONL events page backward |
@@ -72,7 +72,10 @@ The placeholder mentions `@` files and `/` commands, but the current source has 
 | Error block | Run and transport failures render in the thread |
 | Schedules drawer | Project-chat header lists, edits, arms, pauses, runs, and deletes scheduled tasks |
 
-There is no approval workflow in the current chat transport. Project agents run with provider approval/sandbox bypasses inside the project container.
+The chat transport now carries correlated blocking user-input responses, but it
+does not yet implement a Plan approve/revise workflow or general tool approval
+gate. Project agents run with provider approval/sandbox bypasses inside the
+project container.
 
 ## Providers and current differences
 

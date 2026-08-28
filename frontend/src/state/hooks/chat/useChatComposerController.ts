@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type {
+  AnswerQuestionHandler,
   ChatStatus,
+  InteractionAnswers,
   PromptExecutionPreferences,
   PromptOutcome,
 } from "../../../models/chat";
 import { chatComposerSessionStore } from "../../chat/composerSessionStore";
+import { dispatchQuestionAnswer } from "../../chat/chatInteractionState";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
 import { useDragUpload } from "./useDragUpload";
@@ -20,6 +23,7 @@ export function useChatComposerController({
   transportReady,
   sendPrompt,
   executionPreferences,
+  sendInteractionResponse,
   promptOutcome,
   rewind,
   refreshMeta,
@@ -37,6 +41,7 @@ export function useChatComposerController({
     clientId?: string,
   ) => boolean;
   executionPreferences: PromptExecutionPreferences;
+  sendInteractionResponse: (id: string, answers: InteractionAnswers) => boolean;
   promptOutcome: PromptOutcome | null;
   rewind: (beforeT: number) => Promise<unknown>;
   refreshMeta: () => Promise<void>;
@@ -143,10 +148,14 @@ export function useChatComposerController({
     return true;
   }
 
-  function handleAnswerQuestion(answer: string) {
-    const sent = sendTrackedPrompt(answer);
+  const handleAnswerQuestion: AnswerQuestionHandler = (answer) => {
+    const sent = dispatchQuestionAnswer(answer, {
+      sendPrompt: sendTrackedPrompt,
+      sendInteractionResponse,
+    });
     if (sent) scroll.unlockAutoScroll();
-  }
+    return sent;
+  };
 
   return {
     text,

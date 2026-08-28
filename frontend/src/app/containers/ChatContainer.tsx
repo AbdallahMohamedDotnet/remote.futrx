@@ -40,6 +40,8 @@ export function ChatContainer({
     canSendPrompt,
     transportReady,
     sendPrompt,
+    sendInteractionResponse,
+    sendInteractionActivity,
     promptOutcome,
     cancel,
     rewind,
@@ -62,6 +64,7 @@ export function ChatContainer({
     transportReady,
     sendPrompt,
     executionPreferences,
+    sendInteractionResponse,
     promptOutcome,
     rewind,
     refreshMeta,
@@ -195,6 +198,7 @@ export function ChatContainer({
             onScroll={composer.scroll.onScroll}
             onJumpToBottom={composer.scroll.jumpToBottom}
             onAnswerQuestion={composer.handleAnswerQuestion}
+            onInteractionActivity={sendInteractionActivity}
             onLoadOlder={loadOlder}
             onRewind={composer.handleRewind}
             mobileToolbar={

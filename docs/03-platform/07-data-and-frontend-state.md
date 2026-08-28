@@ -179,7 +179,7 @@ flowchart TD
 | Agent capability catalog | Last response in page memory, keyed by normalized user plus host/project scope; backend process memory owns TTL freshness |
 | Service-worker offline cache | Only the versioned, self-contained `/offline.html`; navigation and application data remain network-first |
 | Browser drawer width | Browser `localStorage` |
-| Answered interactive question state | Browser storage used by the question renderer |
+| Interactive question state | Request/resolution events persist in chat history; the live correlated waiter is backend memory; the originating browser keeps only non-sensitive readable answer previews in local storage. Sensitive values are sent to the provider but excluded from Remote resolution events and browser storage. |
 
 ## Agent capability cache ownership
 

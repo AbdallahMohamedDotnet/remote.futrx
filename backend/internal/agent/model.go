@@ -47,11 +47,45 @@ const (
 type ReasoningEffort string
 type ServiceTier string
 type RunMode string
+type InteractionKind string
 
 const (
 	RunModeDefault RunMode = "default"
 	RunModePlan    RunMode = "plan"
 )
+
+const (
+	InteractionUserInput InteractionKind = "user_input"
+)
+
+// InteractionRequest is a provider-neutral description of a blocking request
+// made by an agent harness while a run is still active. The provider adapter
+// remains responsible for translating the correlated response back into its
+// native protocol.
+type InteractionRequest struct {
+	ID               string
+	Kind             InteractionKind
+	ToolName         string
+	Input            json.RawMessage
+	Blocking         bool
+	Sensitive        bool
+	AutoResolutionMS int64
+	// Registered is a provider-owned ordering handshake. Consumers call it
+	// after the request is visible and answerable, allowing an asynchronous
+	// protocol reader to resume without reordering later native events ahead of
+	// the interaction card.
+	Registered func()
+}
+
+type InteractionResponse struct {
+	Answers  map[string][]string `json:"answers,omitempty"`
+	Decision string              `json:"decision,omitempty"`
+}
+
+type InteractionHandler func(
+	context.Context,
+	InteractionRequest,
+) (InteractionResponse, error)
 
 // RunPreferences contains provider-neutral launch preferences. Each provider
 // adapter decides which preferences to forward and how to translate them.
@@ -82,6 +116,9 @@ type RunRequest struct {
 	// RuntimeEnv carries short-lived, backend-issued capabilities into a run.
 	// Provider adapters must not persist these values in project configuration.
 	RuntimeEnv map[string]string
+	// Interact preserves blocking harness requests across the provider boundary.
+	// It may be nil for non-interactive callers such as adapter unit tests.
+	Interact InteractionHandler
 }
 
 // Event is the normalized backend event shape emitted by headless agent

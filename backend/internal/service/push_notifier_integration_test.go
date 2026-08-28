@@ -403,6 +403,32 @@ func TestAQuestionSuppressesTheTurnFinishedThatFollowsIt(t *testing.T) {
 	}
 }
 
+func TestInteractiveQuestionResolutionLetsSameRunNotifyCompletion(t *testing.T) {
+	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan the migration"})
+	ctx := context.Background()
+
+	_, _ = repo.AppendEvent(ctx, "beefcafe", servicechat.Event{
+		Type:     "interaction_request",
+		ID:       "question-1",
+		ToolName: "AskUserQuestion",
+	})
+	_, _ = repo.AppendEvent(ctx, "beefcafe", servicechat.Event{
+		Type: "interaction_resolved",
+		ID:   "question-1",
+	})
+	_, _ = repo.AppendEvent(ctx, "beefcafe", servicechat.Event{Type: "complete"})
+	repo.push.push.Wait()
+
+	sent := sender.captured()
+	kinds := map[servicepush.Kind]int{}
+	for _, notification := range sent {
+		kinds[notification.Kind]++
+	}
+	if len(sent) != 2 || kinds[servicepush.KindQuestion] != 1 || kinds[servicepush.KindComplete] != 1 {
+		t.Fatalf("notifications = %+v", sent)
+	}
+}
+
 func TestASecondRunAfterAnAbandonedQuestionStillNotifies(t *testing.T) {
 	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan"})
 	ctx := context.Background()

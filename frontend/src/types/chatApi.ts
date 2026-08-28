@@ -1,5 +1,6 @@
 import type {
   ChatEvent,
+  InteractionAnswers,
   PromptExecutionPreferences,
 } from "../models/chat";
 
@@ -10,6 +11,8 @@ export interface ChatStream {
     preferences: PromptExecutionPreferences,
     clientId?: string,
   ): boolean;
+  sendInteractionResponse(id: string, answers: InteractionAnswers): boolean;
+  sendInteractionActivity(id: string): boolean;
   cancel(): boolean;
   close(): void;
 }

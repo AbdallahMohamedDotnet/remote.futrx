@@ -41,13 +41,14 @@ type appServerThreadRequest struct {
 }
 
 type appServerThreadParams struct {
-	ApprovalPolicy string `json:"approvalPolicy"`
-	Cwd            string `json:"cwd,omitempty"`
-	Model          string `json:"model,omitempty"`
-	Sandbox        string `json:"sandbox"`
-	ServiceName    string `json:"serviceName,omitempty"`
-	ServiceTier    string `json:"serviceTier,omitempty"`
-	ThreadID       string `json:"threadId,omitempty"`
+	ApprovalPolicy string         `json:"approvalPolicy"`
+	Config         map[string]any `json:"config"`
+	Cwd            string         `json:"cwd,omitempty"`
+	Model          string         `json:"model,omitempty"`
+	Sandbox        string         `json:"sandbox"`
+	ServiceName    string         `json:"serviceName,omitempty"`
+	ServiceTier    string         `json:"serviceTier,omitempty"`
+	ThreadID       string         `json:"threadId,omitempty"`
 }
 
 type appServerTurnParams struct {
@@ -150,14 +151,18 @@ type appServerErrorParams struct {
 }
 
 type appServerUserInputRequestParams struct {
-	ItemID    string                  `json:"itemId"`
-	Questions []appServerUserQuestion `json:"questions"`
+	ItemID           string                  `json:"itemId"`
+	Questions        []appServerUserQuestion `json:"questions"`
+	IsBlocking       *bool                   `json:"isBlocking"`
+	AutoResolutionMS *int64                  `json:"autoResolutionMs"`
 }
 
 type appServerUserQuestion struct {
 	Header   string                    `json:"header"`
 	ID       string                    `json:"id"`
 	Question string                    `json:"question"`
+	IsOther  bool                      `json:"isOther"`
+	IsSecret bool                      `json:"isSecret"`
 	Options  []appServerQuestionOption `json:"options"`
 }
 
@@ -171,8 +176,11 @@ func buildAppServerThreadRequest(req agent.RunRequest) appServerThreadRequest {
 		Method: "thread/start",
 		Params: appServerThreadParams{
 			ApprovalPolicy: "never",
-			Sandbox:        "danger-full-access",
-			ServiceName:    "remote-futrx",
+			Config: map[string]any{
+				"features.default_mode_request_user_input": true,
+			},
+			Sandbox:     "danger-full-access",
+			ServiceName: "remote-futrx",
 		},
 	}
 	if cwd := strings.TrimSpace(req.Cwd); cwd != "" {

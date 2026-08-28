@@ -129,6 +129,7 @@ type Service struct {
 	agents        AgentRegistry
 	agentPolicy   AgentPolicy
 	scheduleTools ScheduleToolIssuer
+	interactions  *interactionBroker
 }
 
 func New(
@@ -143,11 +144,12 @@ func New(
 		hub = runhub.New(store)
 	}
 	service := &Service{
-		store:    store,
-		tmux:     tmux,
-		projects: projects,
-		hub:      hub,
-		agents:   agents,
+		store:        store,
+		tmux:         tmux,
+		projects:     projects,
+		hub:          hub,
+		agents:       agents,
+		interactions: newInteractionBroker(),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -429,6 +431,12 @@ func (rnr *Service) runPromptWithSnapshot(
 			EnableBrowser:       enableBrowser,
 			EnableScheduleTools: enableScheduleTools,
 			RuntimeEnv:          runtimeEnv,
+			Interact: func(
+				interactionCtx context.Context,
+				request agent.InteractionRequest,
+			) (agent.InteractionResponse, error) {
+				return rnr.requestInteraction(interactionCtx, id, request, emit)
+			},
 		}, func(ev agent.Event) {
 			rnr.emitAgentEvent(ctx, id, providerID, ev, emit)
 		})

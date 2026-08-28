@@ -37,10 +37,26 @@ export interface SelectedSkill {
 
 type ChatEventBase = { seq?: number; t: number };
 
+export type InteractionAnswers = Record<string, string[]>;
+
+export interface QuestionAnswerSubmission {
+  text: string;
+  preview: string;
+  answers: InteractionAnswers;
+  sensitive?: boolean;
+}
+
+export interface QuestionAnswerRequest extends QuestionAnswerSubmission {
+  interactionId?: string;
+}
+
 export interface PromptExecutionPreferences {
   provider: ChatProvider;
   mode: ChatMode;
 }
+
+export type AnswerQuestionHandler = (answer: QuestionAnswerRequest) => boolean;
+export type InteractionActivityHandler = (interactionId: string) => boolean;
 
 export type ChatEvent = ChatEventBase & (
   | { type: "user"; text: string }
@@ -48,6 +64,8 @@ export type ChatEvent = ChatEventBase & (
   | { type: "thinking"; text: string }
   | { type: "tool_use_start"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_use_end"; id: string; output?: string; isError?: boolean }
+  | { type: "interaction_request"; id: string; toolName: string; input: Record<string, unknown> }
+  | { type: "interaction_resolved"; id: string; output?: string; isError?: boolean }
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
   | { type: "system"; subtype: string; data?: Record<string, unknown> }
   | { type: "session"; provider?: ChatProvider; sessionId?: string; claudeSessionId?: string; codexSessionId?: string; kimiSessionId?: string; antigravitySessionId?: string }
@@ -74,6 +92,8 @@ export interface ChatEventPage {
 export type ClientToServer =
   | ({ type: "prompt"; text: string; clientId?: string } & PromptExecutionPreferences)
   | { type: "cancel" }
+  | { type: "interaction_response"; id: string; answers: InteractionAnswers }
+  | { type: "interaction_activity"; id: string }
   | { type: "permission"; id: string; approved: boolean };
 
 export type ChatStatus = "loading" | "ready" | "streaming" | "error";

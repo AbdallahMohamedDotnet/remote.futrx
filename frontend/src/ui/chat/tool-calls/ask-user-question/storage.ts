@@ -1,15 +1,25 @@
 const LS_KEY_PREFIX = "askq-answered:";
 
-export function readAnswered(toolUseId: string): string | null {
+function answeredKey(chatId: string, toolUseId: string): string {
+  return `${LS_KEY_PREFIX}${chatId}:${toolUseId}`;
+}
+
+export function readAnswered(chatId: string, toolUseId: string): string | null {
   try {
-    return localStorage.getItem(LS_KEY_PREFIX + toolUseId);
+    return localStorage.getItem(answeredKey(chatId, toolUseId));
   } catch {
     return null;
   }
 }
 
-export function writeAnswered(toolUseId: string, summary: string) {
+export function writeAnswered(chatId: string, toolUseId: string, summary: string) {
   try {
-    localStorage.setItem(LS_KEY_PREFIX + toolUseId, summary);
+    localStorage.setItem(answeredKey(chatId, toolUseId), summary);
+  } catch {}
+}
+
+export function clearAnswered(chatId: string, toolUseId: string) {
+  try {
+    localStorage.removeItem(answeredKey(chatId, toolUseId));
   } catch {}
 }
