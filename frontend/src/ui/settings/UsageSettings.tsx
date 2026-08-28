@@ -41,7 +41,7 @@ export function UsageSettings({
 
   if (dashboard.loading && !summary) {
     return (
-      <div class="rounded-lg border border-white/10 bg-[#101318] px-4 py-12 flex items-center justify-center gap-2 text-[13px] text-ink-300">
+      <div class="rounded-card border border-line bg-surface px-4 py-12 flex items-center justify-center gap-2 text-[13px] text-ink-300">
         <Loader class="w-4 h-4 animate-spin" /> Loading usage…
       </div>
     );
@@ -49,9 +49,9 @@ export function UsageSettings({
 
   return (
     <div class="space-y-4">
-      <section class="rounded-lg border border-white/10 bg-[#101318] px-4 py-3 space-y-3">
+      <section class="rounded-card border border-line bg-surface px-4 py-3 space-y-3">
         <div class="flex flex-wrap items-center gap-2">
-          <div class="inline-flex rounded-md border border-white/10 overflow-hidden">
+          <div class="inline-flex rounded-md border border-line overflow-hidden">
             {USAGE_RANGE_PRESETS.map(({ id, label }) => (
               <button
                 key={id}
@@ -60,8 +60,8 @@ export function UsageSettings({
                 aria-pressed={range.preset === id}
                 class={`h-9 px-3 text-[12.5px] font-medium transition-colors ${
                   range.preset === id
-                    ? "bg-white/[0.10] text-ink-50"
-                    : "text-ink-300 hover:text-ink-100 hover:bg-white/[0.05]"
+                    ? "bg-tint-active text-ink-50"
+                    : "text-ink-300 hover:text-ink-100 hover:bg-tint"
                 }`}
               >
                 {label}
@@ -81,7 +81,7 @@ export function UsageSettings({
                   )
                 }
                 aria-label="Usage range start"
-                class="h-9 px-2 rounded-md bg-white/[0.06] border border-white/10 text-ink-100"
+                class="h-9 px-2 rounded-md bg-inset border border-line text-ink-100 outline-none focus:border-accent-blue/60"
               />
               <span>to</span>
               <input
@@ -94,7 +94,7 @@ export function UsageSettings({
                   )
                 }
                 aria-label="Usage range end"
-                class="h-9 px-2 rounded-md bg-white/[0.06] border border-white/10 text-ink-100"
+                class="h-9 px-2 rounded-md bg-inset border border-line text-ink-100 outline-none focus:border-accent-blue/60"
               />
             </div>
           )}
@@ -106,7 +106,7 @@ export function UsageSettings({
             onClick={() => void dashboard.refresh()}
             disabled={dashboard.refreshing}
             class="h-9 px-2.5 rounded-md inline-flex items-center gap-2 text-[12px] text-ink-200
-                   hover:text-ink-50 hover:bg-white/[0.08] disabled:opacity-60"
+                   hover:text-ink-50 hover:bg-tint-strong disabled:opacity-60"
           >
             <RotateCcw class={`w-3.5 h-3.5 ${dashboard.refreshing ? "animate-spin" : ""}`} />
             <span class="hidden sm:inline">Refresh</span>
@@ -123,8 +123,8 @@ export function UsageSettings({
               aria-pressed={groupBy === id}
               class={`h-8 px-2.5 rounded-md border text-[12.5px] transition-colors ${
                 groupBy === id
-                  ? "border-white/10 bg-white/[0.08] text-ink-50"
-                  : "border-transparent text-ink-300 hover:text-ink-100 hover:bg-white/[0.05]"
+                  ? "border-line bg-tint-strong text-ink-50"
+                  : "border-transparent text-ink-300 hover:text-ink-100 hover:bg-tint"
               }`}
             >
               {label}
@@ -177,7 +177,7 @@ export function UsageSettings({
       )}
 
       {isAdmin && (
-        <section class="rounded-lg border border-white/10 bg-[#101318] px-4 py-3">
+        <section class="rounded-card border border-line bg-surface px-4 py-3">
           <div class="text-[14.5px] font-semibold text-ink-50">Ledger maintenance</div>
           <p class="mt-1 text-[12.5px] text-ink-300 leading-relaxed">
             Rebuild re-derives every usage record from the stored chat event logs. It is safe to
@@ -189,7 +189,7 @@ export function UsageSettings({
               type="button"
               onClick={() => void onRebuild()}
               disabled={rebuilding}
-              class="h-9 px-3 rounded-md bg-white/[0.08] hover:bg-white/[0.12] text-[13px]
+              class="h-9 px-3 rounded-md bg-tint-strong hover:bg-tint-active text-[13px]
                      text-ink-100 disabled:opacity-60"
             >
               {rebuilding ? "Rebuilding…" : "Rebuild usage ledger"}
@@ -212,7 +212,7 @@ function KpiTile({
   detail?: string;
 }) {
   return (
-    <div class="rounded-lg border border-white/10 bg-[#101318] px-4 py-3">
+    <div class="rounded-card border border-line bg-surface px-4 py-3">
       <div class="text-[11.5px] uppercase tracking-wide text-ink-400">{label}</div>
       <div class="mt-1 text-[22px] font-semibold text-ink-50 tabular-nums">{value}</div>
       {detail && <div class="mt-1 text-[11.5px] text-ink-400 leading-snug">{detail}</div>}
