@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
-import { useCallback, useContext, useEffect, useReducer } from "preact/hooks";
+import { useCallback, useContext, useEffect, useLayoutEffect, useReducer } from "preact/hooks";
 import type { ChatMeta, CreateChatInput } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatApi } from "../../api/chatApi";
@@ -21,6 +21,9 @@ interface WorkspaceContextValue {
   chats: ChatMeta[];
   projects: ProjectMeta[];
   activeChat: ChatMeta | null;
+  /** False until the first workspace snapshot lands. An empty list before that
+   *  means "not known yet" — surfaces must show placeholders, not empty states. */
+  loaded: boolean;
   ui: WorkspaceUiState;
   selectChat: (chatId: string | null) => void;
   openSidebar: () => void;
@@ -82,12 +85,22 @@ export function WorkspaceProvider({
     if (chatId) dispatch({ type: "select-chat", chatId });
   }, [data.chats, enabled, ui.activeChatId]);
 
-  useEffect(() => {
+  // Layout effect, not a passive one: the render that drops the chat from the
+  // list already resolves activeChat to null, so a passive effect would let the
+  // browser paint the "no chat selected" screen before the handover lands.
+  useLayoutEffect(() => {
     // Wait for the first snapshot: a chat id handed over by a notification tap
     // would otherwise be discarded against a not-yet-populated list.
     if (!data.loaded) return;
     if (workspaceSidebarState.isActiveChatMissing(data.chats, ui.activeChatId)) {
-      dispatch({ type: "select-chat", chatId: null });
+      // Hand straight over to the next chat instead of clearing the selection:
+      // clearing renders the "no chat selected" empty state for the one frame
+      // before the initial-chat effect picks a replacement, which reads as a
+      // flash of the New project screen after deleting a chat.
+      dispatch({
+        type: "select-chat",
+        chatId: workspaceSidebarState.replacementChatId(data.chats),
+      });
     }
   }, [data.chats, data.loaded, ui.activeChatId]);
 
@@ -147,6 +160,7 @@ export function WorkspaceProvider({
         chats: data.chats,
         projects: data.projects,
         activeChat,
+        loaded: data.loaded,
         ui,
         selectChat: (chatId) => dispatch({ type: "select-chat", chatId }),
         openSidebar: () => dispatch({ type: "open-sidebar" }),
