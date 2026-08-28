@@ -31,6 +31,12 @@ class ChatAttachmentState {
     return `${base}/${safeName}`;
   }
 
+  // The prompt text that carries the uploaded paths to the agent.
+  promptWithAttachments(userText: string, paths: string[]): string {
+    const attachmentText = `Attached files:\n${paths.map((path) => `- ${path}`).join("\n")}`;
+    return userText ? `${userText}\n\n${attachmentText}` : attachmentText;
+  }
+
   revoke(attachment: Attachment): void {
     if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
   }

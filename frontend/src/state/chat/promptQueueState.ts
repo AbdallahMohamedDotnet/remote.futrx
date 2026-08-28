@@ -27,6 +27,12 @@ class PromptQueueState {
     return prompts.filter((prompt) => prompt.id !== outcome.clientId);
   }
 
+  // Whether a prompt typed now should be queued rather than sent: a run is
+  // already streaming, so the composer parks it for the next send window.
+  allowsQueue(status: ChatStatus): boolean {
+    return status === "streaming";
+  }
+
   // The latch after an outcome: any verdict for the in-flight prompt frees it.
   inflightAfterOutcome(inflightId: string | null, outcome: PromptOutcome): string | null {
     return inflightId === outcome.clientId ? null : inflightId;

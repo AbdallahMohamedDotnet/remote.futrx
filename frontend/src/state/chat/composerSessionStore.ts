@@ -1,4 +1,4 @@
-import type { ChatStatus, QueuedPrompt } from "../../models/chat";
+import type { QueuedPrompt } from "../../models/chat";
 
 const STORAGE_KEY = "remote.futrx.composerSession.v1";
 
@@ -37,15 +37,6 @@ class ChatComposerSessionStore {
     if (prompts.length) this.promptQueues.set(chatId, prompts);
     else this.promptQueues.delete(chatId);
     this.persist();
-  }
-
-  allowsQueue(status: ChatStatus): boolean {
-    return status === "streaming";
-  }
-
-  promptWithAttachments(userText: string, paths: string[]): string {
-    const attachmentText = `Attached files:\n${paths.map((path) => `- ${path}`).join("\n")}`;
-    return userText ? `${userText}\n\n${attachmentText}` : attachmentText;
   }
 
   // Composer state is mirrored to sessionStorage so drafts and queued prompts

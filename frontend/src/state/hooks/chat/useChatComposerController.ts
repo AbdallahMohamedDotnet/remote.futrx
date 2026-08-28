@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ChatStatus, PromptOutcome } from "../../../models/chat";
 import { useConfirm } from "../../context/ConfirmContext";
+import { chatAttachmentState } from "../../chat/chatAttachmentState";
 import { chatComposerSessionStore } from "../../chat/composerSessionStore";
+import { promptQueueState } from "../../chat/promptQueueState";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
 import { useDragUpload } from "./useDragUpload";
@@ -109,14 +111,14 @@ export function useChatComposerController({
   }
 
   function handleSend() {
-    if (upload.uploading || (!chatComposerSessionStore.allowsQueue(status) && !canSendPrompt)) return;
+    if (upload.uploading || (!promptQueueState.allowsQueue(status) && !canSendPrompt)) return;
     const userText = text.trim();
     const paths = upload.attachments
       .filter((attachment) => attachment.serverPath)
       .map((attachment) => attachment.serverPath);
     if (!userText && paths.length === 0) return;
     const finalText = paths.length
-      ? chatComposerSessionStore.promptWithAttachments(userText, paths)
+      ? chatAttachmentState.promptWithAttachments(userText, paths)
       : userText;
 
     if (status === "streaming") {
