@@ -40,8 +40,8 @@ sequenceDiagram
     Hub-->>WS: Broadcast sync running=true
     WS-->>UI: sync running=true
     Prompt->>Store: Load metadata and prior events
-    Prompt->>Hub: Emit user event
-    Hub->>Store: Append user event
+    Prompt->>Store: Persist delivery receipt and user event
+    Prompt->>Hub: Broadcast stored user event
     Hub-->>WS: Broadcast user event
     WS-->>UI: Render user event
     Prompt->>Prompt: Apply mode, history, and selected skills
@@ -329,17 +329,28 @@ Claude and Codex.
 | --- | --- |
 | Rename | The API can patch the chat title; the current UI has no manual rename control |
 | Read/unread | Updates `lastReadAt` for sidebar indicators |
-| Cancel | Cancels the active provider context and releases the run lock |
-| Queue | Per-tab `sessionStorage` queue sends prompts one at a time after each run unlocks and removes one only after server acceptance |
+| Cancel | Signals the active provider context; the run lock stays reserved until provider output and teardown finish |
+| Queue | Per-tab `sessionStorage` queue sends prompts one at a time after each run unlocks; busy rejections retry, while semantic rejections return to the draft for explicit review |
 | Fork | Copies visible history and provider session IDs; next run forks without mutating the parent |
 | Rewind | Deletes the selected event and everything after it; unavailable while running |
-| Delete | Cancels an active run, then removes chat metadata and history |
+| Delete | Exclusively cancels and waits for an active run to quiesce, then removes chat metadata and history |
 | Load older | Pages backward through the JSONL event log |
 
 Draft text and queued prompts are mirrored into per-tab `sessionStorage` by
 chat ID. They survive switching chats, navigation, and reloads in the same tab,
 but are not server-authoritative and do not cross tabs, browsers, devices, or
 users. A background chat's queue waits until that chat is active again.
+
+Interactive prompt messages include the provider and mode displayed when the
+user sent them. After reserving the run, the prompt service compares those
+values with current chat metadata. A stale tab is rejected without persisting a
+user event or changing metadata. Accepted client IDs are hashed into hidden,
+non-rewindable chat delivery metadata, so an acknowledgement lost during a
+disconnect can be retried without executing the prompt twice. Chat preference
+updates and rewinds also own the same idle transition as run reservation,
+closing their update/run races. Scheduled turns omit the browser expectation
+but still validate the current stored mode on every fire; an unsupported mode
+fails every occurrence until a user explicitly changes it.
 
 ## Scheduled turns
 

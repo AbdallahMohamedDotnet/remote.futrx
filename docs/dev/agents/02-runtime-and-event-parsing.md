@@ -50,8 +50,10 @@ The concrete entry points are:
 2. [`prompt.Service.Start`](../../../backend/internal/service/prompt/service.go)
    acquires the process-local, one-run-per-chat lock in
    [`runhub.Hub`](../../../backend/internal/service/runhub/hub.go). A racing
-   start returns `ErrPromptAlreadyRunning`; `clientId` acknowledgements are
-   connection-local and are not persisted.
+   start returns `ErrPromptAlreadyRunning`. An accepted interactive `clientId`
+   is persisted in hidden chat delivery metadata so reconnect retries remain
+   idempotent even after a visible-history rewind; the accepted/rejected ack
+   event itself remains connection-local and transient.
 3. [`prompt.Service.runPromptAs`](../../../backend/internal/service/prompt/service.go)
    resolves chat state, prepares a provider-neutral request, looks up the
    registered runtime, and calls `Provider.Run`.

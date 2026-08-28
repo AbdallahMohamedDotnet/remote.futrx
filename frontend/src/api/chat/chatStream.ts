@@ -1,6 +1,9 @@
 import { ReconnectingJsonWebSocket } from "../../transport/reconnectingJsonSocket";
 import { webSocketUrl } from "../../transport/webSocketUrl";
-import type { ChatEvent } from "../../models/chat";
+import type {
+  ChatEvent,
+  PromptExecutionPreferences,
+} from "../../models/chat";
 import type { ChatStream, ChatStreamCallbacks } from "../../types/chatApi";
 import { WEB_SOCKET_ROUTES } from "../../config/routes";
 import { CHAT_STREAM_MESSAGE_TYPES } from "../../config/api";
@@ -39,8 +42,17 @@ class ReconnectingChatStream implements ChatStream {
     this.#connection.start();
   }
 
-  sendPrompt(text: string, clientId?: string): boolean {
-    return this.#connection.send({ type: CHAT_STREAM_MESSAGE_TYPES.prompt, text, clientId });
+  sendPrompt(
+    text: string,
+    preferences: PromptExecutionPreferences,
+    clientId?: string,
+  ): boolean {
+    return this.#connection.send({
+      type: CHAT_STREAM_MESSAGE_TYPES.prompt,
+      text,
+      clientId,
+      ...preferences,
+    });
   }
 
   cancel(): boolean {

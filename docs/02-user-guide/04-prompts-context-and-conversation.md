@@ -73,12 +73,15 @@ the agent is working** and the send button becomes **Queue prompt**.
 1. Enter the follow-up.
 2. Select **Queue prompt**.
 3. Repeat to build an ordered list.
-4. Remove a queued item if it should not be sent.
+4. Remove a waiting item if it should not be sent. The head cannot be removed
+   once Remote has started delivering it and is waiting for the server's ack.
 5. Keep or return to that chat in the same loaded page.
 
 The first queued prompt is sent after the active run unlocks. A prompt remains
-queued until the server acknowledges that it accepted the next run; a rejected
-or interrupted dispatch stays at the front for the next send window.
+queued until the server acknowledges that it accepted the next run. A busy
+rejection stays at the front for the next send window. A provider/mode mismatch
+or another semantic rejection is removed from the queue and restored to the
+draft for review; it never retries automatically under changed controls.
 Only the active chat has a live composer controller, so a queue in a background
 chat waits until you open that chat again.
 

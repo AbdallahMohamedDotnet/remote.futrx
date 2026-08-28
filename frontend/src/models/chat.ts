@@ -37,6 +37,11 @@ export interface SelectedSkill {
 
 type ChatEventBase = { seq?: number; t: number };
 
+export interface PromptExecutionPreferences {
+  provider: ChatProvider;
+  mode: ChatMode;
+}
+
 export type ChatEvent = ChatEventBase & (
   | { type: "user"; text: string }
   | { type: "assistant_text"; text: string; messageId?: string }
@@ -67,7 +72,7 @@ export interface ChatEventPage {
 }
 
 export type ClientToServer =
-  | { type: "prompt"; text: string; clientId?: string }
+  | ({ type: "prompt"; text: string; clientId?: string } & PromptExecutionPreferences)
   | { type: "cancel" }
   | { type: "permission"; id: string; approved: boolean };
 
@@ -76,13 +81,16 @@ export type ChatStatus = "loading" | "ready" | "streaming" | "error";
 export interface QueuedPrompt {
   id: string;
   text: string;
+  preferences: PromptExecutionPreferences;
 }
 
-// Server verdict on a prompt sent with a clientId: accepted means a run
-// started from it; rejected means the run lock was held and it was discarded.
+// Server verdict on a prompt sent with a clientId. Retryable busy rejections
+// remain queued; semantic rejections return to the draft for review.
 export interface PromptOutcome {
   clientId: string;
   accepted: boolean;
+  retryable: boolean;
+  reason: string;
 }
 
 export interface CreateChatInput {

@@ -2,6 +2,8 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -228,49 +230,89 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		return Meta{}, ErrInvalidID
 	}
 
-	var nextProvider Provider
-	if in.Provider != nil {
+	var meta Meta
+	change := func() error {
 		current, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		nextProvider := current.Provider
+		if in.Provider != nil {
+			var valid bool
+			nextProvider, valid = s.providerForScope(*in.Provider, current.ProjectID)
+			if !valid {
+				return ErrInvalidProvider
+			}
+		}
+		providerChanged := nextProvider != current.Provider
+		var nextMode *agent.RunMode
+		if in.Mode != nil {
+			mode, modeErr := s.modeForProvider(nextProvider, *in.Mode)
+			if modeErr != nil {
+				return modeErr
+			}
+			nextMode = &mode
+		} else if providerChanged {
+			mode := agent.RunModeDefault
+			nextMode = &mode
+		}
+
+		invalidMode := false
+		meta, err = s.repo.Update(ctx, id, func(m *Meta) {
+			providerChangedNow := in.Provider != nil && nextProvider != m.Provider
+			effectiveProvider := m.Provider
+			if in.Provider != nil {
+				effectiveProvider = nextProvider
+			}
+			if nextMode != nil && !s.supportsRunMode(effectiveProvider, *nextMode) {
+				invalidMode = true
+				return
+			}
+			if in.Title != nil {
+				m.Title = strings.TrimSpace(*in.Title)
+			}
+			if in.Cwd != nil {
+				m.Cwd = *in.Cwd
+			}
+			if in.Provider != nil {
+				if providerChangedNow {
+					m.SelectedSkills = nil
+				}
+				m.Provider = nextProvider
+			}
+			if in.Model != nil {
+				m.Model = *in.Model
+			}
+			if nextMode != nil {
+				m.Mode = string(*nextMode)
+			}
+			if in.ReasoningEffort != nil {
+				m.ReasoningEffort = NormalizeReasoningEffort(*in.ReasoningEffort)
+			}
+			if in.ServiceTier != nil {
+				m.ServiceTier = NormalizeServiceTier(*in.ServiceTier)
+			}
+			if in.SelectedSkills != nil {
+				m.SelectedSkills = NormalizeSelectedSkills(*in.SelectedSkills, m.Provider)
+			}
+		})
+		if err != nil {
+			return err
+		}
+		if invalidMode {
+			return ErrInvalidMode
+		}
+		return nil
+	}
+	if s.runs != nil {
+		idle, err := s.runs.WhileIdle(id, change)
 		if err != nil {
 			return Meta{}, err
 		}
-		var valid bool
-		nextProvider, valid = s.providerForScope(*in.Provider, current.ProjectID)
-		if !valid {
-			return Meta{}, ErrInvalidProvider
+		if !idle {
+			return Meta{}, ErrChatRunning
 		}
-	}
-
-	meta, err := s.repo.Update(ctx, id, func(m *Meta) {
-		if in.Title != nil {
-			m.Title = strings.TrimSpace(*in.Title)
-		}
-		if in.Cwd != nil {
-			m.Cwd = *in.Cwd
-		}
-		if in.Provider != nil {
-			if nextProvider != m.Provider {
-				m.SelectedSkills = nil
-			}
-			m.Provider = nextProvider
-		}
-		if in.Model != nil {
-			m.Model = *in.Model
-		}
-		if in.Mode != nil {
-			m.Mode = *in.Mode
-		}
-		if in.ReasoningEffort != nil {
-			m.ReasoningEffort = NormalizeReasoningEffort(*in.ReasoningEffort)
-		}
-		if in.ServiceTier != nil {
-			m.ServiceTier = NormalizeServiceTier(*in.ServiceTier)
-		}
-		if in.SelectedSkills != nil {
-			m.SelectedSkills = NormalizeSelectedSkills(*in.SelectedSkills, m.Provider)
-		}
-	})
-	if err != nil {
+	} else if err := change(); err != nil {
 		return Meta{}, err
 	}
 	return s.withRunning(meta), nil
@@ -372,13 +414,11 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if !ValidID(id) {
 		return ErrInvalidID
 	}
-
-	if s.runs != nil && s.runs.IsRunning(id) {
-		if err := s.runs.Cancel(ctx, id); err != nil {
-			return err
-		}
+	if s.runs != nil {
+		return s.runs.CancelAndWhileIdle(ctx, id, func() error {
+			return s.repo.Delete(ctx, id)
+		})
 	}
-
 	return s.repo.Delete(ctx, id)
 }
 
@@ -403,10 +443,86 @@ func (s *Service) Rewind(ctx context.Context, id ID, beforeT int64) ([]Event, er
 	if beforeT <= 0 {
 		return nil, ErrInvalidRewindTimestamp
 	}
-	if s.runs != nil && s.runs.IsRunning(id) {
-		return nil, ErrChatRunning
+	var events []Event
+	change := func() error {
+		current, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		currentEvents, err := s.repo.ReadEvents(ctx, id)
+		if err != nil {
+			return err
+		}
+		receipts, changed, err := promotedPromptReceipts(current.PromptReceipts, currentEvents, beforeT)
+		if err != nil {
+			return err
+		}
+		if changed {
+			if _, err := s.repo.Update(ctx, id, func(meta *Meta) {
+				meta.PromptReceipts = receipts
+			}); err != nil {
+				return err
+			}
+		}
+		events, err = s.repo.TruncateEventsBefore(ctx, id, beforeT)
+		return err
 	}
-	return s.repo.TruncateEventsBefore(ctx, id, beforeT)
+	if s.runs != nil {
+		idle, err := s.runs.WhileIdle(id, change)
+		if err != nil {
+			return nil, err
+		}
+		if !idle {
+			return nil, ErrChatRunning
+		}
+	} else if err := change(); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+func promotedPromptReceipts(
+	current map[string]PromptReceipt,
+	events []Event,
+	beforeT int64,
+) (map[string]PromptReceipt, bool, error) {
+	receipts := make(map[string]PromptReceipt, len(current))
+	for key, receipt := range current {
+		receipts[key] = receipt
+	}
+	changed := false
+	for _, event := range events {
+		if event.Type != "user" || event.T < beforeT {
+			continue
+		}
+		clientID := promptClientID(event)
+		if clientID == "" {
+			continue
+		}
+		key, accepted := NewPromptReceipt(clientID, event.Text)
+		if existing, found := receipts[key]; found {
+			if existing.PromptHash != accepted.PromptHash {
+				return nil, false, errors.New("prompt delivery receipt conflicts with accepted history")
+			}
+			continue
+		}
+		receipts[key] = accepted
+		changed = true
+	}
+	return receipts, changed, nil
+}
+
+func promptClientID(event Event) string {
+	if len(event.Data) == 0 {
+		return ""
+	}
+	var data struct {
+		ClientID string `json:"clientId"`
+	}
+	if json.Unmarshal(event.Data, &data) != nil {
+		return ""
+	}
+	return strings.TrimSpace(data.ClientID)
 }
 
 func (s *Service) UploadTarget(ctx context.Context, id ID) (string, error) {

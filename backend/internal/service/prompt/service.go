@@ -36,6 +36,11 @@ type agentBrowserActivityRecorder interface {
 
 var ErrPromptAlreadyRunning = errors.New("a previous prompt is still running")
 var ErrUnsupportedAgentScope = errors.New("agent does not support this chat execution scope")
+var ErrExecutionPreferencesChanged = errors.New("chat execution preferences changed before the prompt started")
+var ErrInvalidPromptClientID = errors.New("prompt client id is invalid")
+var ErrPromptClientIDConflict = errors.New("prompt client id was already used for different text")
+
+const maxPromptClientIDBytes = 256
 
 type Actor struct {
 	Email   string
@@ -49,6 +54,19 @@ type StartInput struct {
 	ScheduledTaskID string
 	ScheduledRunID  string
 	ParentContext   context.Context
+	// Expected is supplied by interactive clients from the controls the user
+	// actually saw. Scheduled/internal callers omit it and use the current
+	// saved preferences after the run lock is reserved.
+	Expected *ExecutionPreferences
+	// ClientID makes interactive delivery idempotent across WebSocket
+	// reconnects. It is persisted with the accepted user turn and scoped by
+	// ChatID; scheduled/internal callers leave it empty.
+	ClientID string
+}
+
+type ExecutionPreferences struct {
+	Provider servicechat.Provider
+	Mode     string
 }
 
 type RunResult struct {
@@ -152,7 +170,25 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 		parentCtx = context.Background()
 	}
 	ctx, cancel := context.WithCancel(parentCtx)
-	runID, ok := rnr.hub.StartRun(input.ChatID, cancel)
+	input.ClientID = strings.TrimSpace(input.ClientID)
+	if len(input.ClientID) > maxPromptClientIDBytes {
+		cancel()
+		emitTransient(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: ErrInvalidPromptClientID.Error()})
+		return RunHandle{}, ErrInvalidPromptClientID
+	}
+	var admission promptAdmission
+	runID, ok, err := rnr.hub.StartRunWith(input.ChatID, cancel, func() error {
+		var admissionErr error
+		admission, admissionErr = rnr.admitPrompt(ctx, input, emitTransient)
+		return admissionErr
+	})
+	if err != nil {
+		cancel()
+		if !errors.Is(err, ErrExecutionPreferencesChanged) && !errors.Is(err, agent.ErrUnsupportedRunMode) {
+			emitTransient(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
+		}
+		return RunHandle{}, err
+	}
 	if !ok {
 		cancel()
 		emitTransient(ChatEvent{
@@ -161,15 +197,31 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 		})
 		return RunHandle{}, ErrPromptAlreadyRunning
 	}
+	if admission.duplicate {
+		cancel()
+		rnr.hub.FinishRun(input.ChatID, runID)
+		done := make(chan RunResult, 1)
+		done <- RunResult{}
+		close(done)
+		return RunHandle{ID: runID, Done: done}, nil
+	}
 
 	done := make(chan RunResult, 1)
 	go func() {
-		defer close(done)
-		defer rnr.hub.FinishRun(input.ChatID, runID)
+		result := RunResult{}
+		defer func() {
+			// A delivered result is the public quiescence boundary. Release the
+			// reservation before waking callers so an immediate follow-up cannot
+			// race the final FinishRun instructions.
+			rnr.hub.FinishRun(input.ChatID, runID)
+			done <- result
+			close(done)
+		}()
 		var output strings.Builder
-		err := rnr.runPromptAs(
+		result.Err = rnr.runPromptWithSnapshot(
 			ctx,
 			input,
+			admission.snapshot,
 			func(ev ChatEvent) {
 				// Stamp the originating task so a scheduled run's events stay
 				// distinguishable from an interactive turn's downstream.
@@ -181,7 +233,7 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 			},
 			emitTransient,
 		)
-		done <- RunResult{Output: output.String(), Err: err}
+		result.Output = output.String()
 	}()
 	return RunHandle{ID: runID, Done: done}, nil
 }
@@ -207,12 +259,33 @@ func (rnr *Service) runPromptAs(
 	emitTransient func(ChatEvent),
 ) error {
 	id := input.ChatID
-	prompt := input.Prompt
 	meta, err := rnr.store.Get(ctx, id)
 	if err != nil {
 		emitTransient(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: err.Error()})
 		return err
 	}
+	if err := rnr.validateExecutionPreferences(meta, input.Expected, emitTransient); err != nil {
+		return err
+	}
+	return rnr.runPromptWithSnapshot(
+		ctx,
+		input,
+		promptRunSnapshot{meta: meta},
+		emit,
+		emitTransient,
+	)
+}
+
+func (rnr *Service) runPromptWithSnapshot(
+	ctx context.Context,
+	input StartInput,
+	snapshot promptRunSnapshot,
+	emit func(ChatEvent),
+	emitTransient func(ChatEvent),
+) error {
+	meta := snapshot.meta
+	id := input.ChatID
+	prompt := input.Prompt
 
 	// Auto-title from first user prompt if still default.
 	if meta.Title == "" || meta.Title == "New chat" {
@@ -235,12 +308,18 @@ func (rnr *Service) runPromptAs(
 		}
 	}
 
-	priorEvents, _ := rnr.store.ReadEvents(ctx, id)
+	priorEvents := snapshot.priorEvents
+	if !snapshot.priorEventsLoaded {
+		priorEvents, _ = rnr.store.ReadEvents(ctx, id)
+	}
 
 	// Persist the user message before spawning the selected agent.
-	emit(ChatEvent{T: time.Now().UnixMilli(), Type: "user", Text: prompt})
+	if !snapshot.userPromptPersisted {
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "user", Text: prompt})
+	}
 
 	providerID := providerIDFromChatProvider(meta.Provider)
+	runMode := normalizedRunMode(meta.Mode)
 	descriptor := agentmodule.Descriptor{}
 	if rnr.agentPolicy != nil {
 		descriptor, _ = rnr.agentPolicy.Descriptor(string(providerID))
@@ -339,7 +418,7 @@ func (rnr *Service) runPromptAs(
 			Prompt:         runPrompt,
 			Cwd:            cwd,
 			Model:          meta.Model,
-			Mode:           agent.RunMode(meta.Mode),
+			Mode:           runMode,
 			ResumeID:       runResumeID,
 			ProjectID:      string(meta.ProjectID),
 			Fork:           forkSession,
@@ -355,8 +434,8 @@ func (rnr *Service) runPromptAs(
 		})
 	}
 
-	err = run(effectivePrompt, resumeID)
-	if errors.Is(err, agent.ErrSessionNotFound) && resumeID != "" {
+	runErr := run(effectivePrompt, resumeID)
+	if errors.Is(runErr, agent.ErrSessionNotFound) && resumeID != "" {
 		_, _ = rnr.store.Update(ctx, id, func(m *ChatMeta) {
 			clearSessionIDForProvider(m, providerID)
 			m.ForkPending = false
@@ -372,12 +451,12 @@ func (rnr *Service) runPromptAs(
 			meta.ProjectID != "",
 			freshPrompt,
 		)
-		err = run(freshPrompt, "")
+		runErr = run(freshPrompt, "")
 	}
-	if err != nil && !errors.Is(err, agent.ErrRunFailed) {
-		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " exit: " + err.Error()})
+	if runErr != nil && !errors.Is(runErr, agent.ErrRunFailed) {
+		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " exit: " + runErr.Error()})
 	}
-	return err
+	return runErr
 }
 
 func clearSessionIDForProvider(meta *ChatMeta, provider agent.ProviderID) {

@@ -6,6 +6,7 @@ import type {
   ChatEventPage,
   ChatMeta,
   ChatStatus,
+  PromptExecutionPreferences,
   PromptOutcome,
 } from "../../../models/chat";
 import {
@@ -27,7 +28,12 @@ interface UseChatResult {
   status: ChatStatus;
   error: string | null;
   canSendPrompt: boolean;
-  sendPrompt: (text: string, clientId?: string) => boolean;
+  transportReady: boolean;
+  sendPrompt: (
+    text: string,
+    preferences: PromptExecutionPreferences,
+    clientId?: string,
+  ) => boolean;
   promptOutcome: PromptOutcome | null;
   cancel: () => void;
   rewind: (beforeT: number) => Promise<ChatEventPage>;
@@ -162,7 +168,12 @@ export function useChat(chatId: string): UseChatResult {
             // must not influence the streaming status.
             const clientId = event.data?.clientId;
             if (typeof clientId === "string" && clientId) {
-              setPromptOutcome({ clientId, accepted: event.subtype === "prompt_accepted" });
+              setPromptOutcome({
+                clientId,
+                accepted: event.subtype === "prompt_accepted",
+                retryable: event.data?.retryable === true,
+                reason: typeof event.data?.reason === "string" ? event.data.reason : "rejected",
+              });
             }
             return;
           }
@@ -186,12 +197,16 @@ export function useChat(chatId: string): UseChatResult {
     };
   }, [meta?.id, chatId]);
 
-  const sendPrompt = useCallback((text: string, clientId?: string) => {
+  const sendPrompt = useCallback((
+    text: string,
+    preferences: PromptExecutionPreferences,
+    clientId?: string,
+  ) => {
     const stream = streamRef.current;
     if (!wsReady || !synced || !stream?.isOpen) return false;
     if (status !== "ready") return false;
+    if (!stream.sendPrompt(text, preferences, clientId)) return false;
     setStatus("streaming");
-    stream.sendPrompt(text, clientId);
     return true;
   }, [status, wsReady, synced]);
 
@@ -244,6 +259,7 @@ export function useChat(chatId: string): UseChatResult {
     status,
     error,
     canSendPrompt: wsReady && synced && status === "ready",
+    transportReady: wsReady && synced,
     sendPrompt,
     promptOutcome,
     cancel,

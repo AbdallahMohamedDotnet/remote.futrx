@@ -110,7 +110,13 @@ flowchart LR
     Replay --> Client["Chat UI"]
 ```
 
-Chat metadata includes title, provider, provider session IDs, working directory, project ID, read markers, model/mode controls, selected skills, and fork state. The `running` flag and cancellation handle are computed from the in-memory run hub and are not persisted. Provider child processes may survive a backend restart, so the restarted control plane cannot automatically rediscover or cancel them.
+Chat metadata includes title, provider, provider session IDs, working directory,
+project ID, read markers, model/mode controls, selected skills, fork state, and
+hidden hashed prompt-delivery receipts used for reconnect idempotency. Receipts
+are persisted but omitted from chat API responses and forks. The `running` flag
+and cancellation handle are computed from the in-memory run hub and are not
+persisted. Provider child processes may survive a backend restart, so the
+restarted control plane cannot automatically rediscover or cancel them.
 
 Scheduled-task definitions are separate from chat metadata. One versioned
 `scheduled-tasks/tasks.json` document holds every task plus persisted active

@@ -24,6 +24,7 @@ export interface ChatComposerProps {
   preferences: ComposerPreferences;
   preferenceActions: ComposerPreferenceActions;
   queuedPrompts: QueuedPrompt[];
+  inflightQueuedPromptId: string | null;
   selectedSkills: SelectedSkill[];
   attachments: Attachment[];
   uploading: boolean;
@@ -49,6 +50,7 @@ export function ChatComposer({
   preferences,
   preferenceActions,
   queuedPrompts,
+  inflightQueuedPromptId,
   selectedSkills,
   attachments,
   uploading,
@@ -111,7 +113,11 @@ export function ChatComposer({
       {dragging && <ComposerDropOverlay />}
 
       <SelectedSkillChips skills={selectedSkills} onRemove={onRemoveSelectedSkill} />
-      <QueuedPromptList queuedPrompts={queuedPrompts} onRemove={onRemoveQueued} />
+      <QueuedPromptList
+        queuedPrompts={queuedPrompts}
+        inflightId={inflightQueuedPromptId}
+        onRemove={onRemoveQueued}
+      />
       <AttachmentTray attachments={attachments} onRemove={onRemoveAttachment} />
 
       <div class="codex-composer-card mx-3 my-2 overflow-visible rounded-xl border border-white/10 bg-[#15171c] shadow-[0_8px_24px_rgba(0,0,0,0.18)]">

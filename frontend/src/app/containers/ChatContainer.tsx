@@ -38,6 +38,7 @@ export function ChatContainer({
     status,
     error,
     canSendPrompt,
+    transportReady,
     sendPrompt,
     promptOutcome,
     cancel,
@@ -47,6 +48,10 @@ export function ChatContainer({
   } = useChat(chat.id);
   const preferences = useChatPreferences({ chat, loadedMeta: meta, refreshMeta });
   const { displayMeta, displayMode, selectedSkills } = preferences;
+  const executionPreferences = {
+    provider: displayMeta.provider || "codex",
+    mode: displayMode || "default",
+  };
   const attachmentBasePath = chatAttachmentState.basePath(displayMeta, projects);
   const composer = useChatComposerController({
     chatId: chat.id,
@@ -54,7 +59,9 @@ export function ChatContainer({
     blockCount: blocks.length,
     status,
     canSendPrompt,
+    transportReady,
     sendPrompt,
+    executionPreferences,
     promptOutcome,
     rewind,
     refreshMeta,
@@ -149,6 +156,7 @@ export function ChatContainer({
       changeServiceTier: preferences.changeServiceTier,
     },
     queuedPrompts: composer.queue.queuedPrompts,
+    inflightQueuedPromptId: composer.queue.inflightId,
     selectedSkills,
     attachments: composer.upload.attachments,
     uploading: composer.upload.uploading,

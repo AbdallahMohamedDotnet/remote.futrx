@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -43,6 +44,23 @@ type Meta struct {
 	ProjectID            ProjectID  `json:"projectId,omitempty"`
 	ForkPending          bool       `json:"forkPending,omitempty"`
 	SelectedSkills       []SkillRef `json:"selectedSkills,omitempty"`
+	// PromptReceipts is internal delivery state. It is persisted by the chat
+	// store but deliberately excluded from API responses and forks. Keeping it
+	// outside events makes accepted interactive prompts idempotent across
+	// reconnects even after visible history is rewound.
+	PromptReceipts map[string]PromptReceipt `json:"-"`
+}
+
+type PromptReceipt struct {
+	PromptHash string
+}
+
+func NewPromptReceipt(clientID, prompt string) (string, PromptReceipt) {
+	clientSum := sha256.Sum256([]byte(strings.TrimSpace(clientID)))
+	promptSum := sha256.Sum256([]byte(prompt))
+	return fmt.Sprintf("%x", clientSum), PromptReceipt{
+		PromptHash: fmt.Sprintf("%x", promptSum),
+	}
 }
 
 type SkillRef struct {

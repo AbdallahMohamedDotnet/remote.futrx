@@ -82,8 +82,10 @@ These are the constraints worth understanding before you deploy or rely on remot
   direct concurrent run request is rejected. Drafts and queued prompts are
   mirrored to per-tab `sessionStorage`, so they survive navigation and reloads
   in that tab, but not tab closure or another tab/browser/device. A background
-  chat's queue sends only after that chat is opened again. Use scheduled tasks
-  for host-owned future work.
+  chat's queue sends only after that chat is opened again. Accepted prompt IDs
+  are persisted server-side for reconnect/rewind deduplication, but this is not
+  a server-owned future-work queue. Use scheduled tasks for host-owned future
+  work.
 - **Session recovery drops context.** When a provider session is missing (or you switch provider mid-chat), the chat is "recovered" by replaying at most the last ~24 KB of visible transcript as plain text into a fresh session — earlier context and all tool-call state are dropped.
 - **Plan is intentionally unavailable for every provider.** All capability
   catalogs expose Default only, provider changes reset mode to Default, and the
