@@ -23,16 +23,31 @@ interface UserSettingsContextValue {
 
 const UserSettingsContext = createContext<UserSettingsContextValue | null>(null);
 
+/**
+ * The defaults, with appearance taken from what this browser last applied.
+ *
+ * The built-in default is "system", and using it before the server answers
+ * repaints a light-theme user's app in dark for the length of the round-trip —
+ * on every load, and again whenever the gate closes. Worse, applying it also
+ * caches "system", so the next cold boot paints its very first frame wrong too.
+ */
+function settingsFromCachedAppearance(): UserSettings {
+  return {
+    ...DEFAULT_USER_SETTINGS,
+    appearance: { ...DEFAULT_USER_SETTINGS.appearance, theme: appearanceThemeState.remembered() },
+  };
+}
+
 export function UserSettingsProvider({ children }: { children: ComponentChildren }) {
   const { gateOpen } = useAuthContext();
-  const [settings, setSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
+  const [settings, setSettings] = useState<UserSettings>(settingsFromCachedAppearance);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!gateOpen) {
-      setSettings(DEFAULT_USER_SETTINGS);
+      setSettings(settingsFromCachedAppearance());
       setLoading(false);
       setError(null);
       return;

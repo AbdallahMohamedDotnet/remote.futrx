@@ -14,8 +14,11 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/service/agent/hostcli"
 )
 
+const defaultManagedPrefix = "/opt/remote.futrx/data/host-clis"
+
 func main() {
 	plan := flag.Bool("plan", false, "print the catalog-derived host CLI plan without changing the host")
+	managedPrefix := flag.String("prefix", defaultManagedPrefix, "application-owned prefix for managed host CLIs")
 	flag.Parse()
 	log.SetFlags(0)
 	cfg := config.Load()
@@ -39,6 +42,7 @@ func main() {
 	results, err := hostcli.New(
 		hostcliruntime.New(),
 		cfg.Agent.HostCLIVersionTimeout,
+		*managedPrefix,
 	).EnsureAll(context.Background(), profiles)
 	if err != nil {
 		log.Fatal(err)
