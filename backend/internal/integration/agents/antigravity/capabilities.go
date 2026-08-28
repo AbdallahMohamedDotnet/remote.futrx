@@ -11,8 +11,12 @@ import (
 func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest) (agent.Capabilities, error) {
 	environment := []string{"HOME=" + containerAgentHome}
 
-	modelsCmd := agentruntime.NewCapabilityCommand(ctx, req, environment, "agy", "models")
-	modelsOutput, modelsErr := modelsCmd.CombinedOutput()
+	// Keep model discovery machine-readable. In agy 1.1.x output-format is a
+	// global flag and the models payload is nested under command.data.models.
+	// Output intentionally excludes stderr: agy writes a human progress line to
+	// stderr even while stdout contains valid JSON.
+	modelsCmd := agentruntime.NewCapabilityCommand(ctx, req, environment, "agy", "--output-format", "json", "models")
+	modelsOutput, modelsErr := modelsCmd.Output()
 	helpCmd := agentruntime.NewCapabilityCommand(ctx, req, environment, "agy", "--help")
 	helpOutput, helpErr := helpCmd.CombinedOutput()
 

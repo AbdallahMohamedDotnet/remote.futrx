@@ -97,11 +97,7 @@ func runModelCommand(
 	req agent.CapabilityRequest,
 	selection string,
 ) (string, error) {
-	args := []string{"-p", "--no-session-persistence", "--output-format", "json"}
-	if selection != "" {
-		args = append(args, "--model", selection)
-	}
-	args = append(args, "/model")
+	args := claudeModelCapabilityArgs(selection)
 	cmd := agentruntime.NewCapabilityCommand(
 		ctx,
 		req,
@@ -121,6 +117,14 @@ func runModelCommand(
 		return "", errors.New(strings.TrimSpace(response.Result))
 	}
 	return response.Result, nil
+}
+
+func claudeModelCapabilityArgs(selection string) []string {
+	args := claudeCapabilityArgs("-p", "--no-session-persistence", "--output-format", "json")
+	if selection != "" {
+		args = append(args, "--model", selection)
+	}
+	return append(args, "/model")
 }
 
 func parseModelCatalogResult(result string) (string, []string, error) {

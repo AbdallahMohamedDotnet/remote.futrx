@@ -34,9 +34,10 @@ test("resolves thinking and speed from the selected model", () => {
   assert.deepEqual(state.modeOptions.map((option) => option.value), ["default", "plan"]);
 });
 
-test("falls back to the auto model for an unknown saved model", () => {
+test("does not attach Auto controls to an unknown saved model", () => {
   const state = agentCapabilityState.resolve(catalog, "codex", "retired-model", false);
-  assert.deepEqual(state.reasoningEffortOptions.map((option) => option.value), ["", "medium"]);
+  assert.deepEqual(state.reasoningEffortOptions, []);
+  assert.deepEqual(state.serviceTierOptions, []);
 });
 
 test("does not present the current selection as a model while the catalog loads", () => {

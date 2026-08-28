@@ -79,10 +79,10 @@ There is no approval workflow in the current chat transport. Project agents run 
 | Capability | Claude | Codex | Kimi | Antigravity |
 | --- | ---: | ---: | ---: | ---: |
 | Sign-in | Host authorization URL and pasted code | Host device flow | Host device flow | Run `agy` in each project Terminal |
-| Model picker | Live `/model` list with attempted version resolution | Live paginated app-server list | Configured models from the provider catalog | Models/variants returned by signed-in `agy` |
-| Thinking control | Forwarded | Forwarded | Displayed/stored per model, not yet forwarded | Forwarded as Auto, Low, Medium, or High |
+| Model picker | Safe-mode `/model` list with attempted version resolution | Live paginated app-server list after the required initialize/initialized handshake | Configured aliases and provider/display labels | Stable `agy` slugs with separate display labels |
+| Thinking control | Forwarded | Forwarded | Not exposed; print adapter cannot forward it | Low, Medium, or High only while model is Auto; explicit model slugs already encode their variant |
 | Speed/service tier | Fast for Auto and Opus | Yes | No | No |
-| Plan mode | Declared native mode | Discovered app-server mode | Advertised but incompatible with Remote prompt mode in the currently pinned Kimi CLI | Discovered native mode |
+| Plan mode | Hidden; print lacks question/exit approval lifecycle | Hidden; native mode exists but approve/revise transition is not bridged | Hidden; `-p` conflicts with `--plan` | Hidden; print lacks control/approval round trip |
 | Usage telemetry | Yes | Yes | No | No |
 | Provider session fork | Yes | Yes, native app-server fork | No; starts fresh | No; starts fresh |
 | Selected skill trigger | Slash command | Dollar mention | Canonical `SKILL.md` instruction | Canonical `SKILL.md` instruction |

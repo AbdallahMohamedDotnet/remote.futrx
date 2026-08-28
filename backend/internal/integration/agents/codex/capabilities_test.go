@@ -1,23 +1,110 @@
 package codex
 
 import (
-	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-func TestReadAppServerCapabilitiesPaginatesModelCatalog(t *testing.T) {
-	responses := bytes.NewBufferString(
-		`{"id":1,"result":{}}` + "\n" +
-			`{"id":2,"result":{"data":[{"id":"first","model":"first","displayName":"First"}],"nextCursor":"page-2"}}` + "\n" +
-			`{"id":3,"result":{"data":[{"name":"Plan","mode":"plan"}]}}` + "\n" +
-			`{"id":4,"result":{"data":[{"id":"second","model":"second","displayName":"Second"}]}}` + "\n",
-	)
-	var requests bytes.Buffer
-	models, modes, err := readAppServerCapabilities(&requests, responses)
+func TestReadAppServerCapabilitiesInitializesBeforePaginatingModelCatalog(t *testing.T) {
+	serverRequestReader, clientRequestWriter := io.Pipe()
+	clientResponseReader, serverResponseWriter := io.Pipe()
+	serverDone := make(chan error, 1)
+
+	type request struct {
+		ID     int            `json:"id"`
+		Method string         `json:"method"`
+		Params map[string]any `json:"params"`
+	}
+	go func() {
+		defer serverRequestReader.Close()
+		defer serverResponseWriter.Close()
+
+		decoder := json.NewDecoder(serverRequestReader)
+		encoder := json.NewEncoder(serverResponseWriter)
+		readRequest := func(wantMethod string, wantID int) (request, error) {
+			var got request
+			if err := decoder.Decode(&got); err != nil {
+				return request{}, err
+			}
+			if got.Method != wantMethod || got.ID != wantID {
+				return request{}, fmt.Errorf("request = %+v, want method %q id %d", got, wantMethod, wantID)
+			}
+			return got, nil
+		}
+
+		if _, err := readRequest("initialize", 1); err != nil {
+			serverDone <- err
+			return
+		}
+		if err := encoder.Encode(map[string]any{"id": 1, "result": map[string]any{}}); err != nil {
+			serverDone <- err
+			return
+		}
+		if _, err := readRequest("initialized", 0); err != nil {
+			serverDone <- err
+			return
+		}
+		firstPage, err := readRequest("model/list", 2)
+		if err != nil {
+			serverDone <- err
+			return
+		}
+		if _, exists := firstPage.Params["cursor"]; exists {
+			serverDone <- fmt.Errorf("first model request has cursor: %+v", firstPage)
+			return
+		}
+		if _, err := readRequest("collaborationMode/list", 3); err != nil {
+			serverDone <- err
+			return
+		}
+		if err := encoder.Encode(map[string]any{
+			"id":     3,
+			"result": map[string]any{"data": []map[string]string{{"name": "Plan", "mode": "plan"}}},
+		}); err != nil {
+			serverDone <- err
+			return
+		}
+		if err := encoder.Encode(map[string]any{
+			"id": 2,
+			"result": map[string]any{
+				"data":       []map[string]string{{"id": "first", "model": "first", "displayName": "First"}},
+				"nextCursor": "page-2",
+			},
+		}); err != nil {
+			serverDone <- err
+			return
+		}
+		secondPage, err := readRequest("model/list", 4)
+		if err != nil {
+			serverDone <- err
+			return
+		}
+		if secondPage.Params["cursor"] != "page-2" {
+			serverDone <- fmt.Errorf("second model request = %+v", secondPage)
+			return
+		}
+		if err := encoder.Encode(map[string]any{
+			"id": 4,
+			"result": map[string]any{
+				"data": []map[string]string{{"id": "second", "model": "second", "displayName": "Second"}},
+			},
+		}); err != nil {
+			serverDone <- err
+			return
+		}
+		serverDone <- nil
+	}()
+
+	models, modes, err := readAppServerCapabilities(clientRequestWriter, clientResponseReader)
+	_ = clientRequestWriter.Close()
+	_ = clientResponseReader.Close()
+	if serverErr := <-serverDone; serverErr != nil {
+		t.Fatal(serverErr)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,36 +113,6 @@ func TestReadAppServerCapabilitiesPaginatesModelCatalog(t *testing.T) {
 	}
 	if len(modes.Data) != 1 || modes.Data[0].Mode != string(agent.RunModePlan) {
 		t.Fatalf("modes = %+v", modes.Data)
-	}
-
-	decoder := json.NewDecoder(&requests)
-	var sent []struct {
-		ID     int            `json:"id"`
-		Method string         `json:"method"`
-		Params map[string]any `json:"params"`
-	}
-	for {
-		var request struct {
-			ID     int            `json:"id"`
-			Method string         `json:"method"`
-			Params map[string]any `json:"params"`
-		}
-		if err := decoder.Decode(&request); err != nil {
-			if err == io.EOF {
-				break
-			}
-			t.Fatal(err)
-		}
-		sent = append(sent, request)
-	}
-	if len(sent) != 4 || sent[1].Method != "model/list" || sent[3].Method != "model/list" {
-		t.Fatalf("requests = %+v", sent)
-	}
-	if _, exists := sent[1].Params["cursor"]; exists {
-		t.Fatalf("first model request has cursor: %+v", sent[1])
-	}
-	if sent[3].ID != 4 || sent[3].Params["cursor"] != "page-2" {
-		t.Fatalf("second model request = %+v", sent[3])
 	}
 }
 

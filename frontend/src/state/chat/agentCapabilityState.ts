@@ -80,8 +80,12 @@ export const agentCapabilityState = {
       ? discoveredProviderOptions
       : [...discoveredProviderOptions, savedProviderFallback];
     const modelOptions = providerOptions.find((option) => option.value === provider)?.models ?? [];
+    // A non-empty unknown selection remains a visible custom model and must
+    // not inherit Auto's controls. Provider adapters may reject the stale
+    // value, and silently attaching Auto-only effort/tier choices would
+    // describe a command Remote does not actually launch.
     const selectedModel = providerCapabilities?.models.find((item) => item.id === model)
-      ?? providerCapabilities?.models.find((item) => item.id === "");
+      ?? (model === "" ? providerCapabilities?.models.find((item) => item.id === "") : undefined);
     return {
       providerCapabilities,
       providerOptions,

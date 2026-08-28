@@ -97,10 +97,9 @@ These are the constraints worth understanding before you deploy or rely on remot
   provider approvals, and Remote has no human-confirmation gate for
   irreversible or external actions.
 - **Provider-specific gaps.** Kimi has no fork primitive (forked Kimi chats
-  silently start fresh) and reports no usage data. Its discovered per-model
-  Thinking choice is displayed and saved but is not forwarded to the Kimi run,
-  and the currently pinned Kimi CLI rejects its advertised Plan flag with the
-  prompt mode Remote requires. Antigravity forks also
+  silently start fresh) and reports no usage data. Its provider catalog can
+  describe per-model effort, but Remote omits that control because the print
+  run cannot forward it. Antigravity forks also
   start fresh; print mode exposes plain streamed text rather than structured
   tool/usage events, selected skills use explicit `SKILL.md` instruction paths
   rather than native triggers, and Browser MCP is unavailable. Model catalogs

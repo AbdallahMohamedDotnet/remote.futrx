@@ -186,8 +186,8 @@ the selected host/project execution scope concurrently and
 preserves registry order in the response. One global
 `AGENT_CAPABILITY_TIMEOUT` bounds each provider's complete discovery operation
 (30 seconds by default; `0` disables the deadline). Each adapter normalizes
-the CLI-specific output into models, per-model reasoning
-efforts, service tiers, and provider-native modes. A failed probe can return a
+the CLI-specific output into models and only the controls that the current
+transport can execute end to end. A failed probe can return a
 conservative fallback. A partial probe preserves usable live data when possible
 and attaches a concise `warning`; provider failures do not make the whole
 catalog request fail.
@@ -198,16 +198,16 @@ smaller fallback catalog or partially resolved labels and controls.
 
 | Provider | Discovery source |
 | --- | --- |
-| Codex | Every page of app-server `model/list` plus `collaborationMode/list`, with `codex debug models` as a structured fallback |
-| Claude | The `/model` selection list, with each alias resolved through the CLI to a versioned label; `/effort` is queried in parallel, with `--help` as its fallback; native Default/Plan and eligible Auto/Opus Fast controls are declared by the adapter |
-| Kimi | Configured aliases, display/provider models, and effort metadata from `kimi provider list --json`; the plain listing supplies the active default and CLI help supplies the Plan-mode hint |
-| Antigravity | Display names from `agy models`; effort and mode choices from `agy --help` |
+| Codex | App-server `initialize`, its response, then the required `initialized` notification before every page of `model/list` and `collaborationMode/list`; `codex debug models` is the structured fallback. Collaboration modes are observed but Plan is not exposed. |
+| Claude | Safe-mode `/model` and `/effort` probes, with safe-mode `--help` as the effort fallback. Aliases are resolved to versioned labels without loading project/user hooks, MCP servers, plugins, skills, or instructions. Eligible Auto/Opus Fast controls remain available; mode is Default only. |
+| Kimi | `kimi provider list --json` supplies configured aliases and provider/display names; the plain listing supplies the active default. Remote does not probe help or advertise provider effort/Plan metadata because the print adapter cannot forward it. |
+| Antigravity | `agy models` supplies stable model slugs used as IDs plus separate display labels; `agy --help` supplies effort choices. Native mode flags are not advertised through the print adapter. |
 
 The normalized model record owns its reasoning-effort and service-tier lists,
 so the frontend can update dependent selectors when a model changes without a
-compiled model catalog. Mode discovery is reduced to Default plus a native
-Plan mode when the provider adapter reports one; Remote does not add mode
-prompts.
+compiled model catalog. Mode discovery currently returns Default only. A
+native Plan value can be reintroduced only after the provider adapter and
+shared interaction state machine can complete its lifecycle.
 Provider-required aliases remain model IDs, while the user-facing labels carry
 the resolved version and variant. This is particularly important for dynamic
 Claude aliases and Antigravity's parenthesized thinking variants.
@@ -221,12 +221,11 @@ but cannot currently run; this is separate from partial-discovery warnings.
 The catalog uses the registered provider's ID and the descriptor's label as
 authoritative rather than trusting CLI output for identity.
 
-Discovery and launch support are not identical for every provider. Kimi's
-per-model effort metadata is returned to the frontend, but the current Kimi run
-adapter does not forward a selected Thinking value. It relies on the chosen
-Kimi model/configuration default. Its advertised Plan choice is also
-incompatible with Remote's required prompt mode in the currently pinned Kimi
-CLI, as noted above.
+Discovery and launch support must match. Kimi provider configuration can
+contain effort choices, and the CLI has a native Plan flag, but neither is
+included in the normalized catalog because the current `-p` run adapter cannot
+honor those selections. Kimi therefore relies on its configured model/default
+effort and runs in Default.
 
 ### Capability cache and refresh
 

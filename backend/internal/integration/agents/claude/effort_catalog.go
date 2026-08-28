@@ -23,10 +23,7 @@ func queryEffortOptions(
 		req,
 		[]string{"HOME=/root", "IS_SANDBOX=1"},
 		"claude",
-		"-p",
-		"--no-session-persistence",
-		"--output-format", "json",
-		"/effort",
+		claudeEffortCapabilityArgs()...,
 	)
 	output, err := cmd.Output()
 	if err != nil {
@@ -44,4 +41,13 @@ func queryEffortOptions(
 		return nil, errors.New("claude effort command did not list available choices")
 	}
 	return options, nil
+}
+
+func claudeEffortCapabilityArgs() []string {
+	return claudeCapabilityArgs(
+		"-p",
+		"--no-session-persistence",
+		"--output-format", "json",
+		"/effort",
+	)
 }
