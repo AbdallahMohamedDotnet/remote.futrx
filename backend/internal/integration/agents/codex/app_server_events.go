@@ -58,7 +58,7 @@ func (parser *appServerEventParser) ParseNotification(method string, raw json.Ra
 	case "thread/tokenUsage/updated":
 		var params appServerTokenUsageParams
 		if json.Unmarshal(raw, &params) == nil {
-			parser.lastUsage = params.TokenUsage.Last.normalized()
+			parser.lastUsage = params.TokenUsage.Last.normalized(parser.req.Model)
 		}
 		return nil
 
@@ -222,14 +222,15 @@ func (parser *appServerEventParser) event(
 	return event
 }
 
-func (usage appServerTokenUsage) normalized() json.RawMessage {
-	data, _ := json.Marshal(map[string]int64{
-		"input_tokens":            usage.InputTokens,
-		"cache_read_input_tokens": usage.CachedInputTokens,
-		"output_tokens":           usage.OutputTokens,
-		"reasoning_output_tokens": usage.ReasoningOutputTokens,
-	})
-	return data
+func (usage appServerTokenUsage) normalized(model string) json.RawMessage {
+	return agent.NormalizeInclusiveInput(agent.Usage{
+		InputTokens:      usage.InputTokens,
+		OutputTokens:     usage.OutputTokens,
+		CacheReadTokens:  usage.CachedInputTokens,
+		CacheWriteTokens: usage.CacheWriteInputTokens,
+		ReasoningTokens:  usage.ReasoningOutputTokens,
+		Model:            model,
+	}).Raw()
 }
 
 func appServerMCPToolName(item appServerItem) string {

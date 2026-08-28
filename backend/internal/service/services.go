@@ -23,6 +23,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/service/schedulecapability"
 	serviceskills "github.com/futrx-com/remote.futrx.com/internal/service/skills"
 	servicetmux "github.com/futrx-com/remote.futrx.com/internal/service/tmux"
+	serviceusage "github.com/futrx-com/remote.futrx.com/internal/service/usage"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	serviceusersettings "github.com/futrx-com/remote.futrx.com/internal/service/usersettings"
 	"github.com/futrx-com/remote.futrx.com/internal/service/workspacehub"
@@ -55,6 +56,7 @@ type Dependencies struct {
 	Users             serviceuser.Repository
 	UserSettings      serviceusersettings.Repository
 	Push              PushStore
+	Usage             serviceusage.Repository
 	AuthBaseURL       string
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
@@ -103,6 +105,7 @@ type Services struct {
 	Access            *serviceauth.AccessVerifier
 	Push              *servicepush.Service
 	Presence          *servicepresence.Service
+	Usage             *serviceusage.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -180,14 +183,22 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		return Services{}, err
 	}
 	scheduleCaps := schedulecapability.New(deps.AuthBaseURL)
+	var usageService *serviceusage.Service
+	promptOptions := []prompt.Option{prompt.WithScheduleToolIssuer(scheduleCaps)}
+	if deps.Usage != nil {
+		usageService = serviceusage.New(deps.Usage, projectService, chats)
+		promptOptions = append(promptOptions, prompt.WithUsageRecorder(usageService))
+	}
 	promptService := prompt.New(
 		chats,
 		deps.TmuxClient,
 		projectService,
 		runs,
 		agentRuntime,
-		prompt.WithScheduleToolIssuer(scheduleCaps),
-		prompt.WithAgentPolicy(agentRuntime),
+		append([]prompt.Option{
+			prompt.WithScheduleToolIssuer(scheduleCaps),
+			prompt.WithAgentPolicy(agentRuntime),
+		}, promptOptions...)...,
 	)
 	scheduleService := serviceschedule.New(
 		deps.Schedules,
@@ -251,6 +262,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Access:            accessVerifier,
 		Push:              pushService,
 		Presence:          presenceService,
+		Usage:             usageService,
 	}, nil
 }
 

@@ -48,6 +48,7 @@ export function ChatContainer({
   const preferences = useChatPreferences({ chat, loadedMeta: meta, refreshMeta });
   const { displayMeta, displayMode, selectedSkills } = preferences;
   const attachmentBasePath = chatAttachmentState.basePath(displayMeta, projects);
+  const project = projects.find((candidate) => candidate.id === displayMeta.projectId);
   const composer = useChatComposerController({
     chatId: chat.id,
     eventCount,
@@ -189,11 +190,8 @@ export function ChatContainer({
             onAnswerQuestion={composer.handleAnswerQuestion}
             onLoadOlder={loadOlder}
             onRewind={composer.handleRewind}
-            mobileToolbar={
-              <aside class="workspace-action-toolbar relative z-30 flex flex-none justify-end border-b border-white/10 bg-[#101318] px-3 py-2 md:hidden">
-                <WorkspaceActions {...workspaceActions} orientation="horizontal" />
-              </aside>
-            }
+            projectName={project?.name}
+            actions={<WorkspaceActions {...workspaceActions} orientation="horizontal" />}
           />
         </div>
         <HistoryDrawer
@@ -231,9 +229,6 @@ export function ChatContainer({
             onClose={drawers.closeTerminal}
           />
         )}
-        <aside class="workspace-action-rail top-chrome z-20 hidden w-12 flex-none flex-col items-center border-l border-white/10 bg-[#101318] px-1.5 pb-2 md:flex">
-          <WorkspaceActions {...workspaceActions} orientation="vertical" />
-        </aside>
       </div>
       <MediaViewerOverlay />
     </div>

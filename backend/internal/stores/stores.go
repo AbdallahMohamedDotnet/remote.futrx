@@ -9,6 +9,7 @@ import (
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 	serviceschedule "github.com/futrx-com/remote.futrx.com/internal/service/schedule"
+	serviceusage "github.com/futrx-com/remote.futrx.com/internal/service/usage"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	serviceusersettings "github.com/futrx-com/remote.futrx.com/internal/service/usersettings"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
@@ -18,6 +19,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileprojectsecrets"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filepush"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileschedule"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusage"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusers"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusersettings"
 )
@@ -44,6 +46,7 @@ type Stores struct {
 	Users          serviceuser.Repository
 	UserSettings   serviceusersettings.Repository
 	Push           PushStore
+	Usage          serviceusage.Repository
 }
 
 func New(dataDir string) (Stores, error) {
@@ -82,6 +85,10 @@ func New(dataDir string) (Stores, error) {
 		return Stores{}, fmt.Errorf("init user settings store: %w", err)
 	}
 
+	usage, err := fileusage.New(dataDir)
+	if err != nil {
+		return Stores{}, fmt.Errorf("init usage store: %w", err)
+	}
 	push, err := filepush.New(dataDir)
 	if err != nil {
 		return Stores{}, fmt.Errorf("init push subscriptions store: %w", err)
@@ -97,5 +104,6 @@ func New(dataDir string) (Stores, error) {
 		Users:          users,
 		UserSettings:   userSettings,
 		Push:           push,
+		Usage:          usage,
 	}, nil
 }

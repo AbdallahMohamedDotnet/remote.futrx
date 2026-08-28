@@ -1,10 +1,12 @@
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
+import { useConfirm } from "../../context/ConfirmContext";
 import { useWorkspaceContext } from "../../context/WorkspaceContext";
 import { chatApi } from "../../../api/chatApi";
 
 export function useWorkspaceCommands() {
   const workspace = useWorkspaceContext();
+  const confirm = useConfirm();
 
   function newProject() {
     workspace.openCreateProject();
@@ -20,12 +22,14 @@ export function useWorkspaceCommands() {
 
   async function deleteChat(chat: ChatMeta, event: Event) {
     event.stopPropagation();
-    if (!confirm(`Delete chat "${chat.title}"? This removes its history.`)) return;
-    try {
-      await workspace.deleteChat(chat.id);
-    } catch (error) {
-      alert("delete failed: " + (error as Error).message);
-    }
+    await confirm({
+      title: "Delete chat",
+      description: "This action cannot be undone.",
+      message: `"${chat.title || "Untitled chat"}" and its full message history will be permanently removed.`,
+      confirmLabel: "Delete chat",
+      pendingLabel: "Deleting\u2026",
+      action: () => workspace.deleteChat(chat.id),
+    });
   }
 
   async function toggleChatUnread(chat: ChatMeta, event: Event) {
