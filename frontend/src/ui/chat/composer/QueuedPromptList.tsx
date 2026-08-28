@@ -14,14 +14,14 @@ export function QueuedPromptList({
 
   return (
     <div class="px-3 pb-2">
-      <div class="w-full rounded-lg border border-white/10 bg-white/[0.035] p-2">
+      <div class="w-full rounded-lg border border-line bg-tint p-2">
         <div class="flex items-center justify-between gap-3 px-1 pb-1.5">
           <div class="text-[12px] font-medium text-ink-200">Queue</div>
           <div class="text-[11px] text-ink-400">{queuedPrompts.length} waiting</div>
         </div>
         <div class="flex flex-wrap gap-2">
           {queuedPrompts.map((prompt, index) => (
-            <div key={prompt.id} class="group min-w-0 max-w-full inline-flex items-center gap-2 rounded-md bg-[#101318] border border-white/10 px-2 py-1.5">
+            <div key={prompt.id} class="group min-w-0 max-w-full inline-flex items-center gap-2 rounded-md bg-surface border border-line px-2 py-1.5">
               <span class="text-[11px] text-ink-400 flex-none">
                 {prompt.id === inflightId ? "sending" : `#${index + 1}`}
               </span>

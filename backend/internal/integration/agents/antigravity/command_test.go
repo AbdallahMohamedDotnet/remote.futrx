@@ -315,7 +315,11 @@ func TestInstallScriptPinsVersionedRelease(t *testing.T) {
 		t.Fatal("install script must verify the pinned checksum")
 	}
 	if !strings.Contains(script, "/usr/local/bin/agy") {
-		t.Fatal("install script must install the agy binary")
+		t.Fatal("container install script must retain the standard agy default")
+	}
+	if !strings.Contains(script, "FUTRX_HOST_CLI_INSTALL_PATH") ||
+		!strings.Contains(script, `install -m 0755 "$tmp/antigravity" "$install_path"`) {
+		t.Fatal("install script must honor the host-managed executable path")
 	}
 	if strings.Contains(script, "/manifests/") {
 		t.Fatal("install script must not consult the moving latest manifest")

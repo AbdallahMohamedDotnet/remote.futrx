@@ -13,6 +13,7 @@ import (
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
+	serviceusage "github.com/futrx-com/remote.futrx.com/internal/service/usage"
 )
 
 type ChatEvent = servicechat.Event
@@ -97,11 +98,24 @@ type ScheduleToolIssuer interface {
 	IssueScheduleTool(context.Context, ScheduleToolRequest) (ScheduleToolAccess, error)
 }
 
+// UsageRecorder receives one entry per completed agent run. It is the only
+// thing the prompt service knows about token accounting; pricing, storage and
+// aggregation all live in the usage service.
+type UsageRecorder interface {
+	RecordRun(ctx context.Context, event serviceusage.RunEvent)
+}
+
 type Option func(*Service)
 
 func WithScheduleToolIssuer(issuer ScheduleToolIssuer) Option {
 	return func(service *Service) {
 		service.scheduleTools = issuer
+	}
+}
+
+func WithUsageRecorder(recorder UsageRecorder) Option {
+	return func(service *Service) {
+		service.usage = recorder
 	}
 }
 
@@ -130,6 +144,7 @@ type Service struct {
 	agentPolicy   AgentPolicy
 	scheduleTools ScheduleToolIssuer
 	interactions  *interactionBroker
+	usage         UsageRecorder
 }
 
 func New(
@@ -209,6 +224,7 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 	}
 
 	done := make(chan RunResult, 1)
+	ledgerRunID := newLedgerRunID()
 	go func() {
 		result := RunResult{}
 		defer func() {
@@ -224,6 +240,7 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 			ctx,
 			input,
 			admission.snapshot,
+			ledgerRunID,
 			func(ev ChatEvent) {
 				// Stamp the originating task so a scheduled run's events stay
 				// distinguishable from an interactive turn's downstream.
@@ -251,12 +268,19 @@ func (rnr *Service) runPrompt(
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) error {
-	return rnr.runPromptAs(ctx, StartInput{ChatID: id, Prompt: prompt}, emit, emitTransient)
+	return rnr.runPromptAs(
+		ctx,
+		StartInput{ChatID: id, Prompt: prompt},
+		newLedgerRunID(),
+		emit,
+		emitTransient,
+	)
 }
 
 func (rnr *Service) runPromptAs(
 	ctx context.Context,
 	input StartInput,
+	ledgerRunID string,
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) error {
@@ -273,6 +297,7 @@ func (rnr *Service) runPromptAs(
 		ctx,
 		input,
 		promptRunSnapshot{meta: meta},
+		ledgerRunID,
 		emit,
 		emitTransient,
 	)
@@ -282,6 +307,7 @@ func (rnr *Service) runPromptWithSnapshot(
 	ctx context.Context,
 	input StartInput,
 	snapshot promptRunSnapshot,
+	ledgerRunID string,
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) error {
@@ -413,6 +439,16 @@ func (rnr *Service) runPromptWithSnapshot(
 		}
 	}
 
+	ledger := ledgerRun{
+		runID:     ledgerRunID,
+		chatID:    id,
+		projectID: string(meta.ProjectID),
+		userEmail: input.Actor.Email,
+		provider:  providerID,
+		model:     meta.Model,
+		scheduled: input.ScheduledTaskID != "",
+	}
+
 	run := func(runPrompt, runResumeID string) error {
 		return provider.Run(ctx, agent.RunRequest{
 			Provider:       providerID,
@@ -439,6 +475,7 @@ func (rnr *Service) runPromptWithSnapshot(
 			},
 		}, func(ev agent.Event) {
 			rnr.emitAgentEvent(ctx, id, providerID, ev, emit)
+			rnr.recordRunUsage(ctx, ledger, ev)
 		})
 	}
 

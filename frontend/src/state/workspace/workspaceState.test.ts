@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatMeta } from "../../models/chat.ts";
 import type { ProjectMeta } from "../../models/project.ts";
+import { STORAGE_KEYS } from "../../config/storageKeys.ts";
 import { workspaceSidebarState } from "./workspaceSidebarState.ts";
 import { workspaceUiState } from "./workspaceUiState.ts";
 
@@ -57,4 +58,63 @@ test("preserves workspace UI transitions and sidebar ordering", () => {
   assert.deepEqual(model.visibleProjects.map((node) => node.project.id), ["newer", "older"]);
   assert.deepEqual(model.visibleProjects[0].chats.map((chat) => chat.id), ["new-chat", "old-chat"]);
   assert.deepEqual(model.visibleLooseChats.map((chat) => chat.id), ["loose"]);
+});
+
+test("a deleted active chat hands over to the next chat, not the empty state", () => {
+  const remaining = chats.filter((chat) => chat.id !== "new-chat");
+  assert.equal(workspaceSidebarState.isActiveChatMissing(remaining, "new-chat"), true);
+  assert.equal(workspaceSidebarState.replacementChatId(remaining), "old-chat");
+  // Same pick a fresh load would make, so the handover is not a special case.
+  assert.equal(workspaceSidebarState.initialChatId(true, null, remaining), "old-chat");
+  // Deleting the last chat is the one case that legitimately clears selection.
+  assert.equal(workspaceSidebarState.replacementChatId([]), null);
+});
+
+test("project drag-reorder respects which side of the target it was dropped on", () => {
+  const ids = ["a", "b", "c"];
+  const reorder = workspaceSidebarState.reorderProjectIds.bind(workspaceSidebarState);
+
+  // Dropping past the last project must land last. Splicing at the target's
+  // pre-removal index used to leave it one slot short, at ["b", "a", "c"].
+  assert.deepEqual(reorder(ids, "a", "c", "after"), ["b", "c", "a"]);
+  assert.deepEqual(reorder(ids, "a", "c", "before"), ["b", "a", "c"]);
+  assert.deepEqual(reorder(ids, "c", "a", "before"), ["c", "a", "b"]);
+  assert.deepEqual(reorder(ids, "c", "a", "after"), ["a", "c", "b"]);
+
+  // Drops that change nothing report null so no reorder request is sent.
+  assert.equal(reorder(ids, "a", "a", "before"), null);
+  assert.equal(reorder(ids, "a", "b", "before"), null);
+  assert.equal(reorder(ids, "b", "a", "after"), null);
+  assert.equal(reorder(ids, "a", "missing", "after"), null);
+});
+
+test("an expanded project stays expanded after a reload", () => {
+  const store = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => void store.set(key, value),
+  };
+
+  // "newer" has unread chats, "older" does not: the first-sight seeding folds
+  // "older" and leaves "newer" open.
+  const seeded = workspaceSidebarState.collapsedProjects(projects, chats, {});
+  assert.deepEqual(seeded, { older: true, newer: false });
+
+  // The user expands "older" and folds "newer"; both choices are written out.
+  const chosen = { ...seeded, older: false, newer: true };
+  workspaceSidebarState.writeCollapsedProjects(chosen);
+
+  // A reload starts from what was stored, and seeding leaves those entries be.
+  const restored = workspaceSidebarState.readCollapsedProjects();
+  assert.deepEqual(restored, chosen);
+  assert.deepEqual(
+    workspaceSidebarState.collapsedProjects(projects, chats, restored),
+    chosen
+  );
+
+  // Junk in storage falls back to seeding rather than breaking the sidebar.
+  store.set(STORAGE_KEYS.collapsedProjects, "not json");
+  assert.deepEqual(workspaceSidebarState.readCollapsedProjects(), {});
+  store.set(STORAGE_KEYS.collapsedProjects, '{"older":"yes"}');
+  assert.deepEqual(workspaceSidebarState.readCollapsedProjects(), {});
 });

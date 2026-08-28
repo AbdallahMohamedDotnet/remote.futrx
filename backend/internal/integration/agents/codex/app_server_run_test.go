@@ -29,6 +29,7 @@ while IFS= read -r line; do
       esac
       printf '%s\n' '{"id":3,"result":{"turn":{"id":"turn-1","status":"inProgress","items":[]}}}'
       printf '%s\n' '{"method":"item/plan/delta","params":{"threadId":"thread-new","turnId":"turn-1","itemId":"plan-1","delta":"Native plan"}}'
+      printf '%s\n' '{"method":"thread/tokenUsage/updated","params":{"tokenUsage":{"last":{"inputTokens":10,"cachedInputTokens":3,"cacheWriteInputTokens":0,"outputTokens":4,"reasoningOutputTokens":2}}}}'
       printf '%s\n' '{"method":"turn/completed","params":{"threadId":"thread-new","turn":{"id":"turn-1","status":"completed","items":[]}}}'
       exit 0
       ;;
@@ -56,6 +57,11 @@ done`
 	}
 	if events[2].Type != agent.EventRunCompleted {
 		t.Fatalf("completion event = %#v", events[2])
+	}
+	usage, ok := agent.ParseUsage(events[2].Usage)
+	if !ok || usage.Model != "gpt-test" || usage.InputTokens != 7 ||
+		usage.CacheReadTokens != 3 || usage.OutputTokens != 4 {
+		t.Fatalf("completion usage = %#v (ok=%t)", usage, ok)
 	}
 }
 

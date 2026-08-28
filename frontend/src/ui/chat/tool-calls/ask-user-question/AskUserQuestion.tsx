@@ -110,7 +110,7 @@ export function AskUserQuestion({
       <div class="p-3 space-y-3">
         {question.header && (
           <div class="inline-block text-[10px] font-mono
-                      px-1.5 py-0.5 rounded bg-white/[0.06] text-ink-200 border border-white/10">
+                      px-1.5 py-0.5 rounded bg-tint text-ink-200 border border-line">
             {question.header}
           </div>
         )}

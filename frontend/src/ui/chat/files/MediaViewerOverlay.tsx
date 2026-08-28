@@ -32,7 +32,7 @@ export function MediaViewerOverlay() {
       onClick={() => mediaViewerState.close()}
     >
       <header
-        class="flex-none flex items-center gap-2 px-3 md:px-4 py-2.5 bg-[#101318]/90 border-b border-white/10"
+        class="flex-none flex items-center gap-2 px-3 md:px-4 py-2.5 bg-surface/90 border-b border-line"
         onClick={(event) => event.stopPropagation()}
       >
         <div class="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink-50" title={item.name}>
@@ -42,7 +42,7 @@ export function MediaViewerOverlay() {
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
-          class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center"
+          class="h-9 w-9 rounded-md bg-tint hover:bg-tint-strong border border-line text-ink-200 grid place-items-center"
           title="Open in new tab"
           aria-label="Open media in new tab"
         >
@@ -51,7 +51,7 @@ export function MediaViewerOverlay() {
         <a
           href={item.url}
           download={item.name}
-          class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center"
+          class="h-9 w-9 rounded-md bg-tint hover:bg-tint-strong border border-line text-ink-200 grid place-items-center"
           title={`Download ${item.name}`}
           aria-label={`Download ${item.name}`}
         >
@@ -60,7 +60,7 @@ export function MediaViewerOverlay() {
         <button
           type="button"
           onClick={() => mediaViewerState.close()}
-          class="h-9 w-9 rounded-md bg-white/5 hover:bg-white/[0.09] border border-white/10 text-ink-200 grid place-items-center"
+          class="h-9 w-9 rounded-md bg-tint hover:bg-tint-strong border border-line text-ink-200 grid place-items-center"
           title="Close viewer"
           aria-label="Close media viewer"
         >
@@ -100,7 +100,7 @@ function MediaContent({ item }: { item: MediaViewerItem }) {
     case "audio":
       return (
         <div
-          class="w-[440px] max-w-[86vw] rounded-lg border border-white/10 bg-[#101318] p-4 shadow-2xl"
+          class="w-[440px] max-w-[86vw] rounded-lg border border-line bg-surface p-4 shadow-2xl"
           onClick={stop}
         >
           <div class="mb-3 truncate text-[13px] text-ink-100" title={item.name}>{item.name}</div>

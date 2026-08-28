@@ -133,6 +133,7 @@ type appServerTokenUsageSnapshot struct {
 type appServerTokenUsage struct {
 	InputTokens           int64 `json:"inputTokens"`
 	CachedInputTokens     int64 `json:"cachedInputTokens"`
+	CacheWriteInputTokens int64 `json:"cacheWriteInputTokens"`
 	OutputTokens          int64 `json:"outputTokens"`
 	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"`
 }

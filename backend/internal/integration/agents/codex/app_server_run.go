@@ -359,6 +359,9 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 			run.protocolErr = errors.New("Codex app-server returned an incomplete thread")
 			return
 		}
+		// The server resolves aliases such as "auto" to the concrete model.
+		// Carry that model into the completion usage persisted for rebuilds.
+		run.eventParser.req.Model = result.Model
 		if result.Thread.ID != run.req.ResumeID {
 			run.emit(agent.Event{
 				T:              time.Now().UnixMilli(),
