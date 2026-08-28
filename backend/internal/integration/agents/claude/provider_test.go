@@ -2,6 +2,7 @@ package claude
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -10,6 +11,14 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
+
+func TestRunRejectsPlanBeforeLaunchingPrintTransport(t *testing.T) {
+	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
+	err := provider.Run(context.Background(), agent.RunRequest{Mode: agent.RunModePlan}, nil)
+	if !errors.Is(err, agent.ErrUnsupportedRunMode) {
+		t.Fatalf("run error = %v", err)
+	}
+}
 
 func newTestProvider(
 	projects agent.ProjectResolver,
@@ -55,16 +64,15 @@ func TestArgsUseDesktopLikeClaudeHeadlessMode(t *testing.T) {
 	}
 }
 
-func TestArgsUseNativePlanModeWithoutPermissionBypass(t *testing.T) {
+func TestArgsIgnorePlanUntilInteractiveHarnessIsAvailable(t *testing.T) {
 	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{Mode: agent.RunModePlan})
 
-	modeIndex := slices.Index(args, "--permission-mode")
-	if modeIndex < 0 || modeIndex+1 >= len(args) || args[modeIndex+1] != string(agent.RunModePlan) {
-		t.Fatalf("native Plan mode missing: %#v", args)
+	if slices.Contains(args, "--permission-mode") {
+		t.Fatalf("print transport must not launch Claude Plan: %#v", args)
 	}
-	if slices.Contains(args, "--dangerously-skip-permissions") {
-		t.Fatalf("Plan mode must not bypass Claude permissions: %#v", args)
+	if !slices.Contains(args, "--dangerously-skip-permissions") {
+		t.Fatalf("stale Plan request did not normalize to Default: %#v", args)
 	}
 }
 

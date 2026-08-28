@@ -90,6 +90,7 @@ func WithScheduleToolIssuer(issuer ScheduleToolIssuer) Option {
 type AgentPolicy interface {
 	Descriptor(provider string) (agentmodule.Descriptor, bool)
 	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
+	SupportsRunMode(provider string, mode agent.RunMode) bool
 }
 
 type AgentRegistry interface {

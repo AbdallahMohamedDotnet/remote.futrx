@@ -8,6 +8,7 @@ import (
 
 var ErrRunFailed = errors.New("agent run failed")
 var ErrSessionNotFound = errors.New("agent session not found")
+var ErrUnsupportedRunMode = errors.New("agent run mode is unsupported by this transport")
 
 type ProviderID string
 

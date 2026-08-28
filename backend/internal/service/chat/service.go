@@ -29,6 +29,7 @@ type SessionPolicy interface {
 type ProviderPolicy interface {
 	HasProvider(provider string) bool
 	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
+	SupportsRunMode(provider string, mode agent.RunMode) bool
 }
 
 type defaultProviderPolicy interface {
@@ -105,13 +106,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		title = "New chat"
 	}
 
-	mode := in.Mode
-	if mode == "" {
-		mode = "default"
-	}
 	provider, ok := s.providerForScope(in.Provider, in.ProjectID)
 	if !ok {
 		return Meta{}, ErrInvalidProvider
+	}
+	mode, err := s.modeForProvider(provider, in.Mode)
+	if err != nil {
+		return Meta{}, err
 	}
 
 	cwd := strings.TrimSpace(in.Cwd)
@@ -138,7 +139,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		TmuxSession:     in.TmuxSession,
 		Cwd:             cwd,
 		Model:           in.Model,
-		Mode:            mode,
+		Mode:            string(mode),
 		ReasoningEffort: NormalizeReasoningEffort(in.ReasoningEffort),
 		ServiceTier:     NormalizeServiceTier(in.ServiceTier),
 		ProjectID:       in.ProjectID,
@@ -190,7 +191,7 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 		Sessions:        sessions,
 		Cwd:             src.Cwd,
 		Model:           src.Model,
-		Mode:            src.Mode,
+		Mode:            storedMode(src.Mode),
 		ReasoningEffort: src.ReasoningEffort,
 		ServiceTier:     src.ServiceTier,
 		ProjectID:       src.ProjectID,
@@ -273,6 +274,29 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		return Meta{}, err
 	}
 	return s.withRunning(meta), nil
+}
+
+func (s *Service) modeForProvider(provider Provider, value string) (agent.RunMode, error) {
+	mode, err := ParseMode(value)
+	if err != nil || !s.supportsRunMode(provider, mode) {
+		return "", ErrInvalidMode
+	}
+	return mode, nil
+}
+
+func (s *Service) supportsRunMode(provider Provider, mode agent.RunMode) bool {
+	if s.providers == nil {
+		return mode == agent.RunModeDefault
+	}
+	return s.providers.SupportsRunMode(string(provider), mode)
+}
+
+func storedMode(value string) string {
+	mode, err := ParseMode(value)
+	if err != nil {
+		return strings.TrimSpace(value)
+	}
+	return string(mode)
 }
 
 func (s *Service) validProviderScope(provider Provider, projectID ProjectID) bool {

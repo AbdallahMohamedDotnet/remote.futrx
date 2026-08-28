@@ -29,12 +29,12 @@ This is the compact inventory of current Remote behavior. “Page” means the l
 
 | Feature | How to use it | Important behavior |
 | --- | --- | --- |
-| Provider | Choose **Codex**, **Claude**, **Kimi**, or **Antigravity** | Cannot change while streaming |
+| Provider | Choose **Codex**, **Claude**, **Kimi**, or **Antigravity** | Cannot change while streaming; switching resets model-dependent controls, skills, and mode to Default |
 | Model | Open the provider/model picker and select a discovered model or Auto | Stored per chat; choices come from the current host/project CLI catalog |
 | Refresh models | Use the refresh action at the bottom of the provider/model picker | Force-probes the current scope; use after CLI, configuration, account, entitlement, or terminal-login changes |
-| Thinking | Select one of the efforts reported for the current provider/model | Hidden when no effort control is advertised; Kimi currently stores but does not forward the selection |
+| Thinking | Select one of the efforts reported for the current provider/model | Hidden when no effort control is advertised; Kimi does not expose one because its print adapter cannot forward it |
 | Speed | Select a service tier reported for the current provider/model | Codex tiers and eligible Claude Fast are supported; account/provider may gate them |
-| Mode | Choose Default or provider-native Plan | Hidden when Plan is unavailable |
+| Mode | Use Default | Hidden in normal chats because every current provider exposes Default only; an older Plan value stays blocked until you explicitly switch it to Default |
 | Skill picker | Open **Skill set**, search, and select | Catalog depends on provider/project |
 | Skill chips | Review or remove selected skills | Cleared when provider changes |
 | Attach picker | Choose **+** and select one or more files | Project chats; resumable uploads |

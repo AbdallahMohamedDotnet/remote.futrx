@@ -59,7 +59,7 @@ func TestReadAppServerCapabilitiesPaginatesModelCatalog(t *testing.T) {
 	}
 }
 
-func TestBuildCapabilitiesPreservesPerModelControls(t *testing.T) {
+func TestBuildCapabilitiesPreservesPerModelControlsWithoutAdvertisingPlan(t *testing.T) {
 	var models modelListResponse
 	models.Data = append(models.Data, modelListItem{
 		ID: "gpt-next", Model: "gpt-next", DisplayName: "GPT Next", IsDefault: true,
@@ -82,7 +82,7 @@ func TestBuildCapabilitiesPreservesPerModelControls(t *testing.T) {
 	if got := caps.Models[1].ServiceTiers; len(got) != 2 || got[1].Value != "priority" || got[1].Label != "Fast" {
 		t.Fatalf("service tiers = %+v", got)
 	}
-	if len(caps.Modes) != 2 || caps.Modes[0].Value != string(agent.RunModeDefault) || caps.Modes[1].Value != string(agent.RunModePlan) {
+	if len(caps.Modes) != 1 || caps.Modes[0].Value != string(agent.RunModeDefault) {
 		t.Fatalf("modes = %+v", caps.Modes)
 	}
 }

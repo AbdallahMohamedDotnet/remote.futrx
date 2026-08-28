@@ -116,12 +116,10 @@ export const agentCapabilityState = {
     ) {
       correction.serviceTier = "";
     }
-    if (
-      selection.mode &&
-      !state.modeOptions.some((option) => option.value === selection.mode)
-    ) {
-      correction.mode = capabilities.defaultMode || state.modeOptions[0]?.value || "default";
-    }
+    // Never auto-correct a mode. A queued or scheduled prompt may have been
+    // composed under its read-only semantics; silently selecting Default can
+    // turn a safe rejection into a later write-capable execution. The composer
+    // presents an explicit switch when a saved mode is no longer available.
     return correction;
   },
 };

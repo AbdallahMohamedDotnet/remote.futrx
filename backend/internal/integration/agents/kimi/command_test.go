@@ -1,17 +1,26 @@
 package kimi
 
 import (
+	"context"
+	"errors"
 	"slices"
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-func TestArgsUseNativePlanModeWhenSelected(t *testing.T) {
+func TestRunRejectsPlanBeforeLaunchingPrintTransport(t *testing.T) {
+	err := (&Provider{}).Run(context.Background(), agent.RunRequest{Mode: agent.RunModePlan}, nil)
+	if !errors.Is(err, agent.ErrUnsupportedRunMode) {
+		t.Fatalf("run error = %v", err)
+	}
+}
+
+func TestArgsDoNotAddPlanBecausePrintTransportIsIncompatible(t *testing.T) {
 	provider := &Provider{}
 	plan := provider.args(agent.RunRequest{Prompt: "inspect", Mode: agent.RunModePlan})
-	if !slices.Contains(plan, "--plan") {
-		t.Fatalf("native Plan mode missing: %#v", plan)
+	if slices.Contains(plan, "--plan") {
+		t.Fatalf("print transport must not combine -p with --plan: %#v", plan)
 	}
 
 	defaults := provider.args(agent.RunRequest{Prompt: "implement", Mode: agent.RunModeDefault})

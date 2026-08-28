@@ -25,6 +25,7 @@ func NewFactory() (agentmodule.Factory, error) {
 		Features: agentmodule.Features{
 			Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
 			Skills:         agentmodule.SkillsSlashCommand,
+			RunModes:       []agent.RunMode{agent.RunModeDefault},
 			BrowserTools:   true,
 			ScheduledTools: true,
 		},

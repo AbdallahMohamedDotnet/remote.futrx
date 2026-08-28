@@ -7,7 +7,7 @@ These recipes combine the individual controls into complete ways of working.
 1. Choose **New project** and name the workspace.
 2. Wait for the project to finish provisioning.
 3. Create a chat with the **+** beside the project.
-4. Choose a provider, model, **Thinking**, and **Mode**.
+4. Choose a provider, model, and any provider-supported **Thinking** or speed controls. Current providers run in Default, so **Mode** is hidden.
 5. In the prompt, state the outcome, constraints, and how the result should be verified.
 6. Ask the agent to start the development server on `0.0.0.0` using a port from 1024 through 65535.
 7. Watch streamed text and tool cards; expand a tool card when you need exact command or file details.

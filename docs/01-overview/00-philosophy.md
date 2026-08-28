@@ -258,7 +258,7 @@ Broad agent authority is paired with a complete control envelope. The human shou
 | Provider identity | Administrators connect, refresh, or replace host-wide Claude, Codex, and Kimi identities; Antigravity has an instruction-only global card and its supported sign-in flow remains per project |
 | Project access | Current members can add or remove registered project members; the backend gates project API, chat, upload, terminal, and preview resources |
 | Project secrets | Current members can create, read, change, or delete the authoritative secret record; propagation to and removal from managed copies is currently best-effort |
-| Agent selection | Choose provider, model, reasoning effort, service tier or speed, mode, and selected skills |
+| Agent selection | Choose provider, model, supported reasoning or speed controls, and selected skills; execution modes appear only when Remote can complete the provider's native lifecycle |
 | Run control | Send, queue, cancel, fork, rewind, mark read or unread, or delete conversations; create schedules through the agent, then arm, pause, edit, run, or delete them in the drawer |
 | Transparency | See provider-emitted text, reasoning, tool inputs, tool outputs, errors, sessions, and usage as normalized events |
 | Direct intervention | Project members can inspect the same work in the terminal, IDE, file manager, Git history, app preview, or Agent Browser |
@@ -403,7 +403,7 @@ The design principle is:
 
 Remote does not choose between autonomy and control. It separates their timescales:
 
-- **before work**, the human chooses the project, agent, mode, skills, resources, access, credentials, and whether an agent-created schedule should be armed;
+- **before work**, the human chooses the project, agent, supported execution controls, skills, resources, access, credentials, and whether an agent-created schedule should be armed;
 - **during work**, the agent can act without constant local approval while provider-emitted progress and tool activity stream back;
 - **at judgment boundaries**, the human can answer a question, take over the browser, inspect a rendered element, or work directly in the IDE or terminal;
 - **after work**, the human can review artifacts, diffs, commits, processes, resource use, and the running application;

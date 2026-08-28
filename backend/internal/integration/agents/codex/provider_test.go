@@ -39,6 +39,13 @@ func newTestProvider(
 	return runtime.Lookup(agent.ProviderCodex).(*Provider)
 }
 
+func TestRunRejectsPlanUntilRemoteOwnsPlanLifecycle(t *testing.T) {
+	err := (&Provider{}).Run(context.Background(), agent.RunRequest{Mode: agent.RunModePlan}, nil)
+	if !errors.Is(err, agent.ErrUnsupportedRunMode) {
+		t.Fatalf("run error = %v", err)
+	}
+}
+
 func TestArgsUseCodexAppServer(t *testing.T) {
 	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{Model: "gpt-5.5 [fast]"})

@@ -142,22 +142,29 @@ usage, and error events that provider can supply.
 
 ## Modes
 
-Remote does not define workflow prompts. The mode selector contains the
-provider-native modes reported by the selected provider adapter. Codex, Kimi,
-and Antigravity derive availability from CLI output; Claude declares its known
-native Default and Plan modes:
+Remote does not define workflow prompts. Although the persisted mode contract
+still recognizes `default` and the older `plan` value, every built-in adapter
+currently advertises **Default only**. The selector is therefore hidden. A
+provider change resets the chat mode to Default. If an old chat still stores
+Plan, the prompt boundary rejects it without changing the stored value. The
+user must explicitly switch to Default before resending. This fail-closed
+handoff prevents a read-only expectation from silently becoming a mutable run.
+Every provider adapter independently rejects Plan before launch as a final
+boundary.
 
-| Mode | Behavior |
+Plan remains gated until Remote can honor each harness's complete lifecycle:
+
+| Provider | Why Plan is not exposed |
 | --- | --- |
-| Default | Use the provider's normal agent behavior |
-| Plan | Use the provider's native planning mode; shown when the adapter reports it |
+| Claude | Remote's current `claude -p` adapter does not implement Claude Code's `--permission-prompt-tool` MCP bridge, so it cannot complete the blocking `AskUserQuestion` and `ExitPlanMode` approval transition. |
+| Codex | App-server exposes a native Plan collaboration mode, and Remote now bridges blocking user questions, but Remote does not yet model the plan-ready **Approve**/**Revise** transition. |
+| Kimi | The pinned CLI rejects `--plan` together with the `-p` transport Remote requires. Its provider effort metadata is also not a runnable print-mode control. |
+| Antigravity | `agy --print` provides output but no structured control/approval round trip for leaving or approving Plan. |
 
-The selector is hidden when Default is the provider's only available mode.
-Codex modes are sent through app-server collaboration modes. Claude and
-Antigravity receive their native Plan CLI flag. Kimi currently advertises Plan
-from CLI help, but the currently pinned Kimi CLI rejects `--plan` together with
-the prompt mode Remote requires; Kimi runs must use Default until that
-integration is changed.
+Default project runs remain approval-free within the project container. Hiding
+Plan prevents Remote from promising a read-only or approval workflow that the
+selected transport cannot complete; it does not add a human confirmation gate
+to Default.
 
 Model, reasoning, and speed controls are stored per chat. The user's last
 selection also becomes the default for new chats. Codex forwards service tiers

@@ -40,6 +40,9 @@ func (p *Provider) Parser(req agent.RunRequest) agent.LineParser {
 }
 
 func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agent.Event)) error {
+	if err := agent.ValidateRunMode(req.Mode, agent.RunModeDefault); err != nil {
+		return err
+	}
 	if emit == nil {
 		emit = func(agent.Event) {}
 	}

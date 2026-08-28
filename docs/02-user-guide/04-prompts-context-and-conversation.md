@@ -7,7 +7,8 @@ lets you continue, queue, cancel, rewind, or fork the work.
 ## Send a prompt
 
 1. Open a project and select **New chat**, or select an existing chat.
-2. Configure the provider, model, skills, thinking, speed, and mode as needed.
+2. Configure the provider, model, skills, thinking, and speed as needed. All
+   current providers run in Default, so Mode is hidden.
 3. Enter a concrete request in the composer.
 4. To include files, select **Attach files**, drag files onto the composer, or
    paste file data such as an image.
@@ -27,7 +28,7 @@ slash commands. Attach files with **Attach files**, drag-and-drop, or paste.
 ```mermaid
 flowchart LR
     Prompt["Current prompt"] --> Request["Provider run request"]
-    Mode["Advisory mode guidance"] --> Request
+    Mode["Default execution mode"] --> Request
     Skills["Selected skill triggers"] --> Request
     Files["Uploaded absolute paths"] --> Request
     Session["Provider session ID, when valid"] --> Request

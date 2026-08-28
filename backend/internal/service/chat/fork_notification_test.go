@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
@@ -27,12 +28,18 @@ func (p forkProviderPolicy) HasProvider(provider string) bool { return p[provide
 func (p forkProviderPolicy) SupportsScope(provider string, _ agentmodule.ExecutionScope) bool {
 	return p[provider]
 }
+func (p forkProviderPolicy) SupportsRunMode(provider string, mode agent.RunMode) bool {
+	return p[provider] && mode == agent.RunModeDefault
+}
 
 type scopedProviderPolicy map[string]map[agentmodule.ExecutionScope]bool
 
 func (p scopedProviderPolicy) HasProvider(provider string) bool { return p[provider] != nil }
 func (p scopedProviderPolicy) SupportsScope(provider string, scope agentmodule.ExecutionScope) bool {
 	return p[provider][scope]
+}
+func (p scopedProviderPolicy) SupportsRunMode(provider string, mode agent.RunMode) bool {
+	return p[provider] != nil && mode == agent.RunModeDefault
 }
 
 type defaultScopedProviderPolicy struct {

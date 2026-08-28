@@ -100,7 +100,7 @@ test("corrects selections unsupported by a live catalog", () => {
       reasoningEffort: "ultra",
       serviceTier: "slow",
     }),
-    { mode: "default", reasoningEffort: "", serviceTier: "" },
+    { reasoningEffort: "", serviceTier: "" },
   );
 });
 

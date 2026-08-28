@@ -21,6 +21,7 @@ func NewFactory() (agentmodule.Factory, error) {
 		Features: agentmodule.Features{
 			Sessions:       agentmodule.SessionSupport{Resume: true},
 			Skills:         agentmodule.SkillsInstructions,
+			RunModes:       []agent.RunMode{agent.RunModeDefault},
 			ScheduledTools: true,
 		},
 	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {

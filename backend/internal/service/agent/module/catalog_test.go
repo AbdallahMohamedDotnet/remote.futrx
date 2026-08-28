@@ -626,6 +626,7 @@ func testDescriptor(id agent.ProviderID) Descriptor {
 		Features: Features{
 			Sessions:       SessionSupport{Resume: true},
 			Skills:         SkillsInstructions,
+			RunModes:       []agent.RunMode{agent.RunModeDefault},
 			ScheduledTools: true,
 		},
 	}

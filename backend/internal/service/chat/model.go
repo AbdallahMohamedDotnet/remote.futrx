@@ -288,6 +288,19 @@ func NormalizeProvider(provider Provider) Provider {
 	return normalized
 }
 
+// ParseMode normalizes spelling without changing execution semantics. Whether
+// a valid mode is supported is provider-specific and is checked by Service.
+func ParseMode(value string) (agent.RunMode, error) {
+	mode := agent.RunMode(strings.ToLower(strings.TrimSpace(value)))
+	if mode == "" {
+		mode = agent.RunModeDefault
+	}
+	if mode != agent.RunModeDefault && mode != agent.RunModePlan {
+		return "", ErrInvalidMode
+	}
+	return mode, nil
+}
+
 func NormalizeReasoningEffort(effort string) string {
 	return normalizeCapabilityValue(effort)
 }

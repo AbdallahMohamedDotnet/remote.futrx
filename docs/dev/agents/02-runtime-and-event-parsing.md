@@ -79,7 +79,7 @@ input a provider receives.
 | `Prompt` | Current prompt after optional visible-history recovery and provider-specific skill triggers are added. |
 | `Cwd` | Live tmux working directory when available, otherwise stored chat cwd, then host home as a fallback. |
 | `Model` | Saved model ID. The adapter must validate or safely pass it as one process/protocol argument. |
-| `Mode` | Provider-neutral `default` or `plan`; the adapter translates it to native flags or protocol settings. |
+| `Mode` | Currently only `default` can execute. An older saved `plan` value is rejected without mutation so a read-only expectation can never silently become a mutable run. The user must explicitly choose a supported mode before resending. |
 | `ResumeID` | Session ID stored for the selected provider, but only when the descriptor declares resume support. |
 | `Fork` | `ForkPending`, but only when the descriptor declares native fork support. |
 | `ProjectID` | Empty for a loose host chat; otherwise identifies the workspace container. |
@@ -243,6 +243,10 @@ not copied into the persisted chat event.
 launches `claude -p --output-format stream-json --include-partial-messages
 --verbose` and uses [`claude.Parser`](../../../backend/internal/integration/agents/claude/parser.go)
 through `runtime.RunProcess`.
+It always uses Default with the normal approval bypass. A stale Plan value is
+rejected without mutation before launch because Remote does not yet implement Claude
+Code's `--permission-prompt-tool` MCP bridge and the corresponding blocking
+`AskUserQuestion`/`ExitPlanMode` lifecycle for its print adapter.
 
 The parser maps:
 
@@ -308,6 +312,9 @@ Do not use it as the reference when changing app-server event handling.
 [`kimi.Provider.Run`](../../../backend/internal/integration/agents/kimi/provider.go) runs
 `kimi -p <prompt> --output-format stream-json` through `RunProcess` and parses
 it with [`kimi.Parser`](../../../backend/internal/integration/agents/kimi/parser.go).
+The adapter rejects stale Plan before launch and ignores saved reasoning-effort
+preferences: the pinned CLI rejects `--plan` with `-p`, and this print command
+has no forwarded effort argument. Neither control is advertised.
 
 Kimi's OpenAI-chat-shaped JSONL maps assistant content and tool calls, tool
 results, and the final `role=meta,type=session.resume_hint` record. That final
@@ -334,6 +341,9 @@ Its [`parser.go`](../../../backend/internal/integration/agents/antigravity/parse
 line-oriented test/helper parser, not the production chunk-streaming path.
 Antigravity and Kimi both clear resume state for requested forks because their
 descriptors do not declare native fork support.
+The Antigravity adapter also rejects stale Plan before launch and uses its
+normal approval bypass because print mode cannot relay a native
+control/approval round trip.
 
 ## Sessions, forks, and recovery
 

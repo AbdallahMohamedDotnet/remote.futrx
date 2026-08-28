@@ -67,7 +67,7 @@ func (p *Provider) Capabilities(ctx context.Context, req agent.CapabilityRequest
 	return caps, fmt.Errorf("codex capability discovery: %w", errors.Join(err, debugErr))
 }
 
-func buildCapabilities(models modelListResponse, providerModes collaborationModeListResponse) agent.Capabilities {
+func buildCapabilities(models modelListResponse, _ collaborationModeListResponse) agent.Capabilities {
 	items := make([]agent.ModelCapability, 0, len(models.Data))
 	for _, raw := range models.Data {
 		id := strings.TrimSpace(raw.Model)
@@ -103,18 +103,14 @@ func buildCapabilities(models modelListResponse, providerModes collaborationMode
 		}
 		items = append(items, model)
 	}
-	nativePlan := false
-	for _, mode := range providerModes.Data {
-		if strings.EqualFold(mode.Mode, string(agent.RunModePlan)) {
-			nativePlan = true
-		}
-	}
 	return agent.Capabilities{
-		Provider:    agent.ProviderCodex,
-		Label:       "Codex",
-		Source:      agent.CapabilitySourceLive,
-		Models:      agent.WithAutoModel(items, "Codex default"),
-		Modes:       agent.ProviderModes(nativePlan),
+		Provider: agent.ProviderCodex,
+		Label:    "Codex",
+		Source:   agent.CapabilitySourceLive,
+		Models:   agent.WithAutoModel(items, "Codex default"),
+		// Plan remains hidden until Remote can preserve blocking app-server
+		// requests and complete the native plan approval lifecycle.
+		Modes:       agent.ProviderModes(false),
 		DefaultMode: agent.RunModeDefault,
 	}
 }
