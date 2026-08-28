@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ChatStatus, PromptOutcome } from "../../../models/chat";
+import { useConfirm } from "../../context/ConfirmContext";
 import { chatComposerSessionStore } from "../../chat/composerSessionStore";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
@@ -30,6 +31,7 @@ export function useChatComposerController({
   refreshMeta: () => Promise<void>;
   attachmentBasePath: string;
 }) {
+  const confirm = useConfirm();
   // Initialise from the per-chat session store and mirror every change back to it.
   // ChatContainer remounts on chat switch (it is keyed by chatId), so this is
   // what makes a half-typed message survive leaving and returning to a chat.
@@ -67,7 +69,13 @@ export function useChatComposerController({
       alert("Cancel the current run before rewinding this chat.");
       return;
     }
-    if (!confirm("Rewind to this prompt? Messages from this point forward will be removed.")) return;
+    const confirmed = await confirm({
+      title: "Rewind chat",
+      description: "This action cannot be undone.",
+      message: "Every message from this prompt forward is removed, and the prompt is put back in the composer.",
+      confirmLabel: "Rewind",
+    });
+    if (!confirmed) return;
     try {
       await rewind(t);
       queue.clearQueuedPrompts();

@@ -21,7 +21,7 @@ export function AttachmentChip({
   if (attachment.isImage && attachment.objectUrl) {
     return (
       <div
-        class="relative w-20 h-20 rounded-lg overflow-hidden bg-[#101318] border border-white/10 group"
+        class="relative w-20 h-20 rounded-lg overflow-hidden bg-surface border border-line group"
         title={title}
       >
         <img
@@ -64,8 +64,8 @@ export function AttachmentChip({
 
   return (
     <div
-      class={`group relative flex items-center gap-1.5 bg-[#101318] border rounded-md px-2 py-1.5 text-xs min-h-10 overflow-hidden ${
-        failed ? "border-accent-red/40" : "border-white/10"
+      class={`group relative flex items-center gap-1.5 bg-surface border rounded-md px-2 py-1.5 text-xs min-h-10 overflow-hidden ${
+        failed ? "border-accent-red/40" : "border-line"
       }`}
       title={title}
     >
@@ -89,7 +89,7 @@ export function AttachmentChip({
         <X class="w-3 h-3" />
       </button>
       {pending && (
-        <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-white/[0.06]">
+        <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-tint">
           <div
             class="h-full bg-accent-blue transition-[width] duration-100"
             style={{ width: `${pct * 100}%` }}

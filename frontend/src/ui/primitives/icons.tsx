@@ -21,6 +21,7 @@ export const Archive = (p: P) => (<svg {...base} {...p}><rect x="2" y="4" width=
 export const FileText = (p: P) => (<svg {...base} {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>);
 export const ChevronsUpDown = (p: P) => (<svg {...base} {...p}><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></svg>);
 export const ChevronsDownUp = (p: P) => (<svg {...base} {...p}><path d="M7 4l5 5 5-5M7 20l5-5 5 5"/></svg>);
+export const Boxes = (p: P) => (<svg {...base} {...p}><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="m3 7 9 5 9-5M12 12v10"/></svg>);
 export const Terminal = (p: P) => (<svg {...base} {...p}><path d="m4 17 6-6-6-6M12 19h8"/></svg>);
 export const MessageSquare = (p: P) => (<svg {...base} {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>);
 export const GitFork = (p: P) => (<svg {...base} {...p}><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 12v3"/></svg>);
