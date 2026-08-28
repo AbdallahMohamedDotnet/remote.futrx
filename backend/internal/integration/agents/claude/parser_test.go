@@ -33,7 +33,7 @@ func TestParserMapsSessionAndComplete(t *testing.T) {
 		t.Fatalf("unexpected session event: %#v", events[0])
 	}
 	if events[1].Type != agent.EventRunCompleted ||
-		string(events[1].Usage) != `{"input_tokens":1,"model":"sonnet"}` {
+		string(events[1].Usage) != `{"schema_version":1,"input_tokens":1,"model":"sonnet"}` {
 		t.Fatalf("unexpected completion event: %#v", events[1])
 	}
 }

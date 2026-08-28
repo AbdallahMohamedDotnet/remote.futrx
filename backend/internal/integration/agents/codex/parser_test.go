@@ -72,14 +72,14 @@ func TestParserMapsCommandToolLifecycle(t *testing.T) {
 
 func TestParserMapsTurnCompletedUsage(t *testing.T) {
 	parser := NewParser(agent.RunRequest{ConversationID: "chat-1"})
-	events, err := parser.ParseLine([]byte(`{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":3,"output_tokens":4,"reasoning_output_tokens":2}}`))
+	events, err := parser.ParseLine([]byte(`{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":3,"cache_write_input_tokens":2,"output_tokens":4,"reasoning_output_tokens":2}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(events) != 1 || events[0].Type != agent.EventRunCompleted {
 		t.Fatalf("unexpected events: %#v", events)
 	}
-	if string(events[0].Usage) != `{"input_tokens":10,"output_tokens":4,"cache_read_input_tokens":3,"reasoning_output_tokens":2}` {
+	if string(events[0].Usage) != `{"schema_version":1,"input_tokens":5,"output_tokens":4,"cache_read_input_tokens":3,"cache_creation_input_tokens":2,"reasoning_output_tokens":2}` {
 		t.Fatalf("unexpected usage: %s", events[0].Usage)
 	}
 }
@@ -104,8 +104,11 @@ func TestParserTurnCompletedCarriesModelWithoutCost(t *testing.T) {
 	if usage.CostUSD != nil {
 		t.Fatalf("cost = %v, want unknown", *usage.CostUSD)
 	}
-	if usage.InputTokens != 10 || usage.CacheReadTokens != 3 || usage.OutputTokens != 4 {
+	if usage.InputTokens != 7 || usage.CacheReadTokens != 3 || usage.OutputTokens != 4 {
 		t.Fatalf("unexpected tokens: %#v", usage)
+	}
+	if usage.TotalTokens() != 14 {
+		t.Fatalf("total tokens = %d, want 14", usage.TotalTokens())
 	}
 }
 

@@ -71,6 +71,9 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		out.IsError = ev.IsError
 	case agent.EventRunCompleted:
 		out.Type = "complete"
+		// Persist the provider per turn. A chat can switch agents, so its current
+		// metadata is not sufficient for an offline usage-ledger rebuild.
+		out.Provider = servicechat.Provider(ev.Provider)
 		out.Usage = ev.Usage
 	case agent.EventRunFailed, agent.EventError:
 		out.Type = "error"
@@ -79,19 +82,6 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		return ChatEvent{}, false
 	}
 	return out, true
-}
-
-func chatProviderFromAgentProvider(provider agent.ProviderID) servicechat.Provider {
-	switch provider {
-	case agent.ProviderCodex:
-		return servicechat.ProviderCodex
-	case agent.ProviderKimi:
-		return servicechat.ProviderKimi
-	case agent.ProviderAntigravity:
-		return servicechat.ProviderAntigravity
-	default:
-		return servicechat.ProviderClaude
-	}
 }
 
 // ledgerRun is the run-scoped context a usage entry needs. It is captured

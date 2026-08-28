@@ -340,8 +340,9 @@ func collabOutput(item codexItem) string {
 }
 
 // normalizeUsage folds `turn.completed.usage` into the shared usage shape.
-// Codex reports tokens but never a price, so cost stays unknown here and is
-// estimated from the price table downstream.
+// ParseUsage converts Codex's inclusive input count into disjoint uncached,
+// cache-read, and cache-write buckets. Codex reports no price, so cost stays
+// unknown here and is estimated from the price table downstream.
 func (p *Parser) normalizeUsage(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return nil
@@ -350,6 +351,7 @@ func (p *Parser) normalizeUsage(raw json.RawMessage) json.RawMessage {
 	if !ok {
 		return raw
 	}
+	usage = agent.NormalizeInclusiveInput(usage)
 	usage.Model = p.req.Model
 	return usage.Raw()
 }

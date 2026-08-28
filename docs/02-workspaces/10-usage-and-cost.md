@@ -20,7 +20,7 @@ The ledger can only record what a provider CLI prints. The four adapters differ 
 
 Kimi and Antigravity runs therefore appear in the ledger with a provider, a model, and zero tokens. They still count toward **Runs**, and their share shows up in the "unpriced runs" note. The Kimi parser forwards a `usage` object opportunistically if a future CLI release starts emitting one, so no change beyond a CLI upgrade would be needed to start counting those tokens.
 
-Normalization happens in the provider adapters ([`internal/agent/usage.go`](../../backend/internal/agent/usage.go)), so the `usage` blob persisted on each `complete` chat event already carries tokens, cost, duration, turns, and model in one shared vocabulary. That is what makes an offline rebuild possible.
+Normalization happens in the provider adapters ([`internal/agent/usage.go`](../../backend/internal/agent/usage.go)), so the `usage` blob persisted on each `complete` chat event already carries tokens, cost, duration, turns, and model in one shared vocabulary. The input, cache-read, and cache-write buckets are disjoint: Codex reports cache tokens as subsets of `input_tokens`, so its adapter subtracts those subsets before emitting the normalized event. Each normalized payload carries a schema version, allowing rebuilds to migrate older Codex events without adding provider conditions to the live ledger. That keeps aggregation and pricing provider-neutral and makes an offline rebuild possible.
 
 ## Data model
 
@@ -41,7 +41,7 @@ Files rotate **monthly by the UTC month of the run**, so a query for a date rang
 | `chatId`, `runId` | `runId` is random per live run; a rebuilt record uses `<chatId>-<seq>` |
 | `userEmail` | The account that started the turn, or the owner of a scheduled task |
 | `provider`, `model` | `claude`, `codex`, `kimi`, `antigravity`, and the model id when known |
-| `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens` | Zero when the provider reports nothing |
+| `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens` | Disjoint token buckets; `inputTokens` is uncached input. All are zero when the provider reports nothing |
 | `costUsd` | **Absent** when the cost is unknown |
 | `estimated` | `true` when `costUsd` came from the price table rather than the provider |
 | `durationMs`, `turns` | Claude Code only |
@@ -65,7 +65,7 @@ flowchart TD
 The estimate is straightforward per-million-token arithmetic:
 
 ```
-cost = (input × inputPerMTok
+cost = (uncachedInput × inputPerMTok
       + output × outputPerMTok
       + cacheRead × cacheReadPerMTok
       + cacheWrite × cacheWritePerMTok) / 1_000_000
@@ -156,7 +156,7 @@ The CLI is built from [`backend/cmd/usage-rebuild`](../../backend/cmd/usage-rebu
 
 **A rebuild is idempotent.** Runs are keyed by `(chatId, event timestamp)` — the same pair a live record carries — so running it twice produces identical files. Attribution that only live recording knows (`userEmail`, `runId`, `scheduled`) is carried across from the current ledger wherever a key matches.
 
-**What a rebuild cannot recover:** chat event logs do not store who typed a prompt. A run that was never recorded live comes back with an empty `userEmail`, so it appears under *Unattributed* when grouping by user, and a member cannot see it if it was a loose chat. Everything else — tokens, cost, model, project — is recovered exactly.
+**What a rebuild cannot recover:** chat event logs do not store who typed a prompt. A run that was never recorded live comes back with an empty `userEmail`, so it appears under *Unattributed* when grouping by user, and a member cannot see it if it was a loose chat. Events written before completion events carried their provider can also be ambiguous if the chat later switched agents; a matching live ledger record preserves the original provider/model when one exists.
 
 ## Known gaps
 
