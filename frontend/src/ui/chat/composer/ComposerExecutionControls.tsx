@@ -1,6 +1,7 @@
 import { Activity, Cpu, MessageSquare } from "../../primitives/icons";
 import { ComposerOptionDropdown } from "./ComposerOptionDropdown";
 import type { ComposerPreferenceActions, ComposerPreferences } from "./preferences";
+import { isUnsupportedRunMode } from "./runModeControlState";
 
 export function ComposerExecutionControls({
   preferences,
@@ -17,15 +18,10 @@ export function ComposerExecutionControls({
   serviceTierOptions: readonly { value: string; label: string }[];
   modeOptions: readonly { value: string; label: string }[];
 }) {
-  const selectedModeAvailable = modeOptions.some(
-    (option) => option.value === preferences.mode,
-  );
   const replacementMode = modeOptions.find((option) => option.value === "default")
     ?? modeOptions[0]
     ?? { value: "default", label: "Default" };
-  const unsupportedMode = !!preferences.mode
-    && preferences.mode !== "default"
-    && !selectedModeAvailable;
+  const unsupportedMode = isUnsupportedRunMode(preferences.mode, modeOptions);
 
   return (
     <div class="codex-composer-execution-controls flex min-w-0 flex-wrap items-center gap-1">

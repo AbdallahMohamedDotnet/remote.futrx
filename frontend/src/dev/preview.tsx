@@ -98,6 +98,7 @@ const blocks: ChatMessageBlock[] = [
 const noop = () => {};
 const noopAsync = async () => {};
 const rejectQuestionAnswer = () => false;
+const rejectInteractionActivity = () => false;
 
 function Preview() {
   const [text, setText] = useState("");
@@ -152,7 +153,8 @@ function Preview() {
               status="streaming" blocks={blocks} hasOlder loadingOlder={false} error={null}
               chatId="c1" cwd="/opt/remote.futrx/gamerhead"
               scrollRef={scrollRef} contentRef={contentRef} bottomRef={bottomRef}
-              onScroll={noop} onAnswerQuestion={rejectQuestionAnswer} onLoadOlder={noopAsync} onRewind={noop}
+              onScroll={noop} onAnswerQuestion={rejectQuestionAnswer} onInteractionActivity={rejectInteractionActivity}
+              onLoadOlder={noopAsync} onRewind={noop}
             />
           </div>
 
