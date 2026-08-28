@@ -37,10 +37,10 @@ func (p testAgentPolicy) SupportsRunMode(provider string, mode agent.RunMode) bo
 	if !ok {
 		return false
 	}
-	if len(descriptor.Features.RunModes) == 0 {
+	if len(descriptor.Features.ExecutableRunModes) == 0 {
 		return mode == agent.RunModeDefault
 	}
-	for _, configured := range descriptor.Features.RunModes {
+	for _, configured := range descriptor.Features.ExecutableRunModes {
 		if configured == mode {
 			return true
 		}
@@ -53,10 +53,10 @@ func codexTestAgentPolicy() testAgentPolicy {
 		ID:    agent.ProviderCodex,
 		Label: "Codex",
 		Features: agentmodule.Features{
-			Skills:         agentmodule.SkillsDollarMention,
-			RunModes:       []agent.RunMode{agent.RunModeDefault},
-			BrowserTools:   true,
-			ScheduledTools: true,
+			Skills:             agentmodule.SkillsDollarMention,
+			ExecutableRunModes: []agent.RunMode{agent.RunModeDefault},
+			BrowserTools:       true,
+			ScheduledTools:     true,
 		},
 	}}
 }

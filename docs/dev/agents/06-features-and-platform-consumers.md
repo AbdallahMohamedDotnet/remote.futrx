@@ -23,7 +23,7 @@ runtime: each provider still has to implement the behavior it advertises.
 | `LegacySkillRoots` | skill catalog | Adds provider-specific host skill locations behind the canonical `.agents/skills` root. |
 | `Features.Sessions` | prompt service and chat forking | Enables saved-session resume and, separately, native fork. Fork requires resume. |
 | `Features.Skills` | skill catalog and prompt preparation | Chooses no selected-skill injection, slash-style skill triggers, dollar mentions, or `SKILL.md` instructions. `slash-command` describes skill delivery; it is not a general composer-command system. |
-| `Features.RunModes` | chat/settings validation, prompt service, capability decoration | Lists only modes whose complete provider harness lifecycle Remote implements. Every module must include Default. |
+| `Features.ExecutableRunModes` | chat/settings validation, prompt service, capability decoration | Lists only modes whose complete provider harness lifecycle Remote implements. Every module must include Default. |
 | `Features.BrowserTools` | capability API and prompt service | Allows the selected `browser` skill to request browser provisioning and provider launch wiring. |
 | `Features.ScheduledTools` | skill catalog, prompt service, capability API/frontend | Advertises the Scheduled Tasks skill and permits issue/provisioning of a scoped schedule grant. |
 
@@ -65,7 +65,7 @@ starts. The current feature contracts are:
 | --- | --- | --- | --- | --- |
 | Sessions | `Features.Sessions.Resume` and `.Fork` | Persists provider-keyed session IDs, controls resume input, and preserves eligible sessions when chats fork. | Emit native session IDs and translate resume/fork into the native command or protocol. | Automatic when a saved session exists; fork is requested by the chat workflow. |
 | Skills | `Features.Skills` strategy | Discovers skill metadata, stores explicit chat selections, and renders the selected skills into the effective prompt. | Make the declared slash, dollar, or instruction-path form usable in the provider runtime. | User selection in the skill picker; scheduled runs may add the reserved Scheduled Tasks skill. |
-| Run modes | `Features.RunModes` | Validates chat/settings writes and stored runs, and clamps live capability output to platform-complete modes. | Validate and translate every declared mode without silently substituting another. | Selected per chat; all current modules declare Default only. |
+| Run modes | `Features.ExecutableRunModes` | Validates chat/settings writes and stored runs, and clamps live capability output to platform-complete modes. | Validate and translate every declared mode without silently substituting another. | Selected per chat; all current modules declare Default only. |
 | Browser tools | `Features.BrowserTools` | Publishes support metadata and gates browser preparation and activity keepalive after the Browser skill is selected. | Pass working native MCP/tool configuration into the run. | The `browser` skill is selected and the provider declaration permits it. |
 | Scheduled Tasks | `Features.ScheduledTools` | Advertises the reserved project skill, issues and revokes a scoped grant, provisions the schedule CLI/skill, and injects runtime-only variables. | Preserve the runtime environment through the native host/container launch. | The Scheduled Tasks skill is selected, or the turn is executing a scheduled task. |
 

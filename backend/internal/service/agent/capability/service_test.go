@@ -205,10 +205,10 @@ func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
 		Auth:             agentmodule.AuthExternal,
 		AuthInstructions: "Run future-agent login.",
 		Features: agentmodule.Features{
-			Sessions:       agentmodule.SessionSupport{Resume: true},
-			Skills:         agentmodule.SkillsInstructions,
-			RunModes:       []agent.RunMode{agent.RunModeDefault},
-			ScheduledTools: true,
+			Sessions:           agentmodule.SessionSupport{Resume: true},
+			Skills:             agentmodule.SkillsInstructions,
+			ExecutableRunModes: []agent.RunMode{agent.RunModeDefault},
+			ScheduledTools:     true,
 		},
 	}}
 	catalog := New(
@@ -247,7 +247,7 @@ func TestDecorateIntersectsReportedAndHarnessCompleteRunModes(t *testing.T) {
 		ID:              "future-agent",
 		Label:           "Future Agent",
 		ExecutionScopes: []agentmodule.ExecutionScope{agentmodule.ScopeHost},
-		Features: agentmodule.Features{RunModes: []agent.RunMode{
+		Features: agentmodule.Features{ExecutableRunModes: []agent.RunMode{
 			agent.RunModeDefault,
 			agent.RunModePlan,
 		}},

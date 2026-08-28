@@ -110,8 +110,8 @@ func TestNewRejectsAuthenticatedDeploymentWithoutAgentAccessGate(t *testing.T) {
 		Auth:             agentmodule.AuthExternal,
 		AuthInstructions: "Authenticate outside Remote.",
 		Features: agentmodule.Features{
-			Skills:   agentmodule.SkillsNone,
-			RunModes: []agent.RunMode{agent.RunModeDefault},
+			Skills:             agentmodule.SkillsNone,
+			ExecutableRunModes: []agent.RunMode{agent.RunModeDefault},
 		},
 	}
 	factory, err := agentmodule.NewFactory(descriptor, nil, func(agentmodule.Dependencies, *provisioning.Profile) (agentmodule.Components, error) {

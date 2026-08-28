@@ -24,11 +24,11 @@ func NewFactory() (agentmodule.Factory, error) {
 			"/root/.codex/skills",
 		},
 		Features: agentmodule.Features{
-			Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
-			Skills:         agentmodule.SkillsDollarMention,
-			RunModes:       []agent.RunMode{agent.RunModeDefault},
-			BrowserTools:   true,
-			ScheduledTools: true,
+			Sessions:           agentmodule.SessionSupport{Resume: true, Fork: true},
+			Skills:             agentmodule.SkillsDollarMention,
+			ExecutableRunModes: []agent.RunMode{agent.RunModeDefault},
+			BrowserTools:       true,
+			ScheduledTools:     true,
 		},
 	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
 		auth := NewAuth()

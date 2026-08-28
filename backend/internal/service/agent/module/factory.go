@@ -56,20 +56,20 @@ type SessionSupport struct {
 type Features struct {
 	Sessions SessionSupport
 	Skills   SkillStrategy
-	// RunModes is the subset of provider-native collaboration modes whose
+	// ExecutableRunModes is the subset of provider-native collaboration modes whose
 	// complete lifecycle Remote implements. Capability discovery may report
 	// additional CLI modes, but they must not be launched until the surrounding
 	// harness transitions are represented end to end.
-	RunModes       []agent.RunMode
-	BrowserTools   bool
-	ScheduledTools bool
+	ExecutableRunModes []agent.RunMode
+	BrowserTools       bool
+	ScheduledTools     bool
 }
 
 // SupportsRunMode reports whether the module implements the complete Remote
 // harness lifecycle for mode. Keeping membership with the feature declaration
-// prevents consumers from each interpreting RunModes independently.
+// prevents consumers from each interpreting ExecutableRunModes independently.
 func (features Features) SupportsRunMode(mode agent.RunMode) bool {
-	for _, configured := range features.RunModes {
+	for _, configured := range features.ExecutableRunModes {
 		if configured == mode {
 			return true
 		}
@@ -331,11 +331,11 @@ func validateDescriptor(descriptor Descriptor, profile *provisioning.Profile) er
 }
 
 func validateRunModes(descriptor Descriptor) error {
-	if len(descriptor.Features.RunModes) == 0 {
+	if len(descriptor.Features.ExecutableRunModes) == 0 {
 		return fmt.Errorf("%w: provider %q has no run modes", ErrInvalidFactory, descriptor.ID)
 	}
-	seen := make(map[agent.RunMode]bool, len(descriptor.Features.RunModes))
-	for _, mode := range descriptor.Features.RunModes {
+	seen := make(map[agent.RunMode]bool, len(descriptor.Features.ExecutableRunModes))
+	for _, mode := range descriptor.Features.ExecutableRunModes {
 		if mode != agent.RunModeDefault && mode != agent.RunModePlan {
 			return fmt.Errorf("%w: provider %q has unknown run mode %q", ErrInvalidFactory, descriptor.ID, mode)
 		}
@@ -487,7 +487,10 @@ func validateAuth(descriptor Descriptor, binding *agentauth.Binding) error {
 func cloneDescriptor(descriptor Descriptor) Descriptor {
 	descriptor.ExecutionScopes = append([]ExecutionScope(nil), descriptor.ExecutionScopes...)
 	descriptor.LegacySkillRoots = append([]string(nil), descriptor.LegacySkillRoots...)
-	descriptor.Features.RunModes = append([]agent.RunMode(nil), descriptor.Features.RunModes...)
+	descriptor.Features.ExecutableRunModes = append(
+		[]agent.RunMode(nil),
+		descriptor.Features.ExecutableRunModes...,
+	)
 	return descriptor
 }
 

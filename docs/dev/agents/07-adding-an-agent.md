@@ -17,7 +17,7 @@ Before writing code, answer these questions:
 | Access gate | Only observable managed or no-auth modules can satisfy onboarding |
 | Sessions | Declare resume only when the adapter can reliably resume; fork also requires resume |
 | Skills | Choose `none`, `slash-command`, `dollar-mention`, or `instructions` to match what the runtime actually accepts |
-| Modes | Declare `Features.RunModes`; every provider must include `default`. Add `plan` only with an end-to-end native question/approval/revise/exit lifecycle; a different mode needs a coordinated backend/settings/frontend contract change. |
+| Modes | Declare `Features.ExecutableRunModes`; every provider must include `default`. Add `plan` only with an end-to-end native question/approval/revise/exit lifecycle; a different mode needs a coordinated backend/settings/frontend contract change. |
 | Extra tools | Declare Browser or scheduled tools only when shared preparation installs their assets and the adapter supplies required native wiring/runtime environment |
 | Persistence | Identify the smallest provider-owned directories that must survive container replacement |
 
@@ -148,7 +148,7 @@ func NewFactory() (module.Factory, error) {
         Features: module.Features{
             Sessions:       module.SessionSupport{Resume: true},
             Skills:         module.SkillsInstructions,
-            RunModes:       []agent.RunMode{agent.RunModeDefault},
+            ExecutableRunModes: []agent.RunMode{agent.RunModeDefault},
             BrowserTools:   true,
             ScheduledTools: true,
         },

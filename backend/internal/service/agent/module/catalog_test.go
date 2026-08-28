@@ -624,10 +624,10 @@ func testDescriptor(id agent.ProviderID) Descriptor {
 		Auth:             AuthExternal,
 		AuthInstructions: "Run the provider login command.",
 		Features: Features{
-			Sessions:       SessionSupport{Resume: true},
-			Skills:         SkillsInstructions,
-			RunModes:       []agent.RunMode{agent.RunModeDefault},
-			ScheduledTools: true,
+			Sessions:           SessionSupport{Resume: true},
+			Skills:             SkillsInstructions,
+			ExecutableRunModes: []agent.RunMode{agent.RunModeDefault},
+			ScheduledTools:     true,
 		},
 	}
 }
