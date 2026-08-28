@@ -72,6 +72,22 @@ func TestChatEventFromAgentEventMapsCodexSession(t *testing.T) {
 	}
 }
 
+func TestChatEventFromAgentEventPersistsCompletionProvider(t *testing.T) {
+	ev, ok := chatEventFromAgentEvent(agent.Event{
+		T:        123,
+		Type:     agent.EventRunCompleted,
+		Provider: "future-agent",
+		Usage:    json.RawMessage(`{"schema_version":1,"input_tokens":7}`),
+	})
+	if !ok {
+		t.Fatal("expected event to map")
+	}
+	if ev.Type != "complete" || ev.Provider != "future-agent" ||
+		string(ev.Usage) != `{"schema_version":1,"input_tokens":7}` {
+		t.Fatalf("unexpected completion event: %#v", ev)
+	}
+}
+
 func TestChatEventFromAgentEventMapsToolLifecycle(t *testing.T) {
 	input := json.RawMessage(`{"cmd":"go test ./..."}`)
 	start, ok := chatEventFromAgentEvent(agent.Event{
