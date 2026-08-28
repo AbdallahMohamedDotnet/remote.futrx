@@ -305,7 +305,7 @@ func TestStartDeduplicatesInteractiveClientIDAfterVisibleHistoryRewind(t *testin
 	}
 
 	storedMeta, err := reopened.Get(ctx, meta.ID)
-	if err != nil || len(storedMeta.PromptReceipts) != 1 {
+	if err != nil || storedMeta.PromptReceipts.Len() != 1 {
 		t.Fatalf("prompt receipts = %#v, err = %v", storedMeta.PromptReceipts, err)
 	}
 	publicJSON, err := json.Marshal(storedMeta)
@@ -364,7 +364,7 @@ func TestStartTreatsCommitWriteFailureAfterUserEventAsAccepted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(stored.PromptReceipts) != 0 {
+	if stored.PromptReceipts.Len() != 0 {
 		t.Fatalf("failed receipt write unexpectedly persisted: %#v", stored.PromptReceipts)
 	}
 	events, err := underlying.ReadEvents(ctx, meta.ID)
@@ -399,7 +399,7 @@ func TestStartTreatsCommitWriteFailureAfterUserEventAsAccepted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(stored.PromptReceipts) != 1 {
+	if stored.PromptReceipts.Len() != 1 {
 		t.Fatalf("rewind did not persist accepted receipt: %#v", stored.PromptReceipts)
 	}
 }

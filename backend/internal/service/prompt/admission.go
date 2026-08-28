@@ -2,7 +2,6 @@ package prompt
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"strings"
 	"time"
@@ -47,26 +46,29 @@ func (rnr *Service) admitPrompt(
 		priorEvents:       priorEvents,
 		priorEventsLoaded: true,
 	}}
-	var receiptKey, promptHash string
 	if input.ClientID != "" {
-		var expectedReceipt servicechat.PromptReceipt
-		receiptKey, expectedReceipt = servicechat.NewPromptReceipt(input.ClientID, input.Prompt)
-		promptHash = expectedReceipt.PromptHash
-		if receipt, found := meta.PromptReceipts[receiptKey]; found {
-			if receipt.PromptHash != promptHash {
-				return promptAdmission{}, ErrPromptClientIDConflict
-			}
+		switch meta.PromptReceipts.Status(input.ClientID, input.Prompt) {
+		case servicechat.PromptReceiptConflict:
+			return promptAdmission{}, ErrPromptClientIDConflict
+		case servicechat.PromptReceiptAccepted:
 			admission.duplicate = true
 			return admission, nil
-		} else if priorAccepted, found := acceptedPromptForClientID(priorEvents, input.ClientID); found {
-			if priorAccepted.Text != input.Prompt {
-				return promptAdmission{}, ErrPromptClientIDConflict
+		default:
+			if priorAccepted, found := acceptedPromptForClientID(priorEvents, input.ClientID); found {
+				if priorAccepted.Text != input.Prompt {
+					return promptAdmission{}, ErrPromptClientIDConflict
+				}
+				if err := rnr.storePromptReceipt(
+					ctx,
+					input.ChatID,
+					input.ClientID,
+					input.Prompt,
+				); err != nil {
+					log.Printf("chat %s prompt receipt migration: %v", input.ChatID, err)
+				}
+				admission.duplicate = true
+				return admission, nil
 			}
-			if err := rnr.storePromptReceipt(ctx, input.ChatID, receiptKey, promptHash); err != nil {
-				log.Printf("chat %s prompt receipt migration: %v", input.ChatID, err)
-			}
-			admission.duplicate = true
-			return admission, nil
 		}
 	}
 
@@ -80,14 +82,19 @@ func (rnr *Service) admitPrompt(
 		ScheduledTaskID: input.ScheduledTaskID,
 	}
 	if input.ClientID != "" {
-		userEvent.Data, _ = json.Marshal(map[string]string{"clientId": input.ClientID})
+		userEvent.SetPromptClientID(input.ClientID)
 	}
 	storedUserEvent, err := rnr.store.AppendEvent(ctx, input.ChatID, userEvent)
 	if err != nil {
 		return promptAdmission{}, err
 	}
 	if input.ClientID != "" {
-		if err := rnr.storePromptReceipt(ctx, input.ChatID, receiptKey, promptHash); err != nil {
+		if err := rnr.storePromptReceipt(
+			ctx,
+			input.ChatID,
+			input.ClientID,
+			input.Prompt,
+		); err != nil {
 			// The user event is already durable and makes reconnect retries
 			// idempotent. Rewind also backfills its hidden receipt before it
 			// can remove that event, so this remains an accepted prompt.
@@ -108,10 +115,7 @@ func acceptedPromptForClientID(events []ChatEvent, clientID string) (ChatEvent, 
 		if event.Type != "user" || len(event.Data) == 0 {
 			continue
 		}
-		var data struct {
-			ClientID string `json:"clientId"`
-		}
-		if json.Unmarshal(event.Data, &data) == nil && data.ClientID == clientID {
+		if event.PromptClientID() == clientID {
 			return event, true
 		}
 	}
@@ -121,16 +125,11 @@ func acceptedPromptForClientID(events []ChatEvent, clientID string) (ChatEvent, 
 func (rnr *Service) storePromptReceipt(
 	ctx context.Context,
 	chatID servicechat.ID,
-	key string,
-	promptHash string,
+	clientID string,
+	prompt string,
 ) error {
 	_, err := rnr.store.Update(ctx, chatID, func(meta *ChatMeta) {
-		receipts := make(map[string]servicechat.PromptReceipt, len(meta.PromptReceipts)+1)
-		for existingKey, receipt := range meta.PromptReceipts {
-			receipts[existingKey] = receipt
-		}
-		receipts[key] = servicechat.PromptReceipt{PromptHash: promptHash}
-		meta.PromptReceipts = receipts
+		meta.PromptReceipts = meta.PromptReceipts.WithAcceptedPrompt(clientID, prompt)
 	})
 	return err
 }

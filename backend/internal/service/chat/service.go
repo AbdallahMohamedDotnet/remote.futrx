@@ -2,8 +2,6 @@ package chat
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -453,7 +451,7 @@ func (s *Service) Rewind(ctx context.Context, id ID, beforeT int64) ([]Event, er
 		if err != nil {
 			return err
 		}
-		receipts, changed, err := promotedPromptReceipts(current.PromptReceipts, currentEvents, beforeT)
+		receipts, changed, err := current.PromptReceipts.withAcceptedEvents(currentEvents, beforeT)
 		if err != nil {
 			return err
 		}
@@ -479,50 +477,6 @@ func (s *Service) Rewind(ctx context.Context, id ID, beforeT int64) ([]Event, er
 		return nil, err
 	}
 	return events, nil
-}
-
-func promotedPromptReceipts(
-	current map[string]PromptReceipt,
-	events []Event,
-	beforeT int64,
-) (map[string]PromptReceipt, bool, error) {
-	receipts := make(map[string]PromptReceipt, len(current))
-	for key, receipt := range current {
-		receipts[key] = receipt
-	}
-	changed := false
-	for _, event := range events {
-		if event.Type != "user" || event.T < beforeT {
-			continue
-		}
-		clientID := promptClientID(event)
-		if clientID == "" {
-			continue
-		}
-		key, accepted := NewPromptReceipt(clientID, event.Text)
-		if existing, found := receipts[key]; found {
-			if existing.PromptHash != accepted.PromptHash {
-				return nil, false, errors.New("prompt delivery receipt conflicts with accepted history")
-			}
-			continue
-		}
-		receipts[key] = accepted
-		changed = true
-	}
-	return receipts, changed, nil
-}
-
-func promptClientID(event Event) string {
-	if len(event.Data) == 0 {
-		return ""
-	}
-	var data struct {
-		ClientID string `json:"clientId"`
-	}
-	if json.Unmarshal(event.Data, &data) != nil {
-		return ""
-	}
-	return strings.TrimSpace(data.ClientID)
 }
 
 func (s *Service) UploadTarget(ctx context.Context, id ID) (string, error) {

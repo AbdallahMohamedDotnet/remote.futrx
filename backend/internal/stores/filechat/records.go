@@ -101,30 +101,29 @@ func (r metaRecord) toDomain() servicechat.Meta {
 	return meta
 }
 
-func promptReceiptRecordsFromDomain(receipts map[string]servicechat.PromptReceipt) map[string]promptReceiptRecord {
-	if len(receipts) == 0 {
+func promptReceiptRecordsFromDomain(receipts servicechat.PromptReceiptLedger) map[string]promptReceiptRecord {
+	entries := receipts.Snapshot()
+	if len(entries) == 0 {
 		return nil
 	}
-	records := make(map[string]promptReceiptRecord, len(receipts))
-	for key, receipt := range receipts {
+	records := make(map[string]promptReceiptRecord, len(entries))
+	for key, promptHash := range entries {
 		records[key] = promptReceiptRecord{
-			PromptHash: receipt.PromptHash,
+			PromptHash: promptHash,
 		}
 	}
 	return records
 }
 
-func promptReceiptRecordsToDomain(records map[string]promptReceiptRecord) map[string]servicechat.PromptReceipt {
+func promptReceiptRecordsToDomain(records map[string]promptReceiptRecord) servicechat.PromptReceiptLedger {
 	if len(records) == 0 {
-		return nil
+		return servicechat.PromptReceiptLedger{}
 	}
-	receipts := make(map[string]servicechat.PromptReceipt, len(records))
+	receipts := make(map[string]string, len(records))
 	for key, record := range records {
-		receipts[key] = servicechat.PromptReceipt{
-			PromptHash: record.PromptHash,
-		}
+		receipts[key] = record.PromptHash
 	}
-	return receipts
+	return servicechat.NewPromptReceiptLedger(receipts)
 }
 
 func sessionRecordsFromDomain(sessions servicechat.SessionIDs) map[string]string {
