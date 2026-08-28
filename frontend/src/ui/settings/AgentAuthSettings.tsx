@@ -85,9 +85,9 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
   }
 
   return (
-    <section class="space-y-3 rounded-md border border-white/10 bg-white/[0.03] p-3">
+    <section class="space-y-3 rounded-md border border-line bg-tint p-3">
       <div class="flex items-start gap-3">
-        <div class="grid h-9 w-9 flex-none place-items-center rounded-md border border-white/10 bg-white/[0.06] text-ink-200">
+        <div class="grid h-9 w-9 flex-none place-items-center rounded-md border border-line bg-tint text-ink-200">
           <Key class="h-4 w-4" />
         </div>
         <div class="min-w-0 flex-1">
@@ -119,7 +119,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
             type="button"
             onClick={startLogin}
             disabled={busy || loginActive}
-            class="h-10 rounded bg-accent-blue/80 px-3 text-[13px] font-medium text-white hover:bg-accent-blue disabled:opacity-50"
+            class="btn btn-primary disabled:opacity-50"
           >
             {busy
               ? "Starting..."
@@ -137,7 +137,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
         <div class="space-y-2 rounded border border-accent-blue/25 bg-accent-blue/[0.08] p-3">
           <div class="text-[12px] text-ink-200">Open the link and enter this code:</div>
           <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
-            <div class="rounded border border-white/10 bg-black/30 px-3 py-2 font-mono text-[18px] tracking-wide text-ink-50">
+            <div class="rounded border border-line bg-inset px-3 py-2 font-mono text-[18px] tracking-wide text-ink-50">
               {entry.status.login.userCode || "Waiting for code..."}
             </div>
             {entry.status.login.url && (
@@ -145,7 +145,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
                 href={entry.status.login.url}
                 target="_blank"
                 rel="noreferrer"
-                class="inline-flex h-10 items-center justify-center gap-2 rounded bg-white/[0.08] px-3 text-[13px] font-medium text-ink-100 hover:bg-white/[0.12]"
+                class="inline-flex h-10 items-center justify-center gap-2 rounded bg-tint-strong px-3 text-[13px] font-medium text-ink-100 hover:bg-tint-active"
               >
                 <ExternalLink class="h-4 w-4" /> Open
               </a>
@@ -165,7 +165,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
               href={entry.status.login.url}
               target="_blank"
               rel="noreferrer"
-              class="block break-all rounded border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[12px] text-accent-blue hover:underline"
+              class="block break-all rounded border border-line bg-inset px-2.5 py-2 font-mono text-[12px] text-accent-blue hover:underline"
             >
               <ExternalLink class="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
               {entry.status.login.url}
@@ -187,13 +187,13 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
             autocapitalize="off"
             autocorrect="off"
             spellcheck={false}
-            class="w-full resize-none rounded-md border border-white/10 bg-black/30 px-3 py-2.5 font-mono text-[13px] text-ink-100 placeholder:text-ink-300 focus:border-accent-blue focus:outline-none"
+            class="w-full resize-none rounded-md border border-line bg-inset px-3 py-2.5 font-mono text-[13px] text-ink-100 placeholder:text-ink-300 focus:border-accent-blue focus:outline-none"
           />
           <div class="flex gap-2">
             <button
               type="button"
               onClick={cancelCode}
-              class="h-10 rounded px-3 text-[13px] text-ink-200 hover:bg-white/[0.08] hover:text-ink-100"
+              class="h-10 rounded px-3 text-[13px] text-ink-200 hover:bg-tint-strong hover:text-ink-100"
             >
               Cancel
             </button>
@@ -201,7 +201,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
               type="button"
               onClick={submitCode}
               disabled={!code.trim() || busy}
-              class="h-10 flex-1 rounded bg-accent-blue/80 text-[13px] font-medium text-white hover:bg-accent-blue disabled:opacity-50"
+              class="btn btn-primary flex-1 disabled:opacity-50"
             >
               {busy ? "Finishing..." : "Submit code"}
             </button>
