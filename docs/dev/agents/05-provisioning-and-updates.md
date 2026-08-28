@@ -91,12 +91,16 @@ After selecting the target checkout and installing Node/Go, the infrastructure
 application step runs:
 
 ```text
-cd backend && go run ./cmd/install-host-agents
+cd backend && go run ./cmd/install-host-agents --prefix "$INSTALL_DIR/data/host-clis"
 ```
 
-The command reads `HostProfiles()` and converges providers sequentially because
-global npm state is shared. For a checked CLI it runs the profile's version
-arguments with the application-wide
+The command reads `HostProfiles()` and converges providers sequentially into
+one application-owned prefix. npm profiles receive that explicit prefix and
+script profiles receive the exact managed executable path. The installer,
+systemd unit, and login-shell profile put the prefix's `bin` directory first
+on `PATH`. Before accepting a provider, convergence verifies both the managed
+executable's exact pin and that a normal command lookup resolves to that same
+path. For a checked CLI it runs the profile's version arguments with the application-wide
 `config.AgentOptions.HostCLIVersionTimeout`, currently 15 seconds, and requires
 the **exact host pin**. Missing/stale npm and image-repair profiles install their exact npm
 package pin; script profiles run their pinned install program. The profile's
