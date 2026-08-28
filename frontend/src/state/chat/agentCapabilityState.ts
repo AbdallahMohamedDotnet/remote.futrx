@@ -40,7 +40,10 @@ export interface CapabilityPreferenceCorrection {
   serviceTier?: string;
 }
 
-export const agentCapabilityState = {
+// The composer's view of what the selected agent can do: which providers and
+// models to offer, and which of the saved preferences the live catalog still
+// supports.
+class AgentCapabilityState {
   resolve(
     catalog: AgentCapabilitiesCatalog | null,
     provider: ChatProvider,
@@ -65,7 +68,7 @@ export const agentCapabilityState = {
     })) ?? [];
     const savedProviderFallback: ComposerProviderOption = {
       value: provider,
-      label: providerLabel(provider),
+      label: this.providerLabel(provider),
       disabled: !!unavailableProviders[provider],
       disabledReason: unavailableProviders[provider],
       models: loading ? [] : [{
@@ -90,7 +93,7 @@ export const agentCapabilityState = {
       serviceTierOptions: selectedModel?.serviceTiers ?? [],
       modeOptions: providerCapabilities?.modes ?? [],
     };
-  },
+  }
 
   corrections(
     state: ComposerCapabilityState,
@@ -123,9 +126,11 @@ export const agentCapabilityState = {
       correction.mode = capabilities.defaultMode || state.modeOptions[0]?.value || "default";
     }
     return correction;
-  },
-};
+  }
 
-function providerLabel(provider: string): string {
-  return provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : "Agent";
+  private providerLabel(provider: string): string {
+    return provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : "Agent";
+  }
 }
+
+export const agentCapabilityState = new AgentCapabilityState();
