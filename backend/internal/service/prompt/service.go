@@ -467,11 +467,10 @@ func (rnr *Service) runPromptWithSnapshot(
 			EnableBrowser:       enableBrowser,
 			EnableScheduleTools: enableScheduleTools,
 			RuntimeEnv:          runtimeEnv,
-			Interact: func(
-				interactionCtx context.Context,
-				request agent.InteractionRequest,
-			) (agent.InteractionResponse, error) {
-				return rnr.requestInteraction(interactionCtx, id, request, emit)
+			Interactions: runInteractionHandler{
+				service: rnr,
+				chatID:  id,
+				emit:    emit,
 			},
 		}, func(ev agent.Event) {
 			rnr.emitAgentEvent(ctx, id, providerID, ev, emit)

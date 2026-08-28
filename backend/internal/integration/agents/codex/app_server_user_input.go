@@ -12,11 +12,11 @@ import (
 const nonBlockingUserInputAutoResolutionMS int64 = 120_000
 
 type appServerUserInputHandler struct {
-	interact agent.InteractionHandler
+	interactions agent.InteractionHandler
 }
 
-func newAppServerUserInputHandler(interact agent.InteractionHandler) *appServerUserInputHandler {
-	return &appServerUserInputHandler{interact: interact}
+func newAppServerUserInputHandler(interactions agent.InteractionHandler) *appServerUserInputHandler {
+	return &appServerUserInputHandler{interactions: interactions}
 }
 
 // answer adapts Codex's native requestUserInput request and response
@@ -26,7 +26,7 @@ func newAppServerUserInputHandler(interact agent.InteractionHandler) *appServerU
 func (handler *appServerUserInputHandler) answer(
 	ctx context.Context,
 	envelope appServerEnvelope,
-	registered func(),
+	onRegistered func(),
 ) (any, error) {
 	var params appServerUserInputRequestParams
 	if err := json.Unmarshal(envelope.Params, &params); err != nil {
@@ -54,7 +54,7 @@ func (handler *appServerUserInputHandler) answer(
 		inputData["autoResolutionMs"] = *params.AutoResolutionMS
 	}
 	input, _ := json.Marshal(inputData)
-	if handler.interact == nil {
+	if handler.interactions == nil {
 		return nil, errors.New("Codex requested user input but no interaction handler is available")
 	}
 	interactionID := strings.TrimSpace(params.ItemID)
@@ -73,7 +73,7 @@ func (handler *appServerUserInputHandler) answer(
 	for _, question := range params.Questions {
 		sensitive = sensitive || question.IsSecret
 	}
-	response, err := handler.interact(ctx, agent.InteractionRequest{
+	pending, err := handler.interactions.BeginInteraction(ctx, agent.InteractionRequest{
 		ID:               interactionID,
 		Kind:             agent.InteractionUserInput,
 		ToolName:         "AskUserQuestion",
@@ -81,8 +81,14 @@ func (handler *appServerUserInputHandler) answer(
 		Blocking:         blocking,
 		Sensitive:        sensitive,
 		AutoResolutionMS: autoResolutionMS,
-		Registered:       registered,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if onRegistered != nil {
+		onRegistered()
+	}
+	response, err := pending.Await()
 	if err != nil {
 		return nil, err
 	}

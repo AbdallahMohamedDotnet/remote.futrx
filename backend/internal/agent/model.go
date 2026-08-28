@@ -70,11 +70,6 @@ type InteractionRequest struct {
 	Blocking         bool
 	Sensitive        bool
 	AutoResolutionMS int64
-	// Registered is a provider-owned ordering handshake. Consumers call it
-	// after the request is visible and answerable, allowing an asynchronous
-	// protocol reader to resume without reordering later native events ahead of
-	// the interaction card.
-	Registered func()
 }
 
 type InteractionResponse struct {
@@ -82,10 +77,19 @@ type InteractionResponse struct {
 	Decision string              `json:"decision,omitempty"`
 }
 
-type InteractionHandler func(
-	context.Context,
-	InteractionRequest,
-) (InteractionResponse, error)
+// PendingInteraction is the single-owner wait handle returned after an
+// interaction is registered and visible to the user. Await uses the context
+// supplied to BeginInteraction so cancellation cannot drift between phases.
+type PendingInteraction interface {
+	Await() (InteractionResponse, error)
+}
+
+// InteractionHandler separates synchronous registration from waiting for the
+// correlated response. A successful BeginInteraction return guarantees that
+// the request is visible and lets an asynchronous provider reader continue.
+type InteractionHandler interface {
+	BeginInteraction(context.Context, InteractionRequest) (PendingInteraction, error)
+}
 
 // RunPreferences contains provider-neutral launch preferences. Each provider
 // adapter decides which preferences to forward and how to translate them.
@@ -116,9 +120,9 @@ type RunRequest struct {
 	// RuntimeEnv carries short-lived, backend-issued capabilities into a run.
 	// Provider adapters must not persist these values in project configuration.
 	RuntimeEnv map[string]string
-	// Interact preserves blocking harness requests across the provider boundary.
-	// It may be nil for non-interactive callers such as adapter unit tests.
-	Interact InteractionHandler
+	// Interactions preserves blocking harness requests across the provider
+	// boundary. It may be nil for non-interactive callers such as adapter tests.
+	Interactions InteractionHandler
 }
 
 // Event is the normalized backend event shape emitted by headless agent

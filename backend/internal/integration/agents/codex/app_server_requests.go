@@ -19,7 +19,7 @@ func newAppServerRequestHandler(
 	return &appServerRequestHandler{
 		mode:      req.Mode,
 		write:     write,
-		userInput: newAppServerUserInputHandler(req.Interact),
+		userInput: newAppServerUserInputHandler(req.Interactions),
 	}
 }
 

@@ -36,9 +36,11 @@ sequenceDiagram
     Provider->>CLI: execute host process or lxc exec
     opt CLI requests blocking user input
         CLI->>Provider: native request with correlation ID
-        Provider->>Prompt: RunRequest.Interact(request)
+        Provider->>Prompt: Interactions.BeginInteraction(ctx, request)
         Prompt->>Store: persist interaction_request
         Prompt-->>Browser: render interactive question card
+        Prompt-->>Provider: PendingInteraction
+        Provider->>Prompt: PendingInteraction.Await()
         Browser->>Socket: {type: "interaction_response", id, answers}
         Socket->>Prompt: resolve pending interaction
         Prompt->>Store: persist interaction_resolved
@@ -253,20 +255,26 @@ not copied into the persisted chat event.
 
 Provider requests that require a correlated browser response do not masquerade
 as ordinary agent events.
-`RunRequest.Interact` accepts an `agent.InteractionRequest` containing a stable
-ID, kind, tool name, JSON input, blocking/sensitive flags, and an optional
-Remote-owned auto-resolution delay. The prompt service registers that ID under
-the chat and persists `interaction_request`. Multiple IDs may be pending in one
-turn. The browser may answer only while the socket is open, synchronized, and
-the chat is still streaming:
+`RunRequest.Interactions.BeginInteraction` accepts an
+`agent.InteractionRequest` containing a stable ID, kind, tool name, JSON input,
+blocking/sensitive flags, and an optional Remote-owned auto-resolution delay.
+The prompt service registers that ID under the chat, persists
+`interaction_request`, and then returns an `agent.PendingInteraction`. This
+synchronous first phase lets the provider resume reading native protocol output
+without allowing a later delta to overtake the question card. The provider's
+request worker calls `PendingInteraction.Await` for the correlated response.
+Multiple IDs may be pending in one turn. The browser may answer only while the
+socket is open, synchronized, and the chat is still streaming:
 
 ```json
 {"type":"interaction_response","id":"item-123","answers":{"environment":["QA"]}}
 ```
 
 The service resolves the in-memory waiter, persists `interaction_resolved`,
-and returns the structured answer to the provider adapter. Cancellation emits
-an error resolution. Blocking requests never arm a timeout. For Codex
+and returns the structured answer to the provider adapter. The pending session
+retains the exact context supplied during registration, so native resolution or
+run cancellation interrupts that same waiter. Cancellation emits an error
+resolution. Blocking requests never arm a timeout. For Codex
 `isBlocking:false`, Remote ignores the protocol's deprecated
 `autoResolutionMs` field and returns an empty outer answer map after a fixed
 120-second window. The browser hides the first 60 seconds and shows the final

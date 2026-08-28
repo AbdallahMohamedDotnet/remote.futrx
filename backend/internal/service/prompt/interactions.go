@@ -2,7 +2,6 @@ package prompt
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -172,12 +171,28 @@ func (broker *interactionBroker) expireAutoResolution(
 	})
 }
 
-func (rnr *Service) requestInteraction(
+// runInteractionHandler binds the application-owned broker to one active chat
+// run. BeginInteraction returns only after the request event is emitted, which
+// is the ordering boundary required by asynchronous provider transports.
+type runInteractionHandler struct {
+	service *Service
+	chatID  servicechat.ID
+	emit    func(ChatEvent)
+}
+
+func (handler runInteractionHandler) BeginInteraction(
+	ctx context.Context,
+	request agent.InteractionRequest,
+) (agent.PendingInteraction, error) {
+	return handler.service.beginInteraction(ctx, handler.chatID, request, handler.emit)
+}
+
+func (rnr *Service) beginInteraction(
 	ctx context.Context,
 	chatID servicechat.ID,
 	request agent.InteractionRequest,
 	emit func(ChatEvent),
-) (agent.InteractionResponse, error) {
+) (agent.PendingInteraction, error) {
 	request.ID = strings.TrimSpace(request.ID)
 	var deadline time.Time
 	if !request.Blocking && request.AutoResolutionMS > 0 {
@@ -185,7 +200,7 @@ func (rnr *Service) requestInteraction(
 	}
 	pending, err := rnr.interactions.register(chatID, request.ID, ctx, deadline)
 	if err != nil {
-		return agent.InteractionResponse{}, err
+		return nil, err
 	}
 
 	emit(ChatEvent{
@@ -195,44 +210,10 @@ func (rnr *Service) requestInteraction(
 		ToolName: request.ToolName,
 		Input:    request.Input,
 	})
-	if request.Registered != nil {
-		request.Registered()
-	}
-	defer pending.finishWaiting()
-	result := pending.awaitResult()
-	switch result.resolution {
-	case interactionAnswered:
-		output := "Secret response received"
-		if !request.Sensitive {
-			encoded, _ := json.Marshal(result.response)
-			output = string(encoded)
-		}
-		emit(ChatEvent{
-			T:      time.Now().UnixMilli(),
-			Type:   "interaction_resolved",
-			ID:     request.ID,
-			Output: output,
-		})
-		return result.response, result.err
-	case interactionAutoResolved:
-		emit(ChatEvent{
-			T:      time.Now().UnixMilli(),
-			Type:   "interaction_resolved",
-			ID:     request.ID,
-			Output: "No response before the agent continued",
-		})
-		return result.response, result.err
-	default:
-		emit(ChatEvent{
-			T:       time.Now().UnixMilli(),
-			Type:    "interaction_resolved",
-			ID:      request.ID,
-			Output:  "Agent interaction cancelled",
-			IsError: true,
-		})
-		return result.response, result.err
-	}
+	return newInteractionSession(pending, request, emit), nil
 }
+
+var _ agent.InteractionHandler = runInteractionHandler{}
 
 // RespondInteraction resumes a provider request. It returns false
 // when the request is no longer pending, including after cancellation or a

@@ -12,6 +12,24 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
+type testPendingInteractionFunc func() (agent.InteractionResponse, error)
+
+func (await testPendingInteractionFunc) Await() (agent.InteractionResponse, error) {
+	return await()
+}
+
+type testInteractionHandlerFunc func(
+	context.Context,
+	agent.InteractionRequest,
+) (agent.PendingInteraction, error)
+
+func (begin testInteractionHandlerFunc) BeginInteraction(
+	ctx context.Context,
+	request agent.InteractionRequest,
+) (agent.PendingInteraction, error) {
+	return begin(ctx, request)
+}
+
 func TestRunAppServerStreamsNativePlanTurn(t *testing.T) {
 	script := `
 while IFS= read -r line; do
@@ -103,19 +121,18 @@ done`
 			agent.RunRequest{
 				ConversationID: "chat-1",
 				Prompt:         "ask me",
-				Interact: func(
+				Interactions: testInteractionHandlerFunc(func(
 					_ context.Context,
 					request agent.InteractionRequest,
-				) (agent.InteractionResponse, error) {
+				) (agent.PendingInteraction, error) {
 					interaction <- request
-					if request.Registered != nil {
-						request.Registered()
-					}
-					<-allowAnswer
-					return agent.InteractionResponse{
-						Answers: map[string][]string{"choice": {"A"}},
-					}, nil
-				},
+					return testPendingInteractionFunc(func() (agent.InteractionResponse, error) {
+						<-allowAnswer
+						return agent.InteractionResponse{
+							Answers: map[string][]string{"choice": {"A"}},
+						}, nil
+					}), nil
+				}),
 			},
 			func(event agent.Event) { events <- event },
 		)
@@ -186,20 +203,19 @@ done`
 		agent.RunRequest{
 			ConversationID: "chat-1",
 			Prompt:         "ask me",
-			Interact: func(
+			Interactions: testInteractionHandlerFunc(func(
 				ctx context.Context,
 				request agent.InteractionRequest,
-			) (agent.InteractionResponse, error) {
+			) (agent.PendingInteraction, error) {
 				order <- "request"
 				registered <- struct{}{}
-				if request.Registered != nil {
-					request.Registered()
-				}
-				<-ctx.Done()
-				order <- "resolved"
-				cancelled <- struct{}{}
-				return agent.InteractionResponse{}, ctx.Err()
-			},
+				return testPendingInteractionFunc(func() (agent.InteractionResponse, error) {
+					<-ctx.Done()
+					order <- "resolved"
+					cancelled <- struct{}{}
+					return agent.InteractionResponse{}, ctx.Err()
+				}), nil
+			}),
 		},
 		func(event agent.Event) {
 			events = append(events, event)
@@ -258,15 +274,14 @@ done`
 		agent.RunRequest{
 			ConversationID: "chat-1",
 			Prompt:         "ask me",
-			Interact: func(ctx context.Context, request agent.InteractionRequest) (agent.InteractionResponse, error) {
+			Interactions: testInteractionHandlerFunc(func(ctx context.Context, _ agent.InteractionRequest) (agent.PendingInteraction, error) {
 				order <- "request"
-				if request.Registered != nil {
-					request.Registered()
-				}
-				<-ctx.Done()
-				order <- "resolved"
-				return agent.InteractionResponse{}, ctx.Err()
-			},
+				return testPendingInteractionFunc(func() (agent.InteractionResponse, error) {
+					<-ctx.Done()
+					order <- "resolved"
+					return agent.InteractionResponse{}, ctx.Err()
+				}), nil
+			}),
 		},
 		func(event agent.Event) {
 			if event.Type == agent.EventRunCompleted {
@@ -348,15 +363,17 @@ func TestAnswerAppServerUserInputWaitsForCorrelatedAnswers(t *testing.T) {
 	var encoded strings.Builder
 	handler := newAppServerRequestHandler(
 		agent.RunRequest{
-			Interact: func(
+			Interactions: testInteractionHandlerFunc(func(
 				_ context.Context,
 				request agent.InteractionRequest,
-			) (agent.InteractionResponse, error) {
+			) (agent.PendingInteraction, error) {
 				captured = request
-				return agent.InteractionResponse{
-					Answers: map[string][]string{"scope": {"Backend", "Frontend"}},
-				}, nil
-			},
+				return testPendingInteractionFunc(func() (agent.InteractionResponse, error) {
+					return agent.InteractionResponse{
+						Answers: map[string][]string{"scope": {"Backend", "Frontend"}},
+					}, nil
+				}), nil
+			}),
 		},
 		func(message any) error {
 			data, err := json.Marshal(message)
@@ -422,9 +439,14 @@ func TestAnswerAppServerUserInputFailsWithoutInteractionHandler(t *testing.T) {
 
 func TestAnswerAppServerUserInputRejectsEmptyQuestions(t *testing.T) {
 	handler := newAppServerRequestHandler(
-		agent.RunRequest{Interact: func(context.Context, agent.InteractionRequest) (agent.InteractionResponse, error) {
-			return agent.InteractionResponse{}, nil
-		}},
+		agent.RunRequest{Interactions: testInteractionHandlerFunc(func(
+			context.Context,
+			agent.InteractionRequest,
+		) (agent.PendingInteraction, error) {
+			return testPendingInteractionFunc(func() (agent.InteractionResponse, error) {
+				return agent.InteractionResponse{}, nil
+			}), nil
+		})},
 		func(any) error { return nil },
 	)
 	err := handler.Answer(context.Background(), appServerEnvelope{
@@ -441,15 +463,17 @@ func TestAnswerAppServerUserInputPreservesEmptyOuterAnswersOnAutoResolution(t *t
 	var encoded strings.Builder
 	handler := newAppServerRequestHandler(
 		agent.RunRequest{
-			Interact: func(
+			Interactions: testInteractionHandlerFunc(func(
 				_ context.Context,
 				request agent.InteractionRequest,
-			) (agent.InteractionResponse, error) {
+			) (agent.PendingInteraction, error) {
 				if request.Blocking || request.AutoResolutionMS != nonBlockingUserInputAutoResolutionMS {
 					t.Fatalf("interaction = %#v", request)
 				}
-				return agent.InteractionResponse{Answers: map[string][]string{}}, nil
-			},
+				return testPendingInteractionFunc(func() (agent.InteractionResponse, error) {
+					return agent.InteractionResponse{Answers: map[string][]string{}}, nil
+				}), nil
+			}),
 		},
 		func(message any) error {
 			data, err := json.Marshal(message)
@@ -481,13 +505,15 @@ func TestAnswerAppServerBlockingSecretIgnoresDeprecatedTimeout(t *testing.T) {
 	var captured agent.InteractionRequest
 	handler := newAppServerRequestHandler(
 		agent.RunRequest{
-			Interact: func(
+			Interactions: testInteractionHandlerFunc(func(
 				_ context.Context,
 				request agent.InteractionRequest,
-			) (agent.InteractionResponse, error) {
+			) (agent.PendingInteraction, error) {
 				captured = request
-				return agent.InteractionResponse{Answers: map[string][]string{"token": {"secret"}}}, nil
-			},
+				return testPendingInteractionFunc(func() (agent.InteractionResponse, error) {
+					return agent.InteractionResponse{Answers: map[string][]string{"token": {"secret"}}}, nil
+				}), nil
+			}),
 		},
 		func(any) error { return nil },
 	)
@@ -519,14 +545,16 @@ func TestAnswerAppServerPrefixesNativeFreeformAnswers(t *testing.T) {
 	var encoded strings.Builder
 	handler := newAppServerRequestHandler(
 		agent.RunRequest{
-			Interact: func(
+			Interactions: testInteractionHandlerFunc(func(
 				_ context.Context,
 				_ agent.InteractionRequest,
-			) (agent.InteractionResponse, error) {
-				return agent.InteractionResponse{Answers: map[string][]string{
-					"scope": {"Backend", "A custom layer"},
-				}}, nil
-			},
+			) (agent.PendingInteraction, error) {
+				return testPendingInteractionFunc(func() (agent.InteractionResponse, error) {
+					return agent.InteractionResponse{Answers: map[string][]string{
+						"scope": {"Backend", "A custom layer"},
+					}}, nil
+				}), nil
+			}),
 		},
 		func(message any) error {
 			data, err := json.Marshal(message)

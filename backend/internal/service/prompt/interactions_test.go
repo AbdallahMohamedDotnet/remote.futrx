@@ -21,19 +21,21 @@ func TestInteractionRoundTripCorrelatesResponseToPendingRun(t *testing.T) {
 		err      error
 	}
 	done := make(chan result, 1)
-
+	pending := beginTestInteraction(
+		t,
+		service,
+		context.Background(),
+		chatID,
+		agent.InteractionRequest{
+			ID:       "question-1",
+			Kind:     agent.InteractionUserInput,
+			ToolName: "AskUserQuestion",
+			Input:    []byte(`{"questions":[]}`),
+		},
+		func(event ChatEvent) { events <- event },
+	)
 	go func() {
-		response, err := service.requestInteraction(
-			context.Background(),
-			chatID,
-			agent.InteractionRequest{
-				ID:       "question-1",
-				Kind:     agent.InteractionUserInput,
-				ToolName: "AskUserQuestion",
-				Input:    []byte(`{"questions":[]}`),
-			},
-			func(event ChatEvent) { events <- event },
-		)
+		response, err := pending.Await()
 		done <- result{response: response, err: err}
 	}()
 
@@ -68,13 +70,16 @@ func TestInteractionCancellationResolvesPendingCard(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	events := make(chan ChatEvent, 2)
 	done := make(chan error, 1)
+	pending := beginTestInteraction(
+		t,
+		service,
+		ctx,
+		"deadbeef",
+		agent.InteractionRequest{ID: "question-1", ToolName: "AskUserQuestion"},
+		func(event ChatEvent) { events <- event },
+	)
 	go func() {
-		_, err := service.requestInteraction(
-			ctx,
-			"deadbeef",
-			agent.InteractionRequest{ID: "question-1", ToolName: "AskUserQuestion"},
-			func(event ChatEvent) { events <- event },
-		)
+		_, err := pending.Await()
 		done <- err
 	}()
 	_ = awaitInteractionEvent(t, events)
@@ -97,17 +102,20 @@ func TestInteractionAutoResolutionDoesNotLeaveProviderBlocked(t *testing.T) {
 	service := &Service{interactions: newInteractionBroker()}
 	events := make(chan ChatEvent, 2)
 	done := make(chan error, 1)
+	pending := beginTestInteraction(
+		t,
+		service,
+		context.Background(),
+		"deadbeef",
+		agent.InteractionRequest{
+			ID:               "question-1",
+			ToolName:         "AskUserQuestion",
+			AutoResolutionMS: 20,
+		},
+		func(event ChatEvent) { events <- event },
+	)
 	go func() {
-		response, err := service.requestInteraction(
-			context.Background(),
-			"deadbeef",
-			agent.InteractionRequest{
-				ID:               "question-1",
-				ToolName:         "AskUserQuestion",
-				AutoResolutionMS: 20,
-			},
-			func(event ChatEvent) { events <- event },
-		)
+		response, err := pending.Await()
 		if err == nil && response.Answers == nil {
 			err = errors.New("auto-resolved response has nil answers")
 		}
@@ -136,18 +144,21 @@ func TestBlockingInteractionIgnoresAdapterTimeout(t *testing.T) {
 	service := &Service{interactions: newInteractionBroker()}
 	events := make(chan ChatEvent, 2)
 	done := make(chan error, 1)
+	pending := beginTestInteraction(
+		t,
+		service,
+		context.Background(),
+		"deadbeef",
+		agent.InteractionRequest{
+			ID:               "question-1",
+			ToolName:         "AskUserQuestion",
+			Blocking:         true,
+			AutoResolutionMS: 5,
+		},
+		func(event ChatEvent) { events <- event },
+	)
 	go func() {
-		_, err := service.requestInteraction(
-			context.Background(),
-			"deadbeef",
-			agent.InteractionRequest{
-				ID:               "question-1",
-				ToolName:         "AskUserQuestion",
-				Blocking:         true,
-				AutoResolutionMS: 5,
-			},
-			func(event ChatEvent) { events <- event },
-		)
+		_, err := pending.Await()
 		done <- err
 	}()
 	_ = awaitInteractionEvent(t, events)
@@ -175,17 +186,20 @@ func TestInteractionActivitySnoozesAutoResolution(t *testing.T) {
 	service := &Service{interactions: newInteractionBroker()}
 	events := make(chan ChatEvent, 2)
 	done := make(chan error, 1)
+	pending := beginTestInteraction(
+		t,
+		service,
+		context.Background(),
+		"deadbeef",
+		agent.InteractionRequest{
+			ID:               "question-1",
+			ToolName:         "AskUserQuestion",
+			AutoResolutionMS: 20,
+		},
+		func(event ChatEvent) { events <- event },
+	)
 	go func() {
-		_, err := service.requestInteraction(
-			context.Background(),
-			"deadbeef",
-			agent.InteractionRequest{
-				ID:               "question-1",
-				ToolName:         "AskUserQuestion",
-				AutoResolutionMS: 20,
-			},
-			func(event ChatEvent) { events <- event },
-		)
+		_, err := pending.Await()
 		done <- err
 	}()
 	_ = awaitInteractionEvent(t, events)
@@ -219,7 +233,9 @@ func TestInteractionRejectsResponseWhenContextAlreadyCancelled(t *testing.T) {
 	events := make(chan ChatEvent, 2)
 	accepted := true
 
-	_, err := service.requestInteraction(
+	pending := beginTestInteraction(
+		t,
+		service,
 		ctx,
 		"deadbeef",
 		agent.InteractionRequest{ID: "question-1", ToolName: "AskUserQuestion"},
@@ -234,6 +250,7 @@ func TestInteractionRejectsResponseWhenContextAlreadyCancelled(t *testing.T) {
 			}
 		},
 	)
+	_, err := pending.Await()
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v", err)
 	}
@@ -252,17 +269,20 @@ func TestSensitiveInteractionNeverEmitsAnswerContents(t *testing.T) {
 	events := make(chan ChatEvent, 2)
 	done := make(chan error, 1)
 	const secret = "do-not-persist-this-token"
+	pending := beginTestInteraction(
+		t,
+		service,
+		context.Background(),
+		"deadbeef",
+		agent.InteractionRequest{
+			ID:        "question-1",
+			ToolName:  "AskUserQuestion",
+			Sensitive: true,
+		},
+		func(event ChatEvent) { events <- event },
+	)
 	go func() {
-		_, err := service.requestInteraction(
-			context.Background(),
-			"deadbeef",
-			agent.InteractionRequest{
-				ID:        "question-1",
-				ToolName:  "AskUserQuestion",
-				Sensitive: true,
-			},
-			func(event ChatEvent) { events <- event },
-		)
+		_, err := pending.Await()
 		done <- err
 	}()
 	_ = awaitInteractionEvent(t, events)
@@ -283,6 +303,22 @@ func TestSensitiveInteractionNeverEmitsAnswerContents(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("sensitive interaction did not return")
 	}
+}
+
+func beginTestInteraction(
+	t *testing.T,
+	service *Service,
+	ctx context.Context,
+	chatID servicechat.ID,
+	request agent.InteractionRequest,
+	emit func(ChatEvent),
+) agent.PendingInteraction {
+	t.Helper()
+	pending, err := service.beginInteraction(ctx, chatID, request, emit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pending
 }
 
 func awaitInteractionEvent(t *testing.T, events <-chan ChatEvent) ChatEvent {

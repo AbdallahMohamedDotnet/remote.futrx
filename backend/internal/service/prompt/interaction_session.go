@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -21,6 +22,60 @@ type interactionResult struct {
 	err        error
 	resolution interactionResolution
 }
+
+// interactionSession is the provider-facing two-phase wait handle. Registration
+// and request emission finish before this handle is returned; Await owns the
+// remaining wait and terminal event lifecycle.
+type interactionSession struct {
+	pending *pendingInteractionSession
+	request agent.InteractionRequest
+	emit    func(ChatEvent)
+}
+
+func newInteractionSession(
+	pending *pendingInteractionSession,
+	request agent.InteractionRequest,
+	emit func(ChatEvent),
+) *interactionSession {
+	return &interactionSession{pending: pending, request: request, emit: emit}
+}
+
+func (session *interactionSession) Await() (agent.InteractionResponse, error) {
+	defer session.pending.finishWaiting()
+	result := session.pending.awaitResult()
+	switch result.resolution {
+	case interactionAnswered:
+		output := "Secret response received"
+		if !session.request.Sensitive {
+			encoded, _ := json.Marshal(result.response)
+			output = string(encoded)
+		}
+		session.emit(ChatEvent{
+			T:      time.Now().UnixMilli(),
+			Type:   "interaction_resolved",
+			ID:     session.request.ID,
+			Output: output,
+		})
+	case interactionAutoResolved:
+		session.emit(ChatEvent{
+			T:      time.Now().UnixMilli(),
+			Type:   "interaction_resolved",
+			ID:     session.request.ID,
+			Output: "No response before the agent continued",
+		})
+	default:
+		session.emit(ChatEvent{
+			T:       time.Now().UnixMilli(),
+			Type:    "interaction_resolved",
+			ID:      session.request.ID,
+			Output:  "Agent interaction cancelled",
+			IsError: true,
+		})
+	}
+	return result.response, result.err
+}
+
+var _ agent.PendingInteraction = (*interactionSession)(nil)
 
 // pendingInteractionSession owns the process-local wait state for one native
 // provider request. The broker owns registration and terminal election; this
