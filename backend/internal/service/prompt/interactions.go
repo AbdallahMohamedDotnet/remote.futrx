@@ -17,39 +17,17 @@ var (
 	ErrInteractionPending   = errors.New("agent interaction id is already pending")
 )
 
-type pendingInteraction struct {
-	ctx         context.Context
-	deadline    time.Time
-	autoSnoozed bool
-	activity    chan struct{}
-	result      chan interactionResult
-}
-
-type interactionResolution uint8
-
-const (
-	interactionAnswered interactionResolution = iota
-	interactionAutoResolved
-	interactionCancelled
-)
-
-type interactionResult struct {
-	response   agent.InteractionResponse
-	err        error
-	resolution interactionResolution
-}
-
 // interactionBroker keeps a running provider request correlated with a later
 // WebSocket response. Pending requests are scoped to a chat so provider item
 // IDs never collide across conversations.
 type interactionBroker struct {
 	mu      sync.Mutex
-	pending map[servicechat.ID]map[string]*pendingInteraction
+	pending map[servicechat.ID]map[string]*pendingInteractionSession
 }
 
 func newInteractionBroker() *interactionBroker {
 	return &interactionBroker{
-		pending: make(map[servicechat.ID]map[string]*pendingInteraction),
+		pending: make(map[servicechat.ID]map[string]*pendingInteractionSession),
 	}
 }
 
@@ -58,7 +36,7 @@ func (broker *interactionBroker) register(
 	interactionID string,
 	ctx context.Context,
 	deadline time.Time,
-) (*pendingInteraction, error) {
+) (*pendingInteractionSession, error) {
 	interactionID = strings.TrimSpace(interactionID)
 	if interactionID == "" {
 		return nil, ErrInvalidInteractionID
@@ -68,18 +46,13 @@ func (broker *interactionBroker) register(
 	defer broker.mu.Unlock()
 	byID := broker.pending[chatID]
 	if byID == nil {
-		byID = make(map[string]*pendingInteraction)
+		byID = make(map[string]*pendingInteractionSession)
 		broker.pending[chatID] = byID
 	}
 	if _, exists := byID[interactionID]; exists {
 		return nil, ErrInteractionPending
 	}
-	pending := &pendingInteraction{
-		ctx:      ctx,
-		deadline: deadline,
-		activity: make(chan struct{}),
-		result:   make(chan interactionResult, 1),
-	}
+	pending := newPendingInteractionSession(broker, chatID, interactionID, ctx, deadline)
 	byID[interactionID] = pending
 	return pending, nil
 }
@@ -88,29 +61,25 @@ func (broker *interactionBroker) register(
 // waiter then consumes that winner from a buffered channel; cancellation,
 // timeout, and a WebSocket answer can never all report success.
 func (broker *interactionBroker) complete(
-	chatID servicechat.ID,
-	interactionID string,
-	pending *pendingInteraction,
+	pending *pendingInteractionSession,
 	result interactionResult,
 ) bool {
 	broker.mu.Lock()
 	defer broker.mu.Unlock()
-	return broker.completeLocked(chatID, interactionID, pending, result)
+	return broker.completeLocked(pending, result)
 }
 
 func (broker *interactionBroker) completeLocked(
-	chatID servicechat.ID,
-	interactionID string,
-	pending *pendingInteraction,
+	pending *pendingInteractionSession,
 	result interactionResult,
 ) bool {
-	byID := broker.pending[chatID]
-	if byID == nil || byID[interactionID] != pending {
+	byID := broker.pending[pending.chatID]
+	if byID == nil || byID[pending.interactionID] != pending {
 		return false
 	}
-	delete(byID, interactionID)
+	delete(byID, pending.interactionID)
 	if len(byID) == 0 {
-		delete(broker.pending, chatID)
+		delete(broker.pending, pending.chatID)
 	}
 	pending.result <- result
 	return true
@@ -129,20 +98,20 @@ func (broker *interactionBroker) resolve(
 		return false
 	}
 	if err := pending.ctx.Err(); err != nil {
-		broker.completeLocked(chatID, interactionID, pending, interactionResult{
+		broker.completeLocked(pending, interactionResult{
 			err:        err,
 			resolution: interactionCancelled,
 		})
 		return false
 	}
 	if !pending.autoSnoozed && !pending.deadline.IsZero() && !time.Now().Before(pending.deadline) {
-		broker.completeLocked(chatID, interactionID, pending, interactionResult{
+		broker.completeLocked(pending, interactionResult{
 			response:   agent.InteractionResponse{Answers: map[string][]string{}},
 			resolution: interactionAutoResolved,
 		})
 		return false
 	}
-	return broker.completeLocked(chatID, interactionID, pending, interactionResult{
+	return broker.completeLocked(pending, interactionResult{
 		response:   response,
 		resolution: interactionAnswered,
 	})
@@ -164,14 +133,14 @@ func (broker *interactionBroker) snoozeAutoResolution(
 		return pending != nil
 	}
 	if err := pending.ctx.Err(); err != nil {
-		broker.completeLocked(chatID, interactionID, pending, interactionResult{
+		broker.completeLocked(pending, interactionResult{
 			err:        err,
 			resolution: interactionCancelled,
 		})
 		return false
 	}
 	if !time.Now().Before(pending.deadline) {
-		broker.completeLocked(chatID, interactionID, pending, interactionResult{
+		broker.completeLocked(pending, interactionResult{
 			response:   agent.InteractionResponse{Answers: map[string][]string{}},
 			resolution: interactionAutoResolved,
 		})
@@ -183,23 +152,21 @@ func (broker *interactionBroker) snoozeAutoResolution(
 }
 
 func (broker *interactionBroker) expireAutoResolution(
-	chatID servicechat.ID,
-	interactionID string,
-	pending *pendingInteraction,
+	pending *pendingInteractionSession,
 ) bool {
 	broker.mu.Lock()
 	defer broker.mu.Unlock()
-	byID := broker.pending[chatID]
-	if byID == nil || byID[interactionID] != pending || pending.autoSnoozed {
+	byID := broker.pending[pending.chatID]
+	if byID == nil || byID[pending.interactionID] != pending || pending.autoSnoozed {
 		return false
 	}
 	if err := pending.ctx.Err(); err != nil {
-		return broker.completeLocked(chatID, interactionID, pending, interactionResult{
+		return broker.completeLocked(pending, interactionResult{
 			err:        err,
 			resolution: interactionCancelled,
 		})
 	}
-	return broker.completeLocked(chatID, interactionID, pending, interactionResult{
+	return broker.completeLocked(pending, interactionResult{
 		response:   agent.InteractionResponse{Answers: map[string][]string{}},
 		resolution: interactionAutoResolved,
 	})
@@ -231,44 +198,8 @@ func (rnr *Service) requestInteraction(
 	if request.Registered != nil {
 		request.Registered()
 	}
-	var autoResolve <-chan time.Time
-	var timer *time.Timer
-	if !deadline.IsZero() {
-		delay := time.Until(deadline)
-		timer = time.NewTimer(delay)
-		autoResolve = timer.C
-		defer timer.Stop()
-	}
-
-	activity := (<-chan struct{})(pending.activity)
-	var result interactionResult
-	for {
-		select {
-		case result = <-pending.result:
-			goto resolved
-		case <-activity:
-			if timer != nil {
-				timer.Stop()
-			}
-			autoResolve = nil
-			activity = nil
-		case <-autoResolve:
-			if rnr.interactions.expireAutoResolution(chatID, request.ID, pending) {
-				result = <-pending.result
-				goto resolved
-			}
-			autoResolve = nil
-		case <-ctx.Done():
-			rnr.interactions.complete(chatID, request.ID, pending, interactionResult{
-				err:        ctx.Err(),
-				resolution: interactionCancelled,
-			})
-			result = <-pending.result
-			goto resolved
-		}
-	}
-
-resolved:
+	defer pending.finishWaiting()
+	result := pending.awaitResult()
 	switch result.resolution {
 	case interactionAnswered:
 		output := "Secret response received"
