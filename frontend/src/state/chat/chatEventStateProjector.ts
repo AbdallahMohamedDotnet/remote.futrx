@@ -5,24 +5,9 @@ import type {
   ChatMessageBlock,
 } from "../../models/chatMessage";
 import type { ChatUsageTotals } from "../../models/chatUsage";
+import { chatUsageAccumulator, EMPTY_USAGE_TOTALS } from "./chatUsageAccumulator.ts";
 
 type AssistantToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
-
-type Usage =
-  | {
-      input_tokens?: number;
-      output_tokens?: number;
-      cache_read_input_tokens?: number;
-      cache_creation_input_tokens?: number;
-    }
-  | null;
-
-const EMPTY_USAGE_TOTALS: ChatUsageTotals = {
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheReadTokens: 0,
-  cacheWriteTokens: 0,
-};
 
 export interface ChatRenderState {
   events: ChatEvent[];
@@ -51,17 +36,13 @@ class ChatEventStateProjector {
     events: ChatEvent[],
     page: Pick<ChatEventPage, "hasMore" | "nextBefore" | "lastSeq">
   ): ChatRenderState {
-    let usageTotals = EMPTY_USAGE_TOTALS;
-    for (const event of events) {
-      usageTotals = this.addUsage(usageTotals, event);
-    }
     return {
       events,
       blocks: events.reduce<ChatMessageBlock[]>(
         (blocks, event) => this.appendBlock(blocks, event),
         []
       ),
-      usageTotals,
+      usageTotals: chatUsageAccumulator.totalFor(events),
       eventCount: events.length,
       hasOlder: page.hasMore,
       nextBefore: page.nextBefore ?? 0,
@@ -112,23 +93,6 @@ class ChatEventStateProjector {
 
   private eventOrder(event: ChatEvent): number {
     return event.seq || event.t;
-  }
-
-  private addUsage(totals: ChatUsageTotals, event: ChatEvent): ChatUsageTotals {
-    if (event.type !== "complete" || !event.usage) return totals;
-
-    try {
-      const usage = (typeof event.usage === "string" ? JSON.parse(event.usage) : event.usage) as Usage;
-      if (!usage) return totals;
-      return {
-        inputTokens: totals.inputTokens + (usage.input_tokens ?? 0),
-        outputTokens: totals.outputTokens + (usage.output_tokens ?? 0),
-        cacheReadTokens: totals.cacheReadTokens + (usage.cache_read_input_tokens ?? 0),
-        cacheWriteTokens: totals.cacheWriteTokens + (usage.cache_creation_input_tokens ?? 0),
-      };
-    } catch {
-      return totals;
-    }
   }
 
   private appendBlock(blocks: ChatMessageBlock[], event: ChatEvent): ChatMessageBlock[] {
