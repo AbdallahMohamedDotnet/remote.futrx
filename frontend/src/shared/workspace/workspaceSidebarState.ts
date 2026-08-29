@@ -6,7 +6,7 @@ import type {
   WorkspaceSidebarModel,
 } from "../../models/workspace";
 import { STORAGE_KEYS } from "../../config/storageKeys.ts";
-import { readBool, readJson, writeBool, writeJson } from "../browserStore.ts";
+import { browserStorageService } from "../../services/browserStorageService.ts";
 
 interface ChatBuckets {
   byProject: Map<string, ChatMeta[]>;
@@ -114,18 +114,18 @@ class WorkspaceSidebarState {
   }
 
   readCollapsed(): boolean {
-    return readBool(STORAGE_KEYS.sidebarCollapsed);
+    return browserStorageService.readBool(STORAGE_KEYS.sidebarCollapsed);
   }
 
   writeCollapsed(collapsed: boolean): void {
-    writeBool(STORAGE_KEYS.sidebarCollapsed, collapsed);
+    browserStorageService.writeBool(STORAGE_KEYS.sidebarCollapsed, collapsed);
   }
 
   /** Which projects the user left folded, remembered across reloads. Projects
    *  missing from the map stay out of it, so `collapsedProjects` can still seed
    *  them from unread state the first time they show up. */
   readCollapsedProjects(): Record<string, boolean> {
-    const parsed = readJson(STORAGE_KEYS.collapsedProjects);
+    const parsed = browserStorageService.readJson(STORAGE_KEYS.collapsedProjects);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     const collapsed: Record<string, boolean> = {};
     for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
@@ -135,7 +135,7 @@ class WorkspaceSidebarState {
   }
 
   writeCollapsedProjects(collapsed: Record<string, boolean>): void {
-    writeJson(STORAGE_KEYS.collapsedProjects, collapsed);
+    browserStorageService.writeJson(STORAGE_KEYS.collapsedProjects, collapsed);
   }
 
   private bucketChatsByProject(chats: ChatMeta[]): ChatBuckets {

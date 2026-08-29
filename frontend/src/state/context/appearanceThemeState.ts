@@ -1,6 +1,6 @@
 import { SYSTEM_LIGHT_MEDIA_QUERY, VALID_APPEARANCE_THEMES } from "../../config/settings.ts";
 import { STORAGE_KEYS } from "../../config/storageKeys.ts";
-import { readString, writeString } from "../../shared/browserStore.ts";
+import { browserStorageService } from "../../services/browserStorageService.ts";
 import type { AppearanceTheme } from "../../models/settings";
 
 class AppearanceThemeState {
@@ -26,7 +26,7 @@ class AppearanceThemeState {
    * a light-theme user's app in dark for the length of the round-trip.
    */
   remembered(): AppearanceTheme {
-    const stored = readString(STORAGE_KEYS.themeChoice);
+    const stored = browserStorageService.readString(STORAGE_KEYS.themeChoice);
     return VALID_APPEARANCE_THEMES.has(stored as AppearanceTheme)
       ? (stored as AppearanceTheme)
       : "system";
@@ -36,7 +36,7 @@ class AppearanceThemeState {
   // default theme on every load. Cache the choice locally; the bootstrap script
   // in index.html reads it before the app mounts.
   private remember(theme: AppearanceTheme): void {
-    writeString(STORAGE_KEYS.themeChoice, theme);
+    browserStorageService.writeString(STORAGE_KEYS.themeChoice, theme);
   }
 
   // Keep the mobile browser/PWA chrome on the same ground as the app frame.

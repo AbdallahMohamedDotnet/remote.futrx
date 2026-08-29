@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from "../../config/storageKeys.ts";
-import { readBool, writeBool } from "../../shared/browserStore.ts";
+import { browserStorageService } from "../../services/browserStorageService.ts";
 
 /**
  * Whether the last session on this browser got all the way into the workspace.
@@ -11,9 +11,9 @@ import { readBool, writeBool } from "../../shared/browserStore.ts";
  * available signal, so it is remembered and used to pick which one to paint.
  */
 export function expectsWorkspace(): boolean {
-  return readBool(STORAGE_KEYS.workspaceBoot);
+  return browserStorageService.readBool(STORAGE_KEYS.workspaceBoot);
 }
 
 export function rememberWorkspaceBoot(reached: boolean): void {
-  writeBool(STORAGE_KEYS.workspaceBoot, reached);
+  browserStorageService.writeBool(STORAGE_KEYS.workspaceBoot, reached);
 }
