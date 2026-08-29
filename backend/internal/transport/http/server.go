@@ -43,7 +43,7 @@ type Handlers struct {
 	Auth              RouteRegistrar
 	Middleware        Middleware
 	Static            http.Handler
-	Usage            RouteRegistrar
+	Usage             RouteRegistrar
 }
 
 func NewHandler(handlers Handlers) http.Handler {
