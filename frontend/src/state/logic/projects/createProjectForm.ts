@@ -1,16 +1,8 @@
-import type { ProjectMeta } from "../../../models/project";
+import type { CreateProjectValidation, ProjectMeta } from "../../../models/project";
 
 // Mirrors backend project.MaxSlugLen so the preview matches what the server
 // will actually create.
 const MAX_SLUG_LEN = 32;
-
-export interface CreateProjectValidation {
-  ok: boolean;
-  slug: string;
-  // Error text when ok is false; informational "Saved as <slug>" when the
-  // slug differs from what was typed.
-  message: string;
-}
 
 class CreateProjectFormLogic {
   readonly maxSlugLen = MAX_SLUG_LEN;

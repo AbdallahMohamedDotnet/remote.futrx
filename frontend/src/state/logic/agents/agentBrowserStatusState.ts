@@ -1,12 +1,4 @@
-import type { AgentBrowserInfo, AgentBrowserStatus } from "../../../models/project";
-
-/** What one status report means for the drawer, and whether to keep polling. */
-export interface AgentBrowserView {
-  status: AgentBrowserStatus;
-  guiUrl: string;
-  error: string | null;
-  keepPolling: boolean;
-}
+import type { AgentBrowserInfo, AgentBrowserView } from "../../../models/project";
 
 // Reads a backend status report as the three values the drawer renders. Kept
 // apart from the session hook so the rules — a ready browser without an address
