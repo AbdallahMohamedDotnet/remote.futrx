@@ -1,6 +1,8 @@
-import type { AgentAuthProvider, AgentAuthSnapshot } from "../../../models/auth";
-
-export type AgentAuthStatusKind = "no-auth" | "authenticated" | "external" | "unconfigured";
+import type {
+  AgentAuthProvider,
+  AgentAuthSnapshot,
+  AgentAuthStatusKind,
+} from "../../../models/auth";
 
 export function agentAuthStatusKind(entry: AgentAuthProvider): AgentAuthStatusKind {
   if (entry.authentication.mode === "none") return "no-auth";

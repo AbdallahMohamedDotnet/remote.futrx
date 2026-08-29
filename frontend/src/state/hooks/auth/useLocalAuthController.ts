@@ -1,8 +1,7 @@
 import { useState } from "preact/hooks";
 import { localAuthApi } from "../../../api/authApi";
+import type { LoginMode } from "../../../models/auth";
 import { returnUrlPolicy } from "../../logic/auth/returnUrlPolicy";
-
-export type LoginMode = "claim" | "login" | "legacy-setup";
 
 interface LocalAuthControllerOptions {
   mode: LoginMode;
