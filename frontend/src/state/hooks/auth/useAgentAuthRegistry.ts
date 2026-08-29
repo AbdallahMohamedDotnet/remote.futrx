@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { agentAuthApi } from "../../../api/agents/auth/agentAuthApi";
 import type {
   AgentAuthLoginSnapshot,
@@ -31,19 +31,21 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
   const [starting, setStarting] = useState<Record<string, boolean>>({});
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
-  function setProviderStarting(provider: string, value: boolean) {
+  // Every writer below reaches state through a setState updater, never through
+  // the closure, so none of them can go stale and none needs dependencies.
+  const setProviderStarting = useCallback((provider: string, value: boolean) => {
     setStarting((current) => ({ ...current, [provider]: value }));
-  }
+  }, []);
 
-  function setProviderError(provider: string, value: string) {
+  const setProviderError = useCallback((provider: string, value: string) => {
     setActionErrors((current) => ({ ...current, [provider]: value }));
-  }
+  }, []);
 
-  function updateLogin(
+  const updateLogin = useCallback((
     provider: string,
     login: AgentAuthLoginSnapshot,
     replace = false,
-  ) {
+  ) => {
     setProviders((current) => {
       const entry = current.find((candidate) => candidate.provider === provider);
       if (!entry) return current;
@@ -52,9 +54,9 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
         login: replace ? login : { ...entry.status.login, ...login },
       });
     });
-  }
+  }, []);
 
-  async function runAction(provider: string, action: () => Promise<void>) {
+  const runAction = useCallback(async (provider: string, action: () => Promise<void>) => {
     setProviderStarting(provider, true);
     setProviderError(provider, "");
     try {
@@ -64,9 +66,9 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     } finally {
       setProviderStarting(provider, false);
     }
-  }
+  }, [setProviderStarting, setProviderError]);
 
-  async function startCodeLogin(provider: string) {
+  const startCodeLogin = useCallback(async (provider: string) => {
     await runAction(provider, async () => {
       const result = await agentAuthApi.startCodeLogin(provider);
       updateLogin(provider, {
@@ -75,26 +77,26 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
         awaitingCode: true,
       });
     });
-  }
+  }, [runAction, updateLogin]);
 
-  async function submitCode(provider: string, code: string) {
+  const submitCode = useCallback(async (provider: string, code: string) => {
     await runAction(provider, async () => {
       await agentAuthApi.submitCode(provider, code);
     });
-  }
+  }, [runAction]);
 
-  async function cancelCodeLogin(provider: string) {
+  const cancelCodeLogin = useCallback(async (provider: string) => {
     await runAction(provider, async () => {
       await agentAuthApi.cancelCodeLogin(provider);
       updateLogin(provider, { active: false }, true);
     });
-  }
+  }, [runAction, updateLogin]);
 
-  async function startDeviceLogin(provider: string) {
+  const startDeviceLogin = useCallback(async (provider: string) => {
     await runAction(provider, async () => {
       updateLogin(provider, await agentAuthApi.startDeviceLogin(provider), true);
     });
-  }
+  }, [runAction, updateLogin]);
 
   useEffect(() => {
     if (!enabled) {
@@ -142,7 +144,7 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     };
   }, [enabled]);
 
-  return {
+  return useMemo(() => ({
     providers,
     loading,
     checked,
@@ -154,5 +156,16 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     submitCode,
     cancelCodeLogin,
     startDeviceLogin,
-  };
+  }), [
+    providers,
+    loading,
+    checked,
+    error,
+    starting,
+    actionErrors,
+    startCodeLogin,
+    submitCode,
+    cancelCodeLogin,
+    startDeviceLogin,
+  ]);
 }
