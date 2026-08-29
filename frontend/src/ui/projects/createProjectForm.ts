@@ -1,5 +1,5 @@
-import { PROJECT_MAX_SLUG_LEN } from "../../../config/project.ts";
-import type { CreateProjectValidation, ProjectMeta } from "../../../models/project";
+import { PROJECT_MAX_SLUG_LEN } from "../../config/project.ts";
+import type { CreateProjectValidation, ProjectMeta } from "../../models/project";
 
 class CreateProjectFormLogic {
   // Mirrors backend Slugify (service/project/slug.go), except the empty

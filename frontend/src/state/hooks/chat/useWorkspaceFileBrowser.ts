@@ -4,7 +4,7 @@ import { WORKSPACE_FILE_SEARCH_DEBOUNCE_MS } from "../../../config/api";
 import { API_ROUTES } from "../../../config/routes";
 import type { FileNode } from "../../../models/files";
 import { mediaViewerStore } from "../../stores/mediaViewerStore";
-import { workspaceFileBrowserState } from "../../logic/workspace/workspaceFileBrowserState";
+import { workspaceFileBrowserState } from "./workspaceFileBrowserState";
 import { fileOpenAction } from "../../../shared/fileMeta";
 
 export interface WorkspaceFileTreeState {

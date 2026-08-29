@@ -5,7 +5,7 @@ import type {
   ReasoningEffort,
   ServiceTier,
 } from "../../../models/chat";
-import { agentCapabilityState } from "../../logic/agents/agentCapabilityState";
+import { agentCapabilityState } from "./agentCapabilityState";
 import { unavailableManagedAgents } from "../../logic/auth/agentAuthRegistryState";
 import { useAuthContext } from "../../context/AuthContext";
 import { useAgentCapabilities } from "./useAgentCapabilities";

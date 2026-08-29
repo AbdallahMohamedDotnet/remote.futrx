@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import { localAuthApi } from "../../../api/authApi";
 import { MIN_LOCAL_PASSWORD_LENGTH } from "../../../config/auth";
 import type { LoginMode } from "../../../models/auth";
-import { returnUrlPolicy } from "../../logic/auth/returnUrlPolicy";
+import { returnUrlPolicy } from "./returnUrlPolicy";
 
 interface LocalAuthControllerOptions {
   mode: LoginMode;

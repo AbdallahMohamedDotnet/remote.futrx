@@ -10,7 +10,7 @@ import type {
   ChatStatus,
   PromptOutcome,
 } from "../../../models/chat";
-import { chatEventStateProjector } from "../../logic/chat/chatEventStateProjector";
+import { chatEventStateProjector } from "./chatEventStateProjector";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 
 interface UseChatResult {

@@ -4,7 +4,7 @@ import type { ChatMeta } from "../../../models/chat.ts";
 import type { ProjectMeta } from "../../../models/project.ts";
 import { STORAGE_KEYS } from "../../../config/storageKeys.ts";
 import { workspaceSidebarState } from "./workspaceSidebarState.ts";
-import { workspaceUiState } from "./workspaceUiState.ts";
+import { workspaceUiState } from "../../context/workspaceUiState.ts";
 
 const projects: ProjectMeta[] = [
   {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_USER_SETTINGS } from "../../../config/settings.ts";
-import { STORAGE_KEYS } from "../../../config/storageKeys.ts";
+import { DEFAULT_USER_SETTINGS } from "../../config/settings.ts";
+import { STORAGE_KEYS } from "../../config/storageKeys.ts";
 import { appearanceThemeState } from "./appearanceThemeState.ts";
 
 /** Stands in for the browser: a theme cache plus an OS that prefers dark. */

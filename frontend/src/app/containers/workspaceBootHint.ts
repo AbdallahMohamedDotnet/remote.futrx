@@ -1,5 +1,5 @@
-import { STORAGE_KEYS } from "../../../config/storageKeys.ts";
-import { readBool, writeBool } from "../../../shared/browserStore.ts";
+import { STORAGE_KEYS } from "../../config/storageKeys.ts";
+import { readBool, writeBool } from "../../shared/browserStore.ts";
 
 /**
  * Whether the last session on this browser got all the way into the workspace.

@@ -5,7 +5,7 @@ import {
   AGENT_BROWSER_POLL_INTERVAL_MS,
 } from "../../../config/agents";
 import type { AgentBrowserInfo, AgentBrowserStatus } from "../../../models/project";
-import { agentBrowserStatusState } from "../../logic/agents/agentBrowserStatusState.ts";
+import { agentBrowserStatusState } from "./agentBrowserStatusState.ts";
 
 // useAgentBrowserSession asks the backend to bring up the in-container Agent
 // Browser and tracks its status over project REST endpoints. Pixels do NOT

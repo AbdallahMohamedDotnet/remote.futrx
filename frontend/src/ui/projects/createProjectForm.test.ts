@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PROJECT_MAX_SLUG_LEN } from "../../../config/project.ts";
-import type { ProjectMeta } from "../../../models/project.ts";
+import { PROJECT_MAX_SLUG_LEN } from "../../config/project.ts";
+import type { ProjectMeta } from "../../models/project.ts";
 import { createProjectForm } from "./createProjectForm.ts";
 
 function project(overrides: Partial<ProjectMeta>): ProjectMeta {

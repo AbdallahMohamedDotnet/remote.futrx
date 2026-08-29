@@ -3,7 +3,7 @@ import type { ChatStatus, PromptOutcome } from "../../../models/chat";
 import { useConfirm } from "../../context/ConfirmContext";
 import { chatAttachmentState } from "../../logic/chat/chatAttachmentState";
 import { chatComposerSessionStore } from "../../stores/composerSessionStore";
-import { promptQueueState } from "../../logic/chat/promptQueueState";
+import { promptQueueState } from "./promptQueueState";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
 import { useDragUpload } from "./useDragUpload";

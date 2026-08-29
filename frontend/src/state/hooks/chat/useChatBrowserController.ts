@@ -6,7 +6,7 @@ import type { ContainerApp, ProjectMeta } from "../../../models/project";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { projectApi } from "../../../api/projectApi";
 import { projectPreviewPort } from "../../../shared/projectPreviewUrls";
-import { chatBrowserState } from "../../logic/chat/chatBrowserState";
+import { chatBrowserState } from "./chatBrowserState";
 
 export function useChatBrowserController({
   chat,

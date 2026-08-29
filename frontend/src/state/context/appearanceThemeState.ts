@@ -1,7 +1,7 @@
-import { SYSTEM_LIGHT_MEDIA_QUERY, VALID_APPEARANCE_THEMES } from "../../../config/settings.ts";
-import { STORAGE_KEYS } from "../../../config/storageKeys.ts";
-import { readString, writeString } from "../../../shared/browserStore.ts";
-import type { AppearanceTheme } from "../../../models/settings";
+import { SYSTEM_LIGHT_MEDIA_QUERY, VALID_APPEARANCE_THEMES } from "../../config/settings.ts";
+import { STORAGE_KEYS } from "../../config/storageKeys.ts";
+import { readString, writeString } from "../../shared/browserStore.ts";
+import type { AppearanceTheme } from "../../models/settings";
 
 class AppearanceThemeState {
   apply(theme: AppearanceTheme): void {

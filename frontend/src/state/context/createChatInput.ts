@@ -1,5 +1,5 @@
-import type { CreateChatInput } from "../../../models/chat";
-import type { ChatSettings } from "../../../models/settings";
+import type { CreateChatInput } from "../../models/chat";
+import type { ChatSettings } from "../../models/settings";
 
 /**
  * The create-chat payload seeded from the user's saved chat preferences.

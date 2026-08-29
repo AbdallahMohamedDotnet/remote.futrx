@@ -9,7 +9,7 @@ import {
 } from "../../models/settings";
 import { settingsApi } from "../../api/settingsApi";
 import { DEFAULT_USER_SETTINGS } from "../../config/settings";
-import { appearanceThemeState } from "../logic/settings/appearanceThemeState";
+import { appearanceThemeState } from "./appearanceThemeState";
 
 interface UserSettingsContextValue {
   settings: UserSettings;

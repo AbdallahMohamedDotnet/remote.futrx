@@ -1,7 +1,7 @@
 import type {
   WorkspaceUiAction,
   WorkspaceUiState,
-} from "../../../models/workspace";
+} from "../../models/workspace";
 
 class WorkspaceUiStateTransitions {
   // A notification tap on a cold start arrives as ?chat=<id>, so the first

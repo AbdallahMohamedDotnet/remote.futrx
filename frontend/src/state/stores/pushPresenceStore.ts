@@ -12,7 +12,7 @@
 
 import { pushApi } from "../../api/pushApi";
 import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../config/push";
-import { isPushPageFocused } from "../logic/push/pushPageFocus";
+import { isPushPageFocused } from "./pushPageFocus";
 
 /**
  * Keeps the server's idea of what this client is watching in step with what is

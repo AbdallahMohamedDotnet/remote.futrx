@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatSettings } from "../../../models/settings.ts";
+import type { ChatSettings } from "../../models/settings.ts";
 import { createChatInput } from "./createChatInput.ts";
 
 const settings: ChatSettings = {
