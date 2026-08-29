@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { usageApi } from "../../../api/usageApi";
+import { USAGE_RECORD_PAGE_LIMIT } from "../../../config/api";
 import type { UsageDrillDown, UsageRange } from "../../../models/usage";
-
-const DRILL_DOWN_LIMIT = 100;
 
 /** The per-project record list opened from a summary row, paged by cursor. */
 export function useUsageDrillDown(range: UsageRange) {
@@ -30,7 +29,7 @@ export function useUsageDrillDown(range: UsageRange) {
           from: range.from,
           to: range.to,
           projectId: projectId || undefined,
-          limit: DRILL_DOWN_LIMIT,
+          limit: USAGE_RECORD_PAGE_LIMIT,
           cursor: nextCursor,
         });
         setCursor(page.nextCursor);

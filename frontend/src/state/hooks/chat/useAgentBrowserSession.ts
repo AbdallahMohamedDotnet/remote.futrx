@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { agentBrowserApi } from "../../../api/agents/agentBrowserApi";
+import {
+  AGENT_BROWSER_HEARTBEAT_INTERVAL_MS,
+  AGENT_BROWSER_POLL_INTERVAL_MS,
+} from "../../../config/agents";
 import type { AgentBrowserInfo, AgentBrowserStatus } from "../../../models/project";
 import { agentBrowserStatusState } from "../../logic/agents/agentBrowserStatusState.ts";
-
-const pollIntervalMs = 1500;
-const heartbeatIntervalMs = 15000;
 
 // useAgentBrowserSession asks the backend to bring up the in-container Agent
 // Browser and tracks its status over project REST endpoints. Pixels do NOT
@@ -66,7 +67,9 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
       try {
         const info = await agentBrowserApi.fetchAgentBrowserStatus(projectId);
         if (!isCurrent()) return;
-        if (applyInfo(info)) pollTimer = window.setTimeout(pollStatus, pollIntervalMs);
+        if (applyInfo(info)) {
+          pollTimer = window.setTimeout(pollStatus, AGENT_BROWSER_POLL_INTERVAL_MS);
+        }
       } catch (err) {
         if (!isCurrent()) return;
         setError((err as Error).message || "Failed to check the agent browser.");
@@ -87,7 +90,9 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
     agentBrowserApi.startAgentBrowser(projectId)
       .then((info) => {
         if (!isCurrent()) return;
-        if (applyInfo(info)) pollTimer = window.setTimeout(pollStatus, pollIntervalMs);
+        if (applyInfo(info)) {
+          pollTimer = window.setTimeout(pollStatus, AGENT_BROWSER_POLL_INTERVAL_MS);
+        }
       })
       .catch((err) => {
         if (!isCurrent()) return;
@@ -96,7 +101,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
       });
     heartbeatRef.current = window.setInterval(() => {
       void heartbeatStatus();
-    }, heartbeatIntervalMs);
+    }, AGENT_BROWSER_HEARTBEAT_INTERVAL_MS);
 
     return () => {
       disposed = true;

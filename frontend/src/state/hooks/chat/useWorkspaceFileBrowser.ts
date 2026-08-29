@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "preact/hooks";
 import { chatFilesApi } from "../../../api/chat/chatFilesApi";
+import { WORKSPACE_FILE_SEARCH_DEBOUNCE_MS } from "../../../config/api";
 import { API_ROUTES } from "../../../config/routes";
 import type { FileNode } from "../../../models/files";
 import { mediaViewerStore } from "../../stores/mediaViewerStore";
@@ -91,7 +92,7 @@ export function useWorkspaceFileBrowser({ chatId, active }: { chatId: string; ac
         if (!activeSearch) return;
         dispatch({ type: "search-failed", error: (error as Error).message });
       }
-    }, 250);
+    }, WORKSPACE_FILE_SEARCH_DEBOUNCE_MS);
     return () => {
       activeSearch = false;
       clearTimeout(timer);
