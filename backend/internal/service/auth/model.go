@@ -5,6 +5,10 @@ import "errors"
 const (
 	SessionCookieName = "remote_session"
 	StateCookieName   = "remote_oauth_state"
+	// PendingTwoFactorCookieName carries the short-lived pending-login token
+	// between a completed first factor (password/Google) and the 2FA challenge
+	// endpoint. Its lifetime is PendingTwoFactorDuration.
+	PendingTwoFactorCookieName = "remote_2fa_pending"
 )
 
 var ErrOAuthConfigNotFound = errors.New("oauth config not found")

@@ -60,7 +60,7 @@ func TestPendingTokenIsNotAcceptedAsSessionCookie(t *testing.T) {
 	if loginRec.Code != http.StatusOK {
 		t.Fatalf("login status = %d", loginRec.Code)
 	}
-	pending, ok := attacker.cookies[pendingTwoFactorCookieName]
+	pending, ok := attacker.cookies[serviceauth.PendingTwoFactorCookieName]
 	if !ok {
 		t.Fatalf("expected a pending 2FA cookie, got %v", attacker.cookies)
 	}
@@ -146,13 +146,13 @@ func TestTwoFactorCancelClearsPendingChallenge(t *testing.T) {
 
 	client := newCookieJar(mux)
 	client.do(t, http.MethodPost, "/auth/local/login", map[string]string{"email": email, "password": password})
-	if _, ok := client.cookies[pendingTwoFactorCookieName]; !ok {
+	if _, ok := client.cookies[serviceauth.PendingTwoFactorCookieName]; !ok {
 		t.Fatal("no pending cookie after first factor")
 	}
 	if rec := client.do(t, http.MethodPost, "/auth/2fa/cancel", nil); rec.Code != http.StatusNoContent {
 		t.Fatalf("cancel status = %d, want 204", rec.Code)
 	}
-	if _, ok := client.cookies[pendingTwoFactorCookieName]; ok {
+	if _, ok := client.cookies[serviceauth.PendingTwoFactorCookieName]; ok {
 		t.Fatal("pending cookie survived cancel")
 	}
 	if rec := client.do(t, http.MethodPost, "/auth/2fa/verify", map[string]string{
@@ -238,7 +238,7 @@ func TestDisableThenLoginNeedsNoSecondFactor(t *testing.T) {
 	if _, ok := client.cookies[serviceauth.SessionCookieName]; !ok {
 		t.Fatal("login after disabling 2FA did not issue a session cookie")
 	}
-	if _, ok := client.cookies[pendingTwoFactorCookieName]; ok {
+	if _, ok := client.cookies[serviceauth.PendingTwoFactorCookieName]; ok {
 		t.Fatal("login after disabling 2FA still demanded a second factor")
 	}
 }
@@ -257,7 +257,7 @@ func TestWrongPasswordNeverStartsATwoFactorChallenge(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("bad-password login status = %d, want 401", rec.Code)
 	}
-	if _, ok := client.cookies[pendingTwoFactorCookieName]; ok {
+	if _, ok := client.cookies[serviceauth.PendingTwoFactorCookieName]; ok {
 		t.Fatal("a wrong password produced a pending 2FA challenge")
 	}
 }

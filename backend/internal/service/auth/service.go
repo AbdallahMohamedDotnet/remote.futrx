@@ -462,3 +462,7 @@ func (s *Service) Status(ctx context.Context, cookieValue string) Status {
 func SessionDuration() time.Duration {
 	return sessionDuration
 }
+
+func PendingTwoFactorDuration() time.Duration {
+	return pendingLoginTTL
+}
