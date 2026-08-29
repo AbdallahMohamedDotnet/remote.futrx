@@ -4,10 +4,7 @@ import type {
   AgentAuthLoginSnapshot,
   AgentAuthProvider,
 } from "../../../models/auth";
-import {
-  agentAuthGateReady,
-  updateAgentAuthProvider,
-} from "../../../shared/agents/agentAuthRegistryState";
+import { agentAuthRegistryService } from "../../../services/agentAuthRegistryService.ts";
 
 export interface AgentAuthRegistryState {
   providers: AgentAuthProvider[];
@@ -55,7 +52,7 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     setProviders((current) => {
       const entry = current.find((candidate) => candidate.provider === provider);
       if (!entry) return current;
-      return updateAgentAuthProvider(current, provider, {
+      return agentAuthRegistryService.updateProvider(current, provider, {
         ...entry.status,
         login: replace ? login : { ...entry.status.login, ...login },
       });
@@ -136,7 +133,7 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
           subscriptions.push(agentAuthApi.subscribe(entry.provider, (status) => {
             if (cancelled) return;
             setProviders((current) =>
-              updateAgentAuthProvider(current, entry.provider, status));
+              agentAuthRegistryService.updateProvider(current, entry.provider, status));
           }));
         }
       })
@@ -157,7 +154,7 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     providers,
     loading,
     checked,
-    gateReady: agentAuthGateReady(providers),
+    gateReady: agentAuthRegistryService.gateReady(providers),
     error,
     starting,
     actionErrors,

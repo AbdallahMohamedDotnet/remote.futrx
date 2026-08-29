@@ -6,7 +6,7 @@ import type {
   ServiceTier,
 } from "../../../models/chat";
 import { agentCapabilityState } from "./agentCapabilityState";
-import { unavailableManagedAgents } from "../../../shared/agents/agentAuthRegistryState";
+import { agentAuthRegistryService } from "../../../services/agentAuthRegistryService.ts";
 import { useAuthContext } from "../../context/AuthContext";
 import { useAgentCapabilities } from "./useAgentCapabilities";
 
@@ -38,7 +38,7 @@ export function useComposerAgentCapabilities({
 
   const unavailableProviders = useMemo(() => {
     const unavailable: Partial<Record<ChatProvider, string>> =
-      unavailableManagedAgents(agentAuth.providers, providerAuthChecked);
+      agentAuthRegistryService.unavailableManaged(agentAuth.providers, providerAuthChecked);
     for (const item of capabilities.catalog?.providers ?? []) {
       if (item.unavailableReason) {
         unavailable[item.provider] = item.unavailableReason;
