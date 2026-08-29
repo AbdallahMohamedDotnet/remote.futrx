@@ -3,7 +3,7 @@ import type { UsageRange, UsageRangePreset } from "../../../models/usage";
 import {
   usageRangeForPreset,
   usageRangeFromDates,
-} from "../../logic/usage/usageRangeState";
+} from "../../../shared/usage/usageRangeState";
 
 /** The selected window. Owns nothing but the range and how it is chosen. */
 export function useUsageRange() {

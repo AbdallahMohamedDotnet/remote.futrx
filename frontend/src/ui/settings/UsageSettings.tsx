@@ -6,8 +6,8 @@ import {
   formatCostWithConfidence,
   formatTokens,
   usageConfidenceNote,
-} from "../../state/logic/usage/usageChartModel";
-import { usageRangeLabels } from "../../state/logic/usage/usageRangeState";
+} from "../../shared/usage/usageChartModel";
+import { usageRangeLabels } from "../../shared/usage/usageRangeState";
 import { AlertCircle, Loader, RotateCcw } from "../primitives/icons";
 import { UsageBarChart } from "./usage/UsageBarChart";
 import { UsageGroupTable, UsageRecordsTable } from "./usage/UsageTables";

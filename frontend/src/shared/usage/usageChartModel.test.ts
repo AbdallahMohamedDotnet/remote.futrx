@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EMPTY_USAGE_TOTALS, type UsageDayPoint } from "../../../models/usage.ts";
+import { EMPTY_USAGE_TOTALS, type UsageDayPoint } from "../../models/usage.ts";
 import {
   buildUsageChart,
   formatCostWithConfidence,

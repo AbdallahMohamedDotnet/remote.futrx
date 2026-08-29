@@ -11,7 +11,7 @@ import { useWorkspacePushLifecycle } from "../hooks/push/useWorkspacePushLifecyc
 import { useUserSettingsContext } from "./UserSettingsContext";
 import type { WorkspaceUiState } from "../../models/workspace";
 import { workspaceUiState } from "./workspaceUiState";
-import { workspaceSidebarState } from "../logic/workspace/workspaceSidebarState";
+import { workspaceSidebarState } from "../../shared/workspace/workspaceSidebarState";
 import { agentCapabilityCatalogStore } from "../stores/agentCapabilityCatalog";
 import { takePushNotificationChatId } from "./pushNotificationNavigation";
 import { useAuthContext } from "./AuthContext";

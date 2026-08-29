@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ChatStatus, PromptOutcome } from "../../../models/chat";
 import { useConfirm } from "../../context/ConfirmContext";
-import { chatAttachmentState } from "../../logic/chat/chatAttachmentState";
+import { chatAttachmentState } from "../../../shared/chat/chatAttachmentState";
 import { chatComposerSessionStore } from "../../stores/composerSessionStore";
 import { promptQueueState } from "./promptQueueState";
 import { useAttachmentUpload } from "./useAttachmentUpload";

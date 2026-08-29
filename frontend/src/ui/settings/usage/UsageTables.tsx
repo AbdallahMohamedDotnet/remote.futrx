@@ -3,7 +3,7 @@ import type { UsageGroup, UsageGroupBy, UsageRecord } from "../../../models/usag
 import {
   formatTokens,
   formatUsd,
-} from "../../../state/logic/usage/usageChartModel";
+} from "../../../shared/usage/usageChartModel";
 import { ChevronRight, Loader, X } from "../../primitives/icons";
 
 const GROUP_HEADINGS: Record<UsageGroupBy, string> = {

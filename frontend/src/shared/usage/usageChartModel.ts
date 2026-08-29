@@ -3,7 +3,7 @@ import type {
   UsageChartModel,
   UsageDayPoint,
   UsageTotals,
-} from "../../../models/usage";
+} from "../../models/usage";
 
 /**
  * Geometry and formatting for the Usage page's inline-SVG bar chart. Kept out

@@ -1,12 +1,12 @@
-import type { ChatMeta } from "../../../models/chat";
-import type { ProjectMeta } from "../../../models/project";
+import type { ChatMeta } from "../../models/chat";
+import type { ProjectMeta } from "../../models/project";
 import type {
   DropPosition,
   ProjectSidebarNode,
   WorkspaceSidebarModel,
-} from "../../../models/workspace";
-import { STORAGE_KEYS } from "../../../config/storageKeys.ts";
-import { readBool, readJson, writeBool, writeJson } from "../../../shared/browserStore.ts";
+} from "../../models/workspace";
+import { STORAGE_KEYS } from "../../config/storageKeys.ts";
+import { readBool, readJson, writeBool, writeJson } from "../browserStore.ts";
 
 interface ChatBuckets {
   byProject: Map<string, ChatMeta[]>;

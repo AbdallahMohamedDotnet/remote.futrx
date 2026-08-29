@@ -6,7 +6,7 @@ import type {
   ServiceTier,
 } from "../../../models/chat";
 import { agentCapabilityState } from "./agentCapabilityState";
-import { unavailableManagedAgents } from "../../logic/auth/agentAuthRegistryState";
+import { unavailableManagedAgents } from "../../../shared/agents/agentAuthRegistryState";
 import { useAuthContext } from "../../context/AuthContext";
 import { useAgentCapabilities } from "./useAgentCapabilities";
 
