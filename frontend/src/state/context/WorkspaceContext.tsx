@@ -49,6 +49,9 @@ export function WorkspaceProvider({
   enabled: boolean;
   children: ComponentChildren;
 }) {
+  ////////////////
+  // Local State
+  ////////////////
   const data = useWorkspaceData(enabled);
   const { auth } = useAuthContext();
   const { settings } = useUserSettingsContext();
@@ -61,45 +64,12 @@ export function WorkspaceProvider({
   const capabilityUserId = auth.email || auth.adminEmail || "anonymous";
   const activeCapabilityProjectId = activeChat?.projectId;
 
-  useEffect(() => {
-    if (!enabled || !activeChat) return;
-    void agentCapabilityCatalogStore
-      .load(capabilityUserId, activeCapabilityProjectId)
-      .catch(() => undefined);
-  }, [enabled, capabilityUserId, activeCapabilityProjectId, activeChat?.id]);
-
+  ////////////////
+  // Handlers
+  ////////////////
   const openPushChat = useCallback((chatId: string) => {
     dispatch({ type: "select-chat", chatId });
   }, []);
-  useWorkspacePushLifecycle({
-    activeChatId: ui.activeChatId,
-    view: ui.view,
-    openChat: openPushChat,
-  });
-
-  useEffect(() => {
-    const chatId = workspaceSidebarState.initialChatId(enabled, ui.activeChatId, data.chats);
-    if (chatId) dispatch({ type: "select-chat", chatId });
-  }, [data.chats, enabled, ui.activeChatId]);
-
-  // Layout effect, not a passive one: the render that drops the chat from the
-  // list already resolves activeChat to null, so a passive effect would let the
-  // browser paint the "no chat selected" screen before the handover lands.
-  useLayoutEffect(() => {
-    // Wait for the first snapshot: a chat id handed over by a notification tap
-    // would otherwise be discarded against a not-yet-populated list.
-    if (!data.loaded) return;
-    if (workspaceSidebarState.isActiveChatMissing(data.chats, ui.activeChatId)) {
-      // Hand straight over to the next chat instead of clearing the selection:
-      // clearing renders the "no chat selected" empty state for the one frame
-      // before the initial-chat effect picks a replacement, which reads as a
-      // flash of the New project screen after deleting a chat.
-      dispatch({
-        type: "select-chat",
-        chatId: workspaceSidebarState.replacementChatId(data.chats),
-      });
-    }
-  }, [data.chats, data.loaded, ui.activeChatId]);
 
   const createProject = useCallback(async (name: string): Promise<ProjectMeta> => {
     const project = await projectApi.create(name);
@@ -146,6 +116,49 @@ export function WorkspaceProvider({
   const openCreateProject = useCallback(() => dispatch({ type: "open-create-project" }), []);
   const closeCreateProject = useCallback(() => dispatch({ type: "close-create-project" }), []);
 
+  ////////////////
+  // Effects
+  ////////////////
+  useEffect(() => {
+    if (!enabled || !activeChat) return;
+    void agentCapabilityCatalogStore
+      .load(capabilityUserId, activeCapabilityProjectId)
+      .catch(() => undefined);
+  }, [enabled, capabilityUserId, activeCapabilityProjectId, activeChat?.id]);
+
+  useWorkspacePushLifecycle({
+    activeChatId: ui.activeChatId,
+    view: ui.view,
+    openChat: openPushChat,
+  });
+
+  useEffect(() => {
+    const chatId = workspaceSidebarState.initialChatId(enabled, ui.activeChatId, data.chats);
+    if (chatId) dispatch({ type: "select-chat", chatId });
+  }, [data.chats, enabled, ui.activeChatId]);
+
+  // Layout effect, not a passive one: the render that drops the chat from the
+  // list already resolves activeChat to null, so a passive effect would let the
+  // browser paint the "no chat selected" screen before the handover lands.
+  useLayoutEffect(() => {
+    // Wait for the first snapshot: a chat id handed over by a notification tap
+    // would otherwise be discarded against a not-yet-populated list.
+    if (!data.loaded) return;
+    if (workspaceSidebarState.isActiveChatMissing(data.chats, ui.activeChatId)) {
+      // Hand straight over to the next chat instead of clearing the selection:
+      // clearing renders the "no chat selected" empty state for the one frame
+      // before the initial-chat effect picks a replacement, which reads as a
+      // flash of the New project screen after deleting a chat.
+      dispatch({
+        type: "select-chat",
+        chatId: workspaceSidebarState.replacementChatId(data.chats),
+      });
+    }
+  }, [data.chats, data.loaded, ui.activeChatId]);
+
+  ////////////////
+  // Context Value
+  ////////////////
   // preact force-renders every subscriber whenever the provider's value fails a
   // `!=` check, so a fresh literal here repainted the whole workspace subtree on
   // any render of this provider — including ones driven by upstream auth or
