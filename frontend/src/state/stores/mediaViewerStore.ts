@@ -1,10 +1,4 @@
-import type { MediaKind } from "../../models/files";
-
-export interface MediaViewerItem {
-  url: string;
-  name: string;
-  kind: MediaKind;
-}
+import type { MediaViewerItem } from "../../models/files";
 
 type Listener = (item: MediaViewerItem | null) => void;
 

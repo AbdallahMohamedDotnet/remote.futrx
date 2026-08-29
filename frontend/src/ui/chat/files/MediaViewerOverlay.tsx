@@ -1,5 +1,6 @@
 import { useEffect } from "preact/hooks";
-import { useMediaViewer, type MediaViewerItem } from "../../../state/hooks/chat/useMediaViewer";
+import type { MediaViewerItem } from "../../../models/files";
+import { useMediaViewer } from "../../../state/hooks/chat/useMediaViewer";
 import { Download, ExternalLink, X } from "../../primitives/icons";
 
 // Full-screen host for the in-app media viewer. Mounted once per chat view;

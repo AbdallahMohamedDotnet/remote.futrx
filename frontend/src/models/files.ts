@@ -24,3 +24,35 @@ export interface FileSearchResult {
 /** What the in-app viewer can render inline, mirroring the backend's
  *  workspacefiles mediaTypes. */
 export type MediaKind = "image" | "video" | "audio" | "pdf";
+
+export interface MediaViewerItem {
+  url: string;
+  name: string;
+  kind: MediaKind;
+}
+
+export interface WorkspaceFileBrowserState {
+  childrenByDir: Map<string, FileNode[]>;
+  expanded: Set<string>;
+  loading: Set<string>;
+  errorByDir: Map<string, string>;
+  truncatedDirs: Set<string>;
+  rootLoading: boolean;
+  query: string;
+  searchResults: FileNode[] | null;
+  searchTruncated: boolean;
+  searching: boolean;
+  searchError: string | null;
+}
+
+export type WorkspaceFileBrowserAction =
+  | { type: "reset" }
+  | { type: "directory-load-started"; path: string }
+  | { type: "directory-load-succeeded"; path: string; entries: FileNode[]; truncated: boolean }
+  | { type: "directory-load-failed"; path: string; error: string }
+  | { type: "directory-toggled"; path: string }
+  | { type: "query-changed"; query: string }
+  | { type: "search-idle" }
+  | { type: "search-started" }
+  | { type: "search-succeeded"; entries: FileNode[]; truncated: boolean }
+  | { type: "search-failed"; error: string };
