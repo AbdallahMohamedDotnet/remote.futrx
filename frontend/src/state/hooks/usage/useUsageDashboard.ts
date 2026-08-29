@@ -1,11 +1,14 @@
 import { useMemo } from "preact/hooks";
-import type { UsageGroupBy, UsageSummary } from "../../../models/usage";
-import type { UsageRange, UsageRangePreset } from "../../logic/usage/usageRangeState";
-import { useUsageDrillDown, type UsageDrillDown } from "./useUsageDrillDown";
+import type {
+  UsageDrillDown,
+  UsageGroupBy,
+  UsageRange,
+  UsageRangePreset,
+  UsageSummary,
+} from "../../../models/usage";
+import { useUsageDrillDown } from "./useUsageDrillDown";
 import { useUsageRange } from "./useUsageRange";
 import { useUsageSummary } from "./useUsageSummary";
-
-export type { UsageDrillDown };
 
 export interface UsageDashboard {
   range: UsageRange;

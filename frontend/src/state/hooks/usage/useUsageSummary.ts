@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { usageApi } from "../../../api/usageApi";
-import type { UsageGroupBy, UsageSummary } from "../../../models/usage";
-import type { UsageRange } from "../../logic/usage/usageRangeState";
+import type { UsageGroupBy, UsageRange, UsageSummary } from "../../../models/usage";
 
 /**
  * The aggregate query for the selected window and grouping.

@@ -1,7 +1,6 @@
 import { useState } from "preact/hooks";
-import type { UsageGroupBy } from "../../models/usage";
+import type { UsageChartMetric, UsageGroupBy } from "../../models/usage";
 import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
-import type { UsageChartMetric } from "../../state/logic/usage/usageChartModel";
 import {
   formatCostWithConfidence,
   formatTokens,

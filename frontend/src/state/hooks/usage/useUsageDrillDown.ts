@@ -1,18 +1,8 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { usageApi } from "../../../api/usageApi";
-import type { UsageRecord } from "../../../models/usage";
-import type { UsageRange } from "../../logic/usage/usageRangeState";
+import type { UsageDrillDown, UsageRange } from "../../../models/usage";
 
 const DRILL_DOWN_LIMIT = 100;
-
-export interface UsageDrillDown {
-  projectId: string;
-  label: string;
-  records: UsageRecord[];
-  loading: boolean;
-  error: string | null;
-  hasMore: boolean;
-}
 
 /** The per-project record list opened from a summary row, paged by cursor. */
 export function useUsageDrillDown(range: UsageRange) {

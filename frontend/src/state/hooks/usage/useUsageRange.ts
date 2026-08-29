@@ -1,9 +1,8 @@
 import { useCallback, useState } from "preact/hooks";
+import type { UsageRange, UsageRangePreset } from "../../../models/usage";
 import {
   usageRangeForPreset,
   usageRangeFromDates,
-  type UsageRange,
-  type UsageRangePreset,
 } from "../../logic/usage/usageRangeState";
 
 /** The selected window. Owns nothing but the range and how it is chosen. */

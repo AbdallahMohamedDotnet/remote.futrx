@@ -1,29 +1,15 @@
-import type { UsageDayPoint, UsageTotals } from "../../../models/usage";
+import type {
+  UsageChartMetric,
+  UsageChartModel,
+  UsageDayPoint,
+  UsageTotals,
+} from "../../../models/usage";
 
 /**
  * Geometry and formatting for the Usage page's inline-SVG bar chart. Kept out
  * of the component so the scaling rules are unit-testable and the view stays
  * a pure renderer.
  */
-export type UsageChartMetric = "tokens" | "cost";
-
-export interface UsageChartBar {
-  day: string;
-  value: number;
-  /** Fraction of the tallest bar, 0..1. */
-  ratio: number;
-  runs: number;
-  label: string;
-}
-
-export interface UsageChartModel {
-  bars: UsageChartBar[];
-  peak: number;
-  peakLabel: string;
-  /** True when every day in the window is empty, so the view can say so. */
-  isEmpty: boolean;
-}
-
 export function buildUsageChart(
   daily: UsageDayPoint[],
   metric: UsageChartMetric

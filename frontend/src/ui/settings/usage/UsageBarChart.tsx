@@ -1,4 +1,5 @@
-import { buildUsageChart, type UsageChartMetric } from "../../../state/logic/usage/usageChartModel";
+import type { UsageChartMetric } from "../../../models/usage";
+import { buildUsageChart } from "../../../state/logic/usage/usageChartModel";
 import type { UsageDayPoint } from "../../../models/usage";
 
 const VIEW_WIDTH = 720;

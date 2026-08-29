@@ -1,24 +1,14 @@
+import type {
+  UsageRange,
+  UsageRangeLabels,
+  UsageRangePreset,
+} from "../../../models/usage";
+
 /**
- * Date-range selection for the Usage page.
- *
- * Every range resolves to a half-open millisecond window the backend can
- * filter on. Days are bounded in UTC because the ledger buckets records by
- * UTC day, so a range picked in any timezone lines up with the bars drawn
- * from the same response.
+ * Date-range selection for the Usage page. Days are bounded in UTC because the
+ * ledger buckets records by UTC day, so a range picked in any timezone lines up
+ * with the bars drawn from the same response.
  */
-export type UsageRangePreset = "7d" | "30d" | "month" | "custom";
-
-export interface UsageRange {
-  preset: UsageRangePreset;
-  from: number;
-  to: number;
-}
-
-export interface UsageRangeLabels {
-  fromDate: string;
-  toDate: string;
-}
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const USAGE_RANGE_PRESETS: Array<{ id: UsageRangePreset; label: string }> = [
