@@ -5,7 +5,7 @@ import { API_ROUTES } from "../../../config/routes";
 import type { FileNode } from "../../../models/files";
 import { mediaViewerStore } from "../../stores/mediaViewerStore";
 import { workspaceFileBrowserState } from "./workspaceFileBrowserState";
-import { fileOpenAction } from "../../../shared/fileMeta";
+import { fileService } from "../../../services/fileService.ts";
 
 export interface WorkspaceFileTreeState {
   expanded: Set<string>;
@@ -117,7 +117,7 @@ export function useWorkspaceFileBrowser({ chatId, active }: { chatId: string; ac
   const openFile = useCallback(
     (node: FileNode) => {
       if (node.isDir) return;
-      const target = fileOpenAction(node.name);
+      const target = fileService.openAction(node.name);
       const containerPath = `/workspace/${node.path}`;
       if (target.action === "media") {
         mediaViewerStore.open({
