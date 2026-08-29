@@ -1,4 +1,4 @@
-import type { MediaKind } from "../../ui/chat/files/fileMeta";
+import type { MediaKind } from "../../models/files";
 
 export interface MediaViewerItem {
   url: string;

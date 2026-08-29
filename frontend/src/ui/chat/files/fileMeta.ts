@@ -1,3 +1,5 @@
+import type { MediaKind } from "../../../models/files";
+
 export type FileCategory =
   | "image"
   | "video"
@@ -27,8 +29,6 @@ export function categorize(name: string): FileCategory {
   if (dot < 0) return "text";
   return EXT_CATEGORY[name.slice(dot + 1).toLowerCase()] ?? "text";
 }
-
-export type MediaKind = "image" | "video" | "audio" | "pdf";
 
 // Mirrors the backend's supported inline media types (workspacefiles
 // mediaTypes): only these extensions render through the media-open endpoint.

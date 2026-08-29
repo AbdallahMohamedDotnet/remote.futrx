@@ -20,3 +20,7 @@ export interface FileSearchResult {
   /** True when the search hit its result/visit cap and is partial. */
   truncated: boolean;
 }
+
+/** What the in-app viewer can render inline, mirroring the backend's
+ *  workspacefiles mediaTypes. */
+export type MediaKind = "image" | "video" | "audio" | "pdf";
