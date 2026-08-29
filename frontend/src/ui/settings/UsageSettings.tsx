@@ -3,7 +3,7 @@ import { USAGE_RANGE_PRESETS } from "../../config/usage";
 import type { UsageChartMetric, UsageGroupBy } from "../../models/usage";
 import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
 import { usageFormatService } from "../../services/usageFormatService.ts";
-import { usageRangeLabels } from "../../shared/usage/usageRangeState";
+import { usageRangeService } from "../../services/usageRangeService.ts";
 import { AlertCircle, Loader, RotateCcw } from "../primitives/icons";
 import { UsageBarChart } from "./usage/UsageBarChart";
 import { UsageGroupTable, UsageRecordsTable } from "./usage/UsageTables";
@@ -31,7 +31,7 @@ export function UsageSettings({
 }) {
   const [metric, setMetric] = useState<UsageChartMetric>("tokens");
   const { summary, range, groupBy, drillDown } = dashboard;
-  const labels = usageRangeLabels(range);
+  const labels = usageRangeService.labels(range);
   const totals = summary?.totals;
   const note = totals ? usageFormatService.confidenceNote(totals) : null;
 
