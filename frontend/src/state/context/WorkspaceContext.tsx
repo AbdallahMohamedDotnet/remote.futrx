@@ -103,35 +103,50 @@ export function WorkspaceProvider({
     }
   }, [data.chats, data.loaded, ui.activeChatId]);
 
-  async function createProject(name: string): Promise<ProjectMeta> {
+  const createProject = useCallback(async (name: string): Promise<ProjectMeta> => {
     const project = await projectApi.create(name);
     return project;
-  }
+  }, []);
 
-  async function createChat(projectId?: string): Promise<ChatMeta> {
+  const createChat = useCallback(async (projectId?: string): Promise<ChatMeta> => {
     const chat = await chatApi.create(createChatInput(settings.chat, projectId));
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
-  }
+  }, [settings.chat]);
 
-  async function deleteChat(chatId: string) {
+  const deleteChat = useCallback(async (chatId: string) => {
     await chatApi.delete(chatId);
-  }
+  }, []);
 
-  async function forkChat(chatId: string): Promise<ChatMeta> {
+  const forkChat = useCallback(async (chatId: string): Promise<ChatMeta> => {
     const chat = await chatApi.fork(chatId);
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
-  }
+  }, []);
 
-  async function deleteProject(projectId: string) {
+  const deleteProject = useCallback(async (projectId: string) => {
     await projectApi.delete(projectId);
     agentCapabilityCatalogStore.removeProject(capabilityUserId, projectId);
-  }
+  }, [capabilityUserId]);
 
-  async function reorderProjects(projectIds: string[]) {
+  const reorderProjects = useCallback(async (projectIds: string[]) => {
     await projectApi.reorder(projectIds);
-  }
+  }, []);
+
+  // Dispatch-only commands. preact creates `dispatch` once, so these close over
+  // nothing that can go stale and need no dependencies.
+  const selectChat = useCallback((chatId: string | null) => {
+    dispatch({ type: "select-chat", chatId });
+  }, []);
+  const openSidebar = useCallback(() => dispatch({ type: "open-sidebar" }), []);
+  const closeSidebar = useCallback(() => dispatch({ type: "close-sidebar" }), []);
+  const showChat = useCallback(() => dispatch({ type: "show-chat" }), []);
+  const showSettings = useCallback(() => dispatch({ type: "show-settings" }), []);
+  const showProjectContainers = useCallback((projectId: string | null) => {
+    dispatch({ type: "show-project-containers", projectId });
+  }, []);
+  const openCreateProject = useCallback(() => dispatch({ type: "open-create-project" }), []);
+  const closeCreateProject = useCallback(() => dispatch({ type: "close-create-project" }), []);
 
   return (
     <WorkspaceContext.Provider
@@ -141,15 +156,14 @@ export function WorkspaceProvider({
         activeChat,
         loaded: data.loaded,
         ui,
-        selectChat: (chatId) => dispatch({ type: "select-chat", chatId }),
-        openSidebar: () => dispatch({ type: "open-sidebar" }),
-        closeSidebar: () => dispatch({ type: "close-sidebar" }),
-        showChat: () => dispatch({ type: "show-chat" }),
-        showSettings: () => dispatch({ type: "show-settings" }),
-        showProjectContainers: (projectId) =>
-          dispatch({ type: "show-project-containers", projectId }),
-        openCreateProject: () => dispatch({ type: "open-create-project" }),
-        closeCreateProject: () => dispatch({ type: "close-create-project" }),
+        selectChat,
+        openSidebar,
+        closeSidebar,
+        showChat,
+        showSettings,
+        showProjectContainers,
+        openCreateProject,
+        closeCreateProject,
         createProject,
         createChat,
         deleteChat,
