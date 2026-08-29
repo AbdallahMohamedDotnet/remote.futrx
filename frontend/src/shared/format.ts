@@ -1,11 +1,3 @@
-// Shorten an absolute path by collapsing $HOME to ~.
-export function shortenPath(p: string, home = "/root"): string {
-  if (!p) return "~";
-  if (p === home) return "~";
-  if (p.startsWith(home + "/")) return "~" + p.slice(home.length);
-  return p;
-}
-
 // Format a unix-ms timestamp as a "5m ago" / "2h ago" / absolute-date string.
 export function timeAgo(ms: number, now = Date.now()): string {
   const sec = Math.max(0, Math.floor((now - ms) / 1000));
