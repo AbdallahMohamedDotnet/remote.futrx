@@ -1,6 +1,7 @@
 import type { QueuedPrompt } from "../../models/chat";
+import { SESSION_STORAGE_KEYS } from "../../config/storageKeys.ts";
 
-const STORAGE_KEY = "remote.futrx.composerSession.v1";
+const STORAGE_KEY = SESSION_STORAGE_KEYS.composerSession;
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
 
