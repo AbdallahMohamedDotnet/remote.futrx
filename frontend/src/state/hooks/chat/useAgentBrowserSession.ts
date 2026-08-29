@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { agentBrowserApi } from "../../../api/agents/agentBrowserApi";
 import type { AgentBrowserInfo, AgentBrowserStatus } from "../../../models/project";
+import { agentBrowserStatusState } from "../../chat/agentBrowserStatusState.ts";
 
 const pollIntervalMs = 1500;
 const heartbeatIntervalMs = 15000;
@@ -28,29 +29,14 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
     };
   }, []);
 
+  // All three setters run in every branch, so applying them in one fixed order
+  // is the same result the cascade produced.
   const applyInfo = useCallback((info: AgentBrowserInfo): boolean => {
-    if (info.status === "ready") {
-      if (!info.url) {
-        setGuiUrl("");
-        setError("Agent browser started but returned an incomplete address.");
-        setStatus("error");
-        return false;
-      }
-      setError(null);
-      setGuiUrl(info.url);
-      setStatus("ready");
-      return false;
-    }
-    if (info.status === "error") {
-      setGuiUrl("");
-      setError(info.error || "Failed to start the agent browser.");
-      setStatus("error");
-      return false;
-    }
-    setError(null);
-    setGuiUrl("");
-    setStatus(info.status);
-    return info.status === "starting" || info.status === "core-ready";
+    const view = agentBrowserStatusState.resolve(info);
+    setGuiUrl(view.guiUrl);
+    setError(view.error);
+    setStatus(view.status);
+    return view.keepPolling;
   }, []);
 
   const stopHeartbeat = useCallback(() => {
