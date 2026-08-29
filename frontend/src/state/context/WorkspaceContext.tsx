@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
-import { useCallback, useContext, useEffect, useLayoutEffect, useReducer } from "preact/hooks";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer } from "preact/hooks";
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatApi } from "../../api/chatApi";
@@ -148,30 +148,54 @@ export function WorkspaceProvider({
   const openCreateProject = useCallback(() => dispatch({ type: "open-create-project" }), []);
   const closeCreateProject = useCallback(() => dispatch({ type: "close-create-project" }), []);
 
+  // preact force-renders every subscriber whenever the provider's value fails a
+  // `!=` check, so a fresh literal here repainted the whole workspace subtree on
+  // any render of this provider — including ones driven by upstream auth or
+  // settings ticks this tree does not read.
+  const value = useMemo<WorkspaceContextValue>(() => ({
+    chats: data.chats,
+    projects: data.projects,
+    activeChat,
+    loaded: data.loaded,
+    ui,
+    selectChat,
+    openSidebar,
+    closeSidebar,
+    showChat,
+    showSettings,
+    showProjectContainers,
+    openCreateProject,
+    closeCreateProject,
+    createProject,
+    createChat,
+    deleteChat,
+    forkChat,
+    deleteProject,
+    reorderProjects,
+  }), [
+    data.chats,
+    data.projects,
+    data.loaded,
+    activeChat,
+    ui,
+    selectChat,
+    openSidebar,
+    closeSidebar,
+    showChat,
+    showSettings,
+    showProjectContainers,
+    openCreateProject,
+    closeCreateProject,
+    createProject,
+    createChat,
+    deleteChat,
+    forkChat,
+    deleteProject,
+    reorderProjects,
+  ]);
+
   return (
-    <WorkspaceContext.Provider
-      value={{
-        chats: data.chats,
-        projects: data.projects,
-        activeChat,
-        loaded: data.loaded,
-        ui,
-        selectChat,
-        openSidebar,
-        closeSidebar,
-        showChat,
-        showSettings,
-        showProjectContainers,
-        openCreateProject,
-        closeCreateProject,
-        createProject,
-        createChat,
-        deleteChat,
-        forkChat,
-        deleteProject,
-        reorderProjects,
-      }}
-    >
+    <WorkspaceContext.Provider value={value}>
       {children}
     </WorkspaceContext.Provider>
   );
