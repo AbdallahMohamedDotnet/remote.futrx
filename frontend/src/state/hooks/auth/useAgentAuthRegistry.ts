@@ -1,7 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { agentAuthApi } from "../../../api/agents/auth/agentAuthApi";
 import type {
-  AgentAuthCatalog,
   AgentAuthLoginSnapshot,
   AgentAuthProvider,
   AgentAuthSnapshot,
@@ -19,7 +18,6 @@ export interface AgentAuthRegistryState {
   error: string | null;
   starting: Readonly<Record<string, boolean>>;
   actionErrors: Readonly<Record<string, string>>;
-  refresh: () => Promise<void>;
   startCodeLogin: (provider: string) => Promise<void>;
   submitCode: (provider: string, code: string) => Promise<void>;
   cancelCodeLogin: (provider: string) => Promise<void>;
@@ -36,26 +34,6 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
 
   function applyStatus(provider: string, status: AgentAuthSnapshot) {
     setProviders((current) => updateAgentAuthProvider(current, provider, status));
-  }
-
-  async function fetchCatalog(): Promise<AgentAuthCatalog> {
-    const catalog = await agentAuthApi.fetchCatalog();
-    setProviders(catalog.providers);
-    setError(null);
-    setChecked(true);
-    return catalog;
-  }
-
-  async function refresh() {
-    setLoading(true);
-    try {
-      await fetchCatalog();
-    } catch (caught) {
-      setError((caught as Error).message);
-      setChecked(true);
-    } finally {
-      setLoading(false);
-    }
   }
 
   function setProviderStarting(provider: string, value: boolean) {
@@ -175,7 +153,6 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     error,
     starting,
     actionErrors,
-    refresh,
     startCodeLogin,
     submitCode,
     cancelCodeLogin,
