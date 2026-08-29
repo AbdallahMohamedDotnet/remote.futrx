@@ -1,4 +1,4 @@
-import type { MediaViewerItem } from "../../models/files";
+import type { MediaViewerItem } from "../../../models/files";
 
 type Listener = (item: MediaViewerItem | null) => void;
 

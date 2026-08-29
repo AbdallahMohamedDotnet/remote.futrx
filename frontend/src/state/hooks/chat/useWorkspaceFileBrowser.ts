@@ -3,7 +3,7 @@ import { chatFilesApi } from "../../../api/chat/chatFilesApi";
 import { WORKSPACE_FILE_SEARCH_DEBOUNCE_MS } from "../../../config/api";
 import { API_ROUTES } from "../../../config/routes";
 import type { FileNode } from "../../../models/files";
-import { mediaViewerStore } from "../../stores/mediaViewerStore";
+import { mediaViewerStore } from "../../stores/media/mediaViewerStore";
 import { workspaceFileBrowserState } from "./workspaceFileBrowserState";
 import { fileService } from "../../../services/files/fileService.ts";
 

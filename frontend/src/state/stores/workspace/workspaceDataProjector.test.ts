@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatMeta } from "../../models/chat.ts";
+import type { ChatMeta } from "../../../models/chat.ts";
 import { workspaceDataProjector } from "./workspaceDataProjector.ts";
 
 test("detects generic and legacy provider session changes", () => {

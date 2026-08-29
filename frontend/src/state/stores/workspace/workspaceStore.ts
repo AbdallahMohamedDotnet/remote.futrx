@@ -1,7 +1,7 @@
-import type { ChatMeta } from "../../models/chat";
-import type { ProjectMeta } from "../../models/project";
-import type { WorkspaceSnapshot } from "../../models/workspace";
-import type { WorkspaceMessage } from "../../types/workspaceApi";
+import type { ChatMeta } from "../../../models/chat";
+import type { ProjectMeta } from "../../../models/project";
+import type { WorkspaceSnapshot } from "../../../models/workspace";
+import type { WorkspaceMessage } from "../../../types/workspaceApi";
 import { workspaceDataProjector } from "./workspaceDataProjector.ts";
 
 /** Opens the workspace feed and reports messages until the returned call. */

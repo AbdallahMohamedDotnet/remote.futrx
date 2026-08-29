@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { mediaViewerStore } from "../../../state/stores/mediaViewerStore";
+import { mediaViewerStore } from "../../../state/stores/media/mediaViewerStore";
 import { fileService } from "../../../services/files/fileService.ts";
 import { internalPathOpenUrl } from "../ideLinks";
 

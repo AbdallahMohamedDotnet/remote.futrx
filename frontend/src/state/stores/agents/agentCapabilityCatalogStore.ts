@@ -1,7 +1,7 @@
 import type {
   AgentCapabilitiesCatalog,
   AgentCapabilityCatalogSnapshot,
-} from "../../models/agentCapabilities";
+} from "../../../models/agentCapabilities";
 
 type CatalogRequester = (
   projectId?: string,

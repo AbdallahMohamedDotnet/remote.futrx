@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { workspaceApi } from "../../../api/workspaceApi";
 import type { WorkspaceSnapshot } from "../../../models/workspace";
-import { WorkspaceStore } from "../../stores/workspaceStore";
+import { WorkspaceStore } from "../../stores/workspace/workspaceStore";
 
 // One feed for the whole app. The concrete socket is wired here rather than
 // inside the store so the store stays free of the api layer and testable.

@@ -10,8 +10,8 @@
 // laptop you are typing on may have no subscription at all, and it is still
 // the reason the phone should stay silent.
 
-import { pushApi } from "../../api/pushApi";
-import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../config/push";
+import { pushApi } from "../../../api/pushApi";
+import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../../config/push";
 import { isPushPageFocused } from "./pushPageFocus";
 
 /**

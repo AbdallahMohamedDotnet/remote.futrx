@@ -2,8 +2,8 @@ import { useEffect } from "preact/hooks";
 
 import { pushSubscriptionApi } from "../../../api/pushSubscriptionApi";
 import type { WorkspaceView } from "../../../models/workspace";
-import { pushNotificationStore } from "../../stores/pushNotificationStore";
-import { pushPresenceStore } from "../../stores/pushPresenceStore";
+import { pushNotificationStore } from "../../stores/push/pushNotificationStore";
+import { pushPresenceStore } from "../../stores/push/pushPresenceStore";
 
 interface WorkspacePushLifecycleOptions {
   activeChatId: string | null;

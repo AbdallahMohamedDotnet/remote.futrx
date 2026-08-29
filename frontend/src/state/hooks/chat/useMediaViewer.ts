@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import type { MediaViewerItem } from "../../../models/files";
-import { mediaViewerStore } from "../../stores/mediaViewerStore";
+import { mediaViewerStore } from "../../stores/media/mediaViewerStore";
 
 /**
  * The media viewer's current item, as a subscription.

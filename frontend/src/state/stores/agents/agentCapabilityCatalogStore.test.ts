@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentCapabilitiesCatalog } from "../../models/agentCapabilities.ts";
+import type { AgentCapabilitiesCatalog } from "../../../models/agentCapabilities.ts";
 import { AgentCapabilityCatalogStore } from "./agentCapabilityCatalogStore.ts";
 
 function catalog(label: string): AgentCapabilitiesCatalog {

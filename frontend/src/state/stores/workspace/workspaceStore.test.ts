@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatMeta } from "../../models/chat.ts";
-import type { WorkspaceMessage } from "../../types/workspaceApi.ts";
+import type { ChatMeta } from "../../../models/chat.ts";
+import type { WorkspaceMessage } from "../../../types/workspaceApi.ts";
 import { WorkspaceStore } from "./workspaceStore.ts";
 
 function chat(id: string, lastMessageAt = 1): ChatMeta {

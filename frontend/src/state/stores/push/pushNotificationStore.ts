@@ -1,4 +1,4 @@
-import { pushServiceWorkerApi } from "../../api/pushServiceWorkerApi";
+import { pushServiceWorkerApi } from "../../../api/pushServiceWorkerApi";
 import { isPushPageFocused } from "./pushPageFocus";
 
 type ChatOpener = (chatId: string | null) => void;
