@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
-import { useContext, useEffect, useRef } from "preact/hooks";
+import { useContext, useEffect, useMemo, useRef } from "preact/hooks";
 import { agentCapabilityCatalogStore } from "../agents/agentCapabilityCatalog";
 import { agentAuthRevision } from "../auth/agentAuthRegistryState";
 import { useAgentAuthRegistry, type AgentAuthRegistryState } from "../hooks/auth/useAgentAuthRegistry";
@@ -53,17 +53,21 @@ export function AuthProvider({ children }: { children: ComponentChildren }) {
     agentCapabilityCatalogStore.invalidateUser(current.userId);
   }, [auth.email, auth.adminEmail, providerAuthChecked, revision]);
 
+  // preact force-renders every subscriber whenever this value fails a `!=`
+  // check, and ten call sites read this context — the sidebar and the composer
+  // among them. A fresh literal here repainted all of them on every agent-auth
+  // websocket push, however unrelated.
+  const value = useMemo<AuthContextValue>(() => ({
+    auth,
+    agentAuth,
+    appAuthOk,
+    providerAuthChecked,
+    providerAuthenticated,
+    gateOpen,
+  }), [auth, agentAuth, appAuthOk, providerAuthChecked, providerAuthenticated, gateOpen]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        auth,
-        agentAuth,
-        appAuthOk,
-        providerAuthChecked,
-        providerAuthenticated,
-        gateOpen,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
