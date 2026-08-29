@@ -1,6 +1,6 @@
-import type { ChatMeta } from "../models/chat.ts";
-import type { ProjectMeta } from "../models/project.ts";
-import type { Attachment } from "../models/upload.ts";
+import type { ChatMeta } from "../../models/chat.ts";
+import type { ProjectMeta } from "../../models/project.ts";
+import type { Attachment } from "../../models/upload.ts";
 
 class ChatAttachmentService {
   basePath(chat: ChatMeta, projects: ProjectMeta[]): string {

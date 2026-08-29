@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EMPTY_USAGE_TOTALS } from "../models/usage.ts";
+import { EMPTY_USAGE_TOTALS } from "../../models/usage.ts";
 import { usageFormatService } from "./usageFormatService.ts";
 
 test("formats tokens compactly", () => {

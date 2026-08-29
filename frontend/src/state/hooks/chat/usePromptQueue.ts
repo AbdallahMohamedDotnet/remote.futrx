@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ChatStatus, PromptOutcome, QueuedPrompt } from "../../../models/chat";
-import { idService } from "../../../services/idService.ts";
+import { idService } from "../../../services/platform/idService.ts";
 import { chatComposerSessionStore } from "../../stores/composerSessionStore";
 import { promptQueueState } from "./promptQueueState";
 

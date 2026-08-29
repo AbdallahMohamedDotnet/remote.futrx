@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
-import { workspaceSidebarService } from "../../../services/workspaceSidebarService.ts";
+import { workspaceSidebarService } from "../../../services/workspace/workspaceSidebarService.ts";
 
 export function useSidebarState(
   open: boolean,

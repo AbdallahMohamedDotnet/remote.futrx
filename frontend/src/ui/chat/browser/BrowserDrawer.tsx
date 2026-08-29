@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { PUBLIC_HOSTNAME } from "../../../config/runtime";
 import type { BrowserElementCapture } from "../../../models/browser";
 import type { ContainerApp } from "../../../models/project";
-import { projectPreviewUrlService } from "../../../services/projectPreviewUrlService.ts";
+import { projectPreviewUrlService } from "../../../services/projects/projectPreviewUrlService.ts";
 import { useAgentBrowserSession } from "../../../state/hooks/chat/useAgentBrowserSession";
 import { BrowserDrawerHeader } from "./BrowserDrawerHeader";
 import { BrowserFrame } from "./BrowserFrame";

@@ -1,4 +1,4 @@
-import { fileService } from "../../services/fileService.ts";
+import { fileService } from "../../services/files/fileService.ts";
 
 export const defaultWorkspacePath = "/opt/remote.futrx";
 

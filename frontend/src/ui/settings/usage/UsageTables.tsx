@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import type { UsageGroup, UsageGroupBy, UsageRecord } from "../../../models/usage";
-import { usageFormatService } from "../../../services/usageFormatService.ts";
+import { usageFormatService } from "../../../services/usage/usageFormatService.ts";
 import { ChevronRight, Loader, X } from "../../primitives/icons";
 
 const GROUP_HEADINGS: Record<UsageGroupBy, string> = {

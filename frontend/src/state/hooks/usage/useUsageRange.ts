@@ -1,6 +1,6 @@
 import { useCallback, useState } from "preact/hooks";
 import type { UsageRange, UsageRangePreset } from "../../../models/usage";
-import { usageRangeService } from "../../../services/usageRangeService.ts";
+import { usageRangeService } from "../../../services/usage/usageRangeService.ts";
 
 /** The selected window. Owns nothing but the range and how it is chosen. */
 export function useUsageRange() {

@@ -1,5 +1,5 @@
 import type { ChatMeta } from "../../models/chat";
-import { relativeTimeService } from "../../services/relativeTimeService.ts";
+import { relativeTimeService } from "../../services/platform/relativeTimeService.ts";
 import { Eye, EyeOff, GitFork, Loader, MessageSquare, X } from "../primitives/icons";
 
 const rowActionClass =

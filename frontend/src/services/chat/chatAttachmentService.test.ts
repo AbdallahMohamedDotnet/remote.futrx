@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatMeta } from "../models/chat.ts";
-import type { ProjectMeta } from "../models/project.ts";
+import type { ChatMeta } from "../../models/chat.ts";
+import type { ProjectMeta } from "../../models/project.ts";
 import { chatAttachmentService } from "./chatAttachmentService.ts";
 
 const chat: ChatMeta = {

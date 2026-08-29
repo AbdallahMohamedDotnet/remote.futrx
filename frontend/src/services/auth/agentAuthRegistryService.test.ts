@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentAuthProvider } from "../models/auth.ts";
+import type { AgentAuthProvider } from "../../models/auth.ts";
 import { agentAuthRegistryService } from "./agentAuthRegistryService.ts";
 
 function provider(

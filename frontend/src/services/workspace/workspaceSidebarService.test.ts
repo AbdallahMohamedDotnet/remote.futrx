@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatMeta } from "../models/chat.ts";
-import type { ProjectMeta } from "../models/project.ts";
-import { STORAGE_KEYS } from "../config/storageKeys.ts";
+import type { ChatMeta } from "../../models/chat.ts";
+import type { ProjectMeta } from "../../models/project.ts";
+import { STORAGE_KEYS } from "../../config/storageKeys.ts";
 import { workspaceSidebarService } from "./workspaceSidebarService.ts";
 
 const projects: ProjectMeta[] = [

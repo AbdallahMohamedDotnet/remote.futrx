@@ -1,5 +1,5 @@
 import type { UsageChartMetric } from "../../../models/usage";
-import { usageChartService } from "../../../services/usageChartService.ts";
+import { usageChartService } from "../../../services/usage/usageChartService.ts";
 import type { UsageDayPoint } from "../../../models/usage";
 
 const VIEW_WIDTH = 720;

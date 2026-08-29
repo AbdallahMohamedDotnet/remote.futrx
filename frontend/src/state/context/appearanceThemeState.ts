@@ -1,6 +1,6 @@
 import { SYSTEM_LIGHT_MEDIA_QUERY, VALID_APPEARANCE_THEMES } from "../../config/settings.ts";
 import { STORAGE_KEYS } from "../../config/storageKeys.ts";
-import { browserStorageService } from "../../services/browserStorageService.ts";
+import { browserStorageService } from "../../services/platform/browserStorageService.ts";
 import type { AppearanceTheme } from "../../models/settings";
 
 class AppearanceThemeState {

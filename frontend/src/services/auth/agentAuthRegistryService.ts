@@ -2,7 +2,7 @@ import type {
   AgentAuthProvider,
   AgentAuthSnapshot,
   AgentAuthStatusKind,
-} from "../models/auth.ts";
+} from "../../models/auth.ts";
 
 // Questions the app asks of the agent-auth provider list: how one provider
 // reads, whether the access gate is open, what changed since last time, and

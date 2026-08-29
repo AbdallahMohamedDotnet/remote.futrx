@@ -1,5 +1,5 @@
 import type { UsageSummary } from "../../../models/usage";
-import { usageFormatService } from "../../../services/usageFormatService.ts";
+import { usageFormatService } from "../../../services/usage/usageFormatService.ts";
 import { Activity } from "../../primitives/icons";
 
 /**

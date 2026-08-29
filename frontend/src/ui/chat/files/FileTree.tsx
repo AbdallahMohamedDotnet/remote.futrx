@@ -14,7 +14,7 @@ import {
   Loader,
   Music,
 } from "../../primitives/icons";
-import { fileService } from "../../../services/fileService.ts";
+import { fileService } from "../../../services/files/fileService.ts";
 import type { FileCategory } from "../../../models/files.ts";
 
 type IconComponent = (props: JSX.SVGAttributes<SVGSVGElement>) => JSX.Element;

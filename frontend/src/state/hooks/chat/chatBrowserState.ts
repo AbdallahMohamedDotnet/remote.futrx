@@ -1,7 +1,7 @@
 import { PUBLIC_HOSTNAME } from "../../../config/runtime.ts";
 import type { BrowserElementCapture } from "../../../models/browser";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
-import { projectPreviewUrlService } from "../../../services/projectPreviewUrlService.ts";
+import { projectPreviewUrlService } from "../../../services/projects/projectPreviewUrlService.ts";
 
 class ChatBrowserState {
   latestPublicDevUrl(blocks: ChatMessageBlock[], projectSlug: string): string {

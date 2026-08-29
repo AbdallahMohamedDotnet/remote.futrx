@@ -2,7 +2,7 @@ import type {
   UsageChartMetric,
   UsageChartModel,
   UsageDayPoint,
-} from "../models/usage.ts";
+} from "../../models/usage.ts";
 import { usageFormatService } from "./usageFormatService.ts";
 
 // Geometry and labels for the Usage page's inline-SVG bar chart. Kept out of

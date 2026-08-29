@@ -2,7 +2,7 @@ import type {
   UsageRange,
   UsageRangeLabels,
   UsageRangePreset,
-} from "../models/usage.ts";
+} from "../../models/usage.ts";
 
 /**
  * Date-range selection for the Usage page. Days are bounded in UTC because the

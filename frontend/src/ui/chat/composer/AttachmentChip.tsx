@@ -1,5 +1,5 @@
 import type { Attachment } from "../../../models/upload";
-import { fileService } from "../../../services/fileService.ts";
+import { fileService } from "../../../services/files/fileService.ts";
 import { AlertCircle, File as FileIcon, X } from "../../primitives/icons";
 
 export function AttachmentChip({

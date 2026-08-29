@@ -5,7 +5,7 @@ import { API_ROUTES } from "../../../config/routes";
 import type { FileNode } from "../../../models/files";
 import { mediaViewerStore } from "../../stores/mediaViewerStore";
 import { workspaceFileBrowserState } from "./workspaceFileBrowserState";
-import { fileService } from "../../../services/fileService.ts";
+import { fileService } from "../../../services/files/fileService.ts";
 
 export interface WorkspaceFileTreeState {
   expanded: Set<string>;

@@ -1,4 +1,4 @@
-import { workspaceSidebarService } from "../../services/workspaceSidebarService.ts";
+import { workspaceSidebarService } from "../../services/workspace/workspaceSidebarService.ts";
 import { ChatSkeleton } from "../chat/ChatSkeleton";
 import { ChevronLeft, ChevronRight, LogOut, Plus, Search, Settings } from "../primitives/icons";
 import { Skeleton } from "../primitives/Skeleton";

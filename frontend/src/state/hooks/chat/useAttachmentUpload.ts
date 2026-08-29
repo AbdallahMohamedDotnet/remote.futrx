@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { Attachment } from "../../../models/upload";
 import { startChatUpload } from "../../../api/uploadApi";
 import type { UploadHandle } from "../../../types/uploadApi";
-import { idService } from "../../../services/idService.ts";
-import { chatAttachmentService } from "../../../services/chatAttachmentService.ts";
+import { idService } from "../../../services/platform/idService.ts";
+import { chatAttachmentService } from "../../../services/chat/chatAttachmentService.ts";
 
 export function useAttachmentUpload(
   chatId: string,

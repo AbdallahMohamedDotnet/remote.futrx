@@ -1,5 +1,5 @@
 import { useMemo } from "preact/hooks";
-import { diffService } from "../../../../services/diffService.ts";
+import { diffService } from "../../../../services/platform/diffService.ts";
 import { Edit as EditIcon } from "../../../primitives/icons";
 import type { ToolCallProps } from "../ToolCallTypes";
 import { ToolShell } from "../ToolShell";

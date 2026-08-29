@@ -4,7 +4,7 @@ import type {
   AgentAuthLoginSnapshot,
   AgentAuthProvider,
 } from "../../../models/auth";
-import { agentAuthRegistryService } from "../../../services/agentAuthRegistryService.ts";
+import { agentAuthRegistryService } from "../../../services/auth/agentAuthRegistryService.ts";
 
 export interface AgentAuthRegistryState {
   providers: AgentAuthProvider[];

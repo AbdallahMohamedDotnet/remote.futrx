@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { UsageDayPoint } from "../models/usage.ts";
+import type { UsageDayPoint } from "../../models/usage.ts";
 import { usageChartService } from "./usageChartService.ts";
 
 const daily: UsageDayPoint[] = [

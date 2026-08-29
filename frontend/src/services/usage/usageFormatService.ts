@@ -1,4 +1,4 @@
-import type { UsageTotals } from "../models/usage.ts";
+import type { UsageTotals } from "../../models/usage.ts";
 
 // How usage numbers are written for people — the tokens column, the money
 // column, and the caveat that goes with money the platform had to estimate.

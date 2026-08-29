@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from "../../config/storageKeys.ts";
-import { browserStorageService } from "../../services/browserStorageService.ts";
+import { browserStorageService } from "../../services/platform/browserStorageService.ts";
 
 /**
  * Whether the last session on this browser got all the way into the workspace.

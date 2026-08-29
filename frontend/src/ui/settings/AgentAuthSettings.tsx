@@ -1,7 +1,7 @@
 import { Fragment } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { AgentAuthProvider } from "../../models/auth";
-import { agentAuthRegistryService } from "../../services/agentAuthRegistryService.ts";
+import { agentAuthRegistryService } from "../../services/auth/agentAuthRegistryService.ts";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { Check, ExternalLink, Key, Loader } from "../primitives/icons";
 

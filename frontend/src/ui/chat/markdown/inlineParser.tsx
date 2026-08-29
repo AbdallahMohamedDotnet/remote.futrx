@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { mediaViewerStore } from "../../../state/stores/mediaViewerStore";
-import { fileService } from "../../../services/fileService.ts";
+import { fileService } from "../../../services/files/fileService.ts";
 import { internalPathOpenUrl } from "../ideLinks";
 
 const urlPattern = /^https?:\/\/[^\s<]+/;

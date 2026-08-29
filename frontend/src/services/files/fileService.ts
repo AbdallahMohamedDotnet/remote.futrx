@@ -1,4 +1,4 @@
-import type { FileCategory, MediaKind } from "../models/files.ts";
+import type { FileCategory, MediaKind } from "../../models/files.ts";
 
 export type FileOpenAction =
   | { action: "media"; kind: MediaKind }

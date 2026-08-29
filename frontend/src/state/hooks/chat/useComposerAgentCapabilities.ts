@@ -6,7 +6,7 @@ import type {
   ServiceTier,
 } from "../../../models/chat";
 import { agentCapabilityState } from "./agentCapabilityState";
-import { agentAuthRegistryService } from "../../../services/agentAuthRegistryService.ts";
+import { agentAuthRegistryService } from "../../../services/auth/agentAuthRegistryService.ts";
 import { useAuthContext } from "../../context/AuthContext";
 import { useAgentCapabilities } from "./useAgentCapabilities";
 

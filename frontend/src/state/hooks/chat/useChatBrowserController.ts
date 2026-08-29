@@ -5,7 +5,7 @@ import type { ChatMeta } from "../../../models/chat";
 import type { ContainerApp, ProjectMeta } from "../../../models/project";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { projectApi } from "../../../api/projectApi";
-import { projectPreviewUrlService } from "../../../services/projectPreviewUrlService.ts";
+import { projectPreviewUrlService } from "../../../services/projects/projectPreviewUrlService.ts";
 import { chatBrowserState } from "./chatBrowserState";
 
 export function useChatBrowserController({
