@@ -33,6 +33,23 @@ The suffix used to be decorative: three stores were named `*State` while their
 stateless siblings used the same suffix. It now carries information, so keep it
 honest.
 
+## Where the types and the constants live
+
+**Not here.** A data shape belongs in `models/` and a tunable belongs in
+`config/`, whichever module happens to compute or consume it. `ChatRenderState`
+is declared beside `ChatMeta`, not inside the projector that builds it; the
+agent-browser poll interval sits in `config/agents.ts`, not in the hook that
+passes it to `setTimeout`.
+
+What stays is what describes one module's own insides and never appears in an
+import elsewhere: a store's listener signature, a reducer's private bucket, a
+hook's options bag. Exporting those would widen the surface for nothing.
+
+The one deliberate exception is a contract that carries behaviour rather than
+data — `useUsageDashboard`'s return type, `ConfirmOptions` with its preact
+children and its action callback. Those are published by the hook or context
+that produces them, because that is what they describe.
+
 ## Where the tests are, and why
 
 Every test file in `state/` is in `logic/`. `hooks/` and `context/` have none —
