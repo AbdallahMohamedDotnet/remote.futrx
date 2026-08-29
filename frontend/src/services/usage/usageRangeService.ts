@@ -12,28 +12,6 @@ import type {
 class UsageRangeService {
   private readonly dayMs = 24 * 60 * 60 * 1000;
 
-  /** Start of the UTC day containing `at`. */
-  startOfUtcDay(at: number): number {
-    return Math.floor(at / this.dayMs) * this.dayMs;
-  }
-
-  /** Last millisecond of the UTC day containing `at`. */
-  endOfUtcDay(at: number): number {
-    return this.startOfUtcDay(at) + this.dayMs - 1;
-  }
-
-  /** ISO `YYYY-MM-DD` for the UTC day containing `at` — the `<input type=date>` value. */
-  toDateInputValue(at: number): string {
-    return new Date(this.startOfUtcDay(at)).toISOString().slice(0, 10);
-  }
-
-  /** Parses an ISO `YYYY-MM-DD` as a UTC day start, or null when malformed. */
-  fromDateInputValue(value: string): number | null {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-    const parsed = Date.parse(`${value}T00:00:00.000Z`);
-    return Number.isNaN(parsed) ? null : parsed;
-  }
-
   /**
    * Resolves a preset against "now". `7d` and `30d` include today, so "7 days"
    * spans today plus the six days before it rather than a bare now-minus-7.
@@ -72,6 +50,7 @@ class UsageRangeService {
     return { preset: "custom", from: start, to: this.endOfUtcDay(end) };
   }
 
+  /** The `<input type=date>` values for a range's two ends. */
   labels(range: UsageRange): UsageRangeLabels {
     return {
       fromDate: this.toDateInputValue(range.from),
@@ -79,9 +58,26 @@ class UsageRangeService {
     };
   }
 
-  /** Number of whole UTC days the range covers, minimum one. */
-  days(range: UsageRange): number {
-    return Math.max(1, Math.round((range.to + 1 - range.from) / this.dayMs));
+  /** Start of the UTC day containing `at`. */
+  private startOfUtcDay(at: number): number {
+    return Math.floor(at / this.dayMs) * this.dayMs;
+  }
+
+  /** Last millisecond of the UTC day containing `at`. */
+  private endOfUtcDay(at: number): number {
+    return this.startOfUtcDay(at) + this.dayMs - 1;
+  }
+
+  /** ISO `YYYY-MM-DD` for the UTC day containing `at`. */
+  private toDateInputValue(at: number): string {
+    return new Date(this.startOfUtcDay(at)).toISOString().slice(0, 10);
+  }
+
+  /** Parses an ISO `YYYY-MM-DD` as a UTC day start, or null when malformed. */
+  private fromDateInputValue(value: string): number | null {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const parsed = Date.parse(`${value}T00:00:00.000Z`);
+    return Number.isNaN(parsed) ? null : parsed;
   }
 }
 
