@@ -16,16 +16,27 @@ export function useAttachmentUpload(
   // Outstanding tus handles, keyed by attachment id. Lets us abort on remove.
   const handlesRef = useRef<Map<string, UploadHandle>>(new Map());
 
+  // Reaches state only through handlesRef and a setAttachments updater, so it
+  // closes over nothing that can go stale — which is what makes [] honest here,
+  // and what made the previous capture harmless rather than a bug.
+  const clearAttachments = useCallback(() => {
+    for (const handle of handlesRef.current.values()) void handle.abort();
+    handlesRef.current.clear();
+    setAttachments((prev) => {
+      prev.forEach((attachment) => chatAttachmentState.revoke(attachment));
+      return [];
+    });
+  }, []);
+
   useEffect(() => {
     clearAttachments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId]);
+  }, [chatId, clearAttachments]);
 
   useEffect(
     () => () => {
       clearAttachments();
     },
-    []
+    [clearAttachments]
   );
 
   useEffect(() => {
@@ -121,7 +132,7 @@ export function useAttachmentUpload(
     [chatId]
   );
 
-  function removeAttachment(id: string) {
+  const removeAttachment = useCallback((id: string) => {
     const handle = handlesRef.current.get(id);
     if (handle) {
       void handle.abort();
@@ -132,16 +143,7 @@ export function useAttachmentUpload(
       if (target) chatAttachmentState.revoke(target);
       return prev.filter((attachment) => attachment.id !== id);
     });
-  }
-
-  function clearAttachments() {
-    for (const handle of handlesRef.current.values()) void handle.abort();
-    handlesRef.current.clear();
-    setAttachments((prev) => {
-      prev.forEach((attachment) => chatAttachmentState.revoke(attachment));
-      return [];
-    });
-  }
+  }, []);
 
   return {
     attachments,
