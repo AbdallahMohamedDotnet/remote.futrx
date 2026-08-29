@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatMeta } from "../../models/chat.ts";
 import type { ProjectMeta } from "../../models/project.ts";
-import { STORAGE_KEYS } from "../../config/storageKeys.ts";
 import { workspaceSidebarService } from "./workspaceSidebarService.ts";
 
 const projects: ProjectMeta[] = [
@@ -69,35 +68,4 @@ test("project drag-reorder respects which side of the target it was dropped on",
   assert.equal(reorder(ids, "a", "b", "before"), null);
   assert.equal(reorder(ids, "b", "a", "after"), null);
   assert.equal(reorder(ids, "a", "missing", "after"), null);
-});
-
-test("an expanded project stays expanded after a reload", () => {
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => void store.set(key, value),
-  };
-
-  // "newer" has unread chats, "older" does not: the first-sight seeding folds
-  // "older" and leaves "newer" open.
-  const seeded = workspaceSidebarService.collapsedProjects(projects, chats, {});
-  assert.deepEqual(seeded, { older: true, newer: false });
-
-  // The user expands "older" and folds "newer"; both choices are written out.
-  const chosen = { ...seeded, older: false, newer: true };
-  workspaceSidebarService.writeCollapsedProjects(chosen);
-
-  // A reload starts from what was stored, and seeding leaves those entries be.
-  const restored = workspaceSidebarService.readCollapsedProjects();
-  assert.deepEqual(restored, chosen);
-  assert.deepEqual(
-    workspaceSidebarService.collapsedProjects(projects, chats, restored),
-    chosen
-  );
-
-  // Junk in storage falls back to seeding rather than breaking the sidebar.
-  store.set(STORAGE_KEYS.collapsedProjects, "not json");
-  assert.deepEqual(workspaceSidebarService.readCollapsedProjects(), {});
-  store.set(STORAGE_KEYS.collapsedProjects, '{"older":"yes"}');
-  assert.deepEqual(workspaceSidebarService.readCollapsedProjects(), {});
 });

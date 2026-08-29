@@ -1,8 +1,6 @@
 import type { ChatMeta } from "../../models/chat.ts";
 import type { ProjectMeta } from "../../models/project.ts";
 import type { DropPosition, WorkspaceSidebarModel } from "../../models/workspace.ts";
-import { STORAGE_KEYS } from "../../config/storageKeys.ts";
-import { browserStorageService } from "../platform/browserStorageService.ts";
 
 interface ChatBuckets {
   byProject: Map<string, ChatMeta[]>;
@@ -82,58 +80,6 @@ class WorkspaceSidebarService {
     };
   }
 
-  /** Seeds collapse state for projects we have not seen yet; an existing entry is
-   *  the user's own choice and survives project/chat churn (e.g. a new chat). */
-  collapsedProjects(
-    projects: ProjectMeta[],
-    chats: ChatMeta[],
-    current: Record<string, boolean> = {}
-  ): Record<string, boolean> {
-    const collapsed: Record<string, boolean> = {};
-    for (const project of projects) {
-      collapsed[project.id] =
-        project.id in current
-          ? current[project.id]
-          : !this.projectHasUnreadChat(project.id, chats);
-    }
-    return collapsed;
-  }
-
-  hasSameCollapsedProjects(
-    current: Record<string, boolean>,
-    next: Record<string, boolean>
-  ): boolean {
-    const currentKeys = Object.keys(current);
-    const nextKeys = Object.keys(next);
-    if (currentKeys.length !== nextKeys.length) return false;
-    return nextKeys.every((key) => current[key] === next[key]);
-  }
-
-  readCollapsed(): boolean {
-    return browserStorageService.readBool(STORAGE_KEYS.sidebarCollapsed);
-  }
-
-  writeCollapsed(collapsed: boolean): void {
-    browserStorageService.writeBool(STORAGE_KEYS.sidebarCollapsed, collapsed);
-  }
-
-  /** Which projects the user left folded, remembered across reloads. Projects
-   *  missing from the map stay out of it, so `collapsedProjects` can still seed
-   *  them from unread state the first time they show up. */
-  readCollapsedProjects(): Record<string, boolean> {
-    const parsed = browserStorageService.readJson(STORAGE_KEYS.collapsedProjects);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    const collapsed: Record<string, boolean> = {};
-    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof value === "boolean") collapsed[id] = value;
-    }
-    return collapsed;
-  }
-
-  writeCollapsedProjects(collapsed: Record<string, boolean>): void {
-    browserStorageService.writeJson(STORAGE_KEYS.collapsedProjects, collapsed);
-  }
-
   private bucketChatsByProject(chats: ChatMeta[]): ChatBuckets {
     const byProject = new Map<string, ChatMeta[]>();
     const loose: ChatMeta[] = [];
@@ -155,13 +101,6 @@ class WorkspaceSidebarService {
     loose.sort((left, right) => right.lastMessageAt - left.lastMessageAt);
 
     return { byProject, loose };
-  }
-
-  private projectHasUnreadChat(projectId: string, chats: ChatMeta[]): boolean {
-    return chats.some(
-      (chat) =>
-        chat.projectId === projectId && (chat.lastMessageAt || 0) > (chat.lastReadAt || 0)
-    );
   }
 
   private matchesChat(chat: ChatMeta, query: string): boolean {

@@ -1,4 +1,4 @@
-import { workspaceSidebarService } from "../../services/workspace/workspaceSidebarService.ts";
+import { sidebarPreferenceService } from "../../services/workspace/sidebarPreferenceService.ts";
 import { ChatSkeleton } from "../chat/ChatSkeleton";
 import { ChevronLeft, ChevronRight, LogOut, Plus, Search, Settings } from "../primitives/icons";
 import { Skeleton } from "../primitives/Skeleton";
@@ -17,7 +17,7 @@ import { AppShell } from "./AppShell";
  * genuinely waiting on data becomes a placeholder.
  */
 export function WorkspaceSkeleton() {
-  const collapsed = workspaceSidebarService.readCollapsed();
+  const collapsed = sidebarPreferenceService.readCollapsed();
 
   return (
     <AppShell
