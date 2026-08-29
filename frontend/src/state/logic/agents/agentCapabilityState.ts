@@ -1,48 +1,15 @@
 import type {
   AgentCapabilitiesCatalog,
-  AgentCapabilityOption,
-  AgentProviderCapabilities,
+  CapabilityPreferenceCorrection,
+  CapabilityPreferenceSelection,
+  ComposerCapabilityState,
+  ComposerProviderOption,
 } from "../../../models/agentCapabilities";
 import type { ChatProvider } from "../../../models/chat";
 
-export interface ComposerCapabilityState {
-  providerCapabilities?: AgentProviderCapabilities;
-  providerOptions: ComposerProviderOption[];
-  modelOptions: ComposerModelOption[];
-  reasoningEffortOptions: AgentCapabilityOption[];
-  serviceTierOptions: AgentCapabilityOption[];
-  modeOptions: AgentCapabilityOption[];
-}
-
-export interface ComposerModelOption {
-  value: string;
-  label: string;
-  sub: string;
-}
-
-export interface ComposerProviderOption {
-  value: ChatProvider;
-  label: string;
-  disabled?: boolean;
-  disabledReason?: string;
-  models: ComposerModelOption[];
-}
-
-export interface CapabilityPreferenceSelection {
-  mode: string;
-  reasoningEffort: string;
-  serviceTier: string;
-}
-
-export interface CapabilityPreferenceCorrection {
-  mode?: string;
-  reasoningEffort?: string;
-  serviceTier?: string;
-}
-
-// The composer's view of what the selected agent can do: which providers and
-// models to offer, and which of the saved preferences the live catalog still
-// supports.
+// Resolves the composer's view of what the selected agent can do: which
+// providers and models to offer, and which of the saved preferences the live
+// catalog still supports.
 class AgentCapabilityState {
   resolve(
     catalog: AgentCapabilitiesCatalog | null,

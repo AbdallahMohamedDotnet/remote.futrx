@@ -1,16 +1,12 @@
-import type { AgentCapabilitiesCatalog } from "../../models/agentCapabilities";
+import type {
+  AgentCapabilitiesCatalog,
+  AgentCapabilityCatalogSnapshot,
+} from "../../models/agentCapabilities";
 
 type CatalogRequester = (
   projectId?: string,
   options?: { refresh?: boolean },
 ) => Promise<AgentCapabilitiesCatalog>;
-
-export interface AgentCapabilityCatalogSnapshot {
-  catalog: AgentCapabilitiesCatalog | null;
-  loading: boolean;
-  refreshing: boolean;
-  error: string;
-}
 
 // This store keeps the last response for each normalized user and host/project
 // scope only for the lifetime of the open application. The process-local
