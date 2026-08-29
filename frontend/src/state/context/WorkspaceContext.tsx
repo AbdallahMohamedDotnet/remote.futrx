@@ -11,7 +11,7 @@ import { useWorkspacePushLifecycle } from "../hooks/push/useWorkspacePushLifecyc
 import { useUserSettingsContext } from "./UserSettingsContext";
 import type { WorkspaceUiState } from "../../models/workspace";
 import { workspaceUiState } from "./workspaceUiState";
-import { workspaceSidebarState } from "../../shared/workspace/workspaceSidebarState";
+import { workspaceSidebarService } from "../../services/workspaceSidebarService.ts";
 import { agentCapabilityCatalogStore } from "../stores/agentCapabilityCatalog";
 import { takePushNotificationChatId } from "./pushNotificationNavigation";
 import { useAuthContext } from "./AuthContext";
@@ -60,7 +60,7 @@ export function WorkspaceProvider({
     null,
     () => workspaceUiState.createInitial(takePushNotificationChatId())
   );
-  const activeChat = workspaceSidebarState.activeChat(data.chats, ui.activeChatId);
+  const activeChat = workspaceSidebarService.activeChat(data.chats, ui.activeChatId);
   const capabilityUserId = auth.email || auth.adminEmail || "anonymous";
   const activeCapabilityProjectId = activeChat?.projectId;
 
@@ -133,7 +133,7 @@ export function WorkspaceProvider({
   });
 
   useEffect(() => {
-    const chatId = workspaceSidebarState.initialChatId(enabled, ui.activeChatId, data.chats);
+    const chatId = workspaceSidebarService.initialChatId(enabled, ui.activeChatId, data.chats);
     if (chatId) dispatch({ type: "select-chat", chatId });
   }, [data.chats, enabled, ui.activeChatId]);
 
@@ -144,14 +144,14 @@ export function WorkspaceProvider({
     // Wait for the first snapshot: a chat id handed over by a notification tap
     // would otherwise be discarded against a not-yet-populated list.
     if (!data.loaded) return;
-    if (workspaceSidebarState.isActiveChatMissing(data.chats, ui.activeChatId)) {
+    if (workspaceSidebarService.isActiveChatMissing(data.chats, ui.activeChatId)) {
       // Hand straight over to the next chat instead of clearing the selection:
       // clearing renders the "no chat selected" empty state for the one frame
       // before the initial-chat effect picks a replacement, which reads as a
       // flash of the New project screen after deleting a chat.
       dispatch({
         type: "select-chat",
-        chatId: workspaceSidebarState.replacementChatId(data.chats),
+        chatId: workspaceSidebarService.replacementChatId(data.chats),
       });
     }
   }, [data.chats, data.loaded, ui.activeChatId]);

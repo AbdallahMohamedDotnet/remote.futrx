@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
-import { workspaceSidebarState } from "../../../shared/workspace/workspaceSidebarState";
+import { workspaceSidebarService } from "../../../services/workspaceSidebarService.ts";
 
 export function useSidebarState(
   open: boolean,
@@ -11,10 +11,10 @@ export function useSidebarState(
 ) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() =>
-    workspaceSidebarState.readCollapsedProjects()
+    workspaceSidebarService.readCollapsedProjects()
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
-    workspaceSidebarState.readCollapsed()
+    workspaceSidebarService.readCollapsed()
   );
 
   useEffect(() => {
@@ -31,17 +31,17 @@ export function useSidebarState(
     // would drop what the last session remembered.
     if (projects.length === 0) return;
     setCollapsed((current) => {
-      const next = workspaceSidebarState.collapsedProjects(projects, chats, current);
-      return workspaceSidebarState.hasSameCollapsedProjects(current, next) ? current : next;
+      const next = workspaceSidebarService.collapsedProjects(projects, chats, current);
+      return workspaceSidebarService.hasSameCollapsedProjects(current, next) ? current : next;
     });
   }, [projects, chats]);
 
   useEffect(() => {
-    workspaceSidebarState.writeCollapsedProjects(collapsed);
+    workspaceSidebarService.writeCollapsedProjects(collapsed);
   }, [collapsed]);
 
   useEffect(() => {
-    workspaceSidebarState.writeCollapsed(sidebarCollapsed);
+    workspaceSidebarService.writeCollapsed(sidebarCollapsed);
   }, [sidebarCollapsed]);
 
   function toggleCollapsed(id: string) {

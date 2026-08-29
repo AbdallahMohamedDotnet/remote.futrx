@@ -1,19 +1,15 @@
-import type { ChatMeta } from "../../models/chat";
-import type { ProjectMeta } from "../../models/project";
-import type {
-  DropPosition,
-  ProjectSidebarNode,
-  WorkspaceSidebarModel,
-} from "../../models/workspace";
-import { STORAGE_KEYS } from "../../config/storageKeys.ts";
-import { browserStorageService } from "../../services/browserStorageService.ts";
+import type { ChatMeta } from "../models/chat";
+import type { ProjectMeta } from "../models/project";
+import type { DropPosition, WorkspaceSidebarModel } from "../models/workspace";
+import { STORAGE_KEYS } from "../config/storageKeys.ts";
+import { browserStorageService } from "./browserStorageService.ts";
 
 interface ChatBuckets {
   byProject: Map<string, ChatMeta[]>;
   loose: ChatMeta[];
 }
 
-class WorkspaceSidebarState {
+class WorkspaceSidebarService {
   activeChat(chats: ChatMeta[], activeChatId: string | null): ChatMeta | null {
     return activeChatId ? chats.find((chat) => chat.id === activeChatId) ?? null : null;
   }
@@ -188,4 +184,4 @@ class WorkspaceSidebarState {
   }
 }
 
-export const workspaceSidebarState = new WorkspaceSidebarState();
+export const workspaceSidebarService = new WorkspaceSidebarService();

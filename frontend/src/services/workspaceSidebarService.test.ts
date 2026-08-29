@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatMeta } from "../../models/chat.ts";
-import type { ProjectMeta } from "../../models/project.ts";
-import { STORAGE_KEYS } from "../../config/storageKeys.ts";
-import { workspaceSidebarState } from "./workspaceSidebarState.ts";
+import type { ChatMeta } from "../models/chat.ts";
+import type { ProjectMeta } from "../models/project.ts";
+import { STORAGE_KEYS } from "../config/storageKeys.ts";
+import { workspaceSidebarService } from "./workspaceSidebarService.ts";
 
 const projects: ProjectMeta[] = [
   {
@@ -37,7 +37,7 @@ const chats: ChatMeta[] = [
 ];
 
 test("orders projects and their chats by recency", () => {
-  const model = workspaceSidebarState.model(chats, projects, "");
+  const model = workspaceSidebarService.model(chats, projects, "");
   assert.deepEqual(model.visibleProjects.map((node) => node.project.id), ["newer", "older"]);
   assert.deepEqual(model.visibleProjects[0].chats.map((chat) => chat.id), ["new-chat", "old-chat"]);
   assert.deepEqual(model.visibleLooseChats.map((chat) => chat.id), ["loose"]);
@@ -45,17 +45,17 @@ test("orders projects and their chats by recency", () => {
 
 test("a deleted active chat hands over to the next chat, not the empty state", () => {
   const remaining = chats.filter((chat) => chat.id !== "new-chat");
-  assert.equal(workspaceSidebarState.isActiveChatMissing(remaining, "new-chat"), true);
-  assert.equal(workspaceSidebarState.replacementChatId(remaining), "old-chat");
+  assert.equal(workspaceSidebarService.isActiveChatMissing(remaining, "new-chat"), true);
+  assert.equal(workspaceSidebarService.replacementChatId(remaining), "old-chat");
   // Same pick a fresh load would make, so the handover is not a special case.
-  assert.equal(workspaceSidebarState.initialChatId(true, null, remaining), "old-chat");
+  assert.equal(workspaceSidebarService.initialChatId(true, null, remaining), "old-chat");
   // Deleting the last chat is the one case that legitimately clears selection.
-  assert.equal(workspaceSidebarState.replacementChatId([]), null);
+  assert.equal(workspaceSidebarService.replacementChatId([]), null);
 });
 
 test("project drag-reorder respects which side of the target it was dropped on", () => {
   const ids = ["a", "b", "c"];
-  const reorder = workspaceSidebarState.reorderProjectIds.bind(workspaceSidebarState);
+  const reorder = workspaceSidebarService.reorderProjectIds.bind(workspaceSidebarService);
 
   // Dropping past the last project must land last. Splicing at the target's
   // pre-removal index used to leave it one slot short, at ["b", "a", "c"].
@@ -80,24 +80,24 @@ test("an expanded project stays expanded after a reload", () => {
 
   // "newer" has unread chats, "older" does not: the first-sight seeding folds
   // "older" and leaves "newer" open.
-  const seeded = workspaceSidebarState.collapsedProjects(projects, chats, {});
+  const seeded = workspaceSidebarService.collapsedProjects(projects, chats, {});
   assert.deepEqual(seeded, { older: true, newer: false });
 
   // The user expands "older" and folds "newer"; both choices are written out.
   const chosen = { ...seeded, older: false, newer: true };
-  workspaceSidebarState.writeCollapsedProjects(chosen);
+  workspaceSidebarService.writeCollapsedProjects(chosen);
 
   // A reload starts from what was stored, and seeding leaves those entries be.
-  const restored = workspaceSidebarState.readCollapsedProjects();
+  const restored = workspaceSidebarService.readCollapsedProjects();
   assert.deepEqual(restored, chosen);
   assert.deepEqual(
-    workspaceSidebarState.collapsedProjects(projects, chats, restored),
+    workspaceSidebarService.collapsedProjects(projects, chats, restored),
     chosen
   );
 
   // Junk in storage falls back to seeding rather than breaking the sidebar.
   store.set(STORAGE_KEYS.collapsedProjects, "not json");
-  assert.deepEqual(workspaceSidebarState.readCollapsedProjects(), {});
+  assert.deepEqual(workspaceSidebarService.readCollapsedProjects(), {});
   store.set(STORAGE_KEYS.collapsedProjects, '{"older":"yes"}');
-  assert.deepEqual(workspaceSidebarState.readCollapsedProjects(), {});
+  assert.deepEqual(workspaceSidebarService.readCollapsedProjects(), {});
 });
