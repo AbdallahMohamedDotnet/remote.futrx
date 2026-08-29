@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ChatStatus, PromptOutcome, QueuedPrompt } from "../../../models/chat";
-import { queueId } from "../../../shared/ids";
+import { idService } from "../../../services/idService.ts";
 import { chatComposerSessionStore } from "../../stores/composerSessionStore";
 import { promptQueueState } from "./promptQueueState";
 
@@ -66,7 +66,7 @@ export function usePromptQueue({
   return {
     queuedPrompts,
     queuePrompt: (text: string) =>
-      commitQueuedPrompts((prev) => [...prev, { id: queueId(), text }]),
+      commitQueuedPrompts((prev) => [...prev, { id: idService.timeOrdered(), text }]),
     removeQueuedPrompt: (id: string) =>
       commitQueuedPrompts((prev) => prev.filter((prompt) => prompt.id !== id)),
     clearQueuedPrompts: () => commitQueuedPrompts([]),

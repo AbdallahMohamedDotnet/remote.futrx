@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { Attachment } from "../../../models/upload";
 import { startChatUpload } from "../../../api/uploadApi";
 import type { UploadHandle } from "../../../types/uploadApi";
-import { randomId } from "../../../shared/ids";
+import { idService } from "../../../services/idService.ts";
 import { chatAttachmentState } from "../../../shared/chat/chatAttachmentState";
 
 export function useAttachmentUpload(
@@ -53,7 +53,7 @@ export function useAttachmentUpload(
       // the tus resume fingerprint), while keeping the original name as the
       // friendly label shown in the composer chip.
       const items = files.map((file) => {
-        const id = randomId();
+        const id = idService.random();
         const uploadName = chatAttachmentState.uniqueUploadName(file.name, id);
         const uploadFile =
           uploadName === file.name
