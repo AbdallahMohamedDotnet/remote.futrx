@@ -26,9 +26,10 @@ type removedUserSecurityState interface {
 	Delete(ctx context.Context, email string) error
 }
 
-// userRemovalCleanup removes identity-keyed authorization and delivery state
-// before the user record disappears. Each operation is idempotent, allowing a
-// failed removal to be retried without restoring already-revoked access.
+// userRemovalCleanup removes identity-keyed authorization, delivery, and
+// security state before the user record disappears. Each operation is
+// idempotent, allowing a failed removal to be retried without restoring
+// already-revoked access.
 type userRemovalCleanup struct {
 	projects        removedUserProjectAccess
 	subscriptions   removedUserSubscriptions
