@@ -176,8 +176,10 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	userService := serviceuser.New(
 		deps.Users,
 		serviceuser.WithRemovalCleanup(userRemovalCleanup{
-			projects:      projectService,
-			subscriptions: deps.Push,
+			projects:        projectService,
+			subscriptions:   deps.Push,
+			twoFactor:       deps.TwoFactor,
+			sessionRegistry: deps.SessionRegistry,
 		}),
 	)
 	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL, deps.TwoFactor, deps.SessionRegistry)
