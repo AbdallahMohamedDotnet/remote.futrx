@@ -39,8 +39,6 @@ interface WorkspaceContextValue {
   forkChat: (chatId: string) => Promise<ChatMeta>;
   deleteProject: (projectId: string) => Promise<void>;
   reorderProjects: (projectIds: string[]) => Promise<void>;
-  startProject: (projectId: string) => Promise<void>;
-  stopProject: (projectId: string) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -142,18 +140,6 @@ export function WorkspaceProvider({
     await projectApi.reorder(projectIds);
   }
 
-  async function startProject(projectId: string) {
-    await projectApi.start(projectId);
-    // The sidebar Start command requests a probe inside the running container
-    // instead of intentionally reusing a pre-start catalog. Other lifecycle
-    // surfaces must invalidate separately or leave refresh to the user.
-    agentCapabilityCatalogStore.invalidateProject(capabilityUserId, projectId);
-  }
-
-  async function stopProject(projectId: string) {
-    await projectApi.stop(projectId);
-  }
-
   return (
     <WorkspaceContext.Provider
       value={{
@@ -177,8 +163,6 @@ export function WorkspaceProvider({
         forkChat,
         deleteProject,
         reorderProjects,
-        startProject,
-        stopProject,
       }}
     >
       {children}
