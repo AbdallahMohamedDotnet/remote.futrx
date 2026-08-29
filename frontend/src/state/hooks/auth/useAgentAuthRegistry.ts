@@ -3,7 +3,6 @@ import { agentAuthApi } from "../../../api/agents/auth/agentAuthApi";
 import type {
   AgentAuthLoginSnapshot,
   AgentAuthProvider,
-  AgentAuthSnapshot,
 } from "../../../models/auth";
 import {
   agentAuthGateReady,
@@ -31,10 +30,6 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState<Record<string, boolean>>({});
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
-
-  function applyStatus(provider: string, status: AgentAuthSnapshot) {
-    setProviders((current) => updateAgentAuthProvider(current, provider, status));
-  }
 
   function setProviderStarting(provider: string, value: boolean) {
     setStarting((current) => ({ ...current, [provider]: value }));
@@ -128,7 +123,9 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
             && entry.authentication.mode !== "managed-device"
           ) continue;
           subscriptions.push(agentAuthApi.subscribe(entry.provider, (status) => {
-            if (!cancelled) applyStatus(entry.provider, status);
+            if (cancelled) return;
+            setProviders((current) =>
+              updateAgentAuthProvider(current, entry.provider, status));
           }));
         }
       })
