@@ -23,7 +23,7 @@ class ProjectPreviewUrlService {
 
   /** Whether `raw` is a preview URL for this project on this deployment —
    *  right scheme, right host suffix, right slug, and a port in range. */
-  matches(raw: string, slug: string, publicHostname: string): boolean {
+  belongsToProject(raw: string, slug: string, publicHostname: string): boolean {
     try {
       const url = new URL(raw);
       const hostSuffix = this.hostSuffix(publicHostname);

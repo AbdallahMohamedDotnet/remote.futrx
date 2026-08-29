@@ -24,7 +24,7 @@ test("an arbitrary managed module participates in gating and availability", () =
     provider("future-agent", "managed-device", false, true),
   ];
   assert.equal(agentAuthRegistryService.gateReady(providers), false);
-  assert.deepEqual(agentAuthRegistryService.unavailableManaged(providers, true), {
+  assert.deepEqual(agentAuthRegistryService.unavailableReasons(providers, true), {
     "future-agent": "Log in to Future Agent in Settings before selecting it.",
   });
 
@@ -40,7 +40,7 @@ test("an arbitrary managed module participates in gating and availability", () =
 test("external modules neither block the managed gate nor receive login errors", () => {
   const providers = [provider("external-agent", "external", false)];
   assert.equal(agentAuthRegistryService.gateReady(providers), false);
-  assert.deepEqual(agentAuthRegistryService.unavailableManaged(providers, true), {});
+  assert.deepEqual(agentAuthRegistryService.unavailableReasons(providers, true), {});
 });
 
 test("no-auth gate modules are immediately ready from the backend snapshot", () => {

@@ -9,7 +9,7 @@ class ChatBrowserState {
     for (const block of blocks) {
       for (const text of this.blockTexts(block)) {
         for (const candidate of projectPreviewUrlService.findInText(text, PUBLIC_HOSTNAME)) {
-          if (projectPreviewUrlService.matches(candidate, projectSlug, PUBLIC_HOSTNAME)) latest = candidate;
+          if (projectPreviewUrlService.belongsToProject(candidate, projectSlug, PUBLIC_HOSTNAME)) latest = candidate;
         }
       }
     }

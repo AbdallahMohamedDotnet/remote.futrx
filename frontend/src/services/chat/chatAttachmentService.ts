@@ -37,7 +37,7 @@ class ChatAttachmentService {
     return userText ? `${userText}\n\n${attachmentText}` : attachmentText;
   }
 
-  revoke(attachment: Attachment): void {
+  revokeObjectUrl(attachment: Attachment): void {
     if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
   }
 

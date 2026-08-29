@@ -48,7 +48,7 @@ class AgentAuthRegistryService {
   /** Managed agents that cannot be picked yet, mapped to the reason shown in
    *  the composer. Empty until the auth snapshot has actually been checked,
    *  so a slow first load never blames the user for not logging in. */
-  unavailableManaged(
+  unavailableReasons(
     providers: AgentAuthProvider[],
     checked: boolean,
   ): Partial<Record<string, string>> {

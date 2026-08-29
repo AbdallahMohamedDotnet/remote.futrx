@@ -134,7 +134,7 @@ function FileRow({
   downloadUrl: (node: FileNode) => string;
   onOpen: (node: FileNode) => void;
 }) {
-  const { Icon, color } = CATEGORY_META[fileService.categorize(node.name)];
+  const { Icon, color } = CATEGORY_META[fileService.category(node.name)];
   return (
     <li>
       <div
@@ -185,7 +185,7 @@ export function SearchResultRow({
   const dir = fileService.parentDir(node.path);
   const { Icon, color } = node.isDir
     ? { Icon: Folder as IconComponent, color: "text-accent-blue" }
-    : CATEGORY_META[fileService.categorize(node.name)];
+    : CATEGORY_META[fileService.category(node.name)];
   const openable = !node.isDir;
   return (
     <li>

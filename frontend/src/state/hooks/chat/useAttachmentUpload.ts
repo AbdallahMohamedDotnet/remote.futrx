@@ -23,7 +23,7 @@ export function useAttachmentUpload(
     for (const handle of handlesRef.current.values()) void handle.abort();
     handlesRef.current.clear();
     setAttachments((prev) => {
-      prev.forEach((attachment) => chatAttachmentService.revoke(attachment));
+      prev.forEach((attachment) => chatAttachmentService.revokeObjectUrl(attachment));
       return [];
     });
   }, []);
@@ -140,7 +140,7 @@ export function useAttachmentUpload(
     }
     setAttachments((prev) => {
       const target = prev.find((attachment) => attachment.id === id);
-      if (target) chatAttachmentService.revoke(target);
+      if (target) chatAttachmentService.revokeObjectUrl(target);
       return prev.filter((attachment) => attachment.id !== id);
     });
   }, []);

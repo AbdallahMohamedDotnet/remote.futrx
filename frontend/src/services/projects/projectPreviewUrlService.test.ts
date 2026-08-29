@@ -19,9 +19,9 @@ test("extracts and validates only URLs for the runtime public hostname", () => {
   );
 
   assert.deepEqual(urls, [expected]);
-  assert.equal(projectPreviewUrlService.matches(expected, "demo", publicHostname), true);
+  assert.equal(projectPreviewUrlService.belongsToProject(expected, "demo", publicHostname), true);
   assert.equal(
-    projectPreviewUrlService.matches(
+    projectPreviewUrlService.belongsToProject(
       "https://demo--4173.dev.remote.futrx.com",
       "demo",
       publicHostname,
@@ -32,7 +32,7 @@ test("extracts and validates only URLs for the runtime public hostname", () => {
 
 test("rejects invalid preview ports", () => {
   assert.equal(
-    projectPreviewUrlService.matches(
+    projectPreviewUrlService.belongsToProject(
       "https://demo--1023.dev.remote.example.com",
       "demo",
       publicHostname,

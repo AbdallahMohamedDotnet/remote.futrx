@@ -33,7 +33,7 @@ class FileService {
     pdf: "pdf",
   };
 
-  categorize(name: string): FileCategory {
+  category(name: string): FileCategory {
     return this.categoryByExtension[this.extension(name)] ?? "text";
   }
 
@@ -50,7 +50,7 @@ class FileService {
   openAction(name: string): FileOpenAction {
     const kind = this.viewableMediaKind(name);
     if (kind) return { action: "media", kind };
-    const category = this.categorize(name);
+    const category = this.category(name);
     if (category === "archive" || category === "image" || category === "video" || category === "audio") {
       return { action: "download" };
     }
