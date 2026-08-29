@@ -16,6 +16,10 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
   const mountedRef = useRef(true);
+  // Held outside the effect so stop() can silence the heartbeat: the effect
+  // does not re-run on stop, so its own cleanup would not fire until the drawer
+  // closes.
+  const heartbeatRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     return () => {
@@ -49,6 +53,12 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
     return info.status === "starting" || info.status === "core-ready";
   }, []);
 
+  const stopHeartbeat = useCallback(() => {
+    if (heartbeatRef.current === undefined) return;
+    window.clearInterval(heartbeatRef.current);
+    heartbeatRef.current = undefined;
+  }, []);
+
   useEffect(() => {
     const requestId = ++requestRef.current;
     if (!enabled || !projectId) {
@@ -60,7 +70,6 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
 
     let disposed = false;
     let pollTimer: number | undefined;
-    let heartbeatTimer: number | undefined;
     setStatus("starting");
     setGuiUrl("");
     setError(null);
@@ -99,7 +108,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
         setError((err as Error).message || "Failed to start the agent browser.");
         setStatus("error");
       });
-    heartbeatTimer = window.setInterval(() => {
+    heartbeatRef.current = window.setInterval(() => {
       void heartbeatStatus();
     }, heartbeatIntervalMs);
 
@@ -107,13 +116,14 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
       disposed = true;
       requestRef.current++;
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
-      if (heartbeatTimer !== undefined) window.clearInterval(heartbeatTimer);
+      stopHeartbeat();
       void agentBrowserApi.stopAgentBrowser(projectId, "view").catch(() => {});
     };
-  }, [projectId, enabled, applyInfo]);
+  }, [projectId, enabled, applyInfo, stopHeartbeat]);
 
   const stop = useCallback(() => {
     if (!projectId) return;
+    stopHeartbeat();
     const requestId = ++requestRef.current;
     setStatus("stopped");
     setGuiUrl("");
@@ -129,7 +139,7 @@ export function useAgentBrowserSession({ projectId, enabled }: { projectId: stri
         setError((err as Error).message || "Failed to stop the agent browser.");
         setStatus("error");
       });
-  }, [projectId]);
+  }, [projectId, stopHeartbeat]);
 
   return { status, guiUrl, error, stop };
 }
