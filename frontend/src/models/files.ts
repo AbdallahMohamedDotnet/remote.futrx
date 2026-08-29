@@ -25,6 +25,18 @@ export interface FileSearchResult {
  *  workspacefiles mediaTypes. */
 export type MediaKind = "image" | "video" | "audio" | "pdf";
 
+/** The broad kind of a file, picked from its extension — what the file tree
+ *  chooses an icon and a colour by. */
+export type FileCategory =
+  | "image"
+  | "video"
+  | "audio"
+  | "pdf"
+  | "archive"
+  | "code"
+  | "data"
+  | "text";
+
 export interface MediaViewerItem {
   url: string;
   name: string;

@@ -1,14 +1,4 @@
-import type { MediaKind } from "../models/files";
-
-export type FileCategory =
-  | "image"
-  | "video"
-  | "audio"
-  | "pdf"
-  | "archive"
-  | "code"
-  | "data"
-  | "text";
+import type { FileCategory, MediaKind } from "../models/files";
 
 const EXT_CATEGORY: Record<string, FileCategory> = {
   png: "image", jpg: "image", jpeg: "image", gif: "image", webp: "image",
