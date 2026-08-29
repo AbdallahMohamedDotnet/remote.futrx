@@ -1,24 +1,12 @@
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
+import type {
+  DropPosition,
+  ProjectSidebarNode,
+  WorkspaceSidebarModel,
+} from "../../../models/workspace";
 import { STORAGE_KEYS } from "../../../config/storageKeys.ts";
 import { readBool, readJson, writeBool, writeJson } from "../../../shared/browserStore.ts";
-
-export type DropPosition = "before" | "after";
-
-export interface ProjectSidebarNode {
-  project: ProjectMeta;
-  chats: ChatMeta[];
-  filteredChats: ChatMeta[];
-}
-
-export interface WorkspaceSidebarModel {
-  visibleProjects: ProjectSidebarNode[];
-  visibleLooseChats: ChatMeta[];
-  totalChats: number;
-  totalProjects: number;
-  hasMatches: boolean;
-  query: string;
-}
 
 interface ChatBuckets {
   byProject: Map<string, ChatMeta[]>;

@@ -9,10 +9,8 @@ import { projectApi } from "../../api/projectApi";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
 import { useWorkspacePushLifecycle } from "../hooks/push/useWorkspacePushLifecycle";
 import { useUserSettingsContext } from "./UserSettingsContext";
-import {
-  workspaceUiState,
-  type WorkspaceUiState,
-} from "../logic/workspace/workspaceUiState";
+import type { WorkspaceUiState } from "../../models/workspace";
+import { workspaceUiState } from "../logic/workspace/workspaceUiState";
 import { workspaceSidebarState } from "../logic/workspace/workspaceSidebarState";
 import { agentCapabilityCatalogStore } from "../stores/agentCapabilityCatalog";
 import { takePushNotificationChatId } from "../logic/push/pushNotificationNavigation";

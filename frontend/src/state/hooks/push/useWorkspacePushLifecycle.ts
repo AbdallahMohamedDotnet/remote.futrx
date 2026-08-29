@@ -1,7 +1,7 @@
 import { useEffect } from "preact/hooks";
 
 import { pushSubscriptionApi } from "../../../api/pushSubscriptionApi";
-import type { WorkspaceView } from "../../logic/workspace/workspaceUiState";
+import type { WorkspaceView } from "../../../models/workspace";
 import { pushNotificationStore } from "../../stores/pushNotificationStore";
 import { pushPresenceStore } from "../../stores/pushPresenceStore";
 

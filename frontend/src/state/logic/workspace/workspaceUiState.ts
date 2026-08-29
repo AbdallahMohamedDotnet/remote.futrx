@@ -1,22 +1,7 @@
-export type WorkspaceView = "chat" | "settings" | "project-containers";
-
-export interface WorkspaceUiState {
-  activeChatId: string | null;
-  containerProjectId: string | null;
-  sidebarOpen: boolean;
-  createProjectOpen: boolean;
-  view: WorkspaceView;
-}
-
-export type WorkspaceUiAction =
-  | { type: "select-chat"; chatId: string | null }
-  | { type: "open-sidebar" }
-  | { type: "close-sidebar" }
-  | { type: "open-create-project" }
-  | { type: "close-create-project" }
-  | { type: "show-chat" }
-  | { type: "show-settings" }
-  | { type: "show-project-containers"; projectId: string | null };
+import type {
+  WorkspaceUiAction,
+  WorkspaceUiState,
+} from "../../../models/workspace";
 
 class WorkspaceUiStateTransitions {
   // A notification tap on a cold start arrives as ?chat=<id>, so the first

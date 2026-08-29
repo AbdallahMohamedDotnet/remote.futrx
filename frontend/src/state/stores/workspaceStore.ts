@@ -1,15 +1,8 @@
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
+import type { WorkspaceSnapshot } from "../../models/workspace";
 import type { WorkspaceMessage } from "../../types/workspaceApi";
 import { workspaceDataProjector } from "../logic/workspace/workspaceDataProjector.ts";
-
-export interface WorkspaceSnapshot {
-  chats: ChatMeta[];
-  projects: ProjectMeta[];
-  /** False until the first snapshot lands. An empty list before that means
-   *  "not known yet", not "none" — callers must not act on the difference. */
-  loaded: boolean;
-}
 
 /** Opens the workspace feed and reports messages until the returned call. */
 type SubscribeToWorkspace = (
