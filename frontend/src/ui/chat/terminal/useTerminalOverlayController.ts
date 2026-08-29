@@ -14,7 +14,7 @@ export function useTerminalOverlayController(terminalOpen: boolean) {
   useEffect(() => {
     if (!terminalOpen || TerminalOverlay) return;
     let cancelled = false;
-    import("../../../ui/chat/terminal/TerminalOverlay").then((module) => {
+    import("./TerminalOverlay").then((module) => {
       if (!cancelled) setTerminalOverlay(() => module.TerminalOverlay);
     });
     return () => {

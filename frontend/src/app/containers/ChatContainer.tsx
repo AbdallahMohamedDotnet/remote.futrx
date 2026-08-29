@@ -17,7 +17,7 @@ import { useChatDrawerController } from "../../state/hooks/chat/useChatDrawerCon
 import { useChatKeyboardShortcuts } from "../../state/hooks/chat/useChatKeyboardShortcuts";
 import { useChatPreferences } from "../../state/hooks/chat/useChatPreferences";
 import { useChatReadMarker } from "../../state/hooks/chat/useChatReadMarker";
-import { useTerminalOverlayController } from "../../state/hooks/chat/useTerminalOverlayController";
+import { useTerminalOverlayController } from "../../ui/chat/terminal/useTerminalOverlayController";
 import { useWorkspaceGitRepos } from "../../state/hooks/chat/useWorkspaceGitRepos";
 
 export function ChatContainer({
