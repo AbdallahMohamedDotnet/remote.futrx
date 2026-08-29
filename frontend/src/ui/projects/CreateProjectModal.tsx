@@ -34,14 +34,19 @@ export function CreateProjectModal({
     return () => clearTimeout(timer);
   }, [open]);
 
+  // close() reads `creating`, so the handler is held in a ref rather than keyed
+  // on: an Escape during an in-flight create must see it and do nothing.
+  const closeRef = useRef(close);
+  closeRef.current = close;
+
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
+      if (event.key === "Escape") closeRef.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [open]);
 
   if (!open) return null;
 
