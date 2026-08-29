@@ -1,10 +1,27 @@
 # services/
 
-Logic that belongs to no single caller, grouped by the question it answers.
+Logic that belongs to no single caller, grouped by the domain it serves.
 
-Every file here has the same shape: **one class, one exported instance.**
+| Folder | What it answers about |
+| --- | --- |
+| `auth/` | Which agent providers are logged in, and what that gates |
+| `chat/` | Where an attachment is stored and what it is called |
+| `files/` | What a filename means: its kind, its icon, what a click does |
+| `projects/` | The `<slug>--<port>.dev.<host>` preview URL shape |
+| `usage/` | Date ranges, bar geometry, and how tokens and money are written |
+| `workspace/` | The sidebar: grouping, ordering, search, collapse |
+| `platform/` | The browser and the language — storage, ids, time, diff |
+
+The domain names are the ones the app already uses in `state/hooks/` and
+`ui/`, so a service sits under the same word as the hook and the screen that
+call it. `platform/` is the exception and the pressure valve: a module that
+knows nothing about this app goes there rather than being filed under
+whichever domain happened to need it first.
+
+Every file has the same shape: **one class, one exported instance.**
 
 ```ts
+// services/projects/projectPreviewUrlService.ts
 class ProjectPreviewUrlService {
   build(slug: string, port: number | null, publicHostname: string): string { … }
   private hostSuffix(publicHostname: string): string { … }
@@ -51,23 +68,32 @@ because it can never import back.
 
 A module belongs here when **no single caller owns it**. `fileService` is read
 by the file tree, the markdown parser, the IDE links and a hook;
-`workspaceSidebarService` by `app/`, `ui/`, two hooks and a context.
+`workspaceSidebarService` by `app/`, `ui/`, two hooks and a context. That is
+also why `files/` is its own folder rather than living under `chat/` where all
+four of today's callers happen to sit: the service is about files, and the
+next caller will not be a chat one.
 
 A module with exactly one owner stays with that owner — see the note in
 [`../state/README.md`](../state/README.md). `chatEventStateProjector` sits in
 `state/hooks/chat/` and `createProjectForm` in `ui/projects/`, and neither is
 any less testable for it.
 
-The two exceptions are `diffService` and `relativeTimeService`, which have one
-caller each today. They are here because they are general capabilities with
-private internals — a Myers diff and a pair of time formatters — rather than
-rules about one screen, and a second caller would not move them.
+The two exceptions are `platform/diffService` and
+`platform/relativeTimeService`, which have one caller each today. They are
+here because they are general capabilities with private internals — a Myers
+diff and a pair of time formatters — rather than rules about one screen, and a
+second caller would not move them.
 
 ## Naming
 
 `*Service`, and the suffix carries the placement rule the way `*Store` does in
 `state/stores/`. If you write a class named `…Service`, it goes here; if it
 does not belong here, it is not a service.
+
+The filename keeps the domain word its folder already says —
+`usage/usageRangeService.ts`, not `usage/rangeService.ts` — because the import
+lands in a file where the folder is no longer visible, and `usageRangeService`
+reads at the call site where `rangeService` would not.
 
 Methods drop the prefix the receiver now carries. Where two methods differ in
 a way a reader could mistake for duplication, the names say so:
@@ -83,6 +109,11 @@ table by it.
 
 What stays is what describes one service's own insides and never appears in an
 import elsewhere — `LineDiffPart`, `FileOpenAction`, `ChatBuckets`.
+
+A service may import another service; `workspace/workspaceSidebarService`
+reads `platform/browserStorageService`, and `usage/usageChartService` labels
+its bars with `usage/usageFormatService`. Keep those acyclic — the layer has
+no cycles today.
 
 Tests sit beside the service they cover, and every service that holds a rule
 worth pinning has one.
