@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
+import { CHAT_EVENT_PAGE_LIMIT } from "../../../config/api.ts";
 import type { ChatStream } from "../../../types/chatApi";
 import type {
   ChatEvent,
@@ -13,14 +14,10 @@ import {
   type ChatRenderState,
 } from "../../chat/chatEventStateProjector";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
-import type { ChatUsageTotals } from "../../../models/chatUsage";
-
-const CHAT_EVENT_PAGE_LIMIT = 240;
 
 interface UseChatResult {
   meta: ChatMeta | null;
   blocks: ChatMessageBlock[];
-  usageTotals: ChatUsageTotals;
   eventCount: number;
   hasOlder: boolean;
   loadingOlder: boolean;
@@ -237,7 +234,6 @@ export function useChat(chatId: string): UseChatResult {
   return {
     meta,
     blocks: renderState.blocks,
-    usageTotals: renderState.usageTotals,
     eventCount: renderState.eventCount,
     hasOlder: renderState.hasOlder,
     loadingOlder,
