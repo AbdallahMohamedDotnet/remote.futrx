@@ -9,7 +9,7 @@ Logic that belongs to no single caller, grouped by the domain it serves.
 | `files/` | What a filename means: its kind, its icon, what a click does |
 | `projects/` | The `<slug>--<port>.dev.<host>` preview URL shape |
 | `usage/` | Date ranges, bar geometry, and how tokens and money are written |
-| `workspace/` | The sidebar: grouping, ordering, search, collapse |
+| `workspace/` | The sidebar: what it shows, and what the user folded away |
 | `platform/` | The browser and the language — storage, ids, time, diff |
 
 The domain names are the ones the app already uses in `state/hooks/` and
@@ -68,10 +68,10 @@ because it can never import back.
 
 A module belongs here when **no single caller owns it**. `fileService` is read
 by the file tree, the markdown parser, the IDE links and a hook;
-`workspaceSidebarService` by `app/`, `ui/`, two hooks and a context. That is
-also why `files/` is its own folder rather than living under `chat/` where all
-four of today's callers happen to sit: the service is about files, and the
-next caller will not be a chat one.
+`workspaceSidebarService` by a container and a context. That is also why
+`files/` is its own folder rather than living under `chat/` where all four of
+today's callers happen to sit: the service is about files, and the next caller
+will not be a chat one.
 
 A module with exactly one owner stays with that owner — see the note in
 [`../state/README.md`](../state/README.md). `chatEventStateProjector` sits in
@@ -110,10 +110,27 @@ table by it.
 What stays is what describes one service's own insides and never appears in an
 import elsewhere — `LineDiffPart`, `FileOpenAction`, `ChatBuckets`.
 
-A service may import another service; `workspace/workspaceSidebarService`
+A service may import another service; `workspace/sidebarPreferenceService`
 reads `platform/browserStorageService`, and `usage/usageChartService` labels
 its bars with `usage/usageFormatService`. Keep those acyclic — the layer has
 no cycles today.
+
+## Keep the surface to what is called
+
+Two services in `workspace/` rather than one: `workspaceSidebarService`
+answers what the sidebar shows, `sidebarPreferenceService` what the user
+folded and how that is remembered. They change for different reasons — a
+grouping rule versus a storage key — and only the second one touches
+localStorage.
+
+The same rule applies inside a service. `usageRangeService` published eight
+methods when it only had three to offer; the other five were internals that
+leaked out when it stopped being a module of exported functions. If a method
+has no caller outside the class, it is `private`, and it sits below the
+contract it serves. If it has no caller at all, it goes.
+
+A test is not a caller. When one drives a method nothing in the app uses, the
+method is not the thing to keep — rewrite the test against the contract.
 
 Tests sit beside the service they cover, and every service that holds a rule
 worth pinning has one.
