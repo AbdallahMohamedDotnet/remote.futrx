@@ -11,13 +11,6 @@ import type {
  */
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const USAGE_RANGE_PRESETS: Array<{ id: UsageRangePreset; label: string }> = [
-  { id: "7d", label: "7 days" },
-  { id: "30d", label: "30 days" },
-  { id: "month", label: "This month" },
-  { id: "custom", label: "Custom" },
-];
-
 /** Start of the UTC day containing `at`. */
 export function startOfUtcDay(at: number): number {
   return Math.floor(at / DAY_MS) * DAY_MS;

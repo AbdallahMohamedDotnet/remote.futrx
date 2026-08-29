@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { PROJECT_MAX_SLUG_LEN } from "../../../config/project.ts";
 import type { ProjectMeta } from "../../../models/project.ts";
 import { createProjectForm } from "./createProjectForm.ts";
 
@@ -25,7 +26,7 @@ test("slugify mirrors the backend rules", () => {
   assert.equal(createProjectForm.slugify("!!!"), "");
   assert.equal(createProjectForm.slugify("trailing---"), "trailing");
   const long = createProjectForm.slugify("x".repeat(50));
-  assert.equal(long.length, createProjectForm.maxSlugLen);
+  assert.equal(long.length, PROJECT_MAX_SLUG_LEN);
 });
 
 test("validate rejects empty and short names", () => {
@@ -67,7 +68,7 @@ test("validate suffixes a slug collision when display names differ", () => {
 });
 
 test("validate truncates a taken maximum-length slug before adding its suffix", () => {
-  const base = "x".repeat(createProjectForm.maxSlugLen);
+  const base = "x".repeat(PROJECT_MAX_SLUG_LEN);
   const projects = [
     project({ id: "1", name: "Existing one", slug: base }),
     project({ id: "2", name: "Existing two", slug: `${"x".repeat(30)}-2` }),

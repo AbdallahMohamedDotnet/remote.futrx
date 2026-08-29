@@ -1,6 +1,8 @@
+import { MAX_RETURN_URL_LENGTH } from "../../../config/auth.ts";
+
 class ReturnUrlPolicy {
   safeTarget(rawUrl: string, baseUrl: string): string {
-    if (!rawUrl || rawUrl.length > 2048) return "";
+    if (!rawUrl || rawUrl.length > MAX_RETURN_URL_LENGTH) return "";
 
     try {
       const target = new URL(rawUrl);

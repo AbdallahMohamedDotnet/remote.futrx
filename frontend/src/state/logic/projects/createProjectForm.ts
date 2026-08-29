@@ -1,12 +1,7 @@
+import { PROJECT_MAX_SLUG_LEN } from "../../../config/project.ts";
 import type { CreateProjectValidation, ProjectMeta } from "../../../models/project";
 
-// Mirrors backend project.MaxSlugLen so the preview matches what the server
-// will actually create.
-const MAX_SLUG_LEN = 32;
-
 class CreateProjectFormLogic {
-  readonly maxSlugLen = MAX_SLUG_LEN;
-
   // Mirrors backend Slugify (service/project/slug.go), except the empty
   // result stays empty here so validation can reject symbol-only names
   // instead of silently previewing the server's "project" fallback.
@@ -27,7 +22,9 @@ class CreateProjectFormLogic {
     out = out.replace(/-+$/, "");
     if (out === "") return "";
     if (!(out[0] >= "a" && out[0] <= "z")) out = "p-" + out;
-    if (out.length > MAX_SLUG_LEN) out = out.slice(0, MAX_SLUG_LEN).replace(/-+$/, "");
+    if (out.length > PROJECT_MAX_SLUG_LEN) {
+      out = out.slice(0, PROJECT_MAX_SLUG_LEN).replace(/-+$/, "");
+    }
     return out;
   }
 
@@ -39,7 +36,7 @@ class CreateProjectFormLogic {
 
     for (let i = 2; i < 1000; i += 1) {
       const suffix = `-${i}`;
-      const stem = base.slice(0, MAX_SLUG_LEN - suffix.length);
+      const stem = base.slice(0, PROJECT_MAX_SLUG_LEN - suffix.length);
       const candidate = `${stem}${suffix}`;
       if (!taken.has(candidate)) return candidate;
     }

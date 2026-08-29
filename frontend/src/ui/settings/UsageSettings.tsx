@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { USAGE_RANGE_PRESETS } from "../../config/usage";
 import type { UsageChartMetric, UsageGroupBy } from "../../models/usage";
 import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
 import {
@@ -6,7 +7,7 @@ import {
   formatTokens,
   usageConfidenceNote,
 } from "../../state/logic/usage/usageChartModel";
-import { USAGE_RANGE_PRESETS, usageRangeLabels } from "../../state/logic/usage/usageRangeState";
+import { usageRangeLabels } from "../../state/logic/usage/usageRangeState";
 import { AlertCircle, Loader, RotateCcw } from "../primitives/icons";
 import { UsageBarChart } from "./usage/UsageBarChart";
 import { UsageGroupTable, UsageRecordsTable } from "./usage/UsageTables";

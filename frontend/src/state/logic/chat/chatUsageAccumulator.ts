@@ -1,21 +1,19 @@
 import type { ChatEvent } from "../../../models/chat";
-import type { ChatUsagePayload, ChatUsageTotals } from "../../../models/chatUsage";
-
-export const EMPTY_USAGE_TOTALS: ChatUsageTotals = {
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheReadTokens: 0,
-  cacheWriteTokens: 0,
-};
+import {
+  EMPTY_CHAT_USAGE_TOTALS,
+  type ChatUsagePayload,
+  type ChatUsageTotals,
+} from "../../../models/chatUsage.ts";
 
 // Token totals for a chat, summed from the usage each `complete` event carries.
 // Kept apart from block assembly so a change to the token model — a new cache
 // field, a new provider spelling — does not touch message rendering.
 class ChatUsageAccumulator {
-  // Totals across every event that reports usage. Returns EMPTY_USAGE_TOTALS
-  // itself when nothing does, so an empty transcript keeps a stable reference.
+  // Totals across every event that reports usage. Returns
+  // EMPTY_CHAT_USAGE_TOTALS itself when nothing does, so an empty transcript
+  // keeps a stable reference.
   totalFor(events: ChatEvent[]): ChatUsageTotals {
-    let totals = EMPTY_USAGE_TOTALS;
+    let totals = EMPTY_CHAT_USAGE_TOTALS;
     for (const event of events) {
       totals = this.add(totals, event);
     }

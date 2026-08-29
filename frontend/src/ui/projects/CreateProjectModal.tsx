@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ProjectMeta } from "../../models/project";
+import { PROJECT_MAX_SLUG_LEN } from "../../config/project";
 import { createProjectForm } from "../../state/logic/projects/createProjectForm";
 import { Loader, X } from "../primitives/icons";
 
@@ -147,7 +148,7 @@ export function CreateProjectModal({
             <div class="flex min-h-[18px] items-center justify-between gap-3">
               <div class={`text-xs ${showError ? "text-accent-red" : "text-ink-400"}`}>{hint}</div>
               <div class="text-[11.5px] tabular-nums text-ink-400">
-                {name ? `${name.trim().length}/${createProjectForm.maxSlugLen}` : ""}
+                {name ? `${name.trim().length}/${PROJECT_MAX_SLUG_LEN}` : ""}
               </div>
             </div>
           </div>

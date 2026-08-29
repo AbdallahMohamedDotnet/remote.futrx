@@ -13,3 +13,10 @@ export interface ChatUsageTotals {
   cacheReadTokens: number;
   cacheWriteTokens: number;
 }
+
+export const EMPTY_CHAT_USAGE_TOTALS: ChatUsageTotals = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+};

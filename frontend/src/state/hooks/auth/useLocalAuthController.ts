@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { localAuthApi } from "../../../api/authApi";
+import { MIN_LOCAL_PASSWORD_LENGTH } from "../../../config/auth";
 import type { LoginMode } from "../../../models/auth";
 import { returnUrlPolicy } from "../../logic/auth/returnUrlPolicy";
 
@@ -36,8 +37,8 @@ export function useLocalAuthController({
       setError("Passwords do not match.");
       return;
     }
-    if (setup && password.length < 12) {
-      setError("Use at least 12 characters.");
+    if (setup && password.length < MIN_LOCAL_PASSWORD_LENGTH) {
+      setError(`Use at least ${MIN_LOCAL_PASSWORD_LENGTH} characters.`);
       return;
     }
 

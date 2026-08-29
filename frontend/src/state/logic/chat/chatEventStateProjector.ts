@@ -4,15 +4,16 @@ import type {
   ChatRenderState,
   ChatStatus,
 } from "../../../models/chat";
+import { EMPTY_CHAT_USAGE_TOTALS } from "../../../models/chatUsage.ts";
 import { chatMessageBlockBuilder } from "./chatMessageBlockBuilder.ts";
-import { chatUsageAccumulator, EMPTY_USAGE_TOTALS } from "./chatUsageAccumulator.ts";
+import { chatUsageAccumulator } from "./chatUsageAccumulator.ts";
 
 class ChatEventStateProjector {
   empty(): ChatRenderState {
     return {
       events: [],
       blocks: [],
-      usageTotals: EMPTY_USAGE_TOTALS,
+      usageTotals: EMPTY_CHAT_USAGE_TOTALS,
       eventCount: 0,
       hasOlder: false,
       nextBefore: 0,
