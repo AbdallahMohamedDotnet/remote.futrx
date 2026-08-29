@@ -11,7 +11,6 @@ export interface ChatRenderState {
   eventCount: number;
   hasOlder: boolean;
   nextBefore: number;
-  lastSeq: number;
 }
 
 class ChatEventStateProjector {
@@ -23,13 +22,12 @@ class ChatEventStateProjector {
       eventCount: 0,
       hasOlder: false,
       nextBefore: 0,
-      lastSeq: 0,
     };
   }
 
   fromEvents(
     events: ChatEvent[],
-    page: Pick<ChatEventPage, "hasMore" | "nextBefore" | "lastSeq">
+    page: Pick<ChatEventPage, "hasMore" | "nextBefore">
   ): ChatRenderState {
     return {
       events,
@@ -38,7 +36,6 @@ class ChatEventStateProjector {
       eventCount: events.length,
       hasOlder: page.hasMore,
       nextBefore: page.nextBefore ?? 0,
-      lastSeq: Math.max(page.lastSeq, this.latestSequence(events)),
     };
   }
 
@@ -48,7 +45,6 @@ class ChatEventStateProjector {
     return this.fromEvents(merged, {
       hasMore: state.hasOlder,
       nextBefore: state.nextBefore,
-      lastSeq: Math.max(state.lastSeq, this.latestSequence(events)),
     });
   }
 

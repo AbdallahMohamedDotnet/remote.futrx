@@ -15,7 +15,6 @@ test("projects chat events into the existing message and usage model", () => {
 
   const state = chatEventStateProjector.fromEvents(events, {
     hasMore: false,
-    lastSeq: 0,
   });
 
   assert.deepEqual(state.blocks, [
