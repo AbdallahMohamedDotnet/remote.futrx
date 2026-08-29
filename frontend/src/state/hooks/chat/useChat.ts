@@ -6,13 +6,11 @@ import type {
   ChatEvent,
   ChatEventPage,
   ChatMeta,
+  ChatRenderState,
   ChatStatus,
   PromptOutcome,
 } from "../../../models/chat";
-import {
-  chatEventStateProjector,
-  type ChatRenderState,
-} from "../../logic/chat/chatEventStateProjector";
+import { chatEventStateProjector } from "../../logic/chat/chatEventStateProjector";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 
 interface UseChatResult {

@@ -1,16 +1,5 @@
 import type { ChatEvent } from "../../../models/chat";
-import type { ChatUsageTotals } from "../../../models/chatUsage";
-
-// The wire shape of a completed run's usage. Providers send this as either an
-// object or a JSON string, and any field may be absent.
-type Usage =
-  | {
-      input_tokens?: number;
-      output_tokens?: number;
-      cache_read_input_tokens?: number;
-      cache_creation_input_tokens?: number;
-    }
-  | null;
+import type { ChatUsagePayload, ChatUsageTotals } from "../../../models/chatUsage";
 
 export const EMPTY_USAGE_TOTALS: ChatUsageTotals = {
   inputTokens: 0,
@@ -37,7 +26,7 @@ class ChatUsageAccumulator {
     if (event.type !== "complete" || !event.usage) return totals;
 
     try {
-      const usage = (typeof event.usage === "string" ? JSON.parse(event.usage) : event.usage) as Usage;
+      const usage = (typeof event.usage === "string" ? JSON.parse(event.usage) : event.usage) as ChatUsagePayload | null;
       if (!usage) return totals;
       return {
         inputTokens: totals.inputTokens + (usage.input_tokens ?? 0),

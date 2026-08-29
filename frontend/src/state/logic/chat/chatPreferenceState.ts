@@ -1,21 +1,11 @@
 import type {
   ChatMeta,
-  ChatMode,
   ChatProvider,
-  ReasoningEffort,
+  ResolvedChatMeta,
   SelectedSkill,
-  ServiceTier,
 } from "../../../models/chat";
 import type { ChatSettings } from "../../../models/settings";
 import type { RegisteredSkill } from "../../../models/skill";
-
-export interface ResolvedChatMeta extends ChatMeta {
-  provider: ChatProvider;
-  model: string;
-  mode: ChatMode;
-  reasoningEffort: ReasoningEffort;
-  serviceTier: ServiceTier;
-}
 
 class ChatPreferenceState {
   resolveMeta(

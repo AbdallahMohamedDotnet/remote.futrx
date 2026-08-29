@@ -1,17 +1,11 @@
-import type { ChatEvent, ChatEventPage, ChatStatus } from "../../../models/chat";
-import type { ChatMessageBlock } from "../../../models/chatMessage";
-import type { ChatUsageTotals } from "../../../models/chatUsage";
+import type {
+  ChatEvent,
+  ChatEventPage,
+  ChatRenderState,
+  ChatStatus,
+} from "../../../models/chat";
 import { chatMessageBlockBuilder } from "./chatMessageBlockBuilder.ts";
 import { chatUsageAccumulator, EMPTY_USAGE_TOTALS } from "./chatUsageAccumulator.ts";
-
-export interface ChatRenderState {
-  events: ChatEvent[];
-  blocks: ChatMessageBlock[];
-  usageTotals: ChatUsageTotals;
-  eventCount: number;
-  hasOlder: boolean;
-  nextBefore: number;
-}
 
 class ChatEventStateProjector {
   empty(): ChatRenderState {
