@@ -3,7 +3,7 @@ import type { Attachment } from "../../../models/upload";
 import { startChatUpload } from "../../../api/uploadApi";
 import type { UploadHandle } from "../../../types/uploadApi";
 import { randomId } from "../../../shared/ids";
-import { chatAttachmentState } from "../../chat/chatAttachmentState";
+import { chatAttachmentState } from "../../logic/chat/chatAttachmentState";
 
 export function useAttachmentUpload(
   chatId: string,

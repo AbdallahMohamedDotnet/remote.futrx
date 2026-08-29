@@ -4,7 +4,7 @@ import type { ProjectMeta } from "../../../models/project";
 import type {
   ProjectDataLoadSignal,
   SecretsRecord,
-} from "../../projects/projectContainerRecords";
+} from "../../logic/projects/projectContainerRecords";
 
 export function useProjectSecrets(project: ProjectMeta | null) {
   const [record, setRecord] = useState<SecretsRecord>({ loading: false });

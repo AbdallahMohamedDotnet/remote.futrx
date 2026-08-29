@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
-import type { DropPosition } from "../../workspace/workspaceSidebarState";
-import { workspaceSidebarState } from "../../workspace/workspaceSidebarState";
+import type { DropPosition } from "../../logic/workspace/workspaceSidebarState";
+import { workspaceSidebarState } from "../../logic/workspace/workspaceSidebarState";
 
 interface DropTarget {
   projectId: string;

@@ -4,7 +4,7 @@ import type { ContainerLimits, ProjectMeta } from "../../../models/project";
 import type {
   ProjectContainerRecord,
   ProjectDataLoadSignal,
-} from "../../projects/projectContainerRecords";
+} from "../../logic/projects/projectContainerRecords";
 
 export function useProjectContainerInfo(project: ProjectMeta | null) {
   const [record, setRecord] = useState<ProjectContainerRecord>({ loading: false });

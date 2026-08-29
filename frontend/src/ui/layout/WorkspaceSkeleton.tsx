@@ -1,4 +1,4 @@
-import { workspaceSidebarState } from "../../state/workspace/workspaceSidebarState";
+import { workspaceSidebarState } from "../../state/logic/workspace/workspaceSidebarState";
 import { ChatSkeleton } from "../chat/ChatSkeleton";
 import { ChevronLeft, ChevronRight, LogOut, Plus, Search, Settings } from "../primitives/icons";
 import { Skeleton } from "../primitives/Skeleton";

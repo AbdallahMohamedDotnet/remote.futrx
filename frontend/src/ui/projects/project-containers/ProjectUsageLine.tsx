@@ -2,7 +2,7 @@ import type { UsageSummary } from "../../../models/usage";
 import {
   formatCostWithConfidence,
   formatTokens,
-} from "../../../state/usage/usageChartModel";
+} from "../../../state/logic/usage/usageChartModel";
 import { Activity } from "../../primitives/icons";
 
 /**

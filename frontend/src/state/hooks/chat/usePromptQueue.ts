@@ -2,7 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { ChatStatus, PromptOutcome, QueuedPrompt } from "../../../models/chat";
 import { queueId } from "../../../shared/ids";
 import { chatComposerSessionStore } from "../../stores/composerSessionStore";
-import { promptQueueState } from "../../chat/promptQueueState";
+import { promptQueueState } from "../../logic/chat/promptQueueState";
 
 export function usePromptQueue({
   chatId,

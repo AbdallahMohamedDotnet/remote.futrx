@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { usageApi } from "../../../api/usageApi";
 import type { UsageRecord } from "../../../models/usage";
-import type { UsageRange } from "../../usage/usageRangeState";
+import type { UsageRange } from "../../logic/usage/usageRangeState";
 
 const DRILL_DOWN_LIMIT = 100;
 

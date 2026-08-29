@@ -9,7 +9,7 @@ import { WorkspaceActions } from "../../ui/chat/header/WorkspaceActions";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
 import { ScheduleDrawer } from "../../ui/chat/schedules/ScheduleDrawer";
-import { chatAttachmentState } from "../../state/chat/chatAttachmentState";
+import { chatAttachmentState } from "../../state/logic/chat/chatAttachmentState";
 import { useChat } from "../../state/hooks/chat/useChat";
 import { useChatBrowserController } from "../../state/hooks/chat/useChatBrowserController";
 import { useChatComposerController } from "../../state/hooks/chat/useChatComposerController";

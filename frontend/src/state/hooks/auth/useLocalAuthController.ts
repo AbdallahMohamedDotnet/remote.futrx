@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { localAuthApi } from "../../../api/authApi";
-import { returnUrlPolicy } from "../../auth/returnUrlPolicy";
+import { returnUrlPolicy } from "../../logic/auth/returnUrlPolicy";
 
 export type LoginMode = "claim" | "login" | "legacy-setup";
 

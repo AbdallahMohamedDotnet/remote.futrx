@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { usageApi } from "../../../api/usageApi";
 import type { UsageSummary } from "../../../models/usage";
-import { usageRangeForPreset } from "../../usage/usageRangeState";
+import { usageRangeForPreset } from "../../logic/usage/usageRangeState";
 
 export interface ProjectUsage {
   summary: UsageSummary | null;

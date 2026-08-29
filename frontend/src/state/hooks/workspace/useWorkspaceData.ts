@@ -3,7 +3,7 @@ import { workspaceApi } from "../../../api/workspaceApi";
 import type { WorkspaceMessage } from "../../../types/workspaceApi";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
-import { workspaceDataProjector } from "../../workspace/workspaceDataProjector";
+import { workspaceDataProjector } from "../../logic/workspace/workspaceDataProjector";
 
 export function useWorkspaceData(enabled: boolean) {
   const [chats, setChats] = useState<ChatMeta[]>([]);

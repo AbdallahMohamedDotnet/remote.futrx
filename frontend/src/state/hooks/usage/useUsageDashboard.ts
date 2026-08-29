@@ -1,6 +1,6 @@
 import { useMemo } from "preact/hooks";
 import type { UsageGroupBy, UsageSummary } from "../../../models/usage";
-import type { UsageRange, UsageRangePreset } from "../../usage/usageRangeState";
+import type { UsageRange, UsageRangePreset } from "../../logic/usage/usageRangeState";
 import { useUsageDrillDown, type UsageDrillDown } from "./useUsageDrillDown";
 import { useUsageRange } from "./useUsageRange";
 import { useUsageSummary } from "./useUsageSummary";

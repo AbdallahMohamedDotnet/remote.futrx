@@ -4,7 +4,7 @@ import type { ProjectMeta } from "../../../models/project";
 import type {
   AccessRecord,
   ProjectDataLoadSignal,
-} from "../../projects/projectContainerRecords";
+} from "../../logic/projects/projectContainerRecords";
 
 export function useProjectAccess(project: ProjectMeta | null) {
   const [record, setRecord] = useState<AccessRecord>({ loading: false });

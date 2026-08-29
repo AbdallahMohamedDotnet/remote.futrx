@@ -12,7 +12,7 @@ import type {
 import {
   chatEventStateProjector,
   type ChatRenderState,
-} from "../../chat/chatEventStateProjector";
+} from "../../logic/chat/chatEventStateProjector";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 
 interface UseChatResult {

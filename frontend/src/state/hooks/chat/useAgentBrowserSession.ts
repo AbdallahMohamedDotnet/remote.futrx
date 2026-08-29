@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { agentBrowserApi } from "../../../api/agents/agentBrowserApi";
 import type { AgentBrowserInfo, AgentBrowserStatus } from "../../../models/project";
-import { agentBrowserStatusState } from "../../chat/agentBrowserStatusState.ts";
+import { agentBrowserStatusState } from "../../logic/chat/agentBrowserStatusState.ts";
 
 const pollIntervalMs = 1500;
 const heartbeatIntervalMs = 15000;

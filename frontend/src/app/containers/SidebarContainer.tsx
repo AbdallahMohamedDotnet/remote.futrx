@@ -4,7 +4,7 @@ import { useAuthContext } from "../../state/context/AuthContext";
 import { useWorkspaceContext } from "../../state/context/WorkspaceContext";
 import { useSidebarState } from "../../state/hooks/workspace/useSidebarState";
 import { useWorkspaceCommands } from "../../state/hooks/workspace/useWorkspaceCommands";
-import { workspaceSidebarState } from "../../state/workspace/workspaceSidebarState";
+import { workspaceSidebarState } from "../../state/logic/workspace/workspaceSidebarState";
 import { useAccountSignOut } from "../../state/hooks/auth/useAccountSignOut";
 
 export function SidebarContainer() {

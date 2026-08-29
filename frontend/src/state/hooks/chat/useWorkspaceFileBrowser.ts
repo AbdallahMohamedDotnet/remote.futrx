@@ -3,7 +3,7 @@ import { chatFilesApi } from "../../../api/chat/chatFilesApi";
 import { API_ROUTES } from "../../../config/routes";
 import type { FileNode } from "../../../models/files";
 import { mediaViewerStore } from "../../stores/mediaViewerStore";
-import { workspaceFileBrowserState } from "../../chat/workspaceFileBrowserState";
+import { workspaceFileBrowserState } from "../../logic/chat/workspaceFileBrowserState";
 import { fileOpenAction } from "../../../shared/fileMeta";
 
 export interface WorkspaceFileTreeState {

@@ -1,13 +1,13 @@
 import { useState } from "preact/hooks";
 import type { UsageGroupBy } from "../../models/usage";
 import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
-import type { UsageChartMetric } from "../../state/usage/usageChartModel";
+import type { UsageChartMetric } from "../../state/logic/usage/usageChartModel";
 import {
   formatCostWithConfidence,
   formatTokens,
   usageConfidenceNote,
-} from "../../state/usage/usageChartModel";
-import { USAGE_RANGE_PRESETS, usageRangeLabels } from "../../state/usage/usageRangeState";
+} from "../../state/logic/usage/usageChartModel";
+import { USAGE_RANGE_PRESETS, usageRangeLabels } from "../../state/logic/usage/usageRangeState";
 import { AlertCircle, Loader, RotateCcw } from "../primitives/icons";
 import { UsageBarChart } from "./usage/UsageBarChart";
 import { UsageGroupTable, UsageRecordsTable } from "./usage/UsageTables";

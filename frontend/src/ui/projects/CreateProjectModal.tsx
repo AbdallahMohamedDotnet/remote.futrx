@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ProjectMeta } from "../../models/project";
-import { createProjectForm } from "../../state/projects/createProjectForm";
+import { createProjectForm } from "../../state/logic/projects/createProjectForm";
 import { Loader, X } from "../primitives/icons";
 
 const MAX_NAME_LEN = 40;

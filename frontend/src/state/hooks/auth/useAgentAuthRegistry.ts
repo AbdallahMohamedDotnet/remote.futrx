@@ -7,7 +7,7 @@ import type {
 import {
   agentAuthGateReady,
   updateAgentAuthProvider,
-} from "../../auth/agentAuthRegistryState";
+} from "../../logic/auth/agentAuthRegistryState";
 
 export interface AgentAuthRegistryState {
   providers: AgentAuthProvider[];

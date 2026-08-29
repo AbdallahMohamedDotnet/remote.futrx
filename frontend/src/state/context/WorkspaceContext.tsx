@@ -4,7 +4,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReduce
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatApi } from "../../api/chatApi";
-import { createChatInput } from "../chat/createChatInput";
+import { createChatInput } from "../logic/chat/createChatInput";
 import { projectApi } from "../../api/projectApi";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
 import { useWorkspacePushLifecycle } from "../hooks/push/useWorkspacePushLifecycle";
@@ -12,10 +12,10 @@ import { useUserSettingsContext } from "./UserSettingsContext";
 import {
   workspaceUiState,
   type WorkspaceUiState,
-} from "../workspace/workspaceUiState";
-import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
+} from "../logic/workspace/workspaceUiState";
+import { workspaceSidebarState } from "../logic/workspace/workspaceSidebarState";
 import { agentCapabilityCatalogStore } from "../stores/agentCapabilityCatalog";
-import { takePushNotificationChatId } from "../push/pushNotificationNavigation";
+import { takePushNotificationChatId } from "../logic/push/pushNotificationNavigation";
 import { useAuthContext } from "./AuthContext";
 
 interface WorkspaceContextValue {

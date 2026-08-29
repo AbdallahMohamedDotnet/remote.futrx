@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
-import { workspaceSidebarState } from "../../workspace/workspaceSidebarState";
+import { workspaceSidebarState } from "../../logic/workspace/workspaceSidebarState";
 
 export function useSidebarState(
   open: boolean,

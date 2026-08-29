@@ -3,7 +3,7 @@ import type { RegisteredSkill } from "../../../models/skill";
 import type {
   ComposerModelOption,
   ComposerProviderOption,
-} from "../../../state/chat/agentCapabilityState";
+} from "../../../state/logic/chat/agentCapabilityState";
 import { ComposerAgentPicker } from "./ComposerAgentPicker";
 import { SkillPicker } from "./SkillPicker";
 
