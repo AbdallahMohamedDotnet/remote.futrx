@@ -23,10 +23,12 @@ workspace snapshot and nothing else imports it, so it sits in `stores/` beside
 still worth doing — it is what makes the rule testable — but the split is a
 file, not a directory.
 
-**A pure module with owners in more than one layer goes to `shared/<domain>/`.**
-`usageChartModel` is read by four components, `workspaceSidebarState` by `app/`,
-`ui/`, two hooks and a context. They own no state and answer to no single
-caller, which makes them leaves — the same category as `config/` and `models/`.
+**A module with owners in more than one layer goes to `services/`.**
+`usageFormatService` is read by four components, `workspaceSidebarService` by
+`app/`, `ui/`, two hooks and a context. They own no state and answer to no
+single caller, which makes them leaves — the same category as `config/` and
+`models/`. Each one is a class with a single exported instance; see
+[`../services/README.md`](../services/README.md).
 
 ## The access rule
 
@@ -89,5 +91,5 @@ the move costs nothing but the import.
 
 ## Layering
 
-`ui → app → state → api → transport`, with `config`, `models` and `shared` as
-leaves anyone may import. `state/` imports nothing from `ui/`.
+`ui → app → state → api → transport`, with `config`, `models` and `services`
+as leaves anyone may import. `state/` imports nothing from `ui/`.
