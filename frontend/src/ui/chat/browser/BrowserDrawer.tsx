@@ -217,7 +217,7 @@ export function BrowserDrawer({
     <aside
       ref={asideRef}
       id="workspace-browser-pane"
-      class={`workspace-pane workspace-browser-pane relative z-20 h-full flex-none overflow-hidden bg-[#101318] border-l border-white/10
+      class={`workspace-pane workspace-browser-pane relative z-20 h-full flex-none overflow-hidden bg-surface border-l border-line
               ${resizing ? "transition-none" : "transition-[width,opacity] duration-200 ease-out"}
               ${open ? "opacity-100 shadow-2xl" : "opacity-0 border-l-0 shadow-none pointer-events-none"}`}
       style={`--workspace-browser-width: ${browserWidth}px; --workspace-browser-max-width: max(${minBrowserWidth}px, calc(100% - ${minChatWidth}px));`}

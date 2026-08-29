@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useCallback, useState } from "preact/hooks";
 import {
   SettingsPage,
   type SettingsTab,
@@ -10,6 +10,8 @@ import { useSecuritySettings } from "../../state/hooks/auth/useSecuritySettings"
 import { useServerInfo } from "../../state/hooks/server/useServerInfo";
 import { useSelfUpdate } from "../../state/hooks/server/useSelfUpdate";
 import { usePushNotifications } from "../../state/hooks/push/usePushNotifications";
+import { useUsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
+import { usageApi } from "../../api/usageApi";
 
 export function SettingsContainer({
   onBack,
@@ -25,6 +27,27 @@ export function SettingsContainer({
   const serverInfo = useServerInfo(activeTab === "info");
   const selfUpdate = useSelfUpdate(activeTab === "updates" && auth.isAdmin);
   const security = useSecuritySettings(activeTab === "security");
+  const usageDashboard = useUsageDashboard(activeTab === "usage");
+  const [usageRebuilding, setUsageRebuilding] = useState(false);
+  const [usageRebuildMessage, setUsageRebuildMessage] = useState<string | null>(null);
+
+  const rebuildUsage = useCallback(async () => {
+    setUsageRebuilding(true);
+    setUsageRebuildMessage(null);
+    try {
+      const result = await usageApi.rebuild();
+      setUsageRebuildMessage(
+        `Rebuilt ${result.records} record${result.records === 1 ? "" : "s"} from ${result.chats} chat${
+          result.chats === 1 ? "" : "s"
+        }.`
+      );
+      await usageDashboard.refresh();
+    } catch (cause) {
+      setUsageRebuildMessage(`Rebuild failed: ${(cause as Error).message}`);
+    } finally {
+      setUsageRebuilding(false);
+    }
+  }, [usageDashboard]);
   const push = usePushNotifications(activeTab === "notifications");
 
   return (
@@ -44,6 +67,10 @@ export function SettingsContainer({
       selfUpdateRestarting={selfUpdate.restarting}
       selfUpdateError={selfUpdate.error}
       userDirectory={userDirectory}
+      usageDashboard={usageDashboard}
+      usageRebuilding={usageRebuilding}
+      usageRebuildMessage={usageRebuildMessage}
+      onRebuildUsage={rebuildUsage}
       appearanceTheme={userSettings.settings.appearance.theme}
       appearanceLoading={userSettings.loading}
       appearanceSaving={userSettings.saving}

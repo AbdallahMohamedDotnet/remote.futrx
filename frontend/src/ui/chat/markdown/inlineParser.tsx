@@ -33,7 +33,7 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
       if (end > index + 1) {
         flush();
         nodes.push(
-          <code key={`${keyPrefix}-${nodes.length}`} class="bg-white/[0.08] text-ink-100 px-1 py-0.5 rounded text-[12.5px] font-mono">
+          <code key={`${keyPrefix}-${nodes.length}`} class="bg-tint-strong text-ink-100 px-1 py-0.5 rounded text-[12.5px] font-mono">
             {text.slice(index + 1, end)}
           </code>
         );

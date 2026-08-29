@@ -43,6 +43,7 @@ type Handlers struct {
 	Auth              RouteRegistrar
 	Middleware        Middleware
 	Static            http.Handler
+	Usage            RouteRegistrar
 }
 
 func NewHandler(handlers Handlers) http.Handler {
@@ -68,6 +69,7 @@ func NewHandler(handlers Handlers) http.Handler {
 	register(handlers.Skills)
 	register(handlers.BrowserInspector)
 	register(handlers.Schedules)
+	register(handlers.Usage)
 	register(handlers.Uploads)
 
 	upgrader := NewUpgrader()
