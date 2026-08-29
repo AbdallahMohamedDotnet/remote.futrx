@@ -1,21 +1,44 @@
 # state/
 
-Four folders, each answering one question. Every top-level entry here is a
-**role**; the domain split lives one level down.
+Three folders, each answering one question.
 
 | Folder | Its one job | Holds state? |
 | --- | --- | --- |
-| `stores/` | State that must outlive the component tree | **Yes** — this is the whole list |
-| `logic/<domain>/` | Projectors, policies, reducers, builders | No — computes from its arguments |
-| `hooks/<domain>/` | The access layer: effects, API calls, lifecycle | In preact hooks |
+| `stores/` | Global state, and everything that keeps it | **Yes** — this is the whole list |
+| `hooks/<domain>/` | The access layer: how UI reads a store, plus state owned by one screen | In preact hooks |
 | `context/` | Cross-cutting state, gated in nesting order | In preact hooks |
+
+## Pure functions are not a layer
+
+There used to be a fourth folder, `logic/`, holding the projectors, policies
+and reducers. It answered no question of its own: half of it was the private
+insides of one hook or store, and half was pure helpers that `ui/` imported
+directly. Neither half is a layer, so there is no folder for them now.
+
+**A module lives with its owner.** `workspaceDataProjector` computes the next
+workspace snapshot and nothing else imports it, so it sits in `stores/` beside
+`workspaceStore`. `chatEventStateProjector` belongs to `useChat` and sits in
+`hooks/chat/`. `createProjectForm` is validation for one modal and lives in
+`ui/projects/` next to it. Splitting a rule out of the thing that owns it is
+still worth doing — it is what makes the rule testable — but the split is a
+file, not a directory.
+
+**A pure module with owners in more than one layer goes to `shared/<domain>/`.**
+`usageChartModel` is read by four components, `workspaceSidebarState` by `app/`,
+`ui/`, two hooks and a context. They own no state and answer to no single
+caller, which makes them leaves — the same category as `config/` and `models/`.
 
 ## The access rule
 
-**State is read only through `hooks/`.** Nothing in `ui/` or `app/` may
+**Global state is read only through `hooks/`.** Nothing in `ui/` or `app/` may
 subscribe to or read from a store — a store outlives the component tree, so a
 direct read misses every later change and never re-renders. `hooks/` and
 `context/` are the only importers of `stores/`.
+
+This is about *global* state, not all state. Roughly half the hooks here own
+something local — a date range, a textarea's height, a drag in progress — and
+those should stay local. Promoting a form's fields to a store to keep the
+folder count tidy is the failure this rule exists to prevent.
 
 **Commands may be dispatched from anywhere.** Writing to a store is not a
 subscription and carries no re-render obligation. This matters because some
@@ -29,9 +52,10 @@ handler inside a vnode builder. That is the one file outside `hooks/` and
 - `*Store` — keeps mutable fields. If you add one, it belongs in `stores/`.
 - `*State` — keeps nothing; a policy, reducer, or projection over its arguments.
 
-The suffix used to be decorative: three stores were named `*State` while their
-stateless siblings used the same suffix. It now carries information, so keep it
-honest.
+The suffix carries the placement rule, so keep it honest. `promptQueueState`
+sits in `hooks/chat/` because it holds nothing; `pushPresenceStore` sits in
+`stores/` because it holds the chat this client has claimed — global state that
+never renders is still global state.
 
 ## Where the types and the constants live
 
@@ -52,14 +76,16 @@ that produces them, because that is what they describe.
 
 ## Where the tests are, and why
 
-Every test file in `state/` is in `logic/`. `hooks/` and `context/` have none —
-there is no hook or component test harness in this repo, so the compiler and
-the build are the only net there.
+Beside the module they test, which now means throughout `state/` rather than in
+one folder. `hooks/` and `context/` still have no test for a hook or a
+component — there is no harness in this repo, so the compiler and the build are
+the only net for those.
 
-That is the reason for the split, not a side effect of it. Logic that can be
-pulled out of a hook becomes testable by being pulled out. When a hook grows a
-rule worth pinning — a fallback, a convergence condition, a mapping — move the
-rule to `logic/` and let the hook keep the lifecycle.
+That is still the reason to pull a rule out of a hook: `promptQueueState.ts`
+has a test and `usePromptQueue.ts` cannot. When a hook grows a fallback, a
+convergence condition, or a mapping worth pinning, move the rule into its own
+file and let the hook keep the lifecycle. The file lands next to the hook, so
+the move costs nothing but the import.
 
 ## Layering
 
