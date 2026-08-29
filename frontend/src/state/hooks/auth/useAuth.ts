@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { fetchAuthSession } from "../../../api/authApi";
 import type { AuthSession } from "../../../models/auth";
 
@@ -30,5 +30,5 @@ export function useAuth(): AuthState {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  return { ...state, refresh };
+  return useMemo(() => ({ ...state, refresh }), [state, refresh]);
 }
