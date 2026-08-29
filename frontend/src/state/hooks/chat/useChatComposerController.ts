@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ChatStatus, PromptOutcome } from "../../../models/chat";
 import { useConfirm } from "../../context/ConfirmContext";
 import { chatAttachmentState } from "../../chat/chatAttachmentState";
-import { chatComposerSessionStore } from "../../chat/composerSessionStore";
+import { chatComposerSessionStore } from "../../stores/composerSessionStore";
 import { promptQueueState } from "../../chat/promptQueueState";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
 import { useContext, useEffect, useMemo, useRef } from "preact/hooks";
-import { agentCapabilityCatalogStore } from "../agents/agentCapabilityCatalog";
+import { agentCapabilityCatalogStore } from "../stores/agentCapabilityCatalog";
 import { agentAuthRevision } from "../auth/agentAuthRegistryState";
 import { useAgentAuthRegistry, type AgentAuthRegistryState } from "../hooks/auth/useAgentAuthRegistry";
 import { useAuth, type AuthState } from "../hooks/auth/useAuth";

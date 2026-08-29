@@ -12,14 +12,14 @@
 
 import { pushApi } from "../../api/pushApi";
 import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../config/push";
-import { isPushPageFocused } from "./pushPageFocus";
+import { isPushPageFocused } from "../push/pushPageFocus";
 
 /**
  * Keeps the server's idea of what this client is watching in step with what is
  * actually on screen. The claim and its heartbeat change together in one
  * place, so a repeat can never outlive the claim it was repeating.
  */
-class PushPresenceState {
+class PushPresenceStore {
   /** Identifies this client for the life of the page. */
   readonly #clientId = this.#createClientId();
   /** The chat this client is showing, whether or not the user is looking. */
@@ -111,4 +111,4 @@ class PushPresenceState {
   }
 }
 
-export const pushPresenceState = new PushPresenceState();
+export const pushPresenceStore = new PushPresenceStore();

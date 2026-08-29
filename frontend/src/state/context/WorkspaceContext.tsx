@@ -14,7 +14,7 @@ import {
   type WorkspaceUiState,
 } from "../workspace/workspaceUiState";
 import { workspaceSidebarState } from "../workspace/workspaceSidebarState";
-import { agentCapabilityCatalogStore } from "../agents/agentCapabilityCatalog";
+import { agentCapabilityCatalogStore } from "../stores/agentCapabilityCatalog";
 import { takePushNotificationChatId } from "../push/pushNotificationNavigation";
 import { useAuthContext } from "./AuthContext";
 

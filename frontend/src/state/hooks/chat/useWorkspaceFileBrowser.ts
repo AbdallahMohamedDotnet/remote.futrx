@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from "preact/hook
 import { chatFilesApi } from "../../../api/chat/chatFilesApi";
 import { API_ROUTES } from "../../../config/routes";
 import type { FileNode } from "../../../models/files";
-import { mediaViewerState } from "../../chat/mediaViewerState";
+import { mediaViewerStore } from "../../stores/mediaViewerStore";
 import { workspaceFileBrowserState } from "../../chat/workspaceFileBrowserState";
 import { fileOpenAction } from "../../../shared/fileMeta";
 
@@ -119,7 +119,7 @@ export function useWorkspaceFileBrowser({ chatId, active }: { chatId: string; ac
       const target = fileOpenAction(node.name);
       const containerPath = `/workspace/${node.path}`;
       if (target.action === "media") {
-        mediaViewerState.open({
+        mediaViewerStore.open({
           url: API_ROUTES.chats.mediaOpen(chatId, containerPath),
           name: node.name,
           kind: target.kind,

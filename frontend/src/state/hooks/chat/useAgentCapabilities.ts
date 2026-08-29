@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "preact/hooks";
 import {
   agentCapabilityCatalogStore,
   type AgentCapabilityCatalogSnapshot,
-} from "../../agents/agentCapabilityCatalog";
+} from "../../stores/agentCapabilityCatalog";
 import { useAuthContext } from "../../context/AuthContext";
 
 export function useAgentCapabilities(projectId?: string) {

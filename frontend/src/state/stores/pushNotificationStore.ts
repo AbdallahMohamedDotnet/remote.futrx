@@ -1,9 +1,9 @@
 import { pushServiceWorkerApi } from "../../api/pushServiceWorkerApi";
-import { isPushPageFocused } from "./pushPageFocus";
+import { isPushPageFocused } from "../push/pushPageFocus";
 
 type ChatOpener = (chatId: string | null) => void;
 
-class PushNotificationState {
+class PushNotificationStore {
   #visibleChatId: string | null = null;
 
   /** Registers for push and routes notification taps into chat selection. */
@@ -29,4 +29,4 @@ class PushNotificationState {
   }
 }
 
-export const pushNotificationState = new PushNotificationState();
+export const pushNotificationStore = new PushNotificationStore();

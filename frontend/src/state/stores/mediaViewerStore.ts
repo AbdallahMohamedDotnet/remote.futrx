@@ -11,7 +11,7 @@ type Listener = (item: MediaViewerItem | null) => void;
 // App-wide in-app media viewer. Any surface (file manager rows, chat message
 // links) opens media here instead of navigating away; a single overlay host
 // subscribes and renders the current item.
-class MediaViewerState {
+class MediaViewerStore {
   private item: MediaViewerItem | null = null;
   private readonly listeners = new Set<Listener>();
 
@@ -40,4 +40,4 @@ class MediaViewerState {
   }
 }
 
-export const mediaViewerState = new MediaViewerState();
+export const mediaViewerStore = new MediaViewerStore();
