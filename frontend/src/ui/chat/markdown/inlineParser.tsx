@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { mediaViewerState } from "../../../state/chat/mediaViewerState";
-import { viewableMediaKind } from "../files/fileMeta";
+import { viewableMediaKind } from "../../../shared/fileMeta";
 import { internalPathOpenUrl } from "../ideLinks";
 
 const urlPattern = /^https?:\/\/[^\s<]+/;

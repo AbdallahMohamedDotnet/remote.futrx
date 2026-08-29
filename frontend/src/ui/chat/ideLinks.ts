@@ -1,4 +1,4 @@
-import { viewableMediaKind } from "./files/fileMeta.ts";
+import { viewableMediaKind } from "../../shared/fileMeta.ts";
 
 export const defaultWorkspacePath = "/opt/remote.futrx";
 

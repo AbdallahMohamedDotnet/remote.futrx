@@ -14,7 +14,7 @@ import {
   Loader,
   Music,
 } from "../../primitives/icons";
-import { categorize, fileOpenAction, formatBytes, parentDir, type FileCategory } from "./fileMeta";
+import { categorize, fileOpenAction, formatBytes, parentDir, type FileCategory } from "../../../shared/fileMeta";
 
 type IconComponent = (props: JSX.SVGAttributes<SVGSVGElement>) => JSX.Element;
 

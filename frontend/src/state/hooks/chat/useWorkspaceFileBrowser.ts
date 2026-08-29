@@ -4,7 +4,7 @@ import { API_ROUTES } from "../../../config/routes";
 import type { FileNode } from "../../../models/files";
 import { mediaViewerState } from "../../chat/mediaViewerState";
 import { workspaceFileBrowserState } from "../../chat/workspaceFileBrowserState";
-import { fileOpenAction } from "../../../ui/chat/files/fileMeta";
+import { fileOpenAction } from "../../../shared/fileMeta";
 
 export interface WorkspaceFileTreeState {
   expanded: Set<string>;

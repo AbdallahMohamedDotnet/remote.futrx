@@ -1,4 +1,4 @@
-import type { MediaKind } from "../../../models/files";
+import type { MediaKind } from "../models/files";
 
 export type FileCategory =
   | "image"
