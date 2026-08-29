@@ -14,13 +14,22 @@ const initial: Omit<AuthState, "refresh"> = {
 };
 
 export function useAuth(): AuthState {
+  ////////////////
+  // Local State
+  ////////////////
   const [state, setState] = useState<Omit<AuthState, "refresh">>(initial);
 
+  ////////////////
+  // Handlers
+  ////////////////
   const refresh = useCallback(async () => {
     const session = await fetchAuthSession();
     setState({ ...session, loading: false });
   }, []);
 
+  ////////////////
+  // Effects
+  ////////////////
   useEffect(() => { void refresh(); }, [refresh]);
 
   return useMemo(() => ({ ...state, refresh }), [state, refresh]);

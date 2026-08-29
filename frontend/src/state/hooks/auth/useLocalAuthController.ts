@@ -15,10 +15,9 @@ export function useLocalAuthController({
   adminEmail,
   onSuccess,
 }: LocalAuthControllerOptions) {
-  const params = new URLSearchParams(location.search);
-  const oauthError = params.get("error");
-  const errorEmail = params.get("email") ?? "";
-  const returnTo = returnUrlPolicy.safeTarget(params.get("return_to") ?? "", location.origin);
+  ////////////////
+  // Local State
+  ////////////////
   const [email, setEmail] = useState(mode === "legacy-setup" ? adminEmail : "");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -26,6 +25,17 @@ export function useLocalAuthController({
   const [error, setError] = useState<string | null>(null);
   const setup = mode === "claim" || mode === "legacy-setup";
 
+  ////////////////
+  // Global State
+  ////////////////
+  const params = new URLSearchParams(location.search);
+  const oauthError = params.get("error");
+  const errorEmail = params.get("email") ?? "";
+  const returnTo = returnUrlPolicy.safeTarget(params.get("return_to") ?? "", location.origin);
+
+  ////////////////
+  // Handlers
+  ////////////////
   async function submit(event: Event) {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();

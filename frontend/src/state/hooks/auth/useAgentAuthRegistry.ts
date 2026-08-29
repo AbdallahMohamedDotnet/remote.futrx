@@ -24,6 +24,9 @@ export interface AgentAuthRegistryState {
 }
 
 export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
+  ////////////////
+  // Local State
+  ////////////////
   const [providers, setProviders] = useState<AgentAuthProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -31,6 +34,9 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
   const [starting, setStarting] = useState<Record<string, boolean>>({});
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
+  ////////////////
+  // Handlers
+  ////////////////
   // Every writer below reaches state through a setState updater, never through
   // the closure, so none of them can go stale and none needs dependencies.
   const setProviderStarting = useCallback((provider: string, value: boolean) => {
@@ -98,6 +104,9 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     });
   }, [runAction, updateLogin]);
 
+  ////////////////
+  // Effects
+  ////////////////
   useEffect(() => {
     if (!enabled) {
       setProviders([]);
