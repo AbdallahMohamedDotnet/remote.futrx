@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { FileNode } from "../../../models/files.ts";
-import { workspaceFileBrowserState } from "./workspaceFileBrowserState.ts";
+import { workspaceFileBrowserState } from "../workspace/workspaceFileBrowserState.ts";
 
 test("preserves independent directory loading and search state", () => {
   const entry: FileNode = { name: "src", path: "src", isDir: true, size: 0, modTime: 1 };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agentBrowserStatusState } from "./agentBrowserStatusState.ts";
+import { agentBrowserStatusState } from "../agents/agentBrowserStatusState.ts";
 
 test("a ready browser with an address is shown and stops polling", () => {
   assert.deepEqual(

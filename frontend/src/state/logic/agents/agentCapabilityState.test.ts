@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentCapabilitiesCatalog } from "../../../models/agentCapabilities.ts";
-import { agentCapabilityState } from "./agentCapabilityState.ts";
+import { agentCapabilityState } from "../agents/agentCapabilityState.ts";
 
 const catalog: AgentCapabilitiesCatalog = {
   providers: [{
