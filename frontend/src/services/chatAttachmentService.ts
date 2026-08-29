@@ -1,8 +1,8 @@
-import type { ChatMeta } from "../../models/chat";
-import type { ProjectMeta } from "../../models/project";
-import type { Attachment } from "../../models/upload";
+import type { ChatMeta } from "../models/chat";
+import type { ProjectMeta } from "../models/project";
+import type { Attachment } from "../models/upload";
 
-class ChatAttachmentState {
+class ChatAttachmentService {
   basePath(chat: ChatMeta, projects: ProjectMeta[]): string {
     const project = chat.projectId
       ? projects.find((candidate) => candidate.id === chat.projectId)
@@ -48,4 +48,4 @@ class ChatAttachmentState {
   }
 }
 
-export const chatAttachmentState = new ChatAttachmentState();
+export const chatAttachmentService = new ChatAttachmentService();

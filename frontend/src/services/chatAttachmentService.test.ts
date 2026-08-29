@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatMeta } from "../../models/chat.ts";
-import type { ProjectMeta } from "../../models/project.ts";
-import { chatAttachmentState } from "./chatAttachmentState.ts";
+import type { ChatMeta } from "../models/chat.ts";
+import type { ProjectMeta } from "../models/project.ts";
+import { chatAttachmentService } from "./chatAttachmentService.ts";
 
 const chat: ChatMeta = {
   id: "chat-1",
@@ -24,14 +24,14 @@ const project: ProjectMeta = {
 };
 
 test("preserves attachment storage paths and collision-safe names", () => {
-  assert.equal(chatAttachmentState.basePath(chat, []), "/workspace/project/.uploads");
+  assert.equal(chatAttachmentService.basePath(chat, []), "/workspace/project/.uploads");
   assert.equal(
-    chatAttachmentState.basePath({ ...chat, projectId: project.id }, [project]),
+    chatAttachmentService.basePath({ ...chat, projectId: project.id }, [project]),
     "/workspace/.uploads"
   );
-  assert.equal(chatAttachmentState.uniqueUploadName("folder/image.png", "abc"), "image-abc.png");
+  assert.equal(chatAttachmentService.uniqueUploadName("folder/image.png", "abc"), "image-abc.png");
   assert.equal(
-    chatAttachmentState.absoluteUploadPath("/workspace/.uploads/", "folder/image-abc.png"),
+    chatAttachmentService.absoluteUploadPath("/workspace/.uploads/", "folder/image-abc.png"),
     "/workspace/.uploads/image-abc.png"
   );
 });

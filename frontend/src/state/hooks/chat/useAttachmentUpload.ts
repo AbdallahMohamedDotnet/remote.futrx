@@ -3,7 +3,7 @@ import type { Attachment } from "../../../models/upload";
 import { startChatUpload } from "../../../api/uploadApi";
 import type { UploadHandle } from "../../../types/uploadApi";
 import { idService } from "../../../services/idService.ts";
-import { chatAttachmentState } from "../../../shared/chat/chatAttachmentState";
+import { chatAttachmentService } from "../../../services/chatAttachmentService.ts";
 
 export function useAttachmentUpload(
   chatId: string,
@@ -23,7 +23,7 @@ export function useAttachmentUpload(
     for (const handle of handlesRef.current.values()) void handle.abort();
     handlesRef.current.clear();
     setAttachments((prev) => {
-      prev.forEach((attachment) => chatAttachmentState.revoke(attachment));
+      prev.forEach((attachment) => chatAttachmentService.revoke(attachment));
       return [];
     });
   }, []);
@@ -54,7 +54,7 @@ export function useAttachmentUpload(
       // friendly label shown in the composer chip.
       const items = files.map((file) => {
         const id = idService.random();
-        const uploadName = chatAttachmentState.uniqueUploadName(file.name, id);
+        const uploadName = chatAttachmentService.uniqueUploadName(file.name, id);
         const uploadFile =
           uploadName === file.name
             ? file
@@ -100,7 +100,7 @@ export function useAttachmentUpload(
                     ? {
                         ...a,
                         progress: 1,
-                        serverPath: chatAttachmentState.absoluteUploadPath(
+                        serverPath: chatAttachmentService.absoluteUploadPath(
                           attachmentBasePathRef.current,
                           uploadFile.name
                         ),
@@ -140,7 +140,7 @@ export function useAttachmentUpload(
     }
     setAttachments((prev) => {
       const target = prev.find((attachment) => attachment.id === id);
-      if (target) chatAttachmentState.revoke(target);
+      if (target) chatAttachmentService.revoke(target);
       return prev.filter((attachment) => attachment.id !== id);
     });
   }, []);
