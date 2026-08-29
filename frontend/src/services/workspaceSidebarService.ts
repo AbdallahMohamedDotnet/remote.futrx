@@ -1,6 +1,6 @@
-import type { ChatMeta } from "../models/chat";
-import type { ProjectMeta } from "../models/project";
-import type { DropPosition, WorkspaceSidebarModel } from "../models/workspace";
+import type { ChatMeta } from "../models/chat.ts";
+import type { ProjectMeta } from "../models/project.ts";
+import type { DropPosition, WorkspaceSidebarModel } from "../models/workspace.ts";
 import { STORAGE_KEYS } from "../config/storageKeys.ts";
 import { browserStorageService } from "./browserStorageService.ts";
 
