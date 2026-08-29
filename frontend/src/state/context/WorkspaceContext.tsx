@@ -1,9 +1,10 @@
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
 import { useCallback, useContext, useEffect, useLayoutEffect, useReducer } from "preact/hooks";
-import type { ChatMeta, CreateChatInput } from "../../models/chat";
+import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { chatApi } from "../../api/chatApi";
+import { createChatInput } from "../chat/createChatInput";
 import { projectApi } from "../../api/projectApi";
 import { useWorkspaceData } from "../hooks/workspace/useWorkspaceData";
 import { useWorkspacePushLifecycle } from "../hooks/push/useWorkspacePushLifecycle";
@@ -108,15 +109,7 @@ export function WorkspaceProvider({
   }
 
   async function createChat(projectId?: string): Promise<ChatMeta> {
-    const input: CreateChatInput = {
-      provider: settings.chat.provider,
-      model: settings.chat.model,
-      mode: settings.chat.mode,
-      reasoningEffort: settings.chat.reasoningEffort,
-      serviceTier: settings.chat.serviceTier,
-      ...(projectId ? { projectId } : {}),
-    };
-    const chat = await chatApi.create(input);
+    const chat = await chatApi.create(createChatInput(settings.chat, projectId));
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
   }
