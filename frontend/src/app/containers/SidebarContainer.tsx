@@ -27,6 +27,7 @@ export function SidebarContainer() {
     <Sidebar
       open={workspace.ui.sidebarOpen}
       model={model}
+      loading={!workspace.loaded}
       query={sidebar.query}
       collapsed={sidebar.collapsed}
       sidebarCollapsed={sidebar.sidebarCollapsed}

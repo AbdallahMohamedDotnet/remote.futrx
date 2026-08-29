@@ -309,7 +309,12 @@ Deployment is a single-box, root-driven, idempotent-converge model ([deep dive](
   converges every host-scoped module with
   a local profile using that profile's binary, provider-declared version
   arguments, exact semver pin, npm package or install script, timeout, and
-  verification policy. Host-only remote integrations may
+  verification policy. Every installer mode targets the application-owned
+  `data/host-clis` prefix; the installer, systemd service, and login-shell
+  profile all put its `bin` directory first and verify that ordinary command
+  resolution selects the same absolute executable that was installed. This
+  prevents a stale host-global binary from shadowing a newly installed pin.
+  Host-only remote integrations may
   omit a profile and install nothing. The base image and runtime repair consume
   the same profiles for project-scoped modules.
 - **[`infra/update.sh`](infra/update.sh)** fetches and hard-resets to the

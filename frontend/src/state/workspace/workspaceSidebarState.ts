@@ -1,7 +1,9 @@
 import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
+import { STORAGE_KEYS } from "../../config/storageKeys.ts";
+import { readBool, readJson, writeBool, writeJson } from "../../shared/browserStore.ts";
 
-const SIDEBAR_COLLAPSED_KEY = "remote.futrx.sidebarCollapsed";
+export type DropPosition = "before" | "after";
 
 export interface ProjectSidebarNode {
   project: ProjectMeta;
@@ -41,6 +43,30 @@ class WorkspaceSidebarState {
     return !!activeChatId && !chats.some((chat) => chat.id === activeChatId);
   }
 
+  /** Who takes over when the active chat disappears. Same pick as
+   *  `initialChatId`, so a deletion lands where a fresh load would. */
+  replacementChatId(chats: ChatMeta[]): string | null {
+    return chats.length > 0 ? chats[0].id : null;
+  }
+
+  /** Drag-reorder result, or null when the drop would not move anything.
+   *  Removing before inserting is what keeps a downward move honest: splicing
+   *  at the target's original index drops the project one slot short. */
+  reorderProjectIds(
+    ids: string[],
+    sourceId: string,
+    targetId: string,
+    position: DropPosition
+  ): string[] | null {
+    if (!ids.includes(sourceId) || !ids.includes(targetId)) return null;
+    const without = ids.filter((id) => id !== sourceId);
+    const targetIndex = without.indexOf(targetId);
+    if (targetIndex < 0) return null;
+    const next = without.slice();
+    next.splice(position === "before" ? targetIndex : targetIndex + 1, 0, sourceId);
+    return next.every((id, index) => id === ids[index]) ? null : next;
+  }
+
   model(chats: ChatMeta[], projects: ProjectMeta[], rawQuery: string): WorkspaceSidebarModel {
     const query = rawQuery.trim().toLowerCase();
     const buckets = this.bucketChatsByProject(chats);
@@ -72,10 +98,19 @@ class WorkspaceSidebarState {
     };
   }
 
-  collapsedProjects(projects: ProjectMeta[], chats: ChatMeta[]): Record<string, boolean> {
+  /** Seeds collapse state for projects we have not seen yet; an existing entry is
+   *  the user's own choice and survives project/chat churn (e.g. a new chat). */
+  collapsedProjects(
+    projects: ProjectMeta[],
+    chats: ChatMeta[],
+    current: Record<string, boolean> = {}
+  ): Record<string, boolean> {
     const collapsed: Record<string, boolean> = {};
     for (const project of projects) {
-      collapsed[project.id] = !this.projectHasUnreadChat(project.id, chats);
+      collapsed[project.id] =
+        project.id in current
+          ? current[project.id]
+          : !this.projectHasUnreadChat(project.id, chats);
     }
     return collapsed;
   }
@@ -91,17 +126,28 @@ class WorkspaceSidebarState {
   }
 
   readCollapsed(): boolean {
-    try {
-      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
-    } catch {
-      return false;
-    }
+    return readBool(STORAGE_KEYS.sidebarCollapsed);
   }
 
   writeCollapsed(collapsed: boolean): void {
-    try {
-      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "true" : "false");
-    } catch {}
+    writeBool(STORAGE_KEYS.sidebarCollapsed, collapsed);
+  }
+
+  /** Which projects the user left folded, remembered across reloads. Projects
+   *  missing from the map stay out of it, so `collapsedProjects` can still seed
+   *  them from unread state the first time they show up. */
+  readCollapsedProjects(): Record<string, boolean> {
+    const parsed = readJson(STORAGE_KEYS.collapsedProjects);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const collapsed: Record<string, boolean> = {};
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === "boolean") collapsed[id] = value;
+    }
+    return collapsed;
+  }
+
+  writeCollapsedProjects(collapsed: Record<string, boolean>): void {
+    writeJson(STORAGE_KEYS.collapsedProjects, collapsed);
   }
 
   private bucketChatsByProject(chats: ChatMeta[]): ChatBuckets {
