@@ -123,9 +123,27 @@ class AgentCapabilityState {
       selection.mode &&
       !state.modeOptions.some((option) => option.value === selection.mode)
     ) {
-      correction.mode = capabilities.defaultMode || state.modeOptions[0]?.value || "default";
+      const replacement = this.supportedMode(state, capabilities.defaultMode);
+      if (replacement !== undefined) correction.mode = replacement;
     }
     return correction;
+  }
+
+  // A replacement the provider actually offers, or undefined when it offers
+  // nothing usable. The correction has to satisfy the same check that produced
+  // it: naming a mode outside modeOptions leaves the selection invalid, so the
+  // next pass corrects it again, and the composer never settles.
+  //
+  // Effort and tier cannot loop this way — they correct to "", which the
+  // `selection.x &&` guard treats as nothing to correct.
+  private supportedMode(
+    state: ComposerCapabilityState,
+    defaultMode: string | undefined,
+  ): string | undefined {
+    const offers = (value: string | undefined) =>
+      value !== undefined && state.modeOptions.some((option) => option.value === value);
+    if (offers(defaultMode)) return defaultMode;
+    return state.modeOptions[0]?.value;
   }
 
   private providerLabel(provider: string): string {
