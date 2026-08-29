@@ -1,18 +1,15 @@
 import { PUBLIC_HOSTNAME } from "../../../config/runtime.ts";
 import type { BrowserElementCapture } from "../../../models/browser";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
-import {
-  isProjectPreviewUrl,
-  projectPreviewUrlsInText,
-} from "../../../shared/projectPreviewUrls.ts";
+import { projectPreviewUrlService } from "../../../services/projectPreviewUrlService.ts";
 
 class ChatBrowserState {
   latestPublicDevUrl(blocks: ChatMessageBlock[], projectSlug: string): string {
     let latest = "";
     for (const block of blocks) {
       for (const text of this.blockTexts(block)) {
-        for (const candidate of projectPreviewUrlsInText(text, PUBLIC_HOSTNAME)) {
-          if (isProjectPreviewUrl(candidate, projectSlug, PUBLIC_HOSTNAME)) latest = candidate;
+        for (const candidate of projectPreviewUrlService.findInText(text, PUBLIC_HOSTNAME)) {
+          if (projectPreviewUrlService.matches(candidate, projectSlug, PUBLIC_HOSTNAME)) latest = candidate;
         }
       }
     }
