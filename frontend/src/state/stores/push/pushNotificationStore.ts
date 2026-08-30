@@ -1,32 +1,31 @@
+import { createStore } from "zustand/vanilla";
 import { pushServiceWorkerApi } from "../../../api/pushServiceWorkerApi";
 import { isPushPageFocused } from "./pushPageFocus";
 
 type ChatOpener = (chatId: string | null) => void;
 
-class PushNotificationStore {
-  #visibleChatId: string | null = null;
+interface PushNotificationState {
+  visibleChatId: string | null;
+  connect: (openChat: ChatOpener) => void;
+  setVisibleChat: (chatId: string | null) => void;
+}
 
+export const pushNotificationStore = createStore<PushNotificationState>()((set, get) => ({
+  visibleChatId: null,
   /** Registers for push and routes notification taps into chat selection. */
-  connect(openChat: ChatOpener): void {
+  connect: (openChat) => {
     // Keep registration first: it installs the listener before asking the
     // browser to update the worker, matching the page's startup sequence.
     void pushServiceWorkerApi.register();
     pushServiceWorkerApi.connect({
-      visibleChatId: () => this.#chatInFocus(),
+      visibleChatId: () => {
+        // A background tab showing the chat should still raise a notification.
+        return isPushPageFocused() ? get().visibleChatId : null;
+      },
       openChat,
     });
-  }
+  },
 
   /** Reports which chat is on screen, so the worker can suppress its notification. */
-  setVisibleChat(chatId: string | null): void {
-    this.#visibleChatId = chatId;
-  }
-
-  #chatInFocus(): string | null {
-    // Only claim a chat when this window is genuinely in front; a background
-    // tab showing the chat should still raise a notification.
-    return isPushPageFocused() ? this.#visibleChatId : null;
-  }
-}
-
-export const pushNotificationStore = new PushNotificationStore();
+  setVisibleChat: (visibleChatId) => set({ visibleChatId }),
+}));
