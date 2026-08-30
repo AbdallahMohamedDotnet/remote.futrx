@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ComponentChildren }) {
 
     // Provider identity and entitlements affect live model discovery. Request
     // a refresh for every capability scope mounted in this browser.
-    agentCapabilityCatalogStore.getState().invalidateUser(current.userId);
+    agentCapabilityCatalogStore.getState().actions.invalidateUser(current.userId);
   }, [auth.email, auth.adminEmail, providerAuthChecked, revision]);
 
   ////////////////

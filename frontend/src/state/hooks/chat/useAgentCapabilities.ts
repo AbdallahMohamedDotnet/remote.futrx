@@ -14,8 +14,8 @@ export function useAgentCapabilities(projectId?: string) {
     agentCapabilityCatalogStore,
     selectAgentCapabilityCatalog(userId, projectId),
   );
-  const observe = useStore(agentCapabilityCatalogStore, (state) => state.observe);
-  const load = useStore(agentCapabilityCatalogStore, (state) => state.load);
+  const observe = useStore(agentCapabilityCatalogStore, (store) => store.actions.observe);
+  const load = useStore(agentCapabilityCatalogStore, (store) => store.actions.load);
 
   useEffect(() => {
     const unobserve = observe(userId, projectId);

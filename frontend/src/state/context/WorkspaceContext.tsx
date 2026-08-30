@@ -94,7 +94,7 @@ export function WorkspaceProvider({
 
   const deleteProject = useCallback(async (projectId: string) => {
     await projectApi.delete(projectId);
-    agentCapabilityCatalogStore.getState().removeProject(capabilityUserId, projectId);
+    agentCapabilityCatalogStore.getState().actions.removeProject(capabilityUserId, projectId);
   }, [capabilityUserId]);
 
   const reorderProjects = useCallback(async (projectIds: string[]) => {
@@ -121,7 +121,7 @@ export function WorkspaceProvider({
   ////////////////
   useEffect(() => {
     if (!enabled || !activeChat) return;
-    void agentCapabilityCatalogStore.getState()
+    void agentCapabilityCatalogStore.getState().actions
       .load(capabilityUserId, activeCapabilityProjectId)
       .catch(() => undefined);
   }, [enabled, capabilityUserId, activeCapabilityProjectId, activeChat?.id]);

@@ -1,9 +1,9 @@
-import { createStore } from "zustand/vanilla";
 import type {
   AgentCapabilitiesCatalog,
   AgentCapabilityCatalogSnapshot,
 } from "../../../models/agentCapabilities";
 import { capabilitiesApi } from "../../../api/agents/capabilitiesApi.ts";
+import { createAppStore, type AppStoreShape } from "../appStore.ts";
 
 /** A scope some part of the app is currently watching. */
 interface ObservedScope {
@@ -19,8 +19,11 @@ type CatalogRequester = (
   options?: { refresh?: boolean },
 ) => Promise<AgentCapabilitiesCatalog>;
 
-interface AgentCapabilityCatalogState {
+interface AgentCapabilityCatalogStoreState {
   scopes: ReadonlyMap<string, AgentCapabilityCatalogSnapshot>;
+}
+
+interface AgentCapabilityCatalogStoreActions {
   observe: (userId: string, projectId?: string) => () => void;
   load: (
     userId: string,
@@ -47,120 +50,129 @@ export function createAgentCapabilityCatalogStore(request: CatalogRequester) {
   const inFlight = new Map<string, Promise<AgentCapabilitiesCatalog>>();
   const observed = new Map<string, ObservedScope>();
 
-  return createStore<AgentCapabilityCatalogState>()((set, get) => {
-    function setScope(key: string, snapshot: AgentCapabilityCatalogSnapshot): void {
-      set((state) => {
-        const scopes = new Map(state.scopes);
-        scopes.set(key, snapshot);
-        return { scopes };
-      });
-    }
-
-    function load(
-      userId: string,
-      projectId?: string,
-      options: { force?: boolean } = {},
-    ): Promise<AgentCapabilitiesCatalog> {
-      const key = catalogKey(userId, projectId);
-      const existing = inFlight.get(key);
-      if (existing) return existing;
-
-      const running = (async () => {
-        try {
-          const catalog = await request(projectId, { refresh: !!options.force });
-          inFlight.delete(key);
-          setScope(key, {
-            catalog,
-            loading: false,
-            refreshing: false,
-            error: "",
-          });
-          return catalog;
-        } catch (cause) {
-          inFlight.delete(key);
-          const current = scopeSnapshot(get(), key);
-          setScope(key, {
-            ...current,
-            loading: false,
-            refreshing: false,
-            error: errorMessage(cause),
-          });
-          throw cause;
-        }
-      })();
-
-      inFlight.set(key, running);
-      const current = scopeSnapshot(get(), key);
-      setScope(key, {
-        ...current,
-        loading: !current.catalog,
-        refreshing: true,
-        error: "",
-      });
-      return running;
-    }
-
-    return {
-      scopes: new Map(),
-      observe: (userId, projectId) => {
-        const key = catalogKey(userId, projectId);
-        const scope = observed.get(key) ?? {
-          userId: normalizeUserId(userId),
-          projectId: projectId || "",
-          observers: 0,
-        };
-        scope.observers += 1;
-        observed.set(key, scope);
-        let isObserved = true;
-        return () => {
-          if (!isObserved) return;
-          isObserved = false;
-          scope.observers -= 1;
-          if (scope.observers === 0) observed.delete(key);
-        };
-      },
-      load,
-      invalidateUser: (userId) => {
-        // A managed host-auth change can alter every catalog. Request a
-        // force-refresh for scopes currently observed by this browser; an
-        // existing request for the same scope remains coalesced.
-        const normalizedUser = normalizeUserId(userId);
-        for (const scope of observed.values()) {
-          if (scope.userId !== normalizedUser) continue;
-          void load(scope.userId, scope.projectId || undefined, { force: true })
-            .catch(() => undefined);
-        }
-      },
-      removeProject: (userId, projectId) => {
-        const key = catalogKey(userId, projectId);
-        const refreshing = inFlight.has(key);
-        if (refreshing) {
-          setScope(key, {
-            catalog: null,
-            loading: true,
-            refreshing: true,
-            error: "",
-          });
-          return;
-        }
-        set((state) => {
+  return createAppStore<
+    AgentCapabilityCatalogStoreState,
+    AgentCapabilityCatalogStoreActions
+  >(
+    { scopes: new Map() },
+    ({ getState, setState }) => {
+      function setScope(key: string, snapshot: AgentCapabilityCatalogSnapshot): void {
+        setState((state) => {
           const scopes = new Map(state.scopes);
-          scopes.delete(key);
+          scopes.set(key, snapshot);
           return { scopes };
         });
-      },
-    };
-  });
+      }
+
+      function load(
+        userId: string,
+        projectId?: string,
+        options: { force?: boolean } = {},
+      ): Promise<AgentCapabilitiesCatalog> {
+        const key = catalogKey(userId, projectId);
+        const existing = inFlight.get(key);
+        if (existing) return existing;
+
+        const running = (async () => {
+          try {
+            const catalog = await request(projectId, { refresh: !!options.force });
+            inFlight.delete(key);
+            setScope(key, {
+              catalog,
+              loading: false,
+              refreshing: false,
+              error: "",
+            });
+            return catalog;
+          } catch (cause) {
+            inFlight.delete(key);
+            const current = scopeSnapshot(getState(), key);
+            setScope(key, {
+              ...current,
+              loading: false,
+              refreshing: false,
+              error: errorMessage(cause),
+            });
+            throw cause;
+          }
+        })();
+
+        inFlight.set(key, running);
+        const current = scopeSnapshot(getState(), key);
+        setScope(key, {
+          ...current,
+          loading: !current.catalog,
+          refreshing: true,
+          error: "",
+        });
+        return running;
+      }
+
+      return {
+        observe: (userId, projectId) => {
+          const key = catalogKey(userId, projectId);
+          const scope = observed.get(key) ?? {
+            userId: normalizeUserId(userId),
+            projectId: projectId || "",
+            observers: 0,
+          };
+          scope.observers += 1;
+          observed.set(key, scope);
+          let isObserved = true;
+          return () => {
+            if (!isObserved) return;
+            isObserved = false;
+            scope.observers -= 1;
+            if (scope.observers === 0) observed.delete(key);
+          };
+        },
+        load,
+        invalidateUser: (userId) => {
+          // A managed host-auth change can alter every catalog. Request a
+          // force-refresh for scopes currently observed by this browser; an
+          // existing request for the same scope remains coalesced.
+          const normalizedUser = normalizeUserId(userId);
+          for (const scope of observed.values()) {
+            if (scope.userId !== normalizedUser) continue;
+            void load(scope.userId, scope.projectId || undefined, { force: true })
+              .catch(() => undefined);
+          }
+        },
+        removeProject: (userId, projectId) => {
+          const key = catalogKey(userId, projectId);
+          const refreshing = inFlight.has(key);
+          if (refreshing) {
+            setScope(key, {
+              catalog: null,
+              loading: true,
+              refreshing: true,
+              error: "",
+            });
+            return;
+          }
+          setState((state) => {
+            const scopes = new Map(state.scopes);
+            scopes.delete(key);
+            return { scopes };
+          });
+        },
+      };
+    },
+  );
 }
 
 export function selectAgentCapabilityCatalog(userId: string, projectId?: string) {
   const key = catalogKey(userId, projectId);
-  return (state: AgentCapabilityCatalogState): AgentCapabilityCatalogSnapshot =>
-    scopeSnapshot(state, key);
+  return (
+    store: AppStoreShape<
+      AgentCapabilityCatalogStoreState,
+      AgentCapabilityCatalogStoreActions
+    >,
+  ): AgentCapabilityCatalogSnapshot => scopeSnapshot(store.state, key);
 }
 
 function scopeSnapshot(
-  state: AgentCapabilityCatalogState,
+  state: AgentCapabilityCatalogStoreState,
   key: string,
 ): AgentCapabilityCatalogSnapshot {
   return state.scopes.get(key) ?? EMPTY_SCOPE;
