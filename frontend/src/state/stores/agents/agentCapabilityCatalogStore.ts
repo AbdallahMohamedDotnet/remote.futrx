@@ -1,3 +1,4 @@
+import { createStore } from "zustand/vanilla";
 import type {
   AgentCapabilitiesCatalog,
   AgentCapabilityCatalogLoadOptions,
@@ -9,8 +10,6 @@ import type {
 } from "../../../models/agentCapabilities";
 import { capabilitiesApi } from "../../../api/agents/capabilitiesApi.ts";
 import { EMPTY_AGENT_CAPABILITY_CATALOG_SNAPSHOT } from "../../../config/agents.ts";
-import type { AppStoreShape } from "../../../models/appStore.ts";
-import { createAppStore } from "../appStore.ts";
 
 // This store keeps the last response for each normalized user and host/project
 // scope only for the lifetime of the open application. The process-local
@@ -21,14 +20,12 @@ export function createAgentCapabilityCatalogStore(request: AgentCapabilityCatalo
   const inFlight = new Map<string, Promise<AgentCapabilitiesCatalog>>();
   const observed = new Map<string, ObservedAgentCapabilityScope>();
 
-  return createAppStore<
-    AgentCapabilityCatalogStoreState,
-    AgentCapabilityCatalogStoreActions
-  >(
-    { scopes: new Map() },
-    ({ getState, setState }) => {
+  return createStore<
+    AgentCapabilityCatalogStoreState & AgentCapabilityCatalogStoreActions
+  >()(
+    (set, get) => {
       function setScope(key: string, snapshot: AgentCapabilityCatalogSnapshot): void {
-        setState((state) => {
+        set((state) => {
           const scopes = new Map(state.scopes);
           scopes.set(key, snapshot);
           return { scopes };
@@ -57,7 +54,7 @@ export function createAgentCapabilityCatalogStore(request: AgentCapabilityCatalo
             return catalog;
           } catch (cause) {
             inFlight.delete(key);
-            const current = scopeSnapshot(getState(), key);
+            const current = scopeSnapshot(get(), key);
             setScope(key, {
               ...current,
               loading: false,
@@ -69,7 +66,7 @@ export function createAgentCapabilityCatalogStore(request: AgentCapabilityCatalo
         })();
 
         inFlight.set(key, running);
-        const current = scopeSnapshot(getState(), key);
+        const current = scopeSnapshot(get(), key);
         setScope(key, {
           ...current,
           loading: !current.catalog,
@@ -80,6 +77,7 @@ export function createAgentCapabilityCatalogStore(request: AgentCapabilityCatalo
       }
 
       return {
+        scopes: new Map(),
         observe: (userId, projectId) => {
           const key = catalogKey(userId, projectId);
           const scope = observed.get(key) ?? {
@@ -121,7 +119,7 @@ export function createAgentCapabilityCatalogStore(request: AgentCapabilityCatalo
             });
             return;
           }
-          setState((state) => {
+          set((state) => {
             const scopes = new Map(state.scopes);
             scopes.delete(key);
             return { scopes };
@@ -134,12 +132,8 @@ export function createAgentCapabilityCatalogStore(request: AgentCapabilityCatalo
 
 export function selectAgentCapabilityCatalog(userId: string, projectId?: string) {
   const key = catalogKey(userId, projectId);
-  return (
-    store: AppStoreShape<
-      AgentCapabilityCatalogStoreState,
-      AgentCapabilityCatalogStoreActions
-    >,
-  ): AgentCapabilityCatalogSnapshot => scopeSnapshot(store.state, key);
+  return (state: AgentCapabilityCatalogStoreState): AgentCapabilityCatalogSnapshot =>
+    scopeSnapshot(state, key);
 }
 
 function scopeSnapshot(

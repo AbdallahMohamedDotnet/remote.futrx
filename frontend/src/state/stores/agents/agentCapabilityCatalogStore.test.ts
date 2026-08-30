@@ -34,9 +34,9 @@ test("keeps the previous response visible while consulting the shared backend ca
     if (calls === 1) return catalog("initial");
     return new Promise((resolve) => { resolveRefresh = resolve; });
   });
-  await store.getState().actions.load("user@example.com", "project-1");
+  await store.getState().load("user@example.com", "project-1");
 
-  const refreshing = store.getState().actions.load("user@example.com", "project-1");
+  const refreshing = store.getState().load("user@example.com", "project-1");
   const current = read(store, "user@example.com", "project-1");
   assert.equal(current.catalog?.providers[0]?.label, "initial");
   assert.equal(current.loading, false);
@@ -58,8 +58,8 @@ test("coalesces simultaneous requests within one browser", async () => {
     return new Promise((resolve) => { resolveRequest = resolve; });
   });
 
-  const first = store.getState().actions.load("user@example.com", "project-1");
-  const second = store.getState().actions.load("user@example.com", "project-1", { force: true });
+  const first = store.getState().load("user@example.com", "project-1");
+  const second = store.getState().load("user@example.com", "project-1", { force: true });
   assert.equal(first, second);
   assert.equal(calls, 1);
   resolveRequest?.(catalog("loaded"));
@@ -73,8 +73,8 @@ test("manual refresh reaches the shared backend refresh path", async () => {
     return catalog("loaded");
   });
 
-  await store.getState().actions.load("user@example.com", "project-1");
-  await store.getState().actions.load("user@example.com", "project-1", { force: true });
+  await store.getState().load("user@example.com", "project-1");
+  await store.getState().load("user@example.com", "project-1", { force: true });
   assert.deepEqual(refreshValues, [false, true]);
 });
 
@@ -85,8 +85,8 @@ test("failed requests retain the last visible catalog", async () => {
     if (calls === 1) return catalog("existing");
     throw new Error("provider unavailable");
   });
-  await store.getState().actions.load("user@example.com", "project-1");
-  await assert.rejects(store.getState().actions.load("user@example.com", "project-1"));
+  await store.getState().load("user@example.com", "project-1");
+  await assert.rejects(store.getState().load("user@example.com", "project-1"));
 
   const snapshot = read(store, "user@example.com", "project-1");
   assert.equal(snapshot.catalog?.providers[0]?.label, "existing");
@@ -95,7 +95,7 @@ test("failed requests retain the last visible catalog", async () => {
 
 test("catalog rendering state remains isolated by user and project", async () => {
   const store = createAgentCapabilityCatalogStore(async (projectId) => catalog(projectId || "host"));
-  await store.getState().actions.load("USER@example.com", "project-1");
+  await store.getState().load("USER@example.com", "project-1");
 
   assert.equal(
     read(store, "user@example.com", "project-1").catalog?.providers[0]?.label,
