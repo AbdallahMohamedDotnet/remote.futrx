@@ -4,15 +4,15 @@ Three folders, each answering one question.
 
 | Folder | Its one job | Holds state? |
 | --- | --- | --- |
-| `stores/<domain>/` | Global state, and everything that keeps it | **Yes** — this is the whole list |
+| `stores/<domain>/` | Global Zustand state, actions, and lifecycle | **Yes** — this is the whole list |
 | `hooks/<domain>/` | The access layer: how UI reads a store, plus state owned by one screen | In preact hooks |
 | `context/` | Cross-cutting state, gated in nesting order | In preact hooks |
 
 `stores/` and `hooks/` both group by domain, in the same words `ui/` and
 `services/` use: **agents, chat, media, push, workspace**. The store-to-store
 edges all sit inside one folder — the capability catalog and its wiring, both
-push stores and `pushPageFocus`, the workspace store and its projector — so
-the folders are where the coupling already was, not a grid imposed over it.
+push stores and `pushPageFocus`, and the workspace feed — so the folders are
+where the coupling already was, not a grid imposed over it.
 
 `media/` is the one domain with no matching `hooks/` folder.
 `mediaViewerStore` is opened from file-manager rows and from chat links alike,
@@ -26,13 +26,11 @@ and reducers. It answered no question of its own: half of it was the private
 insides of one hook or store, and half was pure helpers that `ui/` imported
 directly. Neither half is a layer, so there is no folder for them now.
 
-**A module lives with its owner.** `workspaceDataProjector` computes the next
-workspace snapshot and nothing else imports it, so it sits in `stores/` beside
-`workspaceStore`. `chatEventStateProjector` belongs to `useChat` and sits in
-`hooks/chat/`. `createProjectForm` is validation for one modal and lives in
-`ui/projects/` next to it. Splitting a rule out of the thing that owns it is
-still worth doing — it is what makes the rule testable — but the split is a
-file, not a directory.
+**A module lives with its owner.** `chatEventStateProjector` belongs to
+`useChat` and sits in `hooks/chat/`. `createProjectForm` is validation for one
+modal and lives in `ui/projects/` next to it. Splitting a rule out of the thing
+that owns it is still worth doing — it is what makes the rule testable — but
+the split is a file, not a directory.
 
 **A module with owners in more than one layer goes to `services/`.**
 `usageFormatService` is read by four components, `workspaceSidebarService` by
@@ -45,8 +43,9 @@ single caller, which makes them leaves — the same category as `config/` and
 
 **Global state is read only through `hooks/`.** Nothing in `ui/` or `app/` may
 subscribe to or read from a store — a store outlives the component tree, so a
-direct read misses every later change and never re-renders. `hooks/` and
-`context/` are the only importers of `stores/`.
+direct read misses every later change and never re-renders. Hooks select state
+with Zustand's `useStore`; `hooks/` and `context/` are the only reactive
+importers of `stores/`.
 
 This is about *global* state, not all state. Roughly half the hooks here own
 something local — a date range, a textarea's height, a drag in progress — and
@@ -62,7 +61,10 @@ handler inside a vnode builder. That is the one file outside `hooks/` and
 
 ## Naming
 
-- `*Store` — keeps mutable fields. If you add one, it belongs in `stores/`.
+- `*Store` — a Zustand store that owns mutable state and its actions. If you
+  add one, it belongs in `stores/`.
+- `create*Store` — a factory for a store that needs an injected boundary or an
+  isolated instance in tests.
 - `*State` — keeps nothing; a policy, reducer, or projection over its arguments.
 
 The suffix carries the placement rule, so keep it honest. `promptQueueState`
@@ -70,12 +72,10 @@ sits in `hooks/chat/` because it holds nothing; `pushPresenceStore` sits in
 `stores/push/` because it holds the chat this client has claimed — global state
 that never renders is still global state.
 
-Two files in `stores/` carry neither suffix, and both are honest about it.
+One file in `stores/` carries neither suffix, and it is honest about it.
 `stores/push/pushPageFocus.ts` is a three-line read of `document`, private to
-the two push stores that call it. `stores/agents/agentCapabilityCatalog.ts`
-keeps no state either — it is the one line that constructs
-`AgentCapabilityCatalogStore` with the API function it depends on, kept apart
-from the class so the class can be built against a fake in its test.
+the two push stores that call it. Store factories and their application-wide
+instances stay together so each domain has one obvious composition point.
 
 ## Where the types and the constants live
 

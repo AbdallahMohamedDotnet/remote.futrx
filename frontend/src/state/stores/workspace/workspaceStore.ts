@@ -25,7 +25,7 @@ interface WorkspaceStoreState {
  * The snapshot object is rebuilt only when a message actually changes
  * something — the projector returns the same array when it does not — so a
  * subscriber that stores the snapshot re-renders on real changes and not on
- * traffic. Listeners are notified on the same condition.
+ * traffic. Zustand subscribers are notified on the same condition.
  */
 export function createWorkspaceStore(subscribe: SubscribeToWorkspace) {
   // The feed is injected rather than imported: it keeps this module free of the
