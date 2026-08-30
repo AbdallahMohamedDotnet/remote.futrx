@@ -32,6 +32,6 @@ export function useWorkspacePushLifecycle({
   useEffect(() => {
     const onScreen = view === "chat" ? activeChatId : null;
     pushNotificationStore.getState().setVisibleChat(onScreen);
-    pushPresenceStore.setWatchedChat(onScreen);
+    pushPresenceStore.getState().setWatchedChat(onScreen);
   }, [activeChatId, view]);
 }

@@ -10,79 +10,83 @@
 // laptop you are typing on may have no subscription at all, and it is still
 // the reason the phone should stay silent.
 
+import { createStore } from "zustand/vanilla";
 import { pushApi } from "../../../api/pushApi";
 import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../../config/push";
 import { isPushPageFocused } from "./pushPageFocus";
+
+interface PushPresenceState {
+  onScreenChatId: string | null;
+  claimedChatId: string | null;
+  revision: number;
+  setWatchedChat: (chatId: string | null) => void;
+}
+
+const clientId = createClientId();
+let heartbeatTimer: number | undefined;
+let isListening = false;
 
 /**
  * Keeps the server's idea of what this client is watching in step with what is
  * actually on screen. The claim and its heartbeat change together in one
  * place, so a repeat can never outlive the claim it was repeating.
  */
-class PushPresenceStore {
-  /** Identifies this client for the life of the page. */
-  readonly #clientId = this.#createClientId();
-  /** The chat this client is showing, whether or not the user is looking. */
-  #onScreen: string | null = null;
-  /** The claim the server currently believes, so repeats stay cheap. */
-  #claimed: string | null = null;
-  /** Orders requests even when the network completes them out of order. */
-  #revision = 0;
-  #heartbeatTimer: number | undefined;
-  #isListening = false;
-
+export const pushPresenceStore = createStore<PushPresenceState>()((set, get) => {
   /**
    * Reports the chat on screen, or null when the app shows something else.
    * Safe to repeat: only a changed claim talks to the server.
    */
-  setWatchedChat(chatId: string | null): void {
-    this.#onScreen = chatId;
-    this.#listen();
-    this.#sync();
+  function setWatchedChat(onScreenChatId: string | null): void {
+    set({ onScreenChatId });
+    listen();
+    sync();
   }
 
   /** The chat the user counts as watching: in the app, and looking at it. */
-  #chatInFocus(): string | null {
-    if (!this.#onScreen || typeof document === "undefined") return null;
+  function chatInFocus(): string | null {
+    const { onScreenChatId } = get();
+    if (!onScreenChatId || typeof document === "undefined") return null;
     // A visible but unfocused window is one the user left behind for another
     // app, which is exactly when they do want the notification.
-    return isPushPageFocused() ? this.#onScreen : null;
+    return isPushPageFocused() ? onScreenChatId : null;
   }
 
-  #sync = (): void => {
-    this.#claim(this.#chatInFocus());
+  const sync = (): void => {
+    claim(chatInFocus());
   };
 
   /**
    * The only place the claim changes. Restarting the heartbeat here is what
    * keeps "a claim is being repeated" and "there is a claim" the same fact.
    */
-  #claim(chatId: string | null): void {
-    if (chatId === this.#claimed) return;
-    this.#claimed = chatId;
-    this.#restartHeartbeat();
+  function claim(chatId: string | null): void {
+    if (chatId === get().claimedChatId) return;
+    set({ claimedChatId: chatId });
+    restartHeartbeat();
     // Withdrawals ride keepalive: they often fire as the page is going away,
     // and a cancelled one would leave the user silenced until the claim
     // expires.
-    void this.#send(chatId, chatId === null);
+    void send(chatId, chatId === null);
   }
 
-  #restartHeartbeat(): void {
-    if (this.#heartbeatTimer !== undefined) {
-      clearInterval(this.#heartbeatTimer);
-      this.#heartbeatTimer = undefined;
+  function restartHeartbeat(): void {
+    if (heartbeatTimer !== undefined) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = undefined;
     }
-    if (!this.#claimed) return;
-    this.#heartbeatTimer = window.setInterval(() => {
-      if (this.#claimed) void this.#send(this.#claimed, false);
+    if (!get().claimedChatId) return;
+    heartbeatTimer = window.setInterval(() => {
+      const { claimedChatId } = get();
+      if (claimedChatId) void send(claimedChatId, false);
     }, PUSH_PRESENCE_HEARTBEAT_MS);
   }
 
-  async #send(chatId: string | null, keepalive: boolean): Promise<void> {
-    const revision = ++this.#revision;
+  async function send(chatId: string | null, keepalive: boolean): Promise<void> {
+    const revision = get().revision + 1;
+    set({ revision });
     try {
       await pushApi.presence(
-        { chatId: chatId ?? "", clientId: this.#clientId, revision },
+        { chatId: chatId ?? "", clientId, revision },
         keepalive
       );
     } catch {
@@ -91,24 +95,30 @@ class PushPresenceStore {
     }
   }
 
-  #listen(): void {
-    if (this.#isListening || typeof window === "undefined") return;
-    this.#isListening = true;
+  function listen(): void {
+    if (isListening || typeof window === "undefined") return;
+    isListening = true;
 
-    document.addEventListener("visibilitychange", this.#sync);
-    window.addEventListener("focus", this.#sync);
-    window.addEventListener("blur", this.#sync);
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("focus", sync);
+    window.addEventListener("blur", sync);
     // The last beat that reliably fires on mobile, where a backgrounded tab
     // may simply never be resumed.
-    window.addEventListener("pagehide", () => this.#claim(null));
+    window.addEventListener("pagehide", () => claim(null));
   }
 
-  #createClientId(): string {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  return {
+    onScreenChatId: null,
+    claimedChatId: null,
+    revision: 0,
+    setWatchedChat,
+  };
+});
+
+/** Identifies this client for the life of the page. */
+function createClientId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
   }
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
-
-export const pushPresenceStore = new PushPresenceStore();
