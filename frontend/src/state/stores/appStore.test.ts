@@ -22,13 +22,13 @@ test("the shared factory exposes only state and actions", () => {
 
 test("domain stores cannot bypass the shared factory", async () => {
   const files = await typescriptSources(STORES_DIRECTORY);
-  const directZustandImports: string[] = [];
+  const zustandImports: string[] = [];
 
   for (const file of files) {
     if (file.endsWith(".test.ts")) continue;
     const source = await readFile(file, "utf8");
-    if (/["']zustand\/vanilla(?:\/[^"']*)?["']/.test(source)) {
-      directZustandImports.push(relative(STORES_DIRECTORY, file));
+    if (/["']zustand(?:\/[^"']*)?["']/.test(source)) {
+      zustandImports.push(relative(STORES_DIRECTORY, file));
     }
     if (basename(file) !== "appStore.ts" && basename(file).endsWith("Store.ts")) {
       assert.match(
@@ -39,7 +39,7 @@ test("domain stores cannot bypass the shared factory", async () => {
     }
   }
 
-  assert.deepEqual(directZustandImports, ["appStore.ts"]);
+  assert.deepEqual(zustandImports, []);
 });
 
 async function typescriptSources(directory: string): Promise<string[]> {
