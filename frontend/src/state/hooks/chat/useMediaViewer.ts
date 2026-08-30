@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useStore } from "zustand";
 import type { MediaViewerItem } from "../../../models/files";
 import { mediaViewerStore } from "../../stores/media/mediaViewerStore";
 
@@ -14,11 +14,8 @@ export function useMediaViewer(): {
   item: MediaViewerItem | null;
   close: () => void;
 } {
-  const [item, setItem] = useState<MediaViewerItem | null>(mediaViewerStore.current);
-
-  useEffect(() => mediaViewerStore.subscribe(setItem), []);
-
-  const close = useCallback(() => mediaViewerStore.close(), []);
+  const item = useStore(mediaViewerStore, (state) => state.item);
+  const close = useStore(mediaViewerStore, (state) => state.close);
 
   return { item, close };
 }
