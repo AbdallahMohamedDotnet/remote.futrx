@@ -27,13 +27,13 @@ test("domain stores cannot bypass the shared factory", async () => {
   for (const file of files) {
     if (file.endsWith(".test.ts")) continue;
     const source = await readFile(file, "utf8");
-    if (/from ["']zustand\/vanilla["']/.test(source)) {
+    if (/["']zustand\/vanilla(?:\/[^"']*)?["']/.test(source)) {
       directZustandImports.push(relative(STORES_DIRECTORY, file));
     }
     if (basename(file) !== "appStore.ts" && basename(file).endsWith("Store.ts")) {
       assert.match(
         source,
-        /\bcreateAppStore\b/,
+        /\bcreateAppStore(?:\s*<|\s*\()/,
         `${relative(STORES_DIRECTORY, file)} must use createAppStore`,
       );
     }

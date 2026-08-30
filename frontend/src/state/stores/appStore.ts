@@ -1,11 +1,14 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 export interface AppStoreShape<State, Actions> {
-  state: State;
-  actions: Actions;
+  readonly state: State;
+  readonly actions: Actions;
 }
 
-export type AppStore<State, Actions> = StoreApi<AppStoreShape<State, Actions>>;
+export type AppStore<State, Actions> = Pick<
+  StoreApi<AppStoreShape<State, Actions>>,
+  "getState" | "getInitialState" | "subscribe"
+>;
 
 type StateUpdater<State> = (state: State) => Partial<State> | State;
 type StateUpdate<State> = Partial<State> | StateUpdater<State>;
