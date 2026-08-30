@@ -1,8 +1,8 @@
+import { useStore } from "zustand";
 import { useEffect, useState } from "preact/hooks";
 import type { ChatStatus, PromptOutcome, QueuedPrompt } from "../../../models/chat";
 import { idService } from "../../../services/platform/idService.ts";
 import { chatComposerSessionStore } from "../../stores/chat/composerSessionStore";
-import { useAppStore } from "../useAppStore.ts";
 import { promptQueueState } from "./promptQueueState";
 
 const EMPTY_QUEUE: QueuedPrompt[] = [];
@@ -26,13 +26,13 @@ export function usePromptQueue({
   // ChatContainer remount that happens on every chat switch. They resume
   // auto-sending when you return to the chat (sending is tied to the active
   // chat's connection, so a backgrounded chat's queue waits until it is open).
-  const queuedPrompts = useAppStore(
+  const queuedPrompts = useStore(
     chatComposerSessionStore,
-    (store) => store.state.promptQueues.get(chatId) ?? EMPTY_QUEUE,
+    (state) => state.promptQueues.get(chatId) ?? EMPTY_QUEUE,
   );
-  const setQueuedPrompts = useAppStore(
+  const setQueuedPrompts = useStore(
     chatComposerSessionStore,
-    (store) => store.actions.setQueuedPrompts,
+    (state) => state.setQueuedPrompts,
   );
   // Dispatch latch: the queued prompt currently on the wire awaiting the
   // server's verdict. Deliberately not persisted — the prompt itself stays
@@ -40,7 +40,7 @@ export function usePromptQueue({
   const [inflightId, setInflightId] = useState<string | null>(null);
 
   function commitQueuedPrompts(updater: QueuedPrompt[] | ((prev: QueuedPrompt[]) => QueuedPrompt[])) {
-    const previous = chatComposerSessionStore.getState().state.promptQueues.get(chatId) ?? EMPTY_QUEUE;
+    const previous = chatComposerSessionStore.getState().promptQueues.get(chatId) ?? EMPTY_QUEUE;
     const next = typeof updater === "function" ? updater(previous) : updater;
     setQueuedPrompts(chatId, next);
   }

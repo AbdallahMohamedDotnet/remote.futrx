@@ -1,3 +1,4 @@
+import { createStore } from "zustand/vanilla";
 import type {
   ChatComposerSessionStoreActions,
   ChatComposerSessionStoreState,
@@ -6,7 +7,6 @@ import type {
   QueuedPrompt,
 } from "../../../models/chat";
 import { SESSION_STORAGE_KEYS } from "../../../config/storageKeys.ts";
-import { createAppStore } from "../appStore.ts";
 
 // Composer state is mirrored to sessionStorage so drafts and queued prompts
 // survive a reload or navigation while an agent run (often a long stretch of
@@ -16,17 +16,17 @@ export function createChatComposerSessionStore(
   storage: ComposerSessionStorage | null = defaultStorage(),
 ) {
   const hydrated = hydrate(storage);
-  return createAppStore<ChatComposerSessionStoreState, ChatComposerSessionStoreActions>(
-    hydrated,
-    ({ setState }) => ({
-      setDraft: (chatId, text) => setState((state) => {
+  return createStore<ChatComposerSessionStoreState & ChatComposerSessionStoreActions>()(
+    (set) => ({
+      ...hydrated,
+      setDraft: (chatId, text) => set((state) => {
         const drafts = new Map(state.drafts);
         if (text) drafts.set(chatId, text);
         else drafts.delete(chatId);
         persist(storage, drafts, state.promptQueues);
         return { drafts };
       }),
-      setQueuedPrompts: (chatId, prompts) => setState((state) => {
+      setQueuedPrompts: (chatId, prompts) => set((state) => {
         const promptQueues = new Map(state.promptQueues);
         if (prompts.length) promptQueues.set(chatId, prompts);
         else promptQueues.delete(chatId);
