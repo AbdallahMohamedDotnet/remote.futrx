@@ -60,13 +60,15 @@ interface AppStore<State, Actions> {
 }
 ```
 
-`stores/appStore.ts` owns the subscription engine and the only supported store
-factory. Domain stores use `createAppStore(initialState, createActions)`,
+`models/appStore.ts` owns this contract. `stores/appStore.ts` owns the
+subscription engine and the only supported store factory. Domain stores use
+`createAppStore(initialState, createActions)`,
 reactive reads select through `store.state`, and commands dispatch through
 `store.actions`. The shared factory gives actions state-only access, so a state
 update cannot replace or mutate the action surface. `appStore.test.ts` enforces
-the boundary: the test suite fails if a domain store bypasses the shared factory
-or reintroduces Zustand. The public `AppStore` type exposes no `setState`, so
+the boundary: the test suite fails if a domain store bypasses the shared factory,
+reintroduces Zustand, declares types/interfaces, or adds uppercase configuration
+constants. The public `AppStore` type exposes no `setState`, so
 typed callers can mutate global state only through the declared actions.
 
 **Global state is read only through `hooks/`.** Nothing in `ui/` or `app/` may
@@ -113,14 +115,20 @@ is declared beside `ChatMeta`, not inside the projector that builds it; the
 agent-browser poll interval sits in `config/agents.ts`, not in the hook that
 passes it to `setTimeout`.
 
-What stays is what describes one module's own insides and never appears in an
-import elsewhere: a store's listener signature, a reducer's private bucket, a
-hook's options bag. Exporting those would widen the surface for nothing.
+**Stores have no local-type exception.** Store state/actions, persistence
+shapes, listener signatures, request options, and injected boundary contracts
+belong in the existing domain model files. The shared store contract lives in
+`models/appStore.ts`. Stores import these types; they do not redeclare or
+re-export them.
 
-The one deliberate exception is a contract that carries behaviour rather than
-data — `useUsageDashboard`'s return type, `ConfirmOptions` with its preact
-children and its action callback. Those are published by the hook or context
-that produces them, because that is what they describe.
+Named fixed defaults belong in `config/` too: the empty workspace snapshot is
+in `config/workspace.ts`, and the empty capability catalog snapshot is in
+`config/agents.ts`. Runtime state is different: store instances, per-instance
+maps, timers, subscriptions, and generated client IDs stay with their owner.
+
+Hooks and contexts may still own their local behavioural contracts, such as
+`useUsageDashboard`'s return type or `ConfirmOptions` with its preact children
+and action callback. This store boundary does not move those unrelated types.
 
 ## Where the tests are, and why
 
