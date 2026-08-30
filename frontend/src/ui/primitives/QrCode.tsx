@@ -1,9 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
-import { toDataURL } from "qrcode";
+import { qrCodeDataUrl } from "../../shared/qrCode";
 
-// The one place the `qrcode` dependency is used, isolated behind a single
-// wrapper component per the plan's Patterns section, so the dependency can
-// be swapped without touching enrollment logic.
 export function QrCode({ value, size = 200, class: className }: {
   value: string;
   size?: number;
@@ -13,7 +10,7 @@ export function QrCode({ value, size = 200, class: className }: {
 
   useEffect(() => {
     let cancelled = false;
-    toDataURL(value, { width: size, margin: 1 })
+    qrCodeDataUrl(value, size)
       .then((dataUrl) => {
         if (!cancelled && imgRef.current) imgRef.current.src = dataUrl;
       })
