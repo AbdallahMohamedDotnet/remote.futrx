@@ -68,7 +68,7 @@ Caddy ([`infra/templates/Caddyfile.tmpl`](infra/templates/Caddyfile.tmpl)) termi
 Two properties of this table are load-bearing and both are analyzed in the threat model:
 
 1. **Wildcard subdomains use on-demand TLS**, gated by the backend's `/internal/tls-ask` so only slugs of existing projects can mint certificates ([`project_handler.go` `HandleTLSAsk`](backend/internal/transport/http/handlers/project_handler.go)).
-2. **Caddy strips the platform cookies** (`remote_session`, `remote_oauth_state`, `return_to`) via `header_up` before proxying any request into a container, so untrusted in-container code can never see a replayable session token. This is the mechanism behind the "isolated previews" claim.
+2. **Caddy strips the platform cookies** (`remote_session`, `remote_2fa_pending`, `remote_oauth_state`, `return_to`) via `header_up` before proxying any request into a container, so untrusted in-container code can never see a replayable session token. This is the mechanism behind the "isolated previews" claim.
 
 ## Backend layering
 
