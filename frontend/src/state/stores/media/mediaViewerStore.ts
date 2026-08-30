@@ -1,14 +1,8 @@
-import type { MediaViewerItem } from "../../../models/files";
+import type {
+  MediaViewerStoreActions,
+  MediaViewerStoreState,
+} from "../../../models/files";
 import { createAppStore } from "../appStore.ts";
-
-interface MediaViewerStoreState {
-  item: MediaViewerItem | null;
-}
-
-interface MediaViewerStoreActions {
-  open: (item: MediaViewerItem) => void;
-  close: () => void;
-}
 
 // App-wide in-app media viewer. Any surface (file manager rows, chat message
 // links) opens media here instead of navigating away; a single overlay host

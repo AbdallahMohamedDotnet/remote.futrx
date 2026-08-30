@@ -43,6 +43,15 @@ export interface MediaViewerItem {
   kind: MediaKind;
 }
 
+export interface MediaViewerStoreState {
+  item: MediaViewerItem | null;
+}
+
+export interface MediaViewerStoreActions {
+  open: (item: MediaViewerItem) => void;
+  close: () => void;
+}
+
 export interface WorkspaceFileBrowserState {
   childrenByDir: Map<string, FileNode[]>;
   expanded: Set<string>;
