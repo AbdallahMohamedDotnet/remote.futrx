@@ -53,7 +53,7 @@ func TestSingleSessionDisabledKeepsBothSessionsActive(t *testing.T) {
 	}
 }
 
-func TestRevokeClearsActiveSession(t *testing.T) {
+func TestRevokeInvalidatesActiveAndLegacyEmptySessions(t *testing.T) {
 	r := newTestSessionRegistry()
 	email := "user@example.com"
 	if err := r.SetPreferences(context.Background(), email, SecurityPreferences{SingleSessionEnabled: true}); err != nil {
@@ -68,6 +68,9 @@ func TestRevokeClearsActiveSession(t *testing.T) {
 	}
 	if r.IsActive(context.Background(), email, sid) {
 		t.Fatal("session should be inactive after Revoke")
+	}
+	if r.IsActive(context.Background(), email, "") {
+		t.Fatal("legacy empty-SID session should remain inactive after Revoke")
 	}
 }
 

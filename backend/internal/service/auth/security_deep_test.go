@@ -484,11 +484,15 @@ func TestRevokeSessionEndsTheActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
+	legacyCookie := service.codec.sign(User{Email: email, Sub: "local-admin"}, "")
 	if err := service.RevokeSession(ctx, email); err != nil {
 		t.Fatalf("RevokeSession: %v", err)
 	}
 	if _, err := service.CurrentSession(ctx, login.CookieValue); !errors.Is(err, ErrSessionSuperseded) {
 		t.Fatalf("revoked session err = %v, want ErrSessionSuperseded", err)
+	}
+	if _, err := service.CurrentSession(ctx, legacyCookie); !errors.Is(err, ErrSessionSuperseded) {
+		t.Fatalf("legacy empty-SID session err = %v, want ErrSessionSuperseded", err)
 	}
 }
 
