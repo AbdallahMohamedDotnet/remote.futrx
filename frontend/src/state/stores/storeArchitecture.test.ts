@@ -4,37 +4,28 @@ import { basename, dirname, join, relative } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { createAppStore } from "./appStore.ts";
 
 const STORES_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 
-test("the shared factory exposes only state and actions", () => {
-  const store = createAppStore(
-    { count: 0 },
-    ({ setState }) => ({
-      increment: () => setState((state) => ({ count: state.count + 1 })),
-    }),
-  );
-
-  assert.deepEqual(Object.keys(store.getState()).sort(), ["actions", "state"]);
-  store.getState().actions.increment();
-  assert.equal(store.getState().state.count, 1);
-});
-
-test("stores use an approved factory and keep models and config in their layers", async () => {
+test("stores use Zustand directly and keep models and config in their layers", async () => {
   const files = await typescriptSources(STORES_DIRECTORY);
 
   for (const file of files) {
     if (file.endsWith(".test.ts")) continue;
     const source = await readFile(file, "utf8");
     assertStoreLayerBoundaries(file, source);
-    if (basename(file) !== "appStore.ts" && basename(file).endsWith("Store.ts")) {
-      assert.match(
-        source,
-        /\b(?:createAppStore|createStore)(?:\s*<|\s*\()/,
-        `${relative(STORES_DIRECTORY, file)} must use createAppStore or Zustand createStore`,
-      );
-    }
+    if (!basename(file).endsWith("Store.ts")) continue;
+
+    assert.match(
+      source,
+      /from ["']zustand\/vanilla["']/,
+      `${relative(STORES_DIRECTORY, file)} must import Zustand's vanilla store`,
+    );
+    assert.match(
+      source,
+      /\bcreateStore(?:\s*<|\s*\()/,
+      `${relative(STORES_DIRECTORY, file)} must use Zustand createStore`,
+    );
   }
 });
 
