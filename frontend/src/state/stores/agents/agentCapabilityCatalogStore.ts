@@ -90,12 +90,6 @@ export class AgentCapabilityCatalogStore {
     }
   }
 
-  invalidateProject(userId: string, projectId?: string): void {
-    // Starting a project may change its CLI/configuration. Request a fresh
-    // frontend snapshot and backend entry; reuse any request already in flight.
-    void this.load(userId, projectId, { force: true }).catch(() => undefined);
-  }
-
   removeProject(userId: string, projectId: string): void {
     const key = catalogKey(userId, projectId);
     this.catalogs.delete(key);

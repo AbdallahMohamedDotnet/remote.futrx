@@ -1,12 +1,17 @@
-// Every project port is published at `<slug>--<port>.dev.<public hostname>`.
-// This service is the only place that shape is written down: it builds those
-// URLs, finds them in agent output, and checks that a candidate is really one
-// of ours before the browser drawer follows it.
+import {
+  PROJECT_PREVIEW_PORT_RANGE,
+  PROJECT_PREVIEW_URL,
+} from "../../config/project.ts";
+
+// Reads and writes the project preview URL shape declared in config/project.ts.
+// The grammar itself lives there because the backend defines it; this service
+// is what composes it — building those URLs, finding them in agent output, and
+// checking a candidate really is one of ours before the drawer follows it.
 class ProjectPreviewUrlService {
   build(slug: string, port: number | null, publicHostname: string): string {
     const hostSuffix = this.hostSuffix(publicHostname);
     if (!slug || !port || !hostSuffix) return "";
-    return `https://${slug}--${port}${hostSuffix}`;
+    return `${PROJECT_PREVIEW_URL.scheme}://${this.hostPrefix(slug)}${port}${hostSuffix}`;
   }
 
   /** Preview URLs mentioned in a block of text, trailing punctuation trimmed. */
@@ -14,7 +19,10 @@ class ProjectPreviewUrlService {
     const hostname = this.normalizeHostname(publicHostname);
     if (!hostname) return [];
     const pattern = new RegExp(
-      `https:\\/\\/[a-z0-9][a-z0-9-]*--\\d{4,5}\\.dev\\.${this.escapeRegExp(hostname)}[^\\s<>)\\]]*`,
+      `${this.escapeRegExp(PROJECT_PREVIEW_URL.scheme)}:\\/\\/` +
+        `[a-z0-9][a-z0-9-]*${this.escapeRegExp(PROJECT_PREVIEW_URL.portSeparator)}` +
+        `${this.portDigitsPattern()}\\.${this.escapeRegExp(PROJECT_PREVIEW_URL.subdomain)}\\.` +
+        `${this.escapeRegExp(hostname)}[^\\s<>)\\]]*`,
       "g",
     );
     return [...text.matchAll(pattern)]
@@ -27,13 +35,13 @@ class ProjectPreviewUrlService {
     try {
       const url = new URL(raw);
       const hostSuffix = this.hostSuffix(publicHostname);
-      const portStart = `${slug}--`;
+      const hostPrefix = this.hostPrefix(slug);
       return (
         hostSuffix !== "" &&
-        url.protocol === "https:" &&
-        url.hostname.startsWith(portStart) &&
+        url.protocol === `${PROJECT_PREVIEW_URL.scheme}:` &&
+        url.hostname.startsWith(hostPrefix) &&
         url.hostname.endsWith(hostSuffix) &&
-        this.isValidPort(url.hostname.slice(portStart.length, -hostSuffix.length))
+        this.isValidPort(url.hostname.slice(hostPrefix.length, -hostSuffix.length))
       );
     } catch {
       return false;
@@ -41,18 +49,38 @@ class ProjectPreviewUrlService {
   }
 
   port(url: string): number | null {
-    const match = /--(\d{4,5})\./.exec(url);
+    const pattern = new RegExp(
+      `${this.escapeRegExp(PROJECT_PREVIEW_URL.portSeparator)}(${this.portDigitsPattern()})\\.`,
+    );
+    const match = pattern.exec(url);
     return match ? Number(match[1]) : null;
+  }
+
+  /** `<slug>--`, the part of the hostname that comes before the port. */
+  private hostPrefix(slug: string): string {
+    return `${slug}${PROJECT_PREVIEW_URL.portSeparator}`;
+  }
+
+  /** `.dev.<public hostname>`, the part that comes after it. */
+  private hostSuffix(publicHostname: string): string {
+    const hostname = this.normalizeHostname(publicHostname);
+    return hostname ? `.${PROJECT_PREVIEW_URL.subdomain}.${hostname}` : "";
+  }
+
+  /** A coarse `\d{4,5}` pre-filter derived from the range, so the pattern can
+   *  never drift from the bound `isValidPort` actually enforces. */
+  private portDigitsPattern(): string {
+    const { min, max } = PROJECT_PREVIEW_PORT_RANGE;
+    return `\\d{${String(min).length},${String(max).length}}`;
   }
 
   private isValidPort(port: string): boolean {
     const value = Number(port);
-    return Number.isInteger(value) && value >= 1024 && value <= 65535;
-  }
-
-  private hostSuffix(publicHostname: string): string {
-    const hostname = this.normalizeHostname(publicHostname);
-    return hostname ? `.dev.${hostname}` : "";
+    return (
+      Number.isInteger(value) &&
+      value >= PROJECT_PREVIEW_PORT_RANGE.min &&
+      value <= PROJECT_PREVIEW_PORT_RANGE.max
+    );
   }
 
   private normalizeHostname(hostname: string): string {
