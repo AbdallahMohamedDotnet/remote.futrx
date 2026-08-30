@@ -41,6 +41,21 @@ single caller, which makes them leaves — the same category as `config/` and
 
 ## The access rule
 
+Every global store has exactly the same public contract:
+
+```ts
+StoreApi<{
+  state: TState;
+  actions: TActions;
+}>
+```
+
+`stores/appStore.ts` owns the only direct call to Zustand's `createStore`.
+Domain stores use `createAppStore(initialState, createActions)`, reactive reads
+select through `store.state`, and commands dispatch through `store.actions`.
+The shared factory gives actions state-only access, so a state update cannot
+replace or mutate the action surface.
+
 **Global state is read only through `hooks/`.** Nothing in `ui/` or `app/` may
 subscribe to or read from a store — a store outlives the component tree, so a
 direct read misses every later change and never re-renders. Hooks select state
@@ -61,8 +76,8 @@ handler inside a vnode builder. That is the one file outside `hooks/` and
 
 ## Naming
 
-- `*Store` — a Zustand store that owns mutable state and its actions. If you
-  add one, it belongs in `stores/`.
+- `*Store` — an `AppStoreShape<State, Actions>` created through
+  `createAppStore`. If you add one, it belongs in `stores/`.
 - `create*Store` — a factory for a store that needs an injected boundary or an
   isolated instance in tests.
 - `*State` — keeps nothing; a policy, reducer, or projection over its arguments.
