@@ -1,16 +1,16 @@
 import type { ChatMeta } from "../../models/chat.ts";
 import type { ProjectMeta } from "../../models/project.ts";
 import type { Attachment } from "../../models/upload.ts";
+import { CHAT_UPLOAD_PATHS } from "../../config/chat.ts";
 
 class ChatAttachmentService {
   basePath(chat: ChatMeta, projects: ProjectMeta[]): string {
     const project = chat.projectId
       ? projects.find((candidate) => candidate.id === chat.projectId)
       : undefined;
-    if (project) return "/workspace/.uploads";
+    if (project) return this.uploadsUnder(CHAT_UPLOAD_PATHS.projectRoot);
 
-    const cwd = this.normalizePath(chat.cwd || "");
-    return cwd ? `${cwd}/.uploads` : "/.uploads";
+    return this.uploadsUnder(this.normalizePath(chat.cwd || ""));
   }
 
   uniqueUploadName(name: string, token: string): string {
@@ -39,6 +39,11 @@ class ChatAttachmentService {
 
   revokeObjectUrl(attachment: Attachment): void {
     if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
+  }
+
+  /** `<root>/.uploads`; an empty root yields the container-root default. */
+  private uploadsUnder(root: string): string {
+    return `${root}/${CHAT_UPLOAD_PATHS.dirName}`;
   }
 
   private normalizePath(path: string): string {
