@@ -4,7 +4,7 @@ Three folders, each answering one question.
 
 | Folder | Its one job | Holds state? |
 | --- | --- | --- |
-| `stores/<domain>/` | Global Zustand state, actions, and lifecycle | **Yes** — this is the whole list |
+| `stores/<domain>/` | Global application state, actions, and lifecycle | **Yes** — this is the whole list |
 | `hooks/<domain>/` | The access layer: how UI reads a store, plus state owned by one screen | In preact hooks |
 | `context/` | Cross-cutting state, gated in nesting order | In preact hooks |
 
@@ -44,28 +44,35 @@ single caller, which makes them leaves — the same category as `config/` and
 Every global store has exactly the same public contract:
 
 ```ts
-type AppStore<State, Actions> = Pick<
-  StoreApi<{
-    readonly state: State;
-    readonly actions: Actions;
-  }>,
-  "getState" | "getInitialState" | "subscribe"
->;
+interface AppStoreShape<State, Actions> {
+  readonly state: State;
+  readonly actions: Actions;
+}
+
+interface AppStore<State, Actions> {
+  getState(): AppStoreShape<State, Actions>;
+  subscribe(
+    listener: (
+      store: AppStoreShape<State, Actions>,
+      previousStore: AppStoreShape<State, Actions>,
+    ) => void,
+  ): () => void;
+}
 ```
 
-`stores/appStore.ts` owns the only direct call to Zustand's `createStore`.
-Domain stores use `createAppStore(initialState, createActions)`, reactive reads
-select through `store.state`, and commands dispatch through `store.actions`.
-The shared factory gives actions state-only access, so a state update cannot
-replace or mutate the action surface. `appStore.test.ts` enforces the boundary:
-the test suite fails if a domain store imports Zustand directly or bypasses the
-shared factory. The public `AppStore` type also omits Zustand's `setState`, so
+`stores/appStore.ts` owns the subscription engine and the only supported store
+factory. Domain stores use `createAppStore(initialState, createActions)`,
+reactive reads select through `store.state`, and commands dispatch through
+`store.actions`. The shared factory gives actions state-only access, so a state
+update cannot replace or mutate the action surface. `appStore.test.ts` enforces
+the boundary: the test suite fails if a domain store bypasses the shared factory
+or reintroduces Zustand. The public `AppStore` type exposes no `setState`, so
 typed callers can mutate global state only through the declared actions.
 
 **Global state is read only through `hooks/`.** Nothing in `ui/` or `app/` may
 subscribe to or read from a store — a store outlives the component tree, so a
 direct read misses every later change and never re-renders. Hooks select state
-with Zustand's `useStore`; `hooks/` and `context/` are the only reactive
+with the shared `useAppStore`; `hooks/` and `context/` are the only reactive
 importers of `stores/`.
 
 This is about *global* state, not all state. Roughly half the hooks here own
@@ -82,7 +89,7 @@ handler inside a vnode builder. That is the one file outside `hooks/` and
 
 ## Naming
 
-- `*Store` — an `AppStoreShape<State, Actions>` created through
+- `*Store` — an `AppStore<State, Actions>` created through
   `createAppStore`. If you add one, it belongs in `stores/`.
 - `create*Store` — a factory for a store that needs an injected boundary or an
   isolated instance in tests.

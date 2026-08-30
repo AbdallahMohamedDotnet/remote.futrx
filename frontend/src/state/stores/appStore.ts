@@ -10,7 +10,6 @@ export type AppStoreListener<State, Actions> = (
 
 export interface AppStore<State, Actions> {
   getState: () => AppStoreShape<State, Actions>;
-  getInitialState: () => AppStoreShape<State, Actions>;
   subscribe: (listener: AppStoreListener<State, Actions>) => () => void;
 }
 
@@ -48,12 +47,10 @@ export function createAppStore<State extends object, Actions extends object>(
   };
 
   const actions = createActions(access);
-  const initialStore: AppStoreShape<State, Actions> = { state, actions };
-  store = initialStore;
+  store = { state, actions };
 
   return {
     getState: () => store,
-    getInitialState: () => initialStore,
     subscribe: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
