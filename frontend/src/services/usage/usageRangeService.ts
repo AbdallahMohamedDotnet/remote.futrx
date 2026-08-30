@@ -3,6 +3,10 @@ import type {
   UsageRangeLabels,
   UsageRangePreset,
 } from "../../models/usage.ts";
+import {
+  USAGE_DEFAULT_RANGE_PRESET,
+  USAGE_RANGE_SPAN_DAYS,
+} from "../../config/usage.ts";
 
 /**
  * Date-range selection for the Usage page. Days are bounded in UTC because the
@@ -20,7 +24,7 @@ class UsageRangeService {
     const to = this.endOfUtcDay(now);
     switch (preset) {
       case "7d":
-        return { preset, from: this.startOfUtcDay(now) - 6 * this.dayMs, to };
+        return { preset, from: this.startOfWindow(now, USAGE_RANGE_SPAN_DAYS["7d"]), to };
       case "month": {
         const today = new Date(this.startOfUtcDay(now));
         const from = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1);
@@ -30,8 +34,8 @@ class UsageRangeService {
       case "30d":
       default:
         return {
-          preset: preset === "custom" ? "custom" : "30d",
-          from: this.startOfUtcDay(now) - 29 * this.dayMs,
+          preset: preset === "custom" ? "custom" : USAGE_DEFAULT_RANGE_PRESET,
+          from: this.startOfWindow(now, USAGE_RANGE_SPAN_DAYS[USAGE_DEFAULT_RANGE_PRESET]),
           to,
         };
     }
@@ -56,6 +60,12 @@ class UsageRangeService {
       fromDate: this.toDateInputValue(range.from),
       toDate: this.toDateInputValue(range.to),
     };
+  }
+
+  /** First ms of a window that ends today and spans `days` UTC days. Today is
+   *  one of them, which is why it steps back one fewer day than it spans. */
+  private startOfWindow(now: number, days: number): number {
+    return this.startOfUtcDay(now) - (days - 1) * this.dayMs;
   }
 
   /** Start of the UTC day containing `at`. */
