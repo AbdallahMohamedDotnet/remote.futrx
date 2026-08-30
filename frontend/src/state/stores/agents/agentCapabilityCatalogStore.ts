@@ -4,6 +4,15 @@ import type {
 } from "../../../models/agentCapabilities";
 import { capabilitiesApi } from "../../../api/agents/capabilitiesApi.ts";
 
+/** A scope some part of the app is currently watching, and its listeners. */
+interface ObservedScope {
+  /** Normalized, matching the user half of the scope's key. */
+  userId: string;
+  /** Empty for the host scope, matching the project half of the key. */
+  projectId: string;
+  listeners: Set<() => void>;
+}
+
 type CatalogRequester = (
   projectId?: string,
   options?: { refresh?: boolean },
@@ -18,7 +27,7 @@ export class AgentCapabilityCatalogStore {
   private readonly catalogs = new Map<string, AgentCapabilitiesCatalog>();
   private readonly errors = new Map<string, string>();
   private readonly inFlight = new Map<string, Promise<AgentCapabilitiesCatalog>>();
-  private readonly listeners = new Map<string, Set<() => void>>();
+  private readonly observed = new Map<string, ObservedScope>();
   private readonly request: CatalogRequester;
 
   constructor(request: CatalogRequester) {
@@ -39,12 +48,16 @@ export class AgentCapabilityCatalogStore {
 
   subscribe(userId: string, projectId: string | undefined, listener: () => void): () => void {
     const key = catalogKey(userId, projectId);
-    const listeners = this.listeners.get(key) ?? new Set<() => void>();
-    listeners.add(listener);
-    this.listeners.set(key, listeners);
+    const scope = this.observed.get(key) ?? {
+      userId: normalizeUserId(userId),
+      projectId: projectId || "",
+      listeners: new Set<() => void>(),
+    };
+    scope.listeners.add(listener);
+    this.observed.set(key, scope);
     return () => {
-      listeners.delete(listener);
-      if (listeners.size === 0) this.listeners.delete(key);
+      scope.listeners.delete(listener);
+      if (scope.listeners.size === 0) this.observed.delete(key);
     };
   }
 
@@ -83,10 +96,9 @@ export class AgentCapabilityCatalogStore {
     // force-refresh for scopes currently observed by this browser; an existing
     // request for the same scope remains coalesced.
     const normalizedUser = normalizeUserId(userId);
-    for (const key of this.listeners.keys()) {
-      const scope = parseCatalogKey(key);
-      if (!scope || scope[0] !== normalizedUser) continue;
-      void this.load(normalizedUser, scope[1] || undefined, { force: true })
+    for (const scope of this.observed.values()) {
+      if (scope.userId !== normalizedUser) continue;
+      void this.load(scope.userId, scope.projectId || undefined, { force: true })
         .catch(() => undefined);
     }
   }
@@ -99,26 +111,12 @@ export class AgentCapabilityCatalogStore {
   }
 
   private notify(key: string): void {
-    for (const listener of this.listeners.get(key) ?? []) listener();
+    for (const listener of this.observed.get(key)?.listeners ?? []) listener();
   }
 }
 
 function catalogKey(userId: string, projectId?: string): string {
   return JSON.stringify([normalizeUserId(userId), projectId || ""]);
-}
-
-function parseCatalogKey(key: string): [string, string] | null {
-  try {
-    const value = JSON.parse(key) as unknown;
-    return Array.isArray(value)
-      && value.length === 2
-      && typeof value[0] === "string"
-      && typeof value[1] === "string"
-      ? [value[0], value[1]]
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 function normalizeUserId(userId: string): string {
