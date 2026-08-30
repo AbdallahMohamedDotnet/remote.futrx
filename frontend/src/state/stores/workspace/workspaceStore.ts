@@ -1,9 +1,9 @@
+import { createStore } from "zustand/vanilla";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
 import type { WorkspaceSnapshot } from "../../../models/workspace";
 import type { WorkspaceMessage } from "../../../types/workspaceApi";
 import { workspaceDataProjector } from "../../../services/workspace/workspaceDataProjector.ts";
-import { Listeners } from "../listeners.ts";
 
 /** Opens the workspace feed and reports messages until the returned call. */
 type SubscribeToWorkspace = (
@@ -11,6 +11,11 @@ type SubscribeToWorkspace = (
 ) => () => void;
 
 const EMPTY: WorkspaceSnapshot = { chats: [], projects: [], loaded: false };
+
+interface WorkspaceStoreState {
+  snapshot: WorkspaceSnapshot;
+  setConnected: (connected: boolean) => void;
+}
 
 /**
  * The chats and projects the server is pushing, held outside the component
@@ -22,72 +27,61 @@ const EMPTY: WorkspaceSnapshot = { chats: [], projects: [], loaded: false };
  * subscriber that stores the snapshot re-renders on real changes and not on
  * traffic. Listeners are notified on the same condition.
  */
-class WorkspaceStore {
-  #snapshot: WorkspaceSnapshot = EMPTY;
-  readonly #listeners = new Listeners<WorkspaceSnapshot>();
-  #disconnect: (() => void) | undefined;
-  readonly #subscribe: SubscribeToWorkspace;
-
+export function createWorkspaceStore(subscribe: SubscribeToWorkspace) {
   // The feed is injected rather than imported: it keeps this module free of the
   // api layer, which is what lets a test drive it with a hand-held feed and
   // what lets the node test runner load it at all.
-  constructor(subscribe: SubscribeToWorkspace) {
-    this.#subscribe = subscribe;
-  }
+  let disconnect: (() => void) | undefined;
 
-  get snapshot(): WorkspaceSnapshot {
-    return this.#snapshot;
-  }
-
-  /** Opens the feed, or closes it and clears what it delivered. Repeating a
-   *  state is a no-op, so callers may drive this from an effect. */
-  setConnected(connected: boolean): void {
-    if (connected) {
-      if (!this.#disconnect) this.#disconnect = this.#subscribe((m) => this.#apply(m));
-      return;
+  return createStore<WorkspaceStoreState>()((set, get) => {
+    function commit(chats: ChatMeta[], projects: ProjectMeta[], loaded: boolean): void {
+      set((state) => {
+        const current = state.snapshot;
+        if (chats === current.chats && projects === current.projects && loaded === current.loaded) {
+          return state;
+        }
+        return { snapshot: { chats, projects, loaded } };
+      });
     }
-    this.#disconnect?.();
-    this.#disconnect = undefined;
-    this.#commit(EMPTY.chats, EMPTY.projects, false);
-  }
 
-  subscribe(listener: (snapshot: WorkspaceSnapshot) => void): () => void {
-    return this.#listeners.add(listener);
-  }
-
-  #apply(message: WorkspaceMessage): void {
-    const { chats, projects, loaded } = this.#snapshot;
-    switch (message.type) {
-      case "workspace.snapshot":
-        this.#commit(
-          workspaceDataProjector.replaceChats(message.chats, chats),
-          workspaceDataProjector.replaceProjects(message.projects, projects),
-          true,
-        );
-        break;
-      case "chat.upsert":
-        this.#commit(workspaceDataProjector.upsertChat(chats, message.chat), projects, loaded);
-        break;
-      case "chat.delete":
-        this.#commit(workspaceDataProjector.removeChat(chats, message.id), projects, loaded);
-        break;
-      case "project.upsert":
-        this.#commit(chats, workspaceDataProjector.upsertProject(projects, message.project), loaded);
-        break;
-      case "project.delete":
-        this.#commit(chats, workspaceDataProjector.removeProject(projects, message.id), loaded);
-        break;
+    function apply(message: WorkspaceMessage): void {
+      const { chats, projects, loaded } = get().snapshot;
+      switch (message.type) {
+        case "workspace.snapshot":
+          commit(
+            workspaceDataProjector.replaceChats(message.chats, chats),
+            workspaceDataProjector.replaceProjects(message.projects, projects),
+            true,
+          );
+          break;
+        case "chat.upsert":
+          commit(workspaceDataProjector.upsertChat(chats, message.chat), projects, loaded);
+          break;
+        case "chat.delete":
+          commit(workspaceDataProjector.removeChat(chats, message.id), projects, loaded);
+          break;
+        case "project.upsert":
+          commit(chats, workspaceDataProjector.upsertProject(projects, message.project), loaded);
+          break;
+        case "project.delete":
+          commit(chats, workspaceDataProjector.removeProject(projects, message.id), loaded);
+          break;
+      }
     }
-  }
 
-  #commit(chats: ChatMeta[], projects: ProjectMeta[], loaded: boolean): void {
-    const current = this.#snapshot;
-    if (chats === current.chats && projects === current.projects && loaded === current.loaded) {
-      return;
-    }
-    this.#snapshot = { chats, projects, loaded };
-    this.#listeners.emit(this.#snapshot);
-  }
+    return {
+      snapshot: EMPTY,
+      /** Opens the feed, or closes it and clears what it delivered. Repeating a
+       *  state is a no-op, so callers may drive this from an effect. */
+      setConnected: (connected) => {
+        if (connected) {
+          if (!disconnect) disconnect = subscribe(apply);
+          return;
+        }
+        disconnect?.();
+        disconnect = undefined;
+        commit(EMPTY.chats, EMPTY.projects, false);
+      },
+    };
+  });
 }
-
-export { WorkspaceStore };

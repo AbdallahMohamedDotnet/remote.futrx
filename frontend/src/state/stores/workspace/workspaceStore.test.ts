@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatMeta } from "../../../models/chat.ts";
 import type { WorkspaceMessage } from "../../../types/workspaceApi.ts";
-import { WorkspaceStore } from "./workspaceStore.ts";
+import { createWorkspaceStore } from "./workspaceStore.ts";
 
 function chat(id: string, lastMessageAt = 1): ChatMeta {
   return { id, title: id, createdAt: 1, lastMessageAt };
@@ -12,14 +12,14 @@ function chat(id: string, lastMessageAt = 1): ChatMeta {
 function connectedStore() {
   let push: ((message: WorkspaceMessage) => void) | null = null;
   let closed = 0;
-  const store = new WorkspaceStore((onMessage) => {
+  const store = createWorkspaceStore((onMessage) => {
     push = onMessage;
     return () => {
       closed += 1;
       push = null;
     };
   });
-  store.setConnected(true);
+  store.getState().setConnected(true);
   return {
     store,
     send: (message: WorkspaceMessage) => push?.(message),
@@ -29,29 +29,29 @@ function connectedStore() {
 
 test("nothing is loaded before the first snapshot", () => {
   const { store } = connectedStore();
-  assert.deepEqual(store.snapshot, { chats: [], projects: [], loaded: false });
+  assert.deepEqual(store.getState().snapshot, { chats: [], projects: [], loaded: false });
 });
 
 test("the first snapshot marks the workspace loaded", () => {
   const { store, send } = connectedStore();
   send({ type: "workspace.snapshot", chats: [chat("a")], projects: [] });
-  assert.equal(store.snapshot.loaded, true);
-  assert.deepEqual(store.snapshot.chats.map((c) => c.id), ["a"]);
+  assert.equal(store.getState().snapshot.loaded, true);
+  assert.deepEqual(store.getState().snapshot.chats.map((c) => c.id), ["a"]);
 });
 
 test("an upsert after the snapshot keeps it loaded", () => {
   const { store, send } = connectedStore();
   send({ type: "workspace.snapshot", chats: [], projects: [] });
   send({ type: "chat.upsert", chat: chat("b") });
-  assert.equal(store.snapshot.loaded, true);
-  assert.deepEqual(store.snapshot.chats.map((c) => c.id), ["b"]);
+  assert.equal(store.getState().snapshot.loaded, true);
+  assert.deepEqual(store.getState().snapshot.chats.map((c) => c.id), ["b"]);
 });
 
 test("a delete removes the chat", () => {
   const { store, send } = connectedStore();
   send({ type: "workspace.snapshot", chats: [chat("a"), chat("b")], projects: [] });
   send({ type: "chat.delete", id: "a" });
-  assert.deepEqual(store.snapshot.chats.map((c) => c.id), ["b"]);
+  assert.deepEqual(store.getState().snapshot.chats.map((c) => c.id), ["b"]);
 });
 
 test("a message that changes nothing does not notify or replace the snapshot", () => {
@@ -60,7 +60,7 @@ test("a message that changes nothing does not notify or replace the snapshot", (
 
   let notifications = 0;
   store.subscribe(() => { notifications += 1; });
-  const before = store.snapshot;
+  const before = store.getState().snapshot;
 
   // Same chat, same fields: the projector returns the current array, so there
   // is nothing to publish. This is what keeps subscribers from re-rendering on
@@ -68,7 +68,7 @@ test("a message that changes nothing does not notify or replace the snapshot", (
   send({ type: "chat.upsert", chat: chat("a") });
 
   assert.equal(notifications, 0);
-  assert.equal(store.snapshot, before);
+  assert.equal(store.getState().snapshot, before);
 });
 
 test("a real change notifies once with the new snapshot", () => {
@@ -76,7 +76,7 @@ test("a real change notifies once with the new snapshot", () => {
   send({ type: "workspace.snapshot", chats: [chat("a")], projects: [] });
 
   const seen: number[] = [];
-  store.subscribe((snapshot) => seen.push(snapshot.chats.length));
+  store.subscribe((state) => seen.push(state.snapshot.chats.length));
   send({ type: "chat.upsert", chat: chat("z") });
 
   assert.deepEqual(seen, [2]);
@@ -86,16 +86,16 @@ test("disconnecting closes the feed and clears what it delivered", () => {
   const { store, send, closedCount } = connectedStore();
   send({ type: "workspace.snapshot", chats: [chat("a")], projects: [] });
 
-  store.setConnected(false);
+  store.getState().setConnected(false);
 
   assert.equal(closedCount(), 1);
-  assert.deepEqual(store.snapshot, { chats: [], projects: [], loaded: false });
+  assert.deepEqual(store.getState().snapshot, { chats: [], projects: [], loaded: false });
 });
 
 test("connecting twice opens one feed, and disconnecting twice closes it once", () => {
   const { store, closedCount } = connectedStore();
-  store.setConnected(true);
-  store.setConnected(false);
-  store.setConnected(false);
+  store.getState().setConnected(true);
+  store.getState().setConnected(false);
+  store.getState().setConnected(false);
   assert.equal(closedCount(), 1);
 });

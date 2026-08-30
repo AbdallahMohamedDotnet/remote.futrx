@@ -1,25 +1,21 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect } from "preact/hooks";
+import { useStore } from "zustand";
 import { workspaceApi } from "../../../api/workspaceApi";
 import type { WorkspaceSnapshot } from "../../../models/workspace";
-import { WorkspaceStore } from "../../stores/workspace/workspaceStore";
+import { createWorkspaceStore } from "../../stores/workspace/workspaceStore";
 
 // One feed for the whole app. The concrete socket is wired here rather than
 // inside the store so the store stays free of the api layer and testable.
-const workspaceStore = new WorkspaceStore(workspaceApi.subscribe);
+const workspaceStore = createWorkspaceStore(workspaceApi.subscribe);
 
 /** The chats and projects the server is pushing. */
 export function useWorkspaceData(enabled: boolean): WorkspaceSnapshot {
-  const [snapshot, setSnapshot] = useState(workspaceStore.snapshot);
+  const snapshot = useStore(workspaceStore, (state) => state.snapshot);
 
   useEffect(() => {
-    const unsubscribe = workspaceStore.subscribe(setSnapshot);
-    workspaceStore.setConnected(enabled);
-    // The store may have moved between the initial read above and this
-    // subscription.
-    setSnapshot(workspaceStore.snapshot);
+    workspaceStore.getState().setConnected(enabled);
     return () => {
-      unsubscribe();
-      workspaceStore.setConnected(false);
+      workspaceStore.getState().setConnected(false);
     };
   }, [enabled]);
 
