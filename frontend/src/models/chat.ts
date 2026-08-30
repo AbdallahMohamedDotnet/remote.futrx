@@ -73,6 +73,23 @@ export interface QueuedPrompt {
   text: string;
 }
 
+export type ComposerSessionStorage = Pick<Storage, "getItem" | "setItem">;
+
+export interface PersistedComposerSession {
+  drafts: Record<string, string>;
+  queues: Record<string, QueuedPrompt[]>;
+}
+
+export interface ChatComposerSessionStoreState {
+  drafts: ReadonlyMap<string, string>;
+  promptQueues: ReadonlyMap<string, QueuedPrompt[]>;
+}
+
+export interface ChatComposerSessionStoreActions {
+  setDraft: (chatId: string, text: string) => void;
+  setQueuedPrompts: (chatId: string, prompts: QueuedPrompt[]) => void;
+}
+
 // Server verdict on a prompt sent with a clientId: accepted means a run
 // started from it; rejected means the run lock was held and it was discarded.
 export interface PromptOutcome {

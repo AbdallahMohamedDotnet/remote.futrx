@@ -1,32 +1,19 @@
-import type { QueuedPrompt } from "../../../models/chat";
+import type {
+  ChatComposerSessionStoreActions,
+  ChatComposerSessionStoreState,
+  ComposerSessionStorage,
+  PersistedComposerSession,
+  QueuedPrompt,
+} from "../../../models/chat";
 import { SESSION_STORAGE_KEYS } from "../../../config/storageKeys.ts";
 import { createAppStore } from "../appStore.ts";
-
-const STORAGE_KEY = SESSION_STORAGE_KEYS.composerSession;
-
-type StorageLike = Pick<Storage, "getItem" | "setItem">;
-
-interface PersistedComposerSession {
-  drafts: Record<string, string>;
-  queues: Record<string, QueuedPrompt[]>;
-}
-
-interface ChatComposerSessionStoreState {
-  drafts: ReadonlyMap<string, string>;
-  promptQueues: ReadonlyMap<string, QueuedPrompt[]>;
-}
-
-interface ChatComposerSessionStoreActions {
-  setDraft: (chatId: string, text: string) => void;
-  setQueuedPrompts: (chatId: string, prompts: QueuedPrompt[]) => void;
-}
 
 // Composer state is mirrored to sessionStorage so drafts and queued prompts
 // survive a reload or navigation while an agent run (often a long stretch of
 // tool calls) is still in flight. sessionStorage keeps it per-tab, matching
 // the previous in-memory semantics; storage failures degrade to memory-only.
 export function createChatComposerSessionStore(
-  storage: StorageLike | null = defaultStorage(),
+  storage: ComposerSessionStorage | null = defaultStorage(),
 ) {
   const hydrated = hydrate(storage);
   return createAppStore<ChatComposerSessionStoreState, ChatComposerSessionStoreActions>(
@@ -50,7 +37,7 @@ export function createChatComposerSessionStore(
   );
 }
 
-function hydrate(storage: StorageLike | null): Pick<
+function hydrate(storage: ComposerSessionStorage | null): Pick<
   ChatComposerSessionStoreState,
   "drafts" | "promptQueues"
 > {
@@ -59,7 +46,7 @@ function hydrate(storage: StorageLike | null): Pick<
   if (!storage) return { drafts, promptQueues };
 
   try {
-    const raw = storage.getItem(STORAGE_KEY);
+    const raw = storage.getItem(SESSION_STORAGE_KEYS.composerSession);
     if (!raw) return { drafts, promptQueues };
     const parsed = JSON.parse(raw) as Partial<PersistedComposerSession> | null;
     for (const [chatId, text] of Object.entries(parsed?.drafts ?? {})) {
@@ -79,7 +66,7 @@ function hydrate(storage: StorageLike | null): Pick<
 }
 
 function persist(
-  storage: StorageLike | null,
+  storage: ComposerSessionStorage | null,
   drafts: ReadonlyMap<string, string>,
   promptQueues: ReadonlyMap<string, QueuedPrompt[]>,
 ): void {
@@ -89,13 +76,13 @@ function persist(
       drafts: Object.fromEntries(drafts),
       queues: Object.fromEntries(promptQueues),
     };
-    storage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    storage.setItem(SESSION_STORAGE_KEYS.composerSession, JSON.stringify(snapshot));
   } catch {
     // Quota or privacy-mode failures fall back to in-memory behavior.
   }
 }
 
-function defaultStorage(): StorageLike | null {
+function defaultStorage(): ComposerSessionStorage | null {
   try {
     return typeof window === "undefined" ? null : window.sessionStorage;
   } catch {
