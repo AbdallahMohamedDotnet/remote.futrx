@@ -38,6 +38,10 @@ type appServerRun struct {
 	terminal       bool
 	runFailed      bool
 	protocolErr    error
+
+	threadID             string
+	turnID               string
+	pendingNotifications []appServerEnvelope
 }
 
 type appServerPendingRequest struct {
@@ -184,7 +188,27 @@ func (run *appServerRun) handleEnvelope(envelope appServerEnvelope) bool {
 
 func (run *appServerRun) handleNotification(envelope appServerEnvelope) {
 	if envelope.Method == "serverRequest/resolved" {
+		// Requests are correlated across the whole connection, including those
+		// from subagents. Keep resolving them independently of displayed events.
 		run.cancelResolvedRequest(envelope.Params)
+		return
+	}
+	var scope appServerNotificationScope
+	if json.Unmarshal(envelope.Params, &scope) != nil || run.threadID == "" || scope.ThreadID != run.threadID {
+		return
+	}
+	if run.turnID == "" {
+		// Notifications can arrive before the turn/start response. Wait for its
+		// authoritative ID rather than adopting a child or previously resumed turn.
+		run.pendingNotifications = append(run.pendingNotifications, envelope)
+		return
+	}
+	turnID := scope.TurnID
+	if envelope.Method == "turn/started" || envelope.Method == "turn/completed" {
+		turnID = scope.Turn.ID
+	}
+	if turnID != run.turnID {
+		return
 	}
 	for _, event := range run.eventParser.ParseNotification(envelope.Method, envelope.Params) {
 		if event.Type == agent.EventRunCompleted || event.Type == agent.EventRunFailed {
@@ -359,6 +383,7 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 			run.protocolErr = errors.New("Codex app-server returned an incomplete thread")
 			return
 		}
+		run.threadID = result.Thread.ID
 		// The server resolves aliases such as "auto" to the concrete model.
 		// Carry that model into the completion usage persisted for rebuilds.
 		run.eventParser.req.Model = result.Model
@@ -379,8 +404,24 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 		})
 
 	case appServerTurnRequestID:
-		// The turn response is only an acknowledgement. Streaming notifications
-		// carry all user-visible state and the terminal status.
+		var result appServerTurnStartResult
+		if err := json.Unmarshal(resultJSON, &result); err != nil {
+			run.protocolErr = fmt.Errorf("decode Codex turn response: %w", err)
+			return
+		}
+		if result.Turn.ID == "" {
+			run.protocolErr = errors.New("Codex app-server returned a turn without an id")
+			return
+		}
+		run.turnID = result.Turn.ID
+		pending := run.pendingNotifications
+		run.pendingNotifications = nil
+		for _, notification := range pending {
+			if run.terminal {
+				break
+			}
+			run.handleNotification(notification)
+		}
 	}
 }
 

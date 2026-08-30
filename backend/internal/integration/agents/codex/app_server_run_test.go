@@ -47,7 +47,7 @@ while IFS= read -r line; do
       esac
       printf '%s\n' '{"id":3,"result":{"turn":{"id":"turn-1","status":"inProgress","items":[]}}}'
       printf '%s\n' '{"method":"item/plan/delta","params":{"threadId":"thread-new","turnId":"turn-1","itemId":"plan-1","delta":"Native plan"}}'
-      printf '%s\n' '{"method":"thread/tokenUsage/updated","params":{"tokenUsage":{"last":{"inputTokens":10,"cachedInputTokens":3,"cacheWriteInputTokens":0,"outputTokens":4,"reasoningOutputTokens":2}}}}'
+      printf '%s\n' '{"method":"thread/tokenUsage/updated","params":{"threadId":"thread-new","turnId":"turn-1","tokenUsage":{"last":{"inputTokens":10,"cachedInputTokens":3,"cacheWriteInputTokens":0,"outputTokens":4,"reasoningOutputTokens":2}}}}'
       printf '%s\n' '{"method":"turn/completed","params":{"threadId":"thread-new","turn":{"id":"turn-1","status":"completed","items":[]}}}'
       exit 0
       ;;
@@ -181,9 +181,11 @@ while IFS= read -r line; do
       ;;
     *'"id":3'*)
       printf '%s\n' '{"id":3,"result":{"turn":{"id":"turn-1","status":"inProgress","items":[]}}}'
-      printf '%s\n' '{"id":99,"method":"item/tool/requestUserInput","params":{"itemId":"question-item","isBlocking":false,"questions":[{"id":"choice","question":"Choose","isOther":false,"options":null}]}}'
-      printf '%s\n' '{"method":"serverRequest/resolved","params":{"requestId":99}}'
-      printf '%s\n' '{"method":"turn/completed","params":{"turn":{"id":"turn-1","status":"completed","items":[]}}}'
+      printf '%s\n' '{"id":99,"method":"item/tool/requestUserInput","params":{"threadId":"child","turnId":"child-turn","itemId":"question-item","isBlocking":false,"questions":[{"id":"choice","question":"Choose","isOther":false,"options":null}]}}'
+      printf '%s\n' '{"method":"turn/completed","params":{"threadId":"other-child","turn":{"id":"other-child-turn","status":"completed"}}}'
+      printf '%s\n' '{"method":"item/agentMessage/delta","params":{"threadId":"thread-new","turnId":"turn-1","itemId":"message","delta":"Parent still running"}}'
+      printf '%s\n' '{"method":"serverRequest/resolved","params":{"threadId":"child","requestId":99}}'
+      printf '%s\n' '{"method":"turn/completed","params":{"threadId":"thread-new","turn":{"id":"turn-1","status":"completed","items":[]}}}'
       exit 0
       ;;
     *'"id":99'*)
@@ -195,7 +197,7 @@ done`
 
 	registered := make(chan struct{}, 1)
 	cancelled := make(chan struct{}, 1)
-	order := make(chan string, 3)
+	order := make(chan string, 4)
 	var events []agent.Event
 	err := runAppServer(
 		context.Background(),
@@ -219,6 +221,9 @@ done`
 		},
 		func(event agent.Event) {
 			events = append(events, event)
+			if event.Type == agent.EventAssistantTextDelta {
+				order <- "streaming"
+			}
 			if event.Type == agent.EventRunCompleted {
 				order <- "complete"
 			}
@@ -240,7 +245,7 @@ done`
 	if len(events) == 0 || events[len(events)-1].Type != agent.EventRunCompleted {
 		t.Fatalf("events = %#v", events)
 	}
-	for index, want := range []string{"request", "resolved", "complete"} {
+	for index, want := range []string{"request", "streaming", "resolved", "complete"} {
 		select {
 		case got := <-order:
 			if got != want {
@@ -261,7 +266,7 @@ while IFS= read -r line; do
     *'"id":3'*)
       printf '%s\n' '{"id":3,"result":{"turn":{"id":"turn-1","status":"inProgress","items":[]}}}'
       printf '%s\n' '{"id":99,"method":"item/tool/requestUserInput","params":{"itemId":"question-item","isBlocking":true,"questions":[{"id":"choice","question":"Choose","options":[]}]}}'
-      printf '%s\n' '{"method":"turn/completed","params":{"turn":{"id":"turn-1","status":"completed","items":[]}}}'
+      printf '%s\n' '{"method":"turn/completed","params":{"threadId":"thread-new","turn":{"id":"turn-1","status":"completed","items":[]}}}'
       exit 0
       ;;
   esac

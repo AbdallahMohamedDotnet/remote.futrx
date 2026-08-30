@@ -344,8 +344,19 @@ The JSON-RPC sequence is:
    or `thread/fork`;
 3. require a non-empty returned thread ID and model, emit `session.updated`
    for a new/different thread, then send `turn/start`;
-4. consume notifications until `turn/completed` emits `run.completed` or
-   `run.failed`; close stdin after that terminal notification.
+4. capture the turn ID from the `turn/start` response, then consume
+   notifications for that thread and turn until its `turn/completed` emits
+   `run.completed` or `run.failed`; close stdin after that terminal notification.
+
+The app-server connection can also stream subagent activity. Remote filters
+message, tool, reasoning, usage, and completion notifications by the returned
+main thread and turn IDs before parsing or publishing them. Child completion
+must not close the connection, cancel pending requests, or replace the main
+answer or usage. Notifications for the main thread that arrive before the
+`turn/start` response are buffered until its turn ID is known. Subagents still
+communicate with their parent inside Codex; server-to-client requests and their
+`serverRequest/resolved` notifications remain correlated across the connection,
+including requests from subagents.
 
 [`appServerEventParser`](../../../backend/internal/integration/agents/codex/app_server_events.go)
 maps agent/plan deltas, reasoning deltas, command execution, file changes, MCP

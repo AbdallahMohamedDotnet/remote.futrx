@@ -35,6 +35,16 @@ type appServerThread struct {
 	ID string `json:"id"`
 }
 
+type appServerTurnStartResult struct {
+	Turn appServerTurnResult `json:"turn"`
+}
+
+type appServerNotificationScope struct {
+	ThreadID string              `json:"threadId"`
+	TurnID   string              `json:"turnId"`
+	Turn     appServerTurnResult `json:"turn"`
+}
+
 type appServerThreadRequest struct {
 	Method string
 	Params appServerThreadParams
@@ -143,6 +153,7 @@ type appServerTurnCompletedParams struct {
 }
 
 type appServerTurnResult struct {
+	ID     string          `json:"id"`
 	Status string          `json:"status"`
 	Error  *appServerError `json:"error"`
 }
