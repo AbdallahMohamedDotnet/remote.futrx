@@ -12,18 +12,12 @@
 
 import { pushApi } from "../../../api/pushApi";
 import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../../config/push";
+import type {
+  PushPresenceStoreActions,
+  PushPresenceStoreState,
+} from "../../../models/push";
 import { createAppStore } from "../appStore.ts";
 import { isPushPageFocused } from "./pushPageFocus";
-
-interface PushPresenceStoreState {
-  onScreenChatId: string | null;
-  claimedChatId: string | null;
-  revision: number;
-}
-
-interface PushPresenceStoreActions {
-  setWatchedChat: (chatId: string | null) => void;
-}
 
 const clientId = createClientId();
 let heartbeatTimer: number | undefined;

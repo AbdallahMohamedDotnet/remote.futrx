@@ -1,17 +1,10 @@
 import { pushServiceWorkerApi } from "../../../api/pushServiceWorkerApi";
+import type {
+  PushNotificationStoreActions,
+  PushNotificationStoreState,
+} from "../../../models/push";
 import { createAppStore } from "../appStore.ts";
 import { isPushPageFocused } from "./pushPageFocus";
-
-type ChatOpener = (chatId: string | null) => void;
-
-interface PushNotificationStoreState {
-  visibleChatId: string | null;
-}
-
-interface PushNotificationStoreActions {
-  connect: (openChat: ChatOpener) => void;
-  setVisibleChat: (chatId: string | null) => void;
-}
 
 export const pushNotificationStore = createAppStore<
   PushNotificationStoreState,
