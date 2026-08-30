@@ -1,17 +1,17 @@
+import { createStore } from "zustand/vanilla";
 import type {
   AgentCapabilitiesCatalog,
   AgentCapabilityCatalogSnapshot,
 } from "../../../models/agentCapabilities";
 import { capabilitiesApi } from "../../../api/agents/capabilitiesApi.ts";
-import { Listeners } from "../listeners.ts";
 
-/** A scope some part of the app is currently watching, and its listeners. */
+/** A scope some part of the app is currently watching. */
 interface ObservedScope {
   /** Normalized, matching the user half of the scope's key. */
   userId: string;
   /** Empty for the host scope, matching the project half of the key. */
   projectId: string;
-  listeners: Listeners;
+  observers: number;
 }
 
 type CatalogRequester = (
@@ -19,101 +19,151 @@ type CatalogRequester = (
   options?: { refresh?: boolean },
 ) => Promise<AgentCapabilitiesCatalog>;
 
+interface AgentCapabilityCatalogState {
+  scopes: ReadonlyMap<string, AgentCapabilityCatalogSnapshot>;
+  observe: (userId: string, projectId?: string) => () => void;
+  load: (
+    userId: string,
+    projectId?: string,
+    options?: { force?: boolean },
+  ) => Promise<AgentCapabilitiesCatalog>;
+  invalidateUser: (userId: string) => void;
+  removeProject: (userId: string, projectId: string) => void;
+}
+
+const EMPTY_SCOPE: AgentCapabilityCatalogSnapshot = {
+  catalog: null,
+  loading: false,
+  refreshing: false,
+  error: "",
+};
+
 // This store keeps the last response for each normalized user and host/project
 // scope only for the lifetime of the open application. The process-local
 // backend cache owns freshness across browsers and devices. Retaining the last
 // frontend response avoids a visual reset while a backend lookup or refresh is
 // in flight; in-flight requests for the same frontend scope are coalesced.
-export class AgentCapabilityCatalogStore {
-  private readonly catalogs = new Map<string, AgentCapabilitiesCatalog>();
-  private readonly errors = new Map<string, string>();
-  private readonly inFlight = new Map<string, Promise<AgentCapabilitiesCatalog>>();
-  private readonly observed = new Map<string, ObservedScope>();
-  private readonly request: CatalogRequester;
+export function createAgentCapabilityCatalogStore(request: CatalogRequester) {
+  const inFlight = new Map<string, Promise<AgentCapabilitiesCatalog>>();
+  const observed = new Map<string, ObservedScope>();
 
-  constructor(request: CatalogRequester) {
-    this.request = request;
-  }
-
-  read(userId: string, projectId?: string): AgentCapabilityCatalogSnapshot {
-    const key = catalogKey(userId, projectId);
-    const catalog = this.catalogs.get(key) ?? null;
-    const refreshing = this.inFlight.has(key);
-    return {
-      catalog,
-      loading: refreshing && !catalog,
-      refreshing,
-      error: this.errors.get(key) ?? "",
-    };
-  }
-
-  subscribe(userId: string, projectId: string | undefined, listener: () => void): () => void {
-    const key = catalogKey(userId, projectId);
-    const scope = this.observed.get(key) ?? {
-      userId: normalizeUserId(userId),
-      projectId: projectId || "",
-      listeners: new Listeners(),
-    };
-    const remove = scope.listeners.add(listener);
-    this.observed.set(key, scope);
-    return () => {
-      remove();
-      if (scope.listeners.size === 0) this.observed.delete(key);
-    };
-  }
-
-  load(
-    userId: string,
-    projectId?: string,
-    options: { force?: boolean } = {},
-  ): Promise<AgentCapabilitiesCatalog> {
-    const key = catalogKey(userId, projectId);
-    const existing = this.inFlight.get(key);
-    if (existing) return existing;
-
-    this.errors.delete(key);
-    const running = (async () => {
-      try {
-        const catalog = await this.request(projectId, { refresh: !!options.force });
-        this.catalogs.set(key, catalog);
-        this.errors.delete(key);
-        return catalog;
-      } catch (cause) {
-        this.errors.set(key, errorMessage(cause));
-        throw cause;
-      } finally {
-        this.inFlight.delete(key);
-        this.notify(key);
-      }
-    })();
-
-    this.inFlight.set(key, running);
-    this.notify(key);
-    return running;
-  }
-
-  invalidateUser(userId: string): void {
-    // A managed host-auth change can alter every catalog. Request a
-    // force-refresh for scopes currently observed by this browser; an existing
-    // request for the same scope remains coalesced.
-    const normalizedUser = normalizeUserId(userId);
-    for (const scope of this.observed.values()) {
-      if (scope.userId !== normalizedUser) continue;
-      void this.load(scope.userId, scope.projectId || undefined, { force: true })
-        .catch(() => undefined);
+  return createStore<AgentCapabilityCatalogState>()((set, get) => {
+    function setScope(key: string, snapshot: AgentCapabilityCatalogSnapshot): void {
+      set((state) => {
+        const scopes = new Map(state.scopes);
+        scopes.set(key, snapshot);
+        return { scopes };
+      });
     }
-  }
 
-  removeProject(userId: string, projectId: string): void {
-    const key = catalogKey(userId, projectId);
-    this.catalogs.delete(key);
-    this.errors.delete(key);
-    this.notify(key);
-  }
+    function load(
+      userId: string,
+      projectId?: string,
+      options: { force?: boolean } = {},
+    ): Promise<AgentCapabilitiesCatalog> {
+      const key = catalogKey(userId, projectId);
+      const existing = inFlight.get(key);
+      if (existing) return existing;
 
-  private notify(key: string): void {
-    this.observed.get(key)?.listeners.emit();
-  }
+      const running = (async () => {
+        try {
+          const catalog = await request(projectId, { refresh: !!options.force });
+          inFlight.delete(key);
+          setScope(key, {
+            catalog,
+            loading: false,
+            refreshing: false,
+            error: "",
+          });
+          return catalog;
+        } catch (cause) {
+          inFlight.delete(key);
+          const current = scopeSnapshot(get(), key);
+          setScope(key, {
+            ...current,
+            loading: false,
+            refreshing: false,
+            error: errorMessage(cause),
+          });
+          throw cause;
+        }
+      })();
+
+      inFlight.set(key, running);
+      const current = scopeSnapshot(get(), key);
+      setScope(key, {
+        ...current,
+        loading: !current.catalog,
+        refreshing: true,
+        error: "",
+      });
+      return running;
+    }
+
+    return {
+      scopes: new Map(),
+      observe: (userId, projectId) => {
+        const key = catalogKey(userId, projectId);
+        const scope = observed.get(key) ?? {
+          userId: normalizeUserId(userId),
+          projectId: projectId || "",
+          observers: 0,
+        };
+        scope.observers += 1;
+        observed.set(key, scope);
+        let isObserved = true;
+        return () => {
+          if (!isObserved) return;
+          isObserved = false;
+          scope.observers -= 1;
+          if (scope.observers === 0) observed.delete(key);
+        };
+      },
+      load,
+      invalidateUser: (userId) => {
+        // A managed host-auth change can alter every catalog. Request a
+        // force-refresh for scopes currently observed by this browser; an
+        // existing request for the same scope remains coalesced.
+        const normalizedUser = normalizeUserId(userId);
+        for (const scope of observed.values()) {
+          if (scope.userId !== normalizedUser) continue;
+          void load(scope.userId, scope.projectId || undefined, { force: true })
+            .catch(() => undefined);
+        }
+      },
+      removeProject: (userId, projectId) => {
+        const key = catalogKey(userId, projectId);
+        const refreshing = inFlight.has(key);
+        if (refreshing) {
+          setScope(key, {
+            catalog: null,
+            loading: true,
+            refreshing: true,
+            error: "",
+          });
+          return;
+        }
+        set((state) => {
+          const scopes = new Map(state.scopes);
+          scopes.delete(key);
+          return { scopes };
+        });
+      },
+    };
+  });
+}
+
+export function selectAgentCapabilityCatalog(userId: string, projectId?: string) {
+  const key = catalogKey(userId, projectId);
+  return (state: AgentCapabilityCatalogState): AgentCapabilityCatalogSnapshot =>
+    scopeSnapshot(state, key);
+}
+
+function scopeSnapshot(
+  state: AgentCapabilityCatalogState,
+  key: string,
+): AgentCapabilityCatalogSnapshot {
+  return state.scopes.get(key) ?? EMPTY_SCOPE;
 }
 
 function catalogKey(userId: string, projectId?: string): string {
@@ -132,6 +182,6 @@ function errorMessage(cause: unknown): string {
 
 // Every caller observes one instance so the retained responses above are shared
 // across the application rather than rebuilt per consumer.
-export const agentCapabilityCatalogStore = new AgentCapabilityCatalogStore(
+export const agentCapabilityCatalogStore = createAgentCapabilityCatalogStore(
   capabilitiesApi.list,
 );
