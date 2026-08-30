@@ -10,12 +10,12 @@ const workspaceStore = createWorkspaceStore(workspaceApi.subscribe);
 
 /** The chats and projects the server is pushing. */
 export function useWorkspaceData(enabled: boolean): WorkspaceSnapshot {
-  const snapshot = useStore(workspaceStore, (state) => state.snapshot);
+  const snapshot = useStore(workspaceStore, (store) => store.state.snapshot);
 
   useEffect(() => {
-    workspaceStore.getState().setConnected(enabled);
+    workspaceStore.getState().actions.setConnected(enabled);
     return () => {
-      workspaceStore.getState().setConnected(false);
+      workspaceStore.getState().actions.setConnected(false);
     };
   }, [enabled]);
 

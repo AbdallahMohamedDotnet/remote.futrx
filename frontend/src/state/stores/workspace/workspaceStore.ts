@@ -1,9 +1,9 @@
-import { createStore } from "zustand/vanilla";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
 import type { WorkspaceSnapshot } from "../../../models/workspace";
 import type { WorkspaceMessage } from "../../../types/workspaceApi";
 import { workspaceDataProjector } from "../../../services/workspace/workspaceDataProjector.ts";
+import { createAppStore } from "../appStore.ts";
 
 /** Opens the workspace feed and reports messages until the returned call. */
 type SubscribeToWorkspace = (
@@ -14,6 +14,9 @@ const EMPTY: WorkspaceSnapshot = { chats: [], projects: [], loaded: false };
 
 interface WorkspaceStoreState {
   snapshot: WorkspaceSnapshot;
+}
+
+interface WorkspaceStoreActions {
   setConnected: (connected: boolean) => void;
 }
 
@@ -33,55 +36,57 @@ export function createWorkspaceStore(subscribe: SubscribeToWorkspace) {
   // what lets the node test runner load it at all.
   let disconnect: (() => void) | undefined;
 
-  return createStore<WorkspaceStoreState>()((set, get) => {
-    function commit(chats: ChatMeta[], projects: ProjectMeta[], loaded: boolean): void {
-      set((state) => {
-        const current = state.snapshot;
-        if (chats === current.chats && projects === current.projects && loaded === current.loaded) {
-          return state;
-        }
-        return { snapshot: { chats, projects, loaded } };
-      });
-    }
-
-    function apply(message: WorkspaceMessage): void {
-      const { chats, projects, loaded } = get().snapshot;
-      switch (message.type) {
-        case "workspace.snapshot":
-          commit(
-            workspaceDataProjector.replaceChats(message.chats, chats),
-            workspaceDataProjector.replaceProjects(message.projects, projects),
-            true,
-          );
-          break;
-        case "chat.upsert":
-          commit(workspaceDataProjector.upsertChat(chats, message.chat), projects, loaded);
-          break;
-        case "chat.delete":
-          commit(workspaceDataProjector.removeChat(chats, message.id), projects, loaded);
-          break;
-        case "project.upsert":
-          commit(chats, workspaceDataProjector.upsertProject(projects, message.project), loaded);
-          break;
-        case "project.delete":
-          commit(chats, workspaceDataProjector.removeProject(projects, message.id), loaded);
-          break;
+  return createAppStore<WorkspaceStoreState, WorkspaceStoreActions>(
+    { snapshot: EMPTY },
+    ({ getState, setState }) => {
+      function commit(chats: ChatMeta[], projects: ProjectMeta[], loaded: boolean): void {
+        setState((state) => {
+          const current = state.snapshot;
+          if (chats === current.chats && projects === current.projects && loaded === current.loaded) {
+            return state;
+          }
+          return { snapshot: { chats, projects, loaded } };
+        });
       }
-    }
 
-    return {
-      snapshot: EMPTY,
-      /** Opens the feed, or closes it and clears what it delivered. Repeating a
-       *  state is a no-op, so callers may drive this from an effect. */
-      setConnected: (connected) => {
-        if (connected) {
-          if (!disconnect) disconnect = subscribe(apply);
-          return;
+      function apply(message: WorkspaceMessage): void {
+        const { chats, projects, loaded } = getState().snapshot;
+        switch (message.type) {
+          case "workspace.snapshot":
+            commit(
+              workspaceDataProjector.replaceChats(message.chats, chats),
+              workspaceDataProjector.replaceProjects(message.projects, projects),
+              true,
+            );
+            break;
+          case "chat.upsert":
+            commit(workspaceDataProjector.upsertChat(chats, message.chat), projects, loaded);
+            break;
+          case "chat.delete":
+            commit(workspaceDataProjector.removeChat(chats, message.id), projects, loaded);
+            break;
+          case "project.upsert":
+            commit(chats, workspaceDataProjector.upsertProject(projects, message.project), loaded);
+            break;
+          case "project.delete":
+            commit(chats, workspaceDataProjector.removeProject(projects, message.id), loaded);
+            break;
         }
-        disconnect?.();
-        disconnect = undefined;
-        commit(EMPTY.chats, EMPTY.projects, false);
-      },
-    };
-  });
+      }
+
+      return {
+        /** Opens the feed, or closes it and clears what it delivered. Repeating a
+         *  state is a no-op, so callers may drive this from an effect. */
+        setConnected: (connected) => {
+          if (connected) {
+            if (!disconnect) disconnect = subscribe(apply);
+            return;
+          }
+          disconnect?.();
+          disconnect = undefined;
+          commit(EMPTY.chats, EMPTY.projects, false);
+        },
+      };
+    },
+  );
 }
