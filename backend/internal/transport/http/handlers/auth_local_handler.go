@@ -83,7 +83,7 @@ func (h *localAuthHandler) login(w http.ResponseWriter, r *http.Request) {
 		httptransport.SendErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
-	key := localClientIP(r) + "|login"
+	key := localLoginRateLimitKey(r)
 	if !h.logins.Allow(key) {
 		w.Header().Set("Retry-After", "300")
 		httptransport.SendErr(w, http.StatusTooManyRequests, "too many attempts; try again in a few minutes")
@@ -156,4 +156,8 @@ func localClientIP(r *http.Request) string {
 		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 	}
 	return ip
+}
+
+func localLoginRateLimitKey(r *http.Request) string {
+	return localClientIP(r) + "|login"
 }

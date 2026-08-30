@@ -18,10 +18,11 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(auth *serviceauth.Service, access *serviceauth.AccessVerifier) *AuthHandler {
+	loginLimiter := newLocalLoginLimiter()
 	return &AuthHandler{
 		googleLogin:  &googleLoginHandler{auth: auth},
-		local:        &localAuthHandler{auth: auth, logins: newLocalLoginLimiter()},
-		twoFactor:    &authTwoFactorHandler{auth: auth, limiter: newLocalLoginLimiter()},
+		local:        &localAuthHandler{auth: auth, logins: loginLimiter},
+		twoFactor:    &authTwoFactorHandler{auth: auth, limiter: loginLimiter},
 		session:      &authSessionHandler{auth: auth},
 		verify:       &authVerifyHandler{auth: auth, access: access},
 		googleConfig: &googleConfigHandler{auth: auth},

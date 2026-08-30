@@ -189,6 +189,42 @@ func TestTwoFactorVerifyIsRateLimited(t *testing.T) {
 	}
 }
 
+// TestPasswordAndTwoFactorFailuresShareRateLimit keeps both stages of local
+// authentication inside the documented five-failure per-IP bucket.
+func TestPasswordAndTwoFactorFailuresShareRateLimit(t *testing.T) {
+	mux := newTwoFactorTestMux(t)
+	const email = "admin@example.com"
+	const password = "correct horse battery staple"
+	claimAndEnroll(t, mux, email, password)
+
+	client := newCookieJar(mux)
+	if rec := client.do(t, http.MethodPost, "/auth/local/login", map[string]string{
+		"email": email, "password": password,
+	}); rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	for attempt := range 4 {
+		rec := client.do(t, http.MethodPost, "/auth/local/login", map[string]string{
+			"email": email, "password": "not-the-password",
+		})
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("password attempt %d status = %d, want 401", attempt+1, rec.Code)
+		}
+	}
+
+	if rec := client.do(t, http.MethodPost, "/auth/2fa/verify", map[string]string{
+		"code": "not-a-valid-code",
+	}); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("fifth shared attempt status = %d, want 401", rec.Code)
+	}
+	if rec := client.do(t, http.MethodPost, "/auth/2fa/verify", map[string]string{
+		"code": "not-a-valid-code",
+	}); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("attempt after five shared failures status = %d, want 429", rec.Code)
+	}
+}
+
 // TestConfirmEnrollmentRejectsAnotherAccountsToken makes sure a token minted
 // for one account cannot enroll a secret onto the calling account (or the
 // token's account) - and that nothing is persisted when it is rejected.

@@ -34,7 +34,7 @@ func (h *authTwoFactorHandler) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key := localClientIP(r) + "|2fa"
+	key := localLoginRateLimitKey(r)
 	if !h.limiter.Allow(key) {
 		w.Header().Set("Retry-After", "300")
 		httptransport.SendErr(w, http.StatusTooManyRequests, "too many attempts; try again in a few minutes")
