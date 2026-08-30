@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	launchTimeout  = 90 * time.Second
+	launchTimeout  = 10 * time.Minute
 	migrateTimeout = 5 * time.Minute
 	startTimeout   = 30 * time.Second
 	stopTimeout    = 30 * time.Second
