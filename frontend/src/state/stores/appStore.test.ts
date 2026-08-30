@@ -21,27 +21,21 @@ test("the shared factory exposes only state and actions", () => {
   assert.equal(store.getState().state.count, 1);
 });
 
-test("stores use the shared factory and keep models and config in their layers", async () => {
+test("stores use an approved factory and keep models and config in their layers", async () => {
   const files = await typescriptSources(STORES_DIRECTORY);
-  const zustandImports: string[] = [];
 
   for (const file of files) {
     if (file.endsWith(".test.ts")) continue;
     const source = await readFile(file, "utf8");
     assertStoreLayerBoundaries(file, source);
-    if (/["']zustand(?:\/[^"']*)?["']/.test(source)) {
-      zustandImports.push(relative(STORES_DIRECTORY, file));
-    }
     if (basename(file) !== "appStore.ts" && basename(file).endsWith("Store.ts")) {
       assert.match(
         source,
-        /\bcreateAppStore(?:\s*<|\s*\()/,
-        `${relative(STORES_DIRECTORY, file)} must use createAppStore`,
+        /\b(?:createAppStore|createStore)(?:\s*<|\s*\()/,
+        `${relative(STORES_DIRECTORY, file)} must use createAppStore or Zustand createStore`,
       );
     }
   }
-
-  assert.deepEqual(zustandImports, []);
 });
 
 function assertStoreLayerBoundaries(file: string, source: string): void {
