@@ -40,12 +40,12 @@ export function useChatComposerController({
   // survive leaving and returning to a chat.
   const text = useStore(
     chatComposerSessionStore,
-    (state) => state.drafts.get(chatId) ?? "",
+    (store) => store.state.drafts.get(chatId) ?? "",
   );
-  const setDraft = useStore(chatComposerSessionStore, (state) => state.setDraft);
+  const setDraft = useStore(chatComposerSessionStore, (store) => store.actions.setDraft);
   const setText = useCallback(
     (value: string | ((prev: string) => string)) => {
-      const previous = chatComposerSessionStore.getState().drafts.get(chatId) ?? "";
+      const previous = chatComposerSessionStore.getState().state.drafts.get(chatId) ?? "";
       const next = typeof value === "function" ? value(previous) : value;
       setDraft(chatId, next);
     },

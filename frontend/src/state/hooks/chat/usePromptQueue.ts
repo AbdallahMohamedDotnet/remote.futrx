@@ -28,11 +28,11 @@ export function usePromptQueue({
   // chat's connection, so a backgrounded chat's queue waits until it is open).
   const queuedPrompts = useStore(
     chatComposerSessionStore,
-    (state) => state.promptQueues.get(chatId) ?? EMPTY_QUEUE,
+    (store) => store.state.promptQueues.get(chatId) ?? EMPTY_QUEUE,
   );
   const setQueuedPrompts = useStore(
     chatComposerSessionStore,
-    (state) => state.setQueuedPrompts,
+    (store) => store.actions.setQueuedPrompts,
   );
   // Dispatch latch: the queued prompt currently on the wire awaiting the
   // server's verdict. Deliberately not persisted — the prompt itself stays
@@ -40,7 +40,7 @@ export function usePromptQueue({
   const [inflightId, setInflightId] = useState<string | null>(null);
 
   function commitQueuedPrompts(updater: QueuedPrompt[] | ((prev: QueuedPrompt[]) => QueuedPrompt[])) {
-    const previous = chatComposerSessionStore.getState().promptQueues.get(chatId) ?? EMPTY_QUEUE;
+    const previous = chatComposerSessionStore.getState().state.promptQueues.get(chatId) ?? EMPTY_QUEUE;
     const next = typeof updater === "function" ? updater(previous) : updater;
     setQueuedPrompts(chatId, next);
   }

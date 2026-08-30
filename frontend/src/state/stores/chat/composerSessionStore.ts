@@ -1,6 +1,6 @@
-import { createStore } from "zustand/vanilla";
 import type { QueuedPrompt } from "../../../models/chat";
 import { SESSION_STORAGE_KEYS } from "../../../config/storageKeys.ts";
+import { createAppStore } from "../appStore.ts";
 
 const STORAGE_KEY = SESSION_STORAGE_KEYS.composerSession;
 
@@ -11,9 +11,12 @@ interface PersistedComposerSession {
   queues: Record<string, QueuedPrompt[]>;
 }
 
-interface ChatComposerSessionState {
+interface ChatComposerSessionStoreState {
   drafts: ReadonlyMap<string, string>;
   promptQueues: ReadonlyMap<string, QueuedPrompt[]>;
+}
+
+interface ChatComposerSessionStoreActions {
   setDraft: (chatId: string, text: string) => void;
   setQueuedPrompts: (chatId: string, prompts: QueuedPrompt[]) => void;
 }
@@ -26,27 +29,29 @@ export function createChatComposerSessionStore(
   storage: StorageLike | null = defaultStorage(),
 ) {
   const hydrated = hydrate(storage);
-  return createStore<ChatComposerSessionState>()((set) => ({
-    ...hydrated,
-    setDraft: (chatId, text) => set((state) => {
-      const drafts = new Map(state.drafts);
-      if (text) drafts.set(chatId, text);
-      else drafts.delete(chatId);
-      persist(storage, drafts, state.promptQueues);
-      return { drafts };
+  return createAppStore<ChatComposerSessionStoreState, ChatComposerSessionStoreActions>(
+    hydrated,
+    ({ setState }) => ({
+      setDraft: (chatId, text) => setState((state) => {
+        const drafts = new Map(state.drafts);
+        if (text) drafts.set(chatId, text);
+        else drafts.delete(chatId);
+        persist(storage, drafts, state.promptQueues);
+        return { drafts };
+      }),
+      setQueuedPrompts: (chatId, prompts) => setState((state) => {
+        const promptQueues = new Map(state.promptQueues);
+        if (prompts.length) promptQueues.set(chatId, prompts);
+        else promptQueues.delete(chatId);
+        persist(storage, state.drafts, promptQueues);
+        return { promptQueues };
+      }),
     }),
-    setQueuedPrompts: (chatId, prompts) => set((state) => {
-      const promptQueues = new Map(state.promptQueues);
-      if (prompts.length) promptQueues.set(chatId, prompts);
-      else promptQueues.delete(chatId);
-      persist(storage, state.drafts, promptQueues);
-      return { promptQueues };
-    }),
-  }));
+  );
 }
 
 function hydrate(storage: StorageLike | null): Pick<
-  ChatComposerSessionState,
+  ChatComposerSessionStoreState,
   "drafts" | "promptQueues"
 > {
   const drafts = new Map<string, string>();
