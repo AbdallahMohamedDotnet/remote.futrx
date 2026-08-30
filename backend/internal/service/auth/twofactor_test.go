@@ -8,7 +8,14 @@ import (
 )
 
 func newTestTwoFactorAuthenticator() *twoFactorAuthenticator {
-	return newTwoFactorAuthenticator(newAuthTestTwoFactorStore(), "remote.futrx", []byte("test-key"))
+	options := authTestOptions()
+	return newTwoFactorAuthenticator(
+		newAuthTestTwoFactorStore(),
+		"remote.futrx",
+		[]byte("test-key"),
+		options.EnrollmentTTL,
+		options.RecoveryCodeCount,
+	)
 }
 
 func enrollTestAccount(t *testing.T, a *twoFactorAuthenticator, email string) []string {
@@ -32,8 +39,8 @@ func enrollTestAccount(t *testing.T, a *twoFactorAuthenticator, email string) []
 	if confirmedEmail != normalizeEmail(email) {
 		t.Fatalf("confirmedEmail = %q, want %q", confirmedEmail, email)
 	}
-	if len(codes) != recoveryCodeCount {
-		t.Fatalf("len(recovery codes) = %d, want %d", len(codes), recoveryCodeCount)
+	if len(codes) != a.recoveryCodeCount {
+		t.Fatalf("len(recovery codes) = %d, want %d", len(codes), a.recoveryCodeCount)
 	}
 	return codes
 }
@@ -50,6 +57,20 @@ func TestTwoFactorEnrollmentRoundTrip(t *testing.T) {
 
 	if !a.Enabled(context.Background(), email) {
 		t.Fatal("2FA not enabled after ConfirmEnrollment")
+	}
+}
+
+func TestEnrollmentUsesConfiguredRecoveryCodeCount(t *testing.T) {
+	a := newTwoFactorAuthenticator(
+		newAuthTestTwoFactorStore(),
+		"remote.futrx",
+		[]byte("test-key"),
+		10*time.Minute,
+		3,
+	)
+	codes := enrollTestAccount(t, a, "user@example.com")
+	if len(codes) != 3 {
+		t.Fatalf("len(recovery codes) = %d, want configured count 3", len(codes))
 	}
 }
 
@@ -139,8 +160,8 @@ func TestRegenerateRecoveryCodesReplacesTheSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RegenerateRecoveryCodes: %v", err)
 	}
-	if len(newCodes) != recoveryCodeCount {
-		t.Fatalf("len(newCodes) = %d, want %d", len(newCodes), recoveryCodeCount)
+	if len(newCodes) != a.recoveryCodeCount {
+		t.Fatalf("len(newCodes) = %d, want %d", len(newCodes), a.recoveryCodeCount)
 	}
 
 	if _, err := a.VerifyChallenge(context.Background(), email, oldCodes[0]); err == nil {

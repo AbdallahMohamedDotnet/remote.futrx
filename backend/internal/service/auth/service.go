@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -50,8 +51,6 @@ func (p pendingLogin) expired(now time.Time) bool {
 	return now.Unix() > p.Exp
 }
 
-const pendingLoginTTL = 5 * time.Minute
-
 // LoginResult is returned by the Complete*Login methods: either a login
 // completed outright (CookieValue set) or it needs a second factor
 // (PendingToken set, to be presented back to CompleteTwoFactorChallenge).
@@ -59,6 +58,31 @@ type LoginResult struct {
 	Completed    bool
 	CookieValue  string
 	PendingToken string
+}
+
+// Options are application-wide account security policies supplied by the
+// composition root. Cryptographic protocol parameters remain package-owned.
+type Options struct {
+	PendingLoginTTL     time.Duration
+	EnrollmentTTL       time.Duration
+	RecoveryCodeCount   int
+	SessionHistoryLimit int
+}
+
+func (o Options) validate() error {
+	if o.PendingLoginTTL <= 0 {
+		return errors.New("pending login TTL must be positive")
+	}
+	if o.EnrollmentTTL <= 0 {
+		return errors.New("enrollment TTL must be positive")
+	}
+	if o.RecoveryCodeCount <= 0 {
+		return errors.New("recovery code count must be positive")
+	}
+	if o.SessionHistoryLimit <= 0 {
+		return errors.New("session history limit must be positive")
+	}
+	return nil
 }
 
 type Service struct {
@@ -71,6 +95,7 @@ type Service struct {
 	twoFactor         *twoFactorAuthenticator
 	registry          *sessionRegistry
 	pendingLoginCodec signedPayload[pendingLogin]
+	pendingLoginTTL   time.Duration
 }
 
 func NormalizeBaseURL(baseURL string) (string, error) {
@@ -89,6 +114,7 @@ func New(
 	sessionKey []byte,
 	twoFactorStore TwoFactorStore,
 	sessionRegistryStore SessionRegistryStore,
+	options Options,
 ) (*Service, error) {
 	if store == nil {
 		return nil, errors.New("auth store is required")
@@ -101,6 +127,9 @@ func New(
 	}
 	if sessionRegistryStore == nil {
 		return nil, errors.New("session registry store is required")
+	}
+	if err := options.validate(); err != nil {
+		return nil, fmt.Errorf("auth options: %w", err)
 	}
 	baseURL, err := NormalizeBaseURL(baseURL)
 	if err != nil {
@@ -130,15 +159,22 @@ func New(
 	}
 
 	service := &Service{
-		users:             users,
-		local:             local,
-		google:            google,
-		baseURL:           baseURL,
-		cookieDomain:      cookieDomain,
-		codec:             newSessionCodec(sessionKey),
-		twoFactor:         newTwoFactorAuthenticator(twoFactorStore, "remote.futrx", sessionKey),
-		registry:          newSessionRegistry(sessionRegistryStore),
+		users:        users,
+		local:        local,
+		google:       google,
+		baseURL:      baseURL,
+		cookieDomain: cookieDomain,
+		codec:        newSessionCodec(sessionKey),
+		twoFactor: newTwoFactorAuthenticator(
+			twoFactorStore,
+			"remote.futrx",
+			sessionKey,
+			options.EnrollmentTTL,
+			options.RecoveryCodeCount,
+		),
+		registry:          newSessionRegistry(sessionRegistryStore, options.SessionHistoryLimit),
 		pendingLoginCodec: newPendingLoginPayload(sessionKey),
+		pendingLoginTTL:   options.PendingLoginTTL,
 	}
 	return service, nil
 }
@@ -234,7 +270,7 @@ func (s *Service) completeLogin(ctx context.Context, user User, method SignInMet
 			Email:  user.Email,
 			Sub:    user.Sub,
 			Method: method,
-			Exp:    time.Now().Add(pendingLoginTTL).Unix(),
+			Exp:    time.Now().Add(s.pendingLoginTTL).Unix(),
 		})
 		return LoginResult{Completed: false, PendingToken: token}, nil
 	}
@@ -371,6 +407,6 @@ func SessionDuration() time.Duration {
 	return sessionDuration
 }
 
-func PendingTwoFactorDuration() time.Duration {
-	return pendingLoginTTL
+func (s *Service) PendingTwoFactorDuration() time.Duration {
+	return s.pendingLoginTTL
 }

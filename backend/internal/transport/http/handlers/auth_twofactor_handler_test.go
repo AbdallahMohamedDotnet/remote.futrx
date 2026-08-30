@@ -53,6 +53,12 @@ func newTwoFactorTestMux(t *testing.T) *http.ServeMux {
 		[]byte("test-session-key"),
 		twoFactorStore,
 		sessionRegistryStore,
+		serviceauth.Options{
+			PendingLoginTTL:     5 * time.Minute,
+			EnrollmentTTL:       10 * time.Minute,
+			RecoveryCodeCount:   10,
+			SessionHistoryLimit: 20,
+		},
 	)
 	if err != nil {
 		t.Fatalf("New auth service: %v", err)

@@ -93,6 +93,12 @@ func TestNewAuthAllowsLocalAdminWithoutGoogleOAuth(t *testing.T) {
 		"https://remote.example.com",
 		twoFactorStore,
 		sessionRegistryStore,
+		AuthOptions{
+			PendingLoginTTL:     5 * time.Minute,
+			EnrollmentTTL:       10 * time.Minute,
+			RecoveryCodeCount:   10,
+			SessionHistoryLimit: 20,
+		},
 	)
 	if err != nil {
 		t.Fatalf("newAuth: %v", err)

@@ -18,7 +18,8 @@ import (
 // three flags pay at most one file read per process lifetime, not one per
 // request.
 type sessionRegistry struct {
-	store SessionRegistryStore
+	store        SessionRegistryStore
+	historyLimit int
 
 	// account serializes each account's read-modify-write of its record so
 	// concurrent sign-ins cannot clobber each other's history or active
@@ -29,8 +30,12 @@ type sessionRegistry struct {
 	cache map[string]*SessionRegistryRecord
 }
 
-func newSessionRegistry(store SessionRegistryStore) *sessionRegistry {
-	return &sessionRegistry{store: store, cache: map[string]*SessionRegistryRecord{}}
+func newSessionRegistry(store SessionRegistryStore, historyLimit int) *sessionRegistry {
+	return &sessionRegistry{
+		store:        store,
+		historyLimit: historyLimit,
+		cache:        map[string]*SessionRegistryRecord{},
+	}
 }
 
 func newSessionID() (string, error) {
@@ -101,7 +106,8 @@ func (r *sessionRegistry) SetPreferences(ctx context.Context, email string, pref
 // IssueForAccount records a new sign-in for email under method, applying
 // whichever of the three independent SecurityPreferences flags are on:
 // SingleSessionEnabled marks the new session id active and supersedes the
-// previous one; HistoryEnabled appends a bounded (cap 20, newest-first)
+// previous one; HistoryEnabled appends a bounded (configured-limit,
+// newest-first)
 // history record; RecoveryCodeAlertEnabled sets an unacknowledged alert
 // when method used a recovery code. It always returns a freshly generated
 // session id, even when every flag is off, so callers can uniformly embed
@@ -130,8 +136,8 @@ func (r *sessionRegistry) IssueForAccount(ctx context.Context, email string, met
 	if updated.Preferences.HistoryEnabled {
 		entry := SessionRecord{SID: sid, Method: method, IP: ip, UserAgent: userAgent, IssuedAt: now}
 		entries := append([]SessionRecord{entry}, updated.History.Entries...)
-		if len(entries) > sessionHistoryCap {
-			entries = entries[:sessionHistoryCap]
+		if len(entries) > r.historyLimit {
+			entries = entries[:r.historyLimit]
 		}
 		updated.History.Entries = entries
 	}

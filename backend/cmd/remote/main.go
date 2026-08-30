@@ -92,6 +92,12 @@ func main() {
 			CredentialSyncTimeout:      cfg.Agent.CredentialSyncTimeout,
 			BrowserIdleTTL:             cfg.Agent.BrowserIdleTTL,
 		},
+		AuthOptions: service.AuthOptions{
+			PendingLoginTTL:     cfg.Auth.PendingLoginTTL,
+			EnrollmentTTL:       cfg.Auth.EnrollmentTTL,
+			RecoveryCodeCount:   cfg.Auth.RecoveryCodeCount,
+			SessionHistoryLimit: cfg.Auth.SessionHistoryLimit,
+		},
 		TmuxClient:    tmuxClient,
 		ValidTmuxName: tmuxcli.ValidName,
 		ScheduleLimits: service.ScheduleLimits{

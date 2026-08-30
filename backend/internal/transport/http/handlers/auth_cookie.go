@@ -20,7 +20,7 @@ func setPendingCookie(w http.ResponseWriter, auth *serviceauth.Service, pendingT
 		Name: serviceauth.PendingTwoFactorCookieName, Value: pendingToken,
 		Path: "/", Domain: auth.CookieDomain(),
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
-		MaxAge: int(serviceauth.PendingTwoFactorDuration().Seconds()),
+		MaxAge: int(auth.PendingTwoFactorDuration().Seconds()),
 	})
 }
 

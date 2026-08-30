@@ -117,8 +117,6 @@ type SessionHistory struct {
 	Entries []SessionRecord `json:"entries"`
 }
 
-const sessionHistoryCap = 20
-
 // SecurityAlert is set when a sign-in used a recovery code while
 // RecoveryCodeAlertEnabled is on, and cleared on acknowledgement.
 type SecurityAlert struct {

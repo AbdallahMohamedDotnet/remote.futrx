@@ -314,8 +314,8 @@ func TestRecoveryCodeNormalizationIsAccepted(t *testing.T) {
 func TestRecoveryCodesAreDistinctAndWellFormed(t *testing.T) {
 	service, email := newTestServiceWithLocalAdmin(t)
 	_, codes := enrollServiceAccount(t, service, email)
-	if len(codes) != recoveryCodeCount {
-		t.Fatalf("got %d recovery codes, want %d", len(codes), recoveryCodeCount)
+	if len(codes) != service.twoFactor.recoveryCodeCount {
+		t.Fatalf("got %d recovery codes, want %d", len(codes), service.twoFactor.recoveryCodeCount)
 	}
 	seen := map[string]struct{}{}
 	for _, c := range codes {
@@ -523,7 +523,8 @@ func TestHistoryIsNewestFirstAndBounded(t *testing.T) {
 	if err := service.SetSecurityPreferences(ctx, email, SecurityPreferences{HistoryEnabled: true}); err != nil {
 		t.Fatalf("SetSecurityPreferences: %v", err)
 	}
-	total := sessionHistoryCap + 5
+	historyLimit := service.registry.historyLimit
+	total := historyLimit + 5
 	for i := range total {
 		if _, err := service.CompletePasswordLogin(ctx, email, testAdminPassword, ipForIndex(i), uaForIndex(i)); err != nil {
 			t.Fatalf("login %d: %v", i, err)
@@ -533,8 +534,8 @@ func TestHistoryIsNewestFirstAndBounded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SecuritySummary: %v", err)
 	}
-	if len(summary.Sessions) != sessionHistoryCap {
-		t.Fatalf("history length = %d, want cap %d", len(summary.Sessions), sessionHistoryCap)
+	if len(summary.Sessions) != historyLimit {
+		t.Fatalf("history length = %d, want cap %d", len(summary.Sessions), historyLimit)
 	}
 	if got, want := summary.Sessions[0].UserAgent, uaForIndex(total-1); got != want {
 		t.Fatalf("newest entry UA = %q, want %q (newest-first)", got, want)

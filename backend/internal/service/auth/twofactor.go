@@ -17,8 +17,6 @@ var (
 	ErrEnrollmentTokenMismatch = errors.New("enrollment token does not match the current session")
 )
 
-const enrollmentTTL = 10 * time.Minute
-
 // pendingEnrollment is the signed, stateless payload carried by an
 // enrollment token between BeginEnrollment and ConfirmEnrollment - nothing
 // is persisted server-side until the user proves possession of the
@@ -33,8 +31,6 @@ func (p pendingEnrollment) expired(now time.Time) bool {
 	return now.Unix() > p.Exp
 }
 
-const recoveryCodeCount = 10
-
 // twoFactorAuthenticator owns TOTP enrollment, verification, and
 // recovery-code policy for one account at a time. Mutex + in-memory cache
 // per the LocalAdminAuthenticator shape: since accounts (unlike the single
@@ -43,9 +39,11 @@ const recoveryCodeCount = 10
 // lazily on first access, so accounts that never enroll pay at most one
 // file read per process lifetime, not one per request.
 type twoFactorAuthenticator struct {
-	store  TwoFactorStore
-	issuer string
-	codec  signedPayload[pendingEnrollment]
+	store             TwoFactorStore
+	issuer            string
+	codec             signedPayload[pendingEnrollment]
+	enrollmentTTL     time.Duration
+	recoveryCodeCount int
 
 	// account serializes each account's read-modify-write of its record;
 	// mu only guards the cache map itself.
@@ -55,12 +53,20 @@ type twoFactorAuthenticator struct {
 	cache map[string]*TwoFactorRecord
 }
 
-func newTwoFactorAuthenticator(store TwoFactorStore, issuer string, key []byte) *twoFactorAuthenticator {
+func newTwoFactorAuthenticator(
+	store TwoFactorStore,
+	issuer string,
+	key []byte,
+	enrollmentTTL time.Duration,
+	recoveryCodeCount int,
+) *twoFactorAuthenticator {
 	return &twoFactorAuthenticator{
-		store:  store,
-		issuer: issuer,
-		codec:  newPendingEnrollmentPayload(key),
-		cache:  map[string]*TwoFactorRecord{},
+		store:             store,
+		issuer:            issuer,
+		codec:             newPendingEnrollmentPayload(key),
+		enrollmentTTL:     enrollmentTTL,
+		recoveryCodeCount: recoveryCodeCount,
+		cache:             map[string]*TwoFactorRecord{},
 	}
 }
 
@@ -111,7 +117,7 @@ func (a *twoFactorAuthenticator) BeginEnrollment(ctx context.Context, email stri
 	token := a.codec.sign(pendingEnrollment{
 		Email:  email,
 		Secret: secret,
-		Exp:    time.Now().Add(enrollmentTTL).Unix(),
+		Exp:    time.Now().Add(a.enrollmentTTL).Unix(),
 	})
 	secretBase32 = base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
 	return token, secretBase32, totpProvisioningURI(a.issuer, email, secret), nil
@@ -136,7 +142,7 @@ func (a *twoFactorAuthenticator) ConfirmEnrollment(ctx context.Context, expected
 		return nil, "", ErrInvalidTwoFactorCode
 	}
 	defer a.account.lock(normalizeEmail(pending.Email))()
-	codes, hashes, err := newRecoveryCodeSet()
+	codes, hashes, err := newRecoveryCodeSet(a.recoveryCodeCount)
 	if err != nil {
 		return nil, "", err
 	}
@@ -233,7 +239,7 @@ func (a *twoFactorAuthenticator) RegenerateRecoveryCodes(ctx context.Context, em
 	if !verifyTOTPCode(record.Secret, code, time.Now()) {
 		return nil, ErrInvalidTwoFactorCode
 	}
-	codes, hashes, err := newRecoveryCodeSet()
+	codes, hashes, err := newRecoveryCodeSet(a.recoveryCodeCount)
 	if err != nil {
 		return nil, err
 	}
@@ -246,8 +252,8 @@ func (a *twoFactorAuthenticator) RegenerateRecoveryCodes(ctx context.Context, em
 	return codes, nil
 }
 
-func newRecoveryCodeSet() (codes, hashes []string, err error) {
-	codes, err = generateRecoveryCodes(recoveryCodeCount)
+func newRecoveryCodeSet(count int) (codes, hashes []string, err error) {
+	codes, err = generateRecoveryCodes(count)
 	if err != nil {
 		return nil, nil, err
 	}

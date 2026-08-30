@@ -6,7 +6,17 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
+
+func authTestOptions() Options {
+	return Options{
+		PendingLoginTTL:     5 * time.Minute,
+		EnrollmentTTL:       10 * time.Minute,
+		RecoveryCodeCount:   10,
+		SessionHistoryLimit: 20,
+	}
+}
 
 type authTestStore struct {
 	local     *LocalAdminCredential
@@ -157,6 +167,16 @@ func (o authTestOAuth) AuthCodeURL(state string) string                    { ret
 func (o authTestOAuth) ExchangeUser(context.Context, string) (User, error) { return o.user, nil }
 
 func newAuthTestService(t *testing.T, store *authTestStore, users *authTestUsers, googleUser User) *Service {
+	return newAuthTestServiceWithOptions(t, store, users, googleUser, authTestOptions())
+}
+
+func newAuthTestServiceWithOptions(
+	t *testing.T,
+	store *authTestStore,
+	users *authTestUsers,
+	googleUser User,
+	options Options,
+) *Service {
 	t.Helper()
 	service, err := New(
 		context.Background(),
@@ -167,11 +187,21 @@ func newAuthTestService(t *testing.T, store *authTestStore, users *authTestUsers
 		[]byte("test-session-key"),
 		newAuthTestTwoFactorStore(),
 		newAuthTestSessionRegistryStore(),
+		options,
 	)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	return service
+}
+
+func TestNewAppliesPendingLoginTTL(t *testing.T) {
+	options := authTestOptions()
+	options.PendingLoginTTL = 42 * time.Second
+	service := newAuthTestServiceWithOptions(t, &authTestStore{}, newAuthTestUsers(), User{}, options)
+	if got := service.PendingTwoFactorDuration(); got != 42*time.Second {
+		t.Fatalf("pending two-factor duration = %s, want 42s", got)
+	}
 }
 
 func TestLocalAdminClaimAndLogin(t *testing.T) {

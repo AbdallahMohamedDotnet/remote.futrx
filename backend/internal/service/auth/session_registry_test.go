@@ -6,7 +6,7 @@ import (
 )
 
 func newTestSessionRegistry() *sessionRegistry {
-	return newSessionRegistry(newAuthTestSessionRegistryStore())
+	return newSessionRegistry(newAuthTestSessionRegistryStore(), authTestOptions().SessionHistoryLimit)
 }
 
 func TestSingleSessionEnabledSupersedesEarlierSession(t *testing.T) {
@@ -101,6 +101,29 @@ func TestHistoryOnlyRecordedWhenEnabled(t *testing.T) {
 	}
 	if len(history.Entries) != 1 || history.Entries[0].IP != "1.2.3.4" {
 		t.Fatalf("history = %+v, want one entry with recorded IP", history)
+	}
+}
+
+func TestHistoryUsesConfiguredLimit(t *testing.T) {
+	r := newSessionRegistry(newAuthTestSessionRegistryStore(), 2)
+	email := "user@example.com"
+	if err := r.SetPreferences(context.Background(), email, SecurityPreferences{HistoryEnabled: true}); err != nil {
+		t.Fatalf("SetPreferences: %v", err)
+	}
+	for _, ip := range []string{"1.1.1.1", "2.2.2.2", "3.3.3.3"} {
+		if _, err := r.IssueForAccount(context.Background(), email, SignInMethodPassword, ip, ""); err != nil {
+			t.Fatalf("IssueForAccount(%s): %v", ip, err)
+		}
+	}
+	history, err := r.History(context.Background(), email)
+	if err != nil {
+		t.Fatalf("History: %v", err)
+	}
+	if len(history.Entries) != 2 {
+		t.Fatalf("history length = %d, want configured limit 2", len(history.Entries))
+	}
+	if history.Entries[0].IP != "3.3.3.3" || history.Entries[1].IP != "2.2.2.2" {
+		t.Fatalf("history = %+v, want two newest entries", history.Entries)
 	}
 }
 

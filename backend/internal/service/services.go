@@ -64,6 +64,7 @@ type Dependencies struct {
 	AgentContainers   provisioning.ContainerDependencies
 	AgentModules      *agentmodule.Catalog
 	AgentOptions      AgentOptions
+	AuthOptions       AuthOptions
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
 	ScheduleLimits    ScheduleLimits
@@ -86,6 +87,15 @@ type AgentOptions struct {
 	DegradedCapabilityCacheTTL time.Duration
 	CredentialSyncTimeout      time.Duration
 	BrowserIdleTTL             time.Duration
+}
+
+// AuthOptions mirrors application-wide account security policy without
+// coupling the service layer to the config package.
+type AuthOptions struct {
+	PendingLoginTTL     time.Duration
+	EnrollmentTTL       time.Duration
+	RecoveryCodeCount   int
+	SessionHistoryLimit int
 }
 
 type Services struct {
@@ -182,7 +192,15 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			sessionRegistry: deps.SessionRegistry,
 		}),
 	)
-	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL, deps.TwoFactor, deps.SessionRegistry)
+	authService, err := newAuth(
+		ctx,
+		deps.Auth,
+		userService,
+		deps.AuthBaseURL,
+		deps.TwoFactor,
+		deps.SessionRegistry,
+		deps.AuthOptions,
+	)
 	if err != nil {
 		return Services{}, err
 	}
@@ -415,6 +433,7 @@ func newAuth(
 	baseURL string,
 	twoFactor serviceauth.TwoFactorStore,
 	sessionRegistry serviceauth.SessionRegistryStore,
+	options AuthOptions,
 ) (*serviceauth.Service, error) {
 	if store == nil {
 		return nil, errors.New("authentication store is required")
@@ -443,6 +462,12 @@ func newAuth(
 		sessionKey,
 		twoFactor,
 		sessionRegistry,
+		serviceauth.Options{
+			PendingLoginTTL:     options.PendingLoginTTL,
+			EnrollmentTTL:       options.EnrollmentTTL,
+			RecoveryCodeCount:   options.RecoveryCodeCount,
+			SessionHistoryLimit: options.SessionHistoryLimit,
+		},
 	)
 }
 

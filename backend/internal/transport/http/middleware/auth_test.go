@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
@@ -46,6 +47,12 @@ func TestProviderLoginGate(t *testing.T) {
 		[]byte("test-session-key"),
 		twoFactorStore,
 		sessionRegistryStore,
+		serviceauth.Options{
+			PendingLoginTTL:     5 * time.Minute,
+			EnrollmentTTL:       10 * time.Minute,
+			RecoveryCodeCount:   10,
+			SessionHistoryLimit: 20,
+		},
 	)
 	if err != nil {
 		t.Fatalf("New auth service: %v", err)
