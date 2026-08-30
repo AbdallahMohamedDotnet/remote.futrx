@@ -34,7 +34,7 @@ export function TwoFactorChallengeStep({
           <span class="text-xs text-ink-300">Code</span>
           <input
             type="text"
-            inputMode="numeric"
+            inputMode="text"
             autocomplete="one-time-code"
             autoFocus
             value={code}
