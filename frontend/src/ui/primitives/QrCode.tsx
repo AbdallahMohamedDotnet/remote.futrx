@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "preact/hooks";
-import { QRGenerator } from "../../shared/qrCode";
+import { QRGenerator } from "../../shared/QRGenerator.js";
 
 const qrGenerator = new QRGenerator();
 

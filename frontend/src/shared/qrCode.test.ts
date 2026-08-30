@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { QRGenerator, type QrCodeMatrix } from "./qrCode.ts";
+import { QRGenerator, type QRCodeMatrix } from "./QRGenerator.js";
 
 const qrGenerator = new QRGenerator();
 
-function matrixFingerprint(code: QrCodeMatrix): { darkModules: number; hash: string } {
+function matrixFingerprint(code: QRCodeMatrix): { darkModules: number; hash: string } {
   let darkModules = 0;
   let hash = 2166136261;
 
@@ -35,5 +35,27 @@ test("encodes a representative authenticator enrollment URI", () => {
   );
 
   assert.equal(code.size, 41);
-  assert.deepEqual(matrixFingerprint(code), { darkModules: 866, hash: "ced53afd" });
+  assert.deepEqual(matrixFingerprint(code), { darkModules: 816, hash: "2b3d6c2d" });
+});
+
+test("selects numeric, alphanumeric, and UTF-8 byte modes", () => {
+  assert.equal(qrGenerator.createMatrix("012345678901234567890123456789").size, 21);
+  assert.equal(qrGenerator.createMatrix("REMOTE FUTRX 2FA").size, 21);
+  assert.equal(qrGenerator.createMatrix("تسجيل دخول آمن 🔐").size, 29);
+});
+
+test("draws finder patterns at all three required corners", () => {
+  const code = qrGenerator.createMatrix("finder-pattern-check");
+  const centers = [[3, 3], [code.size - 4, 3], [3, code.size - 4]];
+
+  for (const [x, y] of centers) {
+    assert.equal(code.isDark(x, y), true);
+    assert.equal(code.isDark(x - 2, y), false);
+    assert.equal(code.isDark(x - 3, y), true);
+  }
+});
+
+test("rejects invalid inputs and data beyond QR Model 2 capacity", () => {
+  assert.throws(() => qrGenerator.createMatrix(null as unknown as string), TypeError);
+  assert.throws(() => qrGenerator.createMatrix("x".repeat(3000)), /too long/);
 });
