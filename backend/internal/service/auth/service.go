@@ -305,8 +305,8 @@ func (s *Service) CurrentSession(ctx context.Context, cookieValue string) (*Sess
 	return session, nil
 }
 
-// RevokeSession clears email's active session id (used on logout), a no-op
-// for an account with no session registry record.
+// RevokeSession replaces email's active session id with an unissued id (used
+// on logout), a no-op for an account with no session registry record.
 func (s *Service) RevokeSession(ctx context.Context, email string) error {
 	return s.registry.Revoke(ctx, email)
 }

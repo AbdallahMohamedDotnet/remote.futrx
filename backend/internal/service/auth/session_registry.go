@@ -166,8 +166,9 @@ func (r *sessionRegistry) IsActive(ctx context.Context, email, sid string) bool 
 	return record.ActiveSessionID == sid
 }
 
-// Revoke clears email's active session id (used on logout), a no-op if the
-// account has no registry record.
+// Revoke replaces email's active session id with an unissued id (used on
+// logout), a no-op if the account has no registry record. Keeping the revoked
+// marker non-empty prevents legacy cookies without a SID from matching it.
 func (r *sessionRegistry) Revoke(ctx context.Context, email string) error {
 	email = normalizeEmail(email)
 	defer r.account.lock(email)()
@@ -179,7 +180,15 @@ func (r *sessionRegistry) Revoke(ctx context.Context, email string) error {
 		return nil
 	}
 	updated := *record
-	updated.ActiveSessionID = ""
+	if updated.Preferences.SingleSessionEnabled {
+		revokedSessionID, err := newSessionID()
+		if err != nil {
+			return err
+		}
+		updated.ActiveSessionID = revokedSessionID
+	} else {
+		updated.ActiveSessionID = ""
+	}
 	if err := r.store.Save(ctx, email, updated); err != nil {
 		return err
 	}
