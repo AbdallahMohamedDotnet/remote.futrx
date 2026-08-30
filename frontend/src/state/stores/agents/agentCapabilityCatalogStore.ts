@@ -3,6 +3,7 @@ import type {
   AgentCapabilityCatalogSnapshot,
 } from "../../../models/agentCapabilities";
 import { capabilitiesApi } from "../../../api/agents/capabilitiesApi.ts";
+import { Listeners } from "../listeners.ts";
 
 /** A scope some part of the app is currently watching, and its listeners. */
 interface ObservedScope {
@@ -10,7 +11,7 @@ interface ObservedScope {
   userId: string;
   /** Empty for the host scope, matching the project half of the key. */
   projectId: string;
-  listeners: Set<() => void>;
+  listeners: Listeners;
 }
 
 type CatalogRequester = (
@@ -51,12 +52,12 @@ export class AgentCapabilityCatalogStore {
     const scope = this.observed.get(key) ?? {
       userId: normalizeUserId(userId),
       projectId: projectId || "",
-      listeners: new Set<() => void>(),
+      listeners: new Listeners(),
     };
-    scope.listeners.add(listener);
+    const remove = scope.listeners.add(listener);
     this.observed.set(key, scope);
     return () => {
-      scope.listeners.delete(listener);
+      remove();
       if (scope.listeners.size === 0) this.observed.delete(key);
     };
   }
@@ -111,7 +112,7 @@ export class AgentCapabilityCatalogStore {
   }
 
   private notify(key: string): void {
-    for (const listener of this.observed.get(key)?.listeners ?? []) listener();
+    this.observed.get(key)?.listeners.emit();
   }
 }
 

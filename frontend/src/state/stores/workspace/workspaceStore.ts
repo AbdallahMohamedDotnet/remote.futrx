@@ -3,6 +3,7 @@ import type { ProjectMeta } from "../../../models/project";
 import type { WorkspaceSnapshot } from "../../../models/workspace";
 import type { WorkspaceMessage } from "../../../types/workspaceApi";
 import { workspaceDataProjector } from "../../../services/workspace/workspaceDataProjector.ts";
+import { Listeners } from "../listeners.ts";
 
 /** Opens the workspace feed and reports messages until the returned call. */
 type SubscribeToWorkspace = (
@@ -23,7 +24,7 @@ const EMPTY: WorkspaceSnapshot = { chats: [], projects: [], loaded: false };
  */
 class WorkspaceStore {
   #snapshot: WorkspaceSnapshot = EMPTY;
-  #listeners = new Set<(snapshot: WorkspaceSnapshot) => void>();
+  readonly #listeners = new Listeners<WorkspaceSnapshot>();
   #disconnect: (() => void) | undefined;
   readonly #subscribe: SubscribeToWorkspace;
 
@@ -51,8 +52,7 @@ class WorkspaceStore {
   }
 
   subscribe(listener: (snapshot: WorkspaceSnapshot) => void): () => void {
-    this.#listeners.add(listener);
-    return () => this.#listeners.delete(listener);
+    return this.#listeners.add(listener);
   }
 
   #apply(message: WorkspaceMessage): void {
@@ -86,7 +86,7 @@ class WorkspaceStore {
       return;
     }
     this.#snapshot = { chats, projects, loaded };
-    for (const listener of this.#listeners) listener(this.#snapshot);
+    this.#listeners.emit(this.#snapshot);
   }
 }
 

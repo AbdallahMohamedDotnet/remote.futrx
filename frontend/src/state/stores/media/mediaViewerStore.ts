@@ -1,4 +1,5 @@
 import type { MediaViewerItem } from "../../../models/files";
+import { Listeners } from "../listeners.ts";
 
 type Listener = (item: MediaViewerItem | null) => void;
 
@@ -7,7 +8,7 @@ type Listener = (item: MediaViewerItem | null) => void;
 // subscribes and renders the current item.
 class MediaViewerStore {
   private item: MediaViewerItem | null = null;
-  private readonly listeners = new Set<Listener>();
+  private readonly listeners = new Listeners<MediaViewerItem | null>();
 
   get current(): MediaViewerItem | null {
     return this.item;
@@ -15,22 +16,17 @@ class MediaViewerStore {
 
   open(item: MediaViewerItem): void {
     this.item = item;
-    this.emit();
+    this.listeners.emit(this.item);
   }
 
   close(): void {
     if (this.item === null) return;
     this.item = null;
-    this.emit();
+    this.listeners.emit(this.item);
   }
 
   subscribe(listener: Listener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  private emit(): void {
-    for (const listener of this.listeners) listener(this.item);
+    return this.listeners.add(listener);
   }
 }
 
