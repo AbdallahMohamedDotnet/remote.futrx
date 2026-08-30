@@ -152,7 +152,7 @@ function maybeOpenMediaViewer(event: MouseEvent, href: string): void {
   const kind = name ? fileService.viewableMediaKind(name) : null;
   if (!name || !kind) return;
   event.preventDefault();
-  mediaViewerStore.getState().open({ url: href, name, kind });
+  mediaViewerStore.getState().actions.open({ url: href, name, kind });
 }
 
 function mediaOpenFileName(href: string): string {

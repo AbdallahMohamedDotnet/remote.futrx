@@ -14,8 +14,8 @@ export function useMediaViewer(): {
   item: MediaViewerItem | null;
   close: () => void;
 } {
-  const item = useStore(mediaViewerStore, (state) => state.item);
-  const close = useStore(mediaViewerStore, (state) => state.close);
+  const item = useStore(mediaViewerStore, (store) => store.state.item);
+  const close = useStore(mediaViewerStore, (store) => store.actions.close);
 
   return { item, close };
 }

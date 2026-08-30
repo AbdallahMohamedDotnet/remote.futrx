@@ -1,8 +1,11 @@
-import { createStore } from "zustand/vanilla";
 import type { MediaViewerItem } from "../../../models/files";
+import { createAppStore } from "../appStore.ts";
 
-interface MediaViewerState {
+interface MediaViewerStoreState {
   item: MediaViewerItem | null;
+}
+
+interface MediaViewerStoreActions {
   open: (item: MediaViewerItem) => void;
   close: () => void;
 }
@@ -10,8 +13,13 @@ interface MediaViewerState {
 // App-wide in-app media viewer. Any surface (file manager rows, chat message
 // links) opens media here instead of navigating away; a single overlay host
 // subscribes and renders the current item.
-export const mediaViewerStore = createStore<MediaViewerState>()((set) => ({
-  item: null,
-  open: (item) => set({ item }),
-  close: () => set((state) => state.item === null ? state : { item: null }),
-}));
+export const mediaViewerStore = createAppStore<
+  MediaViewerStoreState,
+  MediaViewerStoreActions
+>(
+  { item: null },
+  ({ setState }) => ({
+    open: (item) => setState({ item }),
+    close: () => setState((state) => state.item === null ? state : { item: null }),
+  }),
+);
