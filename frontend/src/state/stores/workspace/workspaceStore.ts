@@ -1,3 +1,4 @@
+import { createStore } from "zustand/vanilla";
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
 import type {
@@ -8,7 +9,6 @@ import type {
 import type { WorkspaceMessage } from "../../../types/workspaceApi";
 import { EMPTY_WORKSPACE_SNAPSHOT } from "../../../config/workspace.ts";
 import { workspaceDataProjector } from "../../../services/workspace/workspaceDataProjector.ts";
-import { createAppStore } from "../appStore.ts";
 
 /**
  * The chats and projects the server is pushing, held outside the component
@@ -26,11 +26,10 @@ export function createWorkspaceStore(subscribe: SubscribeToWorkspace) {
   // what lets the node test runner load it at all.
   let disconnect: (() => void) | undefined;
 
-  return createAppStore<WorkspaceStoreState, WorkspaceStoreActions>(
-    { snapshot: EMPTY_WORKSPACE_SNAPSHOT },
-    ({ getState, setState }) => {
+  return createStore<WorkspaceStoreState & WorkspaceStoreActions>()(
+    (set, get) => {
       function commit(chats: ChatMeta[], projects: ProjectMeta[], loaded: boolean): void {
-        setState((state) => {
+        set((state) => {
           const current = state.snapshot;
           if (chats === current.chats && projects === current.projects && loaded === current.loaded) {
             return state;
@@ -40,7 +39,7 @@ export function createWorkspaceStore(subscribe: SubscribeToWorkspace) {
       }
 
       function apply(message: WorkspaceMessage): void {
-        const { chats, projects, loaded } = getState().snapshot;
+        const { chats, projects, loaded } = get().snapshot;
         switch (message.type) {
           case "workspace.snapshot":
             commit(
@@ -65,6 +64,7 @@ export function createWorkspaceStore(subscribe: SubscribeToWorkspace) {
       }
 
       return {
+        snapshot: EMPTY_WORKSPACE_SNAPSHOT,
         /** Opens the feed, or closes it and clears what it delivered. Repeating a
          *  state is a no-op, so callers may drive this from an effect. */
         setConnected: (connected) => {
