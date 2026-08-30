@@ -4,7 +4,7 @@ Three folders, each answering one question.
 
 | Folder | Its one job | Holds state? |
 | --- | --- | --- |
-| `stores/<domain>/` | Global application state, actions, and lifecycle | **Yes** — this is the whole list |
+| `stores/<domain>/` | Global Zustand state, actions, and lifecycle | **Yes** — this is the whole list |
 | `hooks/<domain>/` | The access layer: how UI reads a store, plus state owned by one screen | In preact hooks |
 | `context/` | Cross-cutting state, gated in nesting order | In preact hooks |
 
@@ -41,41 +41,28 @@ single caller, which makes them leaves — the same category as `config/` and
 
 ## The access rule
 
-Every global store has exactly the same public contract:
+Every global store is an independent vanilla Zustand store with a flat state
+and action surface:
 
 ```ts
-interface AppStoreShape<State, Actions> {
-  readonly state: State;
-  readonly actions: Actions;
-}
-
-interface AppStore<State, Actions> {
-  getState(): AppStoreShape<State, Actions>;
-  subscribe(
-    listener: (
-      store: AppStoreShape<State, Actions>,
-      previousStore: AppStoreShape<State, Actions>,
-    ) => void,
-  ): () => void;
-}
+createStore<DomainStoreState & DomainStoreActions>()((set, get) => ({
+  value: initialValue,
+  update: (value) => set({ value }),
+}));
 ```
 
-`models/appStore.ts` owns this contract. `stores/appStore.ts` owns the
-subscription engine and the only supported store factory. Domain stores use
-`createAppStore(initialState, createActions)`,
-reactive reads select through `store.state`, and commands dispatch through
-`store.actions`. The shared factory gives actions state-only access, so a state
-update cannot replace or mutate the action surface. `appStore.test.ts` enforces
-the boundary: the test suite fails if a domain store bypasses the shared factory,
-reintroduces Zustand, declares types/interfaces, or adds uppercase configuration
-constants. The public `AppStore` type exposes no `setState`, so
-typed callers can mutate global state only through the declared actions.
+Store modules import `createStore` directly from `zustand/vanilla`; there is no
+application store wrapper or shared subscription engine. State transitions stay
+inside the declared domain actions and use the initializer's `set` and `get`.
+Callers use `getState()` to dispatch those actions, not Zustand's public
+`setState`. `storeArchitecture.test.ts` enforces direct vanilla Zustand stores
+and keeps store models and fixed configuration in their existing layers.
 
 **Global state is read only through `hooks/`.** Nothing in `ui/` or `app/` may
 subscribe to or read from a store — a store outlives the component tree, so a
-direct read misses every later change and never re-renders. Hooks select state
-with the shared `useAppStore`; `hooks/` and `context/` are the only reactive
-importers of `stores/`.
+direct read misses every later change and never re-renders. Hooks select narrow,
+stable values with Zustand's `useStore`; `hooks/` and `context/` are the only
+reactive importers of `stores/`.
 
 This is about *global* state, not all state. Roughly half the hooks here own
 something local — a date range, a textarea's height, a drag in progress — and
@@ -91,8 +78,8 @@ handler inside a vnode builder. That is the one file outside `hooks/` and
 
 ## Naming
 
-- `*Store` — an `AppStore<State, Actions>` created through
-  `createAppStore`. If you add one, it belongs in `stores/`.
+- `*Store` — a vanilla Zustand store created through `createStore`. If you add
+  one, it belongs in `stores/`.
 - `create*Store` — a factory for a store that needs an injected boundary or an
   isolated instance in tests.
 - `*State` — keeps nothing; a policy, reducer, or projection over its arguments.
@@ -117,8 +104,8 @@ passes it to `setTimeout`.
 
 **Stores have no local-type exception.** Store state/actions, persistence
 shapes, listener signatures, request options, and injected boundary contracts
-belong in the existing domain model files. The shared store contract lives in
-`models/appStore.ts`. Stores import these types; they do not redeclare or
+belong in the existing domain model files. Stores combine their domain state
+and action contracts when creating the Zustand store; they do not redeclare or
 re-export them.
 
 Named fixed defaults belong in `config/` too: the empty workspace snapshot is
