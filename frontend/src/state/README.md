@@ -44,10 +44,13 @@ single caller, which makes them leaves — the same category as `config/` and
 Every global store has exactly the same public contract:
 
 ```ts
-StoreApi<{
-  state: TState;
-  actions: TActions;
-}>
+type AppStore<State, Actions> = Pick<
+  StoreApi<{
+    readonly state: State;
+    readonly actions: Actions;
+  }>,
+  "getState" | "getInitialState" | "subscribe"
+>;
 ```
 
 `stores/appStore.ts` owns the only direct call to Zustand's `createStore`.
@@ -55,9 +58,9 @@ Domain stores use `createAppStore(initialState, createActions)`, reactive reads
 select through `store.state`, and commands dispatch through `store.actions`.
 The shared factory gives actions state-only access, so a state update cannot
 replace or mutate the action surface. `appStore.test.ts` enforces the boundary:
-the build fails if a domain store imports Zustand directly or bypasses the
+the test suite fails if a domain store imports Zustand directly or bypasses the
 shared factory. The public `AppStore` type also omits Zustand's `setState`, so
-callers can mutate global state only through the declared actions.
+typed callers can mutate global state only through the declared actions.
 
 **Global state is read only through `hooks/`.** Nothing in `ui/` or `app/` may
 subscribe to or read from a store — a store outlives the component tree, so a
