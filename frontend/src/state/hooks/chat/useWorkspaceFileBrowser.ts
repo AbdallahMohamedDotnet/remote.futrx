@@ -120,7 +120,7 @@ export function useWorkspaceFileBrowser({ chatId, active }: { chatId: string; ac
       const target = fileService.openAction(node.name);
       const containerPath = `/workspace/${node.path}`;
       if (target.action === "media") {
-        mediaViewerStore.getState().actions.open({
+        mediaViewerStore.getState().open({
           url: API_ROUTES.chats.mediaOpen(chatId, containerPath),
           name: node.name,
           kind: target.kind,
