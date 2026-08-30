@@ -1,24 +1,14 @@
 import type { ChatMeta } from "../../../models/chat";
 import type { ProjectMeta } from "../../../models/project";
-import type { WorkspaceSnapshot } from "../../../models/workspace";
+import type {
+  SubscribeToWorkspace,
+  WorkspaceStoreActions,
+  WorkspaceStoreState,
+} from "../../../models/workspace";
 import type { WorkspaceMessage } from "../../../types/workspaceApi";
+import { EMPTY_WORKSPACE_SNAPSHOT } from "../../../config/workspace.ts";
 import { workspaceDataProjector } from "../../../services/workspace/workspaceDataProjector.ts";
 import { createAppStore } from "../appStore.ts";
-
-/** Opens the workspace feed and reports messages until the returned call. */
-type SubscribeToWorkspace = (
-  onMessage: (message: WorkspaceMessage) => void,
-) => () => void;
-
-const EMPTY: WorkspaceSnapshot = { chats: [], projects: [], loaded: false };
-
-interface WorkspaceStoreState {
-  snapshot: WorkspaceSnapshot;
-}
-
-interface WorkspaceStoreActions {
-  setConnected: (connected: boolean) => void;
-}
 
 /**
  * The chats and projects the server is pushing, held outside the component
@@ -37,7 +27,7 @@ export function createWorkspaceStore(subscribe: SubscribeToWorkspace) {
   let disconnect: (() => void) | undefined;
 
   return createAppStore<WorkspaceStoreState, WorkspaceStoreActions>(
-    { snapshot: EMPTY },
+    { snapshot: EMPTY_WORKSPACE_SNAPSHOT },
     ({ getState, setState }) => {
       function commit(chats: ChatMeta[], projects: ProjectMeta[], loaded: boolean): void {
         setState((state) => {
@@ -84,7 +74,7 @@ export function createWorkspaceStore(subscribe: SubscribeToWorkspace) {
           }
           disconnect?.();
           disconnect = undefined;
-          commit(EMPTY.chats, EMPTY.projects, false);
+          commit(EMPTY_WORKSPACE_SNAPSHOT.chats, EMPTY_WORKSPACE_SNAPSHOT.projects, false);
         },
       };
     },

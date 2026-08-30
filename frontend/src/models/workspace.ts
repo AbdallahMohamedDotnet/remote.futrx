@@ -1,5 +1,6 @@
 import type { ChatMeta } from "./chat";
 import type { ProjectMeta } from "./project";
+import type { WorkspaceMessage } from "../types/workspaceApi";
 
 /** What the workspace feed has delivered so far. */
 export interface WorkspaceSnapshot {
@@ -8,6 +9,19 @@ export interface WorkspaceSnapshot {
   /** False until the first snapshot lands. An empty list before that means
    *  "not known yet", not "none" — callers must not act on the difference. */
   loaded: boolean;
+}
+
+/** Opens the workspace feed and reports messages until the returned call. */
+export type SubscribeToWorkspace = (
+  onMessage: (message: WorkspaceMessage) => void,
+) => () => void;
+
+export interface WorkspaceStoreState {
+  snapshot: WorkspaceSnapshot;
+}
+
+export interface WorkspaceStoreActions {
+  setConnected: (connected: boolean) => void;
 }
 
 export type WorkspaceView = "chat" | "settings" | "project-containers";
