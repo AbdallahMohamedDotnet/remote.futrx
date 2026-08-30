@@ -1,5 +1,5 @@
-import type { ChatMeta } from "../../../models/chat";
-import type { ProjectMeta } from "../../../models/project";
+import type { ChatMeta } from "../../models/chat";
+import type { ProjectMeta } from "../../models/project";
 
 class WorkspaceDataProjector {
   replaceChats(next: ChatMeta[], current: ChatMeta[]): ChatMeta[] {
