@@ -21,7 +21,7 @@ export function useWorkspacePushLifecycle({
   // installed one, and route notification taps into chat selection.
   useEffect(() => {
     void pushSubscriptionApi.reconcileCurrentAccount();
-    pushNotificationStore.getState().connect((chatId) => {
+    pushNotificationStore.getState().actions.connect((chatId) => {
       if (chatId) openChat(chatId);
     });
   }, [openChat]);
@@ -31,7 +31,7 @@ export function useWorkspacePushLifecycle({
   // covers the user's other devices, which the worker cannot see.
   useEffect(() => {
     const onScreen = view === "chat" ? activeChatId : null;
-    pushNotificationStore.getState().setVisibleChat(onScreen);
+    pushNotificationStore.getState().actions.setVisibleChat(onScreen);
     pushPresenceStore.getState().setWatchedChat(onScreen);
   }, [activeChatId, view]);
 }
