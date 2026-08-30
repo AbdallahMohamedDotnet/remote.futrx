@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import type { AgentCapabilityCatalogSnapshot } from "../../../models/agentCapabilities";
-import { agentCapabilityCatalogStore } from "../../stores/agents/agentCapabilityCatalog";
+import { agentCapabilityCatalogStore } from "../../stores/agents/agentCapabilityCatalogStore";
 import { useAuthContext } from "../../context/AuthContext";
 
 export function useAgentCapabilities(projectId?: string) {

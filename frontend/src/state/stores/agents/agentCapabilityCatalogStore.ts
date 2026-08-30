@@ -2,6 +2,7 @@ import type {
   AgentCapabilitiesCatalog,
   AgentCapabilityCatalogSnapshot,
 } from "../../../models/agentCapabilities";
+import { capabilitiesApi } from "../../../api/agents/capabilitiesApi.ts";
 
 type CatalogRequester = (
   projectId?: string,
@@ -129,3 +130,9 @@ function errorMessage(cause: unknown): string {
     ? cause.message
     : "Could not load agent capabilities";
 }
+
+// Every caller observes one instance so the retained responses above are shared
+// across the application rather than rebuilt per consumer.
+export const agentCapabilityCatalogStore = new AgentCapabilityCatalogStore(
+  capabilitiesApi.list,
+);

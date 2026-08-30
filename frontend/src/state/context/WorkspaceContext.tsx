@@ -12,7 +12,7 @@ import { useUserSettingsContext } from "./UserSettingsContext";
 import type { WorkspaceUiState } from "../../models/workspace";
 import { workspaceUiState } from "./workspaceUiState";
 import { workspaceSidebarService } from "../../services/workspace/workspaceSidebarService.ts";
-import { agentCapabilityCatalogStore } from "../stores/agents/agentCapabilityCatalog";
+import { agentCapabilityCatalogStore } from "../stores/agents/agentCapabilityCatalogStore";
 import { takePushNotificationChatId } from "./pushNotificationNavigation";
 import { useAuthContext } from "./AuthContext";
 
