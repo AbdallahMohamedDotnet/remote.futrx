@@ -54,7 +54,9 @@ StoreApi<{
 Domain stores use `createAppStore(initialState, createActions)`, reactive reads
 select through `store.state`, and commands dispatch through `store.actions`.
 The shared factory gives actions state-only access, so a state update cannot
-replace or mutate the action surface.
+replace or mutate the action surface. `appStore.test.ts` enforces the boundary:
+the build fails if a domain store imports Zustand directly or bypasses the
+shared factory.
 
 **Global state is read only through `hooks/`.** Nothing in `ui/` or `app/` may
 subscribe to or read from a store — a store outlives the component tree, so a
