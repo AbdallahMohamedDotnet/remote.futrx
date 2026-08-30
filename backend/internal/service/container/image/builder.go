@@ -33,7 +33,7 @@ const (
 	baseImageBuilderName = "futrx-remote-dev-builder"
 
 	baseImageBuildTimeout    = 15 * time.Minute
-	baseImagePublishTimeout  = 5 * time.Minute
+	baseImagePublishTimeout  = 15 * time.Minute
 	baseImageNetworkWarmup   = 3 * time.Second
 	baseImageNetworkTimeout  = 90 * time.Second
 	baseImageNetworkPoll     = 2 * time.Second
