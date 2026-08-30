@@ -54,6 +54,39 @@ export interface AgentCapabilityCatalogSnapshot {
   error: string;
 }
 
+/** A scope some part of the app is currently watching. */
+export interface ObservedAgentCapabilityScope {
+  /** Normalized, matching the user half of the scope's key. */
+  userId: string;
+  /** Empty for the host scope, matching the project half of the key. */
+  projectId: string;
+  observers: number;
+}
+
+export type AgentCapabilityCatalogRequester = (
+  projectId?: string,
+  options?: { refresh?: boolean },
+) => Promise<AgentCapabilitiesCatalog>;
+
+export interface AgentCapabilityCatalogLoadOptions {
+  force?: boolean;
+}
+
+export interface AgentCapabilityCatalogStoreState {
+  scopes: ReadonlyMap<string, AgentCapabilityCatalogSnapshot>;
+}
+
+export interface AgentCapabilityCatalogStoreActions {
+  observe: (userId: string, projectId?: string) => () => void;
+  load: (
+    userId: string,
+    projectId?: string,
+    options?: AgentCapabilityCatalogLoadOptions,
+  ) => Promise<AgentCapabilitiesCatalog>;
+  invalidateUser: (userId: string) => void;
+  removeProject: (userId: string, projectId: string) => void;
+}
+
 export interface ComposerModelOption {
   value: string;
   label: string;

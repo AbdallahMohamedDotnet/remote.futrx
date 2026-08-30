@@ -1,55 +1,25 @@
 import type {
   AgentCapabilitiesCatalog,
+  AgentCapabilityCatalogLoadOptions,
+  AgentCapabilityCatalogRequester,
   AgentCapabilityCatalogSnapshot,
+  AgentCapabilityCatalogStoreActions,
+  AgentCapabilityCatalogStoreState,
+  ObservedAgentCapabilityScope,
 } from "../../../models/agentCapabilities";
 import { capabilitiesApi } from "../../../api/agents/capabilitiesApi.ts";
+import { EMPTY_AGENT_CAPABILITY_CATALOG_SNAPSHOT } from "../../../config/agents.ts";
 import type { AppStoreShape } from "../../../models/appStore.ts";
 import { createAppStore } from "../appStore.ts";
-
-/** A scope some part of the app is currently watching. */
-interface ObservedScope {
-  /** Normalized, matching the user half of the scope's key. */
-  userId: string;
-  /** Empty for the host scope, matching the project half of the key. */
-  projectId: string;
-  observers: number;
-}
-
-type CatalogRequester = (
-  projectId?: string,
-  options?: { refresh?: boolean },
-) => Promise<AgentCapabilitiesCatalog>;
-
-interface AgentCapabilityCatalogStoreState {
-  scopes: ReadonlyMap<string, AgentCapabilityCatalogSnapshot>;
-}
-
-interface AgentCapabilityCatalogStoreActions {
-  observe: (userId: string, projectId?: string) => () => void;
-  load: (
-    userId: string,
-    projectId?: string,
-    options?: { force?: boolean },
-  ) => Promise<AgentCapabilitiesCatalog>;
-  invalidateUser: (userId: string) => void;
-  removeProject: (userId: string, projectId: string) => void;
-}
-
-const EMPTY_SCOPE: AgentCapabilityCatalogSnapshot = {
-  catalog: null,
-  loading: false,
-  refreshing: false,
-  error: "",
-};
 
 // This store keeps the last response for each normalized user and host/project
 // scope only for the lifetime of the open application. The process-local
 // backend cache owns freshness across browsers and devices. Retaining the last
 // frontend response avoids a visual reset while a backend lookup or refresh is
 // in flight; in-flight requests for the same frontend scope are coalesced.
-export function createAgentCapabilityCatalogStore(request: CatalogRequester) {
+export function createAgentCapabilityCatalogStore(request: AgentCapabilityCatalogRequester) {
   const inFlight = new Map<string, Promise<AgentCapabilitiesCatalog>>();
-  const observed = new Map<string, ObservedScope>();
+  const observed = new Map<string, ObservedAgentCapabilityScope>();
 
   return createAppStore<
     AgentCapabilityCatalogStoreState,
@@ -68,7 +38,7 @@ export function createAgentCapabilityCatalogStore(request: CatalogRequester) {
       function load(
         userId: string,
         projectId?: string,
-        options: { force?: boolean } = {},
+        options: AgentCapabilityCatalogLoadOptions = {},
       ): Promise<AgentCapabilitiesCatalog> {
         const key = catalogKey(userId, projectId);
         const existing = inFlight.get(key);
@@ -176,7 +146,7 @@ function scopeSnapshot(
   state: AgentCapabilityCatalogStoreState,
   key: string,
 ): AgentCapabilityCatalogSnapshot {
-  return state.scopes.get(key) ?? EMPTY_SCOPE;
+  return state.scopes.get(key) ?? EMPTY_AGENT_CAPABILITY_CATALOG_SNAPSHOT;
 }
 
 function catalogKey(userId: string, projectId?: string): string {
