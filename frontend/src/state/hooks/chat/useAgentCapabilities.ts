@@ -1,21 +1,21 @@
 import { useCallback, useEffect } from "preact/hooks";
-import { useStore } from "zustand";
 import {
   agentCapabilityCatalogStore,
   selectAgentCapabilityCatalog,
 } from "../../stores/agents/agentCapabilityCatalogStore";
 import { useAuthContext } from "../../context/AuthContext";
+import { useAppStore } from "../useAppStore.ts";
 
 export function useAgentCapabilities(projectId?: string) {
   const { auth } = useAuthContext();
   const userId = auth.email || auth.adminEmail || "anonymous";
   const scope = `${userId.trim().toLowerCase()}\0${projectId || "host"}`;
-  const snapshot = useStore(
+  const snapshot = useAppStore(
     agentCapabilityCatalogStore,
     selectAgentCapabilityCatalog(userId, projectId),
   );
-  const observe = useStore(agentCapabilityCatalogStore, (store) => store.actions.observe);
-  const load = useStore(agentCapabilityCatalogStore, (store) => store.actions.load);
+  const observe = useAppStore(agentCapabilityCatalogStore, (store) => store.actions.observe);
+  const load = useAppStore(agentCapabilityCatalogStore, (store) => store.actions.load);
 
   useEffect(() => {
     const unobserve = observe(userId, projectId);

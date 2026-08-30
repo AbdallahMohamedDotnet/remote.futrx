@@ -1,6 +1,6 @@
-import { useStore } from "zustand";
 import type { MediaViewerItem } from "../../../models/files";
 import { mediaViewerStore } from "../../stores/media/mediaViewerStore";
+import { useAppStore } from "../useAppStore.ts";
 
 /**
  * The media viewer's current item, as a subscription.
@@ -14,8 +14,8 @@ export function useMediaViewer(): {
   item: MediaViewerItem | null;
   close: () => void;
 } {
-  const item = useStore(mediaViewerStore, (store) => store.state.item);
-  const close = useStore(mediaViewerStore, (store) => store.actions.close);
+  const item = useAppStore(mediaViewerStore, (store) => store.state.item);
+  const close = useAppStore(mediaViewerStore, (store) => store.actions.close);
 
   return { item, close };
 }

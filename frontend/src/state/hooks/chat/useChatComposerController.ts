@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from "preact/hooks";
-import { useStore } from "zustand";
 import type { ChatStatus, PromptOutcome } from "../../../models/chat";
 import { useConfirm } from "../../context/ConfirmContext";
 import { chatAttachmentService } from "../../../services/chat/chatAttachmentService.ts";
 import { chatComposerSessionStore } from "../../stores/chat/composerSessionStore";
+import { useAppStore } from "../useAppStore.ts";
 import { promptQueueState } from "./promptQueueState";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
@@ -38,11 +38,11 @@ export function useChatComposerController({
   // ChatContainer remounts on chat switch (it is keyed by chatId), so selecting
   // the active draft from the session store is what makes a half-typed message
   // survive leaving and returning to a chat.
-  const text = useStore(
+  const text = useAppStore(
     chatComposerSessionStore,
     (store) => store.state.drafts.get(chatId) ?? "",
   );
-  const setDraft = useStore(chatComposerSessionStore, (store) => store.actions.setDraft);
+  const setDraft = useAppStore(chatComposerSessionStore, (store) => store.actions.setDraft);
   const setText = useCallback(
     (value: string | ((prev: string) => string)) => {
       const previous = chatComposerSessionStore.getState().state.drafts.get(chatId) ?? "";
