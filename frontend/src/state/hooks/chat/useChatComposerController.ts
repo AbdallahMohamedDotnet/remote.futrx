@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef } from "preact/hooks";
+import { useStore } from "zustand";
 import type { ChatStatus, PromptOutcome } from "../../../models/chat";
 import { useConfirm } from "../../context/ConfirmContext";
 import { chatAttachmentService } from "../../../services/chat/chatAttachmentService.ts";
@@ -34,19 +35,21 @@ export function useChatComposerController({
   attachmentBasePath: string;
 }) {
   const confirm = useConfirm();
-  // Initialise from the per-chat session store and mirror every change back to it.
-  // ChatContainer remounts on chat switch (it is keyed by chatId), so this is
-  // what makes a half-typed message survive leaving and returning to a chat.
-  const [text, setTextState] = useState(() => chatComposerSessionStore.getDraft(chatId));
+  // ChatContainer remounts on chat switch (it is keyed by chatId), so selecting
+  // the active draft from the session store is what makes a half-typed message
+  // survive leaving and returning to a chat.
+  const text = useStore(
+    chatComposerSessionStore,
+    (state) => state.drafts.get(chatId) ?? "",
+  );
+  const setDraft = useStore(chatComposerSessionStore, (state) => state.setDraft);
   const setText = useCallback(
     (value: string | ((prev: string) => string)) => {
-      setTextState((prev) => {
-        const next = typeof value === "function" ? (value as (prev: string) => string)(prev) : value;
-        chatComposerSessionStore.setDraft(chatId, next);
-        return next;
-      });
+      const previous = chatComposerSessionStore.getState().drafts.get(chatId) ?? "";
+      const next = typeof value === "function" ? value(previous) : value;
+      setDraft(chatId, next);
     },
-    [chatId],
+    [chatId, setDraft],
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { textareaRef, focusInput } = useAutosizeTextarea(text);

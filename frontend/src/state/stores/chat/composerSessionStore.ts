@@ -1,3 +1,4 @@
+import { createStore } from "zustand/vanilla";
 import type { QueuedPrompt } from "../../../models/chat";
 import { SESSION_STORAGE_KEYS } from "../../../config/storageKeys.ts";
 
@@ -10,72 +11,82 @@ interface PersistedComposerSession {
   queues: Record<string, QueuedPrompt[]>;
 }
 
-class ChatComposerSessionStore {
-  private readonly drafts = new Map<string, string>();
-  private readonly promptQueues = new Map<string, QueuedPrompt[]>();
-  private readonly storage: StorageLike | null;
+interface ChatComposerSessionState {
+  drafts: ReadonlyMap<string, string>;
+  promptQueues: ReadonlyMap<string, QueuedPrompt[]>;
+  setDraft: (chatId: string, text: string) => void;
+  setQueuedPrompts: (chatId: string, prompts: QueuedPrompt[]) => void;
+}
 
-  constructor(storage: StorageLike | null = defaultStorage()) {
-    this.storage = storage;
-    this.hydrate();
-  }
+// Composer state is mirrored to sessionStorage so drafts and queued prompts
+// survive a reload or navigation while an agent run (often a long stretch of
+// tool calls) is still in flight. sessionStorage keeps it per-tab, matching
+// the previous in-memory semantics; storage failures degrade to memory-only.
+export function createChatComposerSessionStore(
+  storage: StorageLike | null = defaultStorage(),
+) {
+  const hydrated = hydrate(storage);
+  return createStore<ChatComposerSessionState>()((set) => ({
+    ...hydrated,
+    setDraft: (chatId, text) => set((state) => {
+      const drafts = new Map(state.drafts);
+      if (text) drafts.set(chatId, text);
+      else drafts.delete(chatId);
+      persist(storage, drafts, state.promptQueues);
+      return { drafts };
+    }),
+    setQueuedPrompts: (chatId, prompts) => set((state) => {
+      const promptQueues = new Map(state.promptQueues);
+      if (prompts.length) promptQueues.set(chatId, prompts);
+      else promptQueues.delete(chatId);
+      persist(storage, state.drafts, promptQueues);
+      return { promptQueues };
+    }),
+  }));
+}
 
-  getDraft(chatId: string): string {
-    return this.drafts.get(chatId) ?? "";
-  }
+function hydrate(storage: StorageLike | null): Pick<
+  ChatComposerSessionState,
+  "drafts" | "promptQueues"
+> {
+  const drafts = new Map<string, string>();
+  const promptQueues = new Map<string, QueuedPrompt[]>();
+  if (!storage) return { drafts, promptQueues };
 
-  setDraft(chatId: string, text: string): void {
-    if (text) this.drafts.set(chatId, text);
-    else this.drafts.delete(chatId);
-    this.persist();
-  }
-
-  getQueuedPrompts(chatId: string): QueuedPrompt[] {
-    return this.promptQueues.get(chatId) ?? [];
-  }
-
-  setQueuedPrompts(chatId: string, prompts: QueuedPrompt[]): void {
-    if (prompts.length) this.promptQueues.set(chatId, prompts);
-    else this.promptQueues.delete(chatId);
-    this.persist();
-  }
-
-  // Composer state is mirrored to sessionStorage so drafts and queued prompts
-  // survive a reload or navigation while an agent run (often a long stretch of
-  // tool calls) is still in flight. sessionStorage keeps it per-tab, matching
-  // the previous in-memory semantics; storage failures degrade to memory-only.
-  private hydrate(): void {
-    if (!this.storage) return;
-    try {
-      const raw = this.storage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<PersistedComposerSession> | null;
-      for (const [chatId, text] of Object.entries(parsed?.drafts ?? {})) {
-        if (typeof text === "string" && text) this.drafts.set(chatId, text);
-      }
-      for (const [chatId, prompts] of Object.entries(parsed?.queues ?? {})) {
-        const valid = (Array.isArray(prompts) ? prompts : []).filter(
-          (prompt): prompt is QueuedPrompt =>
-            !!prompt && typeof prompt.id === "string" && typeof prompt.text === "string",
-        );
-        if (valid.length) this.promptQueues.set(chatId, valid);
-      }
-    } catch {
-      // Corrupt or unreadable snapshot — start clean.
+  try {
+    const raw = storage.getItem(STORAGE_KEY);
+    if (!raw) return { drafts, promptQueues };
+    const parsed = JSON.parse(raw) as Partial<PersistedComposerSession> | null;
+    for (const [chatId, text] of Object.entries(parsed?.drafts ?? {})) {
+      if (typeof text === "string" && text) drafts.set(chatId, text);
     }
-  }
-
-  private persist(): void {
-    if (!this.storage) return;
-    try {
-      const snapshot: PersistedComposerSession = {
-        drafts: Object.fromEntries(this.drafts),
-        queues: Object.fromEntries(this.promptQueues),
-      };
-      this.storage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
-    } catch {
-      // Quota or privacy-mode failures fall back to in-memory behavior.
+    for (const [chatId, prompts] of Object.entries(parsed?.queues ?? {})) {
+      const valid = (Array.isArray(prompts) ? prompts : []).filter(
+        (prompt): prompt is QueuedPrompt =>
+          !!prompt && typeof prompt.id === "string" && typeof prompt.text === "string",
+      );
+      if (valid.length) promptQueues.set(chatId, valid);
     }
+  } catch {
+    // Corrupt or unreadable snapshot — start clean.
+  }
+  return { drafts, promptQueues };
+}
+
+function persist(
+  storage: StorageLike | null,
+  drafts: ReadonlyMap<string, string>,
+  promptQueues: ReadonlyMap<string, QueuedPrompt[]>,
+): void {
+  if (!storage) return;
+  try {
+    const snapshot: PersistedComposerSession = {
+      drafts: Object.fromEntries(drafts),
+      queues: Object.fromEntries(promptQueues),
+    };
+    storage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Quota or privacy-mode failures fall back to in-memory behavior.
   }
 }
 
@@ -87,9 +98,7 @@ function defaultStorage(): StorageLike | null {
   }
 }
 
-export { ChatComposerSessionStore };
-
 // ChatContainer remounts when the active chat changes, so composer state must
 // outlive the component tree. Backed by per-tab sessionStorage so it also
 // survives reloads within the browser session.
-export const chatComposerSessionStore = new ChatComposerSessionStore();
+export const chatComposerSessionStore = createChatComposerSessionStore();

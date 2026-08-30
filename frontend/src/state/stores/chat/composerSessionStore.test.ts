@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ChatComposerSessionStore } from "./composerSessionStore.ts";
+import { createChatComposerSessionStore } from "./composerSessionStore.ts";
 
 function fakeStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
@@ -17,32 +17,32 @@ const KEY = "remote.futrx.composerSession.v1";
 
 test("drafts and queues persist across store instances", () => {
   const storage = fakeStorage();
-  const first = new ChatComposerSessionStore(storage);
-  first.setDraft("chat-1", "half-typed message");
-  first.setQueuedPrompts("chat-1", [{ id: "q1", text: "queued while agent ran tools" }]);
+  const first = createChatComposerSessionStore(storage);
+  first.getState().setDraft("chat-1", "half-typed message");
+  first.getState().setQueuedPrompts("chat-1", [{ id: "q1", text: "queued while agent ran tools" }]);
 
-  const second = new ChatComposerSessionStore(storage);
-  assert.equal(second.getDraft("chat-1"), "half-typed message");
-  assert.deepEqual(second.getQueuedPrompts("chat-1"), [
+  const second = createChatComposerSessionStore(storage);
+  assert.equal(second.getState().drafts.get("chat-1"), "half-typed message");
+  assert.deepEqual(second.getState().promptQueues.get("chat-1"), [
     { id: "q1", text: "queued while agent ran tools" },
   ]);
 });
 
 test("clearing a queue removes it from the snapshot", () => {
   const storage = fakeStorage();
-  const store = new ChatComposerSessionStore(storage);
-  store.setQueuedPrompts("chat-1", [{ id: "q1", text: "one" }]);
-  store.setQueuedPrompts("chat-1", []);
+  const store = createChatComposerSessionStore(storage);
+  store.getState().setQueuedPrompts("chat-1", [{ id: "q1", text: "one" }]);
+  store.getState().setQueuedPrompts("chat-1", []);
 
-  const reloaded = new ChatComposerSessionStore(storage);
-  assert.deepEqual(reloaded.getQueuedPrompts("chat-1"), []);
+  const reloaded = createChatComposerSessionStore(storage);
+  assert.deepEqual(reloaded.getState().promptQueues.get("chat-1") ?? [], []);
 });
 
 test("corrupt snapshots are ignored", () => {
   const storage = fakeStorage({ [KEY]: "{not json" });
-  const store = new ChatComposerSessionStore(storage);
-  assert.equal(store.getDraft("chat-1"), "");
-  assert.deepEqual(store.getQueuedPrompts("chat-1"), []);
+  const store = createChatComposerSessionStore(storage);
+  assert.equal(store.getState().drafts.get("chat-1") ?? "", "");
+  assert.deepEqual(store.getState().promptQueues.get("chat-1") ?? [], []);
 });
 
 test("malformed queue entries are dropped on hydrate", () => {
@@ -52,15 +52,15 @@ test("malformed queue entries are dropped on hydrate", () => {
       queues: { "chat-1": [{ id: "q1", text: "ok" }, { id: 7 }, null, "junk"] },
     }),
   });
-  const store = new ChatComposerSessionStore(storage);
-  assert.equal(store.getDraft("chat-1"), "draft");
-  assert.deepEqual(store.getQueuedPrompts("chat-1"), [{ id: "q1", text: "ok" }]);
+  const store = createChatComposerSessionStore(storage);
+  assert.equal(store.getState().drafts.get("chat-1"), "draft");
+  assert.deepEqual(store.getState().promptQueues.get("chat-1"), [{ id: "q1", text: "ok" }]);
 });
 
 test("store works without any storage backend", () => {
-  const store = new ChatComposerSessionStore(null);
-  store.setDraft("chat-1", "memory only");
-  assert.equal(store.getDraft("chat-1"), "memory only");
-  store.setQueuedPrompts("chat-1", [{ id: "q1", text: "queued" }]);
-  assert.deepEqual(store.getQueuedPrompts("chat-1"), [{ id: "q1", text: "queued" }]);
+  const store = createChatComposerSessionStore(null);
+  store.getState().setDraft("chat-1", "memory only");
+  assert.equal(store.getState().drafts.get("chat-1"), "memory only");
+  store.getState().setQueuedPrompts("chat-1", [{ id: "q1", text: "queued" }]);
+  assert.deepEqual(store.getState().promptQueues.get("chat-1"), [{ id: "q1", text: "queued" }]);
 });
