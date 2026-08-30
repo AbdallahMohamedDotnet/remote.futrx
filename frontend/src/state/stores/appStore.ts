@@ -1,25 +1,11 @@
-export interface AppStoreShape<State, Actions> {
-  readonly state: State;
-  readonly actions: Actions;
-}
-
-export type AppStoreListener<State, Actions> = (
-  store: AppStoreShape<State, Actions>,
-  previousStore: AppStoreShape<State, Actions>,
-) => void;
-
-export interface AppStore<State, Actions> {
-  getState: () => AppStoreShape<State, Actions>;
-  subscribe: (listener: AppStoreListener<State, Actions>) => () => void;
-}
-
-type StateUpdater<State> = (state: State) => Partial<State> | State;
-type StateUpdate<State> = Partial<State> | StateUpdater<State>;
-
-interface StoreAccess<State> {
-  getState: () => State;
-  setState: (update: StateUpdate<State>) => void;
-}
+import type {
+  AppStore,
+  AppStoreListener,
+  AppStoreShape,
+  StateUpdate,
+  StateUpdater,
+  StoreAccess,
+} from "../../models/appStore.ts";
 
 /**
  * Creates the one supported store shape: domain state and domain actions are

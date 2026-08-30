@@ -3,7 +3,8 @@ import type {
   AgentCapabilityCatalogSnapshot,
 } from "../../../models/agentCapabilities";
 import { capabilitiesApi } from "../../../api/agents/capabilitiesApi.ts";
-import { createAppStore, type AppStoreShape } from "../appStore.ts";
+import type { AppStoreShape } from "../../../models/appStore.ts";
+import { createAppStore } from "../appStore.ts";
 
 /** A scope some part of the app is currently watching. */
 interface ObservedScope {
