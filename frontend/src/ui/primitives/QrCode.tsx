@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
-import { qrCodeDataUrl } from "../../shared/qrCode";
+import { QRGenerator } from "../../shared/qrCode";
+
+const qrGenerator = new QRGenerator();
 
 export function QrCode({ value, size = 200, class: className }: {
   value: string;
@@ -10,7 +12,7 @@ export function QrCode({ value, size = 200, class: className }: {
 
   useEffect(() => {
     let cancelled = false;
-    qrCodeDataUrl(value, size)
+    qrGenerator.createDataUrl(value, size)
       .then((dataUrl) => {
         if (!cancelled && imgRef.current) imgRef.current.src = dataUrl;
       })

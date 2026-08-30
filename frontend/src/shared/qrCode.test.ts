@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { encodeQrCode, type QrCodeMatrix } from "./qrCode.ts";
+import { QRGenerator, type QrCodeMatrix } from "./qrCode.ts";
+
+const qrGenerator = new QRGenerator();
 
 function matrixFingerprint(code: QrCodeMatrix): { darkModules: number; hash: string } {
   let darkModules = 0;
@@ -19,7 +21,7 @@ function matrixFingerprint(code: QrCodeMatrix): { darkModules: number; hash: str
 }
 
 test("encodes a compact known QR symbol deterministically", () => {
-  const code = encodeQrCode("HELLO WORLD");
+  const code = qrGenerator.createMatrix("HELLO WORLD");
 
   assert.equal(code.size, 21);
   assert.deepEqual(matrixFingerprint(code), { darkModules: 222, hash: "54f84b45" });
@@ -28,7 +30,7 @@ test("encodes a compact known QR symbol deterministically", () => {
 });
 
 test("encodes a representative authenticator enrollment URI", () => {
-  const code = encodeQrCode(
+  const code = qrGenerator.createMatrix(
     "otpauth://totp/remote.futrx:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=remote.futrx",
   );
 
