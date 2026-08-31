@@ -34,6 +34,18 @@ type LocalAdminCredential struct {
 	PasswordHash string `json:"passwordHash"`
 }
 
+// ClaimRequest carries the inputs of a local-admin claim. They are all
+// strings, so grouping them keeps a call site from silently transposing two
+// of them - a mistake the compiler cannot catch on a positional list.
+type ClaimRequest struct {
+	Email    string
+	Password string
+	// AuthorizedEmail is the caller's own session email. It matters only once
+	// an administrator already exists, when the claim must be authorised by
+	// that administrator rather than being open to anyone.
+	AuthorizedEmail string
+}
+
 // SetupTokenRecord is the durable half of the first-boot setup token. Only
 // the hash is persisted, so a leaked data directory yields nothing usable -
 // the plaintext exists solely in the terminal output that printed it once.

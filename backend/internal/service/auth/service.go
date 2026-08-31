@@ -115,8 +115,8 @@ func (s *Service) LoginGoogle(ctx context.Context, code string) (User, error) {
 	return s.google.login(ctx, code)
 }
 
-func (s *Service) ClaimLocalAdmin(ctx context.Context, email, password, authorizedEmail string) (User, error) {
-	return s.local.claim(ctx, email, password, authorizedEmail)
+func (s *Service) ClaimLocalAdmin(ctx context.Context, req ClaimRequest) (User, error) {
+	return s.local.claim(ctx, req)
 }
 
 func (s *Service) LoginLocal(_ context.Context, email, password string) (User, error) {

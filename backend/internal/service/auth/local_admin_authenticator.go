@@ -37,13 +37,8 @@ func (a *LocalAdminAuthenticator) setDummyHash(hash string) {
 	a.mu.Unlock()
 }
 
-func (a *LocalAdminAuthenticator) claim(
-	ctx context.Context,
-	email,
-	password,
-	authorizedEmail string,
-) (User, error) {
-	email = normalizeEmail(email)
+func (a *LocalAdminAuthenticator) claim(ctx context.Context, req ClaimRequest) (User, error) {
+	email := normalizeEmail(req.Email)
 	if !localAdminEmailPattern.MatchString(email) {
 		return User{}, errors.New("valid admin email is required")
 	}
@@ -63,7 +58,7 @@ func (a *LocalAdminAuthenticator) claim(
 	if first, err := a.users.FirstAdmin(ctx); err != nil {
 		return User{}, err
 	} else if first != nil {
-		authorizedEmail = normalizeEmail(authorizedEmail)
+		authorizedEmail := normalizeEmail(req.AuthorizedEmail)
 		isAdmin, authErr := a.users.IsAdmin(ctx, authorizedEmail)
 		if authErr != nil {
 			return User{}, authErr
@@ -72,7 +67,7 @@ func (a *LocalAdminAuthenticator) claim(
 			return User{}, ErrAdminClaimUnauthorized
 		}
 	}
-	passwordHash, err := HashPassword(password)
+	passwordHash, err := HashPassword(req.Password)
 	if err != nil {
 		return User{}, err
 	}

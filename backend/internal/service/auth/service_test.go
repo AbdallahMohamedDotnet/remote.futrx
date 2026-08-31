@@ -142,7 +142,7 @@ func TestLocalAdminClaimAndLogin(t *testing.T) {
 	users := newAuthTestUsers()
 	service := newAuthTestService(t, store, users, User{})
 
-	claimed, err := service.ClaimLocalAdmin(context.Background(), "Admin@Example.com", "correct horse battery staple", "")
+	claimed, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: "Admin@Example.com", Password: "correct horse battery staple"})
 	if err != nil {
 		t.Fatalf("ClaimLocalAdmin: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestLocalAdminClaimAndLogin(t *testing.T) {
 	if _, err := service.LoginLocal(context.Background(), "admin@example.com", "wrong password"); !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("wrong password error = %v", err)
 	}
-	if _, err := service.ClaimLocalAdmin(context.Background(), "other@example.com", "another secure password", ""); !errors.Is(err, ErrLocalAdminAlreadyClaimed) {
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: "other@example.com", Password: "another secure password"}); !errors.Is(err, ErrLocalAdminAlreadyClaimed) {
 		t.Fatalf("second claim error = %v", err)
 	}
 }
@@ -171,7 +171,7 @@ func TestLocalAdminClaimRollsBackAfterDirectoryLookupFailure(t *testing.T) {
 	users.cancelOnIsRegistered = cancel
 	users.isRegisteredErr = context.Canceled
 
-	if _, err := service.ClaimLocalAdmin(ctx, "admin@example.com", "correct horse battery staple", ""); !errors.Is(err, context.Canceled) {
+	if _, err := service.ClaimLocalAdmin(ctx, ClaimRequest{Email: "admin@example.com", Password: "correct horse battery staple"}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("ClaimLocalAdmin error = %v, want context cancellation", err)
 	}
 	if store.local != nil || service.LocalAdminConfigured() {
@@ -179,7 +179,7 @@ func TestLocalAdminClaimRollsBackAfterDirectoryLookupFailure(t *testing.T) {
 	}
 
 	users.isRegisteredErr = nil
-	if _, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", ""); err != nil {
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: "admin@example.com", Password: "correct horse battery staple"}); err != nil {
 		t.Fatalf("retry ClaimLocalAdmin: %v", err)
 	}
 }
@@ -191,7 +191,7 @@ func TestLocalAdminClaimRollsBackAfterBootstrapFailure(t *testing.T) {
 	users.addBootstrapAdminErr = bootstrapErr
 	service := newAuthTestService(t, store, users, User{})
 
-	if _, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", ""); !errors.Is(err, bootstrapErr) {
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: "admin@example.com", Password: "correct horse battery staple"}); !errors.Is(err, bootstrapErr) {
 		t.Fatalf("ClaimLocalAdmin error = %v, want %v", err, bootstrapErr)
 	}
 	if store.local != nil || service.LocalAdminConfigured() {
@@ -202,7 +202,7 @@ func TestLocalAdminClaimRollsBackAfterBootstrapFailure(t *testing.T) {
 	}
 
 	users.addBootstrapAdminErr = nil
-	if _, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", ""); err != nil {
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: "admin@example.com", Password: "correct horse battery staple"}); err != nil {
 		t.Fatalf("retry ClaimLocalAdmin: %v", err)
 	}
 }
@@ -215,7 +215,7 @@ func TestLocalAdminClaimReconcilesAfterRollbackFailure(t *testing.T) {
 	users.isRegisteredErr = directoryErr
 	service := newAuthTestService(t, store, users, User{})
 
-	_, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", "")
+	_, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: "admin@example.com", Password: "correct horse battery staple"})
 	if !errors.Is(err, directoryErr) || !errors.Is(err, rollbackErr) {
 		t.Fatalf("ClaimLocalAdmin error = %v, want directory and rollback errors", err)
 	}
@@ -248,10 +248,10 @@ func TestLegacyAdminMustAuthorizeLocalPasswordSetup(t *testing.T) {
 	users.roles["admin@example.com"] = true
 	service := newAuthTestService(t, store, users, User{})
 
-	if _, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", ""); !errors.Is(err, ErrAdminClaimUnauthorized) {
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: "admin@example.com", Password: "correct horse battery staple"}); !errors.Is(err, ErrAdminClaimUnauthorized) {
 		t.Fatalf("unauthorized legacy claim error = %v", err)
 	}
-	if _, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", "admin@example.com"); err != nil {
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: "admin@example.com", Password: "correct horse battery staple", AuthorizedEmail: "admin@example.com"}); err != nil {
 		t.Fatalf("authorized legacy claim: %v", err)
 	}
 }
@@ -276,7 +276,7 @@ func TestLocalAdministratorCannotUseGoogleLogin(t *testing.T) {
 	store := &authTestStore{oauth: OAuthConfig{GoogleClientID: "id", GoogleClientSecret: "secret"}}
 	users := newAuthTestUsers()
 	service := newAuthTestService(t, store, users, User{Email: "admin@example.com", Sub: "google-admin"})
-	if _, err := service.ClaimLocalAdmin(context.Background(), "admin@example.com", "correct horse battery staple", ""); err != nil {
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: "admin@example.com", Password: "correct horse battery staple"}); err != nil {
 		t.Fatalf("ClaimLocalAdmin: %v", err)
 	}
 	if _, err := service.LoginGoogle(context.Background(), "code"); !errors.Is(err, ErrLocalAdminPasswordOnly) {
@@ -291,12 +291,11 @@ func TestClaimInvalidatesLegacyGoogleAdminSession(t *testing.T) {
 	service := newAuthTestService(t, store, users, User{})
 	legacySession := service.SignSession(User{Email: "admin@example.com", Sub: "google-subject"})
 
-	if _, err := service.ClaimLocalAdmin(
-		context.Background(),
-		"admin@example.com",
-		"correct horse battery staple",
-		"admin@example.com",
-	); err != nil {
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{
+		Email:           "admin@example.com",
+		Password:        "correct horse battery staple",
+		AuthorizedEmail: "admin@example.com",
+	}); err != nil {
 		t.Fatalf("ClaimLocalAdmin: %v", err)
 	}
 	if _, err := service.CurrentSession(legacySession); !errors.Is(err, ErrLocalAdminPasswordOnly) {

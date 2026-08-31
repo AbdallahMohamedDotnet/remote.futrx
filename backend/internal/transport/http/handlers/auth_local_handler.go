@@ -42,7 +42,11 @@ func (h *localAuthHandler) claim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authorizedEmail, _ := callerEmailFromRequest(r, h.auth)
-	user, err := h.auth.ClaimLocalAdmin(r.Context(), body.Email, body.Password, authorizedEmail)
+	user, err := h.auth.ClaimLocalAdmin(r.Context(), serviceauth.ClaimRequest{
+		Email:           body.Email,
+		Password:        body.Password,
+		AuthorizedEmail: authorizedEmail,
+	})
 	if err != nil {
 		h.logins.Failure(key)
 		switch {
