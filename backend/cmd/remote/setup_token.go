@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
-	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	service "github.com/futrx-com/remote.futrx.com/internal/service"
+	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusers"
 )
 
 // runSetupToken reissues the first-boot setup token and prints it. It is
@@ -18,29 +19,40 @@ import (
 //
 // Issuing rotates, so whatever was printed before stops working. That is the
 // recovery path for an operator who lost the terminal or let the token expire.
+//
+// It asks the auth service whether setup is still gated rather than deciding
+// for itself, so this command and the running server can never disagree about
+// when a token is worth printing.
 func runSetupToken(ctx context.Context, dataDir, baseURL string, out io.Writer) error {
-	store := fileauth.New(dataDir)
-	credential, err := store.LocalAdmin(ctx)
+	authStore := fileauth.New(dataDir)
+	usersStore, err := fileusers.New(dataDir)
 	if err != nil {
-		return fmt.Errorf("read local admin credential: %w", err)
+		return fmt.Errorf("open user directory: %w", err)
 	}
-	if credential != nil {
-		return errors.New(
-			"this server already has a local administrator; " +
-				"remove DATA_DIR/local-admin.json on the host to start setup over",
-		)
-	}
-
-	issuer := serviceauth.NewSetupTokenIssuer(store)
-	token, err := issuer.Issue(ctx)
+	auth, err := service.NewAuth(ctx, authStore, serviceuser.New(usersStore), baseURL)
 	if err != nil {
 		return err
 	}
+
+	token, err := auth.EnsureSetupToken(ctx)
+	if err != nil {
+		return err
+	}
+	if token == "" {
+		if auth.LocalAdminConfigured() {
+			return errors.New(
+				"this server already has a local administrator; " +
+					"remove DATA_DIR/local-admin.json on the host to start setup over",
+			)
+		}
+		return errors.New(
+			"this server already has an administrator, who sets the local password " +
+				"themselves from Settings after signing in; no setup token is used",
+		)
+	}
+
 	// The fragment keeps the token out of the request line, so it never
 	// reaches a proxy access log.
-	fmt.Fprintf(out,
-		"First-time setup required.\n  visit:   %s/#token=%s\n  expires: %s from now\n",
-		strings.TrimRight(baseURL, "/"), token, issuer.TTL(),
-	)
+	announceSetupTokenLink(out, baseURL, token, auth.SetupTokenTTL())
 	return nil
 }

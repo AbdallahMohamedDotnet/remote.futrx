@@ -72,3 +72,26 @@ func TestSetupTokenCommandRefusesOnceClaimed(t *testing.T) {
 		t.Fatalf("refused command still wrote a token record (stat err = %v)", err)
 	}
 }
+
+// A server whose directory already holds an administrator is not token-gated:
+// that administrator authorises the local password themselves. Reissuing there
+// prints a link whose token the claim never checks - the same dead end the
+// startup path was fixed to stop printing.
+func TestSetupTokenCommandRefusesWhenAnAdministratorExists(t *testing.T) {
+	dir := t.TempDir()
+	directory := `{"users":[{"email":"googleadmin@example.com","role":"admin","addedAt":1700000000000}]}`
+	if err := os.WriteFile(filepath.Join(dir, "users.json"), []byte(directory), 0o600); err != nil {
+		t.Fatalf("seed users.json: %v", err)
+	}
+
+	var out bytes.Buffer
+	if err := runSetupToken(context.Background(), dir, "https://remote.example.com", &out); err == nil {
+		t.Fatal("runSetupToken issued a token for a claim an administrator authorises")
+	}
+	if out.Len() != 0 {
+		t.Fatalf("refused command still printed: %s", out.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "setup-token.json")); !os.IsNotExist(err) {
+		t.Fatalf("refused command still wrote a token record (stat err = %v)", err)
+	}
+}

@@ -54,13 +54,6 @@ func newSetupTokenGuard(store SetupTokenStore, ttl time.Duration, now func() tim
 	return &SetupTokenGuard{store: store, ttl: ttl, now: now}
 }
 
-// NewSetupTokenIssuer builds a guard over the token store alone. The reissue
-// command needs nothing else, and standing up the full auth service (user
-// directory, OAuth, session key) just to mint a token would be ceremony.
-func NewSetupTokenIssuer(store SetupTokenStore) *SetupTokenGuard {
-	return newSetupTokenGuard(store, defaultSetupTokenTTL, time.Now)
-}
-
 // TTL is how long a token this guard issues stays valid.
 func (g *SetupTokenGuard) TTL() time.Duration { return g.ttl }
 

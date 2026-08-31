@@ -76,7 +76,7 @@ func (staticScheduleToolIssuer) IssueScheduleTool(
 }
 
 func TestNewAuthAllowsLocalAdminWithoutGoogleOAuth(t *testing.T) {
-	auth, err := newAuth(
+	auth, err := NewAuth(
 		context.Background(),
 		fileauth.New(t.TempDir()),
 		nil,
