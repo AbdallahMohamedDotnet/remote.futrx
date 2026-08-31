@@ -1,7 +1,7 @@
 import { Fragment } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { AgentAuthProvider } from "../../models/auth";
-import { agentAuthStatusKind } from "../../state/auth/agentAuthRegistryState";
+import { agentAuthRegistryService } from "../../services/auth/agentAuthRegistryService.ts";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { Check, ExternalLink, Key, Loader } from "../primitives/icons";
 
@@ -45,7 +45,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
   const managedCode = entry.authentication.mode === "managed-code";
   const managedDevice = entry.authentication.mode === "managed-device";
   const managed = managedCode || managedDevice;
-  const statusKind = agentAuthStatusKind(entry);
+  const statusKind = agentAuthRegistryService.statusKind(entry);
   const error = agentAuth.actionErrors[entry.provider]
     || entry.status.login.error
     || entry.status.warning

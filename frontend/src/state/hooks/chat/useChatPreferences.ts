@@ -8,7 +8,7 @@ import type {
 } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import { useUserSettingsContext } from "../../context/UserSettingsContext";
-import { chatPreferenceState } from "../../chat/chatPreferenceState";
+import { chatPreferenceState } from "./chatPreferenceState";
 import { useChatMetaActions } from "./useChatMetaActions";
 
 export function useChatPreferences({

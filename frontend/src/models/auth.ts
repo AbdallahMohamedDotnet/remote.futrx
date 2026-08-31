@@ -18,6 +18,9 @@ export interface GoogleOAuthSettings {
 
 export type AgentAuthMode = "managed-code" | "managed-device" | "external" | "none";
 
+/** How one provider's login stands, as the settings row draws it. */
+export type AgentAuthStatusKind = "no-auth" | "authenticated" | "external" | "unconfigured";
+
 export interface AgentAuthLoginSnapshot {
   active: boolean;
   url?: string;

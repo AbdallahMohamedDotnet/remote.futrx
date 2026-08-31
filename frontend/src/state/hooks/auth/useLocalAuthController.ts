@@ -15,16 +15,23 @@ export function useLocalAuthController({
   adminEmail,
   onSuccess,
 }: LocalAuthControllerOptions) {
-  const params = new URLSearchParams(location.search);
-  const oauthError = params.get("error");
-  const errorEmail = params.get("email") ?? "";
-  const returnTo = returnUrlPolicy.safeTarget(params.get("return_to") ?? "", location.origin);
+  ////////////////
+  // Local State
+  ////////////////
   const [email, setEmail] = useState(mode === "legacy-setup" ? adminEmail : "");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const setup = mode === "claim" || mode === "legacy-setup";
+
+  ////////////////
+  // Global State
+  ////////////////
+  const params = new URLSearchParams(location.search);
+  const oauthError = params.get("error");
+  const errorEmail = params.get("email") ?? "";
+  const returnTo = returnUrlPolicy.safeTarget(params.get("return_to") ?? "", location.origin);
 
   // A password or Google login can come back asking for a second factor
   // instead of completing outright. The Google callback signals the same
@@ -37,6 +44,9 @@ export function useLocalAuthController({
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
   const [twoFactorSubmitting, setTwoFactorSubmitting] = useState(false);
 
+  ////////////////
+  // Handlers
+  ////////////////
   async function submit(event: Event) {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
