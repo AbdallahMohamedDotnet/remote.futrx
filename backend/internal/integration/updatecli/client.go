@@ -58,7 +58,7 @@ func (Client) ListRemoteTags(ctx context.Context, installDir string) ([]string, 
 // exit code is written to donePath — that file, not the process, is the
 // durable record of the outcome, because the backend that spawned the run is
 // usually replaced before the run ends.
-func (Client) StartUpdater(installDir, tag, kind, logPath, donePath string) (int, error) {
+func (Client) StartUpdater(installDir, tag, kind, logPath, donePath, progressPath string) (int, error) {
 	if kind != "application" && kind != "infrastructure" {
 		return 0, fmt.Errorf("unknown update kind: %s", kind)
 	}
@@ -82,6 +82,7 @@ exit "$status"`
 	cmd.Dir = installDir
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
+	cmd.Env = append(os.Environ(), "FUTRX_UPDATE_PROGRESS_PATH="+progressPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		return 0, err

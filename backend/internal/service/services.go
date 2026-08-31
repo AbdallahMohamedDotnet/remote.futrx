@@ -68,6 +68,7 @@ type Dependencies struct {
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
 	ScheduleLimits    ScheduleLimits
+	PromptStartGate   prompt.StartGate
 }
 
 // ScheduleLimits mirrors the deployment's scheduled-task guardrails without
@@ -210,6 +211,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		prompt.WithScheduleToolIssuer(scheduleCaps),
 		prompt.WithAgentPolicy(agentRuntime),
 	}
+	if deps.PromptStartGate != nil {
+		promptOptions = append(promptOptions, prompt.WithStartGate(deps.PromptStartGate))
+	}
 	if deps.Usage != nil {
 		usageService = serviceusage.New(deps.Usage, projectService, chats)
 		promptOptions = append(promptOptions, prompt.WithUsageRecorder(usageService))
@@ -351,7 +355,7 @@ func (e scheduledPromptExecutor) StartScheduledPrompt(
 		ScheduledRunID:  task.ActiveRunID,
 		ParentContext:   ctx,
 	}, nil)
-	if errors.Is(err, prompt.ErrPromptAlreadyRunning) {
+	if errors.Is(err, prompt.ErrPromptAlreadyRunning) || errors.Is(err, prompt.ErrMaintenance) {
 		return nil, serviceschedule.ErrExecutorBusy
 	}
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,7 +23,7 @@ import (
 // HostClient is implemented by integration/updatecli.
 type HostClient interface {
 	ListRemoteTags(ctx context.Context, installDir string) ([]string, error)
-	StartUpdater(installDir, tag, kind, logPath, donePath string) (int, error)
+	StartUpdater(installDir, tag, kind, logPath, donePath, progressPath string) (int, error)
 	ProcessAlive(pid int) bool
 }
 
@@ -79,14 +80,28 @@ type CheckResult struct {
 // RunStatus describes the most recent apply run, reconstructed from disk so
 // it stays accurate across the restart the update itself triggers.
 type RunStatus struct {
-	State      string     `json:"state"` // running | succeeded | failed
-	Target     string     `json:"target"`
-	UpdateKind UpdateKind `json:"updateKind,omitempty"`
-	StartedAt  int64      `json:"startedAt"`
-	StartedBy  string     `json:"startedBy,omitempty"`
-	FinishedAt int64      `json:"finishedAt,omitempty"`
-	ExitCode   *int       `json:"exitCode,omitempty"`
-	Log        string     `json:"log,omitempty"`
+	State        string     `json:"state"` // running | succeeded | failed
+	Target       string     `json:"target"`
+	UpdateKind   UpdateKind `json:"updateKind,omitempty"`
+	StartedAt    int64      `json:"startedAt"`
+	StartedBy    string     `json:"startedBy,omitempty"`
+	FinishedAt   int64      `json:"finishedAt,omitempty"`
+	ExitCode     *int       `json:"exitCode,omitempty"`
+	Log          string     `json:"log,omitempty"`
+	LogUpdatedAt int64      `json:"logUpdatedAt,omitempty"`
+	Progress     *Progress  `json:"progress,omitempty"`
+}
+
+// Progress is the durable, structured view of the updater's current phase.
+// The raw log remains available for diagnostics, while these fields let the
+// UI explain long-running work without guessing from terminal output.
+type Progress struct {
+	Phase       string `json:"phase"`
+	Message     string `json:"message"`
+	Completed   int    `json:"completed,omitempty"`
+	Total       int    `json:"total,omitempty"`
+	CurrentItem string `json:"currentItem,omitempty"`
+	UpdatedAt   int64  `json:"updatedAt"`
 }
 
 type Status struct {
@@ -172,12 +187,32 @@ func (s *Service) Apply(ctx context.Context, startedBy, tag string) (Status, err
 	if err := os.Remove(s.donePath()); err != nil && !os.IsNotExist(err) {
 		return s.statusLocked(), err
 	}
+	if err := os.Remove(s.progressPath()); err != nil && !os.IsNotExist(err) {
+		return s.statusLocked(), err
+	}
 	if err := os.WriteFile(s.logPath(), nil, runFileMode); err != nil {
 		return s.statusLocked(), err
 	}
 	kind := classifyUpdate(s.currentVersion, tag)
-	pid, err := s.host.StartUpdater(s.installDir, tag, string(kind), s.logPath(), s.donePath())
+	message := "Preparing the infrastructure update"
+	if kind == UpdateKindApplication {
+		message = "Preparing the application update"
+	}
+	if err := writeJSONFile(s.progressPath(), Progress{
+		Phase: "preparing", Message: message, UpdatedAt: time.Now().Unix(),
+	}); err != nil {
+		return s.statusLocked(), err
+	}
+	pid, err := s.host.StartUpdater(
+		s.installDir,
+		tag,
+		string(kind),
+		s.logPath(),
+		s.donePath(),
+		s.progressPath(),
+	)
 	if err != nil {
+		_ = os.Remove(s.progressPath())
 		return s.statusLocked(), fmt.Errorf("start updater: %w", err)
 	}
 	record := runRecord{
@@ -197,9 +232,10 @@ func (s *Service) statusLocked() Status {
 	}
 }
 
-func (s *Service) runPath() string  { return filepath.Join(s.stateDir, "run.json") }
-func (s *Service) donePath() string { return filepath.Join(s.stateDir, "done.json") }
-func (s *Service) logPath() string  { return filepath.Join(s.stateDir, "run.log") }
+func (s *Service) runPath() string      { return filepath.Join(s.stateDir, "run.json") }
+func (s *Service) donePath() string     { return filepath.Join(s.stateDir, "done.json") }
+func (s *Service) logPath() string      { return filepath.Join(s.stateDir, "run.log") }
+func (s *Service) progressPath() string { return filepath.Join(s.stateDir, "progress.json") }
 
 // runStatus reconstructs the last run from disk: the done marker wins, a
 // live PID means running, and a dead PID without a marker means the run
@@ -209,13 +245,19 @@ func (s *Service) runStatus() *RunStatus {
 	if err := readJSONFile(s.runPath(), &record); err != nil {
 		return nil
 	}
+	logText, logUpdatedAt := readLog(s.logPath(), logTailBytes)
 	status := &RunStatus{
-		State:      "running",
-		Target:     record.Target,
-		UpdateKind: record.UpdateKind,
-		StartedAt:  record.StartedAt,
-		StartedBy:  record.StartedBy,
-		Log:        tailFile(s.logPath(), logTailBytes),
+		State:        "running",
+		Target:       record.Target,
+		UpdateKind:   record.UpdateKind,
+		StartedAt:    record.StartedAt,
+		StartedBy:    record.StartedBy,
+		Log:          stripANSI(logText),
+		LogUpdatedAt: logUpdatedAt,
+	}
+	var progress Progress
+	if err := readJSONFile(s.progressPath(), &progress); err == nil && progress.Phase != "" {
+		status.Progress = &progress
 	}
 	var done doneRecord
 	switch err := readJSONFile(s.donePath(), &done); {
@@ -336,25 +378,31 @@ func writeJSONFile(path string, v any) error {
 	return os.WriteFile(path, data, runFileMode)
 }
 
-// tailFile returns up to the last max bytes of the file at path.
-func tailFile(path string, max int64) string {
+// readLog returns up to the last max bytes and the file's modification time.
+func readLog(path string, max int64) (string, int64) {
 	f, err := os.Open(path)
 	if err != nil {
-		return ""
+		return "", 0
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		return ""
+		return "", 0
 	}
 	if size := info.Size(); size > max {
 		if _, err := f.Seek(size-max, io.SeekStart); err != nil {
-			return ""
+			return "", 0
 		}
 	}
 	data, err := io.ReadAll(f)
 	if err != nil {
-		return ""
+		return "", 0
 	}
-	return string(data)
+	return string(data), info.ModTime().Unix()
+}
+
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
+
+func stripANSI(value string) string {
+	return ansiEscape.ReplaceAllString(value, "")
 }
