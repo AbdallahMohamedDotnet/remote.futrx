@@ -35,6 +35,7 @@ type Service struct {
 	users        UserDirectory
 	local        *LocalAdminAuthenticator
 	google       *GoogleAuthenticator
+	setupTokens  *SetupTokenGuard
 	baseURL      string
 	cookieDomain string
 	sessions     *SessionCodec
@@ -72,7 +73,8 @@ func New(
 	if err != nil {
 		return nil, err
 	}
-	local := newLocalAdminAuthenticator(store, users, localAdmin)
+	setupTokens := newSetupTokenGuard(store, defaultSetupTokenTTL, time.Now)
+	local := newLocalAdminAuthenticator(store, users, setupTokens, localAdmin)
 	google, err := newGoogleAuthenticator(ctx, store, users, oauthFactory, baseURL, local.isLocalAdmin)
 	if err != nil {
 		return nil, err
@@ -91,6 +93,7 @@ func New(
 	service := &Service{
 		users:        users,
 		local:        local,
+		setupTokens:  setupTokens,
 		google:       google,
 		baseURL:      baseURL,
 		cookieDomain: cookieDomain,
@@ -113,6 +116,13 @@ func (s *Service) AuthCodeURL(state string) (string, error) {
 
 func (s *Service) LoginGoogle(ctx context.Context, code string) (User, error) {
 	return s.google.login(ctx, code)
+}
+
+// IssueSetupToken mints and stores a fresh first-boot token, returning the
+// plaintext for the caller to print to the terminal. Issuing rotates: whatever
+// was printed before stops working immediately.
+func (s *Service) IssueSetupToken(ctx context.Context) (string, error) {
+	return s.setupTokens.Issue(ctx)
 }
 
 func (s *Service) ClaimLocalAdmin(ctx context.Context, req ClaimRequest) (User, error) {

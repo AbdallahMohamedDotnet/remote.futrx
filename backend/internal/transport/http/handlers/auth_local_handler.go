@@ -28,8 +28,9 @@ func (h *localAuthHandler) claim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email      string `json:"email"`
+		Password   string `json:"password"`
+		SetupToken string `json:"setupToken"`
 	}
 	if err := readJSONBody(r, &body); err != nil {
 		httptransport.SendErr(w, http.StatusBadRequest, "invalid request")
@@ -45,6 +46,7 @@ func (h *localAuthHandler) claim(w http.ResponseWriter, r *http.Request) {
 	user, err := h.auth.ClaimLocalAdmin(r.Context(), serviceauth.ClaimRequest{
 		Email:           body.Email,
 		Password:        body.Password,
+		SetupToken:      body.SetupToken,
 		AuthorizedEmail: authorizedEmail,
 	})
 	if err != nil {
@@ -52,8 +54,11 @@ func (h *localAuthHandler) claim(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, serviceauth.ErrLocalAdminAlreadyClaimed):
 			httptransport.SendErr(w, http.StatusConflict, err.Error())
-		case errors.Is(err, serviceauth.ErrAdminClaimUnauthorized):
+		case errors.Is(err, serviceauth.ErrAdminClaimUnauthorized),
+			errors.Is(err, serviceauth.ErrSetupTokenRequired):
 			httptransport.SendErr(w, http.StatusForbidden, err.Error())
+		case errors.Is(err, serviceauth.ErrSetupTokenUnavailable):
+			httptransport.SendErr(w, http.StatusServiceUnavailable, serviceauth.ErrSetupTokenUnavailable.Error())
 		case errors.Is(err, serviceauth.ErrPasswordTooShort),
 			errors.Is(err, serviceauth.ErrPasswordTooLong):
 			httptransport.SendErr(w, http.StatusBadRequest, err.Error())

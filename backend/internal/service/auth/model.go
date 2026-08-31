@@ -40,6 +40,10 @@ type LocalAdminCredential struct {
 type ClaimRequest struct {
 	Email    string
 	Password string
+	// SetupToken is the one-time token printed to the server terminal on
+	// first boot. It is the only thing authorising a claim while the user
+	// directory is still empty and no administrator exists to vouch for one.
+	SetupToken string
 	// AuthorizedEmail is the caller's own session email. It matters only once
 	// an administrator already exists, when the claim must be authorised by
 	// that administrator rather than being open to anyone.
