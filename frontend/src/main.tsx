@@ -1,10 +1,11 @@
 import { render } from "preact";
 import { App } from "./app/App";
 import "./index.css";
+import { keyboardViewportOverride } from "./shared/viewportHeight";
 
 function installViewportHeightFix() {
   let raf = 0;
-  const keyboardLikelyOpen = () => {
+  const inputFocused = () => {
     const active = document.activeElement;
     const tag = active?.tagName.toLowerCase();
     return tag === "input" || tag === "textarea" || active?.getAttribute("contenteditable") === "true";
@@ -13,12 +14,23 @@ function installViewportHeightFix() {
   const sync = () => {
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(() => {
-      const keyboardOpen = keyboardLikelyOpen();
+      const html = document.documentElement;
       const visualViewport = window.visualViewport;
-      const height = keyboardOpen && visualViewport?.height ? visualViewport.height : window.innerHeight;
-      const offsetTop = keyboardOpen ? visualViewport?.offsetTop ?? 0 : 0;
-      document.documentElement.style.setProperty("--app-height", `${Math.round(height)}px`);
-      document.documentElement.style.setProperty("--app-offset-top", `${Math.round(offsetTop)}px`);
+      const override = keyboardViewportOverride({
+        layoutHeight: html.clientHeight,
+        visual: visualViewport
+          ? { height: visualViewport.height, offsetTop: visualViewport.offsetTop }
+          : null,
+        inputFocused: inputFocused(),
+      });
+
+      if (!override) {
+        html.style.removeProperty("--app-height");
+        html.style.removeProperty("--app-offset-top");
+        return;
+      }
+      html.style.setProperty("--app-height", `${override.height}px`);
+      html.style.setProperty("--app-offset-top", `${override.offsetTop}px`);
     });
   };
 
