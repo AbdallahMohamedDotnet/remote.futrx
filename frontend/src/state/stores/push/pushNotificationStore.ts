@@ -1,10 +1,10 @@
 import { createStore } from "zustand/vanilla";
-import { pushServiceWorkerApi } from "../../../api/pushServiceWorkerApi";
+import { pushServiceWorkerApi } from "../../../api/pushServiceWorkerApi.ts";
 import type {
   PushNotificationStoreActions,
   PushNotificationStoreState,
 } from "../../../models/push";
-import { isPushPageFocused } from "./pushPageFocus";
+import { isPushPageFocused } from "./pushPageFocus.ts";
 
 export const pushNotificationStore = createStore<
   PushNotificationStoreState & PushNotificationStoreActions
