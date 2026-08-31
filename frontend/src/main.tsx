@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { App } from "./app/App";
 import "./index.css";
-import { keyboardViewportOverride } from "./shared/viewportHeight";
+import { keyboardViewportOverride } from "./services/platform/viewportHeight";
 
 function installViewportHeightFix() {
   let raf = 0;
