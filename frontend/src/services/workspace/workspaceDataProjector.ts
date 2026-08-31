@@ -98,11 +98,15 @@ class WorkspaceDataProjector {
     const leftSkills = left ?? [];
     const rightSkills = right ?? [];
     if (leftSkills.length !== rightSkills.length) return false;
-    return leftSkills.every((skill, index) => this.skillKey(skill) === this.skillKey(rightSkills[index]));
+    return leftSkills.every((skill, index) => this.sameSkill(skill, rightSkills[index]));
   }
 
-  private skillKey(skill: SelectedSkill): string {
-    return `${skill.provider ?? ""}\u0000${skill.source ?? ""}\u0000${skill.command ?? skill.name}`;
+  private sameSkill(left: SelectedSkill, right: SelectedSkill): boolean {
+    return (
+      (left.provider ?? "") === (right.provider ?? "") &&
+      (left.source ?? "") === (right.source ?? "") &&
+      (left.command ?? left.name) === (right.command ?? right.name)
+    );
   }
 
   private sameStringRecord(
