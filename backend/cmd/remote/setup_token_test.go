@@ -95,3 +95,20 @@ func TestSetupTokenCommandRefusesWhenAnAdministratorExists(t *testing.T) {
 		t.Fatalf("refused command still wrote a token record (stat err = %v)", err)
 	}
 }
+
+// The command must not mint a session key. It never signs anything, and an
+// operator running this under sudo before the service has started would leave
+// session.key owned by root - which the service then cannot read, so it
+// refuses to start at all.
+func TestSetupTokenCommandDoesNotCreateASessionKey(t *testing.T) {
+	dir := t.TempDir()
+
+	var out bytes.Buffer
+	if err := runSetupToken(context.Background(), dir, "https://remote.example.com", &out); err != nil {
+		t.Fatalf("runSetupToken: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "session.key")); !os.IsNotExist(err) {
+		t.Fatalf("the reissue command created session.key (stat err = %v)", err)
+	}
+}

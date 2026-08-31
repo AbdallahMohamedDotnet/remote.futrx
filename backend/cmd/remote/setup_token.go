@@ -12,6 +12,24 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusers"
 )
 
+// unsignedAuthStore is the auth store as this command needs it: it reads the
+// credential and the token record, but never mints a session key.
+//
+// NewAuth asks its store for one, and fileauth creates session.key when it is
+// missing. This command signs nothing, so that file would be pure side effect -
+// and an operator running the command under sudo before the service has ever
+// started would leave the signing key owned by root, which the service cannot
+// read and refuses to start without.
+type unsignedAuthStore struct {
+	*fileauth.Store
+}
+
+// SessionKey returns a throwaway key. It is never used to sign or verify
+// anything here; auth.New only requires it to be non-empty.
+func (unsignedAuthStore) SessionKey(context.Context) ([]byte, error) {
+	return make([]byte, 32), nil
+}
+
 // runSetupToken reissues the first-boot setup token and prints it. It is
 // reachable only from the server's own terminal, which is what keeps it from
 // reopening the hole it exists to close: nothing web-facing can mint a token
@@ -24,7 +42,7 @@ import (
 // for itself, so this command and the running server can never disagree about
 // when a token is worth printing.
 func runSetupToken(ctx context.Context, dataDir, baseURL string, out io.Writer) error {
-	authStore := fileauth.New(dataDir)
+	authStore := unsignedAuthStore{Store: fileauth.New(dataDir)}
 	usersStore, err := fileusers.New(dataDir)
 	if err != nil {
 		return fmt.Errorf("open user directory: %w", err)
