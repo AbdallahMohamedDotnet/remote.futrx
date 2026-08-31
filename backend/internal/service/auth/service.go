@@ -125,13 +125,19 @@ func (s *Service) IssueSetupToken(ctx context.Context) (string, error) {
 	return s.setupTokens.Issue(ctx)
 }
 
-// EnsureSetupToken issues a token when the server still has no local admin,
-// and returns an empty string once it has one. Startup calls this on every
-// boot: an unclaimed server therefore rotates its token each restart, so
-// anything that leaked beforehand is already dead, while a configured server
-// never prints a setup URL at all.
+// EnsureSetupToken issues a token when a claim made now would actually be
+// gated on one, and returns an empty string otherwise. Startup calls this on
+// every boot: a first-boot server therefore rotates its token each restart, so
+// anything that leaked beforehand is already dead. A configured server, and an
+// unclaimed one whose directory already has an administrator to authorise the
+// claim, both print nothing - a token they would never check is an operator
+// sent down a path that cannot complete.
 func (s *Service) EnsureSetupToken(ctx context.Context) (string, error) {
-	if s.LocalAdminConfigured() {
+	gated, err := s.local.needsSetupToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	if !gated {
 		return "", nil
 	}
 	return s.setupTokens.Issue(ctx)

@@ -208,3 +208,24 @@ func TestEnsureSetupTokenIssuesNothingOnceClaimed(t *testing.T) {
 		t.Fatal("a claimed server issued a fresh setup token on restart")
 	}
 }
+
+// An unclaimed server whose directory already has an administrator is not
+// token-gated: that administrator authorises the claim. Printing a setup URL
+// there sends the operator down a path the token can never complete.
+func TestEnsureSetupTokenIssuesNothingWhenAnAdministratorExists(t *testing.T) {
+	store := &authTestStore{}
+	users := newAuthTestUsers()
+	users.roles["googleadmin@example.com"] = true
+	service := newAuthTestService(t, store, users, User{})
+
+	issued, err := service.EnsureSetupToken(context.Background())
+	if err != nil {
+		t.Fatalf("EnsureSetupToken: %v", err)
+	}
+	if issued != "" {
+		t.Fatalf("issued a setup token = %q for a claim an administrator authorises", issued)
+	}
+	if store.setupToken != nil {
+		t.Fatal("a token record was written for a claim that is not token-gated")
+	}
+}

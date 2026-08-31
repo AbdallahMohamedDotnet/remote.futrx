@@ -113,6 +113,23 @@ func (a *LocalAdminAuthenticator) claim(ctx context.Context, req ClaimRequest) (
 	return localAdminUser(email), nil
 }
 
+// needsSetupToken reports whether a claim made right now would be gated on the
+// setup token. That is true only while nobody can authorise the claim any
+// other way: once a local admin exists there is nothing left to claim, and
+// once a directory administrator exists they authorise it instead. claim()
+// decides the same thing inline from the FirstAdmin lookup it already holds
+// under claimMu; this is the same rule, asked ahead of time.
+func (a *LocalAdminAuthenticator) needsSetupToken(ctx context.Context) (bool, error) {
+	if a.configured() || a.users == nil {
+		return false, nil
+	}
+	first, err := a.users.FirstAdmin(ctx)
+	if err != nil {
+		return false, err
+	}
+	return first == nil, nil
+}
+
 func (a *LocalAdminAuthenticator) abortClaim(
 	ctx context.Context,
 	credential LocalAdminCredential,
