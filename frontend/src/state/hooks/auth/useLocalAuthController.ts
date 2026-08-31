@@ -99,12 +99,14 @@ export function useLocalAuthController({
     setup,
     submit,
     submitting,
-    pendingTwoFactor: twoFactorChallenge.pending,
-    twoFactorCode: twoFactorChallenge.code,
-    setTwoFactorCode: twoFactorChallenge.setCode,
-    twoFactorError: twoFactorChallenge.error,
-    twoFactorSubmitting: twoFactorChallenge.submitting,
-    submitTwoFactorCode: twoFactorChallenge.submit,
-    cancelTwoFactor: twoFactorChallenge.cancel,
+    challenge: {
+      cancel: twoFactorChallenge.cancel,
+      code: twoFactorChallenge.code,
+      error: twoFactorChallenge.error,
+      pending: twoFactorChallenge.pending,
+      setCode: twoFactorChallenge.setCode,
+      submit: twoFactorChallenge.submit,
+      submitting: twoFactorChallenge.submitting,
+    },
   };
 }

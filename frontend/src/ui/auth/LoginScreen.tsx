@@ -30,13 +30,7 @@ export function LoginScreen({
     setup,
     submit,
     submitting,
-    pendingTwoFactor,
-    twoFactorCode,
-    setTwoFactorCode,
-    twoFactorError,
-    twoFactorSubmitting,
-    submitTwoFactorCode,
-    cancelTwoFactor,
+    challenge,
   } = useLocalAuthController({ mode, adminEmail, onSuccess });
   const title = mode === "claim"
     ? "Create your admin account"
@@ -51,16 +45,16 @@ export function LoginScreen({
         ? "The existing administrator must sign in with Google once, then create a local password."
         : "Administrators use their local password. Invited users sign in with Google.";
 
-  if (pendingTwoFactor) {
+  if (challenge.pending) {
     return (
       <div class="app-shell overflow-y-auto grid place-items-center bg-[#090b0f] text-ink-100 p-5">
         <TwoFactorChallengeStep
-          code={twoFactorCode}
-          error={twoFactorError}
-          submitting={twoFactorSubmitting}
-          onCodeChange={setTwoFactorCode}
-          onSubmit={submitTwoFactorCode}
-          onCancel={cancelTwoFactor}
+          code={challenge.code}
+          error={challenge.error}
+          submitting={challenge.submitting}
+          onCodeChange={challenge.setCode}
+          onSubmit={challenge.submit}
+          onCancel={challenge.cancel}
         />
       </div>
     );
