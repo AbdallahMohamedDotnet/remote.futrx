@@ -59,6 +59,15 @@ test("keeps skill-only chat upserts instead of dropping them as unchanged", () =
   assert.notEqual(cleared, current);
   assert.equal(cleared[0].selectedSkills, undefined);
 
+  // The chip renders `name || command`, so a rename under a stable command has
+  // to reach the list or the old label stays on screen.
+  const renamed = workspaceDataProjector.upsertChat(current, {
+    ...current[0],
+    selectedSkills: [{ name: "Browser", command: "browser", provider: "claude", source: "builtin" }],
+  });
+  assert.notEqual(renamed, current);
+  assert.equal(renamed[0].selectedSkills?.[0].name, "Browser");
+
   const swapped = workspaceDataProjector.upsertChat(current, {
     ...current[0],
     selectedSkills: [{ name: "run", command: "run", provider: "claude", source: "builtin" }],

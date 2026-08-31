@@ -101,11 +101,16 @@ class WorkspaceDataProjector {
     return leftSkills.every((skill, index) => this.sameSkill(skill, rightSkills[index]));
   }
 
+  // `name` is compared in its own right rather than behind `command`: the chip
+  // renders `name || command`, so a skill renamed under a stable command is a
+  // visible change, and folding the two together would leave the old label on
+  // screen -- the same staleness this comparison exists to prevent.
   private sameSkill(left: SelectedSkill, right: SelectedSkill): boolean {
     return (
+      left.name === right.name &&
+      (left.command ?? "") === (right.command ?? "") &&
       (left.provider ?? "") === (right.provider ?? "") &&
-      (left.source ?? "") === (right.source ?? "") &&
-      (left.command ?? left.name) === (right.command ?? right.name)
+      (left.source ?? "") === (right.source ?? "")
     );
   }
 
