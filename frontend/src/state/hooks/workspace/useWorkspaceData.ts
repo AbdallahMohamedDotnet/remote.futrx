@@ -23,6 +23,16 @@ export function useWorkspaceData(enabled: boolean) {
     return workspaceApi.subscribe(applyWorkspaceMessage);
   }, [enabled]);
 
+  // A chat created or forked from this client exists on the server before its
+  // `chat.upsert` reaches us. Seeding it locally closes that window: without it
+  // the freshly selected chat reads as missing from the list and the handover
+  // effect bounces the selection back to the chat the user came from. It takes
+  // the same door the server's own upsert takes, so the list has one projection
+  // path and an early arrival is indistinguishable from the message it beat.
+  function seedChat(chat: ChatMeta) {
+    applyWorkspaceMessage({ type: "chat.upsert", chat });
+  }
+
   function applyWorkspaceMessage(message: WorkspaceMessage) {
     switch (message.type) {
       case "workspace.snapshot":
@@ -51,5 +61,6 @@ export function useWorkspaceData(enabled: boolean) {
     chats,
     projects,
     loaded,
+    seedChat,
   };
 }

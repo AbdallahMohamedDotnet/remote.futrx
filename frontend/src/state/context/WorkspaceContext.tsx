@@ -119,6 +119,7 @@ export function WorkspaceProvider({
       ...(projectId ? { projectId } : {}),
     };
     const chat = await chatApi.create(input);
+    data.seedChat(chat);
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
   }
@@ -129,6 +130,7 @@ export function WorkspaceProvider({
 
   async function forkChat(chatId: string): Promise<ChatMeta> {
     const chat = await chatApi.fork(chatId);
+    data.seedChat(chat);
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
   }
