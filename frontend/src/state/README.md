@@ -61,11 +61,8 @@ and keeps store models and fixed configuration in their existing layers.
 **Global state is read only through `hooks/`.** Nothing in `ui/` or `app/` may
 subscribe to or read from a store — a store outlives the component tree, so a
 direct read misses every later change and never re-renders. Hooks select narrow,
-stable values with `useZustandStore`, the Preact-native adapter in `hooks/`.
-Do not import the React-oriented `useStore` from bare `zustand`: this app renders
-with Preact, and loading the React compatibility subscription layer can corrupt
-the render tree. `hooks/` and `context/` are the only reactive importers of
-`stores/`.
+stable values with Zustand's `useStore`; `hooks/` and `context/` are the only
+reactive importers of `stores/`.
 
 This is about *global* state, not all state. Roughly half the hooks here own
 something local — a date range, a textarea's height, a drag in progress — and
@@ -125,9 +122,7 @@ and action callback. This store boundary does not move those unrelated types.
 Beside the module they test, which now means throughout `state/` rather than in
 one folder. `hooks/` and `context/` still have no test for a hook or a
 component — there is no harness in this repo, so the compiler and the build are
-the only net for those. `zustandBindingArchitecture.test.ts` is a source guard,
-not a hook test: it prevents runtime code from bypassing the Preact adapter and
-loading Zustand's React binding again.
+the only net for those.
 
 That is still the reason to pull a rule out of a hook: `promptQueueState.ts`
 has a test and `usePromptQueue.ts` cannot. When a hook grows a fallback, a

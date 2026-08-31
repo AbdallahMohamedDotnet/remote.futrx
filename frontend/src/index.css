@@ -172,6 +172,7 @@ html[data-theme="light"] {
     overflow: hidden;
   }
   .touch-scroll {
+    -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     overscroll-behavior-y: contain;
   }
