@@ -9,10 +9,11 @@ import (
 )
 
 type authTestStore struct {
-	local     *LocalAdminCredential
-	oauth     OAuthConfig
-	key       []byte
-	deleteErr error
+	local      *LocalAdminCredential
+	oauth      OAuthConfig
+	key        []byte
+	deleteErr  error
+	setupToken *SetupTokenRecord
 }
 
 func (s *authTestStore) OAuthConfig(context.Context) (OAuthConfig, error) {
@@ -56,6 +57,20 @@ func (s *authTestStore) DeleteLocalAdmin(ctx context.Context, expected LocalAdmi
 	s.local = nil
 	return nil
 }
+func (s *authTestStore) SetupToken(context.Context) (*SetupTokenRecord, error) {
+	return s.setupToken, nil
+}
+
+func (s *authTestStore) SaveSetupToken(_ context.Context, record SetupTokenRecord) error {
+	s.setupToken = &record
+	return nil
+}
+
+func (s *authTestStore) DeleteSetupToken(context.Context) error {
+	s.setupToken = nil
+	return nil
+}
+
 func (s *authTestStore) SessionKey(context.Context) ([]byte, error) { return s.key, nil }
 
 type authTestUsers struct {
