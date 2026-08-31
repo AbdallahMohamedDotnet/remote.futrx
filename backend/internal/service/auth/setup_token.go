@@ -1,0 +1,121 @@
+package auth
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"time"
+)
+
+const (
+	// setupTokenBytes is the entropy behind the printed token. At 32 bytes the
+	// token is not guessable, so the rate limit in front of the claim endpoint
+	// is defence in depth rather than the thing standing between an attacker
+	// and the credential.
+	setupTokenBytes = 32
+	// defaultSetupTokenTTL bounds how long a printed token stays usable, so a
+	// token left in scrollback or a terminal log stops mattering fairly soon.
+	defaultSetupTokenTTL = 30 * time.Minute
+)
+
+var (
+	// ErrSetupTokenRequired is returned for every rejected token - missing,
+	// wrong, expired, or already used. They deliberately share one error so a
+	// caller cannot probe the difference.
+	ErrSetupTokenRequired = errors.New("a valid setup token is required; run: remote setup-token")
+	// ErrSetupTokenUnavailable means the token state could not be read or
+	// written. Claims fail closed on it rather than falling through.
+	ErrSetupTokenUnavailable = errors.New("setup token state is unavailable")
+)
+
+// SetupTokenGuard owns the first-boot setup token: it issues one, checks a
+// presented token against the stored hash, and marks it used. All state lives
+// in the store rather than in memory, so a token issued by the CLI in a
+// separate process is honoured by the already-running server without a
+// restart.
+type SetupTokenGuard struct {
+	store SetupTokenStore
+	ttl   time.Duration
+	now   func() time.Time
+}
+
+func newSetupTokenGuard(store SetupTokenStore, ttl time.Duration, now func() time.Time) *SetupTokenGuard {
+	if ttl <= 0 {
+		ttl = defaultSetupTokenTTL
+	}
+	if now == nil {
+		now = time.Now
+	}
+	return &SetupTokenGuard{store: store, ttl: ttl, now: now}
+}
+
+// Issue generates a token, persists only its hash, and returns the plaintext.
+// That return value is the single moment the token exists anywhere outside the
+// terminal it gets printed to; it is never stored and never sent over HTTP.
+func (g *SetupTokenGuard) Issue(ctx context.Context) (string, error) {
+	raw := make([]byte, setupTokenBytes)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("generate setup token: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	record := SetupTokenRecord{
+		Hash:      hashSetupToken(token),
+		ExpiresAt: g.now().Add(g.ttl),
+	}
+	if err := g.store.SaveSetupToken(ctx, record); err != nil {
+		return "", fmt.Errorf("%w: %w", ErrSetupTokenUnavailable, err)
+	}
+	return token, nil
+}
+
+// Verify accepts presented only when it matches the stored hash and is neither
+// expired nor already used. It does not mutate anything: the token is spent by
+// Consume, and only once the claim it authorised has actually succeeded.
+func (g *SetupTokenGuard) Verify(ctx context.Context, presented string) error {
+	if presented == "" {
+		return ErrSetupTokenRequired
+	}
+	record, err := g.store.SetupToken(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrSetupTokenUnavailable, err)
+	}
+	if record == nil || record.Used || g.now().After(record.ExpiresAt) {
+		return ErrSetupTokenRequired
+	}
+	expected := []byte(record.Hash)
+	actual := []byte(hashSetupToken(presented))
+	if subtle.ConstantTimeCompare(expected, actual) != 1 {
+		return ErrSetupTokenRequired
+	}
+	return nil
+}
+
+// Consume marks the stored token used, which is what makes a token work
+// exactly once even while it is still unexpired.
+func (g *SetupTokenGuard) Consume(ctx context.Context) error {
+	record, err := g.store.SetupToken(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrSetupTokenUnavailable, err)
+	}
+	if record == nil {
+		return nil
+	}
+	record.Used = true
+	if err := g.store.SaveSetupToken(ctx, *record); err != nil {
+		return fmt.Errorf("%w: %w", ErrSetupTokenUnavailable, err)
+	}
+	return nil
+}
+
+// hashSetupToken reduces a token to what gets persisted. A plain digest is the
+// right tool here, unlike for passwords: the token carries a full 32 bytes of
+// entropy, so there is no dictionary to slow an attacker down with.
+func hashSetupToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
