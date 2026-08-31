@@ -1,4 +1,4 @@
-import type { ChatMeta } from "../../models/chat";
+import type { ChatMeta, SelectedSkill } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 
 class WorkspaceDataProjector {
@@ -78,12 +78,31 @@ class WorkspaceDataProjector {
         left.mode !== right.mode ||
         left.reasoningEffort !== right.reasoningEffort ||
         left.serviceTier !== right.serviceTier ||
-        left.projectId !== right.projectId
+        left.projectId !== right.projectId ||
+        !this.sameSkills(left.selectedSkills, right.selectedSkills)
       ) {
         return false;
       }
     }
     return true;
+  }
+
+  // A skill-only upsert carries no other field change, so leaving skills out
+  // of this comparison made the projector keep the stale chat and drop the
+  // update: removing a chip left it on screen until the chat was reopened.
+  private sameSkills(
+    left: SelectedSkill[] | undefined,
+    right: SelectedSkill[] | undefined
+  ): boolean {
+    if (left === right) return true;
+    const leftSkills = left ?? [];
+    const rightSkills = right ?? [];
+    if (leftSkills.length !== rightSkills.length) return false;
+    return leftSkills.every((skill, index) => this.skillKey(skill) === this.skillKey(rightSkills[index]));
+  }
+
+  private skillKey(skill: SelectedSkill): string {
+    return `${skill.provider ?? ""}\u0000${skill.source ?? ""}\u0000${skill.command ?? skill.name}`;
   }
 
   private sameStringRecord(
