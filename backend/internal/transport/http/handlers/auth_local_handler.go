@@ -138,10 +138,18 @@ func (l *localLoginLimiter) Success(key string) {
 	l.mu.Unlock()
 }
 
+// localClientIP returns the client address our own reverse proxy observed.
+// Caddy fronts the backend on loopback and appends the peer address to any
+// X-Forwarded-For the caller supplied, so the rightmost entry is the last hop
+// we vouch for; every entry left of it is caller-controlled and must never key
+// a rate limiter. Falls back to the peer address for direct (unproxied) access.
 func localClientIP(r *http.Request) string {
-	ip := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0])
-	if ip == "" {
-		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		hops := strings.Split(forwarded, ",")
+		if ip := strings.TrimSpace(hops[len(hops)-1]); ip != "" {
+			return ip
+		}
 	}
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	return ip
 }
