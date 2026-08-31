@@ -95,13 +95,21 @@ class WorkspaceDataProjector {
     const leftSkills = left ?? [];
     const rightSkills = right ?? [];
     if (leftSkills.length !== rightSkills.length) return false;
-    return leftSkills.every((skill, index) => {
-      const candidate = rightSkills[index];
-      return skill.name === candidate.name &&
-        skill.command === candidate.command &&
-        skill.provider === candidate.provider &&
-        skill.source === candidate.source;
-    });
+
+    const key = (skill: SelectedSkill): string => {
+      const provider = (skill.provider ?? "").trim().toLowerCase();
+      const command = (skill.command ?? skill.name).trim().toLowerCase();
+      const source = command === "scheduled-tasks"
+        ? "remote"
+        : (skill.source ?? "").trim().toLowerCase();
+      const name = skill.name.trim();
+      return `${provider}:${source}:${command}:${name}`;
+    };
+
+    for (let index = 0; index < leftSkills.length; index++) {
+      if (key(leftSkills[index]) !== key(rightSkills[index])) return false;
+    }
+    return true;
   }
 
   private sameStringRecord(
