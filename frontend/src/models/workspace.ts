@@ -28,10 +28,10 @@ export interface WorkspaceStoreActions {
 }
 
 /** What `useWorkspaceData` hands back: the snapshot, plus the one write a
- *  caller is allowed to make against it. */
-export interface WorkspaceFeed extends WorkspaceSnapshot {
-  seedChat: (chat: ChatMeta) => void;
-}
+ *  caller is allowed to make against it. Picked from the store's actions rather
+ *  than restated, so the two cannot drift. */
+export interface WorkspaceFeed
+  extends WorkspaceSnapshot, Pick<WorkspaceStoreActions, "seedChat"> {}
 
 export type WorkspaceView = "chat" | "settings" | "project-containers";
 
