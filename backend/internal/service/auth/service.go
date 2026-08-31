@@ -125,6 +125,24 @@ func (s *Service) IssueSetupToken(ctx context.Context) (string, error) {
 	return s.setupTokens.Issue(ctx)
 }
 
+// EnsureSetupToken issues a token when the server still has no local admin,
+// and returns an empty string once it has one. Startup calls this on every
+// boot: an unclaimed server therefore rotates its token each restart, so
+// anything that leaked beforehand is already dead, while a configured server
+// never prints a setup URL at all.
+func (s *Service) EnsureSetupToken(ctx context.Context) (string, error) {
+	if s.LocalAdminConfigured() {
+		return "", nil
+	}
+	return s.setupTokens.Issue(ctx)
+}
+
+// SetupTokenTTL is how long a freshly issued setup token stays valid, so the
+// terminal message can state the real deadline rather than a guess.
+func (s *Service) SetupTokenTTL() time.Duration {
+	return s.setupTokens.ttl
+}
+
 func (s *Service) ClaimLocalAdmin(ctx context.Context, req ClaimRequest) (User, error) {
 	return s.local.claim(ctx, req)
 }

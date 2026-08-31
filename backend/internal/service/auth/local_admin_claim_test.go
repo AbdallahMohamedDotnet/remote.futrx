@@ -159,3 +159,52 @@ func TestClaimFailsClosedWhenTokenStoreIsUnreadable(t *testing.T) {
 		t.Fatal("a claim succeeded while the token gate was unreadable")
 	}
 }
+
+// Startup calls EnsureSetupToken on every boot. While unclaimed that rotates
+// the token, so one printed before a restart is already dead.
+func TestEnsureSetupTokenRotatesOnEveryUnclaimedStart(t *testing.T) {
+	store := &authTestStore{}
+	users := newAuthTestUsers()
+	service := newAuthTestService(t, store, users, User{})
+
+	first, err := service.EnsureSetupToken(context.Background())
+	if err != nil || first == "" {
+		t.Fatalf("first EnsureSetupToken = %q, %v", first, err)
+	}
+	second, err := service.EnsureSetupToken(context.Background())
+	if err != nil || second == "" {
+		t.Fatalf("second EnsureSetupToken = %q, %v", second, err)
+	}
+	if first == second {
+		t.Fatal("a restart reused the previous setup token instead of rotating it")
+	}
+
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{
+		Email: "admin@example.com", Password: claimTestPassword, SetupToken: first,
+	}); !errors.Is(err, ErrSetupTokenRequired) {
+		t.Fatalf("claim with the pre-restart token = %v, want ErrSetupTokenRequired", err)
+	}
+}
+
+// A configured server must never print a setup URL again, which would both
+// confuse the operator and put a live token in the log of a running system.
+func TestEnsureSetupTokenIssuesNothingOnceClaimed(t *testing.T) {
+	store := &authTestStore{}
+	users := newAuthTestUsers()
+	service := newAuthTestService(t, store, users, User{})
+	token := issueSetupTokenForTest(t, service)
+
+	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{
+		Email: "admin@example.com", Password: claimTestPassword, SetupToken: token,
+	}); err != nil {
+		t.Fatalf("ClaimLocalAdmin: %v", err)
+	}
+
+	issued, err := service.EnsureSetupToken(context.Background())
+	if err != nil {
+		t.Fatalf("EnsureSetupToken after claim: %v", err)
+	}
+	if issued != "" {
+		t.Fatal("a claimed server issued a fresh setup token on restart")
+	}
+}
