@@ -1,9 +1,7 @@
 import { useLocalAuthController } from "../../state/hooks/auth/useLocalAuthController";
-import type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
+import type { LoginMode } from "../../models/auth";
 import { Key, Loader, MessageSquare } from "../primitives/icons";
 import { TwoFactorChallengeStep } from "./TwoFactorChallengeStep";
-
-export type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
 
 export function LoginScreen({
   mode,

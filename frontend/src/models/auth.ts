@@ -51,3 +51,6 @@ export interface AgentAuthProvider {
 export interface AgentAuthCatalog {
   providers: AgentAuthProvider[];
 }
+
+/** Which question the local login screen is asking. */
+export type LoginMode = "claim" | "login" | "legacy-setup";
