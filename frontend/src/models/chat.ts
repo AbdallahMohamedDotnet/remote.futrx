@@ -1,3 +1,6 @@
+import type { ChatMessageBlock } from "./chatMessage";
+import type { ChatUsagePayload, ChatUsageTotals } from "./chatUsage";
+
 // Provider identifiers come from the backend module catalog. Built-in string
 // literals remain valid, but future modules do not require a frontend type edit.
 export type ChatProvider = string;
@@ -69,15 +72,7 @@ export type ChatEvent = ChatEventBase & (
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
   | { type: "system"; subtype: string; data?: Record<string, unknown> }
   | { type: "session"; provider?: ChatProvider; sessionId?: string; claudeSessionId?: string; codexSessionId?: string; kimiSessionId?: string; antigravitySessionId?: string }
-  | {
-      type: "complete";
-      usage?: {
-        input_tokens?: number;
-        output_tokens?: number;
-        cache_read_input_tokens?: number;
-        cache_creation_input_tokens?: number;
-      };
-    }
+  | { type: "complete"; usage?: ChatUsagePayload }
   | { type: "error"; message: string }
   | { type: "sync"; running?: boolean }
 );
@@ -102,6 +97,23 @@ export interface QueuedPrompt {
   id: string;
   text: string;
   preferences: PromptExecutionPreferences;
+}
+
+export type ComposerSessionStorage = Pick<Storage, "getItem" | "setItem">;
+
+export interface PersistedComposerSession {
+  drafts: Record<string, string>;
+  queues: Record<string, QueuedPrompt[]>;
+}
+
+export interface ChatComposerSessionStoreState {
+  drafts: ReadonlyMap<string, string>;
+  promptQueues: ReadonlyMap<string, QueuedPrompt[]>;
+}
+
+export interface ChatComposerSessionStoreActions {
+  setDraft: (chatId: string, text: string) => void;
+  setQueuedPrompts: (chatId: string, prompts: QueuedPrompt[]) => void;
 }
 
 // Server verdict on a prompt sent with a clientId. Retryable busy rejections
@@ -135,4 +147,25 @@ export interface UpdateChatInput {
   reasoningEffort?: ReasoningEffort;
   serviceTier?: ServiceTier;
   selectedSkills?: SelectedSkill[];
+}
+
+/** A chat's transcript as the thread renders it, plus where the next older
+ *  page starts. */
+export interface ChatRenderState {
+  events: ChatEvent[];
+  blocks: ChatMessageBlock[];
+  usageTotals: ChatUsageTotals;
+  eventCount: number;
+  hasOlder: boolean;
+  nextBefore: number;
+}
+
+/** A chat with every agent preference settled against the loaded detail and
+ *  the account defaults, so no reader has to repeat the fallback chain. */
+export interface ResolvedChatMeta extends ChatMeta {
+  provider: ChatProvider;
+  model: string;
+  mode: ChatMode;
+  reasoningEffort: ReasoningEffort;
+  serviceTier: ServiceTier;
 }

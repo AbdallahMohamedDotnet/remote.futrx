@@ -9,7 +9,7 @@ import {
 } from "../../models/settings";
 import { settingsApi } from "../../api/settingsApi";
 import { DEFAULT_USER_SETTINGS } from "../../config/settings";
-import { appearanceThemeState } from "../settings/appearanceThemeState";
+import { appearanceThemeState } from "./appearanceThemeState";
 
 interface UserSettingsContextValue {
   settings: UserSettings;
@@ -39,12 +39,18 @@ function settingsFromCachedAppearance(): UserSettings {
 }
 
 export function UserSettingsProvider({ children }: { children: ComponentChildren }) {
+  ////////////////
+  // Local State
+  ////////////////
   const { gateOpen } = useAuthContext();
   const [settings, setSettings] = useState<UserSettings>(settingsFromCachedAppearance);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  ////////////////
+  // Handlers
+  ////////////////
   const refresh = useCallback(async () => {
     if (!gateOpen) {
       setSettings(settingsFromCachedAppearance());
@@ -63,15 +69,6 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
       setLoading(false);
     }
   }, [gateOpen]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    appearanceThemeState.apply(settings.appearance.theme);
-    return appearanceThemeState.observeSystemChanges(settings.appearance.theme);
-  }, [settings.appearance.theme]);
 
   const setTheme = useCallback(async (theme: AppearanceTheme) => {
     const previous = settings;
@@ -103,6 +100,21 @@ export function UserSettingsProvider({ children }: { children: ComponentChildren
     }
   }, [settings]);
 
+  ////////////////
+  // Effects
+  ////////////////
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    appearanceThemeState.apply(settings.appearance.theme);
+    return appearanceThemeState.observeSystemChanges(settings.appearance.theme);
+  }, [settings.appearance.theme]);
+
+  ////////////////
+  // Context Value
+  ////////////////
   const value = useMemo<UserSettingsContextValue>(() => ({
     settings,
     loading,

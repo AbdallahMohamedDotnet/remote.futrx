@@ -1,29 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
+import { CHAT_EVENT_PAGE_LIMIT } from "../../../config/api.ts";
 import type { ChatStream } from "../../../types/chatApi";
 import type {
   ChatEvent,
   ChatEventPage,
   ChatMeta,
+  ChatRenderState,
   ChatStatus,
   InteractionAnswers,
   PromptExecutionPreferences,
   PromptOutcome,
 } from "../../../models/chat";
-import {
-  chatEventStateProjector,
-  type ChatRenderState,
-} from "../../chat/chatEventStateProjector";
+import { chatEventStateProjector } from "./chatEventStateProjector";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
-import type { ChatUsageTotals } from "../../../models/chatUsage";
-import { canSendInteractionResponse } from "../../chat/chatInteractionState";
-
-const CHAT_EVENT_PAGE_LIMIT = 240;
+import { canSendInteractionResponse } from "./chatInteractionState";
 
 interface UseChatResult {
   meta: ChatMeta | null;
   blocks: ChatMessageBlock[];
-  usageTotals: ChatUsageTotals;
   eventCount: number;
   hasOlder: boolean;
   loadingOlder: boolean;
@@ -68,15 +63,21 @@ export function useChat(chatId: string): UseChatResult {
   const pendingFrameRef = useRef<number | null>(null);
   const lastSeqRef = useRef(0);
 
-  function clearPendingEvents() {
+  // The batcher reaches state only through refs and setState updaters, so these
+  // three close over nothing that can go stale and take no dependencies. They
+  // are wrapped because callers already capture them: rewind's useCallback
+  // below pins whichever clearPendingEvents existed when it was created, and
+  // chatId never changes for a given instance (ChatContainer is keyed on it and
+  // remounts), so that capture lasts the whole session.
+  const clearPendingEvents = useCallback(() => {
     if (pendingFrameRef.current !== null) {
       cancelAnimationFrame(pendingFrameRef.current);
       pendingFrameRef.current = null;
     }
     pendingEventsRef.current = [];
-  }
+  }, []);
 
-  function flushPendingEvents() {
+  const flushPendingEvents = useCallback(() => {
     pendingFrameRef.current = null;
     const events = pendingEventsRef.current;
     if (events.length === 0) return;
@@ -87,14 +88,14 @@ export function useChat(chatId: string): UseChatResult {
     );
     setRenderState((current) => chatEventStateProjector.append(current, events));
     setStatus((current) => chatEventStateProjector.statusAfter(events[events.length - 1], current));
-  }
+  }, []);
 
-  function enqueueEvent(event: ChatEvent) {
+  const enqueueEvent = useCallback((event: ChatEvent) => {
     pendingEventsRef.current.push(event);
     if (pendingFrameRef.current === null) {
       pendingFrameRef.current = requestAnimationFrame(flushPendingEvents);
     }
-  }
+  }, [flushPendingEvents]);
 
   // Load metadata when chat id changes.
   useEffect(() => {
@@ -282,7 +283,6 @@ export function useChat(chatId: string): UseChatResult {
   return {
     meta,
     blocks: renderState.blocks,
-    usageTotals: renderState.usageTotals,
     eventCount: renderState.eventCount,
     hasOlder: renderState.hasOlder,
     loadingOlder,

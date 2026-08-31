@@ -16,7 +16,10 @@ stateDiagram-v2
     CheckServerClaim --> ClaimAdmin: server is unclaimed
     CheckServerClaim --> SignIn: server is claimed
     ClaimAdmin --> CheckLocalAdmin: admin creates email and password
-    SignIn --> CheckLocalAdmin: valid local or Google session
+    SignIn --> CheckTwoFactor: valid password or Google credentials
+    CheckTwoFactor --> TwoFactorChallenge: account has 2FA enabled
+    CheckTwoFactor --> CheckLocalAdmin: account has no 2FA record
+    TwoFactorChallenge --> CheckLocalAdmin: correct authenticator code or recovery code
     CheckLocalAdmin --> WaitForAdmin: legacy admin password setup is incomplete
     CheckLocalAdmin --> CheckProvider: local admin is configured
     CheckProvider --> ConnectProvider: no gate-eligible module is ready and caller is admin
@@ -34,6 +37,10 @@ cannot be gate providers because Remote has no authoritative status signal.
 `GET /api/agent-auth`, normalized `/ws/agent-auth/<provider>` streams, and
 legacy provider-auth routes are exempt from the final check so onboarding can
 finish.
+
+The `CheckTwoFactor`/`TwoFactorChallenge` step only exists for accounts that
+have opted into TOTP 2FA (see below); every other account skips straight from
+`SignIn` to `CheckLocalAdmin`, unchanged from before 2FA existed.
 
 ## Identities and roles
 
@@ -65,6 +72,21 @@ sequenceDiagram
 ```
 
 The first claim is public only while no admin exists. A legacy installation that already has an administrator identity but no password requires authorization by that existing admin.
+
+## Two-factor authentication
+
+From Settings → Security, any account (local admin or invited user) can independently turn on:
+
+| Toggle | Effect | Depends on |
+| --- | --- | --- |
+| **Two-factor authentication (TOTP)** | Password/Google login returns a pending challenge instead of a session; `POST /auth/2fa/verify` (a 6-digit authenticator code, or an unused recovery code) completes it | Nothing |
+| **Single active session** | A new login immediately supersedes the account's previous session | Nothing — works with or without 2FA |
+| **Sign-in history** | Every login (bounded, newest-first) is recorded and shown in the Security tab | Nothing — works with or without 2FA |
+| **Recovery-code alert** | A login completed with a recovery code (instead of a normal authenticator code) sets an alert shown on `/auth/me` until acknowledged | Two-factor authentication must already be on — recovery codes only exist once 2FA is enrolled |
+
+Enrollment issues a TOTP secret (shown as a QR code and as text for manual entry), confirms one code from the user's authenticator app, and returns ten one-time recovery codes shown exactly once. Confirming enrollment, or turning on single active session, re-issues the browser's *current* session as tracked in the same response, so the tab that just made the change is never immediately treated as "the other device."
+
+An account that leaves all four toggles off — the default for every account, including ones that predate this feature — sees byte-for-byte the same login flow, session cookie, and `/auth/me` response as before any of this existed.
 
 ## Invited user flow
 
@@ -182,5 +204,8 @@ sequenceDiagram
 - Agent-auth handler: [`backend/internal/transport/http/handlers/agent_auth_handler.go`](../../backend/internal/transport/http/handlers/agent_auth_handler.go)
 - Auth middleware: [`backend/internal/transport/http/middleware/auth.go`](../../backend/internal/transport/http/middleware/auth.go)
 - Auth service: [`backend/internal/service/auth/service.go`](../../backend/internal/service/auth/service.go)
+- TOTP/recovery-code sub-component: [`backend/internal/service/auth/twofactor.go`](../../backend/internal/service/auth/twofactor.go)
+- Session registry (single-session, history, alert): [`backend/internal/service/auth/session_registry.go`](../../backend/internal/service/auth/session_registry.go)
+- 2FA challenge and Security-tab handlers: [`backend/internal/transport/http/handlers/auth_twofactor_handler.go`](../../backend/internal/transport/http/handlers/auth_twofactor_handler.go), [`backend/internal/transport/http/handlers/security_handler.go`](../../backend/internal/transport/http/handlers/security_handler.go)
 - User service: [`backend/internal/service/user/service.go`](../../backend/internal/service/user/service.go)
 - Access adapter: [`backend/internal/transport/transport.go`](../../backend/internal/transport/transport.go)
