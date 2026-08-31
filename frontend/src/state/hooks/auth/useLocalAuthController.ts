@@ -1,8 +1,8 @@
 import { useState } from "preact/hooks";
 import { localAuthApi } from "../../../api/authApi";
-import { returnUrlPolicy } from "../../auth/returnUrlPolicy";
-
-export type LoginMode = "claim" | "login" | "legacy-setup";
+import { MIN_LOCAL_PASSWORD_LENGTH } from "../../../config/auth";
+import type { LoginMode } from "../../../models/auth";
+import { returnUrlPolicy } from "./returnUrlPolicy";
 
 interface LocalAuthControllerOptions {
   mode: LoginMode;
@@ -15,10 +15,9 @@ export function useLocalAuthController({
   adminEmail,
   onSuccess,
 }: LocalAuthControllerOptions) {
-  const params = new URLSearchParams(location.search);
-  const oauthError = params.get("error");
-  const errorEmail = params.get("email") ?? "";
-  const returnTo = returnUrlPolicy.safeTarget(params.get("return_to") ?? "", location.origin);
+  ////////////////
+  // Local State
+  ////////////////
   const [email, setEmail] = useState(mode === "legacy-setup" ? adminEmail : "");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -26,6 +25,17 @@ export function useLocalAuthController({
   const [error, setError] = useState<string | null>(null);
   const setup = mode === "claim" || mode === "legacy-setup";
 
+  ////////////////
+  // Global State
+  ////////////////
+  const params = new URLSearchParams(location.search);
+  const oauthError = params.get("error");
+  const errorEmail = params.get("email") ?? "";
+  const returnTo = returnUrlPolicy.safeTarget(params.get("return_to") ?? "", location.origin);
+
+  ////////////////
+  // Handlers
+  ////////////////
   async function submit(event: Event) {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
@@ -37,8 +47,8 @@ export function useLocalAuthController({
       setError("Passwords do not match.");
       return;
     }
-    if (setup && password.length < 12) {
-      setError("Use at least 12 characters.");
+    if (setup && password.length < MIN_LOCAL_PASSWORD_LENGTH) {
+      setError(`Use at least ${MIN_LOCAL_PASSWORD_LENGTH} characters.`);
       return;
     }
 
