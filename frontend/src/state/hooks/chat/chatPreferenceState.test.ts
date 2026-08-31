@@ -30,6 +30,7 @@ test("preserves normalized skill identity and chat defaults", () => {
       mode: "default",
       reasoningEffort: "high",
       serviceTier: "priority",
+      selectedSkills: [],
     }
   );
 });
@@ -90,6 +91,40 @@ test("prefers live workspace selections from another client", () => {
   assert.equal(resolved.mode, "plan");
   assert.equal(resolved.reasoningEffort, "high");
   assert.equal(resolved.serviceTier, "fast");
+});
+
+test("does not restore stale detail skills after a live workspace removal", () => {
+  const resolved = chatPreferenceState.resolveMeta(
+    {
+      id: "chat",
+      title: "Chat",
+      createdAt: 1,
+      lastMessageAt: 1,
+      provider: "codex",
+    },
+    {
+      id: "chat",
+      title: "Chat",
+      createdAt: 1,
+      lastMessageAt: 1,
+      provider: "codex",
+      selectedSkills: [{
+        name: "Code Refactorer",
+        command: "code-refactorer",
+        provider: "codex",
+        source: "project",
+      }],
+    },
+    {
+      provider: "codex",
+      model: "",
+      mode: "default",
+      reasoningEffort: "",
+      serviceTier: "",
+    },
+  );
+
+  assert.deepEqual(resolved.selectedSkills, []);
 });
 
 test("preserves an explicit per-chat Auto selection", () => {

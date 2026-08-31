@@ -14,7 +14,7 @@ class ChatPreferenceState {
     defaults: ChatSettings
   ): ResolvedChatMeta {
     const baseMeta = loadedMeta ?? chat;
-    const selectedSkills = chat.selectedSkills ?? baseMeta.selectedSkills;
+    const selectedSkills = chat.selectedSkills ?? [];
     return {
       ...baseMeta,
       // Workspace chat upserts are the live cross-client source. Prefer their
@@ -26,7 +26,7 @@ class ChatPreferenceState {
       reasoningEffort:
         chat.reasoningEffort ?? baseMeta.reasoningEffort ?? defaults.reasoningEffort,
       serviceTier: chat.serviceTier ?? baseMeta.serviceTier ?? defaults.serviceTier,
-      ...(selectedSkills !== undefined ? { selectedSkills } : {}),
+      selectedSkills,
     };
   }
 
