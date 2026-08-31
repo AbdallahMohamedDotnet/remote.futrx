@@ -1,4 +1,4 @@
-import type { ChatMeta } from "../../models/chat";
+import type { ChatMeta, SelectedSkill } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 
 class WorkspaceDataProjector {
@@ -78,12 +78,30 @@ class WorkspaceDataProjector {
         left.mode !== right.mode ||
         left.reasoningEffort !== right.reasoningEffort ||
         left.serviceTier !== right.serviceTier ||
-        left.projectId !== right.projectId
+        left.projectId !== right.projectId ||
+        !this.sameSelectedSkills(left.selectedSkills, right.selectedSkills)
       ) {
         return false;
       }
     }
     return true;
+  }
+
+  private sameSelectedSkills(
+    left: SelectedSkill[] | undefined,
+    right: SelectedSkill[] | undefined
+  ): boolean {
+    if (left === right) return true;
+    const leftSkills = left ?? [];
+    const rightSkills = right ?? [];
+    if (leftSkills.length !== rightSkills.length) return false;
+    return leftSkills.every((skill, index) => {
+      const candidate = rightSkills[index];
+      return skill.name === candidate.name &&
+        skill.command === candidate.command &&
+        skill.provider === candidate.provider &&
+        skill.source === candidate.source;
+    });
   }
 
   private sameStringRecord(

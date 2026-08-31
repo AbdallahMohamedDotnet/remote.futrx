@@ -32,3 +32,40 @@ test("detects generic and legacy provider session changes", () => {
   }], current);
   assert.notEqual(legacyChanged, current);
 });
+
+test("detects selected-skill removal from a workspace upsert", () => {
+  const current: ChatMeta[] = [{
+    id: "chat",
+    title: "Chat",
+    createdAt: 1,
+    lastMessageAt: 1,
+    selectedSkills: [{
+      name: "Code Refactorer",
+      command: "code-refactorer",
+      provider: "codex",
+      source: "project",
+    }],
+  }];
+  const { selectedSkills: _selectedSkills, ...withoutSelectedSkills } = current[0];
+
+  const removed = workspaceDataProjector.upsertChat(current, withoutSelectedSkills);
+
+  assert.notEqual(removed, current);
+  assert.equal(removed[0].selectedSkills, undefined);
+});
+
+test("treats omitted and empty selected-skill collections as equivalent", () => {
+  const current: ChatMeta[] = [{
+    id: "chat",
+    title: "Chat",
+    createdAt: 1,
+    lastMessageAt: 1,
+  }];
+
+  const same = workspaceDataProjector.upsertChat(current, {
+    ...current[0],
+    selectedSkills: [],
+  });
+
+  assert.equal(same, current);
+});
