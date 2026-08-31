@@ -29,15 +29,24 @@ export function LoginScreen({
     setEmail,
     setPassword,
     setup,
+    setupToken,
     submit,
     submitting,
   } = useLocalAuthController({ mode, adminEmail, onSuccess });
-  const title = mode === "claim"
+  // A first-boot claim is authorised solely by the token printed to the
+  // server terminal. Without one there is nothing to submit, so offer the
+  // instructions rather than a form that can only be rejected.
+  const awaitingSetupToken = mode === "claim" && !setupToken;
+  const title = awaitingSetupToken
+    ? "Finish setup from the server terminal"
+    : mode === "claim"
     ? "Create your admin account"
     : mode === "legacy-setup"
       ? "Secure your admin account"
       : "Sign in";
-  const description = mode === "claim"
+  const description = awaitingSetupToken
+    ? "This server has no administrator yet. Open the setup link printed in the server log, or run \u0060remote setup-token\u0060 on the host to print a new one."
+    : mode === "claim"
     ? "This email and password will be the private administrator login for this server."
     : mode === "legacy-setup"
       ? "Create a local password so Google is no longer required for administrator access."
@@ -58,7 +67,7 @@ export function LoginScreen({
           </div>
         </div>
 
-        {(setup || localAdminConfigured) && (
+        {!awaitingSetupToken && (setup || localAdminConfigured) && (
           <form onSubmit={submit} class="space-y-3">
             <label class="block space-y-1.5">
               <span class="text-xs text-ink-300">Admin email</span>

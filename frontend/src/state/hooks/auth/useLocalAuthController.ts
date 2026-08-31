@@ -1,6 +1,7 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { localAuthApi } from "../../../api/authApi";
 import { returnUrlPolicy } from "../../auth/returnUrlPolicy";
+import { setupTokenPolicy } from "../../auth/setupTokenPolicy";
 
 export type LoginMode = "claim" | "login" | "legacy-setup";
 
@@ -19,6 +20,13 @@ export function useLocalAuthController({
   const oauthError = params.get("error");
   const errorEmail = params.get("email") ?? "";
   const returnTo = returnUrlPolicy.safeTarget(params.get("return_to") ?? "", location.origin);
+  // Read once at mount and hold in memory: the effect below clears the
+  // fragment straight away, so re-reading later would find nothing.
+  const [setupToken] = useState(() => setupTokenPolicy.read(location.hash));
+  useEffect(() => {
+    if (!setupToken) return;
+    history.replaceState(null, "", setupTokenPolicy.strippedUrl(location.pathname, location.search));
+  }, [setupToken]);
   const [email, setEmail] = useState(mode === "legacy-setup" ? adminEmail : "");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -45,7 +53,7 @@ export function useLocalAuthController({
     setSubmitting(true);
     setError(null);
     try {
-      if (setup) await localAuthApi.claim(normalizedEmail, password);
+      if (setup) await localAuthApi.claim(normalizedEmail, password, setupToken);
       else await localAuthApi.login(normalizedEmail, password);
       await onSuccess();
       if (mode === "login" && returnTo) location.assign(returnTo);
@@ -68,6 +76,7 @@ export function useLocalAuthController({
     setEmail,
     setPassword,
     setup,
+    setupToken,
     submit,
     submitting,
   };

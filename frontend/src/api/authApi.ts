@@ -26,10 +26,12 @@ export async function fetchAuthSession(): Promise<AuthSession> {
 }
 
 export const localAuthApi = {
-  claim: (email: string, password: string) =>
-    requestLocalAuth("/auth/local/claim", email, password),
+  // setupToken is sent in the body, never the query string, so it stays out
+  // of reverse-proxy access logs.
+  claim: (email: string, password: string, setupToken: string) =>
+    requestLocalAuth("/auth/local/claim", { email, password, setupToken }),
   login: (email: string, password: string) =>
-    requestLocalAuth("/auth/local/login", email, password),
+    requestLocalAuth("/auth/local/login", { email, password }),
 };
 
 export const googleOAuthApi = {
@@ -42,8 +44,8 @@ export const googleOAuthApi = {
     }),
 };
 
-async function requestLocalAuth(url: string, email: string, password: string): Promise<AuthSession> {
-  const response = await sendHttpRequest("POST", url, { email, password });
+async function requestLocalAuth(url: string, body: Record<string, string>): Promise<AuthSession> {
+  const response = await sendHttpRequest("POST", url, body);
   if (!response.ok) {
     let message = `${response.status}`;
     try {
