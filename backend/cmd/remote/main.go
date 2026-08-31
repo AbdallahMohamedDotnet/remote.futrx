@@ -15,7 +15,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	remote "github.com/futrx-com/remote.futrx.com"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
@@ -122,23 +121,9 @@ func main() {
 	// On a first boot nobody exists to authorise the local-admin claim, so the
 	// setup token is minted and printed here and nowhere else: the operator's
 	// terminal is the one channel a passer-by loading the page cannot reach.
-	// Issuing on every unclaimed start also rotates it, so a token that leaked
+	// Issuing on every gated start also rotates it, so a token that leaked
 	// before a restart is already dead.
-	setupToken, err := serviceSet.Auth.EnsureSetupToken(ctx)
-	if err != nil {
-		log.Fatalf("issue setup token: %v", err)
-	}
-	if setupToken != "" {
-		// The token goes in the URL fragment, which browsers never send to the
-		// server, so it cannot land in a proxy access log the way a query
-		// string would.
-		log.Printf(
-			"first-time setup required\n  visit:   %s/#token=%s\n  expires: %s from now (reissue with: remote setup-token)",
-			strings.TrimRight(cfg.BaseURL, "/"),
-			setupToken,
-			serviceSet.Auth.SetupTokenTTL(),
-		)
-	}
+	announceSetupToken(ctx, serviceSet.Auth, cfg.BaseURL, log.Writer())
 	if err := serviceSet.Reconcile(ctx); err != nil {
 		log.Printf("services: reconcile warning: %v", err)
 	}
