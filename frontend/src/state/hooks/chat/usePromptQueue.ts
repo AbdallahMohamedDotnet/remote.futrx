@@ -1,9 +1,9 @@
-import { useStore } from "zustand";
 import { useEffect, useState } from "preact/hooks";
 import type { ChatStatus, PromptOutcome, QueuedPrompt } from "../../../models/chat";
 import { idService } from "../../../services/platform/idService.ts";
 import { chatComposerSessionStore } from "../../stores/chat/composerSessionStore";
 import { promptQueueState } from "./promptQueueState";
+import { useZustandStore } from "../useZustandStore";
 
 const EMPTY_QUEUE: QueuedPrompt[] = [];
 
@@ -26,11 +26,11 @@ export function usePromptQueue({
   // ChatContainer remount that happens on every chat switch. They resume
   // auto-sending when you return to the chat (sending is tied to the active
   // chat's connection, so a backgrounded chat's queue waits until it is open).
-  const queuedPrompts = useStore(
+  const queuedPrompts = useZustandStore(
     chatComposerSessionStore,
     (state) => state.promptQueues.get(chatId) ?? EMPTY_QUEUE,
   );
-  const setQueuedPrompts = useStore(
+  const setQueuedPrompts = useZustandStore(
     chatComposerSessionStore,
     (state) => state.setQueuedPrompts,
   );
