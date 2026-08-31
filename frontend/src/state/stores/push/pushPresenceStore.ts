@@ -11,13 +11,13 @@
 // the reason the phone should stay silent.
 
 import { createStore } from "zustand/vanilla";
-import { pushApi } from "../../../api/pushApi";
-import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../../config/push";
+import { pushApi } from "../../../api/pushApi.ts";
+import { PUSH_PRESENCE_HEARTBEAT_MS } from "../../../config/push.ts";
 import type {
   PushPresenceStoreActions,
   PushPresenceStoreState,
 } from "../../../models/push";
-import { isPushPageFocused } from "./pushPageFocus";
+import { isPushPageFocused } from "./pushPageFocus.ts";
 
 const clientId = createClientId();
 let heartbeatTimer: number | undefined;
