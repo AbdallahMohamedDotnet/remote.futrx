@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { App } from "./app/App";
 import "./index.css";
-import { keyboardViewportOverride } from "./services/platform/viewportHeight";
+import { viewportHeightService } from "./services/platform/viewportHeightService";
 
 function installViewportHeightFix() {
   let raf = 0;
@@ -16,7 +16,7 @@ function installViewportHeightFix() {
     raf = requestAnimationFrame(() => {
       const html = document.documentElement;
       const visualViewport = window.visualViewport;
-      const override = keyboardViewportOverride({
+      const override = viewportHeightService.keyboardOverride({
         layoutHeight: html.clientHeight,
         visual: visualViewport
           ? { height: visualViewport.height, offsetTop: visualViewport.offsetTop }

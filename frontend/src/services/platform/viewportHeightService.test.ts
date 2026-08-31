@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { keyboardViewportOverride } from "./viewportHeight.ts";
+import { viewportHeightService } from "./viewportHeightService.ts";
 
 // iPhone 16 Pro Max: a 956pt layout viewport with a 62pt top inset. iOS reports
 // the visual viewport 62pt short of it even with the keyboard down.
@@ -11,7 +11,7 @@ test("the top inset alone never shortens the app shell", () => {
   // The shell used to be pinned to this shortened height, which left the inset
   // as a strip of bare page background under the composer.
   assert.equal(
-    keyboardViewportOverride({
+    viewportHeightService.keyboardOverride({
       layoutHeight: IOS_LAYOUT_HEIGHT,
       visual: { height: IOS_VISUAL_HEIGHT, offsetTop: 0 },
       inputFocused: true,
@@ -21,7 +21,7 @@ test("the top inset alone never shortens the app shell", () => {
 
   // Same shortfall without focus, and with no visual viewport at all.
   assert.equal(
-    keyboardViewportOverride({
+    viewportHeightService.keyboardOverride({
       layoutHeight: IOS_LAYOUT_HEIGHT,
       visual: { height: IOS_VISUAL_HEIGHT, offsetTop: 0 },
       inputFocused: false,
@@ -29,7 +29,7 @@ test("the top inset alone never shortens the app shell", () => {
     null
   );
   assert.equal(
-    keyboardViewportOverride({
+    viewportHeightService.keyboardOverride({
       layoutHeight: IOS_LAYOUT_HEIGHT,
       visual: null,
       inputFocused: true,
@@ -40,7 +40,7 @@ test("the top inset alone never shortens the app shell", () => {
 
 test("an open keyboard still resizes the app shell", () => {
   assert.deepEqual(
-    keyboardViewportOverride({
+    viewportHeightService.keyboardOverride({
       layoutHeight: IOS_LAYOUT_HEIGHT,
       visual: { height: 620.4, offsetTop: 12.6 },
       inputFocused: true,
@@ -50,7 +50,7 @@ test("an open keyboard still resizes the app shell", () => {
 
   // A keyboard the user never focused an input for is not a keyboard.
   assert.equal(
-    keyboardViewportOverride({
+    viewportHeightService.keyboardOverride({
       layoutHeight: IOS_LAYOUT_HEIGHT,
       visual: { height: 620, offsetTop: 0 },
       inputFocused: false,
@@ -61,7 +61,7 @@ test("an open keyboard still resizes the app shell", () => {
   // Android's `resizes-content` shrinks the layout viewport too, so `100dvh`
   // has already followed the keyboard and there is nothing left to override.
   assert.equal(
-    keyboardViewportOverride({
+    viewportHeightService.keyboardOverride({
       layoutHeight: 620,
       visual: { height: 620, offsetTop: 0 },
       inputFocused: true,

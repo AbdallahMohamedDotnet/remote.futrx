@@ -7,10 +7,6 @@
 //
 // Leaf module: it knows the arithmetic, never how the numbers were measured.
 
-/** Nothing short of a keyboard covers this much of the viewport, and no inset
- *  or browser-toolbar discrepancy comes close to it. */
-const KEYBOARD_MIN_COVERAGE_PX = 120;
-
 export interface ViewportMetrics {
   /** What `100dvh` resolves to: the full layout viewport, insets included. */
   layoutHeight: number;
@@ -25,10 +21,18 @@ export interface ViewportOverride {
   offsetTop: number;
 }
 
-/** The height and offset to pin the shell to, or null to leave `100dvh` alone. */
-export function keyboardViewportOverride(metrics: ViewportMetrics): ViewportOverride | null {
-  const { visual } = metrics;
-  if (!metrics.inputFocused || !visual) return null;
-  if (metrics.layoutHeight - visual.height <= KEYBOARD_MIN_COVERAGE_PX) return null;
-  return { height: Math.round(visual.height), offsetTop: Math.round(visual.offsetTop) };
+class ViewportHeightService {
+  /** Nothing short of a keyboard covers this much of the viewport, and no inset
+   *  or browser-toolbar discrepancy comes close to it. */
+  readonly #keyboardMinCoveragePx = 120;
+
+  /** The height and offset to pin the shell to, or null to leave `100dvh` alone. */
+  keyboardOverride(metrics: ViewportMetrics): ViewportOverride | null {
+    const { visual } = metrics;
+    if (!metrics.inputFocused || !visual) return null;
+    if (metrics.layoutHeight - visual.height <= this.#keyboardMinCoveragePx) return null;
+    return { height: Math.round(visual.height), offsetTop: Math.round(visual.offsetTop) };
+  }
 }
+
+export const viewportHeightService = new ViewportHeightService();
