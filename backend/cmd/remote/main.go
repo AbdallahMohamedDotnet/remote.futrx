@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	remote "github.com/futrx-com/remote.futrx.com"
@@ -41,6 +42,17 @@ func main() {
 	// Prepare configuration
 	ctx := context.Background()
 	cfg := config.Load()
+	if len(os.Args) > 1 {
+		switch command := os.Args[1]; command {
+		case "setup-token":
+			if err := runSetupToken(ctx, cfg.DataDir, cfg.BaseURL, os.Stdout); err != nil {
+				log.Fatalf("setup-token: %v", err)
+			}
+			return
+		default:
+			log.Fatalf("unknown command %q (supported commands: setup-token)", command)
+		}
+	}
 	publicHostname, err := config.PublicHostname(cfg.BaseURL)
 	if err != nil {
 		log.Fatalf("configure public hostname: %v", err)

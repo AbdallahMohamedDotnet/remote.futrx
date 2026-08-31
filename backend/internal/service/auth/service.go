@@ -140,7 +140,7 @@ func (s *Service) EnsureSetupToken(ctx context.Context) (string, error) {
 // SetupTokenTTL is how long a freshly issued setup token stays valid, so the
 // terminal message can state the real deadline rather than a guess.
 func (s *Service) SetupTokenTTL() time.Duration {
-	return s.setupTokens.ttl
+	return s.setupTokens.TTL()
 }
 
 func (s *Service) ClaimLocalAdmin(ctx context.Context, req ClaimRequest) (User, error) {
