@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { localAuthApi, twoFactorApi } from "../../../api/authApi";
-import { MIN_LOCAL_PASSWORD_LENGTH } from "../../../config/auth";
 import type { LoginMode } from "../../../models/auth";
+import { localAuthFormState } from "./localAuthFormState";
 import { returnUrlPolicy } from "./returnUrlPolicy";
 
 interface LocalAuthControllerOptions {
@@ -23,7 +23,7 @@ export function useLocalAuthController({
   const [confirmation, setConfirmation] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const setup = mode === "claim" || mode === "legacy-setup";
+  const setup = localAuthFormState.isSetup(mode);
 
   ////////////////
   // Global State
@@ -49,17 +49,14 @@ export function useLocalAuthController({
   ////////////////
   async function submit(event: Event) {
     event.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      setError("Email is required.");
-      return;
-    }
-    if (setup && password !== confirmation) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (setup && password.length < MIN_LOCAL_PASSWORD_LENGTH) {
-      setError(`Use at least ${MIN_LOCAL_PASSWORD_LENGTH} characters.`);
+    const submission = localAuthFormState.prepareSubmission({
+      mode,
+      email,
+      password,
+      confirmation,
+    });
+    if (!submission.valid) {
+      setError(submission.error);
       return;
     }
 
@@ -67,11 +64,11 @@ export function useLocalAuthController({
     setError(null);
     try {
       if (setup) {
-        await localAuthApi.claim(normalizedEmail, password);
+        await localAuthApi.claim(submission.email, password);
         await onSuccess();
         return;
       }
-      const result = await localAuthApi.login(normalizedEmail, password);
+      const result = await localAuthApi.login(submission.email, password);
       if (result.twoFactorRequired) {
         setPendingTwoFactor(true);
         return;
