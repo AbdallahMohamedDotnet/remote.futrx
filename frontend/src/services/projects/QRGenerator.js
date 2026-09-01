@@ -156,7 +156,7 @@ function addErrorCorrection(data, version) {
 function alignmentPositions(version) {
   if (version === 1) return [];
   const count = Math.floor(version / 7) + 2;
-  const step = version === 32 ? 26 : Math.ceil((version * 4 + count * 2 + 1) / (count * 2 - 2)) * 2;
+  const step = version === 32 ? 26 : Math.floor((version * 4 + count * 2 + 1) / (count * 2 - 2)) * 2;
   const positions = [6];
   for (let position = version * 4 + 10; positions.length < count; position -= step) positions.splice(1, 0, position);
   return positions;
