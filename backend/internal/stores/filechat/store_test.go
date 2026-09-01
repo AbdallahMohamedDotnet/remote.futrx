@@ -2,9 +2,9 @@ package filechat
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
@@ -134,7 +134,7 @@ func TestStoreReadsEventPages(t *testing.T) {
 	}
 }
 
-func TestStoreReadsTranscriptPagesByWholeTurnAndCompactsDeltas(t *testing.T) {
+func TestStoreScansRawEventsInStorageOrder(t *testing.T) {
 	store, err := New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -142,165 +142,54 @@ func TestStoreReadsTranscriptPagesByWholeTurnAndCompactsDeltas(t *testing.T) {
 	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
 		t.Fatal(err)
 	}
-
-	appendChatEvents(t, store, "abcd",
-		servicechat.Event{T: 1, Type: "user", Text: "older question"},
-		servicechat.Event{T: 2, Type: "assistant_text", Text: "older answer"},
-		servicechat.Event{T: 3, Type: "complete"},
-		servicechat.Event{T: 4, Type: "user", TurnID: "turn-new", Text: "new question"},
-	)
-	for i := 0; i < 300; i++ {
-		appendChatEvents(t, store, "abcd", servicechat.Event{
-			T:         int64(5 + i),
-			Type:      "assistant_text",
-			TurnID:    "turn-new",
-			MessageID: "message-new",
-			Text:      "x",
-		})
-	}
-	appendChatEvents(t, store, "abcd", servicechat.Event{
-		T: 305, Type: "complete", TurnID: "turn-new",
-	})
-
-	page, err := store.ReadTranscriptPage(
-		context.Background(),
-		"abcd",
-		servicechat.TranscriptPageQuery{Limit: 1},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(page.Turns) != 1 {
-		t.Fatalf("latest transcript page = %#v", page)
-	}
-	turn := page.Turns[0]
-	if turn.ID != "turn-new" || turn.StartSeq != 4 || turn.EndSeq != 305 {
-		t.Fatalf("latest turn boundaries = %#v", turn)
-	}
-	if len(turn.Events) != 3 || turn.Events[0].Type != "user" ||
-		turn.Events[1].Type != "assistant_text" || turn.Events[2].Type != "complete" {
-		t.Fatalf("compacted turn events = %#v", turn.Events)
-	}
-	if turn.Events[1].Text != strings.Repeat("x", 300) {
-		t.Fatalf("assistant text length = %d, want 300", len(turn.Events[1].Text))
-	}
-	if !page.HasMore || page.NextBefore != 4 || page.LastSeq != 305 {
-		t.Fatalf("latest transcript cursors = %#v", page)
-	}
-
-	older, err := store.ReadTranscriptPage(
-		context.Background(),
-		"abcd",
-		servicechat.TranscriptPageQuery{Limit: 1, BeforeSeq: page.NextBefore},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(older.Turns) != 1 || older.Turns[0].StartSeq != 1 || older.Turns[0].EndSeq != 3 {
-		t.Fatalf("older transcript page = %#v", older)
-	}
-	if older.HasMore || older.NextBefore != 0 || older.LastSeq != 305 {
-		t.Fatalf("older transcript cursors = %#v", older)
-	}
-}
-
-func TestStoreTranscriptKeepsIncompleteTurnAndToolLifecycleTogether(t *testing.T) {
-	store, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
-		t.Fatal(err)
-	}
-
-	appendChatEvents(t, store, "abcd",
-		servicechat.Event{T: 1, Type: "user", TurnID: "turn-old", Text: "old"},
-		servicechat.Event{T: 2, Type: "assistant_text", TurnID: "turn-old", Text: "done"},
-		servicechat.Event{T: 3, Type: "complete", TurnID: "turn-old"},
-		servicechat.Event{T: 4, Type: "user", TurnID: "turn-live", Text: "inspect"},
-		servicechat.Event{T: 5, Type: "assistant_text", TurnID: "turn-live", Text: "before"},
-		servicechat.Event{T: 6, Type: "tool_use_start", TurnID: "turn-live", ID: "tool-1", Name: "Bash"},
-	)
-	for i := 0; i < 260; i++ {
-		appendChatEvents(t, store, "abcd", servicechat.Event{
-			T: int64(7 + i), Type: "thinking", TurnID: "turn-live", MessageID: "reasoning-1", Text: "r",
-		})
-	}
-	appendChatEvents(t, store, "abcd",
-		servicechat.Event{T: 267, Type: "tool_use_end", TurnID: "turn-live", ID: "tool-1", Output: "ok"},
-		servicechat.Event{T: 268, Type: "assistant_text", TurnID: "turn-live", Text: "after"},
-	)
-
-	page, err := store.ReadTranscriptPage(
-		context.Background(),
-		"abcd",
-		servicechat.TranscriptPageQuery{Limit: 1},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(page.Turns) != 1 || page.Turns[0].ID != "turn-live" {
-		t.Fatalf("incomplete page = %#v", page)
-	}
-	events := page.Turns[0].Events
-	if len(events) != 6 {
-		t.Fatalf("incomplete compacted events = %#v", events)
-	}
-	if events[2].Type != "tool_use_start" || events[2].ID != "tool-1" ||
-		events[3].Type != "thinking" || events[3].Text != strings.Repeat("r", 260) ||
-		events[4].Type != "tool_use_end" || events[4].ID != "tool-1" || events[4].Output != "ok" {
-		t.Fatalf("tool lifecycle was not preserved: %#v", events)
-	}
-	if events[len(events)-1].Type != "assistant_text" || events[len(events)-1].Text != "after" {
-		t.Fatalf("incomplete assistant tail = %#v", events[len(events)-1])
-	}
-	if !page.HasMore || page.NextBefore != 4 {
-		t.Fatalf("incomplete page cursor = %#v", page)
-	}
-}
-
-func TestStoreTranscriptTreatsLegacyOrphanEventsAsOneSafePage(t *testing.T) {
-	store, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 300; i++ {
-		appendChatEvents(t, store, "abcd", servicechat.Event{
-			T: int64(i + 1), Type: "assistant_text", Text: "x",
-		})
-	}
-
-	page, err := store.ReadTranscriptPage(
-		context.Background(),
-		"abcd",
-		servicechat.TranscriptPageQuery{Limit: 1},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(page.Turns) != 1 || len(page.Turns[0].Events) != 1 ||
-		page.Turns[0].Events[0].Text != strings.Repeat("x", 300) {
-		t.Fatalf("legacy orphan transcript = %#v", page)
-	}
-	if page.HasMore || page.NextBefore != 0 {
-		t.Fatalf("orphan transcript must not expose an unsafe cursor: %#v", page)
-	}
-}
-
-func appendChatEvents(
-	t *testing.T,
-	store *Store,
-	chatID servicechat.ID,
-	events ...servicechat.Event,
-) {
-	t.Helper()
-	for _, event := range events {
-		if _, err := store.AppendEvent(context.Background(), chatID, event); err != nil {
+	for _, event := range []servicechat.Event{
+		{T: 1, Type: "user", TurnID: "turn-1", Text: "question"},
+		{T: 2, Type: "assistant_text", TurnID: "turn-1", MessageID: "message-1", Text: "answer"},
+	} {
+		if _, err := store.AppendEvent(context.Background(), "abcd", event); err != nil {
 			t.Fatal(err)
 		}
+	}
+
+	var events []servicechat.Event
+	if err := store.ScanEvents(context.Background(), "abcd", func(event servicechat.Event) {
+		events = append(events, event)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 || events[0].Seq != 1 || events[1].Seq != 2 ||
+		events[0].TurnID != "turn-1" || events[1].TurnID != "turn-1" ||
+		events[1].MessageID != "message-1" {
+		t.Fatalf("scanned events = %#v", events)
+	}
+}
+
+func TestStoreScanEventsHonorsCancellation(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{
+		T: 1, Type: "user", Text: "hello",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	visited := false
+	err = store.ScanEvents(ctx, "abcd", func(servicechat.Event) {
+		visited = true
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("ScanEvents error = %v, want context.Canceled", err)
+	}
+	if visited {
+		t.Fatal("ScanEvents visited an event after cancellation")
 	}
 }
 

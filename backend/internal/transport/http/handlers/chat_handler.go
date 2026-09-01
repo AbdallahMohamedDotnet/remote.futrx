@@ -205,7 +205,7 @@ func (h *ChatHandler) handleTranscript(w http.ResponseWriter, r *http.Request, i
 		return
 	}
 	page, err := h.chats.TranscriptPage(r.Context(), id, servicechat.TranscriptPageQuery{
-		Limit:     intQuery(r, "limit", 20),
+		Limit:     intQuery(r, "limit", 0),
 		BeforeSeq: int64Query(r, "before", 0),
 	})
 	if err != nil {

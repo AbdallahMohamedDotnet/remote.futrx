@@ -61,14 +61,6 @@ func (r *chatRepoStub) ReadEventsPage(
 	return servicechat.EventPage{}, nil
 }
 
-func (r *chatRepoStub) ReadTranscriptPage(
-	context.Context,
-	servicechat.ID,
-	servicechat.TranscriptPageQuery,
-) (servicechat.TranscriptPage, error) {
-	return servicechat.TranscriptPage{}, nil
-}
-
 func (r *chatRepoStub) ReadEventsAfter(
 	context.Context,
 	servicechat.ID,

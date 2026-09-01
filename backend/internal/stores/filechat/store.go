@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -18,11 +17,7 @@ import (
 )
 
 var _ servicechat.Repository = (*Store)(nil)
-
-const (
-	defaultTranscriptTurnLimit = 20
-	maxTranscriptTurnLimit     = 100
-)
+var _ servicechat.TranscriptEventSource = (*Store)(nil)
 
 // Store manages chat dirs on disk. Single writer per chat via a per-id mutex
 // map; concurrent access across different chats is fine.
@@ -248,6 +243,22 @@ func (s *Store) ReadEvents(ctx context.Context, id servicechat.ID) ([]servicecha
 	return s.readEventsFile(id)
 }
 
+// ScanEvents visits the raw append-only event stream in storage order. The
+// caller owns any projection policy applied while visiting.
+func (s *Store) ScanEvents(
+	ctx context.Context,
+	id servicechat.ID,
+	visit func(servicechat.Event),
+) error {
+	if !servicechat.ValidID(id) {
+		return servicechat.ErrInvalidID
+	}
+	return s.scanEventsFile(ctx, id, func(event servicechat.Event) bool {
+		visit(event)
+		return true
+	})
+}
+
 func (s *Store) ReadEventsPage(
 	ctx context.Context,
 	id servicechat.ID,
@@ -297,138 +308,6 @@ func (s *Store) ReadEventsPage(
 		LastSeq:    lastSeq,
 		HasMore:    hasMore,
 	}, nil
-}
-
-// ReadTranscriptPage projects the raw append-only stream into complete prompt
-// turns for history rendering. Raw events remain authoritative for live replay;
-// this read model only changes the unit used for backward pagination.
-func (s *Store) ReadTranscriptPage(
-	ctx context.Context,
-	id servicechat.ID,
-	query servicechat.TranscriptPageQuery,
-) (servicechat.TranscriptPage, error) {
-	if !servicechat.ValidID(id) {
-		return servicechat.TranscriptPage{}, servicechat.ErrInvalidID
-	}
-	limit := query.Limit
-	if limit <= 0 {
-		limit = defaultTranscriptTurnLimit
-	}
-	if limit > maxTranscriptTurnLimit {
-		limit = maxTranscriptTurnLimit
-	}
-
-	turns := make([]servicechat.TranscriptTurn, 0, limit)
-	current := transcriptTurnBuffer{}
-	hasMore := false
-	flushCurrent := func() {
-		if len(current.events) == 0 {
-			return
-		}
-		turn := current.project()
-		if len(turns) == limit {
-			copy(turns, turns[1:])
-			turns[len(turns)-1] = turn
-			hasMore = true
-		} else {
-			turns = append(turns, turn)
-		}
-		current = transcriptTurnBuffer{}
-	}
-
-	var lastSeq int64
-	err := s.scanEventsFile(ctx, id, func(ev servicechat.Event) bool {
-		if ev.Seq > lastSeq {
-			lastSeq = ev.Seq
-		}
-		if query.BeforeSeq > 0 && ev.Seq >= query.BeforeSeq {
-			return true
-		}
-		if current.startsNewTurn(ev) {
-			flushCurrent()
-		}
-		current.append(ev)
-		return true
-	})
-	if err != nil {
-		return servicechat.TranscriptPage{}, err
-	}
-	flushCurrent()
-
-	var nextBefore int64
-	if hasMore && len(turns) > 0 {
-		nextBefore = turns[0].StartSeq
-	}
-	return servicechat.TranscriptPage{
-		Turns:      turns,
-		NextBefore: nextBefore,
-		LastSeq:    lastSeq,
-		HasMore:    hasMore,
-	}, nil
-}
-
-type transcriptTurnBuffer struct {
-	id       string
-	startSeq int64
-	endSeq   int64
-	hasUser  bool
-	events   []servicechat.Event
-}
-
-func (turn *transcriptTurnBuffer) startsNewTurn(ev servicechat.Event) bool {
-	if len(turn.events) == 0 {
-		return false
-	}
-	if ev.TurnID != "" {
-		if turn.id != "" {
-			return turn.id != ev.TurnID
-		}
-		return turn.hasUser
-	}
-	return ev.Type == "user" && (turn.hasUser || turn.id != "")
-}
-
-func (turn *transcriptTurnBuffer) append(ev servicechat.Event) {
-	if len(turn.events) == 0 {
-		turn.startSeq = ev.Seq
-	}
-	turn.endSeq = ev.Seq
-	if turn.id == "" && ev.TurnID != "" {
-		turn.id = ev.TurnID
-	}
-	if ev.Type == "user" {
-		turn.hasUser = true
-	}
-
-	lastIndex := len(turn.events) - 1
-	if lastIndex >= 0 && transcriptEventsCanCoalesce(turn.events[lastIndex], ev) {
-		turn.events[lastIndex].Text += ev.Text
-		return
-	}
-	turn.events = append(turn.events, ev)
-}
-
-func (turn transcriptTurnBuffer) project() servicechat.TranscriptTurn {
-	id := turn.id
-	if id == "" {
-		id = "legacy-" + strconv.FormatInt(turn.startSeq, 10)
-	}
-	return servicechat.TranscriptTurn{
-		ID:       id,
-		StartSeq: turn.startSeq,
-		EndSeq:   turn.endSeq,
-		Events:   turn.events,
-	}
-}
-
-func transcriptEventsCanCoalesce(left, right servicechat.Event) bool {
-	if left.Type != right.Type || (left.Type != "assistant_text" && left.Type != "thinking") {
-		return false
-	}
-	return left.TurnID == right.TurnID &&
-		left.MessageID == right.MessageID &&
-		left.Provider == right.Provider &&
-		left.ScheduledTaskID == right.ScheduledTaskID
 }
 
 func (s *Store) ReadEventsAfter(
