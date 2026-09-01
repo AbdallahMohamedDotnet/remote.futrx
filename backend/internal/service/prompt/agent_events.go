@@ -44,7 +44,7 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		t = time.Now().UnixMilli()
 	}
 
-	out := ChatEvent{T: t, TurnID: ev.RunID}
+	out := ChatEvent{T: t}
 	switch ev.Type {
 	case agent.EventSessionUpdated:
 		out.Type = "session"
@@ -56,17 +56,11 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 	case agent.EventAssistantTextDelta:
 		out.Type = "assistant_text"
 		out.Text = ev.Text
-		out.MessageID = ev.MessageID
-		if out.MessageID == "" {
-			out.MessageID = ev.ItemID
-		}
+		out.MessageID = agentEventMessageID(ev)
 	case agent.EventReasoningDelta:
 		out.Type = "thinking"
 		out.Text = ev.Text
-		out.MessageID = ev.MessageID
-		if out.MessageID == "" {
-			out.MessageID = ev.ItemID
-		}
+		out.MessageID = agentEventMessageID(ev)
 	case agent.EventToolStarted:
 		out.Type = "tool_use_start"
 		out.ID = ev.ItemID
@@ -90,6 +84,13 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		return ChatEvent{}, false
 	}
 	return out, true
+}
+
+func agentEventMessageID(event agent.Event) string {
+	if event.MessageID != "" {
+		return event.MessageID
+	}
+	return event.ItemID
 }
 
 // ledgerRun is the run-scoped context a usage entry needs. It is captured

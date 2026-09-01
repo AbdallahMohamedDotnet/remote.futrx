@@ -187,7 +187,6 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 			input,
 			ledgerRunID,
 			func(ev ChatEvent) {
-				ev.TurnID = ledgerRunID
 				// Stamp the originating task so a scheduled run's events stay
 				// distinguishable from an interactive turn's downstream.
 				ev.ScheduledTaskID = input.ScheduledTaskID
@@ -214,15 +213,11 @@ func (rnr *Service) runPrompt(
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) error {
-	turnID := newLedgerRunID()
 	return rnr.runPromptAs(
 		ctx,
 		StartInput{ChatID: id, Prompt: prompt},
-		turnID,
-		func(ev ChatEvent) {
-			ev.TurnID = turnID
-			emit(ev)
-		},
+		newLedgerRunID(),
+		emit,
 		emitTransient,
 	)
 }
@@ -234,6 +229,7 @@ func (rnr *Service) runPromptAs(
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) error {
+	emit = withTurnID(ledgerRunID, emit)
 	id := input.ChatID
 	prompt := input.Prompt
 	meta, err := rnr.store.Get(ctx, id)
@@ -419,6 +415,13 @@ func (rnr *Service) runPromptAs(
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " exit: " + err.Error()})
 	}
 	return err
+}
+
+func withTurnID(turnID string, emit func(ChatEvent)) func(ChatEvent) {
+	return func(event ChatEvent) {
+		event.TurnID = turnID
+		emit(event)
+	}
 }
 
 func clearSessionIDForProvider(meta *ChatMeta, provider agent.ProviderID) {
