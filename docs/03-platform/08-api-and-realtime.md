@@ -142,6 +142,7 @@ Every `{id}` project route first requires admin status or project membership. Re
 | GET, POST | `/api/chats` | List visible chats or create a chat |
 | GET, PATCH, DELETE | `/api/chats/{id}` | Read, update, or delete chat metadata/history |
 | GET | `/api/chats/{id}/events?limit=&before=` | Page persisted events backward by sequence |
+| GET | `/api/chats/{id}/transcript?limit=&before=` | Page complete transcript turns backward; adjacent text deltas are compacted |
 | POST | `/api/chats/{id}/rewind` | Remove a selected prompt and later events |
 | POST | `/api/chats/{id}/fork` | Copy metadata/history and defer provider-session fork |
 | POST | `/api/chats/{id}/read` | Mark current history read |

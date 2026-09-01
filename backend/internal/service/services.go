@@ -37,6 +37,13 @@ type TmuxClient interface {
 	servicetmux.SessionClient
 }
 
+// ChatStore is the complete persistence capability required at composition;
+// individual services receive only the narrower contracts they consume.
+type ChatStore interface {
+	servicechat.Repository
+	servicechat.TranscriptEventSource
+}
+
 // PushStore persists Web Push registrations and the server's long-lived VAPID
 // key pair. VAPIDKeys mints the pair on first use and returns the stored one
 // thereafter; rotating it would invalidate every browser subscription.
@@ -47,7 +54,7 @@ type PushStore interface {
 }
 
 type Dependencies struct {
-	Chats             servicechat.Repository
+	Chats             ChatStore
 	Projects          serviceproject.Repository
 	ProjectSecrets    serviceproject.SecretsRepository
 	ProjectAccess     serviceproject.AccessRepository
@@ -177,6 +184,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		chatProjectResolver{projects: projectService},
 		tmuxResolver,
 		runs,
+		servicechat.WithTranscriptEventSource(deps.Chats),
 		servicechat.WithCopiedEventAppender(chats),
 		servicechat.WithSessionPolicy(agentRuntime),
 		servicechat.WithProviderPolicy(agentRuntime),

@@ -11,13 +11,14 @@ import (
 )
 
 type Service struct {
-	repo         Repository
-	copiedEvents CopiedEventAppender
-	projects     ProjectResolver
-	tmux         TmuxResolver
-	runs         RunController
-	sessions     SessionPolicy
-	providers    ProviderPolicy
+	repo             Repository
+	transcriptEvents TranscriptEventSource
+	copiedEvents     CopiedEventAppender
+	projects         ProjectResolver
+	tmux             TmuxResolver
+	runs             RunController
+	sessions         SessionPolicy
+	providers        ProviderPolicy
 }
 
 // SessionPolicy supplies provider-native behavior from the agent module

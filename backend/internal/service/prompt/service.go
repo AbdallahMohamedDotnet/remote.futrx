@@ -229,6 +229,7 @@ func (rnr *Service) runPromptAs(
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) error {
+	emit = withTurnID(ledgerRunID, emit)
 	id := input.ChatID
 	prompt := input.Prompt
 	meta, err := rnr.store.Get(ctx, id)
@@ -414,6 +415,13 @@ func (rnr *Service) runPromptAs(
 		emit(ChatEvent{T: time.Now().UnixMilli(), Type: "error", Message: string(providerID) + " exit: " + err.Error()})
 	}
 	return err
+}
+
+func withTurnID(turnID string, emit func(ChatEvent)) func(ChatEvent) {
+	return func(event ChatEvent) {
+		event.TurnID = turnID
+		emit(event)
+	}
 }
 
 func clearSessionIDForProvider(meta *ChatMeta, provider agent.ProviderID) {
