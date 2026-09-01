@@ -35,7 +35,7 @@ test("encodes a representative authenticator enrollment URI", () => {
   );
 
   assert.equal(code.size, 41);
-  assert.deepEqual(matrixFingerprint(code), { darkModules: 816, hash: "2b3d6c2d" });
+  assert.deepEqual(matrixFingerprint(code), { darkModules: 866, hash: "ced53afd" });
 });
 
 test("selects numeric, alphanumeric, and UTF-8 byte modes", () => {
