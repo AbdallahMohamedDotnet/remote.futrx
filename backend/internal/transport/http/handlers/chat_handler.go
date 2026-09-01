@@ -231,7 +231,7 @@ func (h *ChatHandler) handleRewind(w http.ResponseWriter, r *http.Request, id se
 		sendChatError(w, err)
 		return
 	}
-	page, err := h.chats.TranscriptPage(r.Context(), id, servicechat.TranscriptPageQuery{Limit: 20})
+	page, err := h.chats.TranscriptPage(r.Context(), id, servicechat.TranscriptPageQuery{})
 	if err != nil {
 		sendChatError(w, err)
 		return

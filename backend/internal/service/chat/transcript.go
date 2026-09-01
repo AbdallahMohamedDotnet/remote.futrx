@@ -3,11 +3,8 @@ package chat
 import (
 	"context"
 	"strconv"
-)
 
-const (
-	defaultTranscriptTurnLimit = 20
-	maxTranscriptTurnLimit     = 100
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 // TranscriptEventSource exposes storage-order events without making the
@@ -82,10 +79,10 @@ type transcriptProjection struct {
 func newTranscriptProjection(query TranscriptPageQuery) *transcriptProjection {
 	limit := query.Limit
 	if limit <= 0 {
-		limit = defaultTranscriptTurnLimit
+		limit = configconstants.DefaultChatTranscriptTurnLimit
 	}
-	if limit > maxTranscriptTurnLimit {
-		limit = maxTranscriptTurnLimit
+	if limit > configconstants.MaxChatTranscriptTurnLimit {
+		limit = configconstants.MaxChatTranscriptTurnLimit
 	}
 	return &transcriptProjection{
 		beforeSeq: query.BeforeSeq,
