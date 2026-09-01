@@ -38,7 +38,10 @@ export function ChatContainer({
     status,
     error,
     canSendPrompt,
+    transportReady,
     sendPrompt,
+    sendInteractionResponse,
+    sendInteractionActivity,
     promptOutcome,
     cancel,
     rewind,
@@ -47,6 +50,10 @@ export function ChatContainer({
   } = useChat(chat.id);
   const preferences = useChatPreferences({ chat, loadedMeta: meta, refreshMeta });
   const { displayMeta, displayMode, selectedSkills } = preferences;
+  const executionPreferences = {
+    provider: displayMeta.provider || "codex",
+    mode: displayMode || "default",
+  };
   const attachmentBasePath = chatAttachmentService.basePath(displayMeta, projects);
   const project = projects.find((candidate) => candidate.id === displayMeta.projectId);
   const composer = useChatComposerController({
@@ -55,7 +62,10 @@ export function ChatContainer({
     blockCount: blocks.length,
     status,
     canSendPrompt,
+    transportReady,
     sendPrompt,
+    executionPreferences,
+    sendInteractionResponse,
     promptOutcome,
     rewind,
     refreshMeta,
@@ -150,6 +160,7 @@ export function ChatContainer({
       changeServiceTier: preferences.changeServiceTier,
     },
     queuedPrompts: composer.queue.queuedPrompts,
+    inflightQueuedPromptId: composer.queue.inflightId,
     selectedSkills,
     attachments: composer.upload.attachments,
     uploading: composer.upload.uploading,
@@ -188,6 +199,7 @@ export function ChatContainer({
             onScroll={composer.scroll.onScroll}
             onJumpToBottom={composer.scroll.jumpToBottom}
             onAnswerQuestion={composer.handleAnswerQuestion}
+            onInteractionActivity={sendInteractionActivity}
             onLoadOlder={loadOlder}
             onRewind={composer.handleRewind}
             projectName={project?.name}

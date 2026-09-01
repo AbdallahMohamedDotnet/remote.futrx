@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	serviceprompt "github.com/futrx-com/remote.futrx.com/internal/service/prompt"
@@ -24,6 +25,11 @@ type ChatLookup interface {
 type PromptRunner interface {
 	Start(serviceprompt.StartInput, func(servicechat.Event)) (serviceprompt.RunHandle, error)
 	CancelPrompt(id servicechat.ID) bool
+	RespondInteraction(servicechat.ID, string, agent.InteractionResponse) bool
+}
+
+type interactionAutoResolutionSnoozer interface {
+	SnoozeInteractionAutoResolution(servicechat.ID, string) bool
 }
 
 // ProjectAccessChecker is the subset of the auth gate the chat WS needs:
@@ -140,9 +146,14 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 			return
 		}
 		var msg struct {
-			Type     string `json:"type"`
-			Text     string `json:"text,omitempty"`
-			ClientID string `json:"clientId,omitempty"`
+			Type     string               `json:"type"`
+			Text     string               `json:"text,omitempty"`
+			ClientID string               `json:"clientId,omitempty"`
+			Provider servicechat.Provider `json:"provider,omitempty"`
+			Mode     string               `json:"mode,omitempty"`
+			ID       string               `json:"id,omitempty"`
+			Answers  map[string][]string  `json:"answers,omitempty"`
+			Decision string               `json:"decision,omitempty"`
 		}
 		if err := json.Unmarshal(raw, &msg); err != nil {
 			continue
@@ -150,15 +161,17 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 		switch msg.Type {
 		case "prompt":
 			_, err := s.runner.Start(serviceprompt.StartInput{
-				ChatID: id,
-				Prompt: msg.Text,
+				ChatID:   id,
+				Prompt:   msg.Text,
+				ClientID: msg.ClientID,
+				Expected: expectedExecutionPreferences(msg.Provider, msg.Mode),
 				Actor: serviceprompt.Actor{
 					Email:   email,
 					IsAdmin: isAdmin,
 				},
 			}, sub.SendTransient)
 			if msg.ClientID != "" {
-				sub.SendTransient(promptAckEvent(msg.ClientID, err == nil))
+				sub.SendTransient(promptAckEvent(msg.ClientID, err))
 			}
 		case "cancel":
 			if !s.runner.CancelPrompt(id) {
@@ -168,19 +181,69 @@ func (s *ChatSocket) handle(upgrader websocket.Upgrader, w http.ResponseWriter, 
 					Message: "no prompt is currently running",
 				})
 			}
+		case "interaction_response":
+			if !s.runner.RespondInteraction(id, msg.ID, agent.InteractionResponse{
+				Answers:  msg.Answers,
+				Decision: msg.Decision,
+			}) {
+				sub.SendTransient(servicechat.Event{
+					T:       time.Now().UnixMilli(),
+					Type:    "error",
+					Message: "that agent interaction is no longer pending",
+				})
+			}
+		case "interaction_activity":
+			if snoozer, ok := s.runner.(interactionAutoResolutionSnoozer); ok {
+				snoozer.SnoozeInteractionAutoResolution(id, msg.ID)
+			}
 		}
 	}
+}
+
+// expectedExecutionPreferences keeps already-open pre-upgrade tabs working:
+// the legacy prompt shape omitted both fields. Partially populated new shapes
+// still fail closed in prompt validation.
+func expectedExecutionPreferences(
+	provider servicechat.Provider,
+	mode string,
+) *serviceprompt.ExecutionPreferences {
+	if strings.TrimSpace(string(provider)) == "" && strings.TrimSpace(mode) == "" {
+		return nil
+	}
+	return &serviceprompt.ExecutionPreferences{Provider: provider, Mode: mode}
 }
 
 // promptAckEvent tells the sending client what happened to its prompt, so a
 // queued message is only dropped client-side once a run has actually accepted
 // it. Connection-scoped and transient — never persisted or broadcast.
-func promptAckEvent(clientID string, accepted bool) servicechat.Event {
+func promptAckEvent(clientID string, err error) servicechat.Event {
+	accepted := err == nil
 	subtype := "prompt_rejected"
 	if accepted {
 		subtype = "prompt_accepted"
 	}
-	data, _ := json.Marshal(map[string]string{"clientId": clientID})
+	retryable := errors.Is(err, serviceprompt.ErrPromptAlreadyRunning)
+	reason := ""
+	switch {
+	case accepted:
+		reason = "accepted"
+	case retryable:
+		reason = "busy"
+	case errors.Is(err, serviceprompt.ErrExecutionPreferencesChanged):
+		reason = "preferences_changed"
+	case errors.Is(err, agent.ErrUnsupportedRunMode):
+		reason = "unsupported_mode"
+	case errors.Is(err, serviceprompt.ErrInvalidPromptClientID),
+		errors.Is(err, serviceprompt.ErrPromptClientIDConflict):
+		reason = "invalid_client_id"
+	default:
+		reason = "rejected"
+	}
+	data, _ := json.Marshal(map[string]any{
+		"clientId":  clientID,
+		"retryable": retryable,
+		"reason":    reason,
+	})
 	return servicechat.Event{
 		T:       time.Now().UnixMilli(),
 		Type:    "system",

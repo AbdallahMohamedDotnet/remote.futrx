@@ -1,9 +1,17 @@
 import { ReconnectingJsonWebSocket } from "../../transport/reconnectingJsonSocket";
 import { webSocketUrl } from "../../transport/webSocketUrl";
-import type { ChatEvent } from "../../models/chat";
+import type {
+  ChatEvent,
+  InteractionAnswers,
+  PromptExecutionPreferences,
+} from "../../models/chat";
 import type { ChatStream, ChatStreamCallbacks } from "../../types/chatApi";
 import { WEB_SOCKET_ROUTES } from "../../config/routes";
 import { CHAT_STREAM_MESSAGE_TYPES } from "../../config/api";
+import {
+  interactionActivityMessage,
+  interactionResponseMessage,
+} from "./chatStreamMessages";
 
 export function openChatStream(
   chatId: string,
@@ -39,8 +47,25 @@ class ReconnectingChatStream implements ChatStream {
     this.#connection.start();
   }
 
-  sendPrompt(text: string, clientId?: string): boolean {
-    return this.#connection.send({ type: CHAT_STREAM_MESSAGE_TYPES.prompt, text, clientId });
+  sendPrompt(
+    text: string,
+    preferences: PromptExecutionPreferences,
+    clientId?: string,
+  ): boolean {
+    return this.#connection.send({
+      type: CHAT_STREAM_MESSAGE_TYPES.prompt,
+      text,
+      clientId,
+      ...preferences,
+    });
+  }
+
+  sendInteractionResponse(id: string, answers: InteractionAnswers): boolean {
+    return this.#connection.send(interactionResponseMessage(id, answers));
+  }
+
+  sendInteractionActivity(id: string): boolean {
+    return this.#connection.send(interactionActivityMessage(id));
   }
 
   cancel(): boolean {

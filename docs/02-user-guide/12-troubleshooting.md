@@ -105,7 +105,11 @@ Check:
 
 ### The agent is taking the wrong kind of action
 
-Modes are advisory prompt policies, not sandbox profiles. Put important constraints and stopping conditions in the prompt. Use separate projects for stronger boundaries, and supervise external or destructive work directly.
+Every built-in provider currently runs in Default, which is neither read-only
+nor an approval mode. If an older chat still stores Plan, Remote blocks sends
+until you use **Switch Plan to Default**. Put important constraints and
+stopping conditions in the prompt. Use separate projects for stronger
+boundaries, and supervise external or destructive work directly.
 
 ### My queued prompt disappeared
 
@@ -115,9 +119,11 @@ not shared with another tab, browser, device, or user. Closing the tab ends
 their intended lifetime. A background chat's queue does not dispatch until you
 open that chat again.
 
-If delivery was rejected before the server accepted the prompt, Remote keeps it
-queued for the next send window. For work that must run with no browser tab
-open, use [Scheduled tasks](09-scheduled-tasks.md).
+A busy or interrupted delivery remains queued for the next send window. A
+provider/mode mismatch or another semantic rejection is removed from the queue
+and restored to the draft so you can review and resend it explicitly. For work
+that must run with no browser tab open, use
+[Scheduled tasks](09-scheduled-tasks.md).
 
 ### The conversation lost earlier context
 

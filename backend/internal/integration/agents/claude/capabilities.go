@@ -59,7 +59,7 @@ func queryHelpEffortOptions(ctx context.Context, req agent.CapabilityRequest) []
 		req,
 		[]string{"HOME=/root", "IS_SANDBOX=1"},
 		"claude",
-		"--help",
+		claudeCapabilityArgs("--help")...,
 	)
 	helpOutput, _ := helpCmd.CombinedOutput()
 	return parseHelpEfforts(string(helpOutput))
@@ -98,9 +98,19 @@ func buildCapabilities(catalog claudeModelCatalog, reasoning []agent.CapabilityO
 		Label:       "Claude",
 		Source:      catalog.Source,
 		Models:      models,
-		Modes:       agent.ProviderModes(true),
+		Modes:       agent.ProviderModes(false),
 		DefaultMode: agent.RunModeDefault,
 	}
+}
+
+// claudeCapabilityArgs isolates local discovery from project and user
+// customizations while retaining Claude Code authentication and model
+// selection. Capability probes must not run repository hooks, MCP servers,
+// plugins, skills, or instructions merely because the UI refreshed metadata.
+func claudeCapabilityArgs(args ...string) []string {
+	result := make([]string, 0, len(args)+1)
+	result = append(result, "--safe-mode")
+	return append(result, args...)
 }
 
 // reasoningOptionsForModel turns Claude Code's provider-wide /effort choices

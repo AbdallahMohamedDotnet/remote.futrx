@@ -19,3 +19,6 @@ export const CHAT_UPLOAD_PATHS = {
   /** The stable root a project chat's uploads hang off, whatever its live cwd. */
   projectRoot: "/workspace",
 } as const;
+
+export const CODEX_NON_BLOCKING_AUTO_RESOLUTION_MS = 120_000;
+export const CODEX_AUTO_RESOLUTION_VISIBLE_MS = 60_000;

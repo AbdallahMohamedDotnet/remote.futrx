@@ -74,8 +74,64 @@ func TestBuildCapabilitiesUsesResolvedVersionedLabels(t *testing.T) {
 	if got := caps.Models[2].ReasoningEfforts; len(got) != 7 || got[5].Value != "max" || got[6].Value != ultracodeEffort {
 		t.Fatalf("reasoning efforts = %+v", got)
 	}
-	if len(caps.Modes) != 2 || caps.Modes[0].Value != string(agent.RunModeDefault) || caps.Modes[1].Value != string(agent.RunModePlan) {
+	if len(caps.Modes) != 1 || caps.Modes[0].Value != string(agent.RunModeDefault) {
 		t.Fatalf("modes = %+v", caps.Modes)
+	}
+}
+
+func TestCapabilityProbeArgsUseSafeMode(t *testing.T) {
+	tests := []struct {
+		name string
+		got  []string
+		want []string
+	}{
+		{
+			name: "help",
+			got:  claudeCapabilityArgs("--help"),
+			want: []string{"--safe-mode", "--help"},
+		},
+		{
+			name: "effort",
+			got:  claudeEffortCapabilityArgs(),
+			want: []string{
+				"--safe-mode",
+				"-p",
+				"--no-session-persistence",
+				"--output-format", "json",
+				"/effort",
+			},
+		},
+		{
+			name: "default model catalog",
+			got:  claudeModelCapabilityArgs(""),
+			want: []string{
+				"--safe-mode",
+				"-p",
+				"--no-session-persistence",
+				"--output-format", "json",
+				"/model",
+			},
+		},
+		{
+			name: "selected model resolution",
+			got:  claudeModelCapabilityArgs("opus"),
+			want: []string{
+				"--safe-mode",
+				"-p",
+				"--no-session-persistence",
+				"--output-format", "json",
+				"--model", "opus",
+				"/model",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if !slices.Equal(test.got, test.want) {
+				t.Fatalf("args = %#v, want %#v", test.got, test.want)
+			}
+		})
 	}
 }
 

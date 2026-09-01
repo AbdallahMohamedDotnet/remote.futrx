@@ -1,5 +1,10 @@
 import type { ComponentChildren, RefObject } from "preact";
-import type { ChatMeta, ChatStatus } from "../../models/chat";
+import type {
+  AnswerQuestionHandler,
+  ChatMeta,
+  ChatStatus,
+  InteractionActivityHandler,
+} from "../../models/chat";
 import type { ChatMessageBlock } from "../../models/chatMessage";
 import { ChatComposer, type ChatComposerProps } from "./composer/ChatComposer";
 import { JumpToLatestButton } from "./messages/JumpToLatestButton";
@@ -22,6 +27,7 @@ export function ChatThread({
   onScroll,
   onJumpToBottom,
   onAnswerQuestion,
+  onInteractionActivity,
   onLoadOlder,
   onRewind,
   actions,
@@ -41,7 +47,8 @@ export function ChatThread({
   onHamburger: () => void;
   onScroll: () => void;
   onJumpToBottom: () => void;
-  onAnswerQuestion: (text: string) => void;
+  onAnswerQuestion: AnswerQuestionHandler;
+  onInteractionActivity: InteractionActivityHandler;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
   /** Workspace controls. Rendered in the header on desktop and in the toolbar
@@ -77,6 +84,7 @@ export function ChatThread({
             bottomRef={bottomRef}
             onScroll={onScroll}
             onAnswerQuestion={onAnswerQuestion}
+            onInteractionActivity={onInteractionActivity}
             onLoadOlder={onLoadOlder}
             onRewind={onRewind}
           />

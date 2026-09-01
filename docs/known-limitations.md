@@ -84,20 +84,26 @@ These are the constraints worth understanding before you deploy or rely on remot
   direct concurrent run request is rejected. Drafts and queued prompts are
   mirrored to per-tab `sessionStorage`, so they survive navigation and reloads
   in that tab, but not tab closure or another tab/browser/device. A background
-  chat's queue sends only after that chat is opened again. Use scheduled tasks
-  for host-owned future work.
+  chat's queue sends only after that chat is opened again. Accepted prompt IDs
+  are persisted server-side for reconnect/rewind deduplication, but this is not
+  a server-owned future-work queue. Use scheduled tasks for host-owned future
+  work.
 - **Session recovery drops context.** When a provider session is missing (or you switch provider mid-chat), the chat is "recovered" by replaying at most the last ~24 KB of visible transcript as plain text into a fresh session — earlier context and all tool-call state are dropped.
-- **Provider Plan modes differ.** Remote forwards provider-native Default and
-  Plan modes instead of adding workflow prompts. Claude Plan is read-only;
-  Codex Plan is a provider collaboration-instruction preset rather than an
-  OS-level read-only sandbox. Default project runs bypass provider approvals,
-  and Remote has no human-confirmation gate for irreversible or external
-  actions.
+- **Plan is intentionally unavailable for every provider.** All capability
+  catalogs expose Default only, provider changes reset mode to Default, and the
+  prompt boundary rejects older stored Plan values without rewriting them. The
+  user must explicitly switch to Default before resubmitting. Remote's Claude print adapter
+  does not implement Claude Code's `--permission-prompt-tool` MCP bridge or its
+  blocking `AskUserQuestion`/`ExitPlanMode` lifecycle; Codex app-server has a
+  native Plan collaboration mode but Remote lacks the plan-ready approve/revise
+  transition; Kimi rejects `-p` with `--plan`; and Antigravity print mode has no
+  structured approval/control round trip. Default project runs still bypass
+  provider approvals, and Remote has no human-confirmation gate for
+  irreversible or external actions.
 - **Provider-specific gaps.** Kimi has no fork primitive (forked Kimi chats
-  silently start fresh) and reports no usage data. Its discovered per-model
-  Thinking choice is displayed and saved but is not forwarded to the Kimi run,
-  and the currently pinned Kimi CLI rejects its advertised Plan flag with the
-  prompt mode Remote requires. Antigravity forks also
+  silently start fresh) and reports no usage data. Its provider catalog can
+  describe per-model effort, but Remote omits that control because the print
+  run cannot forward it. Antigravity forks also
   start fresh; print mode exposes plain streamed text rather than structured
   tool/usage events, selected skills use explicit `SKILL.md` instruction paths
   rather than native triggers, and Browser MCP is unavailable. Model catalogs
@@ -118,6 +124,17 @@ These are the constraints worth understanding before you deploy or rely on remot
   partial-discovery warnings are present in the API but, except for the
   Antigravity sign-in disable reason, are not currently rendered in the
   composer.
+- **Native interaction state is process-local.** Codex app-server user-input
+  requests remain in the active run and are correlated through persisted
+  `interaction_request`/`interaction_resolved` events, but the pending response
+  channel itself is backend memory. A backend restart or cancellation makes a
+  later browser response invalid. Legacy print-tool question cards still send
+  their answer as a new prompt rather than resuming the original process.
+  Non-blocking Codex questions use Remote's fixed 120-second auto-resolution
+  policy (snoozed after user activity), not a provider-configurable deadline.
+  Secret-question answers are masked from Remote chat history and browser
+  storage, but are sent to Codex and may persist in provider-owned rollout or
+  session state.
 
 ## Scheduled tasks
 

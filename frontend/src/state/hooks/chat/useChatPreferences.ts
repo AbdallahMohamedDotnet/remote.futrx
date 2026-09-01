@@ -36,9 +36,15 @@ export function useChatPreferences({
       model,
       reasoningEffort: "",
       serviceTier: "",
-      ...(providerChanged ? { selectedSkills: [] } : {}),
+      ...(providerChanged ? { mode: "default", selectedSkills: [] } : {}),
     });
-    void setChatSettings({ provider, model, reasoningEffort: "", serviceTier: "" });
+    void setChatSettings({
+      provider,
+      model,
+      reasoningEffort: "",
+      serviceTier: "",
+      ...(providerChanged ? { mode: "default" } : {}),
+    });
   }
 
   function selectSkill(skill: RegisteredSkill) {

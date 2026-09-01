@@ -1,10 +1,9 @@
 import type { ChatStatus, PromptOutcome, QueuedPrompt } from "../../../models/chat";
 
 // Delivery policy for queued prompts. A queued prompt is only removed once the
-// server acknowledges that a run accepted it; a rejected or unacknowledged
-// dispatch keeps the prompt queued so it retries in the next send window
-// instead of being silently lost. The dispatch latch guarantees at most one
-// prompt is on the wire per window.
+// server acknowledges that a run accepted it. Retryable busy rejections stay
+// queued; semantic rejections are removed for explicit user review so they can
+// never auto-run later under different execution preferences.
 class PromptQueueState {
   // The prompt to put on the wire now, or null if the window is closed, a
   // dispatch is already in flight, or the queue is empty.
@@ -19,11 +18,12 @@ class PromptQueueState {
     return prompts[0] ?? null;
   }
 
-  // Prompts remaining after the server's verdict: accepted removes the prompt
-  // (it now lives in the transcript), rejected keeps it for the next window.
+  // Accepted prompts now live in the transcript. Non-retryable rejections are
+  // also removed and restored to the composer by the hook; only a busy verdict
+  // remains eligible for automatic retry.
   promptsAfterOutcome(prompts: QueuedPrompt[], outcome: PromptOutcome): QueuedPrompt[] {
-    if (!outcome.accepted) return prompts;
     if (!prompts.some((prompt) => prompt.id === outcome.clientId)) return prompts;
+    if (!outcome.accepted && outcome.retryable) return prompts;
     return prompts.filter((prompt) => prompt.id !== outcome.clientId);
   }
 

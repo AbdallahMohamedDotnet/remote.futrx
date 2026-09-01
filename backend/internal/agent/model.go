@@ -8,6 +8,7 @@ import (
 
 var ErrRunFailed = errors.New("agent run failed")
 var ErrSessionNotFound = errors.New("agent session not found")
+var ErrUnsupportedRunMode = errors.New("agent run mode is unsupported by this transport")
 
 type ProviderID string
 
@@ -46,11 +47,49 @@ const (
 type ReasoningEffort string
 type ServiceTier string
 type RunMode string
+type InteractionKind string
 
 const (
 	RunModeDefault RunMode = "default"
 	RunModePlan    RunMode = "plan"
 )
+
+const (
+	InteractionUserInput InteractionKind = "user_input"
+)
+
+// InteractionRequest is a provider-neutral description of a blocking request
+// made by an agent harness while a run is still active. The provider adapter
+// remains responsible for translating the correlated response back into its
+// native protocol.
+type InteractionRequest struct {
+	ID               string
+	Kind             InteractionKind
+	ToolName         string
+	Input            json.RawMessage
+	Blocking         bool
+	Sensitive        bool
+	AutoResolutionMS int64
+}
+
+type InteractionResponse struct {
+	Answers  map[string][]string `json:"answers,omitempty"`
+	Decision string              `json:"decision,omitempty"`
+}
+
+// PendingInteraction is the single-owner wait handle returned after an
+// interaction is registered and visible to the user. Await uses the context
+// supplied to BeginInteraction so cancellation cannot drift between phases.
+type PendingInteraction interface {
+	Await() (InteractionResponse, error)
+}
+
+// InteractionHandler separates synchronous registration from waiting for the
+// correlated response. A successful BeginInteraction return guarantees that
+// the request is visible and lets an asynchronous provider reader continue.
+type InteractionHandler interface {
+	BeginInteraction(context.Context, InteractionRequest) (PendingInteraction, error)
+}
 
 // RunPreferences contains provider-neutral launch preferences. Each provider
 // adapter decides which preferences to forward and how to translate them.
@@ -81,6 +120,9 @@ type RunRequest struct {
 	// RuntimeEnv carries short-lived, backend-issued capabilities into a run.
 	// Provider adapters must not persist these values in project configuration.
 	RuntimeEnv map[string]string
+	// Interactions preserves blocking harness requests across the provider
+	// boundary. It may be nil for non-interactive callers such as adapter tests.
+	Interactions InteractionHandler
 }
 
 // Event is the normalized backend event shape emitted by headless agent

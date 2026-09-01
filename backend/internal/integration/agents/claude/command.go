@@ -17,11 +17,10 @@ func (p *Provider) args(req agent.RunRequest) []string {
 		"--include-partial-messages",
 		"--verbose",
 	}
-	if req.Mode == agent.RunModePlan {
-		args = append(args, "--permission-mode", string(agent.RunModePlan))
-	} else {
-		args = append(args, "--dangerously-skip-permissions")
-	}
+	// Print mode cannot preserve Claude Code's blocking Plan approval and
+	// ExitPlanMode lifecycle. Provider.Run rejects non-default requests before
+	// command construction; this is the only supported launch configuration.
+	args = append(args, "--dangerously-skip-permissions")
 	if model := normalizeModelSelection(req.Model); model != "" {
 		args = append(args, "--model", model)
 	}

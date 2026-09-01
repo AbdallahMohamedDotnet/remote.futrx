@@ -50,8 +50,12 @@ class AgentCapabilityState {
       ? discoveredProviderOptions
       : [...discoveredProviderOptions, savedProviderFallback];
     const modelOptions = providerOptions.find((option) => option.value === provider)?.models ?? [];
+    // A non-empty unknown selection remains a visible custom model and must
+    // not inherit Auto's controls. Provider adapters may reject the stale
+    // value, and silently attaching Auto-only effort/tier choices would
+    // describe a command Remote does not actually launch.
     const selectedModel = providerCapabilities?.models.find((item) => item.id === model)
-      ?? providerCapabilities?.models.find((item) => item.id === "");
+      ?? (model === "" ? providerCapabilities?.models.find((item) => item.id === "") : undefined);
     return {
       providerCapabilities,
       providerOptions,
@@ -86,31 +90,11 @@ class AgentCapabilityState {
     ) {
       correction.serviceTier = "";
     }
-    if (
-      selection.mode &&
-      !state.modeOptions.some((option) => option.value === selection.mode)
-    ) {
-      const replacement = this.supportedMode(state, capabilities.defaultMode);
-      if (replacement !== undefined) correction.mode = replacement;
-    }
+    // Never auto-correct a mode. A queued or scheduled prompt may have been
+    // composed under its read-only semantics; silently selecting Default can
+    // turn a safe rejection into a later write-capable execution. The composer
+    // presents an explicit switch when a saved mode is no longer available.
     return correction;
-  }
-
-  // A replacement the provider actually offers, or undefined when it offers
-  // nothing usable. The correction has to satisfy the same check that produced
-  // it: naming a mode outside modeOptions leaves the selection invalid, so the
-  // next pass corrects it again, and the composer never settles.
-  //
-  // Effort and tier cannot loop this way — they correct to "", which the
-  // `selection.x &&` guard treats as nothing to correct.
-  private supportedMode(
-    state: ComposerCapabilityState,
-    defaultMode: string | undefined,
-  ): string | undefined {
-    const offers = (value: string | undefined) =>
-      value !== undefined && state.modeOptions.some((option) => option.value === value);
-    if (offers(defaultMode)) return defaultMode;
-    return state.modeOptions[0]?.value;
   }
 
   private providerLabel(provider: string): string {

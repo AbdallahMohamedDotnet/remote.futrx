@@ -9,7 +9,7 @@ catalog for the default compatible with the chat's host/project scope. Codex is
 the current explicit built-in default; a deployment that changes the compiled
 catalog can choose another without changing chat or frontend switch logic.
 
-![Provider, model, skill, thinking, speed, and mode controls](/assets/docs/screenshots/05-chat-agent-controls-03m10s.webp)
+![Provider, model, skill, thinking, and speed controls](/assets/docs/screenshots/05-chat-agent-controls-03m10s.webp)
 
 ## Configure a run
 
@@ -21,8 +21,8 @@ Before sending a prompt:
    skills.
 4. Set **Thinking** when the provider exposes reasoning effort.
 5. Set **Speed** when the selected provider and model expose a service tier.
-6. Set **Mode** for the task.
-7. Write and send the prompt.
+6. Write and send the prompt. The current built-in providers all run in
+   Default, so the Mode control is hidden.
 
 **Outcome:** Remote saves the selections to the chat and uses supported values
 to construct the next provider CLI run. Provider, model, thinking, and speed
@@ -44,8 +44,9 @@ Codex pages through the app-server catalog. Claude attempts to resolve every
 `/model` selection (including `best`, 1M-context, and `opusplan`) so an alias
 such as `opus` is displayed as the concrete Opus version selected for the
 connected account. Kimi shows configured aliases with their provider
-model/display name and per-model effort metadata. Antigravity preserves the
-full display names returned by `agy models`, including thinking variants.
+model/display name. Antigravity uses the stable slug returned by `agy models`
+as the launch value and shows the separate display label, including thinking
+variants.
 
 Remote still submits the provider's required selection value. For example, a
 Claude row labeled **Opus 5** can carry the dynamic `opus` alias underneath;
@@ -60,8 +61,8 @@ provider; a listed choice can still fail if the connected account changes or
 loses access after the catalog is loaded.
 
 Switching providers clears the previous model, reasoning effort, service tier,
-and selected skills because those values may not be compatible with the new
-provider.
+and selected skills and resets mode to Default because those values and mode
+lifecycles may not be compatible with the new provider.
 
 ### Refresh model choices
 
@@ -91,10 +92,10 @@ after changing a provider's configuration in the terminal.
 
 **Thinking** contains the reasoning efforts reported for the selected model.
 It is hidden when that provider/model does not advertise an effort control.
-Claude, Codex, and Antigravity forward supported selections. Kimi currently
-shows and stores its per-model effort metadata but does not forward the chosen
-Thinking value when launching a run; Kimi uses its configured model/default
-effort instead.
+Claude, Codex, and Antigravity forward supported selections. Kimi provider
+metadata can describe effort levels, but Remote does not advertise them because
+the current print adapter cannot forward the choice; Kimi uses its configured
+model/default effort instead.
 
 **Auto** omits the explicit effort flag. The provider or model then chooses its
 default. Higher labels request more reasoning; they can increase latency and
@@ -111,24 +112,28 @@ disabled by the connected organization or authentication provider.
 
 ## Provider modes
 
-**Default** uses the provider's normal agent behavior. **Plan** invokes the
-provider's own planning mode and is shown when the backend adapter reports it.
-If a provider exposes only Default, the mode control is hidden. Claude's
-adapter declares its known native Plan mode; the other adapters derive it from
-their CLI surfaces.
+**Default** uses the provider's normal agent behavior. Every built-in provider
+currently exposes Default only, so the Mode control is hidden. Chats that saved
+Plan in an older QA build remain in Plan and cannot run. The composer shows an
+explicit **Switch Plan to Default** action; review that change before sending.
+Switching providers is also an explicit choice and starts the new provider in
+Default.
 
 Remote does not prepend custom Chat, Code, Review, Debug, or Full auto prompts.
+It also does not expose a native Plan flag merely because the CLI lists one.
+Plan will return provider by provider only after Remote can complete that
+harness's full lifecycle:
+
+- Remote's current Claude print adapter does not implement Claude Code's
+  `--permission-prompt-tool` MCP bridge, so it cannot complete the blocking
+  `AskUserQuestion` and `ExitPlanMode` approval lifecycle;
+- Codex app-server supports native Plan, but Remote does not yet provide the
+  plan-ready **Approve**/**Revise** transition;
+- Kimi rejects `--plan` with Remote's required `-p` transport; and
+- Antigravity print mode has no structured approval/control round trip.
+
 Default project runs remain approval-free inside the isolated project
-container. Plan-mode enforcement belongs to the provider and can differ: for
-example, Claude applies its read-only Plan permission mode while Codex applies
-its native Plan collaboration instructions.
-
-Changing **Mode** while a run is already active affects a later prompt, not the
-provider process that is currently producing output.
-
-Do not select Plan for Kimi in the currently pinned release. Its CLI advertises
-`--plan` in help but rejects it together with the non-interactive prompt mode
-Remote uses, so that combination fails before a run begins.
+container. Default is not a read-only or human-approval mode.
 
 ## Select skills
 

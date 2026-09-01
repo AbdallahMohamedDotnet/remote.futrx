@@ -23,6 +23,7 @@ runtime: each provider still has to implement the behavior it advertises.
 | `LegacySkillRoots` | skill catalog | Adds provider-specific host skill locations behind the canonical `.agents/skills` root. |
 | `Features.Sessions` | prompt service and chat forking | Enables saved-session resume and, separately, native fork. Fork requires resume. |
 | `Features.Skills` | skill catalog and prompt preparation | Chooses no selected-skill injection, slash-style skill triggers, dollar mentions, or `SKILL.md` instructions. `slash-command` describes skill delivery; it is not a general composer-command system. |
+| `Features.ExecutableRunModes` | chat/settings validation, prompt service, capability decoration | Lists only modes whose complete provider harness lifecycle Remote implements. Every module must include Default. |
 | `Features.BrowserTools` | capability API and prompt service | Allows the selected `browser` skill to request browser provisioning and provider launch wiring. |
 | `Features.ScheduledTools` | skill catalog, prompt service, capability API/frontend | Advertises the Scheduled Tasks skill and permits issue/provisioning of a scoped schedule grant. |
 
@@ -43,12 +44,12 @@ does not change the catalog.
 
 ## Current built-in declarations
 
-| Provider | Default | Scopes | Auth | Sessions | Skills | Browser | Scheduled Tasks |
-| --- | ---: | --- | --- | --- | --- | ---: | ---: |
-| Claude | No | host, project | managed code | resume, fork | slash-style skill trigger | Yes | Yes |
-| Codex | Yes | host, project | managed device | resume, fork | dollar mention | Yes | Yes |
-| Kimi | No | host, project | managed device | resume | instructions | No | Yes |
-| Antigravity | No | host, project | external | resume | instructions | No | Yes |
+| Provider | Default | Scopes | Auth | Sessions | Skills | Modes | Browser | Scheduled Tasks |
+| --- | ---: | --- | --- | --- | --- | --- | ---: | ---: |
+| Claude | No | host, project | managed code | resume, fork | slash-style skill trigger | Default | Yes | Yes |
+| Codex | Yes | host, project | managed device | resume, fork | dollar mention | Default | Yes | Yes |
+| Kimi | No | host, project | managed device | resume | instructions | Default | No | Yes |
+| Antigravity | No | host, project | external | resume | instructions | Default | No | Yes |
 
 All four current modules run local CLIs and attach provisioning profiles. The
 contract also permits a host-only remote integration with no profile and a
@@ -64,6 +65,7 @@ starts. The current feature contracts are:
 | --- | --- | --- | --- | --- |
 | Sessions | `Features.Sessions.Resume` and `.Fork` | Persists provider-keyed session IDs, controls resume input, and preserves eligible sessions when chats fork. | Emit native session IDs and translate resume/fork into the native command or protocol. | Automatic when a saved session exists; fork is requested by the chat workflow. |
 | Skills | `Features.Skills` strategy | Discovers skill metadata, stores explicit chat selections, and renders the selected skills into the effective prompt. | Make the declared slash, dollar, or instruction-path form usable in the provider runtime. | User selection in the skill picker; scheduled runs may add the reserved Scheduled Tasks skill. |
+| Run modes | `Features.ExecutableRunModes` | Validates chat/settings writes and stored runs, and clamps live capability output to platform-complete modes. | Validate and translate every declared mode without silently substituting another. | Selected per chat; all current modules declare Default only. |
 | Browser tools | `Features.BrowserTools` | Publishes support metadata and gates browser preparation and activity keepalive after the Browser skill is selected. | Pass working native MCP/tool configuration into the run. | The `browser` skill is selected and the provider declaration permits it. |
 | Scheduled Tasks | `Features.ScheduledTools` | Advertises the reserved project skill, issues and revokes a scoped grant, provisions the schedule CLI/skill, and injects runtime-only variables. | Preserve the runtime environment through the native host/container launch. | The Scheduled Tasks skill is selected, or the turn is executing a scheduled task. |
 
@@ -71,8 +73,8 @@ Several adjacent contracts are deliberately not fields of `Features`:
 
 - identity, label, default, execution scope, and authentication are stable
   module descriptor policy with their own validation and consumers;
-- models, modes, reasoning efforts, and service tiers are environment/account
-  data returned by live capability discovery rather than static promises;
+- models, reasoning efforts, and service tiers are environment/account data
+  returned by live capability discovery rather than static promises;
 - CLI installation, credentials, persistent state, instructions, workspace
   links, and Browser templates are private provisioning-profile policy;
 - parser formats, command flags, protocol deadlines, and fallback behavior are
@@ -91,7 +93,7 @@ flowchart TD
     Catalog --> Build["Build one module.Runtime"]
     Catalog --> Host["HostProfiles: install-host-agents"]
     Catalog --> Project["Profiles: base image + container stack"]
-    Build --> Chat["Chat provider/default/scope policy"]
+    Build --> Chat["Chat provider/default/scope/mode policy"]
     Build --> Prompt["Provider lookup + session/skill/tool policy"]
     Build --> Auth["Auth bindings + access gate"]
     Build --> Caps["Capability providers + descriptor decoration"]

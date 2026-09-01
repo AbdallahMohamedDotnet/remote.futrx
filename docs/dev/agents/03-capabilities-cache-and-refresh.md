@@ -88,10 +88,17 @@ never parses a provider protocol.
 
 | Provider | Primary discovery | Fallback and partial behavior |
 | --- | --- | --- |
-| Claude | Runs local `/model`, parses its available selection aliases, and resolves each alias to a versioned display label with up to four workers. It runs `/effort` in parallel. | `--help` can supply effort choices. Failure to read `/model` uses the conservative built-in selection catalog; unresolved aliases keep fallback labels and a warning. Fast mode is exposed only on eligible Auto/Opus choices. |
-| Codex | Starts `codex app-server`, initializes the experimental API, reads every paginated `model/list` page, and requests `collaborationMode/list`. Model records retain per-model efforts, service tiers, and defaults. | `codex debug models` is the structured model fallback when app-server discovery fails. It cannot supply collaboration modes, so the result carries a warning. Total failure returns an Auto-only fallback. Capability probes explicitly clear `OPENAI_API_KEY`. |
-| Kimi | Reads `kimi provider list --json`; the plain `provider list` supplies the configured default, and `kimi --help` supplies the Plan hint. Aliases and their overrides are normalized into model records. | Failure of the JSON catalog returns an Auto-only fallback. Failure of only the plain/help commands preserves models and adds a warning. |
-| Antigravity | Parses model display names from `agy models` and effort/mode choices from `agy --help`. | When the model command fails, the adapter returns fallback controls plus an `unavailableReason` explaining where to sign in. Project sign-in happens in the project terminal. |
+| Claude | Runs safe-mode `/model`, parses available selection aliases, and resolves each alias to a versioned display label with up to four workers. It runs safe-mode `/effort` in parallel. | Safe-mode `--help` can supply effort choices. `--safe-mode` preserves auth/model selection while preventing metadata refresh from loading project/user hooks, MCP servers, plugins, skills, or instructions. Failure to read `/model` uses the conservative built-in selection catalog; unresolved aliases keep fallback labels and a warning. Fast mode is exposed only on eligible Auto/Opus choices. |
+| Codex | Starts `codex app-server`, sends `initialize`, waits for its response, sends the required `initialized` notification, then reads every paginated `model/list` page and requests `collaborationMode/list`. Model records retain per-model efforts, service tiers, and defaults. | `codex debug models` is the structured model fallback when app-server discovery fails. It cannot supply collaboration modes, so the result carries a warning. Total failure returns an Auto-only fallback. Capability probes explicitly clear `OPENAI_API_KEY`. |
+| Kimi | Reads `kimi provider list --json`; the plain `provider list` supplies the configured default. Aliases and their provider/display names are normalized into model records. | Failure of the JSON catalog returns an Auto-only fallback. Failure of only the plain default command preserves models and adds a warning. Remote does not probe help or expose provider effort metadata because `-p` cannot run with `--plan` and the print adapter does not forward effort. |
+| Antigravity | Runs `agy --output-format json models` and reads `command.data.models`, keeping the stable `id` slug accepted by `--model` separate from its display `label`. `agy --help` supplies effort choices. | When the model command fails, the adapter returns fallback controls plus an `unavailableReason` explaining where to sign in. Project sign-in happens in the project terminal. Help-reported native modes are not exposed through the print adapter. |
+
+Every provider currently returns Default as its only mode. A CLI flag or
+app-server catalog entry is discovery evidence, not by itself an executable
+Remote capability: Plan remains hidden until the adapter and shared UI/service
+state can complete that harness's question, approval, revise, and exit
+lifecycle. This is why Codex still reads collaboration modes for protocol
+compatibility while not publishing Plan.
 
 Host probes execute the provider binary directly and inherit the backend
 environment plus provider overrides. Project probes use `lxc exec --cwd
@@ -104,9 +111,10 @@ The normalized response carries:
 
 - provider identity, label, source, warning, and optional unavailable reason;
 - models with their own reasoning-effort and service-tier choices and defaults;
-- provider-native modes;
+- executable modes (currently Default only for every built-in provider);
 - module metadata: default flag, execution scopes, authentication policy,
-  session support, skill strategy, Browser tools, and scheduled tools.
+  session support, skill strategy, harness-complete run-mode policy, Browser
+  tools, and scheduled tools.
 
 `version` exists as an optional response field, but the current provider
 capability adapters do not populate it. Installed-version enforcement belongs

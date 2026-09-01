@@ -7,7 +7,8 @@ lets you continue, queue, cancel, rewind, or fork the work.
 ## Send a prompt
 
 1. Open a project and select **New chat**, or select an existing chat.
-2. Configure the provider, model, skills, thinking, speed, and mode as needed.
+2. Configure the provider, model, skills, thinking, and speed as needed. All
+   current providers run in Default, so Mode is hidden.
 3. Enter a concrete request in the composer.
 4. To include files, select **Attach files**, drag files onto the composer, or
    paste file data such as an image.
@@ -27,7 +28,7 @@ slash commands. Attach files with **Attach files**, drag-and-drop, or paste.
 ```mermaid
 flowchart LR
     Prompt["Current prompt"] --> Request["Provider run request"]
-    Mode["Advisory mode guidance"] --> Request
+    Mode["Default execution mode"] --> Request
     Skills["Selected skill triggers"] --> Request
     Files["Uploaded absolute paths"] --> Request
     Session["Provider session ID, when valid"] --> Request
@@ -72,12 +73,15 @@ the agent is working** and the send button becomes **Queue prompt**.
 1. Enter the follow-up.
 2. Select **Queue prompt**.
 3. Repeat to build an ordered list.
-4. Remove a queued item if it should not be sent.
+4. Remove a waiting item if it should not be sent. The head cannot be removed
+   once Remote has started delivering it and is waiting for the server's ack.
 5. Keep or return to that chat in the same loaded page.
 
 The first queued prompt is sent after the active run unlocks. A prompt remains
-queued until the server acknowledges that it accepted the next run; a rejected
-or interrupted dispatch stays at the front for the next send window.
+queued until the server acknowledges that it accepted the next run. A busy
+rejection stays at the front for the next send window. A provider/mode mismatch
+or another semantic rejection is removed from the queue and restored to the
+draft for review; it never retries automatically under changed controls.
 Only the active chat has a live composer controller, so a queue in a background
 chat waits until you open that chat again.
 
@@ -103,8 +107,18 @@ During a run, Remote can show:
 Antigravity currently emits plain streamed text rather than structured
 reasoning, tool, or usage events.
 
-Answer a displayed question and submit it to send that answer as the next
-prompt. Use **Jump to latest** after scrolling away from new output.
+For a Codex app-server question, the same run remains active while the card is
+open. Submitting sends the structured choices back to that exact provider
+request and the agent continues without creating another user prompt. An
+option can include an additional note. Non-blocking questions auto-resolve
+after two minutes; the final minute is visible, and selecting or typing snoozes
+that timer. A masked secret answer is omitted from Remote chat history and
+browser storage, but is sent to Codex and may remain in its provider-owned
+session history. A question card emitted by a legacy print/tool stream has no
+live request to resume; after that run unlocks, submitting its readable answer
+starts a new prompt. Resolved interactive cards are no longer actionable,
+including when viewed from another browser. Use **Jump to latest** after
+scrolling away from new output.
 
 Select **Cancel** or press Escape to request cancellation. Cancellation stops
 the active provider context known to the current backend process and releases

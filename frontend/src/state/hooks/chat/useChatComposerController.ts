@@ -1,9 +1,16 @@
 import { useStore } from "zustand";
 import { useCallback, useEffect, useRef } from "preact/hooks";
-import type { ChatStatus, PromptOutcome } from "../../../models/chat";
+import type {
+  AnswerQuestionHandler,
+  ChatStatus,
+  InteractionAnswers,
+  PromptExecutionPreferences,
+  PromptOutcome,
+} from "../../../models/chat";
 import { useConfirm } from "../../context/ConfirmContext";
 import { chatAttachmentService } from "../../../services/chat/chatAttachmentService.ts";
 import { chatComposerSessionStore } from "../../stores/chat/composerSessionStore";
+import { dispatchQuestionAnswer } from "./chatInteractionState";
 import { promptQueueState } from "./promptQueueState";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useAutosizeTextarea } from "./useAutosizeTextarea";
@@ -17,7 +24,10 @@ export function useChatComposerController({
   blockCount,
   status,
   canSendPrompt,
+  transportReady,
   sendPrompt,
+  executionPreferences,
+  sendInteractionResponse,
   promptOutcome,
   rewind,
   refreshMeta,
@@ -28,7 +38,14 @@ export function useChatComposerController({
   blockCount: number;
   status: ChatStatus;
   canSendPrompt: boolean;
-  sendPrompt: (text: string, clientId?: string) => boolean;
+  transportReady: boolean;
+  sendPrompt: (
+    text: string,
+    preferences: PromptExecutionPreferences,
+    clientId?: string,
+  ) => boolean;
+  executionPreferences: PromptExecutionPreferences;
+  sendInteractionResponse: (id: string, answers: InteractionAnswers) => boolean;
   promptOutcome: PromptOutcome | null;
   rewind: (beforeT: number) => Promise<unknown>;
   refreshMeta: () => Promise<void>;
@@ -56,13 +73,19 @@ export function useChatComposerController({
   const upload = useAttachmentUpload(chatId, attachmentBasePath);
   const drag = useDragUpload(upload.doUpload);
   const scroll = useThreadScroll(chatId, `${eventCount}:${blockCount}`);
+  const restorePrompt = useCallback((rejected: string) => {
+    setText((current) => current.trim() ? `${rejected}\n\n${current}` : rejected);
+    setTimeout(focusInput, 0);
+  }, [focusInput, setText]);
   const queue = usePromptQueue({
     chatId,
     status,
     canSendPrompt,
+    transportReady,
     sendPrompt,
     promptOutcome,
     onSent: scroll.unlockAutoScroll,
+    onRejected: restorePrompt,
   });
 
   useEffect(() => {
@@ -124,12 +147,7 @@ export function useChatComposerController({
       ? chatAttachmentService.promptWithAttachments(userText, paths)
       : userText;
 
-    if (status === "streaming") {
-      queue.queuePrompt(finalText);
-    } else {
-      const sent = sendPrompt(finalText);
-      if (!sent) return;
-    }
+    if (!sendTrackedPrompt(finalText)) return;
 
     setText("");
     upload.clearAttachments();
@@ -137,10 +155,20 @@ export function useChatComposerController({
     setTimeout(focusInput, 0);
   }
 
-  function handleAnswerQuestion(answer: string) {
-    const sent = sendPrompt(answer);
-    if (sent) scroll.unlockAutoScroll();
+  function sendTrackedPrompt(promptText: string): boolean {
+    if (!promptQueueState.allowsQueue(status) && !canSendPrompt) return false;
+    queue.queuePrompt(promptText, executionPreferences);
+    return true;
   }
+
+  const handleAnswerQuestion: AnswerQuestionHandler = (answer) => {
+    const sent = dispatchQuestionAnswer(answer, {
+      sendPrompt: sendTrackedPrompt,
+      sendInteractionResponse,
+    });
+    if (sent) scroll.unlockAutoScroll();
+    return sent;
+  };
 
   return {
     text,

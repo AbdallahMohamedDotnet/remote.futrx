@@ -9,6 +9,9 @@ stateDiagram-v2
     [*] --> New: create chat
     New --> Ready: metadata and event log exist
     Ready --> Running: send prompt
+    Running --> WaitingForInput: correlated interaction_request
+    WaitingForInput --> Running: response or Remote auto-resolution
+    WaitingForInput --> Ready: cancel
     Running --> Ready: complete or error, then sync unlocked
     Running --> Ready: cancel
     Ready --> Rewound: remove selected prompt and later events
@@ -40,8 +43,8 @@ sequenceDiagram
     Hub-->>WS: Broadcast sync running=true
     WS-->>UI: sync running=true
     Prompt->>Store: Load metadata and prior events
-    Prompt->>Hub: Emit user event
-    Hub->>Store: Append user event
+    Prompt->>Store: Persist delivery receipt and user event
+    Prompt->>Hub: Broadcast stored user event
     Hub-->>WS: Broadcast user event
     WS-->>UI: Render user event
     Prompt->>Prompt: Apply mode, history, and selected skills
@@ -142,22 +145,29 @@ usage, and error events that provider can supply.
 
 ## Modes
 
-Remote does not define workflow prompts. The mode selector contains the
-provider-native modes reported by the selected provider adapter. Codex, Kimi,
-and Antigravity derive availability from CLI output; Claude declares its known
-native Default and Plan modes:
+Remote does not define workflow prompts. Although the persisted mode contract
+still recognizes `default` and the older `plan` value, every built-in adapter
+currently advertises **Default only**. The selector is therefore hidden. A
+provider change resets the chat mode to Default. If an old chat still stores
+Plan, the prompt boundary rejects it without changing the stored value. The
+user must explicitly switch to Default before resending. This fail-closed
+handoff prevents a read-only expectation from silently becoming a mutable run.
+Every provider adapter independently rejects Plan before launch as a final
+boundary.
 
-| Mode | Behavior |
+Plan remains gated until Remote can honor each harness's complete lifecycle:
+
+| Provider | Why Plan is not exposed |
 | --- | --- |
-| Default | Use the provider's normal agent behavior |
-| Plan | Use the provider's native planning mode; shown when the adapter reports it |
+| Claude | Remote's current `claude -p` adapter does not implement Claude Code's `--permission-prompt-tool` MCP bridge, so it cannot complete the blocking `AskUserQuestion` and `ExitPlanMode` approval transition. |
+| Codex | App-server exposes a native Plan collaboration mode, and Remote now bridges blocking user questions, but Remote does not yet model the plan-ready **Approve**/**Revise** transition. |
+| Kimi | The pinned CLI rejects `--plan` together with the `-p` transport Remote requires. Its provider effort metadata is also not a runnable print-mode control. |
+| Antigravity | `agy --print` provides output but no structured control/approval round trip for leaving or approving Plan. |
 
-The selector is hidden when Default is the provider's only available mode.
-Codex modes are sent through app-server collaboration modes. Claude and
-Antigravity receive their native Plan CLI flag. Kimi currently advertises Plan
-from CLI help, but the currently pinned Kimi CLI rejects `--plan` together with
-the prompt mode Remote requires; Kimi runs must use Default until that
-integration is changed.
+Default project runs remain approval-free within the project container. Hiding
+Plan prevents Remote from promising a read-only or approval workflow that the
+selected transport cannot complete; it does not add a human confirmation gate
+to Default.
 
 Model, reasoning, and speed controls are stored per chat. The user's last
 selection also becomes the default for new chats. Codex forwards service tiers
@@ -179,8 +189,8 @@ the selected host/project execution scope concurrently and
 preserves registry order in the response. One global
 `AGENT_CAPABILITY_TIMEOUT` bounds each provider's complete discovery operation
 (30 seconds by default; `0` disables the deadline). Each adapter normalizes
-the CLI-specific output into models, per-model reasoning
-efforts, service tiers, and provider-native modes. A failed probe can return a
+the CLI-specific output into models and only the controls that the current
+transport can execute end to end. A failed probe can return a
 conservative fallback. A partial probe preserves usable live data when possible
 and attaches a concise `warning`; provider failures do not make the whole
 catalog request fail.
@@ -191,16 +201,16 @@ smaller fallback catalog or partially resolved labels and controls.
 
 | Provider | Discovery source |
 | --- | --- |
-| Codex | Every page of app-server `model/list` plus `collaborationMode/list`, with `codex debug models` as a structured fallback |
-| Claude | The `/model` selection list, with each alias resolved through the CLI to a versioned label; `/effort` is queried in parallel, with `--help` as its fallback; native Default/Plan and eligible Auto/Opus Fast controls are declared by the adapter |
-| Kimi | Configured aliases, display/provider models, and effort metadata from `kimi provider list --json`; the plain listing supplies the active default and CLI help supplies the Plan-mode hint |
-| Antigravity | Display names from `agy models`; effort and mode choices from `agy --help` |
+| Codex | App-server `initialize`, its response, then the required `initialized` notification before every page of `model/list` and `collaborationMode/list`; `codex debug models` is the structured fallback. Collaboration modes are observed but Plan is not exposed. |
+| Claude | Safe-mode `/model` and `/effort` probes, with safe-mode `--help` as the effort fallback. Aliases are resolved to versioned labels without loading project/user hooks, MCP servers, plugins, skills, or instructions. Eligible Auto/Opus Fast controls remain available; mode is Default only. |
+| Kimi | `kimi provider list --json` supplies configured aliases and provider/display names; the plain listing supplies the active default. Remote does not probe help or advertise provider effort/Plan metadata because the print adapter cannot forward it. |
+| Antigravity | `agy models` supplies stable model slugs used as IDs plus separate display labels; `agy --help` supplies effort choices. Native mode flags are not advertised through the print adapter. |
 
 The normalized model record owns its reasoning-effort and service-tier lists,
 so the frontend can update dependent selectors when a model changes without a
-compiled model catalog. Mode discovery is reduced to Default plus a native
-Plan mode when the provider adapter reports one; Remote does not add mode
-prompts.
+compiled model catalog. Mode discovery currently returns Default only. A
+native Plan value can be reintroduced only after the provider adapter and
+shared interaction state machine can complete its lifecycle.
 Provider-required aliases remain model IDs, while the user-facing labels carry
 the resolved version and variant. This is particularly important for dynamic
 Claude aliases and Antigravity's parenthesized thinking variants.
@@ -214,12 +224,11 @@ but cannot currently run; this is separate from partial-discovery warnings.
 The catalog uses the registered provider's ID and the descriptor's label as
 authoritative rather than trusting CLI output for identity.
 
-Discovery and launch support are not identical for every provider. Kimi's
-per-model effort metadata is returned to the frontend, but the current Kimi run
-adapter does not forward a selected Thinking value. It relies on the chosen
-Kimi model/configuration default. Its advertised Plan choice is also
-incompatible with Remote's required prompt mode in the currently pinned Kimi
-CLI, as noted above.
+Discovery and launch support must match. Kimi provider configuration can
+contain effort choices, and the CLI has a native Plan flag, but neither is
+included in the normalized catalog because the current `-p` run adapter cannot
+honor those selections. Kimi therefore relies on its configured model/default
+effort and runs in Default.
 
 ### Capability cache and refresh
 
@@ -277,6 +286,12 @@ flowchart TD
     Parser --> Thinking["thinking"]
     Parser --> ToolStart["tool_use_start"]
     Parser --> ToolEnd["tool_use_end"]
+    Provider --> Interaction["blocking harness interaction"]
+    Interaction --> Request["interaction_request"]
+    Request --> Activity["transient interaction_activity"]
+    Activity --> Request
+    Request --> Response["correlated interaction_response"]
+    Response --> Resolved["interaction_resolved"]
     Parser --> System["system"]
     Parser --> Complete["complete with usage"]
     Parser --> Error["error"]
@@ -288,7 +303,29 @@ Persisted events receive a monotonic `seq`. On reconnect, the UI sends its last 
 
 The UI groups text, reasoning, and tool events into readable assistant messages. Known read, write, edit, search, shell, and question tools receive specialized renderers; unknown tools use a generic view.
 
-The thread also provides Markdown and syntax-highlighted code, grouped tool calls, visible reasoning blocks, token-usage totals, a working indicator, older-history loading, jump-to-latest behavior, and an error block. An `AskUserQuestion` tool call becomes a paged answer form whose submitted answer is sent as the next prompt.
+The thread also provides Markdown and syntax-highlighted code, grouped tool
+calls, visible reasoning blocks, token-usage totals, a working indicator,
+older-history loading, jump-to-latest behavior, and an error block. Question
+cards have two deliberately different submission paths:
+
+- a Codex app-server `requestUserInput` persists an `interaction_request` while
+  the app-server scanner continues handling later notifications. The browser sends
+  `interaction_response` with the request ID and answers keyed by question ID;
+  Remote resumes that JSON-RPC request and persists `interaction_resolved`;
+- a legacy/non-interactive `AskUserQuestion` tool card has no live correlated
+  request, so its text summary is sent as a new prompt after the run unlocks.
+
+Pending interaction correlation is backend-memory state. The frontend enables
+submission only while the chat is streaming and its socket is open and
+synchronized; the backend accepts it only while that exact request remains
+pending. Codex non-blocking questions auto-resolve empty after 120 seconds, but
+the final 60 seconds are shown as a countdown and the first browser selection,
+keypress, or paste sends `interaction_activity` and snoozes that deadline.
+Freeform-only `options:null` questions remain answerable, and an option can be
+submitted with an additional note. Secret values use a masked input and are not
+written to Remote chat events or browser storage, but they are sent to Codex and
+may persist in Codex-owned rollout/session state. Cancellation or restart makes
+a late response invalid.
 
 Antigravity currently contributes streamed assistant text and session/error
 state, not structured reasoning, tools, or usage.
@@ -323,17 +360,28 @@ Claude and Codex.
 | --- | --- |
 | Rename | The API can patch the chat title; the current UI has no manual rename control |
 | Read/unread | Updates `lastReadAt` for sidebar indicators |
-| Cancel | Cancels the active provider context and releases the run lock |
-| Queue | Per-tab `sessionStorage` queue sends prompts one at a time after each run unlocks and removes one only after server acceptance |
+| Cancel | Signals the active provider context; the run lock stays reserved until provider output and teardown finish |
+| Queue | Per-tab `sessionStorage` queue sends prompts one at a time after each run unlocks; busy rejections retry, while semantic rejections return to the draft for explicit review |
 | Fork | Copies visible history and provider session IDs; next run forks without mutating the parent |
 | Rewind | Deletes the selected event and everything after it; unavailable while running |
-| Delete | Cancels an active run, then removes chat metadata and history |
+| Delete | Exclusively cancels and waits for an active run to quiesce, then removes chat metadata and history |
 | Load older | Pages backward through the JSONL event log |
 
 Draft text and queued prompts are mirrored into per-tab `sessionStorage` by
 chat ID. They survive switching chats, navigation, and reloads in the same tab,
 but are not server-authoritative and do not cross tabs, browsers, devices, or
 users. A background chat's queue waits until that chat is active again.
+
+Interactive prompt messages include the provider and mode displayed when the
+user sent them. After reserving the run, the prompt service compares those
+values with current chat metadata. A stale tab is rejected without persisting a
+user event or changing metadata. Accepted client IDs are hashed into hidden,
+non-rewindable chat delivery metadata, so an acknowledgement lost during a
+disconnect can be retried without executing the prompt twice. Chat preference
+updates and rewinds also own the same idle transition as run reservation,
+closing their update/run races. Scheduled turns omit the browser expectation
+but still validate the current stored mode on every fire; an unsupported mode
+fails every occurrence until a user explicitly changes it.
 
 ## Scheduled turns
 

@@ -1,6 +1,10 @@
 import type { RefObject } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
-import type { ChatStatus } from "../../../models/chat";
+import type {
+  AnswerQuestionHandler,
+  ChatStatus,
+  InteractionActivityHandler,
+} from "../../../models/chat";
 import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { MessageBlock } from "./MessageBlock";
 import { MessageSkeleton } from "./MessageSkeleton";
@@ -22,6 +26,7 @@ export function MessageList({
   bottomRef,
   onScroll,
   onAnswerQuestion,
+  onInteractionActivity,
   onLoadOlder,
   onRewind,
 }: {
@@ -36,7 +41,8 @@ export function MessageList({
   contentRef: RefObject<HTMLDivElement>;
   bottomRef: RefObject<HTMLDivElement>;
   onScroll: () => void;
-  onAnswerQuestion: (text: string) => void;
+  onAnswerQuestion: AnswerQuestionHandler;
+  onInteractionActivity: InteractionActivityHandler;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
 }) {
@@ -108,6 +114,7 @@ export function MessageList({
               chatId={chatId}
               cwd={cwd}
               onAnswerQuestion={onAnswerQuestion}
+              onInteractionActivity={onInteractionActivity}
               onRewind={onRewind}
             />
           );

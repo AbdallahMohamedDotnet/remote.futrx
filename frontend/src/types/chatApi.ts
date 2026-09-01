@@ -1,8 +1,18 @@
-import type { ChatEvent } from "../models/chat";
+import type {
+  ChatEvent,
+  InteractionAnswers,
+  PromptExecutionPreferences,
+} from "../models/chat";
 
 export interface ChatStream {
   readonly isOpen: boolean;
-  sendPrompt(text: string, clientId?: string): boolean;
+  sendPrompt(
+    text: string,
+    preferences: PromptExecutionPreferences,
+    clientId?: string,
+  ): boolean;
+  sendInteractionResponse(id: string, answers: InteractionAnswers): boolean;
+  sendInteractionActivity(id: string): boolean;
   cancel(): boolean;
   close(): void;
 }

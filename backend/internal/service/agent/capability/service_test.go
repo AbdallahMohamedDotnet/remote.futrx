@@ -205,9 +205,10 @@ func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
 		Auth:             agentmodule.AuthExternal,
 		AuthInstructions: "Run future-agent login.",
 		Features: agentmodule.Features{
-			Sessions:       agentmodule.SessionSupport{Resume: true},
-			Skills:         agentmodule.SkillsInstructions,
-			ScheduledTools: true,
+			Sessions:           agentmodule.SessionSupport{Resume: true},
+			Skills:             agentmodule.SkillsInstructions,
+			ExecutableRunModes: []agent.RunMode{agent.RunModeDefault},
+			ScheduledTools:     true,
 		},
 	}}
 	catalog := New(
@@ -238,6 +239,37 @@ func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
 	}
 	if cached[0].ExecutionScopes[0] != "host" {
 		t.Fatalf("cached metadata mutated through response: %#v", cached[0])
+	}
+}
+
+func TestDecorateIntersectsReportedAndHarnessCompleteRunModes(t *testing.T) {
+	modules := catalogTestModules{"future-agent": {
+		ID:              "future-agent",
+		Label:           "Future Agent",
+		ExecutionScopes: []agentmodule.ExecutionScope{agentmodule.ScopeHost},
+		Features: agentmodule.Features{ExecutableRunModes: []agent.RunMode{
+			agent.RunModeDefault,
+			agent.RunModePlan,
+		}},
+	}}
+	service := &Service{descriptors: modules}
+
+	withoutNativePlan := agent.Capabilities{
+		Provider: "future-agent",
+		Modes:    agent.ProviderModes(false),
+	}
+	service.decorate(&withoutNativePlan)
+	if len(withoutNativePlan.Modes) != 1 || withoutNativePlan.Modes[0].Value != string(agent.RunModeDefault) {
+		t.Fatalf("unreported Plan was exposed: %#v", withoutNativePlan.Modes)
+	}
+
+	withNativePlan := agent.Capabilities{
+		Provider: "future-agent",
+		Modes:    agent.ProviderModes(true),
+	}
+	service.decorate(&withNativePlan)
+	if len(withNativePlan.Modes) != 2 || withNativePlan.Modes[1].Value != string(agent.RunModePlan) {
+		t.Fatalf("harness-complete reported Plan was hidden: %#v", withNativePlan.Modes)
 	}
 }
 

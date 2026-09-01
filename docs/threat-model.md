@@ -156,12 +156,19 @@ The agent runs as root with approvals disabled and ingests untrusted content —
 
 ### Related: default runs and skill instructions are approval-free
 
-Remote now forwards only provider-native Default and Plan modes; it does not
-prepend custom workflow prompts. Default runs still bypass provider approvals
-inside the project container, and Codex Plan is implemented by provider-owned
-collaboration instructions rather than an OS-level read-only sandbox. There is
-no Remote human-confirmation gate for irreversible or external actions. See
-[Known limitations](known-limitations.md).
+Remote currently exposes and executes Default only; it does not prepend custom
+workflow prompts. Older stored Plan values are not executed or rewritten; the
+current prompt is rejected because none of the current transports completes its
+provider's native plan approval lifecycle. The saved value remains Plan until
+the user explicitly switches it to Default and resends.
+Default runs still bypass provider approvals inside the project
+container. The new correlated user-input bridge answers Codex questions but is
+not a general tool-confirmation gate and does not implement plan-ready
+approve/revise. There is no Remote human-confirmation gate for irreversible or
+external actions. Codex `isSecret` questions only mask the browser field and
+exclude the value from Remote chat events/browser storage; the plaintext answer
+is still sent to Codex and may persist in its durable provider-owned
+rollout/session state. See [Known limitations](known-limitations.md).
 
 ---
 
