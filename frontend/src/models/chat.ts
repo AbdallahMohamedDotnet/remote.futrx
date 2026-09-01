@@ -38,7 +38,7 @@ export interface SelectedSkill {
   source?: string;
 }
 
-type ChatEventBase = { seq?: number; t: number };
+type ChatEventBase = { seq?: number; t: number; turnId?: string };
 
 export type ChatEvent = ChatEventBase & (
   | { type: "user"; text: string }
@@ -56,6 +56,20 @@ export type ChatEvent = ChatEventBase & (
 
 export interface ChatEventPage {
   events: ChatEvent[];
+  nextBefore?: number;
+  lastSeq: number;
+  hasMore: boolean;
+}
+
+export interface ChatTranscriptTurn {
+  id: string;
+  startSeq: number;
+  endSeq: number;
+  events: ChatEvent[];
+}
+
+export interface ChatTranscriptPage {
+  turns: ChatTranscriptTurn[];
   nextBefore?: number;
   lastSeq: number;
   hasMore: boolean;

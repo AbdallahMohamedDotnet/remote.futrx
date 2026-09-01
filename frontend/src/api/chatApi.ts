@@ -24,6 +24,7 @@ export const chatApi = {
     requestJson<ChatMeta>("POST", API_ROUTES.chats.fork(id), {}),
   ...chatFilesApi,
   fetchEvents: chatEventsApi.fetchEvents,
+  fetchTranscript: chatEventsApi.fetchTranscript,
   rewind: chatEventsApi.rewind,
   ...chatHistoryApi,
   ...chatScheduleApi,

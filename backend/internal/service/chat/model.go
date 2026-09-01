@@ -56,6 +56,7 @@ type Event struct {
 	Seq                  int64           `json:"seq,omitempty"`
 	T                    int64           `json:"t"`
 	Type                 string          `json:"type"`
+	TurnID               string          `json:"turnId,omitempty"`
 	Text                 string          `json:"text,omitempty"`
 	MessageID            string          `json:"messageId,omitempty"`
 	ID                   string          `json:"id,omitempty"`
@@ -254,6 +255,31 @@ type EventPage struct {
 	NextBefore int64   `json:"nextBefore,omitempty"`
 	LastSeq    int64   `json:"lastSeq"`
 	HasMore    bool    `json:"hasMore"`
+}
+
+// TranscriptPageQuery pages the user-visible transcript in whole turns. The
+// sequence cursor remains tied to the raw event log so existing chats need no
+// migration and live replay can keep its event-based contract.
+type TranscriptPageQuery struct {
+	Limit     int
+	BeforeSeq int64
+}
+
+// TranscriptTurn is a read projection of one prompt run. Events retain the
+// existing transport shape, but adjacent streaming deltas are compacted and a
+// page never begins inside the turn.
+type TranscriptTurn struct {
+	ID       string  `json:"id"`
+	StartSeq int64   `json:"startSeq"`
+	EndSeq   int64   `json:"endSeq"`
+	Events   []Event `json:"events"`
+}
+
+type TranscriptPage struct {
+	Turns      []TranscriptTurn `json:"turns"`
+	NextBefore int64            `json:"nextBefore,omitempty"`
+	LastSeq    int64            `json:"lastSeq"`
+	HasMore    bool             `json:"hasMore"`
 }
 
 type CreateInput struct {

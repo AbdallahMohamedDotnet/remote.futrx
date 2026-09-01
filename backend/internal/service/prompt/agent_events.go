@@ -44,7 +44,7 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		t = time.Now().UnixMilli()
 	}
 
-	out := ChatEvent{T: t}
+	out := ChatEvent{T: t, TurnID: ev.RunID}
 	switch ev.Type {
 	case agent.EventSessionUpdated:
 		out.Type = "session"
@@ -56,9 +56,17 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 	case agent.EventAssistantTextDelta:
 		out.Type = "assistant_text"
 		out.Text = ev.Text
+		out.MessageID = ev.MessageID
+		if out.MessageID == "" {
+			out.MessageID = ev.ItemID
+		}
 	case agent.EventReasoningDelta:
 		out.Type = "thinking"
 		out.Text = ev.Text
+		out.MessageID = ev.MessageID
+		if out.MessageID == "" {
+			out.MessageID = ev.ItemID
+		}
 	case agent.EventToolStarted:
 		out.Type = "tool_use_start"
 		out.ID = ev.ItemID

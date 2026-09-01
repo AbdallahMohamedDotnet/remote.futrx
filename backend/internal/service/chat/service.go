@@ -372,6 +372,17 @@ func (s *Service) EventPage(ctx context.Context, id ID, query EventPageQuery) (E
 	return s.repo.ReadEventsPage(ctx, id, query)
 }
 
+func (s *Service) TranscriptPage(
+	ctx context.Context,
+	id ID,
+	query TranscriptPageQuery,
+) (TranscriptPage, error) {
+	if !ValidID(id) {
+		return TranscriptPage{}, ErrInvalidID
+	}
+	return s.repo.ReadTranscriptPage(ctx, id, query)
+}
+
 func (s *Service) Rewind(ctx context.Context, id ID, beforeT int64) ([]Event, error) {
 	if !ValidID(id) {
 		return nil, ErrInvalidID

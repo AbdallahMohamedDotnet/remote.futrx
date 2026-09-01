@@ -11,6 +11,7 @@ type Repository interface {
 
 	ReadEvents(ctx context.Context, id ID) ([]Event, error)
 	ReadEventsPage(ctx context.Context, id ID, query EventPageQuery) (EventPage, error)
+	ReadTranscriptPage(ctx context.Context, id ID, query TranscriptPageQuery) (TranscriptPage, error)
 	ReadEventsAfter(ctx context.Context, id ID, afterSeq int64) ([]Event, error)
 	AppendEvent(ctx context.Context, id ID, ev Event) (Event, error)
 	TruncateEventsBefore(ctx context.Context, id ID, beforeT int64) ([]Event, error)

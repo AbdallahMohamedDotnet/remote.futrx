@@ -328,12 +328,18 @@ Claude and Codex.
 | Fork | Copies visible history and provider session IDs; next run forks without mutating the parent |
 | Rewind | Deletes the selected event and everything after it; unavailable while running |
 | Delete | Cancels an active run, then removes chat metadata and history |
-| Load older | Pages backward through the JSONL event log |
+| Load older | Pages backward in complete prompt turns projected from the JSONL event log |
 
 Draft text and queued prompts are mirrored into per-tab `sessionStorage` by
 chat ID. They survive switching chats, navigation, and reloads in the same tab,
 but are not server-authoritative and do not cross tabs, browsers, devices, or
 users. A background chat's queue waits until that chat is active again.
+
+Live replay remains event-based and sequence-addressed. Historical reads use a
+separate turn projection: new runs carry a durable `turnId`, legacy histories
+fall back to `user` event boundaries, and adjacent assistant/reasoning deltas
+are compacted before the page is sent. Provider delta size therefore does not
+change how many conversation turns a history page contains.
 
 ## Scheduled turns
 

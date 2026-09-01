@@ -119,7 +119,7 @@ For work that must start when no browser tab is open, use
 
 | Control | Task and outcome |
 | --- | --- |
-| **Load older messages** / **Show _n_ older messages** | Page backward through earlier persisted events |
+| **Load older messages** / **Show _n_ older messages** | Page backward through complete earlier turns without splitting an assistant response |
 | **Rewind** | Remove the selected user prompt and every event after it, then place that prompt text back in the composer |
 | **Fork from last message** | Create a separate chat from the visible history without changing the parent |
 | **Mark read** / **Mark unread** | Change the sidebar unread marker |

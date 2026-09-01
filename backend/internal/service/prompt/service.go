@@ -187,6 +187,7 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 			input,
 			ledgerRunID,
 			func(ev ChatEvent) {
+				ev.TurnID = ledgerRunID
 				// Stamp the originating task so a scheduled run's events stay
 				// distinguishable from an interactive turn's downstream.
 				ev.ScheduledTaskID = input.ScheduledTaskID
@@ -213,11 +214,15 @@ func (rnr *Service) runPrompt(
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) error {
+	turnID := newLedgerRunID()
 	return rnr.runPromptAs(
 		ctx,
 		StartInput{ChatID: id, Prompt: prompt},
-		newLedgerRunID(),
-		emit,
+		turnID,
+		func(ev ChatEvent) {
+			ev.TurnID = turnID
+			emit(ev)
+		},
 		emitTransient,
 	)
 }

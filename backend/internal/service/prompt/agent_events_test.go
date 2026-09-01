@@ -88,6 +88,23 @@ func TestChatEventFromAgentEventPersistsCompletionProvider(t *testing.T) {
 	}
 }
 
+func TestChatEventFromAgentEventPreservesTurnAndMessageIdentity(t *testing.T) {
+	ev, ok := chatEventFromAgentEvent(agent.Event{
+		T:      123,
+		Type:   agent.EventAssistantTextDelta,
+		RunID:  "turn-1",
+		ItemID: "message-1",
+		Text:   "hello",
+	})
+	if !ok {
+		t.Fatal("expected event to map")
+	}
+	if ev.Type != "assistant_text" || ev.TurnID != "turn-1" ||
+		ev.MessageID != "message-1" || ev.Text != "hello" {
+		t.Fatalf("assistant identity was lost: %#v", ev)
+	}
+}
+
 func TestChatEventFromAgentEventMapsToolLifecycle(t *testing.T) {
 	input := json.RawMessage(`{"cmd":"go test ./..."}`)
 	start, ok := chatEventFromAgentEvent(agent.Event{
