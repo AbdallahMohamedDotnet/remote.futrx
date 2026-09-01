@@ -7,9 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/filesessions"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/filetwofactor"
 )
 
 // The claim gate is a security control reached over HTTP, so it needs a test
@@ -52,6 +55,14 @@ func newClaimTestServer(t *testing.T) (*http.ServeMux, *serviceauth.Service, str
 	t.Helper()
 	dataDir := t.TempDir()
 	store := fileauth.New(dataDir)
+	twoFactorStore, err := filetwofactor.New(dataDir)
+	if err != nil {
+		t.Fatalf("init two-factor store: %v", err)
+	}
+	sessionRegistryStore, err := filesessions.New(dataDir)
+	if err != nil {
+		t.Fatalf("init session registry store: %v", err)
+	}
 	auth, err := serviceauth.New(
 		context.Background(),
 		store,
@@ -59,6 +70,14 @@ func newClaimTestServer(t *testing.T) (*http.ServeMux, *serviceauth.Service, str
 		func(string, string, string) serviceauth.OAuthProvider { return claimTestOAuth{} },
 		"https://remote.example.com",
 		[]byte("0123456789abcdef0123456789abcdef"),
+		twoFactorStore,
+		sessionRegistryStore,
+		serviceauth.Options{
+			PendingLoginTTL:     5 * time.Minute,
+			EnrollmentTTL:       10 * time.Minute,
+			RecoveryCodeCount:   10,
+			SessionHistoryLimit: 20,
+		},
 	)
 	if err != nil {
 		t.Fatalf("auth.New: %v", err)

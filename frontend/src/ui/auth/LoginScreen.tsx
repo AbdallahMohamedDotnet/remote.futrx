@@ -1,8 +1,7 @@
 import { useLocalAuthController } from "../../state/hooks/auth/useLocalAuthController";
-import type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
+import type { LoginMode } from "../../models/auth";
 import { Key, Loader, MessageSquare } from "../primitives/icons";
-
-export type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
+import { TwoFactorChallengeStep } from "./TwoFactorChallengeStep";
 
 export function LoginScreen({
   mode,
@@ -32,6 +31,7 @@ export function LoginScreen({
     setupToken,
     submit,
     submitting,
+    challenge,
   } = useLocalAuthController({ mode, adminEmail, onSuccess });
   // A first-boot claim is authorised solely by the token printed to the
   // server terminal. Without one there is nothing to submit, so offer the
@@ -53,6 +53,21 @@ export function LoginScreen({
       : !localAdminConfigured
         ? "The existing administrator must sign in with Google once, then create a local password."
         : "Administrators use their local password. Invited users sign in with Google.";
+
+  if (challenge.pending) {
+    return (
+      <div class="app-shell overflow-y-auto grid place-items-center bg-[#090b0f] text-ink-100 p-5">
+        <TwoFactorChallengeStep
+          code={challenge.code}
+          error={challenge.error}
+          submitting={challenge.submitting}
+          onCodeChange={challenge.setCode}
+          onSubmit={challenge.submit}
+          onCancel={challenge.cancel}
+        />
+      </div>
+    );
+  }
 
   return (
     <div class="app-shell overflow-y-auto grid place-items-center bg-app text-ink-100 p-5">

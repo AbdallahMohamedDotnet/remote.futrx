@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
-import { mediaViewerState } from "../../../state/chat/mediaViewerState";
-import { viewableMediaKind } from "../files/fileMeta";
+import { mediaViewerStore } from "../../../state/stores/media/mediaViewerStore";
+import { fileService } from "../../../services/files/fileService.ts";
 import { internalPathOpenUrl } from "../ideLinks";
 
 const urlPattern = /^https?:\/\/[^\s<]+/;
@@ -149,10 +149,10 @@ function maybeOpenMediaViewer(event: MouseEvent, href: string): void {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   if (!href.includes("/media-open?")) return;
   const name = mediaOpenFileName(href);
-  const kind = name ? viewableMediaKind(name) : null;
+  const kind = name ? fileService.viewableMediaKind(name) : null;
   if (!name || !kind) return;
   event.preventDefault();
-  mediaViewerState.open({ url: href, name, kind });
+  mediaViewerStore.getState().open({ url: href, name, kind });
 }
 
 function mediaOpenFileName(href: string): string {

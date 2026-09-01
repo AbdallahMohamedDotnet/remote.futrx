@@ -8,16 +8,25 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	service "github.com/futrx-com/remote.futrx.com/internal/service"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
 )
+
+var testAuthOptions = service.AuthOptions{
+	PendingLoginTTL:     5 * time.Minute,
+	EnrollmentTTL:       10 * time.Minute,
+	RecoveryCodeCount:   10,
+	SessionHistoryLimit: 20,
+}
 
 func TestSetupTokenCommandPrintsAFragmentURLAndStoresOnlyTheHash(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer
 
-	if err := runSetupToken(context.Background(), dir, "https://remote.example.com/", &out); err != nil {
+	if err := runSetupToken(context.Background(), dir, "https://remote.example.com/", testAuthOptions, &out); err != nil {
 		t.Fatalf("runSetupToken: %v", err)
 	}
 
@@ -62,7 +71,7 @@ func TestSetupTokenCommandRefusesOnceClaimed(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := runSetupToken(context.Background(), dir, "https://remote.example.com", &out); err == nil {
+	if err := runSetupToken(context.Background(), dir, "https://remote.example.com", testAuthOptions, &out); err == nil {
 		t.Fatal("runSetupToken succeeded against an already-configured server")
 	}
 	if out.Len() != 0 {
@@ -85,7 +94,7 @@ func TestSetupTokenCommandRefusesWhenAnAdministratorExists(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := runSetupToken(context.Background(), dir, "https://remote.example.com", &out); err == nil {
+	if err := runSetupToken(context.Background(), dir, "https://remote.example.com", testAuthOptions, &out); err == nil {
 		t.Fatal("runSetupToken issued a token for a claim an administrator authorises")
 	}
 	if out.Len() != 0 {
@@ -104,7 +113,7 @@ func TestSetupTokenCommandDoesNotCreateASessionKey(t *testing.T) {
 	dir := t.TempDir()
 
 	var out bytes.Buffer
-	if err := runSetupToken(context.Background(), dir, "https://remote.example.com", &out); err != nil {
+	if err := runSetupToken(context.Background(), dir, "https://remote.example.com", testAuthOptions, &out); err != nil {
 		t.Fatalf("runSetupToken: %v", err)
 	}
 

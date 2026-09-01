@@ -9,7 +9,7 @@ import { WorkspaceActions } from "../../ui/chat/header/WorkspaceActions";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
 import { ScheduleDrawer } from "../../ui/chat/schedules/ScheduleDrawer";
-import { chatAttachmentState } from "../../state/chat/chatAttachmentState";
+import { chatAttachmentService } from "../../services/chat/chatAttachmentService.ts";
 import { useChat } from "../../state/hooks/chat/useChat";
 import { useChatBrowserController } from "../../state/hooks/chat/useChatBrowserController";
 import { useChatComposerController } from "../../state/hooks/chat/useChatComposerController";
@@ -17,7 +17,7 @@ import { useChatDrawerController } from "../../state/hooks/chat/useChatDrawerCon
 import { useChatKeyboardShortcuts } from "../../state/hooks/chat/useChatKeyboardShortcuts";
 import { useChatPreferences } from "../../state/hooks/chat/useChatPreferences";
 import { useChatReadMarker } from "../../state/hooks/chat/useChatReadMarker";
-import { useTerminalOverlayController } from "../../state/hooks/chat/useTerminalOverlayController";
+import { useTerminalOverlayController } from "../../ui/chat/terminal/useTerminalOverlayController";
 import { useWorkspaceGitRepos } from "../../state/hooks/chat/useWorkspaceGitRepos";
 
 export function ChatContainer({
@@ -47,7 +47,7 @@ export function ChatContainer({
   } = useChat(chat.id);
   const preferences = useChatPreferences({ chat, loadedMeta: meta, refreshMeta });
   const { displayMeta, displayMode, selectedSkills } = preferences;
-  const attachmentBasePath = chatAttachmentState.basePath(displayMeta, projects);
+  const attachmentBasePath = chatAttachmentService.basePath(displayMeta, projects);
   const project = projects.find((candidate) => candidate.id === displayMeta.projectId);
   const composer = useChatComposerController({
     chatId: chat.id,

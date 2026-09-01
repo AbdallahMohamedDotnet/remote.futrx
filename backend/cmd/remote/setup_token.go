@@ -9,6 +9,8 @@ import (
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/filesessions"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/filetwofactor"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusers"
 )
 
@@ -41,13 +43,29 @@ func (unsignedAuthStore) SessionKey(context.Context) ([]byte, error) {
 // It asks the auth service whether setup is still gated rather than deciding
 // for itself, so this command and the running server can never disagree about
 // when a token is worth printing.
-func runSetupToken(ctx context.Context, dataDir, baseURL string, out io.Writer) error {
+func runSetupToken(ctx context.Context, dataDir, baseURL string, authOptions service.AuthOptions, out io.Writer) error {
 	authStore := unsignedAuthStore{Store: fileauth.New(dataDir)}
 	usersStore, err := fileusers.New(dataDir)
 	if err != nil {
 		return fmt.Errorf("open user directory: %w", err)
 	}
-	auth, err := service.NewAuth(ctx, authStore, serviceuser.New(usersStore), baseURL)
+	twoFactorStore, err := filetwofactor.New(dataDir)
+	if err != nil {
+		return fmt.Errorf("open two-factor store: %w", err)
+	}
+	sessionRegistryStore, err := filesessions.New(dataDir)
+	if err != nil {
+		return fmt.Errorf("open session registry store: %w", err)
+	}
+	auth, err := service.NewAuth(
+		ctx,
+		authStore,
+		serviceuser.New(usersStore),
+		baseURL,
+		twoFactorStore,
+		sessionRegistryStore,
+		authOptions,
+	)
 	if err != nil {
 		return err
 	}

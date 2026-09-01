@@ -6,7 +6,17 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
+
+func authTestOptions() Options {
+	return Options{
+		PendingLoginTTL:     5 * time.Minute,
+		EnrollmentTTL:       10 * time.Minute,
+		RecoveryCodeCount:   10,
+		SessionHistoryLimit: 20,
+	}
+}
 
 type authTestStore struct {
 	local      *LocalAdminCredential
@@ -79,6 +89,56 @@ func (s *authTestStore) DeleteSetupToken(context.Context) error {
 
 func (s *authTestStore) SessionKey(context.Context) ([]byte, error) { return s.key, nil }
 
+type authTestTwoFactorStore struct {
+	records map[string]TwoFactorRecord
+}
+
+func newAuthTestTwoFactorStore() *authTestTwoFactorStore {
+	return &authTestTwoFactorStore{records: map[string]TwoFactorRecord{}}
+}
+
+func (s *authTestTwoFactorStore) Get(_ context.Context, email string) (*TwoFactorRecord, error) {
+	record, ok := s.records[normalizeEmail(email)]
+	if !ok {
+		return nil, nil
+	}
+	copy := record
+	return &copy, nil
+}
+func (s *authTestTwoFactorStore) Save(_ context.Context, email string, record TwoFactorRecord) error {
+	s.records[normalizeEmail(email)] = record
+	return nil
+}
+func (s *authTestTwoFactorStore) Delete(_ context.Context, email string) error {
+	delete(s.records, normalizeEmail(email))
+	return nil
+}
+
+type authTestSessionRegistryStore struct {
+	records map[string]SessionRegistryRecord
+}
+
+func newAuthTestSessionRegistryStore() *authTestSessionRegistryStore {
+	return &authTestSessionRegistryStore{records: map[string]SessionRegistryRecord{}}
+}
+
+func (s *authTestSessionRegistryStore) Get(_ context.Context, email string) (*SessionRegistryRecord, error) {
+	record, ok := s.records[normalizeEmail(email)]
+	if !ok {
+		return nil, nil
+	}
+	copy := record
+	return &copy, nil
+}
+func (s *authTestSessionRegistryStore) Save(_ context.Context, email string, record SessionRegistryRecord) error {
+	s.records[normalizeEmail(email)] = record
+	return nil
+}
+func (s *authTestSessionRegistryStore) Delete(_ context.Context, email string) error {
+	delete(s.records, normalizeEmail(email))
+	return nil
+}
+
 type authTestUsers struct {
 	roles                map[string]bool
 	isRegisteredErr      error
@@ -139,6 +199,16 @@ func issueSetupTokenForTest(t *testing.T, service *Service) string {
 }
 
 func newAuthTestService(t *testing.T, store *authTestStore, users *authTestUsers, googleUser User) *Service {
+	return newAuthTestServiceWithOptions(t, store, users, googleUser, authTestOptions())
+}
+
+func newAuthTestServiceWithOptions(
+	t *testing.T,
+	store *authTestStore,
+	users *authTestUsers,
+	googleUser User,
+	options Options,
+) *Service {
 	t.Helper()
 	service, err := New(
 		context.Background(),
@@ -147,11 +217,23 @@ func newAuthTestService(t *testing.T, store *authTestStore, users *authTestUsers
 		func(string, string, string) OAuthProvider { return authTestOAuth{user: googleUser} },
 		"https://remote.example.com",
 		[]byte("test-session-key"),
+		newAuthTestTwoFactorStore(),
+		newAuthTestSessionRegistryStore(),
+		options,
 	)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	return service
+}
+
+func TestNewAppliesPendingLoginTTL(t *testing.T) {
+	options := authTestOptions()
+	options.PendingLoginTTL = 42 * time.Second
+	service := newAuthTestServiceWithOptions(t, &authTestStore{}, newAuthTestUsers(), User{}, options)
+	if got := service.PendingTwoFactorDuration(); got != 42*time.Second {
+		t.Fatalf("pending two-factor duration = %s, want 42s", got)
+	}
 }
 
 func TestLocalAdminClaimAndLogin(t *testing.T) {
@@ -327,7 +409,7 @@ func TestClaimInvalidatesLegacyGoogleAdminSession(t *testing.T) {
 	users := newAuthTestUsers()
 	users.roles["admin@example.com"] = true
 	service := newAuthTestService(t, store, users, User{})
-	legacySession := service.SignSession(User{Email: "admin@example.com", Sub: "google-subject"})
+	legacySession := service.codec.sign(User{Email: "admin@example.com", Sub: "google-subject"}, "")
 
 	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{
 		Email:           "admin@example.com",
@@ -336,12 +418,12 @@ func TestClaimInvalidatesLegacyGoogleAdminSession(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("ClaimLocalAdmin: %v", err)
 	}
-	if _, err := service.CurrentSession(legacySession); !errors.Is(err, ErrLocalAdminPasswordOnly) {
+	if _, err := service.CurrentSession(context.Background(), legacySession); !errors.Is(err, ErrLocalAdminPasswordOnly) {
 		t.Fatalf("legacy Google session error = %v, want %v", err, ErrLocalAdminPasswordOnly)
 	}
 
-	localSession := service.SignSession(User{Email: "admin@example.com", Sub: "local-admin"})
-	if _, err := service.CurrentSession(localSession); err != nil {
+	localSession := service.codec.sign(User{Email: "admin@example.com", Sub: "local-admin"}, "")
+	if _, err := service.CurrentSession(context.Background(), localSession); err != nil {
 		t.Fatalf("local admin session: %v", err)
 	}
 }
