@@ -30,6 +30,13 @@ type AuthStore interface {
 	serviceauth.Store
 }
 
+// ChatStore retains the complete file-chat capability until composition can
+// project it into each service's narrower repository and transcript contracts.
+type ChatStore interface {
+	servicechat.Repository
+	servicechat.TranscriptEventSource
+}
+
 // PushStore exposes the subscription, account-cleanup, and VAPID capabilities
 // required at the application composition boundary.
 type PushStore interface {
@@ -39,7 +46,7 @@ type PushStore interface {
 }
 
 type Stores struct {
-	Chats           servicechat.Repository
+	Chats           ChatStore
 	Projects        serviceproject.Repository
 	ProjectSecrets  serviceproject.SecretsRepository
 	ProjectAccess   serviceproject.AccessRepository
