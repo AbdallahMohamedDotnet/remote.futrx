@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatTranscriptPage } from "../../models/chat.ts";
-import { transcriptPageToEventPage } from "./chatTranscriptPage.ts";
+import { fetchTranscript } from "./chatTranscriptApi.ts";
 
-test("flattens complete transcript turns without changing cursor metadata", () => {
-  const page: ChatTranscriptPage = {
+test("fetches and flattens transcript turns without changing cursor metadata", async (t) => {
+  const page = {
     turns: [
       {
         id: "turn-1",
@@ -31,8 +30,17 @@ test("flattens complete transcript turns without changing cursor metadata", () =
     lastSeq: 6,
     hasMore: true,
   };
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  globalThis.fetch = async (input, init) => {
+    assert.equal(input, "/api/chats/chat%2F1/transcript?limit=20&before=4");
+    assert.equal(init?.method, "GET");
+    return Response.json(page);
+  };
 
-  assert.deepEqual(transcriptPageToEventPage(page), {
+  assert.deepEqual(await fetchTranscript("chat/1", { limit: 20, before: 4 }), {
     events: [...page.turns[0].events, ...page.turns[1].events],
     nextBefore: 1,
     lastSeq: 6,

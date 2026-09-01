@@ -31,9 +31,9 @@ interface UseChatResult {
 }
 
 /**
- * useChat — load chat metadata, then open a streaming WS. The server replays
- * history over the socket before live events, which avoids gaps between an
- * HTTP history fetch and the WS subscription.
+ * useChat — load chat metadata and a bounded transcript page, then open a
+ * streaming WS after the latest applied sequence so history and live events
+ * meet without a gap.
  */
 export function useChat(chatId: string): UseChatResult {
   const [meta, setMeta] = useState<ChatMeta | null>(null);
@@ -105,7 +105,9 @@ export function useChat(chatId: string): UseChatResult {
       try {
         const [m, page] = await Promise.all([
           chatApi.fetch(chatId),
-          chatApi.fetchTranscript(chatId, { limit: CHAT_TRANSCRIPT_TURN_PAGE_LIMIT }),
+          chatApi.fetchTranscript(chatId, {
+            limit: CHAT_TRANSCRIPT_TURN_PAGE_LIMIT,
+          }),
         ]);
         if (cancelled) return;
         lastSeqRef.current = Math.max(

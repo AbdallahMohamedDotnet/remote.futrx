@@ -25,8 +25,6 @@ export const API_ROUTES = {
       `/api/chats/${encodeURIComponent(id)}/media-open?path=${encodeURIComponent(path)}`,
     ideOpen: (id: string, path: string) =>
       `/api/chats/${encodeURIComponent(id)}/ide-open?path=${encodeURIComponent(path)}`,
-    events: (id: string, query: string) =>
-      `/api/chats/${encodeURIComponent(id)}/events${query ? `?${query}` : ""}`,
     transcript: (id: string, query: string) =>
       `/api/chats/${encodeURIComponent(id)}/transcript${query ? `?${query}` : ""}`,
     rewind: (id: string) => `/api/chats/${encodeURIComponent(id)}/rewind`,

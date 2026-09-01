@@ -46,7 +46,7 @@ test("projects chat events into the existing message and usage model", () => {
   });
 });
 
-test("prepends complete transcript turns without splitting assistant text", () => {
+test("prepends an older event page before current blocks and adopts hasMore", () => {
   const latest = chatEventStateProjector.fromEvents(
     [
       { seq: 4, type: "user", text: "new question", t: 4 },

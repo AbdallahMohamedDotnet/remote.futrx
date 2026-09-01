@@ -43,7 +43,7 @@ type ChatEventBase = { seq?: number; t: number; turnId?: string };
 export type ChatEvent = ChatEventBase & (
   | { type: "user"; text: string }
   | { type: "assistant_text"; text: string; messageId?: string }
-  | { type: "thinking"; text: string }
+  | { type: "thinking"; text: string; messageId?: string }
   | { type: "tool_use_start"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_use_end"; id: string; output?: string; isError?: boolean }
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
@@ -56,20 +56,6 @@ export type ChatEvent = ChatEventBase & (
 
 export interface ChatEventPage {
   events: ChatEvent[];
-  nextBefore?: number;
-  lastSeq: number;
-  hasMore: boolean;
-}
-
-export interface ChatTranscriptTurn {
-  id: string;
-  startSeq: number;
-  endSeq: number;
-  events: ChatEvent[];
-}
-
-export interface ChatTranscriptPage {
-  turns: ChatTranscriptTurn[];
   nextBefore?: number;
   lastSeq: number;
   hasMore: boolean;
