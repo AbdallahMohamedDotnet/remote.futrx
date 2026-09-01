@@ -7,10 +7,14 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codexharness"
 	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
-const miniMaxAPIKeyEnvironment = "MINIMAX_API_KEY"
+const (
+	miniMaxAPIKeyEnvironment = "MINIMAX_API_KEY"
+	miniMaxAPIBaseURL        = "https://api.minimax.io/v1"
+)
 
 var (
 	ErrProjectRequired      = errors.New("MiniMax is available in project chats")
@@ -18,26 +22,18 @@ var (
 )
 
 func (p *Provider) args(req agent.RunRequest) []string {
-	args := []string{"app-server"}
-	args = append(args, miniMaxConfigArgs()...)
-	if req.EnableBrowser {
-		args = append(args,
-			"-c", `mcp_servers.browser.command="npx"`,
-			"-c", `mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222","--caps=vision"]`,
-		)
-	}
-	return args
+	return codexharness.AppServerArgs(miniMaxConfigArgs(), req.EnableBrowser)
 }
 
 func miniMaxConfigArgs() []string {
 	return []string{
-		"-c", `model="MiniMax-M3"`,
+		"-c", `model="` + miniMaxModel + `"`,
 		"-c", `model_provider="minimax"`,
 		"-c", `model_context_window=1000000`,
-		"-c", `model_catalog_json="/root/.minimax/model-catalog.json"`,
-		"-c", `model_providers.minimax.name="MiniMax"`,
-		"-c", `model_providers.minimax.base_url="https://api.minimax.io/v1"`,
-		"-c", `model_providers.minimax.env_key="MINIMAX_API_KEY"`,
+		"-c", `model_catalog_json="` + containerMiniMaxCatalog + `"`,
+		"-c", `model_providers.minimax.name="` + miniMaxLabel + `"`,
+		"-c", `model_providers.minimax.base_url="` + miniMaxAPIBaseURL + `"`,
+		"-c", `model_providers.minimax.env_key="` + miniMaxAPIKeyEnvironment + `"`,
 		"-c", `model_providers.minimax.wire_api="responses"`,
 	}
 }

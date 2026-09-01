@@ -1,4 +1,6 @@
-package workspace
+// Package runtimeassets publishes provider-selected runtime templates inside
+// project containers.
+package runtimeassets
 
 import (
 	"context"
@@ -7,16 +9,29 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 )
 
-const ensureRuntimeAssetsTimeout = 30 * time.Second
+const ensureTimeout = 30 * time.Second
 
-// EnsureRuntimeAssets publishes the selected provider's non-secret runtime
-// configuration. Content is declared by the provider profile and verified on
-// every preparation because both the asset and marker live in a root-writable
+// Adapter publishes the selected provider's non-secret runtime configuration.
+// Content is declared by the provider profile and verified on every
+// preparation because both the asset and marker live in a root-writable
 // provider home.
-func (p *Provisioner) EnsureRuntimeAssets(
+type Adapter struct {
+	runner    command.Runner
+	publisher *assets.Publisher
+}
+
+// NewAdapter returns a runtime-asset adapter backed by shared container
+// dependencies.
+func NewAdapter(runner command.Runner, publisher *assets.Publisher) *Adapter {
+	return &Adapter{runner: runner, publisher: publisher}
+}
+
+// Ensure publishes every selected template to the project container.
+func (a *Adapter) Ensure(
 	ctx context.Context,
 	containerName string,
 	templates []provisioning.TemplateFile,
@@ -24,11 +39,11 @@ func (p *Provisioner) EnsureRuntimeAssets(
 	if len(templates) == 0 {
 		return nil
 	}
-	if !p.runner.Available() {
+	if !a.runner.Available() {
 		return command.ErrUnavailable
 	}
 
-	dctx, cancel := context.WithTimeout(ctx, ensureRuntimeAssetsTimeout)
+	dctx, cancel := context.WithTimeout(ctx, ensureTimeout)
 	defer cancel()
 	created := make(map[string]bool, len(templates))
 	for _, template := range templates {
@@ -41,7 +56,7 @@ func (p *Provisioner) EnsureRuntimeAssets(
 			if directoryMode == "" {
 				directoryMode = "700"
 			}
-			out, err := p.runner.Run(dctx, "exec", containerName, "--",
+			out, err := a.runner.Run(dctx, "exec", containerName, "--",
 				"install", "-d", "-m", directoryMode, directory)
 			if err != nil {
 				return fmt.Errorf("mkdir %s: %w; output: %s", directory, err, out)
@@ -53,7 +68,7 @@ func (p *Provisioner) EnsureRuntimeAssets(
 		if mode == "" {
 			mode = "644"
 		}
-		if err := p.publisher.PushVerified(
+		if err := a.publisher.PushVerified(
 			ctx,
 			containerName,
 			template.Content,

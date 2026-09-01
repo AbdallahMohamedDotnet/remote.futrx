@@ -7,8 +7,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-const miniMaxModel = "MiniMax-M3"
-
 func (p *Provider) Capabilities(context.Context, agent.CapabilityRequest) (agent.Capabilities, error) {
 	reasoning := []agent.CapabilityOption{
 		agent.AutoOption(),
@@ -26,7 +24,7 @@ func (p *Provider) Capabilities(context.Context, agent.CapabilityRequest) (agent
 
 	return agent.Capabilities{
 		Provider:    agent.ProviderMiniMax,
-		Label:       "MiniMax",
+		Label:       miniMaxLabel,
 		Source:      agent.CapabilitySourceFallback,
 		Models:      models,
 		Modes:       agent.ProviderModes(true),

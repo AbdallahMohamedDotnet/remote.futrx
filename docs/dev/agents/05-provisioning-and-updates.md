@@ -68,7 +68,8 @@ flowchart TD
     Stack --> Prepare
     Stack --> Credentials["Credential sync"]
     Stack --> Lifecycle["Persistent LXD mounts"]
-    Stack --> Workspace["Instructions, runtime templates, and skill links"]
+    Stack --> Workspace["Instructions and skill links"]
+    Stack --> RuntimeAssets["Selected-provider runtime templates"]
     Stack --> Browser["Browser MCP templates"]
     Stack --> Inspection["Workspace diagnostics"]
 ```
@@ -158,14 +159,15 @@ The current common sequence is:
 2. ensure the provider CLI is ready;
 3. seed credentials when that provider has a credential policy;
 4. publish shared agent instructions;
-5. converge workspace skill links;
-6. migrate shared browser assets where applicable;
-7. when Browser was selected and supported, provision MCP and start the shared
+5. publish the selected profile's non-secret runtime templates;
+6. converge workspace skill links;
+7. migrate shared browser assets where applicable;
+8. when Browser was selected and supported, provision MCP and start the shared
    browser core;
-8. when Scheduled Tasks was selected and supported, publish its CLI/skill;
-9. ensure `boot.autostart`;
-10. load project secrets on a best-effort basis and return the prepared target;
-11. build the shared `lxc exec` envelope, then run the provider's native CLI
+9. when Scheduled Tasks was selected and supported, publish its CLI/skill;
+10. ensure `boot.autostart`;
+11. load project secrets on a best-effort basis and return the prepared target;
+12. build the shared `lxc exec` envelope, then run the provider's native CLI
     transport with short-lived runtime capabilities taking precedence over
     project secrets.
 
@@ -268,7 +270,7 @@ follow-up uses a background context so completion is not lost when the prompt
 context ends; sync failures are logged and do not turn the completed agent run
 into an error. Antigravity has no sync step.
 
-## Instructions, skills, Browser, and schedules
+## Instructions, runtime templates, skills, Browser, and schedules
 
 Remote renders one embedded instruction template with the installation's public
 hostname. The workspace provisioner publishes it idempotently to every
@@ -277,6 +279,14 @@ Claude currently targets `/root/.claude/CLAUDE.md`; Codex targets
 `/root/.codex/AGENTS.md`; MiniMax targets `/root/.minimax/AGENTS.md`. Shared project preparation asks the workspace
 provisioner to converge the configured targets; provider command code does not
 embed instruction text itself.
+
+The [`runtimeassets.Adapter`](../../../backend/internal/integration/containers/runtimeassets/adapter.go)
+separately publishes only the selected profile's
+`RuntimeTemplates`. Keeping that adapter out of the shared workspace
+provisioner prevents provider-specific runtime configuration from being
+conflated with installation-wide instructions and cross-provider skill links.
+It verifies the destination bytes even when the in-container hash marker is
+current, because both files live in a root-writable provider home.
 
 The canonical project skill directory is `/workspace/.agents/skills`.
 `WorkspaceSkills` creates compatibility links such as
@@ -290,11 +300,12 @@ explicit instruction path, or disabled.
 
 Browser installation is shared, but provider launch wiring is opt-in through
 `Features.BrowserTools`. Claude declares an MCP JSON template in its profile;
-Codex supplies equivalent app-server config arguments inline. When Browser is
-selected for Claude, Codex, or MiniMax, their factory options ask the shared preparer to
-ensure `@playwright/mcp`, publish configured templates, and start the
-container's browser core. Generic browser script/skill migration is
-best-effort; required MCP/core setup fails the run.
+Codex and MiniMax add equivalent app-server config through the shared harness
+argument builder. When Browser is selected for Claude, Codex, or MiniMax,
+their factory options ask the shared preparer to ensure `@playwright/mcp`,
+publish configured templates, and start the container's browser core. Generic
+browser script/skill migration is best-effort; required MCP/core setup fails
+the run.
 
 Scheduled-task tooling is provider-neutral. A module must declare
 `ScheduledTools`; the prompt service issues a short-lived scoped grant and sets

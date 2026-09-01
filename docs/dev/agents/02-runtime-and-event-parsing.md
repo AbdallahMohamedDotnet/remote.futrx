@@ -266,10 +266,11 @@ Production Codex or MiniMax runs do **not** use
 [`codex/parser.go`](../../../backend/internal/integration/agents/codex/parser.go).
 [`codex.Provider.Run`](../../../backend/internal/integration/agents/codex/provider.go) starts
 one fresh `codex app-server` process per turn and delegates to
-[`RunAppServer`](../../../backend/internal/integration/agents/codex/app_server_run.go).
+[`codexharness.Run`](../../../backend/internal/integration/agents/codexharness/app_server_run.go).
 [`minimax.Provider.Run`](../../../backend/internal/integration/agents/minimax/provider.go)
-uses the same exported harness with MiniMax's provider ID, endpoint, key
-environment variable, model catalog, and isolated `CODEX_HOME`.
+uses the same neutral harness with MiniMax's provider ID and label, while its
+own adapter retains the endpoint, key environment variable, model catalog,
+and isolated `CODEX_HOME`.
 The process is ephemeral, while a persisted thread can still be resumed or
 forked.
 
@@ -284,13 +285,13 @@ The JSON-RPC sequence is:
 4. consume notifications until `turn/completed` emits `run.completed` or
    `run.failed`; close stdin after that terminal notification.
 
-[`appServerEventParser`](../../../backend/internal/integration/agents/codex/app_server_events.go)
+[`appServerEventParser`](../../../backend/internal/integration/agents/codexharness/app_server_events.go)
 maps agent/plan deltas, reasoning deltas, command execution, file changes, MCP
 and dynamic tools, collaboration tools, web search, last-turn token usage, and
 terminal turn state. It tracks text already emitted for each item so completed
 whole-text snapshots contribute only the missing suffix.
 
-[`appServerRequestHandler`](../../../backend/internal/integration/agents/codex/app_server_requests.go)
+[`appServerRequestHandler`](../../../backend/internal/integration/agents/codexharness/app_server_requests.go)
 also answers server-to-client requests:
 
 - user-input requests emit an `AskUserQuestion` tool start and receive empty

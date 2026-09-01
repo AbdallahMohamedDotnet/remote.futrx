@@ -112,7 +112,7 @@ func (p *Preparer) prepareContainer(
 	if err := p.containers.Workspace.EnsureAgentInstructions(ctx, containerName); err != nil {
 		return fmt.Errorf("push agent instructions to container: %w", err)
 	}
-	if err := p.containers.Workspace.EnsureRuntimeAssets(ctx, containerName, p.options.Profile.RuntimeTemplates); err != nil {
+	if err := p.containers.RuntimeAssets.Ensure(ctx, containerName, p.options.Profile.RuntimeTemplates); err != nil {
 		return fmt.Errorf("push agent runtime assets to container: %w", err)
 	}
 	if err := p.containers.Workspace.EnsureSkillLinks(ctx, containerName); err != nil && p.options.SkillLinksRequired {

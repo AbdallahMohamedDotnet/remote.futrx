@@ -1,4 +1,4 @@
-package workspace
+package runtimeassets
 
 import (
 	"context"
@@ -13,10 +13,10 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
 )
 
-func TestEnsureRuntimeAssetsPublishesSelectedProfileTemplates(t *testing.T) {
+func TestEnsurePublishesSelectedProfileTemplates(t *testing.T) {
 	runner := &runtimeAssetRunner{available: true}
-	provisioner := NewProvisioner(runner, nil, assets.NewPublisher(runner), nil)
-	err := provisioner.EnsureRuntimeAssets(context.Background(), "project-container", []provisioning.TemplateFile{{
+	adapter := NewAdapter(runner, assets.NewPublisher(runner))
+	err := adapter.Ensure(context.Background(), "project-container", []provisioning.TemplateFile{{
 		Content:       []byte("runtime-config"),
 		Path:          "/root/.provider/catalog.json",
 		HashPath:      "/root/.provider/.catalog.sha256",
@@ -46,10 +46,10 @@ func TestEnsureRuntimeAssetsPublishesSelectedProfileTemplates(t *testing.T) {
 	}
 }
 
-func TestEnsureRuntimeAssetsSkipsRunnerForEmptyProfile(t *testing.T) {
+func TestEnsureSkipsRunnerForEmptyProfile(t *testing.T) {
 	runner := &runtimeAssetRunner{available: false}
-	provisioner := NewProvisioner(runner, nil, assets.NewPublisher(runner), nil)
-	if err := provisioner.EnsureRuntimeAssets(context.Background(), "project-container", nil); err != nil {
+	adapter := NewAdapter(runner, assets.NewPublisher(runner))
+	if err := adapter.Ensure(context.Background(), "project-container", nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(runner.calls) != 0 {
@@ -57,15 +57,15 @@ func TestEnsureRuntimeAssetsSkipsRunnerForEmptyProfile(t *testing.T) {
 	}
 }
 
-func TestEnsureRuntimeAssetsRepublishesTamperedContentDespiteCurrentMarker(t *testing.T) {
+func TestEnsureRepublishesTamperedContentDespiteCurrentMarker(t *testing.T) {
 	content := []byte("trusted-runtime-config")
 	runner := &runtimeAssetRunner{
 		available:     true,
 		markerContent: assets.Hash(content),
 		pulledContent: "tampered-runtime-config",
 	}
-	provisioner := NewProvisioner(runner, nil, assets.NewPublisher(runner), nil)
-	err := provisioner.EnsureRuntimeAssets(context.Background(), "project-container", []provisioning.TemplateFile{{
+	adapter := NewAdapter(runner, assets.NewPublisher(runner))
+	err := adapter.Ensure(context.Background(), "project-container", []provisioning.TemplateFile{{
 		Content:   content,
 		Path:      "/root/.provider/catalog.json",
 		HashPath:  "/root/.provider/.catalog.sha256",

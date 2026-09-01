@@ -1,4 +1,4 @@
-package codex
+package codexharness
 
 import (
 	"encoding/json"
@@ -12,20 +12,6 @@ const (
 	appServerThreadRequestID     = 2
 	appServerTurnRequestID       = 3
 )
-
-func requestProvider(req agent.RunRequest) agent.ProviderID {
-	if req.Provider != "" {
-		return req.Provider
-	}
-	return agent.ProviderCodex
-}
-
-func requestProviderLabel(req agent.RunRequest) string {
-	if requestProvider(req) == agent.ProviderMiniMax {
-		return "MiniMax"
-	}
-	return "Codex"
-}
 
 type appServerEnvelope struct {
 	ID     json.RawMessage `json:"id,omitempty"`
@@ -248,6 +234,22 @@ func buildAppServerTurnParams(req agent.RunRequest, threadID, model string) appS
 	return params
 }
 
+func sanitizeModel(model string) string {
+	model = strings.TrimSpace(model)
+	if idx := strings.Index(model, "["); idx > 0 {
+		model = strings.TrimSpace(model[:idx])
+	}
+	return model
+}
+
+func reasoningEffortArg(effort agent.ReasoningEffort) string {
+	return agent.NormalizeCapabilityValue(string(effort))
+}
+
+func serviceTierArg(tier agent.ServiceTier) string {
+	return agent.NormalizeCapabilityValue(string(tier))
+}
+
 func rpcResponseID(raw json.RawMessage) (int, bool) {
 	if len(raw) == 0 {
 		return 0, false
@@ -259,7 +261,7 @@ func rpcResponseID(raw json.RawMessage) (int, bool) {
 	return id, true
 }
 
-func isMissingCodexThread(message string) bool {
+func isMissingThread(message string) bool {
 	lower := strings.ToLower(message)
 	return strings.Contains(lower, "not found") || strings.Contains(lower, "no rollout")
 }

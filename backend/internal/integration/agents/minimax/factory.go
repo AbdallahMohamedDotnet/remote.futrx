@@ -13,7 +13,7 @@ func NewFactory() (agentmodule.Factory, error) {
 	profile := Profile()
 	return agentmodule.NewFactory(agentmodule.Descriptor{
 		ID:               agent.ProviderMiniMax,
-		Label:            "MiniMax",
+		Label:            miniMaxLabel,
 		ExecutionScopes:  []agentmodule.ExecutionScope{agentmodule.ScopeProject},
 		Auth:             agentmodule.AuthExternal,
 		AuthInstructions: "Add a MiniMax API key as `MINIMAX_API_KEY` in each project's Secrets settings.",

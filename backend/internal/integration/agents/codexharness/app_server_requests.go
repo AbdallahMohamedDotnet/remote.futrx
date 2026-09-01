@@ -1,4 +1,4 @@
-package codex
+package codexharness
 
 import (
 	"encoding/json"
@@ -33,7 +33,7 @@ func (handler *appServerRequestHandler) Answer(envelope appServerEnvelope) error
 		handler.emit(agent.Event{
 			T:              time.Now().UnixMilli(),
 			Type:           agent.EventToolStarted,
-			Provider:       requestProvider(handler.req),
+			Provider:       handler.req.Provider,
 			ConversationID: handler.req.ConversationID,
 			ItemID:         params.ItemID,
 			ItemKind:       agent.ItemToolCall,

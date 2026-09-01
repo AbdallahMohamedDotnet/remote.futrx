@@ -2,10 +2,10 @@ package minimax
 
 import (
 	_ "embed"
-	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codexharness"
 )
 
 const (
@@ -21,21 +21,8 @@ const (
 var modelCatalog []byte
 
 var miniMaxProfile = provisioning.Profile{
-	ID: string(agent.ProviderMiniMax),
-	CLI: provisioning.CLISpec{
-		Name:               "MiniMax (Codex harness)",
-		ImageLabel:         "minimax",
-		Binary:             "codex",
-		VersionArgs:        []string{"--version"},
-		PackageName:        "@openai/codex",
-		Version:            provisioning.MustCLIVersion("CODEX_CLI_VERSION"),
-		CheckVersion:       true,
-		VerifyAfterInstall: true,
-		ReportVersion:      true,
-		InstallMode:        provisioning.InstallWithNPM,
-		InstallTimeout:     5 * time.Minute,
-		WaitTimeout:        2 * time.Minute,
-	},
+	ID:          string(agent.ProviderMiniMax),
+	CLI:         codexharness.NewCLISpec("MiniMax (Codex harness)", "minimax"),
 	Credentials: provisioning.CredentialSpec{Name: "minimax"},
 	PersistentState: []provisioning.PersistentDirectory{{
 		Device:        "minimax-home",

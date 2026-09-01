@@ -279,7 +279,7 @@ func TestBuildCmdRejectsPartialContainerDependencies(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected partial container dependencies to fail")
 	}
-	const want = "incomplete container dependencies: missing credentials, workspace, browser, schedule tools, lifecycle"
+	const want = "incomplete container dependencies: missing credentials, workspace, runtime assets, browser, schedule tools, lifecycle"
 	if err.Error() != want {
 		t.Fatalf("buildCmd error = %q, want %q", err, want)
 	}
@@ -320,11 +320,13 @@ type fakeClaudeWorkspace struct{}
 
 func (fakeClaudeWorkspace) EnsureAgentInstructions(context.Context, string) error { return nil }
 
-func (fakeClaudeWorkspace) EnsureRuntimeAssets(context.Context, string, []provisioning.TemplateFile) error {
+func (fakeClaudeWorkspace) EnsureSkillLinks(context.Context, string) error { return nil }
+
+type fakeClaudeRuntimeAssets struct{}
+
+func (fakeClaudeRuntimeAssets) Ensure(context.Context, string, []provisioning.TemplateFile) error {
 	return nil
 }
-
-func (fakeClaudeWorkspace) EnsureSkillLinks(context.Context, string) error { return nil }
 
 type fakeClaudeBrowser struct {
 	agentBrowserMCPCalls  int
@@ -358,6 +360,7 @@ func claudeContainerDependencies(browser provisioning.BrowserProvisioner) provis
 		CLI:           fakeClaudeCLI{},
 		Credentials:   fakeClaudeCredentials{},
 		Workspace:     fakeClaudeWorkspace{},
+		RuntimeAssets: fakeClaudeRuntimeAssets{},
 		Browser:       browser,
 		ScheduleTools: fakeClaudeScheduleTools{},
 		Lifecycle:     fakeClaudeLifecycle{},

@@ -1,4 +1,4 @@
-package codex
+package codexharness
 
 import (
 	"encoding/json"
@@ -9,9 +9,10 @@ import (
 
 func TestAppServerNormalizesInclusiveInputUsage(t *testing.T) {
 	parser := newAppServerEventParser(agent.RunRequest{
+		Provider:       agent.ProviderCodex,
 		ConversationID: "chat-1",
 		Model:          "gpt-5.6-sol",
-	})
+	}, "Codex")
 	parser.ParseNotification("thread/tokenUsage/updated", json.RawMessage(`{
 		"tokenUsage":{"last":{
 			"inputTokens":10,
@@ -44,7 +45,7 @@ func TestAppServerNormalizesInclusiveInputUsage(t *testing.T) {
 }
 
 func TestAppServerUsesSelectedProviderInFallbackMessages(t *testing.T) {
-	parser := newAppServerEventParser(agent.RunRequest{Provider: agent.ProviderMiniMax})
+	parser := newAppServerEventParser(agent.RunRequest{Provider: agent.ProviderMiniMax}, "MiniMax")
 	events := parser.ParseNotification("turn/completed", json.RawMessage(
 		`{"turn":{"status":"failed"}}`,
 	))

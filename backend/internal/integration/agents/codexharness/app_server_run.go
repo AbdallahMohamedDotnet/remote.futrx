@@ -1,4 +1,4 @@
-package codex
+package codexharness
 
 import (
 	"bufio"
@@ -17,9 +17,10 @@ import (
 )
 
 type appServerRun struct {
-	ctx context.Context
-	cmd *exec.Cmd
-	req agent.RunRequest
+	ctx           context.Context
+	cmd           *exec.Cmd
+	req           agent.RunRequest
+	providerLabel string
 
 	emit           func(agent.Event)
 	stdin          io.WriteCloser
@@ -33,40 +34,36 @@ type appServerRun struct {
 	protocolErr    error
 }
 
-// RunAppServer owns one Codex app-server process for one Remote turn. Provider
-// adapters may reuse the harness with their own isolated Codex configuration;
-// emitted events retain the provider selected in req.
-func RunAppServer(
+// Run owns one Codex app-server process for one Remote turn. Provider adapters
+// supply their normalized identity and label while retaining responsibility
+// for their CLI configuration, environment, and project preparation.
+func Run(
 	ctx context.Context,
 	cmd *exec.Cmd,
 	req agent.RunRequest,
+	providerLabel string,
 	emit func(agent.Event),
 ) error {
-	if req.Provider == "" {
-		req.Provider = agent.ProviderCodex
-	}
 	if emit == nil {
 		emit = func(agent.Event) {}
 	}
-	return newAppServerRun(ctx, cmd, req, emit).execute()
-}
-
-func runAppServer(
-	ctx context.Context,
-	cmd *exec.Cmd,
-	req agent.RunRequest,
-	emit func(agent.Event),
-) error {
-	return RunAppServer(ctx, cmd, req, emit)
+	return newAppServerRun(ctx, cmd, req, providerLabel, emit).execute()
 }
 
 func newAppServerRun(
 	ctx context.Context,
 	cmd *exec.Cmd,
 	req agent.RunRequest,
+	providerLabel string,
 	emit func(agent.Event),
 ) *appServerRun {
-	return &appServerRun{ctx: ctx, cmd: cmd, req: req, emit: emit}
+	return &appServerRun{
+		ctx:           ctx,
+		cmd:           cmd,
+		req:           req,
+		providerLabel: providerLabel,
+		emit:          emit,
+	}
 }
 
 func (run *appServerRun) execute() error {
@@ -95,15 +92,15 @@ func (run *appServerRun) start() error {
 		return err
 	}
 	if err := run.cmd.Start(); err != nil {
-		return fmt.Errorf("spawn %s app-server: %w", requestProviderLabel(run.req), err)
+		return fmt.Errorf("spawn %s app-server: %w", run.providerLabel, err)
 	}
 
 	run.stdin = stdin
 	run.stderrDone = make(chan string, 1)
-	go captureAppServerStderr(stderr, requestProvider(run.req), run.req.ConversationID, run.stderrDone)
+	go captureAppServerStderr(stderr, run.req.Provider, run.req.ConversationID, run.stderrDone)
 	encoder := json.NewEncoder(stdin)
 	run.write = encoder.Encode
-	run.eventParser = newAppServerEventParser(run.req)
+	run.eventParser = newAppServerEventParser(run.req, run.providerLabel)
 	run.requestHandler = newAppServerRequestHandler(run.req, run.emit, run.write)
 	run.scanner = bufio.NewScanner(stdout)
 	run.scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
@@ -139,7 +136,7 @@ func (run *appServerRun) consumeOutput() {
 		}
 		var envelope appServerEnvelope
 		if err := json.Unmarshal(line, &envelope); err != nil {
-			log.Printf("%s[%s] app-server parse: %v", requestProvider(run.req), run.req.ConversationID, err)
+			log.Printf("%s[%s] app-server parse: %v", run.req.Provider, run.req.ConversationID, err)
 			continue
 		}
 		if !run.handleEnvelope(envelope) {
@@ -183,10 +180,10 @@ func (run *appServerRun) handleNotification(envelope appServerEnvelope) {
 
 func (run *appServerRun) responseError(responseID int, message string) error {
 	message = strings.TrimSpace(message)
-	if responseID == appServerThreadRequestID && run.req.ResumeID != "" && isMissingCodexThread(message) {
+	if responseID == appServerThreadRequestID && run.req.ResumeID != "" && isMissingThread(message) {
 		return fmt.Errorf("%w: %s", agent.ErrSessionNotFound, message)
 	}
-	return fmt.Errorf("%s app-server request %d: %s", requestProviderLabel(run.req), responseID, message)
+	return fmt.Errorf("%s app-server request %d: %s", run.providerLabel, responseID, message)
 }
 
 func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessage) {
@@ -206,11 +203,11 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 	case appServerThreadRequestID:
 		var result appServerThreadResult
 		if err := json.Unmarshal(resultJSON, &result); err != nil {
-			run.protocolErr = fmt.Errorf("decode %s thread response: %w", requestProviderLabel(run.req), err)
+			run.protocolErr = fmt.Errorf("decode %s thread response: %w", run.providerLabel, err)
 			return
 		}
 		if result.Thread.ID == "" || result.Model == "" {
-			run.protocolErr = fmt.Errorf("%s app-server returned an incomplete thread", requestProviderLabel(run.req))
+			run.protocolErr = fmt.Errorf("%s app-server returned an incomplete thread", run.providerLabel)
 			return
 		}
 		// The server resolves aliases such as "auto" to the concrete model.
@@ -220,7 +217,7 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 			run.emit(agent.Event{
 				T:              time.Now().UnixMilli(),
 				Type:           agent.EventSessionUpdated,
-				Provider:       requestProvider(run.req),
+				Provider:       run.req.Provider,
 				ConversationID: run.req.ConversationID,
 				SessionID:      result.Thread.ID,
 				Model:          result.Model,
@@ -240,7 +237,7 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 
 func (run *appServerRun) finish() error {
 	if scanErr := run.scanner.Err(); scanErr != nil && run.ctx.Err() == nil && run.protocolErr == nil {
-		run.protocolErr = fmt.Errorf("%s app-server stdout: %w", requestProviderLabel(run.req), scanErr)
+		run.protocolErr = fmt.Errorf("%s app-server stdout: %w", run.providerLabel, scanErr)
 	}
 	if run.protocolErr != nil || !run.terminal {
 		_ = run.stdin.Close()
@@ -262,7 +259,7 @@ func (run *appServerRun) finish() error {
 	}
 	if !run.terminal {
 		if waitErr == nil {
-			waitErr = fmt.Errorf("%s app-server closed before the turn completed", requestProviderLabel(run.req))
+			waitErr = fmt.Errorf("%s app-server closed before the turn completed", run.providerLabel)
 		}
 		return &agentruntime.ProcessError{Err: waitErr, Stderr: stderrText}
 	}

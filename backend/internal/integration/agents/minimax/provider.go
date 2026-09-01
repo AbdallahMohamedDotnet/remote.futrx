@@ -4,7 +4,12 @@ import (
 	"context"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
-	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codex"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codexharness"
+)
+
+const (
+	miniMaxLabel = "MiniMax"
+	miniMaxModel = "MiniMax-M3"
 )
 
 type Provider struct {
@@ -30,5 +35,5 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 	if err != nil {
 		return err
 	}
-	return codex.RunAppServer(ctx, cmd, req, emit)
+	return codexharness.Run(ctx, cmd, req, miniMaxLabel, emit)
 }
