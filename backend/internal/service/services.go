@@ -55,6 +55,8 @@ type Dependencies struct {
 	Auth              AuthStore
 	Users             serviceuser.Repository
 	UserSettings      serviceusersettings.Repository
+	TwoFactor         serviceauth.TwoFactorStore
+	SessionRegistry   serviceauth.SessionRegistryStore
 	Push              PushStore
 	Usage             serviceusage.Repository
 	AuthBaseURL       string
@@ -62,6 +64,7 @@ type Dependencies struct {
 	AgentContainers   provisioning.ContainerDependencies
 	AgentModules      *agentmodule.Catalog
 	AgentOptions      AgentOptions
+	AuthOptions       AuthOptions
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
 	ScheduleLimits    ScheduleLimits
@@ -84,6 +87,15 @@ type AgentOptions struct {
 	DegradedCapabilityCacheTTL time.Duration
 	CredentialSyncTimeout      time.Duration
 	BrowserIdleTTL             time.Duration
+}
+
+// AuthOptions mirrors application-wide account security policy without
+// coupling the service layer to the config package.
+type AuthOptions struct {
+	PendingLoginTTL     time.Duration
+	EnrollmentTTL       time.Duration
+	RecoveryCodeCount   int
+	SessionHistoryLimit int
 }
 
 type Services struct {
@@ -174,17 +186,30 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	userService := serviceuser.New(
 		deps.Users,
 		serviceuser.WithRemovalCleanup(userRemovalCleanup{
-			projects:      projectService,
-			subscriptions: deps.Push,
+			projects:        projectService,
+			subscriptions:   deps.Push,
+			twoFactor:       deps.TwoFactor,
+			sessionRegistry: deps.SessionRegistry,
 		}),
 	)
-	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
+	authService, err := newAuth(
+		ctx,
+		deps.Auth,
+		userService,
+		deps.AuthBaseURL,
+		deps.TwoFactor,
+		deps.SessionRegistry,
+		deps.AuthOptions,
+	)
 	if err != nil {
 		return Services{}, err
 	}
 	scheduleCaps := schedulecapability.New(deps.AuthBaseURL)
 	var usageService *serviceusage.Service
-	promptOptions := []prompt.Option{prompt.WithScheduleToolIssuer(scheduleCaps)}
+	promptOptions := []prompt.Option{
+		prompt.WithScheduleToolIssuer(scheduleCaps),
+		prompt.WithAgentPolicy(agentRuntime),
+	}
 	if deps.Usage != nil {
 		usageService = serviceusage.New(deps.Usage, projectService, chats)
 		promptOptions = append(promptOptions, prompt.WithUsageRecorder(usageService))
@@ -195,10 +220,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		projectService,
 		runs,
 		agentRuntime,
-		append([]prompt.Option{
-			prompt.WithScheduleToolIssuer(scheduleCaps),
-			prompt.WithAgentPolicy(agentRuntime),
-		}, promptOptions...)...,
+		promptOptions...,
 	)
 	scheduleService := serviceschedule.New(
 		deps.Schedules,
@@ -409,6 +431,9 @@ func newAuth(
 	store AuthStore,
 	users *serviceuser.Service,
 	baseURL string,
+	twoFactor serviceauth.TwoFactorStore,
+	sessionRegistry serviceauth.SessionRegistryStore,
+	options AuthOptions,
 ) (*serviceauth.Service, error) {
 	if store == nil {
 		return nil, errors.New("authentication store is required")
@@ -435,6 +460,14 @@ func newAuth(
 		},
 		baseURL,
 		sessionKey,
+		twoFactor,
+		sessionRegistry,
+		serviceauth.Options{
+			PendingLoginTTL:     options.PendingLoginTTL,
+			EnrollmentTTL:       options.EnrollmentTTL,
+			RecoveryCodeCount:   options.RecoveryCodeCount,
+			SessionHistoryLimit: options.SessionHistoryLimit,
+		},
 	)
 }
 
