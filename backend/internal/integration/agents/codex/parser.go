@@ -65,7 +65,7 @@ func (p *Parser) ParseLine(line []byte) ([]agent.Event, error) {
 	case "turn.failed":
 		message := strings.TrimSpace(raw.Error.Message)
 		if message == "" {
-			message = "Codex turn failed"
+			message = requestProviderLabel(p.req) + " turn failed"
 		}
 		events = append(events, p.event(now, agent.EventRunFailed, rawLine, func(ev *agent.Event) {
 			ev.Message = message
@@ -78,7 +78,7 @@ func (p *Parser) ParseLine(line []byte) ([]agent.Event, error) {
 			message = strings.TrimSpace(raw.Error.Message)
 		}
 		if message == "" {
-			message = "Codex stream error"
+			message = requestProviderLabel(p.req) + " stream error"
 		}
 		events = append(events, p.event(now, agent.EventError, rawLine, func(ev *agent.Event) {
 			ev.Message = message
@@ -195,7 +195,7 @@ func (p *Parser) toolStarted(
 		ev.ItemID = id
 		ev.ToolName = strings.TrimSpace(name)
 		if ev.ToolName == "" {
-			ev.ToolName = "CodexTool"
+			ev.ToolName = requestProviderLabel(p.req) + "Tool"
 		}
 		ev.Input = input
 	})
@@ -225,7 +225,7 @@ func (p *Parser) event(
 	ev := agent.Event{
 		T:              now,
 		Type:           type_,
-		Provider:       agent.ProviderCodex,
+		Provider:       requestProvider(p.req),
 		ConversationID: p.req.ConversationID,
 		Raw:            raw,
 	}

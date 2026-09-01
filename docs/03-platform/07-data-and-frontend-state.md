@@ -28,6 +28,7 @@ The application does not use a database. Durable metadata is stored as JSON file
 │   └── ...                              user source and generated files
 └── agent-home/                         durable provider-owned state
     ├── codex/                           mounted at /root/.codex
+    ├── minimax/                         mounted at /root/.minimax
     ├── claude/                          mounted at /root/.claude
     ├── kimi/                            mounted at /root/.kimi-code
     └── antigravity/                     mounted at /root/.gemini/antigravity-cli
@@ -127,6 +128,8 @@ Project metadata and workspaces are separate:
 - `data/projects/<id>/meta.json` stores identity, slug, container name, status, order, resource overrides, and timestamps.
 - `/var/lib/remote/projects/<slug>/workspace` stores durable project content.
 - `/var/lib/remote/projects/<slug>/agent-home/*` stores durable provider configuration, authentication, and session state.
+- `/var/lib/remote/projects/<slug>/agent-home/minimax` stores the isolated
+  Codex-harness catalog and MiniMax sessions; its API key remains a project secret.
 - `/var/lib/remote/projects/<slug>/agent-home/antigravity` stores durable
   Antigravity state and is mounted at `/root/.gemini/antigravity-cli`.
 - Access and secrets use separate mode-`0600` files.

@@ -206,6 +206,10 @@ func (f antigravityTestWorkspace) EnsureAgentInstructions(context.Context, strin
 	return nil
 }
 
+func (f antigravityTestWorkspace) EnsureRuntimeAssets(context.Context, string, []provisioning.TemplateFile) error {
+	return nil
+}
+
 func (f antigravityTestWorkspace) EnsureSkillLinks(context.Context, string) error {
 	f.calls.skillLinks++
 	return errors.New("stale skill link")

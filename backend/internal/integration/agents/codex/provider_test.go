@@ -403,6 +403,10 @@ type fakeCodexWorkspace struct{}
 
 func (fakeCodexWorkspace) EnsureAgentInstructions(context.Context, string) error { return nil }
 
+func (fakeCodexWorkspace) EnsureRuntimeAssets(context.Context, string, []provisioning.TemplateFile) error {
+	return nil
+}
+
 func (fakeCodexWorkspace) EnsureSkillLinks(context.Context, string) error { return nil }
 
 type fakeCodexBrowser struct {

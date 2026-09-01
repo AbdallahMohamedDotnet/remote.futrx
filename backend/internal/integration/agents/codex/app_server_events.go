@@ -68,7 +68,7 @@ func (parser *appServerEventParser) ParseNotification(method string, raw json.Ra
 			return nil
 		}
 		if params.Turn.Status == "failed" {
-			message := "Codex turn failed"
+			message := requestProviderLabel(parser.req) + " turn failed"
 			if params.Turn.Error != nil && strings.TrimSpace(params.Turn.Error.Message) != "" {
 				message = strings.TrimSpace(params.Turn.Error.Message)
 			}
@@ -183,7 +183,7 @@ func (parser *appServerEventParser) toolStarted(
 		event.ItemKind = agent.ItemToolCall
 		event.ToolName = strings.TrimSpace(name)
 		if event.ToolName == "" {
-			event.ToolName = "CodexTool"
+			event.ToolName = requestProviderLabel(parser.req) + "Tool"
 		}
 		event.Input = input
 	})
@@ -212,7 +212,7 @@ func (parser *appServerEventParser) event(
 	event := agent.Event{
 		T:              now,
 		Type:           eventType,
-		Provider:       agent.ProviderCodex,
+		Provider:       requestProvider(parser.req),
 		ConversationID: parser.req.ConversationID,
 		Raw:            append(json.RawMessage(nil), raw...),
 	}

@@ -33,7 +33,7 @@ func (handler *appServerRequestHandler) Answer(envelope appServerEnvelope) error
 		handler.emit(agent.Event{
 			T:              time.Now().UnixMilli(),
 			Type:           agent.EventToolStarted,
-			Provider:       agent.ProviderCodex,
+			Provider:       requestProvider(handler.req),
 			ConversationID: handler.req.ConversationID,
 			ItemID:         params.ItemID,
 			ItemKind:       agent.ItemToolCall,

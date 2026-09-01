@@ -33,16 +33,31 @@ type appServerRun struct {
 	protocolErr    error
 }
 
-// runAppServer owns one Codex app-server process for one Remote turn. A fresh
-// transport can still resume or fork a persisted Codex thread, so no daemon is
-// required between user messages.
+// RunAppServer owns one Codex app-server process for one Remote turn. Provider
+// adapters may reuse the harness with their own isolated Codex configuration;
+// emitted events retain the provider selected in req.
+func RunAppServer(
+	ctx context.Context,
+	cmd *exec.Cmd,
+	req agent.RunRequest,
+	emit func(agent.Event),
+) error {
+	if req.Provider == "" {
+		req.Provider = agent.ProviderCodex
+	}
+	if emit == nil {
+		emit = func(agent.Event) {}
+	}
+	return newAppServerRun(ctx, cmd, req, emit).execute()
+}
+
 func runAppServer(
 	ctx context.Context,
 	cmd *exec.Cmd,
 	req agent.RunRequest,
 	emit func(agent.Event),
 ) error {
-	return newAppServerRun(ctx, cmd, req, emit).execute()
+	return RunAppServer(ctx, cmd, req, emit)
 }
 
 func newAppServerRun(
@@ -80,12 +95,12 @@ func (run *appServerRun) start() error {
 		return err
 	}
 	if err := run.cmd.Start(); err != nil {
-		return fmt.Errorf("spawn codex app-server: %w", err)
+		return fmt.Errorf("spawn %s app-server: %w", requestProviderLabel(run.req), err)
 	}
 
 	run.stdin = stdin
 	run.stderrDone = make(chan string, 1)
-	go captureAppServerStderr(stderr, run.req.ConversationID, run.stderrDone)
+	go captureAppServerStderr(stderr, requestProvider(run.req), run.req.ConversationID, run.stderrDone)
 	encoder := json.NewEncoder(stdin)
 	run.write = encoder.Encode
 	run.eventParser = newAppServerEventParser(run.req)
@@ -124,7 +139,7 @@ func (run *appServerRun) consumeOutput() {
 		}
 		var envelope appServerEnvelope
 		if err := json.Unmarshal(line, &envelope); err != nil {
-			log.Printf("codex[%s] app-server parse: %v", run.req.ConversationID, err)
+			log.Printf("%s[%s] app-server parse: %v", requestProvider(run.req), run.req.ConversationID, err)
 			continue
 		}
 		if !run.handleEnvelope(envelope) {
@@ -171,7 +186,7 @@ func (run *appServerRun) responseError(responseID int, message string) error {
 	if responseID == appServerThreadRequestID && run.req.ResumeID != "" && isMissingCodexThread(message) {
 		return fmt.Errorf("%w: %s", agent.ErrSessionNotFound, message)
 	}
-	return fmt.Errorf("codex app-server request %d: %s", responseID, message)
+	return fmt.Errorf("%s app-server request %d: %s", requestProviderLabel(run.req), responseID, message)
 }
 
 func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessage) {
@@ -191,11 +206,11 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 	case appServerThreadRequestID:
 		var result appServerThreadResult
 		if err := json.Unmarshal(resultJSON, &result); err != nil {
-			run.protocolErr = fmt.Errorf("decode Codex thread response: %w", err)
+			run.protocolErr = fmt.Errorf("decode %s thread response: %w", requestProviderLabel(run.req), err)
 			return
 		}
 		if result.Thread.ID == "" || result.Model == "" {
-			run.protocolErr = errors.New("Codex app-server returned an incomplete thread")
+			run.protocolErr = fmt.Errorf("%s app-server returned an incomplete thread", requestProviderLabel(run.req))
 			return
 		}
 		// The server resolves aliases such as "auto" to the concrete model.
@@ -205,7 +220,7 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 			run.emit(agent.Event{
 				T:              time.Now().UnixMilli(),
 				Type:           agent.EventSessionUpdated,
-				Provider:       agent.ProviderCodex,
+				Provider:       requestProvider(run.req),
 				ConversationID: run.req.ConversationID,
 				SessionID:      result.Thread.ID,
 				Model:          result.Model,
@@ -225,7 +240,7 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 
 func (run *appServerRun) finish() error {
 	if scanErr := run.scanner.Err(); scanErr != nil && run.ctx.Err() == nil && run.protocolErr == nil {
-		run.protocolErr = fmt.Errorf("Codex app-server stdout: %w", scanErr)
+		run.protocolErr = fmt.Errorf("%s app-server stdout: %w", requestProviderLabel(run.req), scanErr)
 	}
 	if run.protocolErr != nil || !run.terminal {
 		_ = run.stdin.Close()
@@ -247,20 +262,20 @@ func (run *appServerRun) finish() error {
 	}
 	if !run.terminal {
 		if waitErr == nil {
-			waitErr = errors.New("Codex app-server closed before the turn completed")
+			waitErr = fmt.Errorf("%s app-server closed before the turn completed", requestProviderLabel(run.req))
 		}
 		return &agentruntime.ProcessError{Err: waitErr, Stderr: stderrText}
 	}
 	return nil
 }
 
-func captureAppServerStderr(reader io.Reader, logID string, done chan<- string) {
+func captureAppServerStderr(reader io.Reader, provider agent.ProviderID, logID string, done chan<- string) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 8192), 1<<20)
 	var captured strings.Builder
 	for scanner.Scan() {
 		line := scanner.Text()
-		log.Printf("codex[%s] stderr: %s", logID, line)
+		log.Printf("%s[%s] stderr: %s", provider, logID, line)
 		if captured.Len() < 64<<10 {
 			captured.WriteString(line)
 			captured.WriteByte('\n')

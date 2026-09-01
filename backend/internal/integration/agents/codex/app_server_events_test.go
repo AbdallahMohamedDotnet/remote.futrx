@@ -42,3 +42,14 @@ func TestAppServerNormalizesInclusiveInputUsage(t *testing.T) {
 		t.Fatalf("total tokens = %d, want 14", usage.TotalTokens())
 	}
 }
+
+func TestAppServerUsesSelectedProviderInFallbackMessages(t *testing.T) {
+	parser := newAppServerEventParser(agent.RunRequest{Provider: agent.ProviderMiniMax})
+	events := parser.ParseNotification("turn/completed", json.RawMessage(
+		`{"turn":{"status":"failed"}}`,
+	))
+	if len(events) != 1 || events[0].Provider != agent.ProviderMiniMax ||
+		events[0].Message != "MiniMax turn failed" {
+		t.Fatalf("events = %#v", events)
+	}
+}

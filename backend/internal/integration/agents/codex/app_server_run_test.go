@@ -39,7 +39,7 @@ done`
 	err := runAppServer(
 		context.Background(),
 		exec.Command("sh", "-c", script),
-		agent.RunRequest{ConversationID: "chat-1", Mode: agent.RunModePlan, Prompt: "plan it"},
+		agent.RunRequest{Provider: agent.ProviderMiniMax, ConversationID: "chat-1", Mode: agent.RunModePlan, Prompt: "plan it"},
 		func(event agent.Event) { events = append(events, event) },
 	)
 	if err != nil {
@@ -47,6 +47,11 @@ done`
 	}
 	if len(events) != 3 {
 		t.Fatalf("events = %#v", events)
+	}
+	for _, event := range events {
+		if event.Provider != agent.ProviderMiniMax {
+			t.Fatalf("event provider = %q, want minimax: %#v", event.Provider, event)
+		}
 	}
 	if events[0].Type != agent.EventSessionUpdated || events[0].SessionID != "thread-new" {
 		t.Fatalf("session event = %#v", events[0])
@@ -81,6 +86,14 @@ done`
 	)
 	if !errors.Is(err, agent.ErrSessionNotFound) {
 		t.Fatalf("error = %v, want ErrSessionNotFound", err)
+	}
+}
+
+func TestRunAppServerDefaultsEmptyProviderToCodex(t *testing.T) {
+	parser := newAppServerEventParser(agent.RunRequest{})
+	events := parser.ParseNotification("turn/completed", json.RawMessage(`{"turn":{"status":"completed"}}`))
+	if len(events) != 1 || events[0].Provider != agent.ProviderCodex {
+		t.Fatalf("events = %#v", events)
 	}
 }
 

@@ -2,8 +2,8 @@
 
 ## What the application is
 
-`remote.futrx` is a self-hosted browser workspace for Claude Code, Codex, Kimi
-Code, and Antigravity. Users create project-scoped containers, run interactive
+`remote.futrx` is a self-hosted browser workspace for Claude Code, Codex,
+MiniMax, Kimi Code, and Antigravity. Users create project-scoped containers, run interactive
 or scheduled agent turns against those projects, and inspect the result through
 chat, files, Git, a terminal, an IDE, or a live app preview.
 

@@ -24,6 +24,7 @@ type Profile struct {
     PersistentState     []PersistentDirectory
     Instructions        *InstructionTarget
     WorkspaceSkills     *WorkspaceSkills
+    RuntimeTemplates    []TemplateFile
     BrowserMCPTemplates []TemplateFile
 }
 ```
@@ -35,6 +36,7 @@ type Profile struct {
 | `PersistentState` | Stable LXD device name, private host directory name, and absolute container path below `/root` |
 | `Instructions` | Destination and content-hash path for Remote's shared agent instructions |
 | `WorkspaceSkills` | Provider compatibility home under `/workspace` and optional provider-home mirror directory |
+| `RuntimeTemplates` | Non-secret provider configuration published before every selected-provider run |
 | `BrowserMCPTemplates` | Provider-specific MCP configuration files, hashes, modes, and directories |
 
 Profiles are cloned when entering or leaving the module catalog. During
@@ -66,7 +68,7 @@ flowchart TD
     Stack --> Prepare
     Stack --> Credentials["Credential sync"]
     Stack --> Lifecycle["Persistent LXD mounts"]
-    Stack --> Workspace["Instructions and skill links"]
+    Stack --> Workspace["Instructions, runtime templates, and skill links"]
     Stack --> Browser["Browser MCP templates"]
     Stack --> Inspection["Workspace diagnostics"]
 ```
@@ -223,6 +225,7 @@ Current durable paths are:
 | --- | --- | --- | --- |
 | Claude | `claude-home` | `claude` | `/root/.claude` |
 | Codex | `codex-home` | `codex` | `/root/.codex` |
+| MiniMax | `minimax-home` | `minimax` | `/root/.minimax` |
 | Kimi | `kimi-home` | `kimi` | `/root/.kimi-code` |
 | Antigravity | `antigravity-home` | `antigravity` | `/root/.gemini/antigravity-cli` |
 
@@ -271,23 +274,24 @@ Remote renders one embedded instruction template with the installation's public
 hostname. The workspace provisioner publishes it idempotently to every
 profile-declared instruction target, grouping targets that share a hash marker.
 Claude currently targets `/root/.claude/CLAUDE.md`; Codex targets
-`/root/.codex/AGENTS.md`. Shared project preparation asks the workspace
+`/root/.codex/AGENTS.md`; MiniMax targets `/root/.minimax/AGENTS.md`. Shared project preparation asks the workspace
 provisioner to converge the configured targets; provider command code does not
 embed instruction text itself.
 
 The canonical project skill directory is `/workspace/.agents/skills`.
 `WorkspaceSkills` creates compatibility links such as
-`/workspace/.claude/skills` and `/workspace/.codex/skills`, migrates legacy
-children into the canonical directory when safe, and can mirror canonical
+`/workspace/.claude/skills`, `/workspace/.codex/skills`, and
+`/workspace/.minimax/skills`, migrates legacy children into the canonical
+directory when safe, and can mirror canonical
 skills into a provider-home directory (currently Codex's
-`/root/.codex/skills`). The module descriptor's skill strategy controls how a
+`/root/.codex/skills` and MiniMax's `/root/.minimax/skills`). The module descriptor's skill strategy controls how a
 selected skill reaches the prompt: slash-style skill trigger, dollar mention,
 explicit instruction path, or disabled.
 
 Browser installation is shared, but provider launch wiring is opt-in through
 `Features.BrowserTools`. Claude declares an MCP JSON template in its profile;
 Codex supplies equivalent app-server config arguments inline. When Browser is
-selected for Claude or Codex, their factory options ask the shared preparer to
+selected for Claude, Codex, or MiniMax, their factory options ask the shared preparer to
 ensure `@playwright/mcp`, publish configured templates, and start the
 container's browser core. Generic browser script/skill migration is
 best-effort; required MCP/core setup fails the run.
@@ -310,6 +314,7 @@ would make that selected run unusable.
 | --- | --- | --- | ---: |
 | Claude | npm `@anthropic-ai/claude-code` | `claude --version` | 5m / 2m |
 | Codex | npm `@openai/codex` | `codex --version` | 5m / 2m |
+| MiniMax | npm `@openai/codex` (shared harness) | `codex --version` | 5m / 2m |
 | Kimi | image repair using `@moonshot-ai/kimi-code` | `kimi --version` | 8m / 5m |
 | Antigravity | pinned release archive script with per-architecture SHA-512 verification | `agy --version` | 8m / 5m |
 
@@ -372,7 +377,7 @@ Provisioning changes should normally cover:
 - runtime container CLI readiness/repair;
 - credential shape and transfer behavior;
 - persistent mount migration and lifecycle behavior;
-- instructions, skill links, Browser templates, and launch order;
+- instructions, runtime templates, skill links, Browser templates, and launch order;
 - infrastructure host-install, updater, and release-classification shell tests.
 
 Run backend build/tests/vet, focused race tests, frontend tests/build when the

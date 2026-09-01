@@ -13,6 +13,20 @@ const (
 	appServerTurnRequestID       = 3
 )
 
+func requestProvider(req agent.RunRequest) agent.ProviderID {
+	if req.Provider != "" {
+		return req.Provider
+	}
+	return agent.ProviderCodex
+}
+
+func requestProviderLabel(req agent.RunRequest) string {
+	if requestProvider(req) == agent.ProviderMiniMax {
+		return "MiniMax"
+	}
+	return "Codex"
+}
+
 type appServerEnvelope struct {
 	ID     json.RawMessage `json:"id,omitempty"`
 	Method string          `json:"method,omitempty"`

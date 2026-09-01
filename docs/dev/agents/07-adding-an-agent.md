@@ -93,7 +93,8 @@ CLI also needs one so the updater can converge the host binary. Declare:
 - positive install and concurrent-install wait timeouts plus verification policy;
 - project image label when project scope is enabled;
 - credentials to synchronize, durable state mounts, shared instructions,
-  workspace skill links, and Browser MCP templates as needed.
+  non-secret runtime templates, workspace skill links, and Browser MCP
+  templates as needed.
 
 Add the version to
 [`provisioning/versions.env`](../../../backend/internal/agent/provisioning/versions.env)
@@ -117,7 +118,7 @@ option values; provider packages must not import `internal/config`.
 Keep provider-specific policy in the provider package:
 
 - binary, package, version arguments, install mechanism, install/wait limits,
-  credentials, mounts, instructions, and Browser templates belong in
+  credentials, mounts, instructions, runtime templates, and Browser templates belong in
   `Profile()`;
 - login timing belongs in the provider's auth configuration because upstream
   code/device protocols differ;
@@ -236,6 +237,7 @@ Add only the factory constructor to the ordered builder list in
 builders := []module.FactoryBuilder{
     claude.NewFactory,
     codex.NewFactory,
+    minimax.NewFactory,
     kimi.NewFactory,
     antigravity.NewFactory,
     acme.NewFactory,
