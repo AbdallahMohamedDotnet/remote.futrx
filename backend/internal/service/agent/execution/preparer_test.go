@@ -43,7 +43,7 @@ func TestPreparerAppliesSharedWorkflowInOrder(t *testing.T) {
 	}
 	wantCalls := []string{
 		"get", "start", "cli:future", "before-credentials", "credentials",
-		"instructions", "skill-links", "browser-skill", "browser-script",
+		"instructions", "runtime-assets", "skill-links", "browser-skill", "browser-script",
 		"browser-mcp", "browser-core", "schedule", "lifecycle", "secrets",
 	}
 	if !slices.Equal(recorder.calls, wantCalls) {
@@ -126,6 +126,11 @@ type preparationWorkspace struct{ recorder *preparationRecorder }
 
 func (p preparationWorkspace) EnsureAgentInstructions(context.Context, string) error {
 	p.recorder.calls = append(p.recorder.calls, "instructions")
+	return nil
+}
+
+func (p preparationWorkspace) EnsureRuntimeAssets(context.Context, string, []provisioning.TemplateFile) error {
+	p.recorder.calls = append(p.recorder.calls, "runtime-assets")
 	return nil
 }
 

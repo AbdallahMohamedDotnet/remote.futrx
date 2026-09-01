@@ -45,6 +45,8 @@ func InstallScript(profiles []provisioning.Profile) (string, error) {
 	packages := make([]string, 0, len(profiles))
 	scripts := make([]string, 0, len(profiles))
 	binaries := make([]string, 0, len(profiles))
+	seenPackages := make(map[string]bool, len(profiles))
+	seenBinaries := make(map[string]bool, len(profiles))
 	for _, profile := range profiles {
 		if profile.CLI.Binary == "" {
 			return "", fmt.Errorf("agent profile %q has an incomplete CLI definition", profile.ID)
@@ -58,9 +60,15 @@ func InstallScript(profiles []provisioning.Profile) (string, error) {
 		case profile.CLI.PackageName == "":
 			return "", fmt.Errorf("agent profile %q has an incomplete CLI definition", profile.ID)
 		default:
-			packages = append(packages, shellWord(profile.CLI.NPMPackage()))
+			if npmPackage := profile.CLI.NPMPackage(); !seenPackages[npmPackage] {
+				packages = append(packages, shellWord(npmPackage))
+				seenPackages[npmPackage] = true
+			}
 		}
-		binaries = append(binaries, shellWord(profile.CLI.Binary))
+		if !seenBinaries[profile.CLI.Binary] {
+			binaries = append(binaries, shellWord(profile.CLI.Binary))
+			seenBinaries[profile.CLI.Binary] = true
+		}
 	}
 	if len(packages) == 0 && len(scripts) == 0 {
 		return "", errors.New("no agent profiles configured")
@@ -81,15 +89,23 @@ func InstallScript(profiles []provisioning.Profile) (string, error) {
 	script.WriteString("\n\n# Sanity check the full toolchain.\nwhich ")
 	script.WriteString(strings.Join(binaries, " "))
 	script.WriteString(" git gh jq node npm python3 ssh\n")
+	seenVersionCommands := make(map[string]bool, len(profiles))
 	for _, profile := range profiles {
 		if len(profile.CLI.VersionArgs) == 0 {
 			continue
 		}
-		script.WriteString(shellWord(profile.CLI.Binary))
+		var versionCommand strings.Builder
+		versionCommand.WriteString(shellWord(profile.CLI.Binary))
 		for _, argument := range profile.CLI.VersionArgs {
-			script.WriteByte(' ')
-			script.WriteString(shellWord(argument))
+			versionCommand.WriteByte(' ')
+			versionCommand.WriteString(shellWord(argument))
 		}
+		command := versionCommand.String()
+		if seenVersionCommands[command] {
+			continue
+		}
+		seenVersionCommands[command] = true
+		script.WriteString(command)
 		script.WriteByte('\n')
 	}
 	script.WriteString("node --version\ngh --version | head -1")

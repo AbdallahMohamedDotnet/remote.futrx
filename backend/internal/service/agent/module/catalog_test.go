@@ -248,6 +248,16 @@ func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
 				Device: "future-home", HostDirectory: "future", ContainerPath: "root/.future",
 			}}
 		},
+		"unsafe runtime template target": func(profile *provisioning.Profile) {
+			profile.RuntimeTemplates = []provisioning.TemplateFile{{
+				Path: "/root/.future/../escaped", HashPath: "/root/.future/.asset.sha256",
+			}}
+		},
+		"invalid runtime template mode": func(profile *provisioning.Profile) {
+			profile.RuntimeTemplates = []provisioning.TemplateFile{{
+				Path: "/root/.future/asset", HashPath: "/root/.future/.asset.sha256", Mode: "u+x",
+			}}
+		},
 	}
 	for name, mutate := range profileTests {
 		t.Run(name, func(t *testing.T) {
@@ -482,6 +492,11 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	firstProfile.PersistentState = []provisioning.PersistentDirectory{{
 		Device: "first-home", HostDirectory: "first", ContainerPath: "/root/.first",
 	}}
+	firstProfile.RuntimeTemplates = []provisioning.TemplateFile{{
+		Content:  []byte("runtime-original"),
+		Path:     "/root/.first/runtime.json",
+		HashPath: "/root/.first/.runtime.sha256",
+	}}
 	firstProfile.BrowserMCPTemplates = []provisioning.TemplateFile{{Content: []byte("original")}}
 	firstFactory, err := NewFactory(firstDescriptor, &firstProfile, testBuild(firstDescriptor.ID))
 	if err != nil {
@@ -497,6 +512,7 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	firstDescriptor.LegacySkillRoots[0] = "/changed"
 	firstProfile.Credentials.Files[0].HostPath = "changed"
 	firstProfile.PersistentState[0].ContainerPath = "/changed"
+	firstProfile.RuntimeTemplates[0].Content[0] = 'x'
 	firstProfile.BrowserMCPTemplates[0].Content[0] = 'x'
 
 	descriptors := catalog.Descriptors()
@@ -513,12 +529,17 @@ func TestCatalogReturnsDefensiveOrderedSnapshots(t *testing.T) {
 	profiles := catalog.Profiles()
 	if profiles[0].Credentials.Files[0].HostPath != "original" ||
 		profiles[0].PersistentState[0].ContainerPath != "/root/.first" ||
+		string(profiles[0].RuntimeTemplates[0].Content) != "runtime-original" ||
 		string(profiles[0].BrowserMCPTemplates[0].Content) != "original" {
 		t.Fatalf("catalog profile mutated before snapshot: %#v", profiles[0])
 	}
 	profiles[0].Credentials.Files[0].HostPath = "profile-change"
+	profiles[0].RuntimeTemplates[0].Content[0] = 'x'
 	if got := catalog.Profiles()[0].Credentials.Files[0].HostPath; got != "original" {
 		t.Fatalf("catalog profile mutated through a snapshot: %q", got)
+	}
+	if got := string(catalog.Profiles()[0].RuntimeTemplates[0].Content); got != "runtime-original" {
+		t.Fatalf("catalog runtime template mutated through a snapshot: %q", got)
 	}
 }
 

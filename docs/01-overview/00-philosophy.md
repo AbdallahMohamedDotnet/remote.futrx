@@ -334,7 +334,7 @@ Remote separates valuable state from replaceable machinery. This lets the runtim
 flowchart TB
     Intent["Human intent and conversation history"] --> ProjectState["Durable project state"]
     ProjectState --> Workspace["Workspace, skills, artifacts, browser profile"]
-    ProjectState --> AgentHomes["Codex, Claude, Kimi, and Antigravity homes"]
+    ProjectState --> AgentHomes["Codex, MiniMax, Claude, Kimi, and Antigravity homes"]
     ProjectState --> Scheduled["Scheduled task definitions and claims"]
     ProjectState --> Metadata["Metadata, access, secrets, event logs"]
 
@@ -389,13 +389,18 @@ Remote has four credential classes, each with a different scope:
 | Credential class | Scope | Current behavior |
 | --- | --- | --- |
 | Platform session | User and Remote control plane | Kept in secure HTTP-only cookies and stripped before requests enter project-controlled apps and IDEs |
-| Agent-provider identity | Host-wide for Claude, Codex, and Kimi; supported project runtime for Antigravity | The three host providers are connected by an administrator and synchronized bidirectionally with project state. Remote's Antigravity UI flow authenticates inside each project and its mounted provider state survives container replacement; operator-prepared host `agy` state can still be used by loose chats outside that flow |
-| Project secret | One project | Stored in a host file with mode `0600` but without application-level encryption; passed to agent runs, persisted as container environment when single-line, and mirrored into the managed `.env` file |
+| Agent-provider identity | Host-wide for Claude, Codex, and Kimi; supported project runtimes for MiniMax and Antigravity | The three host providers are connected by an administrator and synchronized bidirectionally with project state. MiniMax reads a project `MINIMAX_API_KEY` and keeps Codex-harness state in that project's mounted MiniMax home. Remote's Antigravity UI flow authenticates inside each project and its mounted provider state survives container replacement; operator-prepared host `agy` state can still be used by loose chats outside that flow |
+| Project secret | One project | Stored in a host file with mode `0600` but without application-level encryption; passed to agent runs, persisted as container environment when single-line, and mirrored into the managed `.env` file. MiniMax's `MINIMAX_API_KEY` uses this path |
 | Browser-session identity | One project browser profile | Created through human login and persisted with the project so the agent can use the authenticated session |
 
 Project secrets are **agent-readable authority**. They are not hidden capabilities: a sufficiently authorized agent process can read its environment and `/workspace/.env`. The correct safety question is not whether the model can see a secret it has been given, but whether that authority is scoped, observable, revocable, and appropriate for the project. Comprehensive audit coverage is a separate hardening requirement.
 
-Provider identities cross a wider boundary. Because all provider homes are writable and selected credential files synchronize back to the host, project code can potentially mutate authentication state later used by the fleet and other projects. This is a current shared-authority risk, not project-local secret isolation.
+Host-managed provider identities cross a wider boundary. Because their provider
+homes are writable and selected credential files synchronize back to the host,
+project code can potentially mutate authentication state later used by the
+fleet and other projects. This shared-authority risk does not apply to
+MiniMax's project-scoped key, though that key remains readable by the project
+agent and members who can view project secrets.
 
 Likewise, a persistent authenticated browser is deliberately powerful. Web content may be hostile, prompt injection can influence the agent, and a logged-in session can perform external actions. Human confirmation rules in the browser skill are an agent policy; they are not a universal transaction gate enforced by the platform.
 

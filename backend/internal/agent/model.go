@@ -14,6 +14,7 @@ type ProviderID string
 const (
 	ProviderClaude      ProviderID = "claude"
 	ProviderCodex       ProviderID = "codex"
+	ProviderMiniMax     ProviderID = "minimax"
 	ProviderKimi        ProviderID = "kimi"
 	ProviderAntigravity ProviderID = "antigravity"
 )

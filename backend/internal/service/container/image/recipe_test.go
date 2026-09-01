@@ -65,3 +65,28 @@ func TestInstallScriptQuotesProviderOwnedShellArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallScriptDeduplicatesSharedHarnessCLI(t *testing.T) {
+	sharedCLI := provisioning.CLISpec{
+		ImageLabel:  "codex",
+		Binary:      "codex",
+		VersionArgs: []string{"--version"},
+		PackageName: "@openai/codex",
+		Version:     "1.2.3",
+	}
+	script, err := InstallScript([]provisioning.Profile{
+		{ID: "codex", CLI: sharedCLI},
+		{ID: "minimax", CLI: sharedCLI},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sharedEntry := range []string{"@openai/codex@1.2.3", "codex --version"} {
+		if count := strings.Count(script, sharedEntry); count != 1 {
+			t.Fatalf("%q appears %d times in script:\n%s", sharedEntry, count, script)
+		}
+	}
+	if !strings.Contains(script, "which codex git") {
+		t.Fatalf("shared binary sanity check was not deduplicated:\n%s", script)
+	}
+}

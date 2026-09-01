@@ -34,6 +34,7 @@ type CredentialSynchronizer interface {
 // WorkspaceProvisioner publishes shared agent assets and workspace links.
 type WorkspaceProvisioner interface {
 	EnsureAgentInstructions(context.Context, string) error
+	EnsureRuntimeAssets(context.Context, string, []TemplateFile) error
 	EnsureSkillLinks(context.Context, string) error
 }
 

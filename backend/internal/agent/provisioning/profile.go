@@ -107,6 +107,58 @@ type TemplateFile struct {
 	DirectoryMode string
 }
 
+// Validate rejects template targets that could escape provider-owned durable
+// homes or the project workspace. Hash markers share the declared directory so
+// publication never depends on an unprepared parent path.
+func (t TemplateFile) Validate() error {
+	if !validTemplatePath(t.Path) {
+		return errors.New("template path must be a clean path below /root or /workspace")
+	}
+	if !validTemplatePath(t.HashPath) || t.HashPath == t.Path {
+		return errors.New("template hash path must be a distinct clean path below /root or /workspace")
+	}
+	directory := t.Directory
+	if directory == "" {
+		directory = path.Dir(t.Path)
+	}
+	if !validTemplatePath(directory) {
+		return errors.New("template directory must be a clean path below /root or /workspace")
+	}
+	if !pathWithin(directory, t.Path) || !pathWithin(directory, t.HashPath) {
+		return errors.New("template and hash paths must be inside the template directory")
+	}
+	if t.Mode != "" && !validTemplateMode(t.Mode) {
+		return errors.New("invalid template file mode")
+	}
+	if t.DirectoryMode != "" && !validTemplateMode(t.DirectoryMode) {
+		return errors.New("invalid template directory mode")
+	}
+	return nil
+}
+
+func validTemplatePath(value string) bool {
+	if !path.IsAbs(value) || path.Clean(value) != value || strings.ContainsRune(value, '\x00') {
+		return false
+	}
+	return pathWithin("/root", value) || pathWithin("/workspace", value)
+}
+
+func pathWithin(root, target string) bool {
+	return target != root && strings.HasPrefix(target, root+"/")
+}
+
+func validTemplateMode(mode string) bool {
+	if len(mode) != 3 && len(mode) != 4 {
+		return false
+	}
+	for _, character := range mode {
+		if character < '0' || character > '7' {
+			return false
+		}
+	}
+	return true
+}
+
 // PersistentDirectory declares provider state that must survive project
 // container replacement. HostDirectory is a single directory name below the
 // project's private agent-home root; ContainerPath is the absolute location
@@ -156,6 +208,7 @@ type Profile struct {
 	PersistentState     []PersistentDirectory
 	Instructions        *InstructionTarget
 	WorkspaceSkills     *WorkspaceSkills
+	RuntimeTemplates    []TemplateFile
 	BrowserMCPTemplates []TemplateFile
 }
 
@@ -177,9 +230,15 @@ func (p Profile) Clone() Profile {
 		skills := *p.WorkspaceSkills
 		p.WorkspaceSkills = &skills
 	}
-	p.BrowserMCPTemplates = append([]TemplateFile(nil), p.BrowserMCPTemplates...)
-	for i := range p.BrowserMCPTemplates {
-		p.BrowserMCPTemplates[i].Content = append([]byte(nil), p.BrowserMCPTemplates[i].Content...)
-	}
+	p.RuntimeTemplates = cloneTemplateFiles(p.RuntimeTemplates)
+	p.BrowserMCPTemplates = cloneTemplateFiles(p.BrowserMCPTemplates)
 	return p
+}
+
+func cloneTemplateFiles(templates []TemplateFile) []TemplateFile {
+	cloned := append([]TemplateFile(nil), templates...)
+	for i := range cloned {
+		cloned[i].Content = append([]byte(nil), cloned[i].Content...)
+	}
+	return cloned
 }

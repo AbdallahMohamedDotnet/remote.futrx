@@ -1,0 +1,42 @@
+package minimax
+
+import (
+	"context"
+	"strings"
+
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
+)
+
+const miniMaxModel = "MiniMax-M3"
+
+func (p *Provider) Capabilities(context.Context, agent.CapabilityRequest) (agent.Capabilities, error) {
+	reasoning := []agent.CapabilityOption{
+		agent.AutoOption(),
+		{Value: "none", Label: "Think-Off", Description: "Disable Adaptive Thinking"},
+		{Value: "high", Label: "Adaptive", Description: "Enable Adaptive Thinking"},
+	}
+	models := agent.WithAutoModel([]agent.ModelCapability{{
+		ID:                     miniMaxModel,
+		Label:                  miniMaxModel,
+		Description:            "MiniMax M3 with a 1,000,000-token context window",
+		ProviderDefault:        true,
+		ReasoningEfforts:       reasoning,
+		DefaultReasoningEffort: "high",
+	}}, "MiniMax default")
+
+	return agent.Capabilities{
+		Provider:    agent.ProviderMiniMax,
+		Label:       "MiniMax",
+		Source:      agent.CapabilitySourceFallback,
+		Models:      models,
+		Modes:       agent.ProviderModes(true),
+		DefaultMode: agent.RunModeDefault,
+	}, nil
+}
+
+func miniMaxReasoningEffort(effort agent.ReasoningEffort) agent.ReasoningEffort {
+	if strings.EqualFold(strings.TrimSpace(string(effort)), "none") {
+		return "none"
+	}
+	return "high"
+}

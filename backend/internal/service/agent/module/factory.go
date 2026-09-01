@@ -392,6 +392,11 @@ func validateProfile(id agent.ProviderID, profile *provisioning.Profile, project
 		seenHosts[state.HostDirectory] = true
 		seenTargets[state.ContainerPath] = true
 	}
+	for _, template := range profile.RuntimeTemplates {
+		if err := template.Validate(); err != nil {
+			return fmt.Errorf("%w: provider %q has an invalid runtime template: %v", ErrInvalidFactory, id, err)
+		}
+	}
 	return nil
 }
 
