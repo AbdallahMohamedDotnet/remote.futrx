@@ -147,14 +147,16 @@ Replace `remote.example.com` with the hostname you set up above. The installer d
 
 ### 3. Create your first project
 
-1. On the server, read the setup link printed when Remote started:
+1. When Remote starts for the first time, it prints a one-time setup link to
+   the server's log. To see it, connect to the server and run:
    `journalctl -u remote --since "-10 min" | grep -A2 "first-time setup"`.
-   It looks like `https://remote.example.com/#token=...` and expires after
-   30 minutes. If it has expired or you lost it, print a new one on the host
-   with `remote setup-token`.
-2. Open that link and create the administrator account. The setup form only
-   accepts the token printed on the server, so nobody who merely reaches the
-   page can claim the server before you do.
+   The link looks like `https://remote.example.com/#token=...` and works for
+   30 minutes. If it has expired or you lost it, run `remote setup-token` on
+   the server to print a fresh one.
+2. Open that link in your browser and create your administrator account —
+   this is the login you'll use to manage the server. Only someone who can
+   read that link on the server (not just visit the page) can do this, so a
+   stranger who finds the URL cannot claim the server before you do.
 3. Open **Settings → Agents** and connect Codex, Claude Code, or Kimi.
 4. Select **New project**.
 5. Start a chat and describe what you want in normal language.
