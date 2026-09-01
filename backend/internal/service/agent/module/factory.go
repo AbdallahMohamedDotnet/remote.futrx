@@ -54,27 +54,10 @@ type SessionSupport struct {
 // Features describes optional behavior the platform may expose for an agent.
 // The provider still owns the concrete CLI flags and protocol translation.
 type Features struct {
-	Sessions SessionSupport
-	Skills   SkillStrategy
-	// ExecutableRunModes is the subset of provider-native collaboration modes whose
-	// complete lifecycle Remote implements. Capability discovery may report
-	// additional CLI modes, but they must not be launched until the surrounding
-	// harness transitions are represented end to end.
-	ExecutableRunModes []agent.RunMode
-	BrowserTools       bool
-	ScheduledTools     bool
-}
-
-// SupportsRunMode reports whether the module implements the complete Remote
-// harness lifecycle for mode. Keeping membership with the feature declaration
-// prevents consumers from each interpreting ExecutableRunModes independently.
-func (features Features) SupportsRunMode(mode agent.RunMode) bool {
-	for _, configured := range features.ExecutableRunModes {
-		if configured == mode {
-			return true
-		}
-	}
-	return false
+	Sessions       SessionSupport
+	Skills         SkillStrategy
+	BrowserTools   bool
+	ScheduledTools bool
 }
 
 // Descriptor is the stable, provider-neutral declaration consumed by runtime
@@ -311,9 +294,6 @@ func validateDescriptor(descriptor Descriptor, profile *provisioning.Profile) er
 	if descriptor.Features.Sessions.Fork && !descriptor.Features.Sessions.Resume {
 		return fmt.Errorf("%w: provider %q declares fork without resume", ErrInvalidFactory, descriptor.ID)
 	}
-	if err := validateRunModes(descriptor); err != nil {
-		return err
-	}
 	switch descriptor.Features.Skills {
 	case SkillsNone, SkillsSlashCommand, SkillsDollarMention, SkillsInstructions:
 	default:
@@ -326,26 +306,6 @@ func validateDescriptor(descriptor Descriptor, profile *provisioning.Profile) er
 		if strings.TrimSpace(root) == "" {
 			return fmt.Errorf("%w: provider %q has an empty legacy skill root", ErrInvalidFactory, descriptor.ID)
 		}
-	}
-	return nil
-}
-
-func validateRunModes(descriptor Descriptor) error {
-	if len(descriptor.Features.ExecutableRunModes) == 0 {
-		return fmt.Errorf("%w: provider %q has no run modes", ErrInvalidFactory, descriptor.ID)
-	}
-	seen := make(map[agent.RunMode]bool, len(descriptor.Features.ExecutableRunModes))
-	for _, mode := range descriptor.Features.ExecutableRunModes {
-		if mode != agent.RunModeDefault && mode != agent.RunModePlan {
-			return fmt.Errorf("%w: provider %q has unknown run mode %q", ErrInvalidFactory, descriptor.ID, mode)
-		}
-		if seen[mode] {
-			return fmt.Errorf("%w: provider %q repeats run mode %q", ErrInvalidFactory, descriptor.ID, mode)
-		}
-		seen[mode] = true
-	}
-	if !descriptor.Features.SupportsRunMode(agent.RunModeDefault) {
-		return fmt.Errorf("%w: provider %q does not support default run mode", ErrInvalidFactory, descriptor.ID)
 	}
 	return nil
 }
@@ -487,10 +447,6 @@ func validateAuth(descriptor Descriptor, binding *agentauth.Binding) error {
 func cloneDescriptor(descriptor Descriptor) Descriptor {
 	descriptor.ExecutionScopes = append([]ExecutionScope(nil), descriptor.ExecutionScopes...)
 	descriptor.LegacySkillRoots = append([]string(nil), descriptor.LegacySkillRoots...)
-	descriptor.Features.ExecutableRunModes = append(
-		[]agent.RunMode(nil),
-		descriptor.Features.ExecutableRunModes...,
-	)
 	return descriptor
 }
 

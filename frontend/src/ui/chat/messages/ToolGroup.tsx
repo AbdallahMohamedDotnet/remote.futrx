@@ -1,7 +1,3 @@
-import type {
-  AnswerQuestionHandler,
-  InteractionActivityHandler,
-} from "../../../models/chat";
 import type { AssistantMessagePart } from "../../../models/chatMessage";
 import { TerminalIcon } from "../../primitives/icons";
 import { ToolCall } from "../tool-calls/ToolCall";
@@ -14,13 +10,11 @@ export function ToolGroup({
   startIndex,
   chatId,
   onAnswerQuestion,
-  onInteractionActivity,
 }: {
   parts: ToolPart[];
   startIndex: number;
   chatId?: string;
-  onAnswerQuestion?: AnswerQuestionHandler;
-  onInteractionActivity?: InteractionActivityHandler;
+  onAnswerQuestion?: (text: string) => void;
 }) {
   const status = parts.some((part) => part.status === "running") ? "running" : "done";
   const isError = parts.some((part) => part.isError);
@@ -45,10 +39,7 @@ export function ToolGroup({
             output={part.output}
             isError={part.isError}
             status={part.status}
-            interactive={part.interactive}
-            interactionRequestedAt={part.interactionRequestedAt}
             onAnswerQuestion={onAnswerQuestion}
-            onInteractionActivity={onInteractionActivity}
           />
         ))}
       </div>

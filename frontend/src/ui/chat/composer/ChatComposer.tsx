@@ -16,7 +16,6 @@ import { QueuedPromptList } from "./QueuedPromptList";
 import { SelectedSkillChips } from "./SelectedSkillChips";
 import { SendControls } from "./SendControls";
 import type { ComposerPreferenceActions, ComposerPreferences } from "./preferences";
-import { isUnsupportedRunMode } from "./runModeControlState";
 
 export interface ChatComposerProps {
   projectId?: string;
@@ -25,7 +24,6 @@ export interface ChatComposerProps {
   preferences: ComposerPreferences;
   preferenceActions: ComposerPreferenceActions;
   queuedPrompts: QueuedPrompt[];
-  inflightQueuedPromptId: string | null;
   selectedSkills: SelectedSkill[];
   attachments: Attachment[];
   uploading: boolean;
@@ -51,7 +49,6 @@ export function ChatComposer({
   preferences,
   preferenceActions,
   queuedPrompts,
-  inflightQueuedPromptId,
   selectedSkills,
   attachments,
   uploading,
@@ -101,12 +98,8 @@ export function ChatComposer({
   )?.label || modelShortLabel(preferences.model);
   const settingsSummary = `${providerLabel} · ${modelLabel}`;
   const skillsEnabled = capabilityState.providerCapabilities?.features?.skills !== "none";
-  const unsupportedMode = isUnsupportedRunMode(preferences.mode, modeOptions);
   const hasExecutionControls =
-    reasoningEffortOptions.length > 0
-    || serviceTierOptions.length > 0
-    || modeOptions.length > 1
-    || unsupportedMode;
+    reasoningEffortOptions.length > 0 || serviceTierOptions.length > 0 || modeOptions.length > 1;
 
   function toggleMobileSettings() {
     setMobileSettingsOpen((open) => {
@@ -120,11 +113,7 @@ export function ChatComposer({
       {dragging && <ComposerDropOverlay />}
 
       <SelectedSkillChips skills={selectedSkills} onRemove={onRemoveSelectedSkill} />
-      <QueuedPromptList
-        queuedPrompts={queuedPrompts}
-        inflightId={inflightQueuedPromptId}
-        onRemove={onRemoveQueued}
-      />
+      <QueuedPromptList queuedPrompts={queuedPrompts} onRemove={onRemoveQueued} />
       <AttachmentTray attachments={attachments} onRemove={onRemoveAttachment} />
 
       {/* One card: the prompt gets the full width, controls sit beneath it. */}

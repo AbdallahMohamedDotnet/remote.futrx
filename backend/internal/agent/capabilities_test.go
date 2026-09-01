@@ -1,23 +1,8 @@
 package agent
 
 import (
-	"errors"
 	"testing"
 )
-
-func TestValidateRunModeNeverSilentlyChangesSemantics(t *testing.T) {
-	for _, mode := range []RunMode{"", RunModeDefault} {
-		if err := ValidateRunMode(mode, RunModeDefault); err != nil {
-			t.Fatalf("default spelling %q: %v", mode, err)
-		}
-	}
-	if err := ValidateRunMode(RunModePlan, RunModeDefault); !errors.Is(err, ErrUnsupportedRunMode) {
-		t.Fatalf("Plan validation error = %v", err)
-	}
-	if err := ValidateRunMode(RunModePlan, RunModeDefault, RunModePlan); err != nil {
-		t.Fatalf("explicitly supported Plan error = %v", err)
-	}
-}
 
 func TestNormalizeCapabilityValue(t *testing.T) {
 	for input, want := range map[string]string{

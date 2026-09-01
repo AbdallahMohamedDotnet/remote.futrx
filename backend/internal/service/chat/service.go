@@ -29,7 +29,6 @@ type SessionPolicy interface {
 type ProviderPolicy interface {
 	HasProvider(provider string) bool
 	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
-	SupportsRunMode(provider string, mode agent.RunMode) bool
 }
 
 type defaultProviderPolicy interface {
@@ -106,13 +105,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		title = "New chat"
 	}
 
+	mode := in.Mode
+	if mode == "" {
+		mode = "default"
+	}
 	provider, ok := s.providerForScope(in.Provider, in.ProjectID)
 	if !ok {
 		return Meta{}, ErrInvalidProvider
-	}
-	mode, err := s.modeForProvider(provider, in.Mode)
-	if err != nil {
-		return Meta{}, err
 	}
 
 	cwd := strings.TrimSpace(in.Cwd)
@@ -139,7 +138,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		TmuxSession:     in.TmuxSession,
 		Cwd:             cwd,
 		Model:           in.Model,
-		Mode:            string(mode),
+		Mode:            mode,
 		ReasoningEffort: NormalizeReasoningEffort(in.ReasoningEffort),
 		ServiceTier:     NormalizeServiceTier(in.ServiceTier),
 		ProjectID:       in.ProjectID,
@@ -191,7 +190,7 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 		Sessions:        sessions,
 		Cwd:             src.Cwd,
 		Model:           src.Model,
-		Mode:            storedMode(src.Mode),
+		Mode:            src.Mode,
 		ReasoningEffort: src.ReasoningEffort,
 		ServiceTier:     src.ServiceTier,
 		ProjectID:       src.ProjectID,
@@ -228,115 +227,52 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		return Meta{}, ErrInvalidID
 	}
 
-	var meta Meta
-	change := func() error {
+	var nextProvider Provider
+	if in.Provider != nil {
 		current, err := s.repo.Get(ctx, id)
-		if err != nil {
-			return err
-		}
-		nextProvider := current.Provider
-		if in.Provider != nil {
-			var valid bool
-			nextProvider, valid = s.providerForScope(*in.Provider, current.ProjectID)
-			if !valid {
-				return ErrInvalidProvider
-			}
-		}
-		providerChanged := nextProvider != current.Provider
-		var nextMode *agent.RunMode
-		if in.Mode != nil {
-			mode, modeErr := s.modeForProvider(nextProvider, *in.Mode)
-			if modeErr != nil {
-				return modeErr
-			}
-			nextMode = &mode
-		} else if providerChanged {
-			mode := agent.RunModeDefault
-			nextMode = &mode
-		}
-
-		invalidMode := false
-		meta, err = s.repo.Update(ctx, id, func(m *Meta) {
-			providerChangedNow := in.Provider != nil && nextProvider != m.Provider
-			effectiveProvider := m.Provider
-			if in.Provider != nil {
-				effectiveProvider = nextProvider
-			}
-			if nextMode != nil && !s.supportsRunMode(effectiveProvider, *nextMode) {
-				invalidMode = true
-				return
-			}
-			if in.Title != nil {
-				m.Title = strings.TrimSpace(*in.Title)
-			}
-			if in.Cwd != nil {
-				m.Cwd = *in.Cwd
-			}
-			if in.Provider != nil {
-				if providerChangedNow {
-					m.SelectedSkills = nil
-				}
-				m.Provider = nextProvider
-			}
-			if in.Model != nil {
-				m.Model = *in.Model
-			}
-			if nextMode != nil {
-				m.Mode = string(*nextMode)
-			}
-			if in.ReasoningEffort != nil {
-				m.ReasoningEffort = NormalizeReasoningEffort(*in.ReasoningEffort)
-			}
-			if in.ServiceTier != nil {
-				m.ServiceTier = NormalizeServiceTier(*in.ServiceTier)
-			}
-			if in.SelectedSkills != nil {
-				m.SelectedSkills = NormalizeSelectedSkills(*in.SelectedSkills, m.Provider)
-			}
-		})
-		if err != nil {
-			return err
-		}
-		if invalidMode {
-			return ErrInvalidMode
-		}
-		return nil
-	}
-	if s.runs != nil {
-		idle, err := s.runs.WhileIdle(id, change)
 		if err != nil {
 			return Meta{}, err
 		}
-		if !idle {
-			return Meta{}, ErrChatRunning
+		var valid bool
+		nextProvider, valid = s.providerForScope(*in.Provider, current.ProjectID)
+		if !valid {
+			return Meta{}, ErrInvalidProvider
 		}
-	} else if err := change(); err != nil {
+	}
+
+	meta, err := s.repo.Update(ctx, id, func(m *Meta) {
+		if in.Title != nil {
+			m.Title = strings.TrimSpace(*in.Title)
+		}
+		if in.Cwd != nil {
+			m.Cwd = *in.Cwd
+		}
+		if in.Provider != nil {
+			if nextProvider != m.Provider {
+				m.SelectedSkills = nil
+			}
+			m.Provider = nextProvider
+		}
+		if in.Model != nil {
+			m.Model = *in.Model
+		}
+		if in.Mode != nil {
+			m.Mode = *in.Mode
+		}
+		if in.ReasoningEffort != nil {
+			m.ReasoningEffort = NormalizeReasoningEffort(*in.ReasoningEffort)
+		}
+		if in.ServiceTier != nil {
+			m.ServiceTier = NormalizeServiceTier(*in.ServiceTier)
+		}
+		if in.SelectedSkills != nil {
+			m.SelectedSkills = NormalizeSelectedSkills(*in.SelectedSkills, m.Provider)
+		}
+	})
+	if err != nil {
 		return Meta{}, err
 	}
 	return s.withRunning(meta), nil
-}
-
-func (s *Service) modeForProvider(provider Provider, value string) (agent.RunMode, error) {
-	mode, err := ParseMode(value)
-	if err != nil || !s.supportsRunMode(provider, mode) {
-		return "", ErrInvalidMode
-	}
-	return mode, nil
-}
-
-func (s *Service) supportsRunMode(provider Provider, mode agent.RunMode) bool {
-	if s.providers == nil {
-		return mode == agent.RunModeDefault
-	}
-	return s.providers.SupportsRunMode(string(provider), mode)
-}
-
-func storedMode(value string) string {
-	mode, err := ParseMode(value)
-	if err != nil {
-		return strings.TrimSpace(value)
-	}
-	return string(mode)
 }
 
 func (s *Service) validProviderScope(provider Provider, projectID ProjectID) bool {
@@ -412,11 +348,13 @@ func (s *Service) Delete(ctx context.Context, id ID) error {
 	if !ValidID(id) {
 		return ErrInvalidID
 	}
-	if s.runs != nil {
-		return s.runs.CancelAndWhileIdle(ctx, id, func() error {
-			return s.repo.Delete(ctx, id)
-		})
+
+	if s.runs != nil && s.runs.IsRunning(id) {
+		if err := s.runs.Cancel(ctx, id); err != nil {
+			return err
+		}
 	}
+
 	return s.repo.Delete(ctx, id)
 }
 
@@ -441,42 +379,10 @@ func (s *Service) Rewind(ctx context.Context, id ID, beforeT int64) ([]Event, er
 	if beforeT <= 0 {
 		return nil, ErrInvalidRewindTimestamp
 	}
-	var events []Event
-	change := func() error {
-		current, err := s.repo.Get(ctx, id)
-		if err != nil {
-			return err
-		}
-		currentEvents, err := s.repo.ReadEvents(ctx, id)
-		if err != nil {
-			return err
-		}
-		receipts, changed, err := current.PromptReceipts.withAcceptedEvents(currentEvents, beforeT)
-		if err != nil {
-			return err
-		}
-		if changed {
-			if _, err := s.repo.Update(ctx, id, func(meta *Meta) {
-				meta.PromptReceipts = receipts
-			}); err != nil {
-				return err
-			}
-		}
-		events, err = s.repo.TruncateEventsBefore(ctx, id, beforeT)
-		return err
+	if s.runs != nil && s.runs.IsRunning(id) {
+		return nil, ErrChatRunning
 	}
-	if s.runs != nil {
-		idle, err := s.runs.WhileIdle(id, change)
-		if err != nil {
-			return nil, err
-		}
-		if !idle {
-			return nil, ErrChatRunning
-		}
-	} else if err := change(); err != nil {
-		return nil, err
-	}
-	return events, nil
+	return s.repo.TruncateEventsBefore(ctx, id, beforeT)
 }
 
 func (s *Service) UploadTarget(ctx context.Context, id ID) (string, error) {

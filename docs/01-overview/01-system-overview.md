@@ -57,7 +57,7 @@ flowchart TD
     Shell --> Projects["Project workspace controls"]
     Shell --> Settings["Settings"]
 
-    Chat --> Composer["Provider, model, supported execution controls, skills, attachments"]
+    Chat --> Composer["Provider, model, mode, skills, attachments"]
     Chat --> Messages["Text, reasoning, tools, usage"]
     Chat --> Drawers["History, files, schedules, browser"]
     Chat --> Terminal["Resizable Terminal pane"]

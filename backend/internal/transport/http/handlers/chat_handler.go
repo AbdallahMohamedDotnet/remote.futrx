@@ -340,7 +340,6 @@ func sendChatError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, servicechat.ErrInvalidID),
 		errors.Is(err, servicechat.ErrInvalidProvider),
-		errors.Is(err, servicechat.ErrInvalidMode),
 		errors.Is(err, servicechat.ErrInvalidTmuxSession),
 		errors.Is(err, servicechat.ErrInvalidRewindTimestamp):
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())

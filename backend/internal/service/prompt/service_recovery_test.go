@@ -2,7 +2,6 @@ package prompt
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -154,43 +153,6 @@ func TestRunPromptDoesNotResumeWhenModuleDisablesSessions(t *testing.T) {
 	}
 	if !strings.Contains(request.Prompt, "visible history") {
 		t.Fatalf("fresh prompt does not include visible history: %q", request.Prompt)
-	}
-}
-
-func TestRunPromptRejectsPersistedPlanModeBeforeProviderRuns(t *testing.T) {
-	ctx := context.Background()
-	store, err := filechat.New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	meta, err := store.Create(ctx, servicechat.Meta{
-		ID:       "abcdef123456",
-		Provider: servicechat.ProviderCodex,
-		Mode:     string(agent.RunModePlan),
-		Cwd:      t.TempDir(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &recoveryProvider{}
-	registry := agent.NewRegistry()
-	if err := registry.Register(provider); err != nil {
-		t.Fatal(err)
-	}
-	service := New(store, nil, nil, runhub.New(store), registry)
-	err = service.runPrompt(ctx, meta.ID, "continue", func(ChatEvent) {}, func(ChatEvent) {})
-	if !errors.Is(err, agent.ErrUnsupportedRunMode) {
-		t.Fatalf("run error = %v", err)
-	}
-	if len(provider.requests) != 0 {
-		t.Fatalf("provider received unsafe fallback request = %#v", provider.requests)
-	}
-	updated, err := store.Get(ctx, meta.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Mode != string(agent.RunModePlan) {
-		t.Fatalf("saved mode = %q", updated.Mode)
 	}
 }
 

@@ -40,51 +40,12 @@ export interface SelectedSkill {
 
 type ChatEventBase = { seq?: number; t: number };
 
-export type InteractionAnswers = Record<string, string[]>;
-
-export interface QuestionAnswerSubmission {
-  text: string;
-  preview: string;
-  answers: InteractionAnswers;
-  sensitive?: boolean;
-}
-
-export interface Question {
-  id?: string;
-  question: string;
-  header?: string;
-  multiSelect?: boolean;
-  isOther?: boolean;
-  isSecret?: boolean;
-  options?: Array<{ label: string; description?: string }> | null;
-}
-
-export interface AskUserQuestionInput {
-  questions?: Question[];
-  isBlocking?: boolean;
-  autoResolutionMs?: number | null;
-}
-
-export interface QuestionAnswerRequest extends QuestionAnswerSubmission {
-  interactionId?: string;
-}
-
-export interface PromptExecutionPreferences {
-  provider: ChatProvider;
-  mode: ChatMode;
-}
-
-export type AnswerQuestionHandler = (answer: QuestionAnswerRequest) => boolean;
-export type InteractionActivityHandler = (interactionId: string) => boolean;
-
 export type ChatEvent = ChatEventBase & (
   | { type: "user"; text: string }
   | { type: "assistant_text"; text: string; messageId?: string }
   | { type: "thinking"; text: string }
   | { type: "tool_use_start"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_use_end"; id: string; output?: string; isError?: boolean }
-  | { type: "interaction_request"; id: string; toolName: string; input: Record<string, unknown> }
-  | { type: "interaction_resolved"; id: string; output?: string; isError?: boolean }
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
   | { type: "system"; subtype: string; data?: Record<string, unknown> }
   | { type: "session"; provider?: ChatProvider; sessionId?: string; claudeSessionId?: string; codexSessionId?: string; kimiSessionId?: string; antigravitySessionId?: string }
@@ -101,10 +62,8 @@ export interface ChatEventPage {
 }
 
 export type ClientToServer =
-  | ({ type: "prompt"; text: string; clientId?: string } & PromptExecutionPreferences)
+  | { type: "prompt"; text: string; clientId?: string }
   | { type: "cancel" }
-  | { type: "interaction_response"; id: string; answers: InteractionAnswers }
-  | { type: "interaction_activity"; id: string }
   | { type: "permission"; id: string; approved: boolean };
 
 export type ChatStatus = "loading" | "ready" | "streaming" | "error";
@@ -112,7 +71,6 @@ export type ChatStatus = "loading" | "ready" | "streaming" | "error";
 export interface QueuedPrompt {
   id: string;
   text: string;
-  preferences: PromptExecutionPreferences;
 }
 
 export type ComposerSessionStorage = Pick<Storage, "getItem" | "setItem">;
@@ -132,13 +90,11 @@ export interface ChatComposerSessionStoreActions {
   setQueuedPrompts: (chatId: string, prompts: QueuedPrompt[]) => void;
 }
 
-// Server verdict on a prompt sent with a clientId. Retryable busy rejections
-// remain queued; semantic rejections return to the draft for review.
+// Server verdict on a prompt sent with a clientId: accepted means a run
+// started from it; rejected means the run lock was held and it was discarded.
 export interface PromptOutcome {
   clientId: string;
   accepted: boolean;
-  retryable: boolean;
-  reason: string;
 }
 
 export interface CreateChatInput {

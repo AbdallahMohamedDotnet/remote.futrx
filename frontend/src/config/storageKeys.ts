@@ -12,7 +12,6 @@ export const STORAGE_KEYS = {
   sidebarCollapsed: "remote.futrx.sidebarCollapsed",
   collapsedProjects: "remote.futrx.collapsedProjects",
   workspaceBoot: "remote.futrx.workspaceBoot",
-  answeredQuestionPrefix: "askq-answered:",
 } as const;
 
 /**

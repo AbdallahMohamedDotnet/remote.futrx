@@ -1,26 +1,9 @@
 package agent
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 )
-
-// ValidateRunMode prevents a saved preference from silently changing the
-// provider's execution semantics. Empty is the persisted spelling of Default
-// in some older chats.
-func ValidateRunMode(mode RunMode, supported ...RunMode) error {
-	mode = RunMode(strings.TrimSpace(string(mode)))
-	if mode == "" {
-		mode = RunModeDefault
-	}
-	for _, candidate := range supported {
-		if mode == candidate {
-			return nil
-		}
-	}
-	return fmt.Errorf("%w: %s", ErrUnsupportedRunMode, mode)
-}
 
 // NormalizeCapabilityValue accepts future provider values without embedding a
 // moving enum in Remote while still rejecting strings that are unsafe to place

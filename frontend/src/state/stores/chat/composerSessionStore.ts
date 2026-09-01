@@ -53,37 +53,11 @@ function hydrate(storage: ComposerSessionStorage | null): Pick<
       if (typeof text === "string" && text) drafts.set(chatId, text);
     }
     for (const [chatId, prompts] of Object.entries(parsed?.queues ?? {})) {
-      const entries = Array.isArray(prompts) ? prompts : [];
-      const valid = entries.filter(
+      const valid = (Array.isArray(prompts) ? prompts : []).filter(
         (prompt): prompt is QueuedPrompt =>
-          !!prompt
-          && typeof prompt.id === "string"
-          && typeof prompt.text === "string"
-          && !!prompt.preferences
-          && typeof prompt.preferences.provider === "string"
-          && !!prompt.preferences.provider.trim()
-          && typeof prompt.preferences.mode === "string"
-          && !!prompt.preferences.mode.trim(),
+          !!prompt && typeof prompt.id === "string" && typeof prompt.text === "string",
       );
       if (valid.length) promptQueues.set(chatId, valid);
-
-      // Pre-upgrade queues did not snapshot execution preferences. Never
-      // guess current controls for them: recover their text into the draft so
-      // the user can review and send explicitly.
-      const legacyText = entries
-        .filter((prompt) =>
-          !!prompt
-          && typeof prompt.id === "string"
-          && typeof prompt.text === "string"
-          && !valid.includes(prompt),
-        )
-        .map((prompt) => prompt.text.trim())
-        .filter(Boolean)
-        .join("\n\n");
-      if (legacyText) {
-        const currentDraft = drafts.get(chatId) ?? "";
-        drafts.set(chatId, currentDraft ? `${legacyText}\n\n${currentDraft}` : legacyText);
-      }
     }
   } catch {
     // Corrupt or unreadable snapshot — start clean.

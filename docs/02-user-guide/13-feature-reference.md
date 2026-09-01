@@ -29,12 +29,12 @@ This is the compact inventory of current Remote behavior. “Page” means the l
 
 | Feature | How to use it | Important behavior |
 | --- | --- | --- |
-| Provider | Choose **Codex**, **Claude**, **Kimi**, or **Antigravity** | Cannot change while streaming; switching resets model-dependent controls, skills, and mode to Default |
+| Provider | Choose **Codex**, **Claude**, **Kimi**, or **Antigravity** | Cannot change while streaming |
 | Model | Open the provider/model picker and select a discovered model or Auto | Stored per chat; choices come from the current host/project CLI catalog |
 | Refresh models | Use the refresh action at the bottom of the provider/model picker | Force-probes the current scope; use after CLI, configuration, account, entitlement, or terminal-login changes |
-| Thinking | Select one of the efforts reported for the current provider/model | Hidden when no effort control is advertised; Kimi does not expose one because its print adapter cannot forward it |
+| Thinking | Select one of the efforts reported for the current provider/model | Hidden when no effort control is advertised; Kimi currently stores but does not forward the selection |
 | Speed | Select a service tier reported for the current provider/model | Codex tiers and eligible Claude Fast are supported; account/provider may gate them |
-| Mode | Use Default | Hidden in normal chats because every current provider exposes Default only; an older Plan value stays blocked until you explicitly switch it to Default |
+| Mode | Choose Default or provider-native Plan | Hidden when Plan is unavailable |
 | Skill picker | Open **Skill set**, search, and select | Catalog depends on provider/project |
 | Skill chips | Review or remove selected skills | Cleared when provider changes |
 | Attach picker | Choose **+** and select one or more files | Project chats; resumable uploads |
@@ -60,7 +60,7 @@ The placeholder mentions `@` files and `/` commands, but the current source has 
 | Generic tools | Unknown tools use a generic renderer |
 | Markdown | Headings, lists, links, tables, blockquotes, and code render in messages |
 | Syntax highlighting | Code fences receive language-aware highlighting |
-| AskUserQuestion | Agent questions become a paged form; Codex options can include notes and resume the same correlated run, with a visible final-minute auto-resolution countdown for non-blocking requests. Masked secret answers stay out of Remote chat/browser storage but still go to Codex. Legacy print-tool cards send a new prompt. |
+| AskUserQuestion | Agent questions become a paged single/multi-select form with **Other** |
 | Usage | Supported providers report accumulated token usage |
 | Working state | Header dot, provider label, sidebar spinner, and composer state update |
 | Load older | Older JSONL events page backward |
@@ -72,20 +72,17 @@ The placeholder mentions `@` files and `/` commands, but the current source has 
 | Error block | Run and transport failures render in the thread |
 | Schedules drawer | Project-chat header lists, edits, arms, pauses, runs, and deletes scheduled tasks |
 
-The chat transport now carries correlated blocking user-input responses, but it
-does not yet implement a Plan approve/revise workflow or general tool approval
-gate. Project agents run with provider approval/sandbox bypasses inside the
-project container.
+There is no approval workflow in the current chat transport. Project agents run with provider approval/sandbox bypasses inside the project container.
 
 ## Providers and current differences
 
 | Capability | Claude | Codex | Kimi | Antigravity |
 | --- | ---: | ---: | ---: | ---: |
 | Sign-in | Host authorization URL and pasted code | Host device flow | Host device flow | Run `agy` in each project Terminal |
-| Model picker | Safe-mode `/model` list with attempted version resolution | Live paginated app-server list after the required initialize/initialized handshake | Configured aliases and provider/display labels | Stable `agy` slugs with separate display labels |
-| Thinking control | Forwarded | Forwarded | Not exposed; print adapter cannot forward it | Low, Medium, or High only while model is Auto; explicit model slugs already encode their variant |
+| Model picker | Live `/model` list with attempted version resolution | Live paginated app-server list | Configured models from the provider catalog | Models/variants returned by signed-in `agy` |
+| Thinking control | Forwarded | Forwarded | Displayed/stored per model, not yet forwarded | Forwarded as Auto, Low, Medium, or High |
 | Speed/service tier | Fast for Auto and Opus | Yes | No | No |
-| Plan mode | Hidden; print lacks question/exit approval lifecycle | Hidden; native mode exists but approve/revise transition is not bridged | Hidden; `-p` conflicts with `--plan` | Hidden; print lacks control/approval round trip |
+| Plan mode | Declared native mode | Discovered app-server mode | Advertised but incompatible with Remote prompt mode in the currently pinned Kimi CLI | Discovered native mode |
 | Usage telemetry | Yes | Yes | No | No |
 | Provider session fork | Yes | Yes, native app-server fork | No; starts fresh | No; starts fresh |
 | Selected skill trigger | Slash command | Dollar mention | Canonical `SKILL.md` instruction | Canonical `SKILL.md` instruction |

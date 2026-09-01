@@ -1,58 +1,60 @@
 package codex
 
 import (
-	"context"
+	"encoding/json"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
 type appServerRequestHandler struct {
-	mode      agent.RunMode
-	write     func(any) error
-	userInput *appServerUserInputHandler
+	req   agent.RunRequest
+	emit  func(agent.Event)
+	write func(any) error
 }
 
 func newAppServerRequestHandler(
 	req agent.RunRequest,
+	emit func(agent.Event),
 	write func(any) error,
 ) *appServerRequestHandler {
-	return &appServerRequestHandler{
-		mode:      req.Mode,
-		write:     write,
-		userInput: newAppServerUserInputHandler(req.Interactions),
-	}
+	return &appServerRequestHandler{req: req, emit: emit, write: write}
 }
 
-func (handler *appServerRequestHandler) Answer(ctx context.Context, envelope appServerEnvelope) error {
-	return handler.answer(ctx, envelope, nil)
-}
-
-func (handler *appServerRequestHandler) answer(
-	ctx context.Context,
-	envelope appServerEnvelope,
-	registered func(),
-) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (handler *appServerRequestHandler) Answer(envelope appServerEnvelope) error {
 	result := any(nil)
 	switch envelope.Method {
 	case "item/tool/requestUserInput", "tool/requestUserInput":
-		userInputResult, err := handler.userInput.answer(ctx, envelope, registered)
-		if err != nil {
+		var params appServerUserInputRequestParams
+		if err := json.Unmarshal(envelope.Params, &params); err != nil {
 			return err
 		}
-		result = userInputResult
+		input, _ := json.Marshal(map[string]any{"questions": params.Questions})
+		handler.emit(agent.Event{
+			T:              time.Now().UnixMilli(),
+			Type:           agent.EventToolStarted,
+			Provider:       agent.ProviderCodex,
+			ConversationID: handler.req.ConversationID,
+			ItemID:         params.ItemID,
+			ItemKind:       agent.ItemToolCall,
+			ToolName:       "AskUserQuestion",
+			Input:          input,
+		})
+		answers := make(map[string]any, len(params.Questions))
+		for _, question := range params.Questions {
+			answers[question.ID] = map[string]any{"answers": []string{}}
+		}
+		result = map[string]any{"answers": answers}
 
 	case "item/commandExecution/requestApproval", "item/fileChange/requestApproval":
 		decision := "accept"
-		if handler.mode == agent.RunModePlan {
+		if handler.req.Mode == agent.RunModePlan {
 			decision = "decline"
 		}
 		result = map[string]string{"decision": decision}
 
 	case "execCommandApproval", "applyPatchApproval":
-		if handler.mode == agent.RunModePlan {
+		if handler.req.Mode == agent.RunModePlan {
 			result = map[string]any{"decision": map[string]any{
 				"denied": map[string]string{"rejection": "Plan mode does not allow mutations"},
 			}}
@@ -64,9 +66,6 @@ func (handler *appServerRequestHandler) answer(
 		result = map[string]any{"action": "cancel", "content": nil}
 
 	default:
-		if err := ctx.Err(); err != nil {
-			return err
-		}
 		return handler.write(map[string]any{
 			"id": envelope.ID,
 			"error": map[string]any{
@@ -74,9 +73,6 @@ func (handler *appServerRequestHandler) answer(
 				"message": "Remote does not implement " + envelope.Method,
 			},
 		})
-	}
-	if err := ctx.Err(); err != nil {
-		return err
 	}
 	return handler.write(map[string]any{"id": envelope.ID, "result": result})
 }

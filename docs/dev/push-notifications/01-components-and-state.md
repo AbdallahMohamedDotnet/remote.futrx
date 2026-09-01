@@ -30,7 +30,7 @@ flowchart LR
 | VAPID key pair | `DATA_DIR/webpush-vapid.json` | Until deliberately rotated |
 | Browser subscriptions | `DATA_DIR/push-subscriptions/` | Until disabled, retired, logout, or user removal |
 | Presence claims | Backend memory | Claims live for 55 seconds; revisions are bounded per user |
-| Parked-question state | Backend memory | Until a legacy answer/new terminal event, or correlated `interaction_resolved` |
+| Parked-question state | Backend memory | Until a user, completion, or error event |
 | Browser permission and subscription | Browser profile | Controlled by the browser and user |
 
 At startup, Remote loads or creates the VAPID key, verifies the key pair, and

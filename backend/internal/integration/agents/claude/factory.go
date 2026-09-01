@@ -23,11 +23,10 @@ func NewFactory() (agentmodule.Factory, error) {
 			"/root/.claude/skills",
 		},
 		Features: agentmodule.Features{
-			Sessions:           agentmodule.SessionSupport{Resume: true, Fork: true},
-			Skills:             agentmodule.SkillsSlashCommand,
-			ExecutableRunModes: []agent.RunMode{agent.RunModeDefault},
-			BrowserTools:       true,
-			ScheduledTools:     true,
+			Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
+			Skills:         agentmodule.SkillsSlashCommand,
+			BrowserTools:   true,
+			ScheduledTools: true,
 		},
 	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
 		binding := agentauth.NewCodeBinding(agent.ProviderClaude, NewAuth())

@@ -23,13 +23,6 @@ func TestNotificationKindSelectsOnlyEventsWorthInterrupting(t *testing.T) {
 			wantOK:     true,
 		},
 		{
-			name:       "interactive harness asks a question",
-			event:      servicechat.Event{Type: "interaction_request", ToolName: "AskUserQuestion"},
-			wantKind:   servicepush.KindQuestion,
-			wantUrgent: true,
-			wantOK:     true,
-		},
-		{
 			name:   "any other tool call",
 			event:  servicechat.Event{Type: "tool_use_start", Name: "Bash"},
 			wantOK: false,
@@ -133,30 +126,4 @@ func TestWithDetailFlattensAndTruncatesAgentOutput(t *testing.T) {
 func TestANilNotifierIsSafeToCall(t *testing.T) {
 	var notifier *chatPushNotifier
 	notifier.ChatEvent("beefcafe", servicechat.Event{Type: "complete"})
-}
-
-func TestParkedRunTracksConcurrentInteractionsIndependently(t *testing.T) {
-	notifier := &chatPushNotifier{}
-	chatID := servicechat.ID("beefcafe")
-
-	for _, id := range []string{"question-a", "question-b"} {
-		if !notifier.trackParkedRun(chatID, servicechat.Event{
-			Type: "interaction_request",
-			ID:   id,
-		}, true) {
-			t.Fatalf("question %s was suppressed", id)
-		}
-	}
-	if !notifier.trackParkedRun(chatID, servicechat.Event{
-		Type: "interaction_resolved",
-		ID:   "question-a",
-	}, false) {
-		t.Fatal("resolution was suppressed")
-	}
-	if notifier.trackParkedRun(chatID, servicechat.Event{Type: "complete"}, false) {
-		t.Fatal("terminal event notified while question-b remained pending")
-	}
-	if !notifier.trackParkedRun(chatID, servicechat.Event{Type: "complete"}, false) {
-		t.Fatal("parked markers were not cleared after terminal event")
-	}
 }

@@ -2,10 +2,8 @@ package chat
 
 import (
 	"context"
-	"errors"
 	"testing"
 
-	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
@@ -23,26 +21,11 @@ func (p forkSessionPolicy) SupportsNativeFork(provider string) bool {
 	return p[provider]
 }
 
-type rejectsIdleChangeRunController struct{}
-
-func (*rejectsIdleChangeRunController) IsRunning(ID) bool { return false }
-func (*rejectsIdleChangeRunController) WhileIdle(ID, func() error) (bool, error) {
-	return false, nil
-}
-
-func (*rejectsIdleChangeRunController) CancelAndWhileIdle(context.Context, ID, func() error) error {
-	return ErrChatRunning
-}
-func (*rejectsIdleChangeRunController) Cancel(context.Context, ID) error { return nil }
-
 type forkProviderPolicy map[string]bool
 
 func (p forkProviderPolicy) HasProvider(provider string) bool { return p[provider] }
 func (p forkProviderPolicy) SupportsScope(provider string, _ agentmodule.ExecutionScope) bool {
 	return p[provider]
-}
-func (p forkProviderPolicy) SupportsRunMode(provider string, mode agent.RunMode) bool {
-	return p[provider] && mode == agent.RunModeDefault
 }
 
 type scopedProviderPolicy map[string]map[agentmodule.ExecutionScope]bool
@@ -50,9 +33,6 @@ type scopedProviderPolicy map[string]map[agentmodule.ExecutionScope]bool
 func (p scopedProviderPolicy) HasProvider(provider string) bool { return p[provider] != nil }
 func (p scopedProviderPolicy) SupportsScope(provider string, scope agentmodule.ExecutionScope) bool {
 	return p[provider][scope]
-}
-func (p scopedProviderPolicy) SupportsRunMode(provider string, mode agent.RunMode) bool {
-	return p[provider] != nil && mode == agent.RunModeDefault
 }
 
 type defaultScopedProviderPolicy struct {
@@ -124,97 +104,6 @@ func TestCreateAndUpdateEnforceProviderExecutionScope(t *testing.T) {
 	hostAgent := Provider("host-agent")
 	if _, err := service.Update(context.Background(), "deadbeef", UpdateInput{Provider: &hostAgent}); err != ErrInvalidProvider {
 		t.Fatalf("project update to host agent error = %v", err)
-	}
-}
-
-func TestUpdateRejectsUnsupportedModeWhenProviderChanges(t *testing.T) {
-	repo := &forkRepository{source: Meta{
-		ID:       "deadbeef",
-		Provider: ProviderClaude,
-		Mode:     "plan",
-	}}
-	service := New(
-		repo,
-		nil,
-		nil,
-		nil,
-		WithProviderPolicy(forkProviderPolicy{
-			string(ProviderClaude): true,
-			string(ProviderCodex):  true,
-		}),
-	)
-	nextProvider := ProviderCodex
-	staleMode := "plan"
-	_, err := service.Update(context.Background(), repo.source.ID, UpdateInput{
-		Provider: &nextProvider,
-		Mode:     &staleMode,
-	})
-	if !errors.Is(err, ErrInvalidMode) {
-		t.Fatalf("update error = %v, want ErrInvalidMode", err)
-	}
-}
-
-func TestCreateAndSameProviderUpdateRejectUnsupportedMode(t *testing.T) {
-	repo := &forkRepository{}
-	service := New(
-		repo,
-		nil,
-		nil,
-		nil,
-		WithProviderPolicy(forkProviderPolicy{string(ProviderClaude): true}),
-	)
-	_, err := service.Create(context.Background(), CreateInput{
-		Provider: ProviderClaude,
-		Mode:     "plan",
-	})
-	if !errors.Is(err, ErrInvalidMode) {
-		t.Fatalf("create error = %v, want ErrInvalidMode", err)
-	}
-
-	repo.source = Meta{ID: "deadbeef", Provider: ProviderClaude, Mode: "default"}
-	staleMode := "plan"
-	_, err = service.Update(context.Background(), repo.source.ID, UpdateInput{
-		Mode: &staleMode,
-	})
-	if !errors.Is(err, ErrInvalidMode) {
-		t.Fatalf("update error = %v, want ErrInvalidMode", err)
-	}
-}
-
-func TestForkPreservesUnsupportedModeWithoutChangingSemantics(t *testing.T) {
-	repo := &forkRepository{source: Meta{
-		ID:       "deadbeef",
-		Title:    "Source",
-		Provider: ProviderClaude,
-		Mode:     "plan",
-	}}
-	service := New(repo, nil, nil, nil)
-
-	forked, err := service.Fork(context.Background(), repo.source.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if forked.Mode != "plan" {
-		t.Fatalf("forked mode = %q", forked.Mode)
-	}
-}
-
-func TestUpdateRequiresIdleTransitionBarrier(t *testing.T) {
-	repo := &forkRepository{source: Meta{
-		ID:       "deadbeef",
-		Title:    "Before",
-		Provider: ProviderCodex,
-		Mode:     string(agent.RunModeDefault),
-	}}
-	runs := &rejectsIdleChangeRunController{}
-	service := New(repo, nil, nil, runs)
-	title := "Must not win the race"
-	_, err := service.Update(context.Background(), repo.source.ID, UpdateInput{Title: &title})
-	if !errors.Is(err, ErrChatRunning) {
-		t.Fatalf("update error = %v, want ErrChatRunning", err)
-	}
-	if repo.source.Title != "Before" {
-		t.Fatalf("running chat was mutated: %#v", repo.source)
 	}
 }
 

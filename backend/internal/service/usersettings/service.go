@@ -18,7 +18,6 @@ type Service struct {
 type ProviderCatalog interface {
 	HasProvider(provider string) bool
 	SupportsScope(provider string, scope agentmodule.ExecutionScope) bool
-	SupportsRunMode(provider string, mode agent.RunMode) bool
 }
 
 type defaultProviderCatalog interface {
@@ -87,13 +86,11 @@ func (s *Service) Update(ctx context.Context, key Key, input UpdateInput) (Setti
 	}
 
 	if input.Chat != nil {
-		providerChanged := false
 		if input.Chat.Provider != nil {
 			provider := normalizeChatProvider(*input.Chat.Provider)
 			if !s.validProvider(provider) {
 				return Settings{}, ErrInvalidChatProvider
 			}
-			providerChanged = provider != settings.Chat.Provider
 			settings.Chat.Provider = provider
 		}
 		if input.Chat.Model != nil {
@@ -101,12 +98,10 @@ func (s *Service) Update(ctx context.Context, key Key, input UpdateInput) (Setti
 		}
 		if input.Chat.Mode != nil {
 			mode := normalizeChatMode(*input.Chat.Mode)
-			if !ValidChatMode(mode) || !s.supportsChatMode(settings.Chat.Provider, mode) {
+			if !ValidChatMode(mode) {
 				return Settings{}, ErrInvalidChatMode
 			}
 			settings.Chat.Mode = mode
-		} else if providerChanged && !s.supportsChatMode(settings.Chat.Provider, settings.Chat.Mode) {
-			settings.Chat.Mode = ChatModeDefault
 		}
 		if input.Chat.ReasoningEffort != nil {
 			effort := normalizeReasoningEffort(*input.Chat.ReasoningEffort)
@@ -139,7 +134,7 @@ func (s *Service) normalize(settings Settings) Settings {
 	}
 	settings.Chat.Model = strings.TrimSpace(settings.Chat.Model)
 	settings.Chat.Mode = normalizeChatMode(settings.Chat.Mode)
-	if !ValidChatMode(settings.Chat.Mode) || !s.supportsChatMode(settings.Chat.Provider, settings.Chat.Mode) {
+	if !ValidChatMode(settings.Chat.Mode) {
 		settings.Chat.Mode = defaults.Chat.Mode
 	}
 	settings.Chat.ReasoningEffort = normalizeReasoningEffort(settings.Chat.ReasoningEffort)
@@ -173,13 +168,6 @@ func (s *Service) validProvider(provider ChatProvider) bool {
 	}
 	return s.providers == nil ||
 		(s.providers.HasProvider(string(provider)) && s.providers.SupportsScope(string(provider), agentmodule.ScopeHost))
-}
-
-func (s *Service) supportsChatMode(provider ChatProvider, mode ChatMode) bool {
-	if s.providers == nil {
-		return mode == ChatModeDefault
-	}
-	return s.providers.SupportsRunMode(string(provider), agent.RunMode(mode))
 }
 
 func normalizeChatMode(mode ChatMode) ChatMode {

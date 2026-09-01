@@ -238,14 +238,9 @@ optional post-success pull-back.
 For fixed files it first removes declared legacy credential devices, then
 validates all required host files before creating the provider directory or
 pushing files. It creates that directory with mode `0700` and pushes a host
-file when it is newer than the container copy. Optional missing files are
-skipped. A file can declare a provider-owned `CredentialValidator`: unusable
-host content is never pushed, and usable host credentials can replace an
-unusable container copy regardless of its timestamp. Usable newer container
-credentials remain untouched. Pull-required files must exist after a successful
-run; pulled files are stored with mode `0600`. Validated pulls are staged in a
-private temporary file and checked before atomically replacing the host copy,
-so cleared credentials or a failed transfer cannot destroy the host login.
+file only when it is newer than the container copy. Optional missing files are
+skipped. Pull-required files must exist after a successful run; pulled files
+are stored with mode `0600`.
 
 For dynamic directories it discovers regular files, creates declared container
 directories, and transfers each file at mode `0600`. Policy can allow an
@@ -255,7 +250,7 @@ already exists.
 
 | Provider | Current credential policy |
 | --- | --- |
-| Claude | Seeds `/root/.claude.json` (required) and optional `/root/.claude/.credentials.json`; both relevant credential forms can be pulled back. OAuth content must contain a refresh token or an unexpired access token; cleared or malformed files cannot overwrite usable credentials. Launch seeding is enabled. |
+| Claude | Seeds `/root/.claude.json` (required) and optional `/root/.claude/.credentials.json`; both relevant credential forms can be pulled back. Launch seeding is enabled. |
 | Codex | Seeds and pulls `/root/.codex/auth.json`; explicitly detected API-key mode in the host record is rejected, and subscription auth is the intended flow. A newer project-local record is not pre-inspected, and the current readiness check also accepts an `unknown` mode, as documented in [Authentication and access](04-authentication-and-access.md#current-provider-behavior). Launch seeding is enabled. |
 | Kimi | Synchronizes regular files under `.kimi-code/credentials`; container-only login is allowed, launch seeding is disabled, and host-empty state remains project-local. |
 | Antigravity | Declares no credential transfer because the CLI has no stable documented token subpath. Its project-local login/state survives through the persistent directory. |

@@ -7,31 +7,26 @@ import (
 )
 
 type metaRecord struct {
-	ID                   string                         `json:"id"`
-	Title                string                         `json:"title"`
-	Provider             string                         `json:"provider,omitempty"`
-	Sessions             map[string]string              `json:"sessions,omitempty"`
-	ClaudeSessionID      string                         `json:"claudeSessionId,omitempty"`
-	CodexSessionID       string                         `json:"codexSessionId,omitempty"`
-	KimiSessionID        string                         `json:"kimiSessionId,omitempty"`
-	AntigravitySessionID string                         `json:"antigravitySessionId,omitempty"`
-	TmuxSession          string                         `json:"tmuxSession,omitempty"`
-	Cwd                  string                         `json:"cwd,omitempty"`
-	CreatedAt            int64                          `json:"createdAt"`
-	LastMessageAt        int64                          `json:"lastMessageAt"`
-	LastReadAt           int64                          `json:"lastReadAt,omitempty"`
-	Model                string                         `json:"model,omitempty"`
-	Mode                 string                         `json:"mode,omitempty"`
-	ReasoningEffort      string                         `json:"reasoningEffort,omitempty"`
-	ServiceTier          string                         `json:"serviceTier,omitempty"`
-	ProjectID            string                         `json:"projectId,omitempty"`
-	ForkPending          bool                           `json:"forkPending,omitempty"`
-	SelectedSkills       []skillRefRecord               `json:"selectedSkills,omitempty"`
-	PromptReceipts       map[string]promptReceiptRecord `json:"promptReceipts,omitempty"`
-}
-
-type promptReceiptRecord struct {
-	PromptHash string `json:"promptHash"`
+	ID                   string            `json:"id"`
+	Title                string            `json:"title"`
+	Provider             string            `json:"provider,omitempty"`
+	Sessions             map[string]string `json:"sessions,omitempty"`
+	ClaudeSessionID      string            `json:"claudeSessionId,omitempty"`
+	CodexSessionID       string            `json:"codexSessionId,omitempty"`
+	KimiSessionID        string            `json:"kimiSessionId,omitempty"`
+	AntigravitySessionID string            `json:"antigravitySessionId,omitempty"`
+	TmuxSession          string            `json:"tmuxSession,omitempty"`
+	Cwd                  string            `json:"cwd,omitempty"`
+	CreatedAt            int64             `json:"createdAt"`
+	LastMessageAt        int64             `json:"lastMessageAt"`
+	LastReadAt           int64             `json:"lastReadAt,omitempty"`
+	Model                string            `json:"model,omitempty"`
+	Mode                 string            `json:"mode,omitempty"`
+	ReasoningEffort      string            `json:"reasoningEffort,omitempty"`
+	ServiceTier          string            `json:"serviceTier,omitempty"`
+	ProjectID            string            `json:"projectId,omitempty"`
+	ForkPending          bool              `json:"forkPending,omitempty"`
+	SelectedSkills       []skillRefRecord  `json:"selectedSkills,omitempty"`
 }
 
 type skillRefRecord struct {
@@ -64,7 +59,6 @@ func metaRecordFromDomain(m servicechat.Meta) metaRecord {
 		ProjectID:            string(m.ProjectID),
 		ForkPending:          m.ForkPending,
 		SelectedSkills:       skillRefRecordsFromDomain(m.SelectedSkills),
-		PromptReceipts:       promptReceiptRecordsFromDomain(m.PromptReceipts),
 	}
 }
 
@@ -95,35 +89,9 @@ func (r metaRecord) toDomain() servicechat.Meta {
 		ProjectID:            servicechat.ProjectID(r.ProjectID),
 		ForkPending:          r.ForkPending,
 		SelectedSkills:       servicechat.NormalizeSelectedSkills(skillRefRecordsToDomain(r.SelectedSkills), provider),
-		PromptReceipts:       promptReceiptRecordsToDomain(r.PromptReceipts),
 	}
 	meta.NormalizeSessions()
 	return meta
-}
-
-func promptReceiptRecordsFromDomain(receipts servicechat.PromptReceiptLedger) map[string]promptReceiptRecord {
-	entries := receipts.Snapshot()
-	if len(entries) == 0 {
-		return nil
-	}
-	records := make(map[string]promptReceiptRecord, len(entries))
-	for key, promptHash := range entries {
-		records[key] = promptReceiptRecord{
-			PromptHash: promptHash,
-		}
-	}
-	return records
-}
-
-func promptReceiptRecordsToDomain(records map[string]promptReceiptRecord) servicechat.PromptReceiptLedger {
-	if len(records) == 0 {
-		return servicechat.PromptReceiptLedger{}
-	}
-	receipts := make(map[string]string, len(records))
-	for key, record := range records {
-		receipts[key] = record.PromptHash
-	}
-	return servicechat.NewPromptReceiptLedger(receipts)
 }
 
 func sessionRecordsFromDomain(sessions servicechat.SessionIDs) map[string]string {

@@ -86,11 +86,9 @@ func NewAuth() *Auth {
 
 func authenticated() bool {
 	for _, name := range []string{".credentials.json", "credentials.json"} {
-		data, err := os.ReadFile(filepath.Join(claudeHomeDir(), name))
-		if os.IsNotExist(err) {
-			continue
+		if _, err := os.Stat(filepath.Join(claudeHomeDir(), name)); err == nil {
+			return true
 		}
-		return err == nil && (oauthCredentialValidator{}).Valid(data)
 	}
 	return false
 }

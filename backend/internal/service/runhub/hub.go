@@ -23,22 +23,15 @@ type Hub struct {
 }
 
 type room struct {
-	// transitionMu serializes metadata changes that require an idle chat with
-	// run reservation plus its metadata snapshot. It is intentionally distinct
-	// from mu: repository notifications may call IsRunning while a transition
-	// is in progress.
-	transitionMu sync.Mutex
-	mu           sync.Mutex
-	subs         map[*Subscription]struct{}
-	running      *runState
-	nextRun      uint64
+	mu      sync.Mutex
+	subs    map[*Subscription]struct{}
+	running *runState
+	nextRun uint64
 }
 
 type runState struct {
-	id              uint64
-	cancel          context.CancelFunc
-	done            chan struct{}
-	cancelRequested bool
+	id     uint64
+	cancel context.CancelFunc
 }
 
 const subscriptionLiveBuffer = 4096
@@ -192,30 +185,15 @@ func (r *room) broadcastLocked(ev servicechat.Event) {
 }
 
 func (h *Hub) StartRun(chatID servicechat.ID, cancel context.CancelFunc) (uint64, bool) {
-	runID, started, _ := h.StartRunWith(chatID, cancel, nil)
-	return runID, started
-}
-
-// StartRunWith reserves the run and executes snapshot before another idle-only
-// metadata transition may commit. A snapshot failure releases the reservation
-// before returning; started still reports whether this call won the run race.
-func (h *Hub) StartRunWith(
-	chatID servicechat.ID,
-	cancel context.CancelFunc,
-	snapshot func() error,
-) (uint64, bool, error) {
 	r := h.room(chatID)
-	r.transitionMu.Lock()
-	defer r.transitionMu.Unlock()
-
 	r.mu.Lock()
 	if r.running != nil {
 		r.mu.Unlock()
-		return 0, false, nil
+		return 0, false
 	}
 	r.nextRun++
 	id := r.nextRun
-	r.running = &runState{id: id, cancel: cancel, done: make(chan struct{})}
+	r.running = &runState{id: id, cancel: cancel}
 	r.broadcastLocked(servicechat.Event{
 		T:       time.Now().UnixMilli(),
 		Type:    "sync",
@@ -223,42 +201,14 @@ func (h *Hub) StartRunWith(
 	})
 	r.mu.Unlock()
 	h.publishRunning(chatID, true)
-
-	if snapshot != nil {
-		if err := snapshot(); err != nil {
-			h.FinishRun(chatID, id)
-			return 0, true, err
-		}
-	}
-	return id, true, nil
-}
-
-// WhileIdle executes change only when no run is active and prevents a new run
-// from reserving the chat until change has fully committed.
-func (h *Hub) WhileIdle(chatID servicechat.ID, change func() error) (bool, error) {
-	r := h.room(chatID)
-	r.transitionMu.Lock()
-	defer r.transitionMu.Unlock()
-
-	r.mu.Lock()
-	idle := r.running == nil
-	r.mu.Unlock()
-	if !idle {
-		return false, nil
-	}
-	if change == nil {
-		return true, nil
-	}
-	return true, change()
+	return id, true
 }
 
 func (h *Hub) FinishRun(chatID servicechat.ID, runID uint64) {
 	r := h.room(chatID)
 	r.mu.Lock()
 	changed := false
-	var done chan struct{}
 	if r.running != nil && r.running.id == runID {
-		done = r.running.done
 		r.running = nil
 		r.broadcastLocked(servicechat.Event{
 			T:    time.Now().UnixMilli(),
@@ -269,7 +219,6 @@ func (h *Hub) FinishRun(chatID servicechat.ID, runID uint64) {
 	r.mu.Unlock()
 	if changed {
 		h.publishRunning(chatID, false)
-		close(done)
 	}
 }
 
@@ -280,71 +229,28 @@ func (h *Hub) IsRunning(chatID servicechat.ID) bool {
 	return r.running != nil
 }
 
-// CancelAndWhileIdle owns the full destructive transition: it prevents new
-// runs and metadata changes, requests cancellation of an active owner, waits
-// for that owner to finish all output and teardown, then executes change.
-func (h *Hub) CancelAndWhileIdle(
-	ctx context.Context,
-	chatID servicechat.ID,
-	change func() error,
-) error {
-	r := h.room(chatID)
-	r.transitionMu.Lock()
-	defer r.transitionMu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	r.mu.Lock()
-	running := r.running
-	if running != nil {
-		firstRequest := !running.cancelRequested
-		running.cancelRequested = true
-		done := running.done
-		cancel := running.cancel
-		r.mu.Unlock()
-		if firstRequest {
-			cancel()
-		}
-		select {
-		case <-done:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	} else {
-		r.mu.Unlock()
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	if change == nil {
-		return nil
-	}
-	return change()
+func (h *Hub) Cancel(ctx context.Context, chatID servicechat.ID) error {
+	h.CancelRun(chatID)
+	return nil
 }
 
 func (h *Hub) CancelRun(chatID servicechat.ID) bool {
 	r := h.room(chatID)
-	r.transitionMu.Lock()
-	defer r.transitionMu.Unlock()
-
 	r.mu.Lock()
 	running := r.running
 	if running == nil {
 		r.mu.Unlock()
 		return false
 	}
-	firstRequest := !running.cancelRequested
-	running.cancelRequested = true
+	r.running = nil
+	r.broadcastLocked(servicechat.Event{
+		T:    time.Now().UnixMilli(),
+		Type: "sync",
+	})
 	r.mu.Unlock()
 
-	// Cancellation is only a signal. Keep the reservation until the owner
-	// goroutine calls FinishRun after the provider and its teardown have fully
-	// quiesced; otherwise a rewind or replacement run can overtake late output.
-	if firstRequest {
-		running.cancel()
-	}
+	running.cancel()
+	h.publishRunning(chatID, false)
 	return true
 }
 
