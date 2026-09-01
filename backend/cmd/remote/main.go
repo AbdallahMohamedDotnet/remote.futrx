@@ -41,16 +41,8 @@ func main() {
 	// Prepare configuration
 	ctx := context.Background()
 	cfg := config.Load()
-	if len(os.Args) > 1 {
-		switch command := os.Args[1]; command {
-		case "setup-token":
-			if err := runSetupToken(ctx, cfg.DataDir, cfg.BaseURL, os.Stdout); err != nil {
-				log.Fatalf("setup-token: %v", err)
-			}
-			return
-		default:
-			log.Fatalf("unknown command %q (supported commands: setup-token)", command)
-		}
+	if runCLICommand(ctx, cfg, os.Args) {
+		return
 	}
 	publicHostname, err := config.PublicHostname(cfg.BaseURL)
 	if err != nil {
