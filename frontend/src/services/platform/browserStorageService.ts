@@ -19,12 +19,6 @@ class BrowserStorageService {
     } catch {}
   }
 
-  remove(key: string): void {
-    try {
-      this.store()?.removeItem(key);
-    } catch {}
-  }
-
   readBool(key: string): boolean {
     return this.readString(key) === "true";
   }

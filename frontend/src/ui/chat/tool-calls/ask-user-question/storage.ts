@@ -1,13 +1,15 @@
-import { chatQuestionStorageService } from "../../../../services/chat/chatQuestionStorageService.ts";
+const LS_KEY_PREFIX = "askq-answered:";
 
-export function readAnswered(chatId: string, toolUseId: string): string | null {
-  return chatQuestionStorageService.readAnswered(chatId, toolUseId);
+export function readAnswered(toolUseId: string): string | null {
+  try {
+    return localStorage.getItem(LS_KEY_PREFIX + toolUseId);
+  } catch {
+    return null;
+  }
 }
 
-export function writeAnswered(chatId: string, toolUseId: string, summary: string): void {
-  chatQuestionStorageService.writeAnswered(chatId, toolUseId, summary);
-}
-
-export function clearAnswered(chatId: string, toolUseId: string): void {
-  chatQuestionStorageService.clearAnswered(chatId, toolUseId);
+export function writeAnswered(toolUseId: string, summary: string) {
+  try {
+    localStorage.setItem(LS_KEY_PREFIX + toolUseId, summary);
+  } catch {}
 }

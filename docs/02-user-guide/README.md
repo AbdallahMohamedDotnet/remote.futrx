@@ -32,7 +32,7 @@ If this is your first session:
 | Connect Claude, Codex, or Kimi | [Global settings, users, and providers](10-global-settings-users-providers.md) |
 | Sign in to Antigravity for one project | [Global settings, users, and providers](10-global-settings-users-providers.md#use-antigravity) |
 | Create, search, reorder, start, or stop projects | [Projects and sidebar](02-projects-and-sidebar.md) |
-| Pick a provider, model, thinking level, speed, or skill; recover an older blocked Plan chat | [Chat and agent controls](03-chat-and-agent-controls.md) |
+| Pick a provider, model, thinking level, speed, mode, or skill | [Chat and agent controls](03-chat-and-agent-controls.md) |
 | Attach files, queue work, cancel a run, fork, rewind, or mark unread | [Prompts, context, and conversation](04-prompts-context-and-conversation.md) |
 | Browse or download files | [Files, Terminal, and IDE](05-files-terminal-and-ide.md) |
 | Run a command manually | [Files, Terminal, and IDE](05-files-terminal-and-ide.md) |

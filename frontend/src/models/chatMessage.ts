@@ -8,8 +8,6 @@ export type AssistantMessagePart =
       output?: string;
       isError?: boolean;
       status: "running" | "done";
-      interactive?: boolean;
-      interactionRequestedAt?: number;
     }
   | { kind: "thinking"; text: string };
 

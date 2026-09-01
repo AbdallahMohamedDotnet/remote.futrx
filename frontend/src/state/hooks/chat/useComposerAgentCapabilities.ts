@@ -74,7 +74,12 @@ export function useComposerAgentCapabilities({
     if (corrections.serviceTier !== undefined) {
       actions.changeServiceTier(corrections.serviceTier);
     }
+    if (corrections.mode !== undefined) {
+      actions.changeMode(corrections.mode);
+    }
   }, [
+    state.modeOptions,
+    mode,
     model,
     reasoningEffort,
     serviceTier,

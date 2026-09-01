@@ -16,22 +16,19 @@ import (
 const printTimeout = "240m"
 
 func (p *Provider) args(req agent.RunRequest) []string {
-	// agy takes the prompt via --print (positional value). The headless transport
-	// cannot relay interactive control requests. Provider.Run rejects non-default
-	// requests before command construction, and the supported path uses the
-	// configured project sandbox boundary.
+	// agy takes the prompt via --print (positional value). Default mode disables
+	// interactive permission prompts for headless execution. Plan uses agy's
+	// native mode and deliberately omits that bypass.
 	args := []string{"--print", req.Prompt, "--print-timeout", printTimeout}
-	args = append(args, "--dangerously-skip-permissions")
-	// Preserve a non-empty saved value as one argv. Older Remote releases saved
-	// display labels in this field; agy must reject those explicitly instead of
-	// Remote silently dropping the selection and running its default model.
-	model := strings.TrimSpace(req.Model)
-	if model != "" {
+	if req.Mode == agent.RunModePlan {
+		args = append(args, "--mode", string(agent.RunModePlan))
+	} else {
+		args = append(args, "--dangerously-skip-permissions")
+	}
+	if model := strings.TrimSpace(req.Model); model != "" {
 		args = append(args, "--model", model)
 	}
-	// Explicit agy model slugs already select a concrete effort variant. Only
-	// forward --effort when the CLI is responsible for choosing the model.
-	if effort := effortFlag(req.Preferences.ReasoningEffort); model == "" && effort != "" {
+	if effort := effortFlag(req.Preferences.ReasoningEffort); effort != "" {
 		args = append(args, "--effort", effort)
 	}
 	if req.ResumeID != "" {

@@ -117,7 +117,7 @@ WebSocket implementation, frontend card, or route constant.
 
 | Provider | Mode | Host login and readiness | Project behavior |
 | --- | --- | --- | --- |
-| Claude | `managed-code` | Runs `claude auth login --claudeai` in a PTY, reads the Anthropic URL, and accepts the pasted authorization code. The credential file must contain a refresh token or an unexpired access token; a cleared or malformed file does not mark it authenticated. | Host credentials are seeded to the project on launch/run, including recovery of a newer but cleared project file. Successful project runs may sync usable credentials back. |
+| Claude | `managed-code` | Runs `claude auth login --claudeai` in a PTY, reads the Anthropic URL, and accepts the pasted authorization code. A Claude credential file under `~/.claude` marks it authenticated. | Host credentials are seeded to the project on launch/run and successful project runs may sync updated files back. |
 | Codex | `managed-device` | Runs `codex login --device-auth` with `OPENAI_API_KEY` removed. A non-empty auth mode other than `apikey` is considered authenticated. Malformed or mode-less JSON currently becomes `unknown` and also passes this readiness check; API-key auth produces a warning and is not considered authenticated. | An explicitly API-key host record blocks launch and `OPENAI_API_KEY` is cleared. A newer project-local `auth.json` is not pre-inspected and can still be used; after a successful run its pull-back error is only logged. |
 | Kimi | `managed-device` | Runs `kimi login`; any regular file under `~/.kimi-code/credentials` marks it authenticated. | The persistent project home can retain project-only credentials. Host credentials are synchronized according to the profile's directory policy. |
 | Antigravity | `external` | Remote has no managed host login/status UI. An operator-prepared host login may support loose chats, but is outside the normal product flow. | Run `agy` in the project terminal and complete its URL/code flow. State survives replacement in the project's persistent Antigravity directory; refresh models afterward. |
@@ -126,12 +126,6 @@ Claude, Codex, and Kimi host identities are installation-wide singletons. They
 are not per Remote user, and their credentials are shared with projects through
 the provisioning policy. Antigravity's supported login is project-local and
 shared with everyone who can access that project.
-
-Claude's credential checks inspect local content only. An expired access token
-with a refresh token remains eligible for the CLI's normal renewal; Remote
-cannot determine locally whether that refresh token has been revoked. If no
-saved copy can be renewed, an administrator must sign in again. Credential
-synchronization never replaces a login with a cleared or malformed OAuth file.
 
 ## Auth timeout ownership
 

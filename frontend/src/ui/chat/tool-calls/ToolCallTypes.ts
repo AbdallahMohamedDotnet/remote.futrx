@@ -1,7 +1,11 @@
-import type {
-  AnswerQuestionHandler,
-  InteractionActivityHandler,
-} from "../../../models/chat";
+export interface AskInput {
+  questions?: Array<{
+    question: string;
+    header?: string;
+    multiSelect?: boolean;
+    options: Array<{ label: string; description?: string }>;
+  }>;
+}
 
 export interface ToolCallProps {
   toolUseId?: string;
@@ -11,8 +15,5 @@ export interface ToolCallProps {
   output?: string;
   isError?: boolean;
   status: "running" | "done";
-  interactive?: boolean;
-  interactionRequestedAt?: number;
-  onAnswerQuestion?: AnswerQuestionHandler;
-  onInteractionActivity?: InteractionActivityHandler;
+  onAnswerQuestion?: (text: string) => void;
 }

@@ -141,17 +141,6 @@ func (c *Catalog) SupportsScope(provider string, scope ExecutionScope) bool {
 	return false
 }
 
-// SupportsRunMode reports whether Remote implements the complete harness
-// lifecycle for a provider mode. This is deliberately stricter than whether
-// a CLI happens to advertise a flag with the same name.
-func (c *Catalog) SupportsRunMode(provider string, mode agent.RunMode) bool {
-	descriptor, ok := c.Descriptor(provider)
-	if !ok {
-		return false
-	}
-	return descriptor.Features.SupportsRunMode(mode)
-}
-
 // DefaultProvider returns the explicitly preferred provider for a scope, or
 // the first compatible module when no preference is declared. Catalog order
 // is deterministic, so this fallback is stable.
@@ -363,10 +352,6 @@ func (r *Runtime) HasProvider(provider string) bool {
 
 func (r *Runtime) SupportsScope(provider string, scope ExecutionScope) bool {
 	return r != nil && r.catalog.SupportsScope(provider, scope)
-}
-
-func (r *Runtime) SupportsRunMode(provider string, mode agent.RunMode) bool {
-	return r != nil && r.catalog.SupportsRunMode(provider, mode)
 }
 
 func (r *Runtime) DefaultProvider(scope ExecutionScope) agent.ProviderID {

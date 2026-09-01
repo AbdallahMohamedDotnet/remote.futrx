@@ -43,11 +43,6 @@ type Meta struct {
 	ProjectID            ProjectID  `json:"projectId,omitempty"`
 	ForkPending          bool       `json:"forkPending,omitempty"`
 	SelectedSkills       []SkillRef `json:"selectedSkills,omitempty"`
-	// PromptReceipts is internal delivery state. It is persisted by the chat
-	// store but deliberately excluded from API responses and forks. Keeping it
-	// outside events makes accepted interactive prompts idempotent across
-	// reconnects even after visible history is rewound.
-	PromptReceipts PromptReceiptLedger `json:"-"`
 }
 
 type SkillRef struct {
@@ -291,19 +286,6 @@ func NormalizeProvider(provider Provider) Provider {
 		return ProviderCodex
 	}
 	return normalized
-}
-
-// ParseMode normalizes spelling without changing execution semantics. Whether
-// a valid mode is supported is provider-specific and is checked by Service.
-func ParseMode(value string) (agent.RunMode, error) {
-	mode := agent.RunMode(strings.ToLower(strings.TrimSpace(value)))
-	if mode == "" {
-		mode = agent.RunModeDefault
-	}
-	if mode != agent.RunModeDefault && mode != agent.RunModePlan {
-		return "", ErrInvalidMode
-	}
-	return mode, nil
 }
 
 func NormalizeReasoningEffort(effort string) string {

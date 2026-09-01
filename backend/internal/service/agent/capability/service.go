@@ -212,17 +212,6 @@ func (c *Service) decorate(capabilities *agent.Capabilities) {
 	}
 	capabilities.Label = descriptor.Label
 	capabilities.Default = descriptor.Default
-	reportsPlan := false
-	for _, mode := range capabilities.Modes {
-		reportsPlan = reportsPlan || agent.RunMode(agent.NormalizeCapabilityValue(mode.Value)) == agent.RunModePlan
-	}
-	// Exposure is the intersection of what this installed CLI reports and what
-	// Remote implements end to end. Neither a native flag nor a static module
-	// declaration is sufficient on its own.
-	capabilities.Modes = agent.ProviderModes(
-		descriptor.Features.SupportsRunMode(agent.RunModePlan) && reportsPlan,
-	)
-	capabilities.DefaultMode = agent.RunModeDefault
 	capabilities.ExecutionScopes = make([]string, len(descriptor.ExecutionScopes))
 	for index, scope := range descriptor.ExecutionScopes {
 		capabilities.ExecutionScopes[index] = string(scope)

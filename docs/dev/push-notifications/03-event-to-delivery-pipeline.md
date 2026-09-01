@@ -18,28 +18,15 @@ flowchart LR
 
 | Persisted event | Result |
 | --- | --- |
-| Legacy `tool_use_start` for `AskUserQuestion` | Urgent question notification |
-| Correlated `interaction_request` for `AskUserQuestion` | Urgent question notification |
-| `interaction_resolved` | No notification; clear waiting-question state |
+| `AskUserQuestion` starts | Urgent question notification |
 | Interactive `complete` | Turn-finished notification |
 | Interactive `error` | Run-failed notification |
 | Scheduled `complete` or `error` | Scheduled-task notification |
 | Other event | No notification |
 
-The notifier parks the chat when either question event is persisted. The two
-question lifecycles then diverge:
-
-- a legacy print-tool question normally ends its run. Remote suppresses that
-  immediately following terminal event so it does not replace the urgent
-  question notification in the tray; that terminal event clears the marker,
-  and a new `user` event also clears any legacy marker still present;
-- a correlated interactive question keeps the run active. Its persisted
-  `interaction_resolved` clears the marker before the provider continues, so a
-  later real completion/error notification is delivered normally.
-
-This waiting marker is backend memory. Persisted interaction events still
-replay in the chat, but a backend restart does not reconstruct push suppression
-or the live provider waiter.
+When a run stops after `AskUserQuestion`, Remote suppresses the immediately
+following terminal event. Otherwise that routine event would replace the more
+important question notification in the tray.
 
 ## Audience
 

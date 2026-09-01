@@ -42,37 +42,16 @@ func TestArgsComposition(t *testing.T) {
 	joined = strings.Join(full, " ")
 	for _, want := range []string{
 		"--model gemini-3-pro",
+		"--mode plan",
 		"--conversation abc-123",
+		"--effort high",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("args missing %q: %v", want, full)
 		}
 	}
-	if strings.Contains(joined, "--effort") {
-		t.Fatalf("explicit variant model must not be combined with effort: %v", full)
-	}
-	if strings.Contains(joined, "--mode plan") {
-		t.Fatalf("print transport must not launch Antigravity Plan: %v", full)
-	}
-	if !strings.Contains(joined, "--dangerously-skip-permissions") {
-		t.Fatalf("supported command path must configure headless permissions: %v", full)
-	}
-}
-
-func TestArgsForwardEffortWhenAntigravityChoosesModel(t *testing.T) {
-	args := (&Provider{}).args(agent.RunRequest{
-		Prompt:      "inspect",
-		Preferences: agent.RunPreferences{ReasoningEffort: "high"},
-	})
-	if !strings.Contains(strings.Join(args, " "), "--effort high") {
-		t.Fatalf("automatic model effort missing: %v", args)
-	}
-}
-
-func TestRunRejectsPlanBeforeLaunchingPrintTransport(t *testing.T) {
-	err := (&Provider{}).Run(context.Background(), agent.RunRequest{Mode: agent.RunModePlan}, nil)
-	if !errors.Is(err, agent.ErrUnsupportedRunMode) {
-		t.Fatalf("run error = %v", err)
+	if strings.Contains(joined, "--dangerously-skip-permissions") {
+		t.Fatalf("Plan mode must not bypass Antigravity permissions: %v", full)
 	}
 }
 
@@ -93,14 +72,6 @@ func TestEffortFlagClamping(t *testing.T) {
 			t.Fatalf("effortFlag(%q) = %q, want %q", effort, got, want)
 		}
 	}
-}
-
-func TestArgsPreserveLegacyDisplayNameSoHarnessRejectsInsteadOfDowngrading(t *testing.T) {
-	args := (&Provider{}).args(agent.RunRequest{
-		Prompt: "continue",
-		Model:  "Gemini 3.5 Flash (High)",
-	})
-	requireAntigravityArgPair(t, args, "--model", "Gemini 3.5 Flash (High)")
 }
 
 func TestBuildCmdUsesAntigravityProjectPreparationPolicy(t *testing.T) {

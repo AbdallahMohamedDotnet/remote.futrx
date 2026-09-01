@@ -34,10 +34,9 @@ test("resolves thinking and speed from the selected model", () => {
   assert.deepEqual(state.modeOptions.map((option) => option.value), ["default", "plan"]);
 });
 
-test("does not attach Auto controls to an unknown saved model", () => {
+test("falls back to the auto model for an unknown saved model", () => {
   const state = agentCapabilityState.resolve(catalog, "codex", "retired-model", false);
-  assert.deepEqual(state.reasoningEffortOptions, []);
-  assert.deepEqual(state.serviceTierOptions, []);
+  assert.deepEqual(state.reasoningEffortOptions.map((option) => option.value), ["", "medium"]);
 });
 
 test("does not present the current selection as a model while the catalog loads", () => {
@@ -101,7 +100,7 @@ test("corrects selections unsupported by a live catalog", () => {
       reasoningEffort: "ultra",
       serviceTier: "slow",
     }),
-    { reasoningEffort: "", serviceTier: "" },
+    { mode: "default", reasoningEffort: "", serviceTier: "" },
   );
 });
 
@@ -120,21 +119,21 @@ test("preserves selections when discovery used a fallback catalog", () => {
   );
 });
 
-test("never replaces an unsupported mode with a different execution policy", () => {
+test("corrects to the provider default only when the provider offers it", () => {
   const strayDefault: AgentCapabilitiesCatalog = {
     providers: [{ ...catalog.providers[0], defaultMode: "retired-default" }],
   };
   const state = agentCapabilityState.resolve(strayDefault, "codex", "gpt-fast", false);
 
-  // Queued work retains its original mode so the composer can require an
-  // explicit choice instead of silently changing its execution semantics.
+  // "retired-default" is not in modeOptions, so correcting to it would fail the
+  // same check next pass and re-issue forever. Fall back to an offered mode.
   assert.deepEqual(
     agentCapabilityState.corrections(state, {
       mode: "retired-mode",
       reasoningEffort: "",
       serviceTier: "",
     }),
-    {},
+    { mode: "default" },
   );
 });
 

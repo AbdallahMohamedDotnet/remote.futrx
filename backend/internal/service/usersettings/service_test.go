@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
 
@@ -27,7 +26,7 @@ func TestUpdatePersistsChatPreferences(t *testing.T) {
 	service := New(repo)
 	provider := ChatProviderClaude
 	model := " sonnet "
-	mode := ChatModeDefault
+	mode := ChatModePlan
 	effort := ReasoningEffortHigh
 
 	settings, err := service.Update(context.Background(), "sub:user", UpdateInput{
@@ -41,7 +40,7 @@ func TestUpdatePersistsChatPreferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if settings.Chat.Provider != ChatProviderClaude || settings.Chat.Model != "sonnet" || settings.Chat.Mode != ChatModeDefault || settings.Chat.ReasoningEffort != ReasoningEffortHigh {
+	if settings.Chat.Provider != ChatProviderClaude || settings.Chat.Model != "sonnet" || settings.Chat.Mode != ChatModePlan || settings.Chat.ReasoningEffort != ReasoningEffortHigh {
 		t.Fatalf("unexpected chat settings: %+v", settings.Chat)
 	}
 	if !repo.saved {
@@ -124,10 +123,6 @@ func (c testProviderCatalog) SupportsScope(provider string, _ agentmodule.Execut
 	return c[provider]
 }
 
-func (c testProviderCatalog) SupportsRunMode(provider string, mode agent.RunMode) bool {
-	return c[provider] && mode == agent.RunModeDefault
-}
-
 type defaultTestProviderCatalog struct {
 	testProviderCatalog
 	provider ChatProvider
@@ -162,37 +157,6 @@ func TestUpdateRejectsProviderMissingFromConfiguredCatalog(t *testing.T) {
 	).Update(context.Background(), "sub:user", UpdateInput{Chat: &ChatUpdate{Provider: &provider}})
 	if !errors.Is(err, ErrInvalidChatProvider) {
 		t.Fatalf("Update error = %v, want ErrInvalidChatProvider", err)
-	}
-}
-
-func TestConfiguredCatalogRejectsUnsupportedPlanPreference(t *testing.T) {
-	mode := ChatModePlan
-	_, err := New(
-		&memoryRepo{},
-		WithProviderCatalog(testProviderCatalog{"codex": true}),
-	).Update(context.Background(), "sub:user", UpdateInput{Chat: &ChatUpdate{Mode: &mode}})
-	if !errors.Is(err, ErrInvalidChatMode) {
-		t.Fatalf("Update error = %v, want ErrInvalidChatMode", err)
-	}
-}
-
-func TestGetRepairsLegacyUnsupportedDefaultWithoutPersistingIt(t *testing.T) {
-	repo := &memoryRepo{
-		exists: true,
-		settings: Settings{Chat: Chat{
-			Provider: ChatProviderCodex,
-			Mode:     ChatModePlan,
-		}},
-	}
-	settings, err := New(
-		repo,
-		WithProviderCatalog(testProviderCatalog{"codex": true}),
-	).Get(context.Background(), "sub:user")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if settings.Chat.Mode != ChatModeDefault || repo.saved {
-		t.Fatalf("settings = %#v, saved = %v", settings.Chat, repo.saved)
 	}
 }
 

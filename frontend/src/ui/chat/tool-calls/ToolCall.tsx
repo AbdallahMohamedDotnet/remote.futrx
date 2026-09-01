@@ -1,6 +1,5 @@
 import { AskUserQuestion } from "./ask-user-question/AskUserQuestion";
-import type { AskUserQuestionInput } from "./ask-user-question/types";
-import type { ToolCallProps } from "./ToolCallTypes";
+import type { AskInput, ToolCallProps } from "./ToolCallTypes";
 import { BashCall } from "./renderers/BashCall";
 import { EditCall } from "./renderers/EditCall";
 import { GenericCall } from "./renderers/GenericCall";
@@ -8,24 +7,14 @@ import { ReadCall } from "./renderers/ReadCall";
 import { SearchCall } from "./renderers/SearchCall";
 import { WriteCall } from "./renderers/WriteCall";
 
-export function ToolCall({ toolUseId, chatId, name, input, output, isError, status, interactive, interactionRequestedAt, onAnswerQuestion, onInteractionActivity }: ToolCallProps) {
+export function ToolCall({ toolUseId, chatId, name, input, output, isError, status, onAnswerQuestion }: ToolCallProps) {
   if (name === "AskUserQuestion" && toolUseId && chatId && onAnswerQuestion) {
     return (
       <AskUserQuestion
         toolUseId={toolUseId}
         chatId={chatId}
-        input={(input as unknown as AskUserQuestionInput) ?? { questions: [] }}
-        onSubmit={(answer) => onAnswerQuestion({
-          ...answer,
-          interactionId: interactive ? toolUseId : undefined,
-        })}
-        onActivity={interactive && onInteractionActivity
-          ? () => onInteractionActivity(toolUseId)
-          : undefined}
-        interactive={interactive}
-        requestedAt={interactionRequestedAt}
-        resolved={interactive && status === "done"}
-        resolvedOutput={output}
+        input={(input as unknown as AskInput) ?? { questions: [] }}
+        onSubmit={onAnswerQuestion}
       />
     );
   }

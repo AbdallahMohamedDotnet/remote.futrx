@@ -34,6 +34,5 @@ type TmuxResolver interface {
 
 type RunController interface {
 	IsRunning(id ID) bool
-	WhileIdle(id ID, change func() error) (bool, error)
-	CancelAndWhileIdle(ctx context.Context, id ID, change func() error) error
+	Cancel(ctx context.Context, id ID) error
 }

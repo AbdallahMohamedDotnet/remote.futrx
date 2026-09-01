@@ -1,11 +1,6 @@
 import { useStore } from "zustand";
 import { useEffect, useState } from "preact/hooks";
-import type {
-  ChatStatus,
-  PromptExecutionPreferences,
-  PromptOutcome,
-  QueuedPrompt,
-} from "../../../models/chat";
+import type { ChatStatus, PromptOutcome, QueuedPrompt } from "../../../models/chat";
 import { idService } from "../../../services/platform/idService.ts";
 import { chatComposerSessionStore } from "../../stores/chat/composerSessionStore";
 import { promptQueueState } from "./promptQueueState";
@@ -16,24 +11,16 @@ export function usePromptQueue({
   chatId,
   status,
   canSendPrompt,
-  transportReady,
   sendPrompt,
   promptOutcome,
   onSent,
-  onRejected,
 }: {
   chatId: string;
   status: ChatStatus;
   canSendPrompt: boolean;
-  transportReady: boolean;
-  sendPrompt: (
-    text: string,
-    preferences: PromptExecutionPreferences,
-    clientId?: string,
-  ) => boolean;
+  sendPrompt: (text: string, clientId?: string) => boolean;
   promptOutcome: PromptOutcome | null;
   onSent: () => void;
-  onRejected: (text: string) => void;
 }) {
   // Retained per chat in the session store so queued prompts survive the
   // ChatContainer remount that happens on every chat switch. They resume
@@ -58,54 +45,36 @@ export function usePromptQueue({
     setQueuedPrompts(chatId, next);
   }
 
-  // A busy rejection remains queued. Semantic rejections are removed and
-  // returned to the draft for an explicit resend after the user reviews the
-  // current provider/mode.
+  // A dispatched prompt is removed only when the server accepts it; a
+  // rejection (run lock still held) keeps it queued for the next window.
   useEffect(() => {
     if (!promptOutcome) return;
-    // Resolve the delivery latch even if another UI action already removed
-    // the queue chip. Otherwise a late ack for that deleted item can block the
-    // rest of the queue until reconnect.
     setInflightId((current) => promptQueueState.inflightAfterOutcome(current, promptOutcome));
-    const matched = queuedPrompts.find((prompt) => prompt.id === promptOutcome.clientId);
-    if (!matched) return;
     if (promptOutcome.accepted) {
       commitQueuedPrompts((prev) => promptQueueState.promptsAfterOutcome(prev, promptOutcome));
       onSent();
-    } else if (!promptOutcome.retryable) {
-      commitQueuedPrompts((prev) => promptQueueState.promptsAfterOutcome(prev, promptOutcome));
-      onRejected(matched.text);
     }
-  }, [promptOutcome, queuedPrompts]);
+  }, [promptOutcome]);
 
-  // A normal run closes the send window before its ack arrives, so keep the
-  // latch through streaming/ready transitions. Only losing the transport makes
-  // the verdict indeterminate; durable server-side client IDs make retry after
-  // reconnect safe.
+  // The send window closing resolves any dispatch: its verdict either already
+  // arrived or will never arrive on this connection, so free the latch.
   useEffect(() => {
-    if (!transportReady) setInflightId(null);
-  }, [transportReady]);
+    if (status !== "ready" || !canSendPrompt) setInflightId(null);
+  }, [status, canSendPrompt]);
 
   useEffect(() => {
     const next = promptQueueState.nextDispatch(queuedPrompts, inflightId, status, canSendPrompt);
     if (!next) return;
-    if (!sendPrompt(next.text, next.preferences, next.id)) return;
+    if (!sendPrompt(next.text, next.id)) return;
     setInflightId(next.id);
   }, [status, canSendPrompt, queuedPrompts, inflightId, sendPrompt]);
 
   return {
     queuedPrompts,
-    inflightId,
-    queuePrompt: (text: string, preferences: PromptExecutionPreferences) =>
-      commitQueuedPrompts((prev) => [...prev, {
-        id: idService.timeOrdered(),
-        text,
-        preferences: { ...preferences },
-      }]),
-    removeQueuedPrompt: (id: string) => {
-      if (id === inflightId) return;
-      commitQueuedPrompts((prev) => prev.filter((prompt) => prompt.id !== id));
-    },
+    queuePrompt: (text: string) =>
+      commitQueuedPrompts((prev) => [...prev, { id: idService.timeOrdered(), text }]),
+    removeQueuedPrompt: (id: string) =>
+      commitQueuedPrompts((prev) => prev.filter((prompt) => prompt.id !== id)),
     clearQueuedPrompts: () => commitQueuedPrompts([]),
   };
 }

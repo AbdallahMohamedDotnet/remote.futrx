@@ -32,31 +32,14 @@ func (p testAgentPolicy) SupportsScope(provider string, scope agentmodule.Execut
 	return false
 }
 
-func (p testAgentPolicy) SupportsRunMode(provider string, mode agent.RunMode) bool {
-	descriptor, ok := p[provider]
-	if !ok {
-		return false
-	}
-	if len(descriptor.Features.ExecutableRunModes) == 0 {
-		return mode == agent.RunModeDefault
-	}
-	for _, configured := range descriptor.Features.ExecutableRunModes {
-		if configured == mode {
-			return true
-		}
-	}
-	return false
-}
-
 func codexTestAgentPolicy() testAgentPolicy {
 	return testAgentPolicy{"codex": {
 		ID:    agent.ProviderCodex,
 		Label: "Codex",
 		Features: agentmodule.Features{
-			Skills:             agentmodule.SkillsDollarMention,
-			ExecutableRunModes: []agent.RunMode{agent.RunModeDefault},
-			BrowserTools:       true,
-			ScheduledTools:     true,
+			Skills:         agentmodule.SkillsDollarMention,
+			BrowserTools:   true,
+			ScheduledTools: true,
 		},
 	}}
 }

@@ -5,7 +5,6 @@ import "errors"
 var (
 	ErrInvalidID              = errors.New("invalid chat id")
 	ErrInvalidProvider        = errors.New("invalid chat provider")
-	ErrInvalidMode            = errors.New("invalid or unsupported chat mode")
 	ErrInvalidTmuxSession     = errors.New("invalid tmux session")
 	ErrInvalidRewindTimestamp = errors.New("invalid rewind timestamp")
 	ErrChatRunning            = errors.New("chat has an active run")
