@@ -116,11 +116,18 @@ export function TwoFactorSettings({ controller }: { controller: SecuritySettings
           </form>
         )}
 
-        {twoFactorEnabled && !flow.showDisable && (
+        {twoFactorEnabled && !flow.showDisable && !flow.showRegenerate && (
           <div class="flex items-center gap-2">
             <span class="text-[12.5px] text-ink-300">
               {settings?.recoveryCodesRemaining ?? 0} recovery codes remaining.
             </span>
+            <button
+              type="button"
+              onClick={flow.showRegenerateForm}
+              class="h-9 px-2.5 rounded bg-white/[0.08] hover:bg-white/[0.12] text-ink-100 text-[12.5px] font-medium inline-flex items-center gap-1.5"
+            >
+              Regenerate codes
+            </button>
             <button
               type="button"
               onClick={flow.showDisableForm}
@@ -140,7 +147,7 @@ export function TwoFactorSettings({ controller }: { controller: SecuritySettings
             class="space-y-2"
           >
             <label class="block space-y-1.5">
-              <span class="text-xs text-ink-300">Confirm with a current code or a recovery code</span>
+              <span class="text-xs text-ink-300">Confirm with a current code or a recovery code to disable 2FA</span>
               <input
                 type="text"
                 value={flow.disableCode}
@@ -151,7 +158,7 @@ export function TwoFactorSettings({ controller }: { controller: SecuritySettings
             <div class="flex items-center gap-2">
               <button
                 type="submit"
-                disabled={flow.busy}
+                disabled={flow.busy || !flow.disableCode}
                 class="h-9 px-2.5 rounded bg-accent-red/80 hover:bg-accent-red text-white text-[12.5px] font-medium disabled:opacity-50"
               >
                 Disable
@@ -159,6 +166,43 @@ export function TwoFactorSettings({ controller }: { controller: SecuritySettings
               <button
                 type="button"
                 onClick={flow.cancelDisable}
+                class="h-9 px-2.5 rounded text-ink-300 hover:text-ink-100 hover:bg-white/[0.05] text-[12.5px]"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
+        {flow.showRegenerate && (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void flow.regenerateRecoveryCodes();
+            }}
+            class="space-y-2"
+          >
+            <label class="block space-y-1.5">
+              <span class="text-xs text-ink-300">Confirm with a current code or a recovery code to regenerate</span>
+              <input
+                type="text"
+                value={flow.regenerateCode}
+                onInput={(event) => flow.setRegenerateCode((event.currentTarget as HTMLInputElement).value)}
+                class="w-full h-10 rounded-md bg-black/30 border border-white/10 px-3 text-sm text-ink-100 focus:outline-none focus:border-accent-blue"
+              />
+            </label>
+            <div class="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={flow.busy || !flow.regenerateCode}
+                class="h-9 px-2.5 rounded bg-accent-blue/80 hover:bg-accent-blue text-white text-[12.5px] font-medium disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {flow.busy && <Loader class="w-3.5 h-3.5 animate-spin" />}
+                Regenerate codes
+              </button>
+              <button
+                type="button"
+                onClick={flow.cancelRegenerate}
                 class="h-9 px-2.5 rounded text-ink-300 hover:text-ink-100 hover:bg-white/[0.05] text-[12.5px]"
               >
                 Cancel
