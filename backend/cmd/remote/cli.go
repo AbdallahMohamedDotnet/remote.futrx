@@ -27,6 +27,7 @@ func runCLICommand(ctx context.Context, cfg config.Config, args []string) bool {
 			EnrollmentTTL:       cfg.Auth.EnrollmentTTL,
 			RecoveryCodeCount:   cfg.Auth.RecoveryCodeCount,
 			SessionHistoryLimit: cfg.Auth.SessionHistoryLimit,
+			SetupTokenTTL:       cfg.Auth.SetupTokenTTL,
 		}
 		if err := runSetupToken(ctx, cfg.DataDir, cfg.BaseURL, authOptions, os.Stdout); err != nil {
 			log.Fatalf("setup-token: %v", err)

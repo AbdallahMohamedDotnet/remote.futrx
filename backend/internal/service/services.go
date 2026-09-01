@@ -96,6 +96,7 @@ type AuthOptions struct {
 	EnrollmentTTL       time.Duration
 	RecoveryCodeCount   int
 	SessionHistoryLimit int
+	SetupTokenTTL       time.Duration
 }
 
 type Services struct {
@@ -471,6 +472,7 @@ func NewAuth(
 			EnrollmentTTL:       options.EnrollmentTTL,
 			RecoveryCodeCount:   options.RecoveryCodeCount,
 			SessionHistoryLimit: options.SessionHistoryLimit,
+			SetupTokenTTL:       options.SetupTokenTTL,
 		},
 	)
 }

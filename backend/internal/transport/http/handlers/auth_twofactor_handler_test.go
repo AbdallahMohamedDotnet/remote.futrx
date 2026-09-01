@@ -58,6 +58,7 @@ func newTwoFactorTestMux(t *testing.T) (*http.ServeMux, *serviceauth.Service) {
 			EnrollmentTTL:       10 * time.Minute,
 			RecoveryCodeCount:   10,
 			SessionHistoryLimit: 20,
+			SetupTokenTTL:       30 * time.Minute,
 		},
 	)
 	if err != nil {

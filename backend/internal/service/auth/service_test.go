@@ -15,6 +15,7 @@ func authTestOptions() Options {
 		EnrollmentTTL:       10 * time.Minute,
 		RecoveryCodeCount:   10,
 		SessionHistoryLimit: 20,
+		SetupTokenTTL:       30 * time.Minute,
 	}
 }
 
@@ -233,6 +234,36 @@ func TestNewAppliesPendingLoginTTL(t *testing.T) {
 	service := newAuthTestServiceWithOptions(t, &authTestStore{}, newAuthTestUsers(), User{}, options)
 	if got := service.PendingTwoFactorDuration(); got != 42*time.Second {
 		t.Fatalf("pending two-factor duration = %s, want 42s", got)
+	}
+}
+
+func TestNewAppliesSetupTokenTTL(t *testing.T) {
+	options := authTestOptions()
+	options.SetupTokenTTL = 42 * time.Second
+	service := newAuthTestServiceWithOptions(t, &authTestStore{}, newAuthTestUsers(), User{}, options)
+	if got := service.SetupTokenTTL(); got != 42*time.Second {
+		t.Fatalf("setup token TTL = %s, want 42s", got)
+	}
+}
+
+func TestNewRejectsNonPositiveSetupTokenTTL(t *testing.T) {
+	for _, ttl := range []time.Duration{0, -time.Second} {
+		options := authTestOptions()
+		options.SetupTokenTTL = ttl
+		_, err := New(
+			context.Background(),
+			&authTestStore{},
+			newAuthTestUsers(),
+			func(string, string, string) OAuthProvider { return authTestOAuth{} },
+			"https://remote.example.com",
+			[]byte("test-session-key"),
+			newAuthTestTwoFactorStore(),
+			newAuthTestSessionRegistryStore(),
+			options,
+		)
+		if err == nil {
+			t.Fatalf("New with setup token TTL %s = nil error, want a validation error", ttl)
+		}
 	}
 }
 

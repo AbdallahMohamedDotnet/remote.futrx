@@ -77,6 +77,7 @@ func newClaimTestServer(t *testing.T) (*http.ServeMux, *serviceauth.Service, str
 			EnrollmentTTL:       10 * time.Minute,
 			RecoveryCodeCount:   10,
 			SessionHistoryLimit: 20,
+			SetupTokenTTL:       30 * time.Minute,
 		},
 	)
 	if err != nil {

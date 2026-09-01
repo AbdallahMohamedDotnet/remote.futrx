@@ -67,6 +67,7 @@ type Options struct {
 	EnrollmentTTL       time.Duration
 	RecoveryCodeCount   int
 	SessionHistoryLimit int
+	SetupTokenTTL       time.Duration
 }
 
 func (o Options) validate() error {
@@ -81,6 +82,9 @@ func (o Options) validate() error {
 	}
 	if o.SessionHistoryLimit <= 0 {
 		return errors.New("session history limit must be positive")
+	}
+	if o.SetupTokenTTL <= 0 {
+		return errors.New("setup token TTL must be positive")
 	}
 	return nil
 }
@@ -143,7 +147,7 @@ func New(
 	if err != nil {
 		return nil, err
 	}
-	setupTokens := newSetupTokenGuard(store, defaultSetupTokenTTL, time.Now)
+	setupTokens := newSetupTokenGuard(store, options.SetupTokenTTL, time.Now)
 	local := newLocalAdminAuthenticator(store, users, setupTokens, localAdmin)
 	google, err := newGoogleAuthenticator(ctx, store, users, oauthFactory, baseURL, local.isLocalAdmin)
 	if err != nil {

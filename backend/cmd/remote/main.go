@@ -101,6 +101,7 @@ func main() {
 			EnrollmentTTL:       cfg.Auth.EnrollmentTTL,
 			RecoveryCodeCount:   cfg.Auth.RecoveryCodeCount,
 			SessionHistoryLimit: cfg.Auth.SessionHistoryLimit,
+			SetupTokenTTL:       cfg.Auth.SetupTokenTTL,
 		},
 		TmuxClient:    tmuxClient,
 		ValidTmuxName: tmuxcli.ValidName,
