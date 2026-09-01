@@ -1,25 +1,13 @@
-const LS_KEY_PREFIX = "askq-answered:";
-
-function answeredKey(chatId: string, toolUseId: string): string {
-  return `${LS_KEY_PREFIX}${chatId}:${toolUseId}`;
-}
+import { chatQuestionStorageService } from "../../../../services/chat/chatQuestionStorageService.ts";
 
 export function readAnswered(chatId: string, toolUseId: string): string | null {
-  try {
-    return localStorage.getItem(answeredKey(chatId, toolUseId));
-  } catch {
-    return null;
-  }
+  return chatQuestionStorageService.readAnswered(chatId, toolUseId);
 }
 
-export function writeAnswered(chatId: string, toolUseId: string, summary: string) {
-  try {
-    localStorage.setItem(answeredKey(chatId, toolUseId), summary);
-  } catch {}
+export function writeAnswered(chatId: string, toolUseId: string, summary: string): void {
+  chatQuestionStorageService.writeAnswered(chatId, toolUseId, summary);
 }
 
-export function clearAnswered(chatId: string, toolUseId: string) {
-  try {
-    localStorage.removeItem(answeredKey(chatId, toolUseId));
-  } catch {}
+export function clearAnswered(chatId: string, toolUseId: string): void {
+  chatQuestionStorageService.clearAnswered(chatId, toolUseId);
 }
