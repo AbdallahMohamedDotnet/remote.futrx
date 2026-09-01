@@ -86,7 +86,7 @@ func TestNewAuthAllowsLocalAdminWithoutGoogleOAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init session registry store: %v", err)
 	}
-	auth, err := newAuth(
+	auth, err := NewAuth(
 		context.Background(),
 		fileauth.New(t.TempDir()),
 		nil,
