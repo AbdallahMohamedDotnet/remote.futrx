@@ -1,14 +1,12 @@
-export interface QuestionChoiceState {
-  selected: Set<number>;
-  freeformActive: boolean;
-}
+import {
+  askUserQuestionState,
+  type QuestionChoiceState,
+} from "../../../../state/hooks/chat/askUserQuestionState.ts";
+
+export type { QuestionChoiceState } from "../../../../state/hooks/chat/askUserQuestionState.ts";
 
 export function createQuestionChoiceState(count: number): Record<number, QuestionChoiceState> {
-  const result: Record<number, QuestionChoiceState> = {};
-  for (let index = 0; index < count; index++) {
-    result[index] = { selected: new Set(), freeformActive: false };
-  }
-  return result;
+  return askUserQuestionState.createChoices(count);
 }
 
 export function toggleQuestionOption(
@@ -17,19 +15,7 @@ export function toggleQuestionOption(
   multi: boolean,
   allowOptionNotes: boolean,
 ): QuestionChoiceState {
-  const selected = new Set(current.selected);
-  if (multi) {
-    if (selected.has(optionIndex)) selected.delete(optionIndex);
-    else selected.add(optionIndex);
-  } else {
-    const deselect = allowOptionNotes && selected.size === 1 && selected.has(optionIndex);
-    selected.clear();
-    if (!deselect) selected.add(optionIndex);
-  }
-  return {
-    selected,
-    freeformActive: allowOptionNotes ? current.freeformActive : false,
-  };
+  return askUserQuestionState.toggleOption(current, optionIndex, multi, allowOptionNotes);
 }
 
 export function activateQuestionFreeform(
@@ -37,8 +23,5 @@ export function activateQuestionFreeform(
   multi: boolean,
   allowOptionNotes: boolean,
 ): QuestionChoiceState {
-  return {
-    selected: !multi && !allowOptionNotes ? new Set() : new Set(current.selected),
-    freeformActive: true,
-  };
+  return askUserQuestionState.activateFreeform(current, multi, allowOptionNotes);
 }
