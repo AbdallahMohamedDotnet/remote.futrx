@@ -42,74 +42,138 @@ apt-get install -y -qq gh`
 // one npm invocation; script-installed CLIs contribute their own pinned
 // install program.
 func InstallScript(profiles []provisioning.Profile) (string, error) {
-	packages := make([]string, 0, len(profiles))
-	scripts := make([]string, 0, len(profiles))
-	binaries := make([]string, 0, len(profiles))
-	seenPackages := make(map[string]bool, len(profiles))
-	seenBinaries := make(map[string]bool, len(profiles))
+	plan, err := collectCLIInstallPlan(profiles)
+	if err != nil {
+		return "", err
+	}
+	return renderInstallScript(plan), nil
+}
+
+type cliInstallPlan struct {
+	npmPackages     []string
+	installScripts  []string
+	binaries        []string
+	versionCommands []versionCommand
+}
+
+type versionCommand struct {
+	binary    string
+	arguments []string
+}
+
+type cliInstallPlanCollector struct {
+	plan                cliInstallPlan
+	seenNPMPackages     map[string]struct{}
+	seenBinaries        map[string]struct{}
+	seenVersionCommands map[string]struct{}
+}
+
+func collectCLIInstallPlan(profiles []provisioning.Profile) (cliInstallPlan, error) {
+	collector := cliInstallPlanCollector{
+		plan: cliInstallPlan{
+			npmPackages:     make([]string, 0, len(profiles)),
+			installScripts:  make([]string, 0, len(profiles)),
+			binaries:        make([]string, 0, len(profiles)),
+			versionCommands: make([]versionCommand, 0, len(profiles)),
+		},
+		seenNPMPackages:     make(map[string]struct{}, len(profiles)),
+		seenBinaries:        make(map[string]struct{}, len(profiles)),
+		seenVersionCommands: make(map[string]struct{}, len(profiles)),
+	}
 	for _, profile := range profiles {
 		if profile.CLI.Binary == "" {
-			return "", fmt.Errorf("agent profile %q has an incomplete CLI definition", profile.ID)
+			return cliInstallPlan{}, fmt.Errorf("agent profile %q has an incomplete CLI definition", profile.ID)
 		}
 		switch {
 		case profile.CLI.InstallMode == provisioning.InstallWithScript:
 			if profile.CLI.InstallScript == "" {
-				return "", fmt.Errorf("agent profile %q uses script install but has no install script", profile.ID)
+				return cliInstallPlan{}, fmt.Errorf("agent profile %q uses script install but has no install script", profile.ID)
 			}
-			scripts = append(scripts, "# Script-installed agent CLI.\n(\n"+profile.CLI.InstallScript+"\n)")
+			collector.plan.installScripts = append(collector.plan.installScripts, profile.CLI.InstallScript)
 		case profile.CLI.PackageName == "":
-			return "", fmt.Errorf("agent profile %q has an incomplete CLI definition", profile.ID)
+			return cliInstallPlan{}, fmt.Errorf("agent profile %q has an incomplete CLI definition", profile.ID)
 		default:
-			if npmPackage := profile.CLI.NPMPackage(); !seenPackages[npmPackage] {
-				packages = append(packages, shellWord(npmPackage))
-				seenPackages[npmPackage] = true
-			}
+			collector.addNPMPackage(profile.CLI.NPMPackage())
 		}
-		if !seenBinaries[profile.CLI.Binary] {
-			binaries = append(binaries, shellWord(profile.CLI.Binary))
-			seenBinaries[profile.CLI.Binary] = true
+		collector.addBinary(profile.CLI.Binary)
+		if len(profile.CLI.VersionArgs) > 0 {
+			collector.addVersionCommand(profile.CLI.Binary, profile.CLI.VersionArgs)
 		}
 	}
-	if len(packages) == 0 && len(scripts) == 0 {
-		return "", errors.New("no agent profiles configured")
+	if len(collector.plan.npmPackages) == 0 && len(collector.plan.installScripts) == 0 {
+		return cliInstallPlan{}, errors.New("no agent profiles configured")
 	}
+	return collector.plan, nil
+}
 
+func (c *cliInstallPlanCollector) addNPMPackage(npmPackage string) {
+	if _, exists := c.seenNPMPackages[npmPackage]; exists {
+		return
+	}
+	c.seenNPMPackages[npmPackage] = struct{}{}
+	c.plan.npmPackages = append(c.plan.npmPackages, npmPackage)
+}
+
+func (c *cliInstallPlanCollector) addBinary(binary string) {
+	if _, exists := c.seenBinaries[binary]; exists {
+		return
+	}
+	c.seenBinaries[binary] = struct{}{}
+	c.plan.binaries = append(c.plan.binaries, binary)
+}
+
+func (c *cliInstallPlanCollector) addVersionCommand(binary string, arguments []string) {
+	command := versionCommand{binary: binary, arguments: append([]string(nil), arguments...)}
+	renderedCommand := command.render()
+	if _, exists := c.seenVersionCommands[renderedCommand]; exists {
+		return
+	}
+	c.seenVersionCommands[renderedCommand] = struct{}{}
+	c.plan.versionCommands = append(c.plan.versionCommands, command)
+}
+
+func (c versionCommand) render() string {
+	var rendered strings.Builder
+	rendered.WriteString(shellWord(c.binary))
+	for _, argument := range c.arguments {
+		rendered.WriteByte(' ')
+		rendered.WriteString(shellWord(argument))
+	}
+	return rendered.String()
+}
+
+func renderInstallScript(plan cliInstallPlan) string {
 	var script strings.Builder
 	script.WriteString(strings.ReplaceAll(
 		baseImageInstallPreamble, "__NODE_MAJOR__", provisioning.MustPin("NODE_MAJOR")))
-	if len(packages) > 0 {
+	if len(plan.npmPackages) > 0 {
 		script.WriteString("\n\n# Agent CLIs.\nnpm install -g ")
-		script.WriteString(strings.Join(packages, " "))
+		writeShellWords(&script, plan.npmPackages)
 		script.WriteString(" --silent 2>&1 | tail -8")
 	}
-	for _, installer := range scripts {
-		script.WriteString("\n\n")
+	for _, installer := range plan.installScripts {
+		script.WriteString("\n\n# Script-installed agent CLI.\n(\n")
 		script.WriteString(installer)
+		script.WriteString("\n)")
 	}
 	script.WriteString("\n\n# Sanity check the full toolchain.\nwhich ")
-	script.WriteString(strings.Join(binaries, " "))
+	writeShellWords(&script, plan.binaries)
 	script.WriteString(" git gh jq node npm python3 ssh\n")
-	seenVersionCommands := make(map[string]bool, len(profiles))
-	for _, profile := range profiles {
-		if len(profile.CLI.VersionArgs) == 0 {
-			continue
-		}
-		var versionCommand strings.Builder
-		versionCommand.WriteString(shellWord(profile.CLI.Binary))
-		for _, argument := range profile.CLI.VersionArgs {
-			versionCommand.WriteByte(' ')
-			versionCommand.WriteString(shellWord(argument))
-		}
-		command := versionCommand.String()
-		if seenVersionCommands[command] {
-			continue
-		}
-		seenVersionCommands[command] = true
-		script.WriteString(command)
+	for _, command := range plan.versionCommands {
+		script.WriteString(command.render())
 		script.WriteByte('\n')
 	}
 	script.WriteString("node --version\ngh --version | head -1")
-	return script.String(), nil
+	return script.String()
+}
+
+func writeShellWords(script *strings.Builder, values []string) {
+	for index, value := range values {
+		if index > 0 {
+			script.WriteByte(' ')
+		}
+		script.WriteString(shellWord(value))
+	}
 }
 
 func shellWord(value string) string {
