@@ -21,7 +21,6 @@ type LocalAdminStore interface {
 type SetupTokenStore interface {
 	SetupToken(context.Context) (*SetupTokenRecord, error)
 	SaveSetupToken(context.Context, SetupTokenRecord) error
-	DeleteSetupToken(context.Context) error
 }
 
 type Store interface {

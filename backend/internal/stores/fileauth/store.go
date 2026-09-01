@@ -192,27 +192,6 @@ func (s *Store) SaveSetupToken(ctx context.Context, record serviceauth.SetupToke
 	return s.writeJSONLocked("setup-token.json", record)
 }
 
-// DeleteSetupToken removes setup-token.json entirely, as opposed to
-// SaveSetupToken which only overwrites/rotates the record. Currently unused
-// in production code: SetupTokenGuard.Consume marks the record Used via
-// SaveSetupToken instead of deleting it, so this method is only exercised by
-// tests today. Kept on the SetupTokenStore port for a future caller (e.g.
-// Consume switching to a hard delete on claim) — flag for review.
-func (s *Store) DeleteSetupToken(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := os.Remove(filepath.Join(s.dataDir, "setup-token.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("delete setup-token.json: %w", err)
-	}
-	return nil
-}
-
 func (s *Store) SessionKey(ctx context.Context) ([]byte, error) {
 	select {
 	case <-ctx.Done():

@@ -26,11 +26,6 @@ func (s *setupTokenTestStore) SaveSetupToken(_ context.Context, record SetupToke
 	return nil
 }
 
-func (s *setupTokenTestStore) DeleteSetupToken(context.Context) error {
-	s.record = nil
-	return nil
-}
-
 // frozenClock lets the expiry tests move time without sleeping.
 type frozenClock struct{ at time.Time }
 

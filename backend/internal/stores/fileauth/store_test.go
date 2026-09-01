@@ -116,14 +116,4 @@ func TestSetupTokenRecordIsPrivateAndRotates(t *testing.T) {
 	if err != nil || persisted == nil || persisted.Hash != "hash-two" {
 		t.Fatalf("rotated record = %#v, %v; want hash-two", persisted, err)
 	}
-
-	if err := store.DeleteSetupToken(ctx); err != nil {
-		t.Fatalf("DeleteSetupToken: %v", err)
-	}
-	if record, err := store.SetupToken(ctx); err != nil || record != nil {
-		t.Fatalf("record after delete = %#v, %v; want nil, nil", record, err)
-	}
-	if err := store.DeleteSetupToken(ctx); err != nil {
-		t.Fatalf("idempotent DeleteSetupToken: %v", err)
-	}
 }
