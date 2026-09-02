@@ -1,7 +1,6 @@
 package constants
 
 import (
-	_ "embed"
 	"time"
 )
 
@@ -17,11 +16,11 @@ const (
 	CodexHarnessBrowserArgs    = `mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222","--caps=vision"]`
 
 	MiniMaxLabel                        = "MiniMax"
-	MiniMaxModel                        = "MiniMax-M3"
-	MiniMaxModelDescription             = "MiniMax M3 with a 1,000,000-token context window"
 	MiniMaxAutoModelLabel               = "MiniMax default"
-	MiniMaxModelContextWindow           = 1_000_000
+	MiniMaxDefaultModelContextWindow    = 204_800
+	MiniMaxLargeModelContextWindow      = 1_000_000
 	MiniMaxAPIBaseURL                   = "https://api.minimax.io/v1"
+	MiniMaxModelsURL                    = MiniMaxAPIBaseURL + "/models"
 	MiniMaxAPIValidationTimeout         = 10 * time.Second
 	MiniMaxAPIKeyEnvironment            = "MINIMAX_API_KEY"
 	MiniMaxWireAPI                      = "responses"
@@ -51,11 +50,3 @@ const (
 	MiniMaxContainerSkills           = MiniMaxContainerHome + "/skills"
 	MiniMaxWorkspaceHome             = "/workspace/.minimax"
 )
-
-//go:embed assets/minimax-model-catalog.json
-var miniMaxModelCatalog []byte
-
-// MiniMaxModelCatalog returns an independent copy of the compiled-in catalog.
-func MiniMaxModelCatalog() []byte {
-	return append([]byte(nil), miniMaxModelCatalog...)
-}

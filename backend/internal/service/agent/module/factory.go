@@ -99,6 +99,7 @@ type BuildDependencies struct {
 type Dependencies struct {
 	ProjectPreparer       agent.ProjectPreparer
 	CredentialCollector   provisioning.CredentialCollector
+	RuntimeAssets         provisioning.RuntimeAssetProvisioner
 	APIKeys               agentauth.APIKeyStore
 	CredentialSyncTimeout time.Duration
 }
@@ -209,6 +210,7 @@ func (f Factory) buildComponents(deps BuildDependencies) (Components, error) {
 	}
 	providerDependencies := Dependencies{
 		CredentialCollector:   deps.Containers.Credentials,
+		RuntimeAssets:         deps.Containers.RuntimeAssets,
 		APIKeys:               deps.APIKeys,
 		CredentialSyncTimeout: deps.CredentialSyncTimeout,
 	}

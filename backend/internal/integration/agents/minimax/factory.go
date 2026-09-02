@@ -43,8 +43,14 @@ func NewFactory() (agentmodule.Factory, error) {
 		}
 		binding := agentauth.NewAPIKeyBinding(agent.ProviderMiniMax, apiKeys)
 		return agentmodule.Components{
-			Provider: newProvider(deps.ProjectPreparer, apiKeys, validatedProfile.CLI.Binary),
-			Auth:     &binding,
+			Provider: newProvider(
+				deps.ProjectPreparer,
+				apiKeys,
+				newModelCatalogClient(),
+				deps.RuntimeAssets,
+				validatedProfile.CLI.Binary,
+			),
+			Auth: &binding,
 		}, nil
 	}, agentmodule.WithProjectPreparation(agentmodule.ProjectPreparationPolicy{
 		SkillLinksRequired: true,
