@@ -244,9 +244,14 @@ func (rnr *Service) runPromptAs(
 		})
 	}
 
-	// Resolve a fresh cwd: live tmux pane_current_path if linked, else stored.
+	// Project metadata stores the host-side bind-mount source, but provider
+	// processes run inside the project container where that workspace is always
+	// mounted at /workspace. Never pass the host path into an in-container CLI:
+	// Codex-harness tools and MCP servers use this request cwd when they spawn.
 	cwd := meta.Cwd
-	if meta.TmuxSession != "" {
+	if meta.ProjectID != "" {
+		cwd = agent.ProjectWorkspacePath
+	} else if meta.TmuxSession != "" {
 		if c, err := rnr.tmux.Cwd(meta.TmuxSession); err == nil && c != "" {
 			cwd = c
 		}
