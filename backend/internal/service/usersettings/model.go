@@ -30,9 +30,10 @@ const (
 )
 
 type Settings struct {
-	Appearance Appearance `json:"appearance"`
-	Chat       Chat       `json:"chat"`
-	UpdatedAt  int64      `json:"updatedAt,omitempty"`
+	Appearance  Appearance `json:"appearance"`
+	Chat        Chat       `json:"chat"`
+	ProjectChat Chat       `json:"projectChat"`
+	UpdatedAt   int64      `json:"updatedAt,omitempty"`
 }
 
 type Appearance struct {
@@ -44,6 +45,7 @@ type ChatProvider = agent.ProviderID
 const (
 	ChatProviderClaude      = agent.ProviderClaude
 	ChatProviderCodex       = agent.ProviderCodex
+	ChatProviderMiniMax     = agent.ProviderMiniMax
 	ChatProviderKimi        = agent.ProviderKimi
 	ChatProviderAntigravity = agent.ProviderAntigravity
 )
@@ -87,8 +89,9 @@ type Chat struct {
 }
 
 type UpdateInput struct {
-	Appearance *AppearanceUpdate `json:"appearance,omitempty"`
-	Chat       *ChatUpdate       `json:"chat,omitempty"`
+	Appearance  *AppearanceUpdate `json:"appearance,omitempty"`
+	Chat        *ChatUpdate       `json:"chat,omitempty"`
+	ProjectChat *ChatUpdate       `json:"projectChat,omitempty"`
 }
 
 type AppearanceUpdate struct {
@@ -104,15 +107,21 @@ type ChatUpdate struct {
 }
 
 func DefaultSettings() Settings {
+	chat := defaultChatSettings()
 	return Settings{
-		Appearance: Appearance{Theme: ThemeSystem},
-		Chat: Chat{
-			Provider:        ChatProviderCodex,
-			Model:           "",
-			Mode:            ChatModeDefault,
-			ReasoningEffort: ReasoningEffortAuto,
-			ServiceTier:     ServiceTierAuto,
-		},
+		Appearance:  Appearance{Theme: ThemeSystem},
+		Chat:        chat,
+		ProjectChat: chat,
+	}
+}
+
+func defaultChatSettings() Chat {
+	return Chat{
+		Provider:        ChatProviderCodex,
+		Model:           "",
+		Mode:            ChatModeDefault,
+		ReasoningEffort: ReasoningEffortAuto,
+		ServiceTier:     ServiceTierAuto,
 	}
 }
 

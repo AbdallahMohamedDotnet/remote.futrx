@@ -3,6 +3,7 @@ import type { AppearanceTheme, UserSettings } from "../models/settings";
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   appearance: { theme: "system" },
   chat: { provider: "codex", model: "", mode: "default", reasoningEffort: "", serviceTier: "" },
+  projectChat: { provider: "codex", model: "", mode: "default", reasoningEffort: "", serviceTier: "" },
 };
 
 export const VALID_APPEARANCE_THEMES = new Set<AppearanceTheme>([

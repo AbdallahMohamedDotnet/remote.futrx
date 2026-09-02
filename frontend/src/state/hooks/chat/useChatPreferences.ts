@@ -21,7 +21,9 @@ export function useChatPreferences({
   refreshMeta: () => Promise<void>;
 }) {
   const { settings, setChatSettings } = useUserSettingsContext();
-  const displayMeta = chatPreferenceState.resolveMeta(chat, loadedMeta, settings.chat);
+  const preferenceScope = chat.projectId ? "project" : "host";
+  const defaults = preferenceScope === "project" ? settings.projectChat : settings.chat;
+  const displayMeta = chatPreferenceState.resolveMeta(chat, loadedMeta, defaults);
   const displayProvider = displayMeta.provider;
   const displayModel = displayMeta.model;
   const displayMode = displayMeta.mode;
@@ -38,7 +40,12 @@ export function useChatPreferences({
       serviceTier: "",
       ...(providerChanged ? { selectedSkills: [] } : {}),
     });
-    void setChatSettings({ provider, model, reasoningEffort: "", serviceTier: "" });
+    void setChatSettings(preferenceScope, {
+      provider,
+      model,
+      reasoningEffort: "",
+      serviceTier: "",
+    });
   }
 
   function selectSkill(skill: RegisteredSkill) {
@@ -59,17 +66,17 @@ export function useChatPreferences({
 
   function changeMode(mode: ChatMode) {
     metaActions.applyMeta({ mode });
-    void setChatSettings({ mode });
+    void setChatSettings(preferenceScope, { mode });
   }
 
   function changeReasoningEffort(reasoningEffort: ReasoningEffort) {
     metaActions.applyMeta({ reasoningEffort });
-    void setChatSettings({ reasoningEffort });
+    void setChatSettings(preferenceScope, { reasoningEffort });
   }
 
   function changeServiceTier(serviceTier: ServiceTier) {
     metaActions.applyMeta({ serviceTier });
-    void setChatSettings({ serviceTier });
+    void setChatSettings(preferenceScope, { serviceTier });
   }
 
   return {
