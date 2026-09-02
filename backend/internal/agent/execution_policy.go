@@ -1,12 +1,9 @@
 package agent
 
-import "strings"
+import (
+	"strings"
 
-const (
-	// DefaultApprovalPolicy asks only when an operation requires escalation.
-	DefaultApprovalPolicy = "on-request"
-	// DefaultSandboxPolicy permits writes within the active workspace.
-	DefaultSandboxPolicy = "workspaceWrite"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 // NormalizeApprovalPolicy trims a supported policy and otherwise returns the
@@ -14,7 +11,7 @@ const (
 func NormalizeApprovalPolicy(policy string) string {
 	policy, valid := normalizedApprovalPolicy(policy)
 	if !valid {
-		return DefaultApprovalPolicy
+		return configconstants.DefaultAgentApprovalPolicy
 	}
 	return policy
 }
@@ -40,7 +37,7 @@ func normalizedApprovalPolicy(policy string) (string, bool) {
 func NormalizeSandboxPolicy(policy string) string {
 	policy, valid := normalizedSandboxPolicy(policy)
 	if !valid {
-		return DefaultSandboxPolicy
+		return configconstants.DefaultAgentSandboxPolicy
 	}
 	return policy
 }

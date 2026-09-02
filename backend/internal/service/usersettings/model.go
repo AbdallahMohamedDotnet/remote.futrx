@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 var (
@@ -120,8 +121,8 @@ func DefaultSettings() Settings {
 			Mode:            ChatModeDefault,
 			ReasoningEffort: ReasoningEffortAuto,
 			ServiceTier:     ServiceTierAuto,
-			ApprovalPolicy:  ApprovalPolicy(agent.DefaultApprovalPolicy),
-			SandboxPolicy:   SandboxPolicy(agent.DefaultSandboxPolicy),
+			ApprovalPolicy:  ApprovalPolicy(configconstants.DefaultAgentApprovalPolicy),
+			SandboxPolicy:   SandboxPolicy(configconstants.DefaultAgentSandboxPolicy),
 		},
 	}
 }

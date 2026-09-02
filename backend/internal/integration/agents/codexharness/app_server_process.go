@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 type appServerScanResult struct {
@@ -65,7 +66,10 @@ func (process *appServerProcess) start() error {
 	process.stdin = stdin
 	process.encoder = json.NewEncoder(stdin)
 	process.scanner = bufio.NewScanner(stdout)
-	process.scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
+	process.scanner.Buffer(
+		make([]byte, configconstants.CodexHarnessStdoutInitialBufferSize),
+		configconstants.CodexHarnessStdoutMaxBufferSize,
+	)
 	process.stderrDone = make(chan string, 1)
 	go captureAppServerStderr(stderr, process.provider, process.logID, process.stderrDone)
 	return nil
@@ -125,12 +129,15 @@ func (process *appServerProcess) abort() {
 
 func captureAppServerStderr(reader io.Reader, provider agent.ProviderID, logID string, done chan<- string) {
 	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 8192), 1<<20)
+	scanner.Buffer(
+		make([]byte, configconstants.CodexHarnessStderrInitialBufferSize),
+		configconstants.CodexHarnessStderrMaxBufferSize,
+	)
 	var captured strings.Builder
 	for scanner.Scan() {
 		line := scanner.Text()
 		log.Printf("%s[%s] stderr: %s", provider, logID, line)
-		if captured.Len() < 64<<10 {
+		if captured.Len() < configconstants.CodexHarnessStderrCaptureLimit {
 			captured.WriteString(line)
 			captured.WriteByte('\n')
 		}
