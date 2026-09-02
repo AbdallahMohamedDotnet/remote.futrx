@@ -23,7 +23,8 @@ func TestFactoryDeclaresProjectCodexHarnessFeatures(t *testing.T) {
 	if descriptor.Auth != agentmodule.AuthManagedAPIKey || descriptor.SatisfiesAccessGate {
 		t.Fatalf("auth policy = %#v", descriptor)
 	}
-	if descriptor.APIKeyAuth == nil || descriptor.APIKeyAuth.CreateURL == "" {
+	if descriptor.APIKeyAuth == nil || descriptor.APIKeyAuth.CreateURL == "" ||
+		descriptor.APIKeyAuth.CreateLabel == "" || descriptor.APIKeyAuth.CredentialLabel == "" {
 		t.Fatalf("API key policy = %#v", descriptor.APIKeyAuth)
 	}
 	if !descriptor.Features.Sessions.Resume || !descriptor.Features.Sessions.Fork ||

@@ -21,7 +21,9 @@ func NewFactory() (agentmodule.Factory, error) {
 		Auth:             agentmodule.AuthManagedAPIKey,
 		AuthInstructions: configconstants.MiniMaxAuthInstructions,
 		APIKeyAuth: &agentmodule.APIKeyAuth{
-			CreateURL: configconstants.MiniMaxAPIKeyCreateURL,
+			CreateURL:       configconstants.MiniMaxAPIKeyCreateURL,
+			CreateLabel:     configconstants.MiniMaxAPIKeyCreateLabel,
+			CredentialLabel: configconstants.MiniMaxAPIKeyCredentialLabel,
 		},
 		Features: agentmodule.Features{
 			Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},

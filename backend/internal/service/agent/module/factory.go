@@ -63,7 +63,9 @@ type Features struct {
 }
 
 type APIKeyAuth struct {
-	CreateURL string
+	CreateURL       string
+	CreateLabel     string
+	CredentialLabel string
 }
 
 // Descriptor is the stable, provider-neutral declaration consumed by runtime
@@ -423,6 +425,12 @@ func validateAuthMode(descriptor Descriptor) error {
 			createURL, err := url.ParseRequestURI(strings.TrimSpace(descriptor.APIKeyAuth.CreateURL))
 			if err != nil || createURL.Scheme != "https" || createURL.Host == "" {
 				return fmt.Errorf("%w: provider %q API-key URL must be absolute HTTPS", ErrInvalidFactory, descriptor.ID)
+			}
+			if strings.TrimSpace(descriptor.APIKeyAuth.CreateLabel) == "" {
+				return fmt.Errorf("%w: provider %q API-key link has no label", ErrInvalidFactory, descriptor.ID)
+			}
+			if strings.TrimSpace(descriptor.APIKeyAuth.CredentialLabel) == "" {
+				return fmt.Errorf("%w: provider %q API-key credential has no label", ErrInvalidFactory, descriptor.ID)
 			}
 		} else if descriptor.APIKeyAuth != nil {
 			return fmt.Errorf("%w: provider %q has API-key configuration for auth mode %q", ErrInvalidFactory, descriptor.ID, descriptor.Auth)

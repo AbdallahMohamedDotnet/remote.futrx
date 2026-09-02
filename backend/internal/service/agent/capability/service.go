@@ -218,7 +218,11 @@ func (c *Service) decorate(capabilities *agent.Capabilities) {
 	}
 	var apiKey *agent.CapabilityAPIKeyAuthentication
 	if descriptor.APIKeyAuth != nil {
-		apiKey = &agent.CapabilityAPIKeyAuthentication{CreateURL: descriptor.APIKeyAuth.CreateURL}
+		apiKey = &agent.CapabilityAPIKeyAuthentication{
+			CreateURL:       descriptor.APIKeyAuth.CreateURL,
+			CreateLabel:     descriptor.APIKeyAuth.CreateLabel,
+			CredentialLabel: descriptor.APIKeyAuth.CredentialLabel,
+		}
 	}
 	capabilities.Authentication = agent.CapabilityAuthentication{
 		Mode:                string(descriptor.Auth),

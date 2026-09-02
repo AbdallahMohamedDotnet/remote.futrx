@@ -206,7 +206,7 @@ flowchart LR
 | --- | --- | --- |
 | Project workspace | `/workspace` | Source, artifacts, uploads, project skills, generated `.env`, browser profile, and project-owned state |
 | Codex home | `/root/.codex` | Codex provider configuration, authentication, sessions, and provider-owned state |
-| MiniMax home | `/root/.minimax` | Isolated Codex-harness model configuration, MiniMax sessions, and provider-owned state; the host injects the managed API key at run time |
+| MiniMax home | `/root/.minimax` | Isolated Codex-harness model configuration, MiniMax sessions, and provider-owned state; the host injects the managed Token Plan subscription key at run time |
 | Claude home | `/root/.claude` | Claude provider configuration, authentication, sessions, and provider-owned state |
 | Kimi home | `/root/.kimi-code` | Kimi provider configuration, authentication, sessions, and provider-owned state |
 | Antigravity home | `/root/.gemini/antigravity-cli` | Project-local Antigravity authentication, conversations, and provider-owned state |
@@ -389,7 +389,7 @@ Remote has four credential classes, each with a different scope:
 | Credential class | Scope | Current behavior |
 | --- | --- | --- |
 | Platform session | User and Remote control plane | Kept in secure HTTP-only cookies and stripped before requests enter project-controlled apps and IDEs |
-| Agent-provider identity | Host-wide for Claude, Codex, Kimi, and the MiniMax API key; supported project runtime for Antigravity | Claude, Codex, and Kimi are connected by an administrator and synchronized bidirectionally with project state. The write-only MiniMax key is stored by the control plane and injected only into MiniMax runs, while Codex-harness state stays in each project's mounted MiniMax home. Remote's Antigravity UI flow authenticates inside each project and its mounted provider state survives container replacement; operator-prepared host `agy` state can still be used by loose chats outside that flow |
+| Agent-provider identity | Host-wide for Claude, Codex, Kimi, and the MiniMax Token Plan subscription key; supported project runtime for Antigravity | Claude, Codex, and Kimi are connected by an administrator and synchronized bidirectionally with project state. The write-only MiniMax subscription key is stored by the control plane and injected only into MiniMax runs, while Codex-harness state stays in each project's mounted MiniMax home. Remote's Antigravity UI flow authenticates inside each project and its mounted provider state survives container replacement; operator-prepared host `agy` state can still be used by loose chats outside that flow |
 | Project secret | One project | Stored in a host file with mode `0600` but without application-level encryption; passed to agent runs, persisted as container environment when single-line, and mirrored into the managed `.env` file |
 | Browser-session identity | One project browser profile | Created through human login and persisted with the project so the agent can use the authenticated session |
 

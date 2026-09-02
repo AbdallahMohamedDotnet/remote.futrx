@@ -14,7 +14,7 @@ import (
 
 var (
 	ErrProjectRequired      = errors.New("MiniMax is available in project chats")
-	ErrMiniMaxAPIKeyMissing = errors.New("MiniMax API key is not configured; add it in Settings → Agent authentication")
+	ErrMiniMaxAPIKeyMissing = errors.New("MiniMax Token Plan subscription key is not configured; add it in Settings → Agent authentication")
 )
 
 func (p *Provider) args(req agent.RunRequest) []string {

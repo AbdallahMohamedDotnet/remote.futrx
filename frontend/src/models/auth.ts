@@ -54,6 +54,8 @@ export interface AgentAuthProvider {
     satisfiesAccessGate: boolean;
     apiKey?: {
       createUrl: string;
+      createLabel: string;
+      credentialLabel: string;
     };
   };
   status: AgentAuthSnapshot;

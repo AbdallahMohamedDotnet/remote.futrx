@@ -37,7 +37,9 @@ type CapabilityAuthentication struct {
 }
 
 type CapabilityAPIKeyAuthentication struct {
-	CreateURL string `json:"createUrl"`
+	CreateURL       string `json:"createUrl"`
+	CreateLabel     string `json:"createLabel"`
+	CredentialLabel string `json:"credentialLabel"`
 }
 
 type CapabilitySessionSupport struct {

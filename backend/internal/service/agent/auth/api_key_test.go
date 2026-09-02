@@ -13,6 +13,19 @@ type apiKeyTestStore struct {
 	err  error
 }
 
+type rejectingStoredKeyValidator struct{}
+
+func (rejectingStoredKeyValidator) ValidateAPIKey(context.Context, string) error {
+	return nil
+}
+
+func (rejectingStoredKeyValidator) ValidateAPIKeyFormat(key string) error {
+	if key == "legacy-key" {
+		return ErrAPIKeyRejected
+	}
+	return nil
+}
+
 func (s *apiKeyTestStore) AgentAPIKey(_ context.Context, id agent.ProviderID) (string, error) {
 	if s.err != nil {
 		return "", s.err
@@ -68,6 +81,30 @@ func TestAPIKeyServiceLoadsMutatesAndPublishesOnlyStatus(t *testing.T) {
 	}
 	if _, ok := service.APIKey(); ok {
 		t.Fatal("deleted key remains available")
+	}
+}
+
+func TestAPIKeyServiceDoesNotActivateAStoredUnsupportedCredentialClass(t *testing.T) {
+	store := &apiKeyTestStore{keys: map[agent.ProviderID]string{
+		agent.ProviderMiniMax: "legacy-key",
+	}}
+	service, err := NewAPIKeyService(
+		context.Background(),
+		agent.ProviderMiniMax,
+		store,
+		rejectingStoredKeyValidator{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if service.Authenticated() {
+		t.Fatal("unsupported stored credential was activated")
+	}
+	if _, ok := service.APIKey(); ok {
+		t.Fatal("unsupported stored credential remains available to runs")
+	}
+	if got := store.keys[agent.ProviderMiniMax]; got != "legacy-key" {
+		t.Fatalf("stored credential was unexpectedly mutated: %q", got)
 	}
 }
 

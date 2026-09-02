@@ -138,9 +138,11 @@ flowchart TD
 
 Claude uses an interactive authorization URL plus a pasted code. Codex and Kimi use device-code flows. Credential files are later synchronized into project containers before agent execution.
 
-MiniMax is project-only but uses a host-managed API-key binding. Its global
-card opens a write-only key field and links to the MiniMax key console. The
-backend validates a submitted key against MiniMax's non-generation model-list
+MiniMax is project-only but uses a host-managed API-key binding for Token Plan
+subscription keys only. Its global card opens a write-only key field, states
+that pay-as-you-go keys are unsupported, and links only to MiniMax's Token Plan
+subscription page. The backend requires the documented `sk-cp-…` prefix and
+validates a submitted key against MiniMax's non-generation Token Plan quota
 endpoint before storing it; rejected keys remain unconfigured. The status
 stream publishes only whether a validated key exists. Before setup, the project
 picker lists MiniMax as locked under **Sign in to use** and does not expose its

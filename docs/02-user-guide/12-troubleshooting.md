@@ -134,13 +134,15 @@ receive the equivalent Browser MCP plumbing. Selected skills are injected as
 instructions to read their canonical `SKILL.md` paths rather than as native
 provider triggers.
 
-### MiniMax says its API key is not configured
+### MiniMax says its Token Plan subscription key is not configured
 
-MiniMax is available only in project chats. Open **Settings → Agents**, choose
-the MiniMax sign-in action, and save a non-empty API key. The locked MiniMax
-row then moves from **Sign in to use** to **Connected**, and its model list
-becomes available. If MiniMax rejects the key, the form remains open and the
-existing key, if any, remains active.
+MiniMax is available only in project chats and requires a Token Plan
+subscription. Open **Settings → Agents**, choose the MiniMax sign-in action,
+follow the Token Plan link if needed, and save the `sk-cp-…` subscription key.
+Standard pay-as-you-go API keys are rejected. The locked MiniMax row then moves
+from **Sign in to use** to **Connected**, and its model list becomes available.
+If MiniMax rejects the subscription key, the form remains open and the existing
+supported key, if any, remains active.
 
 ### Antigravity says it is not signed in
 

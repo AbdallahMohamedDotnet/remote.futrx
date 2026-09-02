@@ -3,6 +3,7 @@ package minimax
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,13 +13,13 @@ import (
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
-func TestAPIKeyValidatorAcceptsAuthenticatedModelCatalog(t *testing.T) {
+func TestAPIKeyValidatorAcceptsAuthenticatedTokenPlan(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/v1/models" {
+		if r.Method != http.MethodGet || r.URL.Path != "/v1/token_plan/remains" {
 			t.Errorf("request = %s %s", r.Method, r.URL.Path)
 			return
 		}
-		if got := r.Header.Get("Authorization"); got != "Bearer valid-key" {
+		if got := r.Header.Get("Authorization"); got != "Bearer sk-cp-valid-key" {
 			t.Errorf("Authorization = %q", got)
 			return
 		}
@@ -27,13 +28,33 @@ func TestAPIKeyValidatorAcceptsAuthenticatedModelCatalog(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"object":"list","data":[]}`))
+		_, _ = w.Write([]byte(`{"model_remains":[],"base_resp":{"status_code":0,"status_msg":"success"}}`))
 	}))
 	defer server.Close()
 
-	validator := &apiKeyValidator{client: server.Client(), endpoint: server.URL + "/v1/models"}
-	if err := validator.ValidateAPIKey(context.Background(), "valid-key"); err != nil {
+	validator := &apiKeyValidator{client: server.Client(), endpoint: server.URL + "/v1/token_plan/remains"}
+	if err := validator.ValidateAPIKey(context.Background(), "sk-cp-valid-key"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAPIKeyValidatorRejectsPayAsYouGoKeysWithoutCallingMiniMax(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	validator := &apiKeyValidator{client: server.Client(), endpoint: server.URL}
+	err := validator.ValidateAPIKey(context.Background(), "standard-pay-as-you-go-key")
+	if !errors.Is(err, agentauth.ErrAPIKeyRejected) || !errors.Is(err, ErrTokenPlanKeyRequired) {
+		t.Fatalf("error = %v, want Token Plan rejection", err)
+	}
+	if !strings.Contains(err.Error(), "pay-as-you-go API keys are not supported") {
+		t.Fatalf("error = %q, want subscription guidance", err)
+	}
+	if called {
+		t.Fatal("standard key reached MiniMax validation endpoint")
 	}
 }
 
@@ -45,7 +66,7 @@ func TestAPIKeyValidatorRejectsUnauthorizedKeysWithoutEchoingProviderBody(t *tes
 	defer server.Close()
 
 	validator := &apiKeyValidator{client: server.Client(), endpoint: server.URL}
-	err := validator.ValidateAPIKey(context.Background(), "rejected-key")
+	err := validator.ValidateAPIKey(context.Background(), "sk-cp-rejected-key")
 	if !errors.Is(err, agentauth.ErrAPIKeyRejected) {
 		t.Fatalf("error = %v, want ErrAPIKeyRejected", err)
 	}
@@ -62,8 +83,9 @@ func TestAPIKeyValidatorTreatsProviderAndPayloadFailuresAsTemporary(t *testing.T
 	}{
 		{name: "provider error", status: http.StatusInternalServerError, body: `{"error":"internal"}`},
 		{name: "malformed JSON", status: http.StatusOK, body: `{`},
-		{name: "wrong shape", status: http.StatusOK, body: `{"object":"other","data":[]}`},
-		{name: "missing data", status: http.StatusOK, body: `{"object":"list"}`},
+		{name: "missing status", status: http.StatusOK, body: `{"model_remains":[]}`},
+		{name: "missing quota catalog", status: http.StatusOK, body: `{"base_resp":{"status_code":0}}`},
+		{name: "provider failure code", status: http.StatusOK, body: `{"base_resp":{"status_code":1000}}`},
 		{
 			name:   "oversized response",
 			status: http.StatusOK,
@@ -79,8 +101,24 @@ func TestAPIKeyValidatorTreatsProviderAndPayloadFailuresAsTemporary(t *testing.T
 			defer server.Close()
 
 			validator := &apiKeyValidator{client: server.Client(), endpoint: server.URL}
-			if err := validator.ValidateAPIKey(context.Background(), "key"); !errors.Is(err, ErrAPIKeyValidationUnavailable) {
+			if err := validator.ValidateAPIKey(context.Background(), "sk-cp-key"); !errors.Is(err, ErrAPIKeyValidationUnavailable) {
 				t.Fatalf("error = %v, want ErrAPIKeyValidationUnavailable", err)
+			}
+		})
+	}
+}
+
+func TestAPIKeyValidatorRejectsTokenPlanCredentialFailures(t *testing.T) {
+	for _, statusCode := range []int{1004, 1008, 2049} {
+		t.Run(fmt.Sprint(statusCode), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = fmt.Fprintf(w, `{"base_resp":{"status_code":%d}}`, statusCode)
+			}))
+			defer server.Close()
+
+			validator := &apiKeyValidator{client: server.Client(), endpoint: server.URL}
+			if err := validator.ValidateAPIKey(context.Background(), "sk-cp-key"); !errors.Is(err, agentauth.ErrAPIKeyRejected) {
+				t.Fatalf("error = %v, want ErrAPIKeyRejected", err)
 			}
 		})
 	}
@@ -94,8 +132,8 @@ func TestAPIKeyValidatorHonorsHTTPClientTimeout(t *testing.T) {
 			return nil, request.Context().Err()
 		}),
 	}
-	validator := &apiKeyValidator{client: client, endpoint: "https://api.minimax.invalid/v1/models"}
-	if err := validator.ValidateAPIKey(context.Background(), "key"); !errors.Is(err, ErrAPIKeyValidationUnavailable) {
+	validator := &apiKeyValidator{client: client, endpoint: "https://api.minimax.invalid/v1/token_plan/remains"}
+	if err := validator.ValidateAPIKey(context.Background(), "sk-cp-key"); !errors.Is(err, ErrAPIKeyValidationUnavailable) {
 		t.Fatalf("error = %v, want ErrAPIKeyValidationUnavailable", err)
 	}
 }

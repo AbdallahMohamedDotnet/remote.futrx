@@ -103,7 +103,11 @@ test("keeps a managed API-key provider locked until its credential exists", () =
         authentication: {
           mode: "managed-api-key",
           satisfiesAccessGate: false,
-          apiKey: { createUrl: "https://platform.minimax.io/console/access" },
+          apiKey: {
+            createUrl: "https://platform.minimax.io/subscribe/token-plan",
+            createLabel: "Get a MiniMax Token Plan subscription key",
+            credentialLabel: "MiniMax Token Plan subscription key",
+          },
         },
         models: [{
           id: "MiniMax-M3",

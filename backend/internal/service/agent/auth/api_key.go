@@ -30,6 +30,13 @@ type APIKeyValidator interface {
 	ValidateAPIKey(context.Context, string) error
 }
 
+// APIKeyFormatValidator lets a provider reject a previously stored credential
+// locally when its supported credential class changes. It must not perform
+// network I/O; remote validation remains part of ValidateAPIKey on mutation.
+type APIKeyFormatValidator interface {
+	ValidateAPIKeyFormat(string) error
+}
+
 type APIKeyValidatorFunc func(context.Context, string) error
 
 func (f APIKeyValidatorFunc) ValidateAPIKey(ctx context.Context, key string) error {
@@ -73,6 +80,11 @@ func NewAPIKeyService(
 		return nil, err
 	}
 	service.key = strings.TrimSpace(key)
+	if formatValidator, ok := validator.(APIKeyFormatValidator); ok {
+		if err := formatValidator.ValidateAPIKeyFormat(service.key); err != nil {
+			service.key = ""
+		}
+	}
 	return service, nil
 }
 

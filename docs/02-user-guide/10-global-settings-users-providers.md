@@ -26,8 +26,8 @@ without login controls.
 
 Claude, Codex, and Kimi authentication is host-wide and administrator-managed.
 Sign in once on the parent host; Remote then seeds those provider credentials
-into project containers. MiniMax uses a host-managed API key, while
-Antigravity uses a project-local sign-in flow; both are described below.
+into project containers. MiniMax uses a host-managed Token Plan subscription
+key. Antigravity uses a project-local sign-in flow; both are described below.
 
 ![Administrator view of Claude, Codex, and Kimi authentication](/assets/docs/screenshots/03-agent-authentication-01m05s.webp)
 
@@ -70,9 +70,12 @@ Configure MiniMax once for the Remote installation:
 
 1. Open **Settings → Agents** and choose **Sign in with MiniMax** (or
    **Refresh MiniMax login** when replacing a key).
-2. Follow the MiniMax API-key link if you need to create a key.
-3. Paste the key into the masked field and choose **Save API key**. Remote
-   validates it with MiniMax before storing it.
+2. Follow the **Get a MiniMax Token Plan subscription key** link to subscribe,
+   create, or retrieve the supported key from MiniMax. Remote does not link to
+   the pay-as-you-go key console because standard API keys are not supported.
+3. Paste the `sk-cp-…` key into the masked field and choose **Save API key**.
+   Remote checks that it is a Token Plan key and validates it with MiniMax's
+   subscription quota endpoint before storing it.
 4. Return to a project chat and select **MiniMax** and **MiniMax-M3**.
 
 Remote passes the key to the Codex process as an environment variable and
@@ -136,9 +139,9 @@ connect one of the current gate-eligible modules: Claude, Codex, or Kimi.
 - Antigravity is project-local rather than host-wide, but its credential state
   is still readable by container root and shared by everyone with authority in
   that project.
-- MiniMax runs only in projects, but its API key is installation-wide and
-  administrator-managed. It is injected into MiniMax runs and is subject to
-  that MiniMax account's quota and billing.
+- MiniMax runs only in projects, but its Token Plan subscription key is
+  installation-wide and administrator-managed. It is injected into MiniMax
+  runs and is subject to that MiniMax subscription's quota.
 
 Non-admins can use connected providers but cannot connect or refresh them.
 
@@ -215,7 +218,7 @@ Use the sign-out control in the account footer. This clears the platform session
 | Change own appearance | Yes | Yes |
 | View own account and server information | Yes | Yes |
 | Connect or refresh agent providers | Yes | No |
-| Add, replace, or remove the MiniMax API key | Yes | No |
+| Add, replace, or remove the MiniMax Token Plan subscription key | Yes | No |
 | Sign in to Antigravity inside an assigned project | Yes | Yes |
 | Configure Google OAuth | Yes | No |
 | Add, remove, promote, or demote users | Yes | No |

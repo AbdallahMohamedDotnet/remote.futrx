@@ -93,7 +93,9 @@ type agentAuthPolicyResponse struct {
 }
 
 type agentAuthAPIKeyResponse struct {
-	CreateURL string `json:"createUrl"`
+	CreateURL       string `json:"createUrl"`
+	CreateLabel     string `json:"createLabel"`
+	CredentialLabel string `json:"credentialLabel"`
 }
 
 func (h *AgentAuthHandler) handleCatalog(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +121,11 @@ func (h *AgentAuthHandler) handleCatalog(w http.ResponseWriter, r *http.Request)
 		}
 		var apiKey *agentAuthAPIKeyResponse
 		if descriptor.APIKeyAuth != nil {
-			apiKey = &agentAuthAPIKeyResponse{CreateURL: descriptor.APIKeyAuth.CreateURL}
+			apiKey = &agentAuthAPIKeyResponse{
+				CreateURL:       descriptor.APIKeyAuth.CreateURL,
+				CreateLabel:     descriptor.APIKeyAuth.CreateLabel,
+				CredentialLabel: descriptor.APIKeyAuth.CredentialLabel,
+			}
 		}
 		providers = append(providers, agentAuthProviderResponse{
 			Provider:        string(descriptor.ID),

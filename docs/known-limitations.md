@@ -66,7 +66,7 @@ These are the constraints worth understanding before you deploy or rely on remot
   container, so all users and projects share the same provider accounts and
   subscription quotas. There is no per-user or per-project identity for those
   providers, and each allows only one interactive login at a time.
-- **MiniMax identity is an installation-wide API key.** The key is stored in a
+- **MiniMax identity is an installation-wide Token Plan subscription key.** The key is stored in a
   mode-`0600` control-plane file without application-level encryption and is
   injected into every MiniMax run. MiniMax uses a separate `/root/.minimax`
   runtime home, but container root can also read the other mounted provider

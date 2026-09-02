@@ -48,6 +48,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
   const managedDevice = entry.authentication.mode === "managed-device";
   const managedAPIKey = entry.authentication.mode === "managed-api-key";
   const managed = managedCode || managedDevice || managedAPIKey;
+  const apiKeyCredentialLabel = entry.authentication.apiKey?.credentialLabel || `${entry.label} API key`;
   const loginInteractionActive = loginActive || (managedAPIKey && apiKeyFormOpen);
   const statusKind = agentAuthRegistryService.statusKind(entry);
   const error = agentAuth.actionErrors[entry.provider]
@@ -184,7 +185,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
       {managedAPIKey && apiKeyFormOpen && (
         <div class="space-y-3 rounded border border-accent-blue/25 bg-accent-blue/[0.08] p-3">
           <div class="text-[12px] leading-relaxed text-ink-200">
-            Paste your {entry.label} API key. Remote stores it privately and never displays it again.
+            Paste your {apiKeyCredentialLabel}. Remote stores it privately and never displays it again.
           </div>
           {entry.authentication.apiKey?.createUrl && (
             <a
@@ -193,7 +194,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
               rel="noreferrer"
               class="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent-blue hover:underline"
             >
-              <ExternalLink class="h-3.5 w-3.5" /> Create or manage a {entry.label} API key
+              <ExternalLink class="h-3.5 w-3.5" /> {entry.authentication.apiKey.createLabel}
             </a>
           )}
           <input
@@ -206,8 +207,8 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
                 void saveAPIKey();
               }
             }}
-            placeholder={`${entry.label} API key`}
-            aria-label={`${entry.label} API key`}
+            placeholder={apiKeyCredentialLabel}
+            aria-label={apiKeyCredentialLabel}
             autocomplete="off"
             autocapitalize="off"
             autocorrect="off"

@@ -204,12 +204,28 @@ func TestNewFactoryRejectsInvalidDeclarations(t *testing.T) {
 		"managed API key with unsafe URL": func() Descriptor {
 			descriptor := cloneDescriptor(valid)
 			descriptor.Auth = AuthManagedAPIKey
-			descriptor.APIKeyAuth = &APIKeyAuth{CreateURL: "http://example.com/keys"}
+			descriptor.APIKeyAuth = &APIKeyAuth{
+				CreateURL: "http://example.com/keys", CreateLabel: "Get a key", CredentialLabel: "API key",
+			}
+			return descriptor
+		}(),
+		"managed API key without link label": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Auth = AuthManagedAPIKey
+			descriptor.APIKeyAuth = &APIKeyAuth{CreateURL: "https://example.com/keys", CredentialLabel: "API key"}
+			return descriptor
+		}(),
+		"managed API key without credential label": func() Descriptor {
+			descriptor := cloneDescriptor(valid)
+			descriptor.Auth = AuthManagedAPIKey
+			descriptor.APIKeyAuth = &APIKeyAuth{CreateURL: "https://example.com/keys", CreateLabel: "Get a key"}
 			return descriptor
 		}(),
 		"external auth with API key policy": func() Descriptor {
 			descriptor := cloneDescriptor(valid)
-			descriptor.APIKeyAuth = &APIKeyAuth{CreateURL: "https://example.com/keys"}
+			descriptor.APIKeyAuth = &APIKeyAuth{
+				CreateURL: "https://example.com/keys", CreateLabel: "Get a key", CredentialLabel: "API key",
+			}
 			return descriptor
 		}(),
 		"external auth gate": func() Descriptor {

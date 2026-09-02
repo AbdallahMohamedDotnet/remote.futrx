@@ -50,7 +50,11 @@ func TestAgentAuthCatalogPublishesOrderedFactoryMetadata(t *testing.T) {
 			ID: agent.ProviderMiniMax, Label: "MiniMax",
 			ExecutionScopes: []agentmodule.ExecutionScope{agentmodule.ScopeProject},
 			Auth:            agentmodule.AuthManagedAPIKey, AuthInstructions: "Add an API key.",
-			APIKeyAuth: &agentmodule.APIKeyAuth{CreateURL: "https://platform.minimax.io/console/access"},
+			APIKeyAuth: &agentmodule.APIKeyAuth{
+				CreateURL:       "https://platform.minimax.io/subscribe/token-plan",
+				CreateLabel:     "Get a MiniMax Token Plan subscription key",
+				CredentialLabel: "MiniMax Token Plan subscription key",
+			},
 		},
 	}
 	mux := http.NewServeMux()
@@ -76,7 +80,9 @@ func TestAgentAuthCatalogPublishesOrderedFactoryMetadata(t *testing.T) {
 	miniMax := response.Providers[2]
 	if miniMax.Authentication.Mode != agentmodule.AuthManagedAPIKey ||
 		miniMax.Authentication.APIKey == nil ||
-		miniMax.Authentication.APIKey.CreateURL != "https://platform.minimax.io/console/access" {
+		miniMax.Authentication.APIKey.CreateURL != "https://platform.minimax.io/subscribe/token-plan" ||
+		miniMax.Authentication.APIKey.CreateLabel != "Get a MiniMax Token Plan subscription key" ||
+		miniMax.Authentication.APIKey.CredentialLabel != "MiniMax Token Plan subscription key" {
 		t.Fatalf("minimax = %#v", miniMax)
 	}
 
