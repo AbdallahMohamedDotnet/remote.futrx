@@ -4,16 +4,8 @@
 package codexharness
 
 import (
-	"time"
-
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-)
-
-const (
-	codexBinary         = "codex"
-	codexPackage        = "@openai/codex"
-	codexInstallTimeout = 5 * time.Minute
-	codexWaitTimeout    = 2 * time.Minute
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 // NewCLISpec returns the shared Codex CLI installation policy used by
@@ -22,16 +14,16 @@ func NewCLISpec(name, imageLabel string) provisioning.CLISpec {
 	return provisioning.CLISpec{
 		Name:               name,
 		ImageLabel:         imageLabel,
-		Binary:             codexBinary,
-		VersionArgs:        []string{"--version"},
-		PackageName:        codexPackage,
-		Version:            provisioning.MustCLIVersion("CODEX_CLI_VERSION"),
+		Binary:             configconstants.CodexHarnessBinary,
+		VersionArgs:        []string{configconstants.CodexHarnessVersionFlag},
+		PackageName:        configconstants.CodexHarnessPackage,
+		Version:            provisioning.MustCLIVersion(configconstants.CodexHarnessVersionPin),
 		CheckVersion:       true,
 		VerifyAfterInstall: true,
 		ReportVersion:      true,
 		InstallMode:        provisioning.InstallWithNPM,
-		InstallTimeout:     codexInstallTimeout,
-		WaitTimeout:        codexWaitTimeout,
+		InstallTimeout:     configconstants.CodexHarnessInstallTimeout,
+		WaitTimeout:        configconstants.CodexHarnessWaitTimeout,
 	}
 }
 
@@ -39,12 +31,12 @@ func NewCLISpec(name, imageLabel string) provisioning.CLISpec {
 // arguments around provider-specific Codex configuration arguments.
 func AppServerArgs(providerConfig []string, enableBrowser bool) []string {
 	args := make([]string, 1, 1+len(providerConfig)+4)
-	args[0] = "app-server"
+	args[0] = configconstants.CodexHarnessAppServer
 	args = append(args, providerConfig...)
 	if enableBrowser {
 		args = append(args,
-			"-c", `mcp_servers.browser.command="npx"`,
-			"-c", `mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222","--caps=vision"]`,
+			"-c", configconstants.CodexHarnessBrowserCommand,
+			"-c", configconstants.CodexHarnessBrowserArgs,
 		)
 	}
 	return args

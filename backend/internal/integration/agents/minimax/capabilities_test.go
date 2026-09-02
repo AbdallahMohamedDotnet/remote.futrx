@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 func TestCapabilitiesExposeMiniMaxM3ThinkingSwitch(t *testing.T) {
@@ -15,7 +16,7 @@ func TestCapabilitiesExposeMiniMaxM3ThinkingSwitch(t *testing.T) {
 	if caps.Provider != agent.ProviderMiniMax || caps.DefaultMode != agent.RunModeDefault {
 		t.Fatalf("capabilities = %#v", caps)
 	}
-	if len(caps.Models) != 2 || caps.Models[0].ID != "" || caps.Models[1].ID != miniMaxModel {
+	if len(caps.Models) != 2 || caps.Models[0].ID != "" || caps.Models[1].ID != configconstants.MiniMaxModel {
 		t.Fatalf("models = %#v", caps.Models)
 	}
 	model := caps.Models[1]

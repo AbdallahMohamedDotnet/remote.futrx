@@ -5,6 +5,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 type InstallMode string
@@ -119,11 +121,6 @@ type RuntimeAsset struct {
 	DirectoryMode string
 }
 
-const (
-	defaultRuntimeAssetMode          = "644"
-	defaultRuntimeAssetDirectoryMode = "700"
-)
-
 // Resolved returns the complete publication model used by the container
 // adapter. Defaults live with the model so every runtime-asset consumer gives
 // an omitted field the same meaning.
@@ -132,10 +129,10 @@ func (a RuntimeAsset) Resolved() RuntimeAsset {
 		a.Directory = path.Dir(a.Path)
 	}
 	if a.Mode == "" {
-		a.Mode = defaultRuntimeAssetMode
+		a.Mode = configconstants.DefaultRuntimeAssetFileMode
 	}
 	if a.DirectoryMode == "" {
-		a.DirectoryMode = defaultRuntimeAssetDirectoryMode
+		a.DirectoryMode = configconstants.DefaultRuntimeAssetDirectoryMode
 	}
 	return a
 }

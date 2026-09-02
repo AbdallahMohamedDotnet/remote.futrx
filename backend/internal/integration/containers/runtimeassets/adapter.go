@@ -5,14 +5,12 @@ package runtimeassets
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 )
-
-const ensureTimeout = 30 * time.Second
 
 // Adapter publishes the selected provider's non-secret runtime configuration.
 // Content is declared by the provider profile and verified on every
@@ -42,7 +40,7 @@ func (a *Adapter) Ensure(
 		return command.ErrUnavailable
 	}
 
-	dctx, cancel := context.WithTimeout(ctx, ensureTimeout)
+	dctx, cancel := context.WithTimeout(ctx, configconstants.RuntimeAssetEnsureTimeout)
 	defer cancel()
 	created := make(map[string]struct{}, len(assetsToPublish))
 	for _, asset := range assetsToPublish {
