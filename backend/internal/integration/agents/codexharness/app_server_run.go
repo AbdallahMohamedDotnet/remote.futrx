@@ -1,41 +1,28 @@
 package codexharness
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
-const appServerInterruptTimeout = 10 * time.Second
-
 var errAppServerInterruptTimeout = errors.New("app-server did not complete turn/interrupt within 10 seconds")
-
-type appServerScanResult struct {
-	envelope appServerEnvelope
-	err      error
-}
 
 type appServerRun struct {
 	ctx           context.Context
-	cmd           *exec.Cmd
 	req           agent.RunRequest
 	providerLabel string
+	process       *appServerProcess
 
 	emit            func(agent.Event)
-	stdin           io.WriteCloser
-	scanner         *bufio.Scanner
-	stderrDone      chan string
-	write           func(any) error
 	eventParser     *appServerEventParser
 	requestHandler  *appServerRequestHandler
 	threadID        string
@@ -73,10 +60,10 @@ func newAppServerRun(
 ) *appServerRun {
 	return &appServerRun{
 		ctx:           ctx,
-		cmd:           cmd,
 		req:           req,
 		providerLabel: providerLabel,
 		emit:          emit,
+		process:       newAppServerProcess(cmd, req.Provider, providerLabel, req.ConversationID),
 	}
 }
 
@@ -93,36 +80,16 @@ func (run *appServerRun) execute() error {
 }
 
 func (run *appServerRun) start() error {
-	stdin, err := run.cmd.StdinPipe()
-	if err != nil {
+	if err := run.process.start(); err != nil {
 		return err
 	}
-	stdout, err := run.cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stderr, err := run.cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-	if err := run.cmd.Start(); err != nil {
-		return fmt.Errorf("spawn %s app-server: %w", run.providerLabel, err)
-	}
-
-	run.stdin = stdin
-	run.stderrDone = make(chan string, 1)
-	go captureAppServerStderr(stderr, run.req.Provider, run.req.ConversationID, run.stderrDone)
-	encoder := json.NewEncoder(stdin)
-	run.write = encoder.Encode
 	run.eventParser = newAppServerEventParser(run.req, run.providerLabel)
-	run.requestHandler = newAppServerRequestHandler(run.req, run.emit, run.write)
-	run.scanner = bufio.NewScanner(stdout)
-	run.scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
+	run.requestHandler = newAppServerRequestHandler(run.req, run.emit, run.process.write)
 	return nil
 }
 
 func (run *appServerRun) initialize() error {
-	return run.write(map[string]any{
+	return run.process.write(map[string]any{
 		"method": "initialize",
 		"id":     appServerInitializeRequestID,
 		"params": map[string]any{
@@ -137,16 +104,14 @@ func (run *appServerRun) initialize() error {
 }
 
 func (run *appServerRun) abortInitialization() {
-	_ = run.cmd.Process.Kill()
-	_ = run.cmd.Wait()
-	<-run.stderrDone
+	run.process.abort()
 }
 
 func (run *appServerRun) consumeOutput() {
 	scanned := make(chan appServerScanResult, 1)
 	stopScan := make(chan struct{})
 	defer close(stopScan)
-	go run.scanOutput(scanned, stopScan)
+	go run.process.scan(scanned, stopScan)
 
 	ctxDone := run.ctx.Done()
 	responses := run.req.InteractionResponses
@@ -172,7 +137,7 @@ func (run *appServerRun) consumeOutput() {
 				return
 			}
 			if run.interruptSent && interruptTimer == nil {
-				interruptTimer = time.NewTimer(appServerInterruptTimeout)
+				interruptTimer = time.NewTimer(configconstants.CodexHarnessInterruptTimeout)
 				interruptTimeout = interruptTimer.C
 			}
 			if run.terminal {
@@ -197,39 +162,13 @@ func (run *appServerRun) consumeOutput() {
 				return
 			}
 			if run.interruptSent && interruptTimer == nil {
-				interruptTimer = time.NewTimer(appServerInterruptTimeout)
+				interruptTimer = time.NewTimer(configconstants.CodexHarnessInterruptTimeout)
 				interruptTimeout = interruptTimer.C
 			}
 
 		case <-interruptTimeout:
 			run.protocolErr = errAppServerInterruptTimeout
 			return
-		}
-	}
-}
-
-func (run *appServerRun) scanOutput(results chan<- appServerScanResult, stop <-chan struct{}) {
-	defer close(results)
-	for run.scanner.Scan() {
-		line := append([]byte(nil), run.scanner.Bytes()...)
-		if len(line) == 0 {
-			continue
-		}
-		var envelope appServerEnvelope
-		if err := json.Unmarshal(line, &envelope); err != nil {
-			log.Printf("%s[%s] app-server parse: %v", run.req.Provider, run.req.ConversationID, err)
-			continue
-		}
-		select {
-		case results <- appServerScanResult{envelope: envelope}:
-		case <-stop:
-			return
-		}
-	}
-	if err := run.scanner.Err(); err != nil {
-		select {
-		case results <- appServerScanResult{err: fmt.Errorf("%s app-server stdout: %w", run.providerLabel, err)}:
-		case <-stop:
 		}
 	}
 }
@@ -294,7 +233,7 @@ func (run *appServerRun) handleNotification(envelope appServerEnvelope) {
 			run.runFailed = event.Type == agent.EventRunFailed
 			run.interrupted = event.Type == agent.EventRunInterrupted
 			run.requestHandler.ResolveAll("turn_ended")
-			_ = run.stdin.Close()
+			run.process.closeInput()
 		}
 	}
 }
@@ -303,7 +242,7 @@ func (run *appServerRun) maybeInterrupt() error {
 	if !run.cancelRequested || run.interruptSent || run.threadID == "" || run.turnID == "" {
 		return nil
 	}
-	if err := run.write(map[string]any{
+	if err := run.process.write(map[string]any{
 		"method": "turn/interrupt",
 		"id":     appServerInterruptRequestID,
 		"params": map[string]string{
@@ -328,12 +267,12 @@ func (run *appServerRun) responseError(responseID int, message string) error {
 func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessage) {
 	switch responseID {
 	case appServerInitializeRequestID:
-		if err := run.write(map[string]any{"method": "initialized", "params": map[string]any{}}); err != nil {
+		if err := run.process.write(map[string]any{"method": "initialized", "params": map[string]any{}}); err != nil {
 			run.protocolErr = err
 			return
 		}
 		request := buildAppServerThreadRequest(run.req)
-		run.protocolErr = run.write(map[string]any{
+		run.protocolErr = run.process.write(map[string]any{
 			"method": request.Method,
 			"id":     appServerThreadRequestID,
 			"params": request.Params,
@@ -363,7 +302,7 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 				Model:          result.Model,
 			})
 		}
-		run.protocolErr = run.write(map[string]any{
+		run.protocolErr = run.process.write(map[string]any{
 			"method": "turn/start",
 			"id":     appServerTurnRequestID,
 			"params": buildAppServerTurnParams(run.req, result.Thread.ID, result.Model),
@@ -394,13 +333,10 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 
 func (run *appServerRun) finish() error {
 	if run.protocolErr != nil || !run.terminal {
-		_ = run.stdin.Close()
-		if run.cmd.Process != nil {
-			_ = run.cmd.Process.Kill()
-		}
+		run.process.closeInput()
+		run.process.kill()
 	}
-	waitErr := run.cmd.Wait()
-	stderrText := <-run.stderrDone
+	waitErr, stderrText := run.process.wait()
 
 	if run.protocolErr != nil {
 		return &agentruntime.ProcessError{Err: run.protocolErr, Stderr: stderrText}
@@ -418,19 +354,4 @@ func (run *appServerRun) finish() error {
 		return &agentruntime.ProcessError{Err: waitErr, Stderr: stderrText}
 	}
 	return nil
-}
-
-func captureAppServerStderr(reader io.Reader, provider agent.ProviderID, logID string, done chan<- string) {
-	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 8192), 1<<20)
-	var captured strings.Builder
-	for scanner.Scan() {
-		line := scanner.Text()
-		log.Printf("%s[%s] stderr: %s", provider, logID, line)
-		if captured.Len() < 64<<10 {
-			captured.WriteString(line)
-			captured.WriteByte('\n')
-		}
-	}
-	done <- captured.String()
 }
