@@ -56,6 +56,28 @@ func TestAppServerTurnIgnoresInvalidServiceTier(t *testing.T) {
 	}
 }
 
+func TestAppServerTurnNormalizesExecutionPolicies(t *testing.T) {
+	params := buildAppServerTurnParams(agent.RunRequest{
+		Preferences: agent.RunPreferences{
+			ApprovalPolicy: " never ",
+			SandboxPolicy:  " readOnly ",
+		},
+	}, "thread-1", "gpt-5.5")
+	if params.ApprovalPolicy != "never" || params.SandboxPolicy.Type != "readOnly" {
+		t.Fatalf("turn execution policies = %#v", params)
+	}
+
+	params = buildAppServerTurnParams(agent.RunRequest{
+		Preferences: agent.RunPreferences{
+			ApprovalPolicy: "unknown",
+			SandboxPolicy:  "unknown",
+		},
+	}, "thread-1", "gpt-5.5")
+	if params.ApprovalPolicy != "on-request" || params.SandboxPolicy.Type != "workspaceWrite" {
+		t.Fatalf("turn execution policy fallbacks = %#v", params)
+	}
+}
+
 func TestAppServerResumesThread(t *testing.T) {
 	request := buildAppServerThreadRequest(agent.RunRequest{ResumeID: "thread-123"})
 	if request.Method != "thread/resume" || request.Params.ThreadID != "thread-123" {
