@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -38,8 +37,6 @@ type agentBrowserActivityRecorder interface {
 
 var ErrPromptAlreadyRunning = errors.New("a previous prompt is still running")
 var ErrUnsupportedAgentScope = errors.New("agent does not support this chat execution scope")
-var ErrNoPendingInteraction = errors.New("no active agent interaction for this chat")
-var ErrInteractionQueueFull = errors.New("agent interaction response queue is full")
 
 type Actor struct {
 	Email   string
@@ -120,21 +117,15 @@ func WithAgentPolicy(policy AgentPolicy) Option {
 }
 
 type Service struct {
-	store          servicechat.Repository
-	tmux           TmuxClient
-	projects       ProjectResolver
-	hub            *runhub.Hub
-	agents         AgentRegistry
-	agentPolicy    AgentPolicy
-	scheduleTools  ScheduleToolIssuer
-	usage          UsageRecorder
-	interactionsMu sync.Mutex
-	interactions   map[servicechat.ID]interactionRoute
-}
-
-type interactionRoute struct {
-	runID     uint64
-	responses chan agent.InteractionResponse
+	store         servicechat.Repository
+	tmux          TmuxClient
+	projects      ProjectResolver
+	hub           *runhub.Hub
+	agents        AgentRegistry
+	agentPolicy   AgentPolicy
+	scheduleTools ScheduleToolIssuer
+	usage         UsageRecorder
+	interactions  interactionResponseRouter
 }
 
 func New(
@@ -154,7 +145,7 @@ func New(
 		projects:     projects,
 		hub:          hub,
 		agents:       agents,
-		interactions: make(map[servicechat.ID]interactionRoute),
+		interactions: newInteractionResponseRouter(),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -186,15 +177,14 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 		})
 		return RunHandle{}, ErrPromptAlreadyRunning
 	}
-	responses := make(chan agent.InteractionResponse, 64)
-	rnr.setInteractionRoute(input.ChatID, interactionRoute{runID: runID, responses: responses})
+	responses := rnr.interactions.open(input.ChatID, runID)
 
 	done := make(chan RunResult, 1)
 	ledgerRunID := newLedgerRunID()
 	go func() {
 		defer close(done)
 		defer rnr.hub.FinishRun(input.ChatID, runID)
-		defer rnr.clearInteractionRoute(input.ChatID, runID)
+		defer rnr.interactions.remove(input.ChatID, runID)
 		var output strings.Builder
 		err := rnr.runPromptAs(
 			ctx,
@@ -222,35 +212,7 @@ func (rnr *Service) CancelPrompt(id servicechat.ID) bool {
 }
 
 func (rnr *Service) RespondInteraction(id servicechat.ID, response agent.InteractionResponse) error {
-	if strings.TrimSpace(response.ID) == "" || (len(response.Result) == 0 && len(response.Error) == 0) {
-		return ErrNoPendingInteraction
-	}
-	rnr.interactionsMu.Lock()
-	route, ok := rnr.interactions[id]
-	rnr.interactionsMu.Unlock()
-	if !ok {
-		return ErrNoPendingInteraction
-	}
-	select {
-	case route.responses <- response:
-		return nil
-	default:
-		return ErrInteractionQueueFull
-	}
-}
-
-func (rnr *Service) setInteractionRoute(id servicechat.ID, route interactionRoute) {
-	rnr.interactionsMu.Lock()
-	rnr.interactions[id] = route
-	rnr.interactionsMu.Unlock()
-}
-
-func (rnr *Service) clearInteractionRoute(id servicechat.ID, runID uint64) {
-	rnr.interactionsMu.Lock()
-	if route, ok := rnr.interactions[id]; ok && route.runID == runID {
-		delete(rnr.interactions, id)
-	}
-	rnr.interactionsMu.Unlock()
+	return rnr.interactions.respond(id, response)
 }
 
 func (rnr *Service) runPrompt(
