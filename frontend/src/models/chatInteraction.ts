@@ -18,3 +18,12 @@ export type ChatInteractionIntent =
 export type ChatInteractionWireResponse =
   | { result: unknown; error?: never }
   | { result?: never; error: { code: number; message: string } };
+
+export interface ChatInteractionQuestion {
+  id?: string;
+  header?: string;
+  question?: string;
+  options?: Array<{ label?: string; description?: string }>;
+  isOther?: boolean;
+  isSecret?: boolean;
+}

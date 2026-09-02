@@ -1,13 +1,14 @@
 import { useState } from "preact/hooks";
+import type { ChatInteractionQuestion } from "../../../models/chatInteraction";
 import { DecisionButton } from "./InteractionControls";
-import type { InteractionFormProps, UserQuestion } from "./types";
+import type { InteractionFormProps } from "./types";
 
 export function UserInputInteractionForm({
   input,
   disabled,
   onSubmit,
 }: InteractionFormProps) {
-  const questions = Array.isArray(input.questions) ? input.questions as UserQuestion[] : [];
+  const questions = Array.isArray(input.questions) ? input.questions as ChatInteractionQuestion[] : [];
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const complete = questions.length > 0 && questions.every((question, index) => {
     const id = question.id || String(index);
