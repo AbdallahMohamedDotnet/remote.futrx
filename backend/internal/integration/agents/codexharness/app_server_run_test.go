@@ -1,4 +1,4 @@
-package codex
+package codexharness
 
 import (
 	"context"
@@ -36,10 +36,11 @@ while IFS= read -r line; do
 done`
 
 	var events []agent.Event
-	err := runAppServer(
+	err := Run(
 		context.Background(),
 		exec.Command("sh", "-c", script),
-		agent.RunRequest{ConversationID: "chat-1", Mode: agent.RunModePlan, Prompt: "plan it"},
+		agent.RunRequest{Provider: agent.ProviderMiniMax, ConversationID: "chat-1", Mode: agent.RunModePlan, Prompt: "plan it"},
+		"MiniMax",
 		func(event agent.Event) { events = append(events, event) },
 	)
 	if err != nil {
@@ -47,6 +48,11 @@ done`
 	}
 	if len(events) != 3 {
 		t.Fatalf("events = %#v", events)
+	}
+	for _, event := range events {
+		if event.Provider != agent.ProviderMiniMax {
+			t.Fatalf("event provider = %q, want minimax: %#v", event.Provider, event)
+		}
 	}
 	if events[0].Type != agent.EventSessionUpdated || events[0].SessionID != "thread-new" {
 		t.Fatalf("session event = %#v", events[0])
@@ -73,14 +79,23 @@ while IFS= read -r line; do
   esac
 done`
 
-	err := runAppServer(
+	err := Run(
 		context.Background(),
 		exec.Command("sh", "-c", script),
-		agent.RunRequest{ResumeID: "missing", Prompt: "continue"},
+		agent.RunRequest{Provider: agent.ProviderCodex, ResumeID: "missing", Prompt: "continue"},
+		"Codex",
 		func(agent.Event) {},
 	)
 	if !errors.Is(err, agent.ErrSessionNotFound) {
 		t.Fatalf("error = %v, want ErrSessionNotFound", err)
+	}
+}
+
+func TestAppServerParserUsesRequestProvider(t *testing.T) {
+	parser := newAppServerEventParser(agent.RunRequest{Provider: agent.ProviderCodex}, "Codex")
+	events := parser.ParseNotification("turn/completed", json.RawMessage(`{"turn":{"status":"completed"}}`))
+	if len(events) != 1 || events[0].Provider != agent.ProviderCodex {
+		t.Fatalf("events = %#v", events)
 	}
 }
 

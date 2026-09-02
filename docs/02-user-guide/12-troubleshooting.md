@@ -127,12 +127,20 @@ Provider switches, rewinds, missing sessions, and some forks can start a fresh p
 
 Runs execute under the current backend process and cannot be reattached after it restarts. Review the durable files and chat events, then start a new prompt. Verify partial changes before continuing.
 
-### Kimi behaves differently from Claude or Codex
+### Kimi behaves differently from Claude, Codex, or MiniMax
 
 Kimi currently has no usage telemetry, its fork starts fresh, and it does not
 receive the equivalent Browser MCP plumbing. Selected skills are injected as
 instructions to read their canonical `SKILL.md` paths rather than as native
 provider triggers.
+
+### MiniMax says its API key is not configured
+
+MiniMax is available only in project chats. Open that project's settings,
+select **Secrets**, and add a non-empty value under the exact key
+`MINIMAX_API_KEY`. Return to the chat and retry; the key is checked when the
+run starts, while the static `MiniMax-M3` catalog can appear before a key is
+configured.
 
 ### Antigravity says it is not signed in
 
@@ -143,7 +151,7 @@ flow, exit the CLI, and choose **Refresh models** in the chat picker before
 retrying the prompt. Its `/root/.gemini/antigravity-cli` state is durable
 across container replacement.
 
-Antigravity also differs from Claude and Codex: it streams plain text rather
+Antigravity also differs from Claude, Codex, and MiniMax: it streams plain text rather
 than structured tool/usage events, the Browser skill is not wired, and a fork
 starts fresh. Selected skills are injected as canonical `SKILL.md` instruction
 paths, and Scheduled Tasks also receives its scoped capability.

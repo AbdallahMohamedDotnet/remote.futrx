@@ -26,8 +26,8 @@ without login controls.
 
 Claude, Codex, and Kimi authentication is host-wide and administrator-managed.
 Sign in once on the parent host; Remote then seeds those provider credentials
-into project containers. Antigravity uses a different per-project flow
-described below.
+into project containers. MiniMax uses a project secret, while Antigravity uses
+a project-local sign-in flow; both are described below.
 
 ![Administrator view of Claude, Codex, and Kimi authentication](/assets/docs/screenshots/03-agent-authentication-01m05s.webp)
 
@@ -56,6 +56,28 @@ credentials, choose **Refresh models** again afterward.
 5. Return to Remote and wait for the connected state.
 
 Remote may also detect a configured API key, but subscription/device authentication is the intended shared-host flow.
+
+### Use MiniMax
+
+MiniMax is project-only and runs `MiniMax-M3` through Remote's pinned Codex
+app-server harness. It deliberately uses an isolated `/root/.minimax` home, so
+its model catalog, sessions, and provider settings do not replace the normal
+Codex account or `/root/.codex` state. This is runtime separation, not a
+security boundary: container root can read every provider home mounted in that
+project.
+
+Configure each project separately:
+
+1. Create a key in the [MiniMax Developer Platform](https://platform.minimax.io/).
+2. Open the project's settings and select **Secrets**.
+3. Add the key under the exact name `MINIMAX_API_KEY`.
+4. Return to the project chat and choose **Refresh models**.
+5. Select **MiniMax** and **MiniMax-M3**.
+
+Remote passes the key to the Codex process as an environment variable and
+configures Codex to read that variable. It does not embed the key in the
+generated model catalog or command-line configuration. MiniMax is not offered
+for loose chats because project secrets are the supported credential source.
 
 ### Connect Kimi
 
@@ -111,6 +133,9 @@ connect one of the current gate-eligible modules: Claude, Codex, or Kimi.
 - Antigravity is project-local rather than host-wide, but its credential state
   is still readable by container root and shared by everyone with authority in
   that project.
+- MiniMax is also project-local. Its API key is a project secret, so it is
+  readable by agents and people with secret access in that project and is
+  subject to that MiniMax account's quota and billing.
 
 Non-admins can use connected providers but cannot connect or refresh them.
 
@@ -187,6 +212,7 @@ Use the sign-out control in the account footer. This clears the platform session
 | Change own appearance | Yes | Yes |
 | View own account and server information | Yes | Yes |
 | Connect or refresh agent providers | Yes | No |
+| Add or replace a project's MiniMax API key | Yes | Yes |
 | Sign in to Antigravity inside an assigned project | Yes | Yes |
 | Configure Google OAuth | Yes | No |
 | Add, remove, promote, or demote users | Yes | No |

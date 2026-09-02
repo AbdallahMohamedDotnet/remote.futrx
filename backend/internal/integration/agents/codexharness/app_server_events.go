@@ -1,4 +1,4 @@
-package codex
+package codexharness
 
 import (
 	"encoding/json"
@@ -10,13 +10,18 @@ import (
 )
 
 type appServerEventParser struct {
-	req       agent.RunRequest
-	itemText  map[string]string
-	lastUsage json.RawMessage
+	req           agent.RunRequest
+	providerLabel string
+	itemText      map[string]string
+	lastUsage     json.RawMessage
 }
 
-func newAppServerEventParser(req agent.RunRequest) *appServerEventParser {
-	return &appServerEventParser{req: req, itemText: make(map[string]string)}
+func newAppServerEventParser(req agent.RunRequest, providerLabel string) *appServerEventParser {
+	return &appServerEventParser{
+		req:           req,
+		providerLabel: providerLabel,
+		itemText:      make(map[string]string),
+	}
 }
 
 func (parser *appServerEventParser) ParseNotification(method string, raw json.RawMessage) []agent.Event {
@@ -68,7 +73,7 @@ func (parser *appServerEventParser) ParseNotification(method string, raw json.Ra
 			return nil
 		}
 		if params.Turn.Status == "failed" {
-			message := "Codex turn failed"
+			message := parser.providerLabel + " turn failed"
 			if params.Turn.Error != nil && strings.TrimSpace(params.Turn.Error.Message) != "" {
 				message = strings.TrimSpace(params.Turn.Error.Message)
 			}
@@ -183,7 +188,7 @@ func (parser *appServerEventParser) toolStarted(
 		event.ItemKind = agent.ItemToolCall
 		event.ToolName = strings.TrimSpace(name)
 		if event.ToolName == "" {
-			event.ToolName = "CodexTool"
+			event.ToolName = parser.providerLabel + "Tool"
 		}
 		event.Input = input
 	})
@@ -212,7 +217,7 @@ func (parser *appServerEventParser) event(
 	event := agent.Event{
 		T:              now,
 		Type:           eventType,
-		Provider:       agent.ProviderCodex,
+		Provider:       parser.req.Provider,
 		ConversationID: parser.req.ConversationID,
 		Raw:            append(json.RawMessage(nil), raw...),
 	}
@@ -275,4 +280,12 @@ func compactJSON(raw json.RawMessage) string {
 		return fmt.Sprintf("%v", value)
 	}
 	return string(data)
+}
+
+func mustJSON(value any) json.RawMessage {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return json.RawMessage(fmt.Sprintf(`{"error":%q}`, err.Error()))
+	}
+	return data
 }
