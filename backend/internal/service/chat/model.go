@@ -299,13 +299,13 @@ func NormalizeProvider(provider Provider) Provider {
 }
 
 func NormalizeReasoningEffort(effort string) string {
-	return normalizeCapabilityValue(effort)
+	return agent.NormalizePreferenceValue(effort)
 }
 
 // NormalizeServiceTier keeps future provider tiers usable without requiring a
 // frontend/backend release for every catalog addition. "" means Auto.
 func NormalizeServiceTier(tier string) string {
-	return normalizeCapabilityValue(tier)
+	return agent.NormalizePreferenceValue(tier)
 }
 
 func NormalizeApprovalPolicy(policy string) string {
@@ -314,18 +314,6 @@ func NormalizeApprovalPolicy(policy string) string {
 
 func NormalizeSandboxPolicy(policy string) string {
 	return agent.NormalizeSandboxPolicy(policy)
-}
-
-func normalizeCapabilityValue(value string) string {
-	value = strings.TrimSpace(value)
-	for _, r := range value {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
-			r == '-' || r == '_' || r == '.' {
-			continue
-		}
-		return ""
-	}
-	return value
 }
 
 func NormalizeSelectedSkills(skills []SkillRef, fallbackProvider Provider) []SkillRef {

@@ -2,7 +2,6 @@ package usersettings
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
@@ -150,11 +149,11 @@ func ValidChatMode(mode ChatMode) bool {
 }
 
 func ValidReasoningEffort(effort ReasoningEffort) bool {
-	return validCapabilityValue(string(effort))
+	return agent.ValidPreferenceValue(string(effort))
 }
 
 func ValidServiceTier(tier ServiceTier) bool {
-	return validCapabilityValue(string(tier))
+	return agent.ValidPreferenceValue(string(tier))
 }
 
 func ValidApprovalPolicy(policy ApprovalPolicy) bool {
@@ -163,16 +162,4 @@ func ValidApprovalPolicy(policy ApprovalPolicy) bool {
 
 func ValidSandboxPolicy(policy SandboxPolicy) bool {
 	return agent.ValidSandboxPolicy(string(policy))
-}
-
-func validCapabilityValue(value string) bool {
-	value = strings.TrimSpace(value)
-	for _, r := range value {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
-			r == '-' || r == '_' || r == '.' {
-			continue
-		}
-		return false
-	}
-	return true
 }
