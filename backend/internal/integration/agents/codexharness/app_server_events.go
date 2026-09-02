@@ -309,7 +309,7 @@ func (parser *appServerEventParser) event(
 		ConversationID: parser.req.ConversationID,
 		Raw:            cloneRaw(raw),
 		Native: &agent.NativeEnvelope{
-			SchemaVersion: 1,
+			SchemaVersion: agent.NativeEnvelopeSchemaVersion,
 			Method:        method,
 			ThreadID:      ids.ThreadID,
 			TurnID:        ids.TurnID,

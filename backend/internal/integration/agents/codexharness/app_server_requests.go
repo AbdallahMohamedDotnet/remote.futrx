@@ -62,7 +62,7 @@ func (handler *appServerRequestHandler) Handle(envelope appServerEnvelope) error
 		InteractionID:  requestID,
 		Status:         interactionKind(envelope.Method),
 		Native: &agent.NativeEnvelope{
-			SchemaVersion: 1,
+			SchemaVersion: agent.NativeEnvelopeSchemaVersion,
 			Method:        envelope.Method,
 			ThreadID:      ids.ThreadID,
 			TurnID:        ids.TurnID,
@@ -164,7 +164,7 @@ func (handler *appServerRequestHandler) resolvedEvent(
 		InteractionID:  requestID,
 		Status:         status,
 		Native: &agent.NativeEnvelope{
-			SchemaVersion: 1,
+			SchemaVersion: agent.NativeEnvelopeSchemaVersion,
 			Method:        "serverRequest/resolved",
 			ThreadID:      ids.ThreadID,
 			TurnID:        ids.TurnID,

@@ -78,6 +78,10 @@ type InteractionResponse struct {
 	Error  json.RawMessage `json:"error,omitempty"`
 }
 
+// NativeEnvelopeSchemaVersion identifies the provider-native correlation
+// contract persisted with normalized agent events.
+const NativeEnvelopeSchemaVersion = 1
+
 // NativeEnvelope retains provider-owned protocol data without forcing it
 // through the provider-neutral event vocabulary. Payload contains the native
 // notification params, not binary attachments or client response secrets.
