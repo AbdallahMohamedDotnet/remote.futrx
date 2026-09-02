@@ -95,13 +95,13 @@ provider policy. The factory retains a defensive profile snapshot and passes
 independent exact validated clones to its shared project preparer and provider
 build callback. That profile owns the CLI install/repair spec, credential
 synchronization, persistent-state mounts, shared instructions, workspace-skill
-compatibility, non-secret runtime templates, and optional browser MCP templates. A project-capable module
+compatibility, non-secret runtime assets, and optional browser MCP templates. A project-capable module
 without a complete matching profile is rejected when the module catalog is
 built. Shared workspace provisioners converge all catalog-configured
 instruction and skill targets rather than only the currently selected
 provider's target.
 
-Profiles may also publish non-secret runtime templates for the selected agent.
+Profiles may also publish non-secret runtime assets for the selected agent.
 MiniMax uses this path for its Codex model catalog; its API key remains a
 project secret and is never written into that template.
 
@@ -128,7 +128,7 @@ starting the provider.
 These launch steps are best-effort so one optional capability does not prevent the container from starting.
 
 Before each selected-provider run, shared preparation verifies that provider's
-CLI, converges instructions and its runtime templates, refreshes skill links,
+CLI, converges instructions and its runtime assets, refreshes skill links,
 and prepares any requested Browser or Scheduled Tasks capability. Required
 steps fail the run with a specific preparation error.
 

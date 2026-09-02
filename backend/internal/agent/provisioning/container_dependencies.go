@@ -38,7 +38,7 @@ type WorkspaceProvisioner interface {
 }
 
 // RuntimeAssetProvisioner publishes the selected provider's non-secret runtime
-// templates inside a project container.
+// assets inside a project container.
 type RuntimeAssetProvisioner interface {
 	Ensure(context.Context, string, []RuntimeAsset) error
 }

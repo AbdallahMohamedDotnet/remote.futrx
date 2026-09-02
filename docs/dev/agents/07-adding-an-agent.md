@@ -93,7 +93,7 @@ CLI also needs one so the updater can converge the host binary. Declare:
 - positive install and concurrent-install wait timeouts plus verification policy;
 - project image label when project scope is enabled;
 - credentials to synchronize, durable state mounts, shared instructions,
-  non-secret runtime templates, workspace skill links, and Browser MCP
+  non-secret runtime assets, workspace skill links, and Browser MCP
   templates as needed.
 
 Add the version to
@@ -118,7 +118,7 @@ option values; provider packages must not import `internal/config`.
 Keep provider-specific policy in the provider package:
 
 - binary, package, version arguments, install mechanism, install/wait limits,
-  credentials, mounts, instructions, runtime templates, and Browser templates belong in
+  credentials, mounts, instructions, runtime assets, and Browser templates belong in
   `Profile()`;
 - login timing belongs in the provider's auth configuration because upstream
   code/device protocols differ;

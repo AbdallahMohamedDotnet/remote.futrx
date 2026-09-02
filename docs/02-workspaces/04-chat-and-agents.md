@@ -121,7 +121,7 @@ For a project-capable agent, the profile is the concrete container contract:
 CLI binary, strict semver pin, version-command arguments, install/repair
 policy, credential synchronization, persistent directories,
 shared instruction destination, workspace-skill compatibility links, and any
-non-secret runtime templates or browser MCP templates. The built-ins define their module and provisioning
+non-secret runtime assets or browser MCP templates. The built-ins define their module and provisioning
 policy in protected provider-local `factory*.go`, `profile*.go`, `install*.go`,
 `provisioning*.go`, and `assets/` paths under `internal/integration/agents`.
 Changes there require a minor/major full-infrastructure release.

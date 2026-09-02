@@ -1,4 +1,4 @@
-// Package runtimeassets publishes provider-selected runtime templates inside
+// Package runtimeassets publishes provider-selected runtime assets inside
 // project containers.
 package runtimeassets
 
@@ -29,7 +29,7 @@ func NewAdapter(runner command.Runner, publisher *assets.Publisher) *Adapter {
 	return &Adapter{runner: runner, publisher: publisher}
 }
 
-// Ensure publishes every selected template to the project container.
+// Ensure publishes every selected asset to the project container.
 func (a *Adapter) Ensure(
 	ctx context.Context,
 	containerName string,

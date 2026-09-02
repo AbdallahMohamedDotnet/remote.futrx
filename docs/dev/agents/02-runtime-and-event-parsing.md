@@ -126,7 +126,7 @@ For a project chat, `execution.Preparer` owns this common workflow:
    complete set.
 4. Use the exact validated provider profile to ensure the CLI and, where
    supported, credentials. Publish shared instructions, the selected profile's
-   non-secret runtime templates, and skill compatibility links; apply the
+   non-secret runtime assets, and skill compatibility links; apply the
    provider factory's browser policy; provision scheduled tooling when
    requested; enable LXD boot autostart.
 5. Load project secrets. Failure is currently best-effort and yields an empty

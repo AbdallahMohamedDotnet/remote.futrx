@@ -69,7 +69,7 @@ flowchart TD
     Stack --> Credentials["Credential sync"]
     Stack --> Lifecycle["Persistent LXD mounts"]
     Stack --> Workspace["Instructions and skill links"]
-    Stack --> RuntimeAssets["Selected-provider runtime templates"]
+    Stack --> RuntimeAssets["Selected-provider runtime assets"]
     Stack --> Browser["Browser MCP templates"]
     Stack --> Inspection["Workspace diagnostics"]
 ```
@@ -159,7 +159,7 @@ The current common sequence is:
 2. ensure the provider CLI is ready;
 3. seed credentials when that provider has a credential policy;
 4. publish shared agent instructions;
-5. publish the selected profile's non-secret runtime templates;
+5. publish the selected profile's non-secret runtime assets;
 6. converge workspace skill links;
 7. migrate shared browser assets where applicable;
 8. when Browser was selected and supported, provision MCP and start the shared
@@ -270,7 +270,7 @@ follow-up uses a background context so completion is not lost when the prompt
 context ends; sync failures are logged and do not turn the completed agent run
 into an error. Antigravity has no sync step.
 
-## Instructions, runtime templates, skills, Browser, and schedules
+## Instructions, runtime assets, skills, Browser, and schedules
 
 Remote renders one embedded instruction template with the installation's public
 hostname. The workspace provisioner publishes it idempotently to every
@@ -388,7 +388,7 @@ Provisioning changes should normally cover:
 - runtime container CLI readiness/repair;
 - credential shape and transfer behavior;
 - persistent mount migration and lifecycle behavior;
-- instructions, runtime templates, skill links, Browser templates, and launch order;
+- instructions, runtime assets, skill links, Browser templates, and launch order;
 - infrastructure host-install, updater, and release-classification shell tests.
 
 Run backend build/tests/vet, focused race tests, frontend tests/build when the

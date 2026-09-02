@@ -13,7 +13,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
 )
 
-func TestEnsurePublishesSelectedProfileTemplates(t *testing.T) {
+func TestEnsurePublishesSelectedProfileAssets(t *testing.T) {
 	runner := &runtimeAssetRunner{available: true}
 	adapter := NewAdapter(runner, assets.NewPublisher(runner))
 	err := adapter.Ensure(context.Background(), "project-container", []provisioning.RuntimeAsset{{
