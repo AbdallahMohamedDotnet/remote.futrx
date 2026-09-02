@@ -35,7 +35,13 @@ class ChatMessageBlockBuilder {
       }
       case "thinking": {
         const { blocks: next, assistant } = this.ensureTrailingAssistant(blocks, event.t);
-        assistant.parts.push({ kind: "thinking", text: event.text });
+        const lastIndex = assistant.parts.length - 1;
+        const last = assistant.parts[lastIndex];
+        if (last?.kind === "thinking") {
+          assistant.parts[lastIndex] = { ...last, text: last.text + event.text };
+        } else {
+          assistant.parts.push({ kind: "thinking", text: event.text });
+        }
         return next;
       }
       case "tool_use_start": {

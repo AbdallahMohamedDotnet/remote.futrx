@@ -54,7 +54,7 @@ The placeholder mentions `@` files and `/` commands, but the current source has 
 | Feature | Visible behavior |
 | --- | --- |
 | Streaming text | Assistant output appears incrementally |
-| Reasoning | Provider reasoning/thinking parts are rendered when emitted |
+| Reasoning | Consecutive provider reasoning deltas are grouped into collapsed, live-updating blocks that can be expanded at any time |
 | Tool groups | Consecutive tools are grouped and expandable |
 | Specialized tools | Read, write, edit, search, shell, and questions have tailored cards |
 | Generic tools | Unknown tools use a generic renderer |

@@ -15,6 +15,8 @@ export function AssistantMessage({
   cwd?: string;
   onAnswerQuestion?: (text: string) => void;
 }) {
+  const reasoningActive = block.parts.at(-1)?.kind === "thinking";
+
   return (
     <div class="codex-assistant-block space-y-2 max-w-full">
       <AssistantPartList
@@ -24,7 +26,7 @@ export function AssistantMessage({
         cwd={cwd}
         onAnswerQuestion={onAnswerQuestion}
       />
-      {streaming && !block.isComplete && <ThinkingIndicator />}
+      {streaming && !block.isComplete && !reasoningActive && <ThinkingIndicator />}
     </div>
   );
 }

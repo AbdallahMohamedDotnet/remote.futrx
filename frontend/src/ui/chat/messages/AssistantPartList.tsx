@@ -2,6 +2,7 @@ import type { ComponentChildren } from "preact";
 import type { AssistantMessagePart } from "../../../models/chatMessage";
 import { ToolCall } from "../tool-calls/ToolCall";
 import { StreamingText } from "./StreamingText";
+import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolGroup } from "./ToolGroup";
 
 type ToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
@@ -64,9 +65,11 @@ function renderAssistantParts(
 
     if (part.kind === "thinking") {
       rendered.push(
-        <div key={index} class="my-2 border-l-2 border-line-strong pl-3 text-[13px] leading-relaxed text-ink-400">
-          {part.text}
-        </div>
+        <ThinkingBlock
+          key={`thinking-${index}`}
+          text={part.text}
+          active={context.streaming && index === parts.length - 1}
+        />
       );
       return;
     }
