@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codexharness"
 )
 
@@ -22,7 +23,7 @@ func (p *Provider) ID() agent.ProviderID {
 
 func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agent.Event)) error {
 	req.Provider = agent.ProviderMiniMax
-	req.Model = miniMaxModel
+	req.Model = configconstants.MiniMaxModel
 	req.Preferences.ReasoningEffort = miniMaxReasoningEffort(req.Preferences.ReasoningEffort)
 	req.Preferences.ServiceTier = ""
 
@@ -30,5 +31,5 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 	if err != nil {
 		return err
 	}
-	return codexharness.Run(ctx, cmd, req, miniMaxLabel, emit)
+	return codexharness.Run(ctx, cmd, req, configconstants.MiniMaxLabel, emit)
 }

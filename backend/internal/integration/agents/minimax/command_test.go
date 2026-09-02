@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 func TestMiniMaxConfigUsesResponsesAndEnvironmentKey(t *testing.T) {
@@ -46,7 +47,7 @@ func TestBuildCmdUsesIsolatedHomeAndPreservesMiniMaxSecret(t *testing.T) {
 		project: agent.PreparedProject{
 			ContainerName: "project-container",
 			Secrets: []agent.ProjectSecret{
-				{Key: miniMaxAPIKeyEnvironment, Value: "test-key"},
+				{Key: configconstants.MiniMaxAPIKeyEnvironment, Value: "test-key"},
 				{Key: "OPENAI_API_KEY", Value: "must-not-pass"},
 				{Key: "HOME", Value: "/workspace/attacker-home"},
 				{Key: "CODEX_HOME", Value: "/workspace/attacker-codex-home"},
