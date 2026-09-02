@@ -16,7 +16,7 @@ export function AssistantMessage({
   onAnswerQuestion?: (text: string) => void;
 }) {
   return (
-    <div class="codex-assistant-block space-y-2 max-w-full">
+    <div class="codex-assistant-block min-w-0 space-y-2 max-w-full">
       <AssistantPartList
         parts={block.parts}
         streaming={streaming}

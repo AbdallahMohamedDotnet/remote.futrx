@@ -73,10 +73,10 @@ export function MessageList({
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      class="codex-message-scroll h-full overflow-y-auto touch-scroll scrollbar-thin px-3 pb-6 pt-4 sm:px-5 md:px-8 md:pt-7"
+      class="codex-message-scroll h-full overflow-y-auto overflow-x-hidden touch-scroll scrollbar-thin px-3 pb-6 pt-4 sm:px-5 md:px-8 md:pt-7"
     >
       {/* A measured column: long assistant prose stays readable on wide panes. */}
-      <div ref={contentRef} class="mx-auto w-full max-w-[54rem] space-y-5 md:space-y-6">
+      <div ref={contentRef} class="mx-auto w-full min-w-0 max-w-[54rem] space-y-5 md:space-y-6">
         {status === "loading" && <MessageSkeleton />}
 
         {status !== "loading" && blocks.length === 0 && <ThreadEmptyState cwd={cwd} />}

@@ -55,7 +55,7 @@ function renderAssistantParts(
 
     if (part.kind === "text") {
       rendered.push(
-        <div key={index} class="codex-prose text-[14.5px] leading-[1.7] text-ink-100">
+        <div key={index} class="codex-prose min-w-0 max-w-full text-[14.5px] leading-[1.7] text-ink-100 [overflow-wrap:anywhere]">
           <StreamingText text={part.text} streaming={context.streaming} chatId={context.chatId} cwd={context.cwd} />
         </div>
       );
@@ -64,7 +64,7 @@ function renderAssistantParts(
 
     if (part.kind === "thinking") {
       rendered.push(
-        <div key={index} class="my-2 border-l-2 border-line-strong pl-3 text-[13px] leading-relaxed text-ink-400">
+        <div key={index} class="my-2 min-w-0 border-l-2 border-line-strong pl-3 text-[13px] leading-relaxed text-ink-400 [overflow-wrap:anywhere]">
           {part.text}
         </div>
       );
