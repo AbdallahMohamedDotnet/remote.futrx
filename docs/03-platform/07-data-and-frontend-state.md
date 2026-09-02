@@ -107,11 +107,18 @@ flowchart LR
     Append --> Seq["Assign next monotonic seq"]
     Seq --> Meta["Update lastMessageAt for visible events"]
     Meta --> Cache["Refresh in-memory metadata index"]
-    Append --> Replay["Replay pages or events after seq"]
+    Append --> Replay["Replay live events after seq"]
+    Append --> Transcript["Project complete, compacted turn pages"]
     Replay --> Client["Chat UI"]
+    Transcript --> Client
 ```
 
 Chat metadata includes title, provider, provider session IDs, working directory, project ID, read markers, model/mode controls, selected skills, and fork state. The `running` flag and cancellation handle are computed from the in-memory run hub and are not persisted. Provider child processes may survive a backend restart, so the restarted control plane cannot automatically rediscover or cancel them.
+
+The raw event log remains the source for live reconnects. History requests page
+a read-time transcript projection by `turnId` (or legacy `user` boundaries) and
+coalesce adjacent streaming text/reasoning deltas. The cursor is still a raw
+event sequence, so existing chat files require no migration.
 
 Scheduled-task definitions are separate from chat metadata. One versioned
 `scheduled-tasks/tasks.json` document holds every task plus persisted active

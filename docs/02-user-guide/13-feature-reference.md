@@ -63,7 +63,7 @@ The placeholder mentions `@` files and `/` commands, but the current source has 
 | AskUserQuestion | Agent questions become a paged single/multi-select form with **Other** |
 | Usage | Supported providers report accumulated token usage |
 | Working state | Header dot, provider label, sidebar spinner, and composer state update |
-| Load older | Older JSONL events page backward |
+| Load older | Complete older conversation turns page backward |
 | Jump to latest | Appears when reading above the newest output |
 | Reconnect/replay | Chat socket resumes from the last event sequence |
 | Automatic title | Remote can title a new chat from its early content; it is persisted, and the current UI has no manual rename control |
