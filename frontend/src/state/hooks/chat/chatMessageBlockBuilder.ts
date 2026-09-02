@@ -4,6 +4,7 @@ import type {
   AssistantMessagePart,
   ChatMessageBlock,
 } from "../../../models/chatMessage";
+import { chatInteractionService } from "../../../services/chat/chatInteractionService.ts";
 
 type AssistantToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
 type AssistantInteractionPart = Extract<AssistantMessagePart, { kind: "interaction" }>;
@@ -64,6 +65,7 @@ class ChatMessageBlockBuilder {
           method: event.name,
           input: event.input ?? {},
           interactionKind: event.status || "provider_request",
+          supportsCancellation: chatInteractionService.supportsApprovalCancellation(event.name),
           status: "pending",
         });
         return next;

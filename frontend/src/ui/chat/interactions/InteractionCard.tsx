@@ -5,20 +5,22 @@ import { GenericInteractionForm } from "./GenericInteractionForm";
 import { PermissionInteractionForm } from "./PermissionInteractionForm";
 import type { InteractionPart } from "./types";
 import { UserInputInteractionForm } from "./UserInputInteractionForm";
+import type { ChatInteractionIntent } from "../../../models/chatInteraction";
+import type { ChatInteractionResponder } from "../../../types/chatApi";
 
 export function InteractionCard({
   part,
   onRespond,
 }: {
   part: InteractionPart;
-  onRespond?: (interactionId: string, result?: unknown, error?: unknown) => boolean;
+  onRespond?: ChatInteractionResponder;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState("");
 
-  function respond(result?: unknown, responseError?: unknown) {
+  function respond(intent: ChatInteractionIntent) {
     if (!onRespond || submitting || part.status !== "pending") return;
-    if (!onRespond(part.id, result, responseError)) {
+    if (!onRespond(part.id, part.method, intent)) {
       setLocalError("The interaction response could not be sent. Check the connection and retry.");
       return;
     }
@@ -44,9 +46,9 @@ export function InteractionCard({
           <UserInputInteractionForm input={part.input} disabled={submitting} onSubmit={respond} />
         ) : part.interactionKind === "approval" ? (
           <ApprovalInteractionForm
-            method={part.method}
             input={part.input}
             disabled={submitting}
+            supportsCancellation={part.supportsCancellation}
             onSubmit={respond}
           />
         ) : part.interactionKind === "permission" ? (

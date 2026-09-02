@@ -15,12 +15,12 @@ export function UserInputInteractionForm({
   });
 
   function submit() {
-    const encoded: Record<string, { answers: string[] }> = {};
+    const encoded: Record<string, string[]> = {};
     questions.forEach((question, index) => {
       const id = question.id || String(index);
-      encoded[id] = { answers: [(answers[id] || "").trim()] };
+      encoded[id] = [(answers[id] || "").trim()];
     });
-    onSubmit({ answers: encoded });
+    onSubmit({ kind: "answer_questions", answers: encoded });
   }
 
   return (

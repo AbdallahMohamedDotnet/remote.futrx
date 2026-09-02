@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
 import { CHAT_TRANSCRIPT_TURN_PAGE_LIMIT } from "../../../config/api.ts";
-import type { ChatStream } from "../../../types/chatApi";
+import type {
+  ChatInteractionResponder,
+  ChatStream,
+} from "../../../types/chatApi";
 import type {
   ChatEvent,
   ChatEventPage,
@@ -25,7 +28,7 @@ interface UseChatResult {
   sendPrompt: (text: string, clientId?: string) => boolean;
   promptOutcome: PromptOutcome | null;
   cancel: () => void;
-  respondInteraction: (interactionId: string, result?: unknown, error?: unknown) => boolean;
+  respondInteraction: ChatInteractionResponder;
   rewind: (beforeT: number) => Promise<ChatEventPage>;
   loadOlder: () => Promise<void>;
   refreshMeta: () => Promise<void>;
@@ -204,10 +207,10 @@ export function useChat(chatId: string): UseChatResult {
     if (stream?.isOpen) stream.cancel();
   }, []);
 
-  const respondInteraction = useCallback((interactionId: string, result?: unknown, responseError?: unknown) => {
+  const respondInteraction = useCallback<ChatInteractionResponder>((interactionId, method, intent) => {
     const stream = streamRef.current;
     if (!wsReady || !synced || !stream?.isOpen || status !== "streaming") return false;
-    return stream.respondInteraction(interactionId, result, responseError);
+    return stream.respondInteraction(interactionId, method, intent);
   }, [status, wsReady, synced]);
 
   const rewind = useCallback(async (beforeT: number) => {

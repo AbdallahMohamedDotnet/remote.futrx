@@ -5,6 +5,7 @@ import { ChatComposer, type ChatComposerProps } from "./composer/ChatComposer";
 import { JumpToLatestButton } from "./messages/JumpToLatestButton";
 import { MessageList } from "./messages/MessageList";
 import { ThreadHeader } from "./header/ThreadHeader";
+import type { ChatInteractionResponder } from "../../types/chatApi";
 
 export function ChatThread({
   chat,
@@ -43,7 +44,7 @@ export function ChatThread({
   onScroll: () => void;
   onJumpToBottom: () => void;
   onAnswerQuestion: (text: string) => void;
-  onRespondInteraction?: (interactionId: string, result?: unknown, error?: unknown) => boolean;
+  onRespondInteraction?: ChatInteractionResponder;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
   /** Workspace controls. Rendered in the header on desktop and in the toolbar

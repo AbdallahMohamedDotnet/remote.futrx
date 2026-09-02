@@ -12,7 +12,7 @@ export function GenericInteractionForm({
 
   function submit() {
     try {
-      onSubmit(JSON.parse(result));
+      onSubmit({ kind: "submit_provider_result", result: JSON.parse(result) });
     } catch {
       setError("Enter a valid JSON result.");
     }
@@ -32,10 +32,7 @@ export function GenericInteractionForm({
       {error && <p class="text-[11px] text-accent-red">{error}</p>}
       <div class="flex flex-wrap gap-2">
         <DecisionButton disabled={disabled} onClick={submit}>Send result</DecisionButton>
-        <DecisionButton tone="danger" disabled={disabled} onClick={() => onSubmit(undefined, {
-          code: -32601,
-          message: "Unsupported provider request declined by user",
-        })}>
+        <DecisionButton tone="danger" disabled={disabled} onClick={() => onSubmit({ kind: "decline_unsupported" })}>
           Decline as unsupported
         </DecisionButton>
       </div>

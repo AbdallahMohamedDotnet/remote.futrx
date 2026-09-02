@@ -6,6 +6,7 @@ import { ToolGroup } from "./ToolGroup";
 import { InteractionCard } from "../interactions/InteractionCard";
 import { CollaborationCard } from "./CollaborationCard";
 import { ProviderEventCard } from "./ProviderEventCard";
+import type { ChatInteractionResponder } from "../../../types/chatApi";
 
 type ToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
 
@@ -22,7 +23,7 @@ export function AssistantPartList({
   chatId?: string;
   cwd?: string;
   onAnswerQuestion?: (text: string) => void;
-  onRespondInteraction?: (interactionId: string, result?: unknown, error?: unknown) => boolean;
+  onRespondInteraction?: ChatInteractionResponder;
 }) {
   return <>{renderAssistantParts(parts, { streaming, chatId, cwd, onAnswerQuestion, onRespondInteraction })}</>;
 }
@@ -34,7 +35,7 @@ function renderAssistantParts(
     chatId?: string;
     cwd?: string;
     onAnswerQuestion?: (text: string) => void;
-    onRespondInteraction?: (interactionId: string, result?: unknown, error?: unknown) => boolean;
+    onRespondInteraction?: ChatInteractionResponder;
   }
 ): ComponentChildren[] {
   const rendered: ComponentChildren[] = [];

@@ -12,7 +12,7 @@ export function ElicitationInteractionForm({
 
   function accept() {
     try {
-      onSubmit({ action: "accept", content: JSON.parse(content) });
+      onSubmit({ kind: "accept_elicitation", content: JSON.parse(content) });
     } catch {
       setError("Enter valid JSON content.");
     }
@@ -31,8 +31,8 @@ export function ElicitationInteractionForm({
       {error && <p class="text-[11px] text-accent-red">{error}</p>}
       <div class="flex flex-wrap gap-2">
         <DecisionButton disabled={disabled} onClick={accept}>Accept</DecisionButton>
-        <DecisionButton tone="danger" disabled={disabled} onClick={() => onSubmit({ action: "decline" })}>Decline</DecisionButton>
-        <DecisionButton disabled={disabled} onClick={() => onSubmit({ action: "cancel" })}>Cancel</DecisionButton>
+        <DecisionButton tone="danger" disabled={disabled} onClick={() => onSubmit({ kind: "decline_elicitation" })}>Decline</DecisionButton>
+        <DecisionButton disabled={disabled} onClick={() => onSubmit({ kind: "cancel_elicitation" })}>Cancel</DecisionButton>
       </div>
     </div>
   );

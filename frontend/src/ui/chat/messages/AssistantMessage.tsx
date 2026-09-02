@@ -1,6 +1,7 @@
 import type { AssistantMessageBlock } from "../../../models/chatMessage";
 import { AssistantPartList } from "./AssistantPartList";
 import { ThinkingIndicator } from "./ThinkingIndicator";
+import type { ChatInteractionResponder } from "../../../types/chatApi";
 
 export function AssistantMessage({
   block,
@@ -15,7 +16,7 @@ export function AssistantMessage({
   chatId?: string;
   cwd?: string;
   onAnswerQuestion?: (text: string) => void;
-  onRespondInteraction?: (interactionId: string, result?: unknown, error?: unknown) => boolean;
+  onRespondInteraction?: ChatInteractionResponder;
 }) {
   return (
     <div class="codex-assistant-block space-y-2 max-w-full">

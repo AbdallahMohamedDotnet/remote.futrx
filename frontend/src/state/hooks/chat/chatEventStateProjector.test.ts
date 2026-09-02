@@ -81,6 +81,7 @@ test("preserves pending interactions and final subagent reports across replay", 
     method: "item/commandExecution/requestApproval",
     input: { command: "npm test" },
     interactionKind: "approval",
+    supportsCancellation: true,
     status: "answered",
   });
   assert.deepEqual(assistant.parts[1], {

@@ -2,6 +2,7 @@ import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { AssistantMessage } from "./AssistantMessage";
 import { ErrorMessage } from "./ErrorMessage";
 import { UserMessage } from "./UserMessage";
+import type { ChatInteractionResponder } from "../../../types/chatApi";
 
 export function MessageBlock({
   block,
@@ -17,7 +18,7 @@ export function MessageBlock({
   chatId?: string;
   cwd?: string;
   onAnswerQuestion?: (text: string) => void;
-  onRespondInteraction?: (interactionId: string, result?: unknown, error?: unknown) => boolean;
+  onRespondInteraction?: ChatInteractionResponder;
   onRewind?: (t: number, text: string) => void;
 }) {
   if (block.type === "user") {

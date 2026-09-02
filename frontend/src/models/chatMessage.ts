@@ -16,6 +16,7 @@ export type AssistantMessagePart =
       method: string;
       input: Record<string, unknown>;
       interactionKind: string;
+      supportsCancellation: boolean;
       status: string;
     }
   | {
