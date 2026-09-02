@@ -16,6 +16,15 @@ import (
 
 var errAppServerInterruptTimeout = errors.New("app-server did not complete turn/interrupt within 10 seconds")
 
+type appServerRequestID int
+
+const (
+	appServerInitializeRequestID appServerRequestID = iota + 1
+	appServerThreadRequestID
+	appServerTurnRequestID
+	appServerInterruptRequestID
+)
+
 type appServerRun struct {
 	ctx           context.Context
 	req           agent.RunRequest
@@ -256,7 +265,7 @@ func (run *appServerRun) maybeInterrupt() error {
 	return nil
 }
 
-func (run *appServerRun) responseError(responseID int, message string) error {
+func (run *appServerRun) responseError(responseID appServerRequestID, message string) error {
 	message = strings.TrimSpace(message)
 	if responseID == appServerThreadRequestID && run.req.ResumeID != "" && isMissingThread(message) {
 		return fmt.Errorf("%w: %s", agent.ErrSessionNotFound, message)
@@ -264,7 +273,7 @@ func (run *appServerRun) responseError(responseID int, message string) error {
 	return fmt.Errorf("%s app-server request %d: %s", run.providerLabel, responseID, message)
 }
 
-func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessage) {
+func (run *appServerRun) handleResponse(responseID appServerRequestID, resultJSON json.RawMessage) {
 	switch responseID {
 	case appServerInitializeRequestID:
 		if err := run.process.write(map[string]any{"method": "initialized", "params": map[string]any{}}); err != nil {
@@ -329,6 +338,22 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 		// The acknowledgement is not terminal. Keep consuming notifications until
 		// turn/completed reports the authoritative interrupted status.
 	}
+}
+
+func rpcResponseID(raw json.RawMessage) (appServerRequestID, bool) {
+	if len(raw) == 0 {
+		return 0, false
+	}
+	var id appServerRequestID
+	if err := json.Unmarshal(raw, &id); err != nil {
+		return 0, false
+	}
+	return id, true
+}
+
+func isMissingThread(message string) bool {
+	lower := strings.ToLower(message)
+	return strings.Contains(lower, "not found") || strings.Contains(lower, "no rollout")
 }
 
 func (run *appServerRun) finish() error {

@@ -7,13 +7,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 )
 
-const (
-	appServerInitializeRequestID = 1
-	appServerThreadRequestID     = 2
-	appServerTurnRequestID       = 3
-	appServerInterruptRequestID  = 4
-)
-
 type appServerEnvelope struct {
 	ID     json.RawMessage `json:"id,omitempty"`
 	Method string          `json:"method,omitempty"`
@@ -295,20 +288,4 @@ func reasoningEffortArg(effort agent.ReasoningEffort) string {
 
 func serviceTierArg(tier agent.ServiceTier) string {
 	return agent.NormalizeCapabilityValue(string(tier))
-}
-
-func rpcResponseID(raw json.RawMessage) (int, bool) {
-	if len(raw) == 0 {
-		return 0, false
-	}
-	var id int
-	if err := json.Unmarshal(raw, &id); err != nil {
-		return 0, false
-	}
-	return id, true
-}
-
-func isMissingThread(message string) bool {
-	lower := strings.ToLower(message)
-	return strings.Contains(lower, "not found") || strings.Contains(lower, "no rollout")
 }
