@@ -3,7 +3,6 @@ package codexharness
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -14,7 +13,10 @@ import (
 	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
-var errAppServerInterruptTimeout = errors.New("app-server did not complete turn/interrupt within 10 seconds")
+var errAppServerInterruptTimeout = fmt.Errorf(
+	"app-server did not complete turn/interrupt within %d seconds",
+	configconstants.CodexHarnessInterruptTimeout/time.Second,
+)
 
 type appServerRequestID int
 
