@@ -80,9 +80,9 @@ func WithAutoModel(models []ModelCapability, description string) []ModelCapabili
 }
 
 func autoModelCapability(auto, source ModelCapability) ModelCapability {
-	auto.ReasoningEfforts = cloneOptions(source.ReasoningEfforts)
+	auto.ReasoningEfforts = cloneCapabilityOptions(source.ReasoningEfforts)
 	auto.DefaultReasoningEffort = source.DefaultReasoningEffort
-	auto.ServiceTiers = cloneOptions(source.ServiceTiers)
+	auto.ServiceTiers = cloneCapabilityOptions(source.ServiceTiers)
 	auto.DefaultServiceTier = source.DefaultServiceTier
 	auto.InputModalities = append([]string(nil), source.InputModalities...)
 	auto.SupportsPersonality = source.SupportsPersonality
@@ -92,12 +92,4 @@ func autoModelCapability(auto, source ModelCapability) ModelCapability {
 	auto.UpgradeInfo = append([]byte(nil), source.UpgradeInfo...)
 	auto.AvailabilityNux = append([]byte(nil), source.AvailabilityNux...)
 	return auto
-}
-
-func cloneOptions(options []CapabilityOption) []CapabilityOption {
-	cloned := append([]CapabilityOption(nil), options...)
-	for index := range cloned {
-		cloned[index].Raw = append([]byte(nil), options[index].Raw...)
-	}
-	return cloned
 }

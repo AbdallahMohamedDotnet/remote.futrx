@@ -85,3 +85,35 @@ type CapabilityRequest struct {
 	// provider should inspect the host CLI.
 	ContainerName string
 }
+
+// Clone returns a copy whose provider-owned metadata can be mutated without
+// changing the source catalog.
+func (capabilities Capabilities) Clone() Capabilities {
+	cloned := capabilities
+	cloned.ExecutionScopes = append([]string(nil), capabilities.ExecutionScopes...)
+	cloned.Modes = cloneCapabilityOptions(capabilities.Modes)
+	cloned.Models = make([]ModelCapability, len(capabilities.Models))
+	for index, model := range capabilities.Models {
+		cloned.Models[index] = cloneModelCapability(model)
+	}
+	return cloned
+}
+
+func cloneModelCapability(model ModelCapability) ModelCapability {
+	cloned := model
+	cloned.Raw = append([]byte(nil), model.Raw...)
+	cloned.UpgradeInfo = append([]byte(nil), model.UpgradeInfo...)
+	cloned.AvailabilityNux = append([]byte(nil), model.AvailabilityNux...)
+	cloned.InputModalities = append([]string(nil), model.InputModalities...)
+	cloned.ReasoningEfforts = cloneCapabilityOptions(model.ReasoningEfforts)
+	cloned.ServiceTiers = cloneCapabilityOptions(model.ServiceTiers)
+	return cloned
+}
+
+func cloneCapabilityOptions(options []CapabilityOption) []CapabilityOption {
+	cloned := append([]CapabilityOption(nil), options...)
+	for index := range cloned {
+		cloned[index].Raw = append([]byte(nil), options[index].Raw...)
+	}
+	return cloned
+}

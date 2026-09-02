@@ -63,29 +63,7 @@ func (f *catalogFlights) do(
 func cloneCapabilities(input []agent.Capabilities) []agent.Capabilities {
 	output := make([]agent.Capabilities, len(input))
 	for index, caps := range input {
-		output[index] = caps
-		output[index].ExecutionScopes = append([]string(nil), caps.ExecutionScopes...)
-		output[index].Modes = cloneCapabilityOptions(caps.Modes)
-		output[index].Models = make([]agent.ModelCapability, len(caps.Models))
-		for modelIndex, model := range caps.Models {
-			output[index].Models[modelIndex] = model
-			output[index].Models[modelIndex].Raw = append([]byte(nil), model.Raw...)
-			output[index].Models[modelIndex].UpgradeInfo = append([]byte(nil), model.UpgradeInfo...)
-			output[index].Models[modelIndex].AvailabilityNux = append([]byte(nil), model.AvailabilityNux...)
-			output[index].Models[modelIndex].InputModalities = append(
-				[]string(nil), model.InputModalities...,
-			)
-			output[index].Models[modelIndex].ReasoningEfforts = cloneCapabilityOptions(model.ReasoningEfforts)
-			output[index].Models[modelIndex].ServiceTiers = cloneCapabilityOptions(model.ServiceTiers)
-		}
-	}
-	return output
-}
-
-func cloneCapabilityOptions(input []agent.CapabilityOption) []agent.CapabilityOption {
-	output := append([]agent.CapabilityOption(nil), input...)
-	for index := range output {
-		output[index].Raw = append([]byte(nil), input[index].Raw...)
+		output[index] = caps.Clone()
 	}
 	return output
 }
