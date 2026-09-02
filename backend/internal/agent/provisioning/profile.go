@@ -107,36 +107,66 @@ type TemplateFile struct {
 	DirectoryMode string
 }
 
-// Validate rejects template targets that could escape provider-owned durable
-// homes or the project workspace. Hash markers share the declared directory so
-// publication never depends on an unprepared parent path.
-func (t TemplateFile) Validate() error {
-	if !validTemplatePath(t.Path) {
+// RuntimeAsset is a non-secret file published for the selected provider before
+// each project run. It is distinct from a browser MCP template because runtime
+// assets default to a provider-private directory.
+type RuntimeAsset struct {
+	Content       []byte
+	Path          string
+	HashPath      string
+	Mode          string
+	Directory     string
+	DirectoryMode string
+}
+
+const (
+	defaultRuntimeAssetMode          = "644"
+	defaultRuntimeAssetDirectoryMode = "700"
+)
+
+// Resolved returns the complete publication model used by the container
+// adapter. Defaults live with the model so every runtime-asset consumer gives
+// an omitted field the same meaning.
+func (a RuntimeAsset) Resolved() RuntimeAsset {
+	if a.Directory == "" {
+		a.Directory = path.Dir(a.Path)
+	}
+	if a.Mode == "" {
+		a.Mode = defaultRuntimeAssetMode
+	}
+	if a.DirectoryMode == "" {
+		a.DirectoryMode = defaultRuntimeAssetDirectoryMode
+	}
+	return a
+}
+
+// Validate rejects runtime asset targets that could escape provider-owned
+// durable homes or the project workspace. Hash markers share the declared
+// directory so publication never depends on an unprepared parent path.
+func (a RuntimeAsset) Validate() error {
+	a = a.Resolved()
+	if !validRuntimeAssetPath(a.Path) {
 		return errors.New("template path must be a clean path below /root or /workspace")
 	}
-	if !validTemplatePath(t.HashPath) || t.HashPath == t.Path {
+	if !validRuntimeAssetPath(a.HashPath) || a.HashPath == a.Path {
 		return errors.New("template hash path must be a distinct clean path below /root or /workspace")
 	}
-	directory := t.Directory
-	if directory == "" {
-		directory = path.Dir(t.Path)
-	}
-	if !validTemplatePath(directory) {
+	if !validRuntimeAssetPath(a.Directory) {
 		return errors.New("template directory must be a clean path below /root or /workspace")
 	}
-	if !pathWithin(directory, t.Path) || !pathWithin(directory, t.HashPath) {
+	if !pathWithin(a.Directory, a.Path) || !pathWithin(a.Directory, a.HashPath) {
 		return errors.New("template and hash paths must be inside the template directory")
 	}
-	if t.Mode != "" && !validTemplateMode(t.Mode) {
+	if !validRuntimeAssetMode(a.Mode) {
 		return errors.New("invalid template file mode")
 	}
-	if t.DirectoryMode != "" && !validTemplateMode(t.DirectoryMode) {
+	if !validRuntimeAssetMode(a.DirectoryMode) {
 		return errors.New("invalid template directory mode")
 	}
 	return nil
 }
 
-func validTemplatePath(value string) bool {
+func validRuntimeAssetPath(value string) bool {
 	if !path.IsAbs(value) || path.Clean(value) != value || strings.ContainsRune(value, '\x00') {
 		return false
 	}
@@ -147,7 +177,7 @@ func pathWithin(root, target string) bool {
 	return target != root && strings.HasPrefix(target, root+"/")
 }
 
-func validTemplateMode(mode string) bool {
+func validRuntimeAssetMode(mode string) bool {
 	if len(mode) != 3 && len(mode) != 4 {
 		return false
 	}
@@ -208,7 +238,7 @@ type Profile struct {
 	PersistentState     []PersistentDirectory
 	Instructions        *InstructionTarget
 	WorkspaceSkills     *WorkspaceSkills
-	RuntimeTemplates    []TemplateFile
+	RuntimeAssets       []RuntimeAsset
 	BrowserMCPTemplates []TemplateFile
 }
 
@@ -230,9 +260,17 @@ func (p Profile) Clone() Profile {
 		skills := *p.WorkspaceSkills
 		p.WorkspaceSkills = &skills
 	}
-	p.RuntimeTemplates = cloneTemplateFiles(p.RuntimeTemplates)
+	p.RuntimeAssets = cloneRuntimeAssets(p.RuntimeAssets)
 	p.BrowserMCPTemplates = cloneTemplateFiles(p.BrowserMCPTemplates)
 	return p
+}
+
+func cloneRuntimeAssets(assets []RuntimeAsset) []RuntimeAsset {
+	cloned := append([]RuntimeAsset(nil), assets...)
+	for i := range cloned {
+		cloned[i].Content = append([]byte(nil), cloned[i].Content...)
+	}
+	return cloned
 }
 
 func cloneTemplateFiles(templates []TemplateFile) []TemplateFile {

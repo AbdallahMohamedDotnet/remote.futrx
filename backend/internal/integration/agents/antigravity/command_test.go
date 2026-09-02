@@ -213,7 +213,7 @@ func (f antigravityTestWorkspace) EnsureSkillLinks(context.Context, string) erro
 
 type antigravityTestRuntimeAssets struct{}
 
-func (antigravityTestRuntimeAssets) Ensure(context.Context, string, []provisioning.TemplateFile) error {
+func (antigravityTestRuntimeAssets) Ensure(context.Context, string, []provisioning.RuntimeAsset) error {
 	return nil
 }
 

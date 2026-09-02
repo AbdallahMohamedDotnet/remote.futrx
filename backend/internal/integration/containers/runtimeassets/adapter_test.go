@@ -16,7 +16,7 @@ import (
 func TestEnsurePublishesSelectedProfileTemplates(t *testing.T) {
 	runner := &runtimeAssetRunner{available: true}
 	adapter := NewAdapter(runner, assets.NewPublisher(runner))
-	err := adapter.Ensure(context.Background(), "project-container", []provisioning.TemplateFile{{
+	err := adapter.Ensure(context.Background(), "project-container", []provisioning.RuntimeAsset{{
 		Content:       []byte("runtime-config"),
 		Path:          "/root/.provider/catalog.json",
 		HashPath:      "/root/.provider/.catalog.sha256",
@@ -65,7 +65,7 @@ func TestEnsureRepublishesTamperedContentDespiteCurrentMarker(t *testing.T) {
 		pulledContent: "tampered-runtime-config",
 	}
 	adapter := NewAdapter(runner, assets.NewPublisher(runner))
-	err := adapter.Ensure(context.Background(), "project-container", []provisioning.TemplateFile{{
+	err := adapter.Ensure(context.Background(), "project-container", []provisioning.RuntimeAsset{{
 		Content:   content,
 		Path:      "/root/.provider/catalog.json",
 		HashPath:  "/root/.provider/.catalog.sha256",
@@ -76,6 +76,16 @@ func TestEnsureRepublishesTamperedContentDespiteCurrentMarker(t *testing.T) {
 	}
 	if string(runner.pushed) != string(content) {
 		t.Fatalf("pushed content = %q, want verified template", runner.pushed)
+	}
+	if !slices.ContainsFunc(runner.calls, func(call string) bool {
+		return strings.Contains(call, "install -d -m 700 /root/.provider")
+	}) {
+		t.Fatalf("default mkdir calls = %#v", runner.calls)
+	}
+	if !slices.ContainsFunc(runner.calls, func(call string) bool {
+		return strings.Contains(call, "file push --mode=644")
+	}) {
+		t.Fatalf("default push calls = %#v", runner.calls)
 	}
 }
 

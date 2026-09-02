@@ -26,8 +26,8 @@ func TestProfileUsesIsolatedCodexHomeAndOfficialModelCatalog(t *testing.T) {
 		profile.WorkspaceSkills.HomeSkillsDir != "/root/.minimax/skills" {
 		t.Fatalf("workspace skills = %#v", profile.WorkspaceSkills)
 	}
-	if len(profile.RuntimeTemplates) != 1 || profile.RuntimeTemplates[0].Path != containerMiniMaxCatalog {
-		t.Fatalf("runtime templates = %#v", profile.RuntimeTemplates)
+	if len(profile.RuntimeAssets) != 1 || profile.RuntimeAssets[0].Path != containerMiniMaxCatalog {
+		t.Fatalf("runtime assets = %#v", profile.RuntimeAssets)
 	}
 
 	var catalog struct {
@@ -39,7 +39,7 @@ func TestProfileUsesIsolatedCodexHomeAndOfficialModelCatalog(t *testing.T) {
 			InputModalities            []string `json:"input_modalities"`
 		} `json:"models"`
 	}
-	if err := json.Unmarshal(profile.RuntimeTemplates[0].Content, &catalog); err != nil {
+	if err := json.Unmarshal(profile.RuntimeAssets[0].Content, &catalog); err != nil {
 		t.Fatal(err)
 	}
 	if len(catalog.Models) != 1 || catalog.Models[0].Slug != miniMaxModel ||
@@ -52,8 +52,8 @@ func TestProfileUsesIsolatedCodexHomeAndOfficialModelCatalog(t *testing.T) {
 
 func TestProfileReturnsDefensiveCatalogCopies(t *testing.T) {
 	first := Profile()
-	first.RuntimeTemplates[0].Content[0] = 'x'
-	if Profile().RuntimeTemplates[0].Content[0] == 'x' {
+	first.RuntimeAssets[0].Content[0] = 'x'
+	if Profile().RuntimeAssets[0].Content[0] == 'x' {
 		t.Fatal("model catalog mutation escaped Profile")
 	}
 }

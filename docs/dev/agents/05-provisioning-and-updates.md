@@ -24,7 +24,7 @@ type Profile struct {
     PersistentState     []PersistentDirectory
     Instructions        *InstructionTarget
     WorkspaceSkills     *WorkspaceSkills
-    RuntimeTemplates    []TemplateFile
+    RuntimeAssets       []RuntimeAsset
     BrowserMCPTemplates []TemplateFile
 }
 ```
@@ -36,7 +36,7 @@ type Profile struct {
 | `PersistentState` | Stable LXD device name, private host directory name, and absolute container path below `/root` |
 | `Instructions` | Destination and content-hash path for Remote's shared agent instructions |
 | `WorkspaceSkills` | Provider compatibility home under `/workspace` and optional provider-home mirror directory |
-| `RuntimeTemplates` | Non-secret provider configuration published before every selected-provider run |
+| `RuntimeAssets` | Non-secret provider configuration published before every selected-provider run |
 | `BrowserMCPTemplates` | Provider-specific MCP configuration files, hashes, modes, and directories |
 
 Profiles are cloned when entering or leaving the module catalog. During
@@ -282,7 +282,7 @@ embed instruction text itself.
 
 The [`runtimeassets.Adapter`](../../../backend/internal/integration/containers/runtimeassets/adapter.go)
 separately publishes only the selected profile's
-`RuntimeTemplates`. Keeping that adapter out of the shared workspace
+`RuntimeAssets`. Keeping that adapter out of the shared workspace
 provisioner prevents provider-specific runtime configuration from being
 conflated with installation-wide instructions and cross-provider skill links.
 It verifies the destination bytes even when the in-container hash marker is

@@ -5,7 +5,6 @@ package runtimeassets
 import (
 	"context"
 	"fmt"
-	"path"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
@@ -34,9 +33,9 @@ func NewAdapter(runner command.Runner, publisher *assets.Publisher) *Adapter {
 func (a *Adapter) Ensure(
 	ctx context.Context,
 	containerName string,
-	templates []provisioning.TemplateFile,
+	assetsToPublish []provisioning.RuntimeAsset,
 ) error {
-	if len(templates) == 0 {
+	if len(assetsToPublish) == 0 {
 		return nil
 	}
 	if !a.runner.Available() {
@@ -45,36 +44,25 @@ func (a *Adapter) Ensure(
 
 	dctx, cancel := context.WithTimeout(ctx, ensureTimeout)
 	defer cancel()
-	created := make(map[string]bool, len(templates))
-	for _, template := range templates {
-		directory := template.Directory
-		if directory == "" {
-			directory = path.Dir(template.Path)
-		}
-		if !created[directory] {
-			directoryMode := template.DirectoryMode
-			if directoryMode == "" {
-				directoryMode = "700"
-			}
+	created := make(map[string]struct{}, len(assetsToPublish))
+	for _, asset := range assetsToPublish {
+		asset = asset.Resolved()
+		if _, exists := created[asset.Directory]; !exists {
 			out, err := a.runner.Run(dctx, "exec", containerName, "--",
-				"install", "-d", "-m", directoryMode, directory)
+				"install", "-d", "-m", asset.DirectoryMode, asset.Directory)
 			if err != nil {
-				return fmt.Errorf("mkdir %s: %w; output: %s", directory, err, out)
+				return fmt.Errorf("mkdir %s: %w; output: %s", asset.Directory, err, out)
 			}
-			created[directory] = true
+			created[asset.Directory] = struct{}{}
 		}
 
-		mode := template.Mode
-		if mode == "" {
-			mode = "644"
-		}
 		if err := a.publisher.PushVerified(
 			ctx,
 			containerName,
-			template.Content,
-			template.HashPath,
-			mode,
-			template.Path,
+			asset.Content,
+			asset.HashPath,
+			asset.Mode,
+			asset.Path,
 		); err != nil {
 			return err
 		}

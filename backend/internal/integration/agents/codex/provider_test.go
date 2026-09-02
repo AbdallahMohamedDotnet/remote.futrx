@@ -312,7 +312,7 @@ func (fakeCodexWorkspace) EnsureSkillLinks(context.Context, string) error { retu
 
 type fakeCodexRuntimeAssets struct{}
 
-func (fakeCodexRuntimeAssets) Ensure(context.Context, string, []provisioning.TemplateFile) error {
+func (fakeCodexRuntimeAssets) Ensure(context.Context, string, []provisioning.RuntimeAsset) error {
 	return nil
 }
 

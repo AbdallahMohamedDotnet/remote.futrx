@@ -324,7 +324,7 @@ func (fakeClaudeWorkspace) EnsureSkillLinks(context.Context, string) error { ret
 
 type fakeClaudeRuntimeAssets struct{}
 
-func (fakeClaudeRuntimeAssets) Ensure(context.Context, string, []provisioning.TemplateFile) error {
+func (fakeClaudeRuntimeAssets) Ensure(context.Context, string, []provisioning.RuntimeAsset) error {
 	return nil
 }
 

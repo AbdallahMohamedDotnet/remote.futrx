@@ -37,7 +37,7 @@ var miniMaxProfile = provisioning.Profile{
 		WorkspaceHome: workspaceMiniMaxHome,
 		HomeSkillsDir: containerMiniMaxSkills,
 	},
-	RuntimeTemplates: []provisioning.TemplateFile{{
+	RuntimeAssets: []provisioning.RuntimeAsset{{
 		Content:       modelCatalog,
 		Path:          containerMiniMaxCatalog,
 		HashPath:      containerMiniMaxCatalogHash,

@@ -59,11 +59,11 @@ func TestPreparerAppliesSharedWorkflowInOrder(t *testing.T) {
 		len(prepared.Secrets) != 1 || prepared.Secrets[0].Key != "PROJECT_SECRET" {
 		t.Fatalf("prepared project = %#v", prepared)
 	}
-	if recorder.runtimeAssetContainer != "project-container" || len(recorder.runtimeTemplates) != 1 ||
-		recorder.runtimeTemplates[0].Path != "/root/.future/runtime.json" ||
-		string(recorder.runtimeTemplates[0].Content) != "runtime-template" {
+	if recorder.runtimeAssetContainer != "project-container" || len(recorder.runtimeAssets) != 1 ||
+		recorder.runtimeAssets[0].Path != "/root/.future/runtime.json" ||
+		string(recorder.runtimeAssets[0].Content) != "runtime-template" {
 		t.Fatalf("runtime asset request = container %q, templates %#v",
-			recorder.runtimeAssetContainer, recorder.runtimeTemplates)
+			recorder.runtimeAssetContainer, recorder.runtimeAssets)
 	}
 }
 
@@ -117,7 +117,7 @@ type preparationRecorder struct {
 	skillLinkError        error
 	runtimeAssetError     error
 	runtimeAssetContainer string
-	runtimeTemplates      []provisioning.TemplateFile
+	runtimeAssets         []provisioning.RuntimeAsset
 }
 
 type preparationProjects struct{ recorder *preparationRecorder }
@@ -172,11 +172,11 @@ type preparationRuntimeAssets struct{ recorder *preparationRecorder }
 func (p preparationRuntimeAssets) Ensure(
 	_ context.Context,
 	containerName string,
-	templates []provisioning.TemplateFile,
+	assets []provisioning.RuntimeAsset,
 ) error {
 	p.recorder.calls = append(p.recorder.calls, "runtime-assets")
 	p.recorder.runtimeAssetContainer = containerName
-	p.recorder.runtimeTemplates = templates
+	p.recorder.runtimeAssets = assets
 	return p.recorder.runtimeAssetError
 }
 
@@ -235,7 +235,7 @@ func preparationTestProfile() provisioning.Profile {
 		Credentials: provisioning.CredentialSpec{Files: []provisioning.CredentialFile{{
 			HostPath: "/host/credentials", ContainerPath: "/root/.future/credentials",
 		}}},
-		RuntimeTemplates: []provisioning.TemplateFile{{
+		RuntimeAssets: []provisioning.RuntimeAsset{{
 			Content:  []byte("runtime-template"),
 			Path:     "/root/.future/runtime.json",
 			HashPath: "/root/.future/.runtime.sha256",
