@@ -16,21 +16,35 @@ import (
 	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
+const appServerInterruptTimeout = 10 * time.Second
+
+var errAppServerInterruptTimeout = errors.New("Codex app-server did not complete turn/interrupt within 10 seconds")
+
+type appServerScanResult struct {
+	envelope appServerEnvelope
+	err      error
+}
+
 type appServerRun struct {
 	ctx context.Context
 	cmd *exec.Cmd
 	req agent.RunRequest
 
-	emit           func(agent.Event)
-	stdin          io.WriteCloser
-	scanner        *bufio.Scanner
-	stderrDone     chan string
-	write          func(any) error
-	eventParser    *appServerEventParser
-	requestHandler *appServerRequestHandler
-	terminal       bool
-	runFailed      bool
-	protocolErr    error
+	emit            func(agent.Event)
+	stdin           io.WriteCloser
+	scanner         *bufio.Scanner
+	stderrDone      chan string
+	write           func(any) error
+	eventParser     *appServerEventParser
+	requestHandler  *appServerRequestHandler
+	threadID        string
+	turnID          string
+	cancelRequested bool
+	interruptSent   bool
+	terminal        bool
+	interrupted     bool
+	runFailed       bool
+	protocolErr     error
 }
 
 // runAppServer owns one Codex app-server process for one Remote turn. A fresh
@@ -117,6 +131,73 @@ func (run *appServerRun) abortInitialization() {
 }
 
 func (run *appServerRun) consumeOutput() {
+	scanned := make(chan appServerScanResult, 1)
+	stopScan := make(chan struct{})
+	defer close(stopScan)
+	go run.scanOutput(scanned, stopScan)
+
+	ctxDone := run.ctx.Done()
+	responses := run.req.InteractionResponses
+	var interruptTimer *time.Timer
+	var interruptTimeout <-chan time.Time
+	defer func() {
+		if interruptTimer != nil {
+			interruptTimer.Stop()
+		}
+	}()
+
+	for {
+		select {
+		case result, ok := <-scanned:
+			if !ok {
+				return
+			}
+			if result.err != nil {
+				run.protocolErr = result.err
+				return
+			}
+			if !run.handleEnvelope(result.envelope) {
+				return
+			}
+			if run.interruptSent && interruptTimer == nil {
+				interruptTimer = time.NewTimer(appServerInterruptTimeout)
+				interruptTimeout = interruptTimer.C
+			}
+			if run.terminal {
+				return
+			}
+
+		case response, ok := <-responses:
+			if !ok {
+				responses = nil
+				continue
+			}
+			if err := run.requestHandler.Respond(response); err != nil {
+				run.protocolErr = err
+				return
+			}
+
+		case <-ctxDone:
+			ctxDone = nil
+			run.cancelRequested = true
+			if err := run.maybeInterrupt(); err != nil {
+				run.protocolErr = err
+				return
+			}
+			if run.interruptSent && interruptTimer == nil {
+				interruptTimer = time.NewTimer(appServerInterruptTimeout)
+				interruptTimeout = interruptTimer.C
+			}
+
+		case <-interruptTimeout:
+			run.protocolErr = errAppServerInterruptTimeout
+			return
+		}
+	}
+}
+
+func (run *appServerRun) scanOutput(results chan<- appServerScanResult, stop <-chan struct{}) {
+	defer close(results)
 	for run.scanner.Scan() {
 		line := append([]byte(nil), run.scanner.Bytes()...)
 		if len(line) == 0 {
@@ -127,20 +208,43 @@ func (run *appServerRun) consumeOutput() {
 			log.Printf("codex[%s] app-server parse: %v", run.req.ConversationID, err)
 			continue
 		}
-		if !run.handleEnvelope(envelope) {
-			break
+		select {
+		case results <- appServerScanResult{envelope: envelope}:
+		case <-stop:
+			return
+		}
+	}
+	if err := run.scanner.Err(); err != nil {
+		select {
+		case results <- appServerScanResult{err: fmt.Errorf("Codex app-server stdout: %w", err)}:
+		case <-stop:
 		}
 	}
 }
 
 func (run *appServerRun) handleEnvelope(envelope appServerEnvelope) bool {
 	if envelope.Method != "" && len(envelope.ID) > 0 {
-		run.protocolErr = run.requestHandler.Answer(envelope)
+		ids := nativeIDs(envelope.Params)
+		if run.threadID == "" {
+			run.threadID = ids.ThreadID
+		}
+		if run.turnID == "" {
+			run.turnID = ids.TurnID
+		}
+		run.protocolErr = run.requestHandler.Handle(envelope)
+		if run.protocolErr == nil && run.cancelRequested {
+			run.protocolErr = run.maybeInterrupt()
+		}
 		return run.protocolErr == nil
 	}
 	if envelope.Method != "" {
+		if envelope.Method == "serverRequest/resolved" {
+			if event := run.requestHandler.Resolve(envelope.Params); event != nil {
+				run.emit(*event)
+			}
+		}
 		run.handleNotification(envelope)
-		return true
+		return run.protocolErr == nil
 	}
 
 	responseID, ok := rpcResponseID(envelope.ID)
@@ -156,14 +260,49 @@ func (run *appServerRun) handleEnvelope(envelope appServerEnvelope) bool {
 }
 
 func (run *appServerRun) handleNotification(envelope appServerEnvelope) {
+	ids := nativeIDs(envelope.Params)
+	if run.threadID == "" {
+		run.threadID = ids.ThreadID
+	}
+	if run.turnID == "" {
+		run.turnID = ids.TurnID
+	}
+	if run.cancelRequested {
+		if err := run.maybeInterrupt(); err != nil {
+			run.protocolErr = err
+			return
+		}
+	}
+
 	for _, event := range run.eventParser.ParseNotification(envelope.Method, envelope.Params) {
 		run.emit(event)
-		if event.Type == agent.EventRunCompleted || event.Type == agent.EventRunFailed {
+		switch event.Type {
+		case agent.EventRunCompleted, agent.EventRunFailed, agent.EventRunInterrupted:
 			run.terminal = true
 			run.runFailed = event.Type == agent.EventRunFailed
+			run.interrupted = event.Type == agent.EventRunInterrupted
+			run.requestHandler.ResolveAll("turn_ended")
 			_ = run.stdin.Close()
 		}
 	}
+}
+
+func (run *appServerRun) maybeInterrupt() error {
+	if !run.cancelRequested || run.interruptSent || run.threadID == "" || run.turnID == "" {
+		return nil
+	}
+	if err := run.write(map[string]any{
+		"method": "turn/interrupt",
+		"id":     appServerInterruptRequestID,
+		"params": map[string]string{
+			"threadId": run.threadID,
+			"turnId":   run.turnID,
+		},
+	}); err != nil {
+		return err
+	}
+	run.interruptSent = true
+	return nil
 }
 
 func (run *appServerRun) responseError(responseID int, message string) error {
@@ -198,6 +337,7 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 			run.protocolErr = errors.New("Codex app-server returned an incomplete thread")
 			return
 		}
+		run.threadID = result.Thread.ID
 		// The server resolves aliases such as "auto" to the concrete model.
 		// Carry that model into the completion usage persisted for rebuilds.
 		run.eventParser.req.Model = result.Model
@@ -218,15 +358,29 @@ func (run *appServerRun) handleResponse(responseID int, resultJSON json.RawMessa
 		})
 
 	case appServerTurnRequestID:
-		// The turn response is only an acknowledgement. Streaming notifications
-		// carry all user-visible state and the terminal status.
+		var result struct {
+			Turn appServerTurnResult `json:"turn"`
+		}
+		if err := json.Unmarshal(resultJSON, &result); err != nil {
+			run.protocolErr = fmt.Errorf("decode Codex turn response: %w", err)
+			return
+		}
+		if result.Turn.ID == "" {
+			run.protocolErr = errors.New("Codex app-server returned a turn without an id")
+			return
+		}
+		run.turnID = result.Turn.ID
+		if run.cancelRequested {
+			run.protocolErr = run.maybeInterrupt()
+		}
+
+	case appServerInterruptRequestID:
+		// The acknowledgement is not terminal. Keep consuming notifications until
+		// turn/completed reports the authoritative interrupted status.
 	}
 }
 
 func (run *appServerRun) finish() error {
-	if scanErr := run.scanner.Err(); scanErr != nil && run.ctx.Err() == nil && run.protocolErr == nil {
-		run.protocolErr = fmt.Errorf("Codex app-server stdout: %w", scanErr)
-	}
 	if run.protocolErr != nil || !run.terminal {
 		_ = run.stdin.Close()
 		if run.cmd.Process != nil {
@@ -236,14 +390,14 @@ func (run *appServerRun) finish() error {
 	waitErr := run.cmd.Wait()
 	stderrText := <-run.stderrDone
 
-	if errors.Is(run.ctx.Err(), context.Canceled) {
-		return nil
-	}
 	if run.protocolErr != nil {
 		return &agentruntime.ProcessError{Err: run.protocolErr, Stderr: stderrText}
 	}
 	if run.runFailed {
 		return &agentruntime.ProcessError{Err: agent.ErrRunFailed, Stderr: stderrText}
+	}
+	if run.interrupted {
+		return nil
 	}
 	if !run.terminal {
 		if waitErr == nil {

@@ -44,7 +44,12 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		t = time.Now().UnixMilli()
 	}
 
-	out := ChatEvent{T: t}
+	out := ChatEvent{
+		T:             t,
+		Native:        ev.Native,
+		InteractionID: ev.InteractionID,
+		Status:        ev.Status,
+	}
 	switch ev.Type {
 	case agent.EventSessionUpdated:
 		out.Type = "session"
@@ -69,6 +74,35 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		out.ID = ev.ItemID
 		out.Output = ev.Output
 		out.IsError = ev.IsError
+	case agent.EventInteractionRequest:
+		out.Type = "interaction_request"
+		out.ID = ev.InteractionID
+		out.Name = ev.ToolName
+		out.Input = ev.Input
+	case agent.EventInteractionDone:
+		out.Type = "interaction_resolved"
+		out.ID = ev.InteractionID
+		out.Name = ev.ToolName
+	case agent.EventTurnStatus, agent.EventRunInterrupted:
+		out.Type = "turn_status"
+		out.Data = ev.Data
+		if ev.Type == agent.EventRunInterrupted && out.Status == "" {
+			out.Status = "interrupted"
+		}
+	case agent.EventCollaboration:
+		out.Type = "collaboration"
+		out.ID = ev.ItemID
+		out.Name = ev.ToolName
+		out.Data = ev.Data
+	case agent.EventProviderNative:
+		out.Type = "provider_event"
+		if ev.Native != nil {
+			out.Name = ev.Native.Method
+		}
+		out.Data = ev.Data
+	case agent.EventUsageUpdated:
+		out.Type = "usage_update"
+		out.Usage = ev.Usage
 	case agent.EventRunCompleted:
 		out.Type = "complete"
 		// Persist the provider per turn. A chat can switch agents, so its current

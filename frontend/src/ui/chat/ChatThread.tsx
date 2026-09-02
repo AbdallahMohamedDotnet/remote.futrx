@@ -22,6 +22,7 @@ export function ChatThread({
   onScroll,
   onJumpToBottom,
   onAnswerQuestion,
+  onRespondInteraction,
   onLoadOlder,
   onRewind,
   actions,
@@ -42,6 +43,7 @@ export function ChatThread({
   onScroll: () => void;
   onJumpToBottom: () => void;
   onAnswerQuestion: (text: string) => void;
+  onRespondInteraction?: (interactionId: string, result?: unknown, error?: unknown) => boolean;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
   /** Workspace controls. Rendered in the header on desktop and in the toolbar
@@ -77,6 +79,7 @@ export function ChatThread({
             bottomRef={bottomRef}
             onScroll={onScroll}
             onAnswerQuestion={onAnswerQuestion}
+            onRespondInteraction={onRespondInteraction}
             onLoadOlder={onLoadOlder}
             onRewind={onRewind}
           />

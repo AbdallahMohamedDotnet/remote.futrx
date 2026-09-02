@@ -15,6 +15,8 @@ var (
 	ErrInvalidChatMode        = errors.New("invalid chat mode")
 	ErrInvalidReasoningEffort = errors.New("invalid reasoning effort")
 	ErrInvalidServiceTier     = errors.New("invalid service tier")
+	ErrInvalidApprovalPolicy  = errors.New("invalid approval policy")
+	ErrInvalidSandboxPolicy   = errors.New("invalid sandbox policy")
 )
 
 type Key string
@@ -70,6 +72,8 @@ const (
 )
 
 type ServiceTier string
+type ApprovalPolicy string
+type SandboxPolicy string
 
 const (
 	ServiceTierAuto     ServiceTier = ""
@@ -84,6 +88,8 @@ type Chat struct {
 	Mode            ChatMode        `json:"mode"`
 	ReasoningEffort ReasoningEffort `json:"reasoningEffort"`
 	ServiceTier     ServiceTier     `json:"serviceTier"`
+	ApprovalPolicy  ApprovalPolicy  `json:"approvalPolicy"`
+	SandboxPolicy   SandboxPolicy   `json:"sandboxPolicy"`
 }
 
 type UpdateInput struct {
@@ -101,6 +107,8 @@ type ChatUpdate struct {
 	Mode            *ChatMode        `json:"mode,omitempty"`
 	ReasoningEffort *ReasoningEffort `json:"reasoningEffort,omitempty"`
 	ServiceTier     *ServiceTier     `json:"serviceTier,omitempty"`
+	ApprovalPolicy  *ApprovalPolicy  `json:"approvalPolicy,omitempty"`
+	SandboxPolicy   *SandboxPolicy   `json:"sandboxPolicy,omitempty"`
 }
 
 func DefaultSettings() Settings {
@@ -112,6 +120,8 @@ func DefaultSettings() Settings {
 			Mode:            ChatModeDefault,
 			ReasoningEffort: ReasoningEffortAuto,
 			ServiceTier:     ServiceTierAuto,
+			ApprovalPolicy:  ApprovalPolicy("on-request"),
+			SandboxPolicy:   SandboxPolicy("workspaceWrite"),
 		},
 	}
 }
@@ -144,6 +154,24 @@ func ValidReasoningEffort(effort ReasoningEffort) bool {
 
 func ValidServiceTier(tier ServiceTier) bool {
 	return validCapabilityValue(string(tier))
+}
+
+func ValidApprovalPolicy(policy ApprovalPolicy) bool {
+	switch strings.TrimSpace(string(policy)) {
+	case "untrusted", "on-request", "never":
+		return true
+	default:
+		return false
+	}
+}
+
+func ValidSandboxPolicy(policy SandboxPolicy) bool {
+	switch strings.TrimSpace(string(policy)) {
+	case "readOnly", "workspaceWrite", "dangerFullAccess":
+		return true
+	default:
+		return false
+	}
 }
 
 func validCapabilityValue(value string) bool {

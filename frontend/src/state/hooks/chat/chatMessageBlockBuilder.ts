@@ -6,6 +6,7 @@ import type {
 } from "../../../models/chatMessage";
 
 type AssistantToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
+type AssistantInteractionPart = Extract<AssistantMessagePart, { kind: "interaction" }>;
 
 // Folds a chat's event stream into the blocks the transcript renders: user
 // turns, assistant turns built up part by part, and errors. Separate from the
@@ -55,10 +56,72 @@ class ChatMessageBlockBuilder {
           isError: event.isError,
           status: "done",
         });
+      case "interaction_request": {
+        const { blocks: next, assistant } = this.ensureTrailingAssistant(blocks, event.t);
+        assistant.parts.push({
+          kind: "interaction",
+          id: event.id,
+          method: event.name,
+          input: event.input ?? {},
+          interactionKind: event.status || "provider_request",
+          status: "pending",
+        });
+        return next;
+      }
+      case "interaction_resolved":
+        return this.updateInteraction(blocks, event.id, { status: event.status || "resolved" });
+      case "collaboration": {
+        const { blocks: next, assistant } = this.ensureTrailingAssistant(blocks, event.t);
+        const existing = assistant.parts.findIndex(
+          (part) => part.kind === "collaboration" && part.id === event.id,
+        );
+        const part: AssistantMessagePart = {
+          kind: "collaboration",
+          id: event.id,
+          name: event.name,
+          data: event.data ?? {},
+          status: event.status || "inProgress",
+        };
+        if (existing >= 0) assistant.parts[existing] = part;
+        else assistant.parts.push(part);
+        return next;
+      }
+      case "turn_status": {
+        const { blocks: next, assistant } = this.ensureTrailingAssistant(blocks, event.t);
+        const existing = assistant.parts.findIndex((part) => part.kind === "turn-status");
+        const part: AssistantMessagePart = {
+          kind: "turn-status",
+          status: event.status || "unknown",
+          data: event.data,
+        };
+        if (existing >= 0) assistant.parts[existing] = part;
+        else assistant.parts.push(part);
+        if (["completed", "failed", "interrupted"].includes(part.status)) {
+          return this.endTrailingAssistant(next);
+        }
+        return next;
+      }
+      case "provider_event": {
+        const { blocks: next, assistant } = this.ensureTrailingAssistant(blocks, event.t);
+        assistant.parts.push({
+          kind: "provider-event",
+          id: `${event.seq ?? event.t}-${event.name || "event"}`,
+          name: event.name || "Codex event",
+          data: event.data,
+          status: event.status,
+        });
+        return next;
+      }
       case "complete":
-        return this.endTrailingAssistant(blocks);
+		return this.endTrailingAssistant(this.updateTrailingTurnStatus(
+		  blocks,
+		  event.status || "completed",
+		));
       case "error": {
-        const next = this.endTrailingAssistant(blocks);
+		const withStatus = event.status === "failed"
+		  ? this.updateTrailingTurnStatus(blocks, "failed")
+		  : blocks;
+		const next = this.endTrailingAssistant(withStatus);
         return [...next, { type: "error", message: event.message, t: event.t }];
       }
       default:
@@ -117,6 +180,47 @@ class ChatMessageBlockBuilder {
     next[lastIndex] = { ...last, parts };
     return next;
   }
+
+  private updateInteraction(
+    blocks: ChatMessageBlock[],
+    id: string,
+    patch: Partial<AssistantInteractionPart>,
+  ): ChatMessageBlock[] {
+    for (let blockIndex = blocks.length - 1; blockIndex >= 0; blockIndex--) {
+      const block = blocks[blockIndex];
+      if (block.type !== "assistant") continue;
+      const partIndex = block.parts.findIndex(
+        (part) => part.kind === "interaction" && part.id === id,
+      );
+      if (partIndex < 0) continue;
+      const part = block.parts[partIndex];
+      if (part.kind !== "interaction") return blocks;
+      const next = blocks.slice();
+      const parts = block.parts.slice();
+      parts[partIndex] = { ...part, ...patch };
+      next[blockIndex] = { ...block, parts };
+      return next;
+    }
+    return blocks;
+  }
+
+	private updateTrailingTurnStatus(
+		blocks: ChatMessageBlock[],
+		status: string,
+	): ChatMessageBlock[] {
+		const lastIndex = blocks.length - 1;
+		const last = blocks[lastIndex];
+		if (!last || last.type !== "assistant") return blocks;
+		const partIndex = last.parts.findIndex((part) => part.kind === "turn-status");
+		if (partIndex < 0) return blocks;
+		const part = last.parts[partIndex];
+		if (part.kind !== "turn-status") return blocks;
+		const next = blocks.slice();
+		const parts = last.parts.slice();
+		parts[partIndex] = { ...part, status };
+		next[lastIndex] = { ...last, parts };
+		return next;
+	}
 }
 
 export const chatMessageBlockBuilder = new ChatMessageBlockBuilder();

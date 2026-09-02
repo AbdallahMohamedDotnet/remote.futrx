@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -37,6 +38,8 @@ type agentBrowserActivityRecorder interface {
 
 var ErrPromptAlreadyRunning = errors.New("a previous prompt is still running")
 var ErrUnsupportedAgentScope = errors.New("agent does not support this chat execution scope")
+var ErrNoPendingInteraction = errors.New("no active agent interaction for this chat")
+var ErrInteractionQueueFull = errors.New("agent interaction response queue is full")
 
 type Actor struct {
 	Email   string
@@ -117,14 +120,21 @@ func WithAgentPolicy(policy AgentPolicy) Option {
 }
 
 type Service struct {
-	store         servicechat.Repository
-	tmux          TmuxClient
-	projects      ProjectResolver
-	hub           *runhub.Hub
-	agents        AgentRegistry
-	agentPolicy   AgentPolicy
-	scheduleTools ScheduleToolIssuer
-	usage         UsageRecorder
+	store          servicechat.Repository
+	tmux           TmuxClient
+	projects       ProjectResolver
+	hub            *runhub.Hub
+	agents         AgentRegistry
+	agentPolicy    AgentPolicy
+	scheduleTools  ScheduleToolIssuer
+	usage          UsageRecorder
+	interactionsMu sync.Mutex
+	interactions   map[servicechat.ID]interactionRoute
+}
+
+type interactionRoute struct {
+	runID     uint64
+	responses chan agent.InteractionResponse
 }
 
 func New(
@@ -139,11 +149,12 @@ func New(
 		hub = runhub.New(store)
 	}
 	service := &Service{
-		store:    store,
-		tmux:     tmux,
-		projects: projects,
-		hub:      hub,
-		agents:   agents,
+		store:        store,
+		tmux:         tmux,
+		projects:     projects,
+		hub:          hub,
+		agents:       agents,
+		interactions: make(map[servicechat.ID]interactionRoute),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -175,17 +186,21 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 		})
 		return RunHandle{}, ErrPromptAlreadyRunning
 	}
+	responses := make(chan agent.InteractionResponse, 64)
+	rnr.setInteractionRoute(input.ChatID, interactionRoute{runID: runID, responses: responses})
 
 	done := make(chan RunResult, 1)
 	ledgerRunID := newLedgerRunID()
 	go func() {
 		defer close(done)
 		defer rnr.hub.FinishRun(input.ChatID, runID)
+		defer rnr.clearInteractionRoute(input.ChatID, runID)
 		var output strings.Builder
 		err := rnr.runPromptAs(
 			ctx,
 			input,
 			ledgerRunID,
+			responses,
 			func(ev ChatEvent) {
 				// Stamp the originating task so a scheduled run's events stay
 				// distinguishable from an interactive turn's downstream.
@@ -206,6 +221,38 @@ func (rnr *Service) CancelPrompt(id servicechat.ID) bool {
 	return rnr.hub.CancelRun(id)
 }
 
+func (rnr *Service) RespondInteraction(id servicechat.ID, response agent.InteractionResponse) error {
+	if strings.TrimSpace(response.ID) == "" || (len(response.Result) == 0 && len(response.Error) == 0) {
+		return ErrNoPendingInteraction
+	}
+	rnr.interactionsMu.Lock()
+	route, ok := rnr.interactions[id]
+	rnr.interactionsMu.Unlock()
+	if !ok {
+		return ErrNoPendingInteraction
+	}
+	select {
+	case route.responses <- response:
+		return nil
+	default:
+		return ErrInteractionQueueFull
+	}
+}
+
+func (rnr *Service) setInteractionRoute(id servicechat.ID, route interactionRoute) {
+	rnr.interactionsMu.Lock()
+	rnr.interactions[id] = route
+	rnr.interactionsMu.Unlock()
+}
+
+func (rnr *Service) clearInteractionRoute(id servicechat.ID, runID uint64) {
+	rnr.interactionsMu.Lock()
+	if route, ok := rnr.interactions[id]; ok && route.runID == runID {
+		delete(rnr.interactions, id)
+	}
+	rnr.interactionsMu.Unlock()
+}
+
 func (rnr *Service) runPrompt(
 	ctx context.Context,
 	id servicechat.ID,
@@ -217,6 +264,7 @@ func (rnr *Service) runPrompt(
 		ctx,
 		StartInput{ChatID: id, Prompt: prompt},
 		newLedgerRunID(),
+		nil,
 		emit,
 		emitTransient,
 	)
@@ -226,6 +274,7 @@ func (rnr *Service) runPromptAs(
 	ctx context.Context,
 	input StartInput,
 	ledgerRunID string,
+	interactionResponses <-chan agent.InteractionResponse,
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) error {
@@ -379,10 +428,13 @@ func (rnr *Service) runPromptAs(
 			Preferences: agent.RunPreferences{
 				ReasoningEffort: agent.ReasoningEffort(meta.ReasoningEffort),
 				ServiceTier:     agent.ServiceTier(meta.ServiceTier),
+				ApprovalPolicy:  servicechat.NormalizeApprovalPolicy(meta.ApprovalPolicy),
+				SandboxPolicy:   servicechat.NormalizeSandboxPolicy(meta.SandboxPolicy),
 			},
-			EnableBrowser:       enableBrowser,
-			EnableScheduleTools: enableScheduleTools,
-			RuntimeEnv:          runtimeEnv,
+			EnableBrowser:        enableBrowser,
+			EnableScheduleTools:  enableScheduleTools,
+			RuntimeEnv:           runtimeEnv,
+			InteractionResponses: interactionResponses,
 		}, func(ev agent.Event) {
 			// qa added the provider argument; the ledger hook is this
 			// branch's and sits after the emit as before.

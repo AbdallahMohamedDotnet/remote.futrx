@@ -1,10 +1,12 @@
 import type {
   ChatMeta,
+  ApprovalPolicy,
   ChatMode,
   ChatProvider,
   ReasoningEffort,
   SelectedSkill,
   ServiceTier,
+  SandboxPolicy,
 } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import { useUserSettingsContext } from "../../context/UserSettingsContext";
@@ -57,9 +59,14 @@ export function useChatPreferences({
     });
   }
 
-  function changeMode(mode: ChatMode) {
-    metaActions.applyMeta({ mode });
-    void setChatSettings({ mode });
+  function changeMode(mode: ChatMode, modelPreset?: string, reasoningPreset?: string) {
+    const patch = {
+      mode,
+      ...(modelPreset ? { model: modelPreset } : {}),
+      ...(reasoningPreset ? { reasoningEffort: reasoningPreset } : {}),
+    };
+    metaActions.applyMeta(patch);
+    void setChatSettings(patch);
   }
 
   function changeReasoningEffort(reasoningEffort: ReasoningEffort) {
@@ -72,6 +79,16 @@ export function useChatPreferences({
     void setChatSettings({ serviceTier });
   }
 
+  function changeApprovalPolicy(approvalPolicy: ApprovalPolicy) {
+    metaActions.applyMeta({ approvalPolicy });
+    void setChatSettings({ approvalPolicy });
+  }
+
+  function changeSandboxPolicy(sandboxPolicy: SandboxPolicy) {
+    metaActions.applyMeta({ sandboxPolicy });
+    void setChatSettings({ sandboxPolicy });
+  }
+
   return {
     displayMeta,
     displayMode,
@@ -80,6 +97,8 @@ export function useChatPreferences({
     changeMode,
     changeReasoningEffort,
     changeServiceTier,
+    changeApprovalPolicy,
+    changeSandboxPolicy,
     selectSkill,
     removeSelectedSkill,
   };

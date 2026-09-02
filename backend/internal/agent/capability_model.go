@@ -1,5 +1,7 @@
 package agent
 
+import "encoding/json"
+
 type CapabilitySource string
 
 const (
@@ -10,9 +12,12 @@ const (
 // CapabilityOption is the provider-neutral shape used by reasoning-effort,
 // service-tier (speed), and provider-native mode selectors.
 type CapabilityOption struct {
-	Value       string `json:"value"`
-	Label       string `json:"label"`
-	Description string `json:"description,omitempty"`
+	Value           string          `json:"value"`
+	Label           string          `json:"label"`
+	Description     string          `json:"description,omitempty"`
+	Model           string          `json:"model,omitempty"`
+	ReasoningEffort string          `json:"reasoningEffort,omitempty"`
+	Raw             json.RawMessage `json:"raw,omitempty"`
 }
 
 // ModelCapability keeps controls next to the model that supports them. Some
@@ -27,6 +32,15 @@ type ModelCapability struct {
 	DefaultReasoningEffort string             `json:"defaultReasoningEffort,omitempty"`
 	ServiceTiers           []CapabilityOption `json:"serviceTiers"`
 	DefaultServiceTier     string             `json:"defaultServiceTier,omitempty"`
+	InputModalities        []string           `json:"inputModalities,omitempty"`
+	SupportsPersonality    bool               `json:"supportsPersonality,omitempty"`
+	MultiAgentVersion      string             `json:"multiAgentVersion,omitempty"`
+	Hidden                 bool               `json:"hidden,omitempty"`
+	ModelSpecialty         string             `json:"modelSpecialty,omitempty"`
+	Upgrade                string             `json:"upgrade,omitempty"`
+	UpgradeInfo            json.RawMessage    `json:"upgradeInfo,omitempty"`
+	AvailabilityNux        json.RawMessage    `json:"availabilityNux,omitempty"`
+	Raw                    json.RawMessage    `json:"raw,omitempty"`
 }
 
 type CapabilityAuthentication struct {

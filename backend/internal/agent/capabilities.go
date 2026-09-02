@@ -65,24 +65,39 @@ func ProviderModes(supportsPlan bool) []CapabilityOption {
 // chooses the actual model.
 func WithAutoModel(models []ModelCapability, description string) []ModelCapability {
 	auto := ModelCapability{ID: "", Label: "Auto", Description: description}
+	foundDefault := false
 	for _, model := range models {
 		if model.ProviderDefault {
-			auto.ReasoningEfforts = cloneOptions(model.ReasoningEfforts)
-			auto.DefaultReasoningEffort = model.DefaultReasoningEffort
-			auto.ServiceTiers = cloneOptions(model.ServiceTiers)
-			auto.DefaultServiceTier = model.DefaultServiceTier
+			auto = autoModelCapability(auto, model)
+			foundDefault = true
 			break
 		}
 	}
-	if len(auto.ReasoningEfforts) == 0 && len(models) > 0 {
-		auto.ReasoningEfforts = cloneOptions(models[0].ReasoningEfforts)
-		auto.DefaultReasoningEffort = models[0].DefaultReasoningEffort
-		auto.ServiceTiers = cloneOptions(models[0].ServiceTiers)
-		auto.DefaultServiceTier = models[0].DefaultServiceTier
+	if !foundDefault && len(models) > 0 {
+		auto = autoModelCapability(auto, models[0])
 	}
 	return append([]ModelCapability{auto}, models...)
 }
 
+func autoModelCapability(auto, source ModelCapability) ModelCapability {
+	auto.ReasoningEfforts = cloneOptions(source.ReasoningEfforts)
+	auto.DefaultReasoningEffort = source.DefaultReasoningEffort
+	auto.ServiceTiers = cloneOptions(source.ServiceTiers)
+	auto.DefaultServiceTier = source.DefaultServiceTier
+	auto.InputModalities = append([]string(nil), source.InputModalities...)
+	auto.SupportsPersonality = source.SupportsPersonality
+	auto.MultiAgentVersion = source.MultiAgentVersion
+	auto.ModelSpecialty = source.ModelSpecialty
+	auto.Upgrade = source.Upgrade
+	auto.UpgradeInfo = append([]byte(nil), source.UpgradeInfo...)
+	auto.AvailabilityNux = append([]byte(nil), source.AvailabilityNux...)
+	return auto
+}
+
 func cloneOptions(options []CapabilityOption) []CapabilityOption {
-	return append([]CapabilityOption(nil), options...)
+	cloned := append([]CapabilityOption(nil), options...)
+	for index := range cloned {
+		cloned[index].Raw = append([]byte(nil), options[index].Raw...)
+	}
+	return cloned
 }

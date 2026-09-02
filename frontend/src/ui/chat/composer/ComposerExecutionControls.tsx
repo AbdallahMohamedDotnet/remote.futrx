@@ -1,4 +1,7 @@
-import { Activity, Cpu, MessageSquare } from "../../primitives/icons";
+import { Activity, Cpu, Lock, MessageSquare, ShieldCheck } from "../../primitives/icons";
+import type { AgentCapabilityOption } from "../../../models/agentCapabilities";
+import type { ApprovalPolicy, SandboxPolicy } from "../../../models/chat";
+import type { ComposerOption } from "./ComposerOptionDropdown";
 import { ComposerOptionDropdown } from "./ComposerOptionDropdown";
 import type { ComposerPreferenceActions, ComposerPreferences } from "./preferences";
 
@@ -15,8 +18,18 @@ export function ComposerExecutionControls({
   streaming: boolean;
   reasoningEffortOptions: readonly { value: string; label: string }[];
   serviceTierOptions: readonly { value: string; label: string }[];
-  modeOptions: readonly { value: string; label: string }[];
+  modeOptions: readonly AgentCapabilityOption[];
 }) {
+	const approvalOptions: ComposerOption<ApprovalPolicy>[] = [
+		{ value: "on-request", label: "Ask when needed" },
+		{ value: "untrusted", label: "Untrusted only" },
+		{ value: "never", label: "Never ask" },
+	];
+	const sandboxOptions: ComposerOption<SandboxPolicy>[] = [
+		{ value: "workspaceWrite", label: "Workspace write" },
+		{ value: "readOnly", label: "Read only" },
+		{ value: "dangerFullAccess", label: "Full access" },
+	];
   return (
     <div class="codex-composer-execution-controls flex min-w-0 flex-wrap items-center gap-1">
       {reasoningEffortOptions.length > 0 && (
@@ -47,7 +60,32 @@ export function ComposerExecutionControls({
           value={preferences.mode}
           options={modeOptions}
           Icon={MessageSquare}
-          onChange={preferenceActions.changeMode}
+          onChange={(mode) => {
+            const preset = modeOptions.find((option) => option.value === mode);
+            preferenceActions.changeMode(mode, preset?.model, preset?.reasoningEffort);
+          }}
+        />
+      )}
+
+      {preferences.provider === "codex" && (
+        <ComposerOptionDropdown
+          label="Approvals"
+          value={preferences.approvalPolicy}
+          options={approvalOptions}
+          disabled={streaming}
+          Icon={ShieldCheck}
+          onChange={preferenceActions.changeApprovalPolicy}
+        />
+      )}
+
+      {preferences.provider === "codex" && (
+        <ComposerOptionDropdown
+          label="Sandbox"
+          value={preferences.sandboxPolicy}
+          options={sandboxOptions}
+          disabled={streaming}
+          Icon={Lock}
+          onChange={preferenceActions.changeSandboxPolicy}
         />
       )}
     </div>

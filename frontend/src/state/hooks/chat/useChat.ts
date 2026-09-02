@@ -25,6 +25,7 @@ interface UseChatResult {
   sendPrompt: (text: string, clientId?: string) => boolean;
   promptOutcome: PromptOutcome | null;
   cancel: () => void;
+  respondInteraction: (interactionId: string, result?: unknown, error?: unknown) => boolean;
   rewind: (beforeT: number) => Promise<ChatEventPage>;
   loadOlder: () => Promise<void>;
   refreshMeta: () => Promise<void>;
@@ -201,6 +202,12 @@ export function useChat(chatId: string): UseChatResult {
     if (stream?.isOpen) stream.cancel();
   }, []);
 
+  const respondInteraction = useCallback((interactionId: string, result?: unknown, responseError?: unknown) => {
+    const stream = streamRef.current;
+    if (!wsReady || !synced || !stream?.isOpen || status !== "streaming") return false;
+    return stream.respondInteraction(interactionId, result, responseError);
+  }, [status, wsReady, synced]);
+
   const rewind = useCallback(async (beforeT: number) => {
     const res = await chatApi.rewind(chatId, beforeT);
     clearPendingEvents();
@@ -247,6 +254,7 @@ export function useChat(chatId: string): UseChatResult {
     sendPrompt,
     promptOutcome,
     cancel,
+    respondInteraction,
     rewind,
     loadOlder,
     refreshMeta,

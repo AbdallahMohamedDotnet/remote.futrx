@@ -47,6 +47,14 @@ class ReconnectingChatStream implements ChatStream {
     return this.#connection.send({ type: CHAT_STREAM_MESSAGE_TYPES.cancel });
   }
 
+  respondInteraction(interactionId: string, result?: unknown, error?: unknown): boolean {
+    return this.#connection.send({
+      type: CHAT_STREAM_MESSAGE_TYPES.interactionResponse,
+      interactionId,
+      ...(error === undefined ? { result } : { error }),
+    });
+  }
+
   close(): void {
     this.#connection.stop();
   }

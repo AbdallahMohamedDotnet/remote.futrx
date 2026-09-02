@@ -9,6 +9,7 @@ export function MessageBlock({
   chatId,
   cwd,
   onAnswerQuestion,
+  onRespondInteraction,
   onRewind,
 }: {
   block: ChatMessageBlock;
@@ -16,6 +17,7 @@ export function MessageBlock({
   chatId?: string;
   cwd?: string;
   onAnswerQuestion?: (text: string) => void;
+  onRespondInteraction?: (interactionId: string, result?: unknown, error?: unknown) => boolean;
   onRewind?: (t: number, text: string) => void;
 }) {
   if (block.type === "user") {
@@ -33,6 +35,7 @@ export function MessageBlock({
       chatId={chatId}
       cwd={cwd}
       onAnswerQuestion={onAnswerQuestion}
+      onRespondInteraction={onRespondInteraction}
     />
   );
 }

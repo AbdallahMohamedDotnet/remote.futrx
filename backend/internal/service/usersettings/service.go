@@ -117,6 +117,20 @@ func (s *Service) Update(ctx context.Context, key Key, input UpdateInput) (Setti
 			}
 			settings.Chat.ServiceTier = tier
 		}
+		if input.Chat.ApprovalPolicy != nil {
+			policy := ApprovalPolicy(strings.TrimSpace(string(*input.Chat.ApprovalPolicy)))
+			if !ValidApprovalPolicy(policy) {
+				return Settings{}, ErrInvalidApprovalPolicy
+			}
+			settings.Chat.ApprovalPolicy = policy
+		}
+		if input.Chat.SandboxPolicy != nil {
+			policy := SandboxPolicy(strings.TrimSpace(string(*input.Chat.SandboxPolicy)))
+			if !ValidSandboxPolicy(policy) {
+				return Settings{}, ErrInvalidSandboxPolicy
+			}
+			settings.Chat.SandboxPolicy = policy
+		}
 	}
 
 	settings.UpdatedAt = time.Now().UnixMilli()
@@ -144,6 +158,14 @@ func (s *Service) normalize(settings Settings) Settings {
 	settings.Chat.ServiceTier = normalizeServiceTier(settings.Chat.ServiceTier)
 	if !ValidServiceTier(settings.Chat.ServiceTier) {
 		settings.Chat.ServiceTier = defaults.Chat.ServiceTier
+	}
+	settings.Chat.ApprovalPolicy = ApprovalPolicy(strings.TrimSpace(string(settings.Chat.ApprovalPolicy)))
+	if !ValidApprovalPolicy(settings.Chat.ApprovalPolicy) {
+		settings.Chat.ApprovalPolicy = defaults.Chat.ApprovalPolicy
+	}
+	settings.Chat.SandboxPolicy = SandboxPolicy(strings.TrimSpace(string(settings.Chat.SandboxPolicy)))
+	if !ValidSandboxPolicy(settings.Chat.SandboxPolicy) {
+		settings.Chat.SandboxPolicy = defaults.Chat.SandboxPolicy
 	}
 	return settings
 }

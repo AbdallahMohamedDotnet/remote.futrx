@@ -11,6 +11,7 @@ const (
 	appServerInitializeRequestID = 1
 	appServerThreadRequestID     = 2
 	appServerTurnRequestID       = 3
+	appServerInterruptRequestID  = 4
 )
 
 type appServerEnvelope struct {
@@ -82,23 +83,34 @@ type appServerSandboxPolicy struct {
 }
 
 type appServerItem struct {
-	ID               string          `json:"id,omitempty"`
-	Type             string          `json:"type,omitempty"`
-	Text             string          `json:"text,omitempty"`
-	Command          string          `json:"command,omitempty"`
-	AggregatedOutput string          `json:"aggregatedOutput,omitempty"`
-	ExitCode         *int            `json:"exitCode,omitempty"`
-	Status           string          `json:"status,omitempty"`
-	Server           string          `json:"server,omitempty"`
-	Tool             string          `json:"tool,omitempty"`
-	Namespace        string          `json:"namespace,omitempty"`
-	Arguments        json.RawMessage `json:"arguments,omitempty"`
-	Result           json.RawMessage `json:"result,omitempty"`
-	Error            json.RawMessage `json:"error,omitempty"`
-	Changes          json.RawMessage `json:"changes,omitempty"`
-	Query            string          `json:"query,omitempty"`
-	Action           json.RawMessage `json:"action,omitempty"`
-	Raw              json.RawMessage `json:"-"`
+	ID                string                         `json:"id,omitempty"`
+	Type              string                         `json:"type,omitempty"`
+	Text              string                         `json:"text,omitempty"`
+	Command           string                         `json:"command,omitempty"`
+	AggregatedOutput  string                         `json:"aggregatedOutput,omitempty"`
+	ExitCode          *int                           `json:"exitCode,omitempty"`
+	Status            string                         `json:"status,omitempty"`
+	Server            string                         `json:"server,omitempty"`
+	Tool              string                         `json:"tool,omitempty"`
+	Namespace         string                         `json:"namespace,omitempty"`
+	Arguments         json.RawMessage                `json:"arguments,omitempty"`
+	Result            json.RawMessage                `json:"result,omitempty"`
+	Error             json.RawMessage                `json:"error,omitempty"`
+	Changes           json.RawMessage                `json:"changes,omitempty"`
+	Query             string                         `json:"query,omitempty"`
+	Action            json.RawMessage                `json:"action,omitempty"`
+	SenderThreadID    string                         `json:"senderThreadId,omitempty"`
+	ReceiverThreadIDs []string                       `json:"receiverThreadIds,omitempty"`
+	AgentsStates      map[string]appServerAgentState `json:"agentsStates,omitempty"`
+	Prompt            *string                        `json:"prompt,omitempty"`
+	Model             *string                        `json:"model,omitempty"`
+	ReasoningEffort   *string                        `json:"reasoningEffort,omitempty"`
+	Raw               json.RawMessage                `json:"-"`
+}
+
+type appServerAgentState struct {
+	Status  string  `json:"status"`
+	Message *string `json:"message,omitempty"`
 }
 
 func (item *appServerItem) UnmarshalJSON(data []byte) error {
@@ -141,18 +153,43 @@ type appServerTurnCompletedParams struct {
 	Turn appServerTurnResult `json:"turn"`
 }
 
+type appServerThreadStatusParams struct {
+	ThreadID string `json:"threadId"`
+	Status   struct {
+		Type        string   `json:"type"`
+		ActiveFlags []string `json:"activeFlags,omitempty"`
+	} `json:"status"`
+}
+
+type appServerRequestResolvedParams struct {
+	ThreadID  string          `json:"threadId"`
+	RequestID json.RawMessage `json:"requestId"`
+}
+
 type appServerTurnResult struct {
+	ID     string          `json:"id"`
 	Status string          `json:"status"`
 	Error  *appServerError `json:"error"`
 }
 
 type appServerErrorParams struct {
-	Message string `json:"message"`
+	Error     appServerErrorDetail `json:"error"`
+	WillRetry bool                 `json:"willRetry,omitempty"`
+}
+
+type appServerErrorDetail struct {
+	Message           string          `json:"message"`
+	CodexErrorInfo    json.RawMessage `json:"codexErrorInfo,omitempty"`
+	AdditionalDetails json.RawMessage `json:"additionalDetails,omitempty"`
 }
 
 type appServerUserInputRequestParams struct {
-	ItemID    string                  `json:"itemId"`
-	Questions []appServerUserQuestion `json:"questions"`
+	ThreadID         string                  `json:"threadId"`
+	TurnID           string                  `json:"turnId"`
+	ItemID           string                  `json:"itemId"`
+	Questions        []appServerUserQuestion `json:"questions"`
+	IsBlocking       bool                    `json:"isBlocking"`
+	AutoResolutionMs *uint64                 `json:"autoResolutionMs"`
 }
 
 type appServerUserQuestion struct {
@@ -160,6 +197,8 @@ type appServerUserQuestion struct {
 	ID       string                    `json:"id"`
 	Question string                    `json:"question"`
 	Options  []appServerQuestionOption `json:"options"`
+	IsOther  bool                      `json:"isOther"`
+	IsSecret bool                      `json:"isSecret"`
 }
 
 type appServerQuestionOption struct {
@@ -168,11 +207,13 @@ type appServerQuestionOption struct {
 }
 
 func buildAppServerThreadRequest(req agent.RunRequest) appServerThreadRequest {
+	approvalPolicy := normalizeApprovalPolicy(req.Preferences.ApprovalPolicy)
+	sandboxPolicy := normalizeSandboxPolicy(req.Preferences.SandboxPolicy)
 	request := appServerThreadRequest{
 		Method: "thread/start",
 		Params: appServerThreadParams{
-			ApprovalPolicy: "never",
-			Sandbox:        "danger-full-access",
+			ApprovalPolicy: approvalPolicy,
+			Sandbox:        legacySandboxMode(sandboxPolicy),
 			ServiceName:    "remote-futrx",
 		},
 	}
@@ -204,17 +245,12 @@ func buildAppServerTurnParams(req agent.RunRequest, threadID, model string) appS
 		mode = agent.RunModePlan
 	}
 	effort := reasoningEffortArg(req.Preferences.ReasoningEffort)
-	if effort == "" && mode == agent.RunModePlan {
-		// Codex's native Plan preset uses medium reasoning when the user has not
-		// selected an explicit effort.
-		effort = "medium"
-	}
 	var reasoningEffort *string
 	if effort != "" {
 		reasoningEffort = &effort
 	}
 	params := appServerTurnParams{
-		ApprovalPolicy: "never",
+		ApprovalPolicy: normalizeApprovalPolicy(req.Preferences.ApprovalPolicy),
 		CollaborationMode: appServerCollaborationMode{
 			Mode: mode,
 			Settings: appServerCollaborationSettings{
@@ -225,13 +261,42 @@ func buildAppServerTurnParams(req agent.RunRequest, threadID, model string) appS
 		Effort:        effort,
 		Input:         []appServerUserInput{{Text: req.Prompt, Type: "text"}},
 		Model:         model,
-		SandboxPolicy: appServerSandboxPolicy{Type: "dangerFullAccess"},
+		SandboxPolicy: appServerSandboxPolicy{Type: normalizeSandboxPolicy(req.Preferences.SandboxPolicy)},
 		ThreadID:      threadID,
 	}
 	if tier := serviceTierArg(req.Preferences.ServiceTier); tier != "" {
 		params.ServiceTier = tier
 	}
 	return params
+}
+
+func normalizeApprovalPolicy(policy string) string {
+	switch strings.TrimSpace(policy) {
+	case "never", "untrusted", "on-request":
+		return strings.TrimSpace(policy)
+	default:
+		return "on-request"
+	}
+}
+
+func normalizeSandboxPolicy(policy string) string {
+	switch strings.TrimSpace(policy) {
+	case "readOnly", "workspaceWrite", "dangerFullAccess":
+		return strings.TrimSpace(policy)
+	default:
+		return "workspaceWrite"
+	}
+}
+
+func legacySandboxMode(policy string) string {
+	switch normalizeSandboxPolicy(policy) {
+	case "readOnly":
+		return "read-only"
+	case "dangerFullAccess":
+		return "danger-full-access"
+	default:
+		return "workspace-write"
+	}
 }
 
 func rpcResponseID(raw json.RawMessage) (int, bool) {

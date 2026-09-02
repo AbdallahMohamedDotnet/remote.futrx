@@ -22,6 +22,7 @@ export function MessageList({
   bottomRef,
   onScroll,
   onAnswerQuestion,
+  onRespondInteraction,
   onLoadOlder,
   onRewind,
 }: {
@@ -37,6 +38,7 @@ export function MessageList({
   bottomRef: RefObject<HTMLDivElement>;
   onScroll: () => void;
   onAnswerQuestion: (text: string) => void;
+  onRespondInteraction?: (interactionId: string, result?: unknown, error?: unknown) => boolean;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
 }) {
@@ -108,6 +110,7 @@ export function MessageList({
               chatId={chatId}
               cwd={cwd}
               onAnswerQuestion={onAnswerQuestion}
+              onRespondInteraction={onRespondInteraction}
               onRewind={onRewind}
             />
           );

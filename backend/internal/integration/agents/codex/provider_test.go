@@ -213,8 +213,25 @@ func TestNativePlanTurnUsesCollaborationMode(t *testing.T) {
 		t.Fatalf("collaboration mode = %#v", params.CollaborationMode)
 	}
 	settings := params.CollaborationMode.Settings
-	if settings.DeveloperInstructions != nil || settings.ReasoningEffort == nil || *settings.ReasoningEffort != "medium" {
+	if settings.DeveloperInstructions != nil || settings.ReasoningEffort != nil {
 		t.Fatalf("plan settings = %#v", settings)
+	}
+}
+
+func TestNativePlanTurnUsesSelectedReasoningPreset(t *testing.T) {
+	params := buildAppServerTurnParams(
+		agent.RunRequest{
+			Mode: agent.RunModePlan,
+			Preferences: agent.RunPreferences{
+				ReasoningEffort: agent.ReasoningEffort("high"),
+			},
+		},
+		"thread-123",
+		"gpt-5.5",
+	)
+	if params.CollaborationMode.Settings.ReasoningEffort == nil ||
+		*params.CollaborationMode.Settings.ReasoningEffort != "high" {
+		t.Fatalf("plan settings = %#v", params.CollaborationMode.Settings)
 	}
 }
 

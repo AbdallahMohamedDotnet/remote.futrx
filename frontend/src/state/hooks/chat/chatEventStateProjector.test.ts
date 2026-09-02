@@ -45,3 +45,52 @@ test("projects chat events into the existing message and usage model", () => {
     cacheWriteTokens: 0,
   });
 });
+
+test("preserves pending interactions and final subagent reports across replay", () => {
+  const events: ChatEvent[] = [
+    { type: "user", text: "delegate", t: 1 },
+    {
+      type: "interaction_request",
+      id: `"approval-1"`,
+      name: "item/commandExecution/requestApproval",
+      input: { command: "npm test" },
+      status: "approval",
+      t: 2,
+    },
+    { type: "interaction_resolved", id: `"approval-1"`, status: "answered", t: 3 },
+    {
+      type: "collaboration",
+      id: "collab-1",
+      name: "spawn_agent",
+      status: "completed",
+      data: {
+        receiverThreadIds: ["child-1"],
+        agentsStates: { child: { status: "completed", message: "child report" } },
+      },
+      t: 4,
+    },
+  ];
+
+  const state = chatEventStateProjector.fromEvents(events, { hasMore: false });
+  const assistant = state.blocks[1];
+  assert.equal(assistant.type, "assistant");
+  if (assistant.type !== "assistant") return;
+  assert.deepEqual(assistant.parts[0], {
+    kind: "interaction",
+    id: `"approval-1"`,
+    method: "item/commandExecution/requestApproval",
+    input: { command: "npm test" },
+    interactionKind: "approval",
+    status: "answered",
+  });
+  assert.deepEqual(assistant.parts[1], {
+    kind: "collaboration",
+    id: "collab-1",
+    name: "spawn_agent",
+    status: "completed",
+    data: {
+      receiverThreadIds: ["child-1"],
+      agentsStates: { child: { status: "completed", message: "child report" } },
+    },
+  });
+});

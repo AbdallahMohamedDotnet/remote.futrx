@@ -9,7 +9,24 @@ export type AssistantMessagePart =
       isError?: boolean;
       status: "running" | "done";
     }
-  | { kind: "thinking"; text: string };
+  | { kind: "thinking"; text: string }
+  | {
+      kind: "interaction";
+      id: string;
+      method: string;
+      input: Record<string, unknown>;
+      interactionKind: string;
+      status: string;
+    }
+  | {
+      kind: "collaboration";
+      id: string;
+      name?: string;
+      data: Record<string, unknown>;
+      status: string;
+    }
+  | { kind: "turn-status"; status: string; data?: Record<string, unknown> }
+  | { kind: "provider-event"; id: string; name: string; data?: unknown; status?: string };
 
 export type AssistantMessageBlock = {
   type: "assistant";

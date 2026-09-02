@@ -9,6 +9,8 @@ const settings: ChatSettings = {
   mode: "default",
   reasoningEffort: "medium",
   serviceTier: "priority",
+  approvalPolicy: "on-request",
+  sandboxPolicy: "workspaceWrite",
 };
 
 test("carries the saved chat preferences onto the payload", () => {
@@ -18,6 +20,8 @@ test("carries the saved chat preferences onto the payload", () => {
     mode: "default",
     reasoningEffort: "medium",
     serviceTier: "priority",
+    approvalPolicy: "on-request",
+    sandboxPolicy: "workspaceWrite",
     projectId: "project-1",
   });
 });

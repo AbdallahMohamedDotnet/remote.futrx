@@ -15,6 +15,8 @@ export function createChatInput(chat: ChatSettings, projectId?: string): CreateC
     mode: chat.mode,
     reasoningEffort: chat.reasoningEffort,
     serviceTier: chat.serviceTier,
+    approvalPolicy: chat.approvalPolicy,
+    sandboxPolicy: chat.sandboxPolicy,
     ...(projectId ? { projectId } : {}),
   };
 }

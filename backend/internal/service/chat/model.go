@@ -40,6 +40,8 @@ type Meta struct {
 	Mode                 string     `json:"mode"`
 	ReasoningEffort      string     `json:"reasoningEffort"`
 	ServiceTier          string     `json:"serviceTier"`
+	ApprovalPolicy       string     `json:"approvalPolicy"`
+	SandboxPolicy        string     `json:"sandboxPolicy"`
 	ProjectID            ProjectID  `json:"projectId,omitempty"`
 	ForkPending          bool       `json:"forkPending,omitempty"`
 	SelectedSkills       []SkillRef `json:"selectedSkills,omitempty"`
@@ -78,7 +80,10 @@ type Event struct {
 	// ScheduledTaskID marks events produced by a scheduled run rather than an
 	// interactive one, so consumers can tell "your turn finished" from "a task
 	// ran while you were away".
-	ScheduledTaskID string `json:"scheduledTaskId,omitempty"`
+	ScheduledTaskID string                `json:"scheduledTaskId,omitempty"`
+	Native          *agent.NativeEnvelope `json:"native,omitempty"`
+	InteractionID   string                `json:"interactionId,omitempty"`
+	Status          string                `json:"status,omitempty"`
 }
 
 // NormalizeSessions makes the provider-keyed session map authoritative while
@@ -265,6 +270,8 @@ type CreateInput struct {
 	Mode            string     `json:"mode,omitempty"`
 	ReasoningEffort string     `json:"reasoningEffort,omitempty"`
 	ServiceTier     string     `json:"serviceTier,omitempty"`
+	ApprovalPolicy  string     `json:"approvalPolicy,omitempty"`
+	SandboxPolicy   string     `json:"sandboxPolicy,omitempty"`
 	ProjectID       ProjectID  `json:"projectId,omitempty"`
 	SelectedSkills  []SkillRef `json:"selectedSkills,omitempty"`
 }
@@ -277,6 +284,8 @@ type UpdateInput struct {
 	Mode            *string     `json:"mode,omitempty"`
 	ReasoningEffort *string     `json:"reasoningEffort,omitempty"`
 	ServiceTier     *string     `json:"serviceTier,omitempty"`
+	ApprovalPolicy  *string     `json:"approvalPolicy,omitempty"`
+	SandboxPolicy   *string     `json:"sandboxPolicy,omitempty"`
 	SelectedSkills  *[]SkillRef `json:"selectedSkills,omitempty"`
 }
 
@@ -296,6 +305,24 @@ func NormalizeReasoningEffort(effort string) string {
 // frontend/backend release for every catalog addition. "" means Auto.
 func NormalizeServiceTier(tier string) string {
 	return normalizeCapabilityValue(tier)
+}
+
+func NormalizeApprovalPolicy(policy string) string {
+	switch strings.TrimSpace(policy) {
+	case "never", "untrusted", "on-request":
+		return strings.TrimSpace(policy)
+	default:
+		return "on-request"
+	}
+}
+
+func NormalizeSandboxPolicy(policy string) string {
+	switch strings.TrimSpace(policy) {
+	case "readOnly", "workspaceWrite", "dangerFullAccess":
+		return strings.TrimSpace(policy)
+	default:
+		return "workspaceWrite"
+	}
 }
 
 func normalizeCapabilityValue(value string) string {

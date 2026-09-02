@@ -4,6 +4,7 @@ export interface ChatStream {
   readonly isOpen: boolean;
   sendPrompt(text: string, clientId?: string): boolean;
   cancel(): boolean;
+  respondInteraction(interactionId: string, result?: unknown, error?: unknown): boolean;
   close(): void;
 }
 
