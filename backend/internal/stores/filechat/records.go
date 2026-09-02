@@ -159,6 +159,7 @@ type eventRecord struct {
 	Seq                  int64                 `json:"seq,omitempty"`
 	T                    int64                 `json:"t"`
 	Type                 string                `json:"type"`
+	TurnID               string                `json:"turnId,omitempty"`
 	Text                 string                `json:"text,omitempty"`
 	MessageID            string                `json:"messageId,omitempty"`
 	ID                   string                `json:"id,omitempty"`
@@ -190,6 +191,7 @@ func eventRecordFromDomain(ev servicechat.Event) eventRecord {
 		Seq:                  ev.Seq,
 		T:                    ev.T,
 		Type:                 ev.Type,
+		TurnID:               ev.TurnID,
 		Text:                 ev.Text,
 		MessageID:            ev.MessageID,
 		ID:                   ev.ID,
@@ -221,6 +223,7 @@ func (r eventRecord) toDomain() servicechat.Event {
 		Seq:                  r.Seq,
 		T:                    r.T,
 		Type:                 r.Type,
+		TurnID:               r.TurnID,
 		Text:                 r.Text,
 		MessageID:            r.MessageID,
 		ID:                   r.ID,

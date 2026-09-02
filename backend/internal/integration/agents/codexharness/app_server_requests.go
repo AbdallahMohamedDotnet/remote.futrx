@@ -1,4 +1,4 @@
-package codex
+package codexharness
 
 import (
 	"bytes"
@@ -45,7 +45,7 @@ func (handler *appServerRequestHandler) Handle(envelope appServerEnvelope) error
 		return err
 	}
 	if _, exists := handler.pending[requestID]; exists {
-		return fmt.Errorf("duplicate Codex app-server request %s", requestID)
+		return fmt.Errorf("duplicate app-server request %s", requestID)
 	}
 
 	ids := nativeIDs(envelope.Params)
@@ -53,7 +53,7 @@ func (handler *appServerRequestHandler) Handle(envelope appServerEnvelope) error
 	handler.emit(agent.Event{
 		T:              time.Now().UnixMilli(),
 		Type:           agent.EventInteractionRequest,
-		Provider:       agent.ProviderCodex,
+		Provider:       handler.req.Provider,
 		ConversationID: handler.req.ConversationID,
 		ItemID:         ids.ItemID,
 		ItemKind:       agent.ItemToolCall,
@@ -77,7 +77,7 @@ func (handler *appServerRequestHandler) Handle(envelope appServerEnvelope) error
 func (handler *appServerRequestHandler) Respond(response agent.InteractionResponse) error {
 	pending, ok := handler.pending[response.ID]
 	if !ok {
-		return fmt.Errorf("%w: %s", errors.New("unknown Codex interaction"), response.ID)
+		return fmt.Errorf("%w: %s", errors.New("unknown app-server interaction"), response.ID)
 	}
 
 	request := pending.envelope
@@ -157,7 +157,7 @@ func (handler *appServerRequestHandler) resolvedEvent(
 	return agent.Event{
 		T:              time.Now().UnixMilli(),
 		Type:           agent.EventInteractionDone,
-		Provider:       agent.ProviderCodex,
+		Provider:       handler.req.Provider,
 		ConversationID: handler.req.ConversationID,
 		ItemID:         ids.ItemID,
 		ToolName:       request.Method,
@@ -176,7 +176,7 @@ func (handler *appServerRequestHandler) resolvedEvent(
 
 func jsonRPCIDKey(raw json.RawMessage) (string, error) {
 	if len(raw) == 0 || !json.Valid(raw) {
-		return "", errors.New("Codex app-server request has an invalid id")
+		return "", errors.New("app-server request has an invalid id")
 	}
 	var compact bytes.Buffer
 	if err := json.Compact(&compact, raw); err != nil {
@@ -184,7 +184,7 @@ func jsonRPCIDKey(raw json.RawMessage) (string, error) {
 	}
 	key := compact.String()
 	if key == "null" || key == "" || (key[0] != '"' && !strings.Contains("-0123456789", key[:1])) {
-		return "", errors.New("Codex app-server request id must be a string or number")
+		return "", errors.New("app-server request id must be a string or number")
 	}
 	return key, nil
 }

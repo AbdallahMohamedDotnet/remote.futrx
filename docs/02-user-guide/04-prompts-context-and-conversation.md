@@ -32,7 +32,7 @@ flowchart LR
     Files["Uploaded absolute paths"] --> Request
     Session["Provider session ID, when valid"] --> Request
     History["Bounded visible transcript after rewind or lost session"] --> Request
-    Request --> Agent["Claude, Codex, Kimi, or Antigravity CLI"]
+    Request --> Agent["Claude, Codex/MiniMax, Kimi, or Antigravity CLI"]
 ```
 
 Remote normally resumes the provider's own session. The visible event log and
@@ -119,7 +119,7 @@ For work that must start when no browser tab is open, use
 
 | Control | Task and outcome |
 | --- | --- |
-| **Load older messages** / **Show _n_ older messages** | Page backward through earlier persisted events |
+| **Load older messages** / **Show _n_ older messages** | Page backward through complete earlier turns without splitting an assistant response |
 | **Rewind** | Remove the selected user prompt and every event after it, then place that prompt text back in the composer |
 | **Fork from last message** | Create a separate chat from the visible history without changing the parent |
 | **Mark read** / **Mark unread** | Change the sidebar unread marker |
@@ -145,9 +145,10 @@ Rewind also clears the chat's page-memory prompt queue.
 3. Open the newly created chat.
 4. Continue with different controls or instructions.
 
-Claude can request a provider session fork. Codex clones its stored rollout to
-a new session identifier. Kimi and Antigravity currently start the fork's next
-run as a fresh session. In all cases, the parent chat remains unchanged.
+Claude can request a provider session fork. Codex and MiniMax clone their
+stored app-server thread to a new session identifier. Kimi and Antigravity
+currently start the fork's next run as a fresh session. In all cases, the
+parent chat remains unchanged.
 
 ## Parallel conversation pattern
 

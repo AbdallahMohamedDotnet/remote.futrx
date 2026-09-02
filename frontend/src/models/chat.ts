@@ -52,12 +52,18 @@ export interface ProviderNativeEnvelope {
   payload?: unknown;
 }
 
-type ChatEventBase = { seq?: number; t: number; native?: ProviderNativeEnvelope; status?: string };
+type ChatEventBase = {
+  seq?: number;
+  t: number;
+  turnId?: string;
+  native?: ProviderNativeEnvelope;
+  status?: string;
+};
 
 export type ChatEvent = ChatEventBase & (
   | { type: "user"; text: string }
   | { type: "assistant_text"; text: string; messageId?: string }
-  | { type: "thinking"; text: string }
+  | { type: "thinking"; text: string; messageId?: string }
   | { type: "tool_use_start"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_use_end"; id: string; output?: string; isError?: boolean }
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }

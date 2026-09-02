@@ -9,39 +9,12 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codexharness"
 	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
 )
 
 func (p *Provider) args(req agent.RunRequest) []string {
-	args := []string{"app-server"}
-	if req.EnableBrowser {
-		args = append(args, browserMCPConfigArgs()...)
-	}
-	return args
-}
-
-func browserMCPConfigArgs() []string {
-	return []string{
-		"-c", `mcp_servers.browser.command="npx"`,
-		"-c", `mcp_servers.browser.args=["@playwright/mcp","--cdp-endpoint","http://127.0.0.1:9222","--caps=vision"]`,
-	}
-}
-
-func sanitizeModel(model string) string {
-	model = strings.TrimSpace(model)
-	if idx := strings.Index(model, "["); idx > 0 {
-		model = strings.TrimSpace(model[:idx])
-	}
-	return model
-}
-
-func reasoningEffortArg(effort agent.ReasoningEffort) string {
-	return agent.NormalizeCapabilityValue(string(effort))
-}
-
-// serviceTierArg syntax-checks the selected or saved service-tier value.
-func serviceTierArg(tier agent.ServiceTier) string {
-	return agent.NormalizeCapabilityValue(string(tier))
+	return codexharness.AppServerArgs(nil, req.EnableBrowser)
 }
 
 func (p *Provider) buildCmd(

@@ -60,9 +60,10 @@ catalog, streams, and compatibility auth routes needed to finish onboarding.
 The module descriptor chooses one auth mode: managed authorization code,
 managed device flow, external, or none. Route registration follows the built
 auth binding, so a provider exposes only operations valid for its declared
-flow. Antigravity uses an external binding that supplies instructions but has
-no observable status, status stream, or managed host-login route because users
-authenticate `agy` inside each project.
+flow. MiniMax and Antigravity use external bindings that supply instructions
+but have no observable status, status stream, or managed host-login route.
+MiniMax reads a project `MINIMAX_API_KEY`; users authenticate Antigravity with
+`agy` inside each project.
 
 `GET /api/agent-auth` is the frontend's authoritative auth registry. Each row
 contains `provider`, `label`, optional `default`, `executionScopes`, an
@@ -82,8 +83,8 @@ The access gate uses descriptor policy rather than a fixed provider list. A
 no-auth module marked `satisfiesAccessGate` opens it immediately; managed
 code/device modules require an authenticated binding. External authentication
 cannot satisfy the gate because Remote cannot observe it reliably. The current
-built-ins mark Claude, Codex, and Kimi as gate providers; Antigravity is
-external and does not open onboarding.
+built-ins mark Claude, Codex, and Kimi as gate providers; MiniMax and
+Antigravity are external and do not open onboarding.
 
 The capability response has a `providers` array in registry order. Each
 provider includes its `source` (`live` or `fallback`), optional warning and
@@ -142,6 +143,7 @@ Every `{id}` project route first requires admin status or project membership. Re
 | GET, POST | `/api/chats` | List visible chats or create a chat |
 | GET, PATCH, DELETE | `/api/chats/{id}` | Read, update, or delete chat metadata/history |
 | GET | `/api/chats/{id}/events?limit=&before=` | Page persisted events backward by sequence |
+| GET | `/api/chats/{id}/transcript?limit=&before=` | Page complete transcript turns backward; adjacent text deltas are compacted |
 | POST | `/api/chats/{id}/rewind` | Remove a selected prompt and later events |
 | POST | `/api/chats/{id}/fork` | Copy metadata/history and defer provider-session fork |
 | POST | `/api/chats/{id}/read` | Mark current history read |

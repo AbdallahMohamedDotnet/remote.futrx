@@ -1,4 +1,4 @@
-package codex
+package codexharness
 
 import (
 	"encoding/json"
@@ -10,9 +10,10 @@ import (
 
 func TestAppServerNormalizesInclusiveInputUsage(t *testing.T) {
 	parser := newAppServerEventParser(agent.RunRequest{
+		Provider:       agent.ProviderCodex,
 		ConversationID: "chat-1",
 		Model:          "gpt-5.6-sol",
-	})
+	}, "Codex")
 	parser.ParseNotification("thread/tokenUsage/updated", json.RawMessage(`{
 		"tokenUsage":{"last":{
 			"inputTokens":10,
@@ -45,7 +46,9 @@ func TestAppServerNormalizesInclusiveInputUsage(t *testing.T) {
 }
 
 func TestAppServerPreservesCompletedSubagentMessages(t *testing.T) {
-	parser := newAppServerEventParser(agent.RunRequest{ConversationID: "chat-1"})
+	parser := newAppServerEventParser(agent.RunRequest{
+		Provider: agent.ProviderCodex, ConversationID: "chat-1",
+	}, "Codex")
 	events := parser.ParseNotification("item/completed", json.RawMessage(`{
 		"threadId":"parent","turnId":"turn-1","item":{
 			"id":"collab-1","type":"collabAgentToolCall","tool":"spawn_agent","status":"completed",
@@ -63,7 +66,9 @@ func TestAppServerPreservesCompletedSubagentMessages(t *testing.T) {
 }
 
 func TestAppServerUnknownNotificationHasNativeFallback(t *testing.T) {
-	parser := newAppServerEventParser(agent.RunRequest{ConversationID: "chat-1"})
+	parser := newAppServerEventParser(agent.RunRequest{
+		Provider: agent.ProviderCodex, ConversationID: "chat-1",
+	}, "Codex")
 	events := parser.ParseNotification("future/notification", json.RawMessage(`{"threadId":"thread-1","future":true}`))
 	if len(events) != 1 || events[0].Type != agent.EventProviderNative || events[0].Native.Method != "future/notification" {
 		t.Fatalf("events = %#v", events)
@@ -71,9 +76,20 @@ func TestAppServerUnknownNotificationHasNativeFallback(t *testing.T) {
 }
 
 func TestAppServerInterruptedTurnIsNotCompleted(t *testing.T) {
-	parser := newAppServerEventParser(agent.RunRequest{})
+	parser := newAppServerEventParser(agent.RunRequest{Provider: agent.ProviderCodex}, "Codex")
 	events := parser.ParseNotification("turn/completed", json.RawMessage(`{"turn":{"id":"turn-1","status":"interrupted"}}`))
 	if len(events) != 1 || events[0].Type != agent.EventRunInterrupted {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
+func TestAppServerUsesSelectedProviderInFallbackMessages(t *testing.T) {
+	parser := newAppServerEventParser(agent.RunRequest{Provider: agent.ProviderMiniMax}, "MiniMax")
+	events := parser.ParseNotification("turn/completed", json.RawMessage(
+		`{"turn":{"status":"failed"}}`,
+	))
+	if len(events) != 1 || events[0].Provider != agent.ProviderMiniMax ||
+		events[0].Message != "MiniMax turn failed" {
 		t.Fatalf("events = %#v", events)
 	}
 }

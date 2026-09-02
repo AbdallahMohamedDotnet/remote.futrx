@@ -213,3 +213,7 @@ func firstNonEmpty(values ...string) string {
 	}
 	return ""
 }
+
+func cloneRaw(raw json.RawMessage) json.RawMessage {
+	return append(json.RawMessage(nil), raw...)
+}

@@ -58,6 +58,7 @@ type Event struct {
 	Seq                  int64           `json:"seq,omitempty"`
 	T                    int64           `json:"t"`
 	Type                 string          `json:"type"`
+	TurnID               string          `json:"turnId,omitempty"`
 	Text                 string          `json:"text,omitempty"`
 	MessageID            string          `json:"messageId,omitempty"`
 	ID                   string          `json:"id,omitempty"`

@@ -94,3 +94,42 @@ test("preserves pending interactions and final subagent reports across replay", 
     },
   });
 });
+
+test("prepends an older event page before current blocks and adopts hasMore", () => {
+  const latest = chatEventStateProjector.fromEvents(
+    [
+      { seq: 4, type: "user", text: "new question", t: 4 },
+      { seq: 5, type: "assistant_text", text: "a complete long answer", t: 5 },
+      { seq: 305, type: "complete", t: 305 },
+    ],
+    { hasMore: true, nextBefore: 4 }
+  );
+
+  const state = chatEventStateProjector.prepend(latest, {
+    events: [
+      { seq: 1, type: "user", text: "older question", t: 1 },
+      { seq: 2, type: "assistant_text", text: "older answer", t: 2 },
+      { seq: 3, type: "complete", t: 3 },
+    ],
+    hasMore: false,
+    lastSeq: 305,
+  });
+
+  assert.deepEqual(state.blocks, [
+    { type: "user", text: "older question", t: 1 },
+    {
+      type: "assistant",
+      parts: [{ kind: "text", text: "older answer" }],
+      t: 2,
+      isComplete: true,
+    },
+    { type: "user", text: "new question", t: 4 },
+    {
+      type: "assistant",
+      parts: [{ kind: "text", text: "a complete long answer" }],
+      t: 5,
+      isComplete: true,
+    },
+  ]);
+  assert.equal(state.hasOlder, false);
+});

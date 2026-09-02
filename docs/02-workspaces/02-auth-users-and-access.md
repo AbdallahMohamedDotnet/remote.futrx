@@ -4,8 +4,8 @@ The application separates three concerns:
 
 1. Platform identity: who may open `remote.futrx`.
 2. Agent credentials: whether a provider can run, with host-wide onboarding
-   for Claude, Codex, and Kimi and a supported project-local sign-in flow for
-   Antigravity.
+   for Claude, Codex, and Kimi, a project `MINIMAX_API_KEY` for MiniMax, and a
+   supported project-local sign-in flow for Antigravity.
 3. Project membership: which registered users may access a project.
 
 ## Application gate
@@ -137,6 +137,12 @@ flowchart TD
 ```
 
 Claude uses an interactive authorization URL plus a pasted code. Codex and Kimi use device-code flows. Credential files are later synchronized into project containers before agent execution.
+
+MiniMax is project-only and uses an external auth binding. Its global card
+shows instructions rather than a login action or status stream. Add
+`MINIMAX_API_KEY` in the project's **Secrets** settings; the key does not
+satisfy the initial provider gate because Remote does not expose it as managed
+host authentication.
 
 Antigravity is deliberately outside this host-wide flow. Its global card shows
 the module's provider-managed instructions but has no managed login action or

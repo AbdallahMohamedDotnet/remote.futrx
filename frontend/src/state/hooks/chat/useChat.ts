@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
-import { CHAT_EVENT_PAGE_LIMIT } from "../../../config/api.ts";
+import { CHAT_TRANSCRIPT_TURN_PAGE_LIMIT } from "../../../config/api.ts";
 import type { ChatStream } from "../../../types/chatApi";
 import type {
   ChatEvent,
@@ -32,9 +32,9 @@ interface UseChatResult {
 }
 
 /**
- * useChat — load chat metadata, then open a streaming WS. The server replays
- * history over the socket before live events, which avoids gaps between an
- * HTTP history fetch and the WS subscription.
+ * useChat — load chat metadata and a bounded transcript page, then open a
+ * streaming WS after the latest applied sequence so history and live events
+ * meet without a gap.
  */
 export function useChat(chatId: string): UseChatResult {
   const [meta, setMeta] = useState<ChatMeta | null>(null);
@@ -106,7 +106,9 @@ export function useChat(chatId: string): UseChatResult {
       try {
         const [m, page] = await Promise.all([
           chatApi.fetch(chatId),
-          chatApi.fetchEvents(chatId, { limit: CHAT_EVENT_PAGE_LIMIT }),
+          chatApi.fetchTranscript(chatId, {
+            limit: CHAT_TRANSCRIPT_TURN_PAGE_LIMIT,
+          }),
         ]);
         if (cancelled) return;
         lastSeqRef.current = Math.max(
@@ -224,8 +226,8 @@ export function useChat(chatId: string): UseChatResult {
     if (loadingOlder || !renderState.hasOlder || !renderState.nextBefore) return;
     setLoadingOlder(true);
     try {
-      const page = await chatApi.fetchEvents(chatId, {
-        limit: CHAT_EVENT_PAGE_LIMIT,
+      const page = await chatApi.fetchTranscript(chatId, {
+        limit: CHAT_TRANSCRIPT_TURN_PAGE_LIMIT,
         before: renderState.nextBefore,
       });
       setRenderState((current) => chatEventStateProjector.prepend(current, page));
