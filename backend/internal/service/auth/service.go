@@ -67,6 +67,7 @@ type Options struct {
 	EnrollmentTTL       time.Duration
 	RecoveryCodeCount   int
 	SessionHistoryLimit int
+	SetupTokenTTL       time.Duration
 }
 
 func (o Options) validate() error {
@@ -82,6 +83,9 @@ func (o Options) validate() error {
 	if o.SessionHistoryLimit <= 0 {
 		return errors.New("session history limit must be positive")
 	}
+	if o.SetupTokenTTL <= 0 {
+		return errors.New("setup token TTL must be positive")
+	}
 	return nil
 }
 
@@ -89,6 +93,7 @@ type Service struct {
 	users             UserDirectory
 	local             *LocalAdminAuthenticator
 	google            *GoogleAuthenticator
+	setupTokens       *SetupTokenGuard
 	baseURL           string
 	cookieDomain      string
 	codec             *sessionCodec
@@ -142,7 +147,8 @@ func New(
 	if err != nil {
 		return nil, err
 	}
-	local := newLocalAdminAuthenticator(store, users, localAdmin)
+	setupTokens := newSetupTokenGuard(store, options.SetupTokenTTL, time.Now)
+	local := newLocalAdminAuthenticator(store, users, setupTokens, localAdmin)
 	google, err := newGoogleAuthenticator(ctx, store, users, oauthFactory, baseURL, local.isLocalAdmin)
 	if err != nil {
 		return nil, err
@@ -161,6 +167,7 @@ func New(
 	service := &Service{
 		users:        users,
 		local:        local,
+		setupTokens:  setupTokens,
 		google:       google,
 		baseURL:      baseURL,
 		cookieDomain: cookieDomain,
@@ -195,8 +202,39 @@ func (s *Service) LoginGoogle(ctx context.Context, code string) (User, error) {
 	return s.google.login(ctx, code)
 }
 
-func (s *Service) ClaimLocalAdmin(ctx context.Context, email, password, authorizedEmail string) (User, error) {
-	return s.local.claim(ctx, email, password, authorizedEmail)
+// IssueSetupToken mints and stores a fresh first-boot token, returning the
+// plaintext for the caller to print to the terminal. Issuing rotates: whatever
+// was printed before stops working immediately.
+func (s *Service) IssueSetupToken(ctx context.Context) (string, error) {
+	return s.setupTokens.Issue(ctx)
+}
+
+// EnsureSetupToken issues a token when a claim made now would actually be
+// gated on one, and returns an empty string otherwise. Startup calls this on
+// every boot: a first-boot server therefore rotates its token each restart, so
+// anything that leaked beforehand is already dead. A configured server, and an
+// unclaimed one whose directory already has an administrator to authorise the
+// claim, both print nothing - a token they would never check is an operator
+// sent down a path that cannot complete.
+func (s *Service) EnsureSetupToken(ctx context.Context) (string, error) {
+	gated, err := s.local.needsSetupToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	if !gated {
+		return "", nil
+	}
+	return s.setupTokens.Issue(ctx)
+}
+
+// SetupTokenTTL is how long a freshly issued setup token stays valid, so the
+// terminal message can state the real deadline rather than a guess.
+func (s *Service) SetupTokenTTL() time.Duration {
+	return s.setupTokens.TTL()
+}
+
+func (s *Service) ClaimLocalAdmin(ctx context.Context, req ClaimRequest) (User, error) {
+	return s.local.claim(ctx, req)
 }
 
 func (s *Service) LoginLocal(_ context.Context, email, password string) (User, error) {

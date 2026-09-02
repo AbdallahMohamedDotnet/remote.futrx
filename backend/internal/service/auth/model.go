@@ -1,6 +1,9 @@
 package auth
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 const (
 	SessionCookieName = "remote_session"
@@ -33,6 +36,33 @@ type OAuthConfig struct {
 type LocalAdminCredential struct {
 	Email        string `json:"email"`
 	PasswordHash string `json:"passwordHash"`
+}
+
+// ClaimRequest carries the inputs of a local-admin claim. They are all
+// strings, so grouping them keeps a call site from silently transposing two
+// of them - a mistake the compiler cannot catch on a positional list.
+type ClaimRequest struct {
+	Email    string
+	Password string
+	// SetupToken is the one-time token printed to the server terminal on
+	// first boot. It is the only thing authorising a claim while the user
+	// directory is still empty and no administrator exists to vouch for one.
+	SetupToken string
+	// AuthorizedEmail is the caller's own session email. It matters only once
+	// an administrator already exists, when the claim must be authorised by
+	// that administrator rather than being open to anyone.
+	AuthorizedEmail string
+}
+
+// SetupTokenRecord is the durable half of the first-boot setup token. Only
+// the hash is persisted, so a leaked data directory yields nothing usable -
+// the plaintext exists solely in the terminal output that printed it once.
+// Used is set after a claim consumes the token, which is what makes a token
+// single-use even before it expires.
+type SetupTokenRecord struct {
+	Hash      string    `json:"hash"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	Used      bool      `json:"used"`
 }
 
 type User struct {

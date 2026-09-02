@@ -15,9 +15,18 @@ type LocalAdminStore interface {
 	DeleteLocalAdmin(context.Context, LocalAdminCredential) error
 }
 
+// SetupTokenStore persists the single first-boot setup token. SetupToken
+// returns (nil, nil) when none has been issued - that absence is the correct
+// "no setup pending" state, not an error.
+type SetupTokenStore interface {
+	SetupToken(context.Context) (*SetupTokenRecord, error)
+	SaveSetupToken(context.Context, SetupTokenRecord) error
+}
+
 type Store interface {
 	OAuthConfigStore
 	LocalAdminStore
+	SetupTokenStore
 	SessionKey(context.Context) ([]byte, error)
 }
 
