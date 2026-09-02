@@ -15,8 +15,7 @@ func newTestServiceWithLocalAdmin(t *testing.T) (*Service, string) {
 	users := newAuthTestUsers()
 	service := newAuthTestService(t, store, users, User{})
 	email := "admin@example.com"
-	token := issueSetupTokenForTest(t, service)
-	if _, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{Email: email, Password: testAdminPassword, SetupToken: token}); err != nil {
+	if _, err := service.ClaimLocalAdmin(context.Background(), email, testAdminPassword, ""); err != nil {
 		t.Fatalf("ClaimLocalAdmin: %v", err)
 	}
 	return service, email

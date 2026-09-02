@@ -14,7 +14,6 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
-	"os"
 
 	remote "github.com/futrx-com/remote.futrx.com"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
@@ -41,9 +40,6 @@ func main() {
 	// Prepare configuration
 	ctx := context.Background()
 	cfg := config.Load()
-	if runCLICommand(ctx, cfg, os.Args) {
-		return
-	}
 	publicHostname, err := config.PublicHostname(cfg.BaseURL)
 	if err != nil {
 		log.Fatalf("configure public hostname: %v", err)
@@ -101,7 +97,6 @@ func main() {
 			EnrollmentTTL:       cfg.Auth.EnrollmentTTL,
 			RecoveryCodeCount:   cfg.Auth.RecoveryCodeCount,
 			SessionHistoryLimit: cfg.Auth.SessionHistoryLimit,
-			SetupTokenTTL:       cfg.Auth.SetupTokenTTL,
 		},
 		TmuxClient:    tmuxClient,
 		ValidTmuxName: tmuxcli.ValidName,
@@ -119,12 +114,6 @@ func main() {
 		serviceSet.Auth.GoogleOAuthEnabled(),
 		cfg.BaseURL,
 	)
-	// On a first boot nobody exists to authorise the local-admin claim, so the
-	// setup token is minted and printed here and nowhere else: the operator's
-	// terminal is the one channel a passer-by loading the page cannot reach.
-	// Issuing on every gated start also rotates it, so a token that leaked
-	// before a restart is already dead.
-	announceSetupToken(ctx, serviceSet.Auth, cfg.BaseURL, log.Writer())
 	if err := serviceSet.Reconcile(ctx); err != nil {
 		log.Printf("services: reconcile warning: %v", err)
 	}

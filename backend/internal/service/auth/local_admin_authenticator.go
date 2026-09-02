@@ -14,9 +14,8 @@ var localAdminEmailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 // LocalAdminAuthenticator owns the local credential and its claim/login
 // invariants. Service delegates to it to preserve the public facade.
 type LocalAdminAuthenticator struct {
-	store       LocalAdminStore
-	users       UserDirectory
-	setupTokens *SetupTokenGuard
+	store LocalAdminStore
+	users UserDirectory
 
 	mu         sync.RWMutex
 	credential *LocalAdminCredential
@@ -27,12 +26,9 @@ type LocalAdminAuthenticator struct {
 func newLocalAdminAuthenticator(
 	store LocalAdminStore,
 	users UserDirectory,
-	setupTokens *SetupTokenGuard,
 	credential *LocalAdminCredential,
 ) *LocalAdminAuthenticator {
-	return &LocalAdminAuthenticator{
-		store: store, users: users, setupTokens: setupTokens, credential: credential,
-	}
+	return &LocalAdminAuthenticator{store: store, users: users, credential: credential}
 }
 
 func (a *LocalAdminAuthenticator) setDummyHash(hash string) {
@@ -41,8 +37,13 @@ func (a *LocalAdminAuthenticator) setDummyHash(hash string) {
 	a.mu.Unlock()
 }
 
-func (a *LocalAdminAuthenticator) claim(ctx context.Context, req ClaimRequest) (User, error) {
-	email := normalizeEmail(req.Email)
+func (a *LocalAdminAuthenticator) claim(
+	ctx context.Context,
+	email,
+	password,
+	authorizedEmail string,
+) (User, error) {
+	email = normalizeEmail(email)
 	if !localAdminEmailPattern.MatchString(email) {
 		return User{}, errors.New("valid admin email is required")
 	}
@@ -59,21 +60,10 @@ func (a *LocalAdminAuthenticator) claim(ctx context.Context, req ClaimRequest) (
 	if a.users == nil {
 		return User{}, errors.New("users directory is not configured")
 	}
-	first, err := a.users.FirstAdmin(ctx)
-	if err != nil {
+	if first, err := a.users.FirstAdmin(ctx); err != nil {
 		return User{}, err
-	}
-	// Two different things can authorise a claim. Once an administrator
-	// exists, they vouch for it. On a genuinely first boot nobody can, and
-	// the token printed to the server terminal is the only thing standing
-	// between whoever loads the page first and ownership of the server.
-	tokenGated := first == nil
-	if tokenGated {
-		if err := a.setupTokens.Verify(ctx, req.SetupToken); err != nil {
-			return User{}, err
-		}
-	} else {
-		authorizedEmail := normalizeEmail(req.AuthorizedEmail)
+	} else if first != nil {
+		authorizedEmail = normalizeEmail(authorizedEmail)
 		isAdmin, authErr := a.users.IsAdmin(ctx, authorizedEmail)
 		if authErr != nil {
 			return User{}, authErr
@@ -82,7 +72,7 @@ func (a *LocalAdminAuthenticator) claim(ctx context.Context, req ClaimRequest) (
 			return User{}, ErrAdminClaimUnauthorized
 		}
 	}
-	passwordHash, err := HashPassword(req.Password)
+	passwordHash, err := HashPassword(password)
 	if err != nil {
 		return User{}, err
 	}
@@ -102,32 +92,7 @@ func (a *LocalAdminAuthenticator) claim(ctx context.Context, req ClaimRequest) (
 		}
 	}
 	a.setCredential(&credential)
-	if tokenGated {
-		// Only now is the claim irreversible, so only now may the token be
-		// spent: every path above this line is one the operator can retry.
-		// Failing to mark it used is deliberately not fatal - the credential
-		// is already written, and the already-claimed check at the top of
-		// this method rejects every later attempt regardless.
-		_ = a.setupTokens.Consume(ctx)
-	}
 	return localAdminUser(email), nil
-}
-
-// needsSetupToken reports whether a claim made right now would be gated on the
-// setup token. That is true only while nobody can authorise the claim any
-// other way: once a local admin exists there is nothing left to claim, and
-// once a directory administrator exists they authorise it instead. claim()
-// decides the same thing inline from the FirstAdmin lookup it already holds
-// under claimMu; this is the same rule, asked ahead of time.
-func (a *LocalAdminAuthenticator) needsSetupToken(ctx context.Context) (bool, error) {
-	if a.configured() || a.users == nil {
-		return false, nil
-	}
-	first, err := a.users.FirstAdmin(ctx)
-	if err != nil {
-		return false, err
-	}
-	return first == nil, nil
 }
 
 func (a *LocalAdminAuthenticator) abortClaim(

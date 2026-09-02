@@ -26,10 +26,8 @@ export async function fetchAuthSession(): Promise<AuthSession> {
 }
 
 export const localAuthApi = {
-  // setupToken is sent in the body, never the query string, so it stays out
-  // of reverse-proxy access logs.
-  claim: (email: string, password: string, setupToken: string) =>
-    requestPreSessionJson<AuthSession>("/auth/local/claim", { email, password, setupToken }),
+  claim: (email: string, password: string) =>
+    requestPreSessionJson<AuthSession>("/auth/local/claim", { email, password }),
   login: (email: string, password: string) =>
     requestLocalAuthOrChallenge("/auth/local/login", email, password),
 };

@@ -14,7 +14,6 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/config"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
-	servicelifecycle "github.com/futrx-com/remote.futrx.com/internal/service/container/lifecycle"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/futrx-com/remote.futrx.com/internal/stores"
 )
@@ -44,35 +43,14 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
-
-	upgraded, skipped, failed, err := upgradeAll(ctx, projects, containerStack.Lifecycle, *dryRun, *includeBusy)
+	metas, err := projects.List(ctx)
 	if err != nil {
 		log.Fatalf("list projects: %v", err)
 	}
 
-	fmt.Printf("workspace upgrade: %d upgraded, %d busy skipped, %d failed\n", upgraded, skipped, failed)
-	if failed > 0 {
-		os.Exit(1)
-	}
-}
-
-// upgradeAll walks every project and replaces its container onto the current
-// base image, applying the dry-run and include-busy policy per project. It
-// logs one outcome line per project as it goes and returns the tallies main
-// reports.
-func upgradeAll(
-	ctx context.Context,
-	projects *serviceproject.Service,
-	lifecycle *servicelifecycle.Service,
-	dryRun, includeBusy bool,
-) (upgraded, skipped, failed int, err error) {
-	metas, err := projects.List(ctx)
-	if err != nil {
-		return 0, 0, 0, err
-	}
-
+	upgraded, skipped, failed := 0, 0, 0
 	for _, meta := range metas {
-		state, stateErr := lifecycle.State(ctx, meta.ContainerName)
+		state, stateErr := containerStack.Lifecycle.State(ctx, meta.ContainerName)
 		if stateErr != nil {
 			failed++
 			log.Printf("FAIL %s: inspect container: %v", meta.Slug, stateErr)
@@ -80,19 +58,19 @@ func upgradeAll(
 		}
 		busy := false
 		if state != serviceproject.ContainerStateMissing {
-			busy, err = lifecycle.Busy(ctx, meta.ContainerName)
+			busy, err = containerStack.Lifecycle.Busy(ctx, meta.ContainerName)
 			if err != nil {
 				failed++
 				log.Printf("FAIL %s: inspect activity: %v", meta.Slug, err)
 				continue
 			}
 		}
-		if busy && !includeBusy {
+		if busy && !*includeBusy {
 			skipped++
 			log.Printf("SKIP %s: active agent process", meta.Slug)
 			continue
 		}
-		if dryRun {
+		if *dryRun {
 			upgraded++
 			action := "replace"
 			if state == serviceproject.ContainerStateMissing {
@@ -102,7 +80,7 @@ func upgradeAll(
 			continue
 		}
 
-		if _, err := projects.Upgrade(ctx, meta.ID, includeBusy); err != nil {
+		if _, err := projects.Upgrade(ctx, meta.ID, *includeBusy); err != nil {
 			if errors.Is(err, serviceproject.ErrProjectBusy) {
 				skipped++
 				log.Printf("SKIP %s: active agent process", meta.Slug)
@@ -116,5 +94,8 @@ func upgradeAll(
 		log.Printf("OK %s: persistent agent state migrated; container replaced and validated", meta.Slug)
 	}
 
-	return upgraded, skipped, failed, nil
+	fmt.Printf("workspace upgrade: %d upgraded, %d busy skipped, %d failed\n", upgraded, skipped, failed)
+	if failed > 0 {
+		os.Exit(1)
+	}
 }

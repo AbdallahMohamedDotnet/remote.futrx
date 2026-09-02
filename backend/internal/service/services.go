@@ -103,7 +103,6 @@ type AuthOptions struct {
 	EnrollmentTTL       time.Duration
 	RecoveryCodeCount   int
 	SessionHistoryLimit int
-	SetupTokenTTL       time.Duration
 }
 
 type Services struct {
@@ -201,7 +200,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			sessionRegistry: deps.SessionRegistry,
 		}),
 	)
-	authService, err := NewAuth(
+	authService, err := newAuth(
 		ctx,
 		deps.Auth,
 		userService,
@@ -435,11 +434,7 @@ func (a userDirectoryAdapter) FirstAdmin(ctx context.Context) (*serviceauth.User
 	return &serviceauth.UserDirectoryEntry{Email: oldest.Email}, nil
 }
 
-// NewAuth builds the auth service from its stores. The server composes it as
-// part of the full service set; the setup-token command uses it on its own, so
-// that both ask the same service whether setup is still pending rather than
-// each deciding for itself.
-func NewAuth(
+func newAuth(
 	ctx context.Context,
 	store AuthStore,
 	users *serviceuser.Service,
@@ -480,7 +475,6 @@ func NewAuth(
 			EnrollmentTTL:       options.EnrollmentTTL,
 			RecoveryCodeCount:   options.RecoveryCodeCount,
 			SessionHistoryLimit: options.SessionHistoryLimit,
-			SetupTokenTTL:       options.SetupTokenTTL,
 		},
 	)
 }

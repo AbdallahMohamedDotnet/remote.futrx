@@ -21,21 +21,14 @@ func main() {
 	managedPrefix := flag.String("prefix", defaultManagedPrefix, "application-owned prefix for managed host CLIs")
 	flag.Parse()
 	log.SetFlags(0)
+	cfg := config.Load()
 
-	if err := run(context.Background(), config.Load(), *plan, *managedPrefix); err != nil {
-		log.Fatal(err)
-	}
-}
-
-// run prints the catalog-derived host CLI plan (plan=true) or converges every
-// host-scoped module to it, reporting one outcome line per module.
-func run(ctx context.Context, cfg config.Config, plan bool, managedPrefix string) error {
 	catalog, err := config.NewAgentModules()
 	if err != nil {
-		return fmt.Errorf("configure agent modules: %w", err)
+		log.Fatalf("configure agent modules: %v", err)
 	}
 	profiles := catalog.HostProfiles()
-	if plan {
+	if *plan {
 		for _, profile := range profiles {
 			packageName := profile.CLI.PackageName
 			if packageName == "" {
@@ -43,16 +36,16 @@ func run(ctx context.Context, cfg config.Config, plan bool, managedPrefix string
 			}
 			fmt.Printf("%s\t%s\t%s\t%s\t%s\n", profile.ID, profile.CLI.Binary, profile.CLI.Version, profile.CLI.InstallMode, packageName)
 		}
-		return nil
+		return
 	}
 
 	results, err := hostcli.New(
 		hostcliruntime.New(),
 		cfg.Agent.HostCLIVersionTimeout,
-		managedPrefix,
-	).EnsureAll(ctx, profiles)
+		*managedPrefix,
+	).EnsureAll(context.Background(), profiles)
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 	for _, result := range results {
 		state := "already current"
@@ -69,5 +62,4 @@ func run(ctx context.Context, cfg config.Config, plan bool, managedPrefix string
 		}
 		fmt.Printf("%s %s: %s\n", result.Name, result.DetectedVersion, state)
 	}
-	return nil
 }
