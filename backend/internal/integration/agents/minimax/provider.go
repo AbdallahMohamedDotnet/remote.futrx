@@ -7,11 +7,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codexharness"
 )
 
-const (
-	miniMaxLabel = "MiniMax"
-	miniMaxModel = "MiniMax-M3"
-)
-
 type Provider struct {
 	projectPreparer agent.ProjectPreparer
 	binary          string

@@ -4,16 +4,12 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codexharness"
 	agentruntime "github.com/futrx-com/remote.futrx.com/internal/integration/agents/runtime"
-)
-
-const (
-	miniMaxAPIKeyEnvironment = "MINIMAX_API_KEY"
-	miniMaxAPIBaseURL        = "https://api.minimax.io/v1"
 )
 
 var (
@@ -26,15 +22,16 @@ func (p *Provider) args(req agent.RunRequest) []string {
 }
 
 func miniMaxConfigArgs() []string {
+	providerID := string(agent.ProviderMiniMax)
 	return []string{
 		"-c", `model="` + miniMaxModel + `"`,
-		"-c", `model_provider="minimax"`,
-		"-c", `model_context_window=1000000`,
+		"-c", `model_provider="` + providerID + `"`,
+		"-c", `model_context_window=` + strconv.Itoa(miniMaxModelContextWindow),
 		"-c", `model_catalog_json="` + containerMiniMaxCatalog + `"`,
-		"-c", `model_providers.minimax.name="` + miniMaxLabel + `"`,
-		"-c", `model_providers.minimax.base_url="` + miniMaxAPIBaseURL + `"`,
-		"-c", `model_providers.minimax.env_key="` + miniMaxAPIKeyEnvironment + `"`,
-		"-c", `model_providers.minimax.wire_api="responses"`,
+		"-c", `model_providers.` + providerID + `.name="` + miniMaxLabel + `"`,
+		"-c", `model_providers.` + providerID + `.base_url="` + miniMaxAPIBaseURL + `"`,
+		"-c", `model_providers.` + providerID + `.env_key="` + miniMaxAPIKeyEnvironment + `"`,
+		"-c", `model_providers.` + providerID + `.wire_api="` + miniMaxWireAPI + `"`,
 	}
 }
 

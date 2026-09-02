@@ -9,22 +9,29 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
 
+const (
+	codexBinary         = "codex"
+	codexPackage        = "@openai/codex"
+	codexInstallTimeout = 5 * time.Minute
+	codexWaitTimeout    = 2 * time.Minute
+)
+
 // NewCLISpec returns the shared Codex CLI installation policy used by
 // providers backed by the Codex app-server protocol.
 func NewCLISpec(name, imageLabel string) provisioning.CLISpec {
 	return provisioning.CLISpec{
 		Name:               name,
 		ImageLabel:         imageLabel,
-		Binary:             "codex",
+		Binary:             codexBinary,
 		VersionArgs:        []string{"--version"},
-		PackageName:        "@openai/codex",
+		PackageName:        codexPackage,
 		Version:            provisioning.MustCLIVersion("CODEX_CLI_VERSION"),
 		CheckVersion:       true,
 		VerifyAfterInstall: true,
 		ReportVersion:      true,
 		InstallMode:        provisioning.InstallWithNPM,
-		InstallTimeout:     5 * time.Minute,
-		WaitTimeout:        2 * time.Minute,
+		InstallTimeout:     codexInstallTimeout,
+		WaitTimeout:        codexWaitTimeout,
 	}
 }
 

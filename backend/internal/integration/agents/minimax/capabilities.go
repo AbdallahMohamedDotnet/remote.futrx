@@ -10,8 +10,8 @@ import (
 func (p *Provider) Capabilities(context.Context, agent.CapabilityRequest) (agent.Capabilities, error) {
 	reasoning := []agent.CapabilityOption{
 		agent.AutoOption(),
-		{Value: "none", Label: "Think-Off", Description: "Disable Adaptive Thinking"},
-		{Value: "high", Label: "Adaptive", Description: "Enable Adaptive Thinking"},
+		{Value: miniMaxReasoningDisabled, Label: "Think-Off", Description: "Disable Adaptive Thinking"},
+		{Value: miniMaxReasoningAdaptive, Label: "Adaptive", Description: "Enable Adaptive Thinking"},
 	}
 	models := agent.WithAutoModel([]agent.ModelCapability{{
 		ID:                     miniMaxModel,
@@ -19,7 +19,7 @@ func (p *Provider) Capabilities(context.Context, agent.CapabilityRequest) (agent
 		Description:            "MiniMax M3 with a 1,000,000-token context window",
 		ProviderDefault:        true,
 		ReasoningEfforts:       reasoning,
-		DefaultReasoningEffort: "high",
+		DefaultReasoningEffort: miniMaxReasoningAdaptive,
 	}}, "MiniMax default")
 
 	return agent.Capabilities{
@@ -33,8 +33,8 @@ func (p *Provider) Capabilities(context.Context, agent.CapabilityRequest) (agent
 }
 
 func miniMaxReasoningEffort(effort agent.ReasoningEffort) agent.ReasoningEffort {
-	if strings.EqualFold(strings.TrimSpace(string(effort)), "none") {
-		return "none"
+	if strings.EqualFold(strings.TrimSpace(string(effort)), miniMaxReasoningDisabled) {
+		return miniMaxReasoningDisabled
 	}
-	return "high"
+	return miniMaxReasoningAdaptive
 }
