@@ -207,8 +207,8 @@ type appServerQuestionOption struct {
 }
 
 func buildAppServerThreadRequest(req agent.RunRequest) appServerThreadRequest {
-	approvalPolicy := normalizeApprovalPolicy(req.Preferences.ApprovalPolicy)
-	sandboxPolicy := normalizeSandboxPolicy(req.Preferences.SandboxPolicy)
+	approvalPolicy := agent.NormalizeApprovalPolicy(req.Preferences.ApprovalPolicy)
+	sandboxPolicy := agent.NormalizeSandboxPolicy(req.Preferences.SandboxPolicy)
 	request := appServerThreadRequest{
 		Method: "thread/start",
 		Params: appServerThreadParams{
@@ -250,7 +250,7 @@ func buildAppServerTurnParams(req agent.RunRequest, threadID, model string) appS
 		reasoningEffort = &effort
 	}
 	params := appServerTurnParams{
-		ApprovalPolicy: normalizeApprovalPolicy(req.Preferences.ApprovalPolicy),
+		ApprovalPolicy: agent.NormalizeApprovalPolicy(req.Preferences.ApprovalPolicy),
 		CollaborationMode: appServerCollaborationMode{
 			Mode: mode,
 			Settings: appServerCollaborationSettings{
@@ -261,7 +261,7 @@ func buildAppServerTurnParams(req agent.RunRequest, threadID, model string) appS
 		Effort:        effort,
 		Input:         []appServerUserInput{{Text: req.Prompt, Type: "text"}},
 		Model:         model,
-		SandboxPolicy: appServerSandboxPolicy{Type: normalizeSandboxPolicy(req.Preferences.SandboxPolicy)},
+		SandboxPolicy: appServerSandboxPolicy{Type: agent.NormalizeSandboxPolicy(req.Preferences.SandboxPolicy)},
 		ThreadID:      threadID,
 	}
 	if tier := serviceTierArg(req.Preferences.ServiceTier); tier != "" {
@@ -270,26 +270,8 @@ func buildAppServerTurnParams(req agent.RunRequest, threadID, model string) appS
 	return params
 }
 
-func normalizeApprovalPolicy(policy string) string {
-	switch strings.TrimSpace(policy) {
-	case "never", "untrusted", "on-request":
-		return strings.TrimSpace(policy)
-	default:
-		return "on-request"
-	}
-}
-
-func normalizeSandboxPolicy(policy string) string {
-	switch strings.TrimSpace(policy) {
-	case "readOnly", "workspaceWrite", "dangerFullAccess":
-		return strings.TrimSpace(policy)
-	default:
-		return "workspaceWrite"
-	}
-}
-
 func legacySandboxMode(policy string) string {
-	switch normalizeSandboxPolicy(policy) {
+	switch agent.NormalizeSandboxPolicy(policy) {
 	case "readOnly":
 		return "read-only"
 	case "dangerFullAccess":

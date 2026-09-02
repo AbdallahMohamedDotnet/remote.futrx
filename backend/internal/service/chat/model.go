@@ -309,21 +309,11 @@ func NormalizeServiceTier(tier string) string {
 }
 
 func NormalizeApprovalPolicy(policy string) string {
-	switch strings.TrimSpace(policy) {
-	case "never", "untrusted", "on-request":
-		return strings.TrimSpace(policy)
-	default:
-		return "on-request"
-	}
+	return agent.NormalizeApprovalPolicy(policy)
 }
 
 func NormalizeSandboxPolicy(policy string) string {
-	switch strings.TrimSpace(policy) {
-	case "readOnly", "workspaceWrite", "dangerFullAccess":
-		return strings.TrimSpace(policy)
-	default:
-		return "workspaceWrite"
-	}
+	return agent.NormalizeSandboxPolicy(policy)
 }
 
 func normalizeCapabilityValue(value string) string {

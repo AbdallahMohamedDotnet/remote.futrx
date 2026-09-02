@@ -120,8 +120,8 @@ func DefaultSettings() Settings {
 			Mode:            ChatModeDefault,
 			ReasoningEffort: ReasoningEffortAuto,
 			ServiceTier:     ServiceTierAuto,
-			ApprovalPolicy:  ApprovalPolicy("on-request"),
-			SandboxPolicy:   SandboxPolicy("workspaceWrite"),
+			ApprovalPolicy:  ApprovalPolicy(agent.DefaultApprovalPolicy),
+			SandboxPolicy:   SandboxPolicy(agent.DefaultSandboxPolicy),
 		},
 	}
 }
@@ -157,21 +157,11 @@ func ValidServiceTier(tier ServiceTier) bool {
 }
 
 func ValidApprovalPolicy(policy ApprovalPolicy) bool {
-	switch strings.TrimSpace(string(policy)) {
-	case "untrusted", "on-request", "never":
-		return true
-	default:
-		return false
-	}
+	return agent.ValidApprovalPolicy(string(policy))
 }
 
 func ValidSandboxPolicy(policy SandboxPolicy) bool {
-	switch strings.TrimSpace(string(policy)) {
-	case "readOnly", "workspaceWrite", "dangerFullAccess":
-		return true
-	default:
-		return false
-	}
+	return agent.ValidSandboxPolicy(string(policy))
 }
 
 func validCapabilityValue(value string) bool {
