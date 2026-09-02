@@ -3,6 +3,7 @@ package minimax
 import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 )
@@ -13,10 +14,10 @@ func NewFactory() (agentmodule.Factory, error) {
 	profile := Profile()
 	return agentmodule.NewFactory(agentmodule.Descriptor{
 		ID:               agent.ProviderMiniMax,
-		Label:            miniMaxLabel,
+		Label:            configconstants.MiniMaxLabel,
 		ExecutionScopes:  []agentmodule.ExecutionScope{agentmodule.ScopeProject},
 		Auth:             agentmodule.AuthExternal,
-		AuthInstructions: "Add a MiniMax API key as `MINIMAX_API_KEY` in each project's Secrets settings.",
+		AuthInstructions: configconstants.MiniMaxAuthInstructions,
 		Features: agentmodule.Features{
 			Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
 			Skills:         agentmodule.SkillsDollarMention,

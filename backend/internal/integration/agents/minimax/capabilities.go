@@ -5,26 +5,35 @@ import (
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 func (p *Provider) Capabilities(context.Context, agent.CapabilityRequest) (agent.Capabilities, error) {
 	reasoning := []agent.CapabilityOption{
 		agent.AutoOption(),
-		{Value: miniMaxReasoningDisabled, Label: "Think-Off", Description: "Disable Adaptive Thinking"},
-		{Value: miniMaxReasoningAdaptive, Label: "Adaptive", Description: "Enable Adaptive Thinking"},
+		{
+			Value:       configconstants.MiniMaxReasoningDisabled,
+			Label:       configconstants.MiniMaxReasoningDisabledLabel,
+			Description: configconstants.MiniMaxReasoningDisabledDescription,
+		},
+		{
+			Value:       configconstants.MiniMaxReasoningAdaptive,
+			Label:       configconstants.MiniMaxReasoningAdaptiveLabel,
+			Description: configconstants.MiniMaxReasoningAdaptiveDescription,
+		},
 	}
 	models := agent.WithAutoModel([]agent.ModelCapability{{
-		ID:                     miniMaxModel,
-		Label:                  miniMaxModel,
-		Description:            "MiniMax M3 with a 1,000,000-token context window",
+		ID:                     configconstants.MiniMaxModel,
+		Label:                  configconstants.MiniMaxModel,
+		Description:            configconstants.MiniMaxModelDescription,
 		ProviderDefault:        true,
 		ReasoningEfforts:       reasoning,
-		DefaultReasoningEffort: miniMaxReasoningAdaptive,
-	}}, "MiniMax default")
+		DefaultReasoningEffort: configconstants.MiniMaxReasoningAdaptive,
+	}}, configconstants.MiniMaxAutoModelLabel)
 
 	return agent.Capabilities{
 		Provider:    agent.ProviderMiniMax,
-		Label:       miniMaxLabel,
+		Label:       configconstants.MiniMaxLabel,
 		Source:      agent.CapabilitySourceFallback,
 		Models:      models,
 		Modes:       agent.ProviderModes(true),
@@ -33,8 +42,8 @@ func (p *Provider) Capabilities(context.Context, agent.CapabilityRequest) (agent
 }
 
 func miniMaxReasoningEffort(effort agent.ReasoningEffort) agent.ReasoningEffort {
-	if strings.EqualFold(strings.TrimSpace(string(effort)), miniMaxReasoningDisabled) {
-		return miniMaxReasoningDisabled
+	if strings.EqualFold(strings.TrimSpace(string(effort)), configconstants.MiniMaxReasoningDisabled) {
+		return configconstants.MiniMaxReasoningDisabled
 	}
-	return miniMaxReasoningAdaptive
+	return configconstants.MiniMaxReasoningAdaptive
 }

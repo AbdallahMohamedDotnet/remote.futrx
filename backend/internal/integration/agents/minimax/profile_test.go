@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 func TestProfileUsesIsolatedCodexHomeAndOfficialModelCatalog(t *testing.T) {
@@ -26,7 +27,7 @@ func TestProfileUsesIsolatedCodexHomeAndOfficialModelCatalog(t *testing.T) {
 		profile.WorkspaceSkills.HomeSkillsDir != "/root/.minimax/skills" {
 		t.Fatalf("workspace skills = %#v", profile.WorkspaceSkills)
 	}
-	if len(profile.RuntimeAssets) != 1 || profile.RuntimeAssets[0].Path != containerMiniMaxCatalog {
+	if len(profile.RuntimeAssets) != 1 || profile.RuntimeAssets[0].Path != configconstants.MiniMaxContainerCatalog {
 		t.Fatalf("runtime assets = %#v", profile.RuntimeAssets)
 	}
 
@@ -42,7 +43,7 @@ func TestProfileUsesIsolatedCodexHomeAndOfficialModelCatalog(t *testing.T) {
 	if err := json.Unmarshal(profile.RuntimeAssets[0].Content, &catalog); err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog.Models) != 1 || catalog.Models[0].Slug != miniMaxModel ||
+	if len(catalog.Models) != 1 || catalog.Models[0].Slug != configconstants.MiniMaxModel ||
 		catalog.Models[0].DefaultReasoningLevel != "high" ||
 		!catalog.Models[0].SupportsReasoningSummaries ||
 		catalog.Models[0].ShellType != "shell_command" || len(catalog.Models[0].InputModalities) != 2 {

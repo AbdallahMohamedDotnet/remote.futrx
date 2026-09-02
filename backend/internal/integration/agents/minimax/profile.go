@@ -3,33 +3,37 @@ package minimax
 import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codexharness"
 )
 
 var miniMaxProfile = provisioning.Profile{
-	ID:          string(agent.ProviderMiniMax),
-	CLI:         codexharness.NewCLISpec(miniMaxCLIName, miniMaxImageLabel),
-	Credentials: provisioning.CredentialSpec{Name: miniMaxCredentialName},
+	ID: string(agent.ProviderMiniMax),
+	CLI: codexharness.NewCLISpec(
+		configconstants.MiniMaxCLIName,
+		configconstants.MiniMaxImageLabel,
+	),
+	Credentials: provisioning.CredentialSpec{Name: configconstants.MiniMaxCredentialName},
 	PersistentState: []provisioning.PersistentDirectory{{
-		Device:        miniMaxPersistentDevice,
-		HostDirectory: miniMaxHostDirectory,
-		ContainerPath: containerMiniMaxHome,
+		Device:        configconstants.MiniMaxPersistentDevice,
+		HostDirectory: configconstants.MiniMaxHostDirectory,
+		ContainerPath: configconstants.MiniMaxContainerHome,
 	}},
 	Instructions: &provisioning.InstructionTarget{
-		Path:     containerMiniMaxInstructions,
-		HashPath: containerMiniMaxHome + "/.agents-md.sha256",
+		Path:     configconstants.MiniMaxContainerInstructions,
+		HashPath: configconstants.MiniMaxContainerInstructionsHash,
 	},
 	WorkspaceSkills: &provisioning.WorkspaceSkills{
-		WorkspaceHome: workspaceMiniMaxHome,
-		HomeSkillsDir: containerMiniMaxSkills,
+		WorkspaceHome: configconstants.MiniMaxWorkspaceHome,
+		HomeSkillsDir: configconstants.MiniMaxContainerSkills,
 	},
 	RuntimeAssets: []provisioning.RuntimeAsset{{
-		Content:       modelCatalog,
-		Path:          containerMiniMaxCatalog,
-		HashPath:      containerMiniMaxCatalogHash,
-		Mode:          "644",
-		Directory:     containerMiniMaxHome,
-		DirectoryMode: "700",
+		Content:       configconstants.MiniMaxModelCatalog(),
+		Path:          configconstants.MiniMaxContainerCatalog,
+		HashPath:      configconstants.MiniMaxContainerCatalogHash,
+		Mode:          configconstants.DefaultRuntimeAssetFileMode,
+		Directory:     configconstants.MiniMaxContainerHome,
+		DirectoryMode: configconstants.DefaultRuntimeAssetDirectoryMode,
 	}},
 }
 
