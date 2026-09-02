@@ -23,9 +23,12 @@ export interface AgentProviderCapabilities {
   default?: boolean;
   executionScopes?: Array<"host" | "project">;
   authentication?: {
-    mode: "managed-code" | "managed-device" | "external" | "none";
+    mode: "managed-code" | "managed-device" | "managed-api-key" | "external" | "none";
     instructions?: string;
     satisfiesAccessGate: boolean;
+    apiKey?: {
+      createUrl: string;
+    };
   };
   features?: {
     sessions: { resume: boolean; fork: boolean };

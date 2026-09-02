@@ -4,8 +4,8 @@ The application separates three concerns:
 
 1. Platform identity: who may open `remote.futrx`.
 2. Agent credentials: whether a provider can run, with host-wide onboarding
-   for Claude, Codex, and Kimi, a project `MINIMAX_API_KEY` for MiniMax, and a
-   supported project-local sign-in flow for Antigravity.
+   for Claude, Codex, Kimi, and MiniMax, plus a supported project-local sign-in
+   flow for Antigravity.
 3. Project membership: which registered users may access a project.
 
 ## Application gate
@@ -31,7 +31,7 @@ stateDiagram-v2
 
 The backend middleware applies the same order to `/api/*` and `/ws*`: valid
 registered session, completed local-admin setup, then at least one agent module
-marked `SatisfiesAccessGate` ready. Managed code/device modules require an
+marked `SatisfiesAccessGate` ready. Managed code/device/API-key modules require an
 authenticated binding; no-auth modules are ready immediately; external flows
 cannot be gate providers because Remote has no authoritative status signal.
 `GET /api/agent-auth`, normalized `/ws/agent-auth/<provider>` streams, and
@@ -138,11 +138,13 @@ flowchart TD
 
 Claude uses an interactive authorization URL plus a pasted code. Codex and Kimi use device-code flows. Credential files are later synchronized into project containers before agent execution.
 
-MiniMax is project-only and uses an external auth binding. Its global card
-shows instructions rather than a login action or status stream. Add
-`MINIMAX_API_KEY` in the project's **Secrets** settings; the key does not
-satisfy the initial provider gate because Remote does not expose it as managed
-host authentication.
+MiniMax is project-only but uses a host-managed API-key binding. Its global
+card opens a write-only key field and links to the MiniMax key console. The
+backend validates a submitted key against MiniMax's non-generation model-list
+endpoint before storing it; rejected keys remain unconfigured. The status
+stream publishes only whether a validated key exists. Before setup, the project
+picker lists MiniMax as locked under **Sign in to use** and does not expose its
+models. MiniMax does not satisfy the initial provider gate.
 
 Antigravity is deliberately outside this host-wide flow. Its global card shows
 the module's provider-managed instructions but has no managed login action or

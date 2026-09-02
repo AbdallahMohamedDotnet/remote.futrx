@@ -66,11 +66,11 @@ These are the constraints worth understanding before you deploy or rely on remot
   container, so all users and projects share the same provider accounts and
   subscription quotas. There is no per-user or per-project identity for those
   providers, and each allows only one interactive login at a time.
-- **MiniMax identity is project-scoped but still shared within that project.**
-  The `MINIMAX_API_KEY` value is a plaintext project secret available to agent
-  runs and every project member with secret access. MiniMax uses a separate
-  `/root/.minimax` runtime home, but container root can also read the other
-  mounted provider homes; that separation is not a security boundary.
+- **MiniMax identity is an installation-wide API key.** The key is stored in a
+  mode-`0600` control-plane file without application-level encryption and is
+  injected into every MiniMax run. MiniMax uses a separate `/root/.minimax`
+  runtime home, but container root can also read the other mounted provider
+  homes; that separation is not a security boundary.
 - **Codex's API-key guard does not inspect newer project-local auth before a
   run.** Remote rejects a host `auth.json` explicitly marked `apikey` and clears
   `OPENAI_API_KEY`, but credential seeding does not overwrite a newer

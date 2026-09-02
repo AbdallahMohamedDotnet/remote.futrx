@@ -53,6 +53,8 @@ export const API_ROUTES = {
       `/api/${encodeURIComponent(provider)}/login/cancel`,
     startDeviceLogin: (provider: string) =>
       `/api/${encodeURIComponent(provider)}/login/device`,
+    apiKey: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/login/api-key`,
   },
   projects: {
     collection: "/api/projects",

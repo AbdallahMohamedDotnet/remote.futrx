@@ -30,9 +30,14 @@ type ModelCapability struct {
 }
 
 type CapabilityAuthentication struct {
-	Mode                string `json:"mode"`
-	Instructions        string `json:"instructions,omitempty"`
-	SatisfiesAccessGate bool   `json:"satisfiesAccessGate"`
+	Mode                string                          `json:"mode"`
+	Instructions        string                          `json:"instructions,omitempty"`
+	SatisfiesAccessGate bool                            `json:"satisfiesAccessGate"`
+	APIKey              *CapabilityAPIKeyAuthentication `json:"apiKey,omitempty"`
+}
+
+type CapabilityAPIKeyAuthentication struct {
+	CreateURL string `json:"createUrl"`
 }
 
 type CapabilitySessionSupport struct {

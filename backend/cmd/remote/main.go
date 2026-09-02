@@ -85,6 +85,7 @@ func main() {
 		ProjectContainers: containerStack.ProjectDependencies(),
 		AgentContainers:   containerStack.AgentDependencies(),
 		AgentModules:      agentModules,
+		AgentAPIKeys:      storeSet.AgentAPIKeys,
 		AgentOptions: service.AgentOptions{
 			CapabilityTimeout:          cfg.Agent.CapabilityTimeout,
 			CapabilityCacheTTL:         cfg.Agent.CapabilityCacheTTL,

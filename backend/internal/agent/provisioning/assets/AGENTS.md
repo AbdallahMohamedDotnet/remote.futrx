@@ -46,7 +46,8 @@ crashed processes, and deleted files stay within this project.
 `apt-get install` or `npm i -g` freely.
 
 The MiniMax agent also uses the `codex` binary, with isolated state under
-`/root/.minimax` and the project secret `MINIMAX_API_KEY`.
+`/root/.minimax`. Remote injects its host-managed API key only into MiniMax
+runs; do not ask users to add it as a project secret.
 
 **Persistence rule.** `/workspace/**` and the five provider homes listed
 above are host bind-mounts and survive container replacement. Other paths

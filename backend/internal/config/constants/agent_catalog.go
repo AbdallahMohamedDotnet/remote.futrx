@@ -22,6 +22,7 @@ const (
 	MiniMaxAutoModelLabel               = "MiniMax default"
 	MiniMaxModelContextWindow           = 1_000_000
 	MiniMaxAPIBaseURL                   = "https://api.minimax.io/v1"
+	MiniMaxAPIValidationTimeout         = 10 * time.Second
 	MiniMaxAPIKeyEnvironment            = "MINIMAX_API_KEY"
 	MiniMaxWireAPI                      = "responses"
 	MiniMaxReasoningDisabled            = "none"
@@ -35,7 +36,8 @@ const (
 	MiniMaxCredentialName               = "minimax"
 	MiniMaxPersistentDevice             = "minimax-home"
 	MiniMaxHostDirectory                = "minimax"
-	MiniMaxAuthInstructions             = "Add a MiniMax API key as `MINIMAX_API_KEY` in each project's Secrets settings."
+	MiniMaxAuthInstructions             = "Add your MiniMax API key to make MiniMax available in project chats."
+	MiniMaxAPIKeyCreateURL              = "https://platform.minimax.io/console/access"
 
 	MiniMaxContainerHome             = "/root/.minimax"
 	MiniMaxContainerCatalog          = MiniMaxContainerHome + "/model-catalog.json"

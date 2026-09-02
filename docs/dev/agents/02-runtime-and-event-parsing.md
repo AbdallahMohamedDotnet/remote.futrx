@@ -158,7 +158,7 @@ Factories express only real policy differences:
 | --- | --- | --- | --- | --- |
 | Claude | Seed from its profile | Best effort | Best effort | Required when Browser is enabled |
 | Codex | Reject host API-key auth, then seed | Fatal | Best effort | Required when Browser is enabled |
-| MiniMax | Require project `MINIMAX_API_KEY` after preparation | Fatal | Best effort | Required when Browser is enabled |
+| MiniMax | Require the host-managed API key before preparation | Fatal | Best effort | Required when Browser is enabled |
 | Kimi | Seed/synchronize its dynamic directory | Best effort | Best effort | Not used |
 | Antigravity | None | Best effort | Not used | Not used |
 

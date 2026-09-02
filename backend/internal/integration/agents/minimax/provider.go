@@ -10,11 +10,16 @@ import (
 
 type Provider struct {
 	projectPreparer agent.ProjectPreparer
+	apiKeys         apiKeySource
 	binary          string
 }
 
-func newProvider(projectPreparer agent.ProjectPreparer, binary string) *Provider {
-	return &Provider{projectPreparer: projectPreparer, binary: binary}
+type apiKeySource interface {
+	APIKey() (string, bool)
+}
+
+func newProvider(projectPreparer agent.ProjectPreparer, apiKeys apiKeySource, binary string) *Provider {
+	return &Provider{projectPreparer: projectPreparer, apiKeys: apiKeys, binary: binary}
 }
 
 func (p *Provider) ID() agent.ProviderID {

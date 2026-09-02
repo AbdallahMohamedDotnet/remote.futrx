@@ -10,6 +10,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/googleoauth"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
@@ -63,6 +64,7 @@ type Dependencies struct {
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
 	AgentModules      *agentmodule.Catalog
+	AgentAPIKeys      agentauth.APIKeyStore
 	AgentOptions      AgentOptions
 	AuthOptions       AuthOptions
 	TmuxClient        TmuxClient
@@ -156,6 +158,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	agentRuntime, err := deps.AgentModules.Build(agentmodule.BuildDependencies{
 		Projects:              agentProjectResolver{projects: projectService},
 		Containers:            deps.AgentContainers,
+		APIKeys:               deps.AgentAPIKeys,
 		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,
 	})
 	if err != nil {

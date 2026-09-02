@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os/exec"
 	"strconv"
-	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
@@ -15,7 +14,7 @@ import (
 
 var (
 	ErrProjectRequired      = errors.New("MiniMax is available in project chats")
-	ErrMiniMaxAPIKeyMissing = errors.New("MiniMax API key is not configured; add MINIMAX_API_KEY in this project's Secrets settings")
+	ErrMiniMaxAPIKeyMissing = errors.New("MiniMax API key is not configured; add it in Settings → Agent authentication")
 )
 
 func (p *Provider) args(req agent.RunRequest) []string {
@@ -45,6 +44,13 @@ func (p *Provider) buildCmd(
 	if req.ProjectID == "" || p.projectPreparer == nil {
 		return nil, ErrProjectRequired
 	}
+	if p.apiKeys == nil {
+		return nil, ErrMiniMaxAPIKeyMissing
+	}
+	apiKey, ok := p.apiKeys.APIKey()
+	if !ok {
+		return nil, ErrMiniMaxAPIKeyMissing
+	}
 	project, err := p.projectPreparer.Prepare(ctx, agent.ProjectPreparationRequest{
 		ProjectID:           agent.ProjectID(req.ProjectID),
 		ConversationID:      req.ConversationID,
@@ -54,25 +60,20 @@ func (p *Provider) buildCmd(
 	if err != nil {
 		return nil, err
 	}
-	if !hasMiniMaxAPIKey(project.Secrets) {
-		return nil, ErrMiniMaxAPIKeyMissing
+	runtimeEnvironment := make(map[string]string, len(req.RuntimeEnv)+1)
+	for key, value := range req.RuntimeEnv {
+		runtimeEnvironment[key] = value
 	}
+	runtimeEnvironment[configconstants.MiniMaxAPIKeyEnvironment] = apiKey
 	return agentruntime.BuildContainerCommand(ctx, agentruntime.ContainerCommandSpec{
-		ContainerName:      project.ContainerName,
-		Secrets:            project.Secrets,
-		ExcludedSecrets:    []string{"HOME", "CODEX_HOME", "OPENAI_API_KEY"},
+		ContainerName: project.ContainerName,
+		Secrets:       project.Secrets,
+		ExcludedSecrets: []string{
+			"HOME", "CODEX_HOME", "OPENAI_API_KEY", configconstants.MiniMaxAPIKeyEnvironment,
+		},
 		SuffixEnvironment:  []string{"HOME=/root", "CODEX_HOME=" + configconstants.MiniMaxContainerHome, "OPENAI_API_KEY="},
-		RuntimeEnvironment: req.RuntimeEnv,
+		RuntimeEnvironment: runtimeEnvironment,
 		Binary:             p.binary,
 		Arguments:          args,
 	}), nil
-}
-
-func hasMiniMaxAPIKey(secrets []agent.ProjectSecret) bool {
-	for _, secret := range secrets {
-		if secret.Key == configconstants.MiniMaxAPIKeyEnvironment && strings.TrimSpace(secret.Value) != "" {
-			return true
-		}
-	}
-	return false
 }

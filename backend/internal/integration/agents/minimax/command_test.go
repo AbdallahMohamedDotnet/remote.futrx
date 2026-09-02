@@ -32,10 +32,10 @@ func TestMiniMaxConfigUsesResponsesAndEnvironmentKey(t *testing.T) {
 	}
 }
 
-func TestBuildCmdRequiresProjectMiniMaxSecret(t *testing.T) {
+func TestBuildCmdRequiresConfiguredMiniMaxAPIKey(t *testing.T) {
 	provider := newProvider(miniMaxTestPreparer{
 		project: agent.PreparedProject{ContainerName: "project-container"},
-	}, "codex")
+	}, miniMaxTestAPIKeys{}, "codex")
 	_, err := provider.buildCmd(context.Background(), agent.RunRequest{ProjectID: "project"}, provider.args(agent.RunRequest{}), nil)
 	if !errors.Is(err, ErrMiniMaxAPIKeyMissing) {
 		t.Fatalf("error = %v, want ErrMiniMaxAPIKeyMissing", err)
@@ -47,16 +47,21 @@ func TestBuildCmdUsesIsolatedHomeAndPreservesMiniMaxSecret(t *testing.T) {
 		project: agent.PreparedProject{
 			ContainerName: "project-container",
 			Secrets: []agent.ProjectSecret{
-				{Key: configconstants.MiniMaxAPIKeyEnvironment, Value: "test-key"},
+				{Key: configconstants.MiniMaxAPIKeyEnvironment, Value: "project-key-must-not-pass"},
 				{Key: "OPENAI_API_KEY", Value: "must-not-pass"},
 				{Key: "HOME", Value: "/workspace/attacker-home"},
 				{Key: "CODEX_HOME", Value: "/workspace/attacker-codex-home"},
 			},
 		},
-	}, "codex")
+	}, miniMaxTestAPIKeys{key: "managed-key"}, "codex")
 	cmd, err := provider.buildCmd(
 		context.Background(),
-		agent.RunRequest{ProjectID: "project"},
+		agent.RunRequest{
+			ProjectID: "project",
+			RuntimeEnv: map[string]string{
+				configconstants.MiniMaxAPIKeyEnvironment: "request-key-must-not-pass",
+			},
+		},
 		provider.args(agent.RunRequest{}),
 		nil,
 	)
@@ -66,7 +71,7 @@ func TestBuildCmdUsesIsolatedHomeAndPreservesMiniMaxSecret(t *testing.T) {
 	joined := strings.Join(cmd.Args, "\n")
 	for _, want := range []string{
 		"CODEX_HOME=/root/.minimax",
-		"MINIMAX_API_KEY=test-key",
+		"MINIMAX_API_KEY=managed-key",
 		"OPENAI_API_KEY=",
 		"model_providers.minimax.env_key=\"MINIMAX_API_KEY\"",
 	} {
@@ -77,10 +82,24 @@ func TestBuildCmdUsesIsolatedHomeAndPreservesMiniMaxSecret(t *testing.T) {
 	if strings.Contains(joined, "OPENAI_API_KEY=must-not-pass") {
 		t.Fatalf("OpenAI key leaked into MiniMax command: %#v", cmd.Args)
 	}
+	if strings.Contains(joined, "MINIMAX_API_KEY=project-key-must-not-pass") {
+		t.Fatalf("project key overrode the managed MiniMax key: %#v", cmd.Args)
+	}
+	if strings.Contains(joined, "MINIMAX_API_KEY=request-key-must-not-pass") {
+		t.Fatalf("request environment overrode the managed MiniMax key: %#v", cmd.Args)
+	}
 	if strings.Contains(joined, "/workspace/attacker-home") ||
 		strings.Contains(joined, "/workspace/attacker-codex-home") {
 		t.Fatalf("project secrets overrode MiniMax's isolated home: %#v", cmd.Args)
 	}
+}
+
+type miniMaxTestAPIKeys struct {
+	key string
+}
+
+func (s miniMaxTestAPIKeys) APIKey() (string, bool) {
+	return s.key, s.key != ""
 }
 
 func TestArgsWireBrowserThroughCodexHarness(t *testing.T) {

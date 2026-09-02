@@ -136,11 +136,11 @@ provider triggers.
 
 ### MiniMax says its API key is not configured
 
-MiniMax is available only in project chats. Open that project's settings,
-select **Secrets**, and add a non-empty value under the exact key
-`MINIMAX_API_KEY`. Return to the chat and retry; the key is checked when the
-run starts, while the static `MiniMax-M3` catalog can appear before a key is
-configured.
+MiniMax is available only in project chats. Open **Settings → Agents**, choose
+the MiniMax sign-in action, and save a non-empty API key. The locked MiniMax
+row then moves from **Sign in to use** to **Connected**, and its model list
+becomes available. If MiniMax rejects the key, the form remains open and the
+existing key, if any, remains active.
 
 ### Antigravity says it is not signed in
 
