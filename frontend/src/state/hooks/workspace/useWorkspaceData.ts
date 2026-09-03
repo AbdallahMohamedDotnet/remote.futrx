@@ -1,8 +1,14 @@
 import { useStore } from "zustand";
 import { useEffect } from "preact/hooks";
 import { workspaceApi } from "../../../api/workspaceApi";
-import type { WorkspaceFeed } from "../../../models/workspace";
+import type {
+  WorkspaceSnapshot,
+  WorkspaceStoreActions,
+} from "../../../models/workspace";
 import { createWorkspaceStore } from "../../stores/workspace/workspaceStore";
+
+interface WorkspaceFeed
+  extends WorkspaceSnapshot, Pick<WorkspaceStoreActions, "seedChat"> {}
 
 // One feed for the whole app. The concrete socket is wired here rather than
 // inside the store so the store stays free of the api layer and testable.
