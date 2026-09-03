@@ -4,6 +4,7 @@
 
 const RTL_REGEX = /[\u0590-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 const LTR_REGEX = /[A-Za-z\u00C0-\u024F]/;
+const TRAILING_SENTENCE_PUNCTUATION_REGEX = /[.,;:!?،؛؟]$/;
 
 /**
  * Returns true if the provided text contains any Arabic or RTL characters.
@@ -48,9 +49,13 @@ export interface BidiSegment {
  */
 export function splitBidiSegments(text: string): BidiSegment[] {
   if (!text) return [];
+
+  const hasRtl = isRtlText(text);
+  const hasLtr = hasLtrText(text);
+
   // If the text does not contain both RTL and LTR characters, no splitting is needed.
-  if (!isRtlText(text) || !hasLtrText(text)) {
-    return [{ text, isLtr: !isRtlText(text) && hasLtrText(text) }];
+  if (!hasRtl || !hasLtr) {
+    return [{ text, isLtr: !hasRtl && hasLtr }];
   }
 
   // A coherent LTR run:
@@ -66,20 +71,7 @@ export function splitBidiSegments(text: string): BidiSegment[] {
 
   while ((match = ltrPattern.exec(text)) !== null) {
     const matchStart = match.index;
-    let matchText = match[0];
-
-    // Refine match: if match has a trailing dot/comma/colon/semicolon that is sentence punctuation
-    // (i.e. not balanced by a leading bracket/quote and not an internal decimal like 2.0), strip it.
-    while (matchText.length > 1 && /[.,;:!?،؛؟]$/.test(matchText)) {
-      const lastChar = matchText[matchText.length - 1];
-      const openParens = (matchText.match(/\(/g) || []).length;
-      const closeParens = (matchText.match(/\)/g) || []).length;
-      const openBrackets = (matchText.match(/\[/g) || []).length;
-      const closeBrackets = (matchText.match(/\]/g) || []).length;
-      if (lastChar === ")" && openParens > closeParens) break;
-      if (lastChar === "]" && openBrackets > closeBrackets) break;
-      matchText = matchText.slice(0, -1);
-    }
+    const matchText = trimTrailingSentencePunctuation(match[0]);
 
     if (matchStart > lastIndex) {
       segments.push({
@@ -105,4 +97,12 @@ export function splitBidiSegments(text: string): BidiSegment[] {
   }
 
   return segments;
+}
+
+function trimTrailingSentencePunctuation(text: string): string {
+  let trimmed = text;
+  while (trimmed.length > 1 && TRAILING_SENTENCE_PUNCTUATION_REGEX.test(trimmed)) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return trimmed;
 }
