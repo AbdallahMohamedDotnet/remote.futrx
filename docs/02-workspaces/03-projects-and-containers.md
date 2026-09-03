@@ -102,7 +102,7 @@ instruction and skill targets rather than only the currently selected
 provider's target.
 
 Profiles may also publish non-secret runtime assets for the selected agent.
-MiniMax uses this path for its Codex model catalog; its API key remains a
+MiniMax uses this path for its Codex model catalog; its Token Plan subscription key remains a
 project secret and is never written into that template.
 
 The reusable Ubuntu 24.04 base image contains:

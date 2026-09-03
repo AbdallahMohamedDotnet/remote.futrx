@@ -18,6 +18,8 @@ export function AssistantMessage({
   onAnswerQuestion?: (text: string) => void;
   onRespondInteraction?: ChatInteractionResponder;
 }) {
+  const reasoningActive = block.parts.at(-1)?.kind === "thinking";
+
   return (
     <div class="codex-assistant-block space-y-2 max-w-full">
       <AssistantPartList
@@ -28,7 +30,7 @@ export function AssistantMessage({
         onAnswerQuestion={onAnswerQuestion}
         onRespondInteraction={onRespondInteraction}
       />
-      {streaming && !block.isComplete && <ThinkingIndicator />}
+      {streaming && !block.isComplete && !reasoningActive && <ThinkingIndicator />}
     </div>
   );
 }

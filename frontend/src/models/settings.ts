@@ -25,11 +25,15 @@ export interface ChatSettings {
 
 export interface UserSettings {
   appearance: AppearanceSettings;
+  /** Preferences for loose chats running on the host. */
   chat: ChatSettings;
+  /** Preferences for chats running inside a project container. */
+  projectChat: ChatSettings;
   updatedAt?: number;
 }
 
 export interface UpdateUserSettingsInput {
   appearance?: Partial<AppearanceSettings>;
   chat?: Partial<ChatSettings>;
+  projectChat?: Partial<ChatSettings>;
 }

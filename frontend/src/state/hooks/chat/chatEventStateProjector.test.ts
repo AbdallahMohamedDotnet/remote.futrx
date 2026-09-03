@@ -46,6 +46,35 @@ test("projects chat events into the existing message and usage model", () => {
   });
 });
 
+test("coalesces streamed reasoning deltas into one message part", () => {
+  const events: ChatEvent[] = [
+    { type: "user", text: "inspect it", t: 1 },
+    { type: "thinking", text: "Playwright ", t: 2 },
+    { type: "thinking", text: "isn't installed. ", t: 3 },
+    { type: "thinking", text: "I'll use the browser instead.", t: 4 },
+    { type: "assistant_text", text: "I opened the page.", t: 5 },
+    { type: "complete", t: 6 },
+  ];
+
+  const state = chatEventStateProjector.fromEvents(events, { hasMore: false });
+
+  assert.deepEqual(state.blocks, [
+    { type: "user", text: "inspect it", t: 1 },
+    {
+      type: "assistant",
+      parts: [
+        {
+          kind: "thinking",
+          text: "Playwright isn't installed. I'll use the browser instead.",
+        },
+        { kind: "text", text: "I opened the page." },
+      ],
+      t: 2,
+      isComplete: true,
+    },
+  ]);
+});
+
 test("preserves pending interactions and final subagent reports across replay", () => {
   const events: ChatEvent[] = [
     { type: "user", text: "delegate", t: 1 },

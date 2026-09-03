@@ -20,8 +20,12 @@ func TestFactoryDeclaresProjectCodexHarnessFeatures(t *testing.T) {
 	if len(descriptor.ExecutionScopes) != 1 || descriptor.ExecutionScopes[0] != agentmodule.ScopeProject {
 		t.Fatalf("execution scopes = %#v", descriptor.ExecutionScopes)
 	}
-	if descriptor.Auth != agentmodule.AuthExternal || descriptor.SatisfiesAccessGate {
+	if descriptor.Auth != agentmodule.AuthManagedAPIKey || descriptor.SatisfiesAccessGate {
 		t.Fatalf("auth policy = %#v", descriptor)
+	}
+	if descriptor.APIKeyAuth == nil || descriptor.APIKeyAuth.CreateURL == "" ||
+		descriptor.APIKeyAuth.CreateLabel == "" || descriptor.APIKeyAuth.CredentialLabel == "" {
+		t.Fatalf("API key policy = %#v", descriptor.APIKeyAuth)
 	}
 	if !descriptor.Features.Sessions.Resume || !descriptor.Features.Sessions.Fork ||
 		descriptor.Features.Skills != agentmodule.SkillsDollarMention ||
@@ -42,7 +46,7 @@ func TestFactoryDeclaresProjectCodexHarnessFeatures(t *testing.T) {
 		t.Fatalf("provider = %#v", provider)
 	}
 	binding, ok := runtime.AuthBinding(agent.ProviderMiniMax)
-	if !ok || binding.Flow() != agentauth.FlowExternal {
+	if !ok || binding.Flow() != agentauth.FlowAPIKey {
 		t.Fatalf("binding = (%#v, %t)", binding, ok)
 	}
 }

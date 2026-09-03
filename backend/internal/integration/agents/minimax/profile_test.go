@@ -1,14 +1,12 @@
 package minimax
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
-func TestProfileUsesIsolatedCodexHomeAndOfficialModelCatalog(t *testing.T) {
+func TestProfileUsesIsolatedCodexHome(t *testing.T) {
 	profile := Profile()
 	if profile.ID != "minimax" || profile.CLI.Binary != "codex" ||
 		profile.CLI.PackageName != "@openai/codex" ||
@@ -27,34 +25,7 @@ func TestProfileUsesIsolatedCodexHomeAndOfficialModelCatalog(t *testing.T) {
 		profile.WorkspaceSkills.HomeSkillsDir != "/root/.minimax/skills" {
 		t.Fatalf("workspace skills = %#v", profile.WorkspaceSkills)
 	}
-	if len(profile.RuntimeAssets) != 1 || profile.RuntimeAssets[0].Path != configconstants.MiniMaxContainerCatalog {
-		t.Fatalf("runtime assets = %#v", profile.RuntimeAssets)
-	}
-
-	var catalog struct {
-		Models []struct {
-			Slug                       string   `json:"slug"`
-			DefaultReasoningLevel      string   `json:"default_reasoning_level"`
-			SupportsReasoningSummaries bool     `json:"supports_reasoning_summaries"`
-			ShellType                  string   `json:"shell_type"`
-			InputModalities            []string `json:"input_modalities"`
-		} `json:"models"`
-	}
-	if err := json.Unmarshal(profile.RuntimeAssets[0].Content, &catalog); err != nil {
-		t.Fatal(err)
-	}
-	if len(catalog.Models) != 1 || catalog.Models[0].Slug != configconstants.MiniMaxModel ||
-		catalog.Models[0].DefaultReasoningLevel != "high" ||
-		!catalog.Models[0].SupportsReasoningSummaries ||
-		catalog.Models[0].ShellType != "shell_command" || len(catalog.Models[0].InputModalities) != 2 {
-		t.Fatalf("model catalog = %#v", catalog.Models)
-	}
-}
-
-func TestProfileReturnsDefensiveCatalogCopies(t *testing.T) {
-	first := Profile()
-	first.RuntimeAssets[0].Content[0] = 'x'
-	if Profile().RuntimeAssets[0].Content[0] == 'x' {
-		t.Fatal("model catalog mutation escaped Profile")
+	if len(profile.RuntimeAssets) != 0 {
+		t.Fatalf("runtime catalog must come from live discovery: %#v", profile.RuntimeAssets)
 	}
 }

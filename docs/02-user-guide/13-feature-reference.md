@@ -54,7 +54,7 @@ The placeholder mentions `@` files and `/` commands, but the current source has 
 | Feature | Visible behavior |
 | --- | --- |
 | Streaming text | Assistant output appears incrementally |
-| Reasoning | Provider reasoning/thinking parts are rendered when emitted |
+| Reasoning | Consecutive provider reasoning deltas are grouped into collapsed, live-updating blocks that can be expanded at any time |
 | Tool groups | Consecutive tools are grouped and expandable |
 | Specialized tools | Read, write, edit, search, shell, and questions have tailored cards |
 | Generic tools | Unknown tools use a generic renderer |
@@ -78,7 +78,7 @@ There is no approval workflow in the current chat transport. Project agents run 
 
 | Capability | Claude | Codex | MiniMax | Kimi | Antigravity |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Sign-in | Host authorization URL and pasted code | Host device flow | Project `MINIMAX_API_KEY` secret | Host device flow | Run `agy` in each project Terminal |
+| Sign-in | Host authorization URL and pasted code | Host device flow | Host-managed write-only API-key form | Host device flow | Run `agy` in each project Terminal |
 | Model picker | Live `/model` list with attempted version resolution | Live paginated app-server list | Provider-owned `MiniMax-M3` catalog | Configured models from the provider catalog | Models/variants returned by signed-in `agy` |
 | Thinking control | Forwarded | Forwarded | Think-Off or Adaptive | Displayed/stored per model, not yet forwarded | Forwarded as Auto, Low, Medium, or High |
 | Speed/service tier | Fast for Auto and Opus | Yes | No | No | No |
