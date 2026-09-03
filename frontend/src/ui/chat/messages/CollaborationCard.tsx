@@ -1,8 +1,19 @@
 import type { AssistantMessagePart } from "../../../models/chatMessage";
+import { useState } from "preact/hooks";
+import { ChevronDown, ChevronRight } from "../../primitives/icons";
+import { Markdown } from "../markdown/Markdown";
 
 type CollaborationPart = Extract<AssistantMessagePart, { kind: "collaboration" }>;
 
-export function CollaborationCard({ part }: { part: CollaborationPart }) {
+export function CollaborationCard({
+  part,
+  chatId,
+  cwd,
+}: {
+  part: CollaborationPart;
+  chatId?: string;
+  cwd?: string;
+}) {
   const states = isObject(part.data.agentsStates) ? part.data.agentsStates : {};
   const isSubagentThread = part.data.type === "subagentThread";
   const receivers = Array.isArray(part.data.receiverThreadIds)
@@ -19,20 +30,35 @@ export function CollaborationCard({ part }: { part: CollaborationPart }) {
     : [];
   const label = part.name || "Subagent orchestration";
   const status = part.status || "inProgress";
+  const [expanded, setExpanded] = useState(() => !isTerminalStatus(status));
   return (
     <section class="my-2 overflow-hidden rounded-lg border border-line bg-surface">
-      <header class="flex items-center justify-between gap-3 border-b border-line bg-tint px-3 py-2">
-        <div>
-          <div class="text-[12px] font-semibold text-ink-100">{label}</div>
-          {receivers.length > 0 && (
-            <div class="mt-0.5 font-mono text-[10px] text-ink-400" title={receivers.join(", ")}>
-              {receivers.map(shortThreadID).join(", ")}
-            </div>
+      <header class="bg-tint">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+          class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-tint-strong"
+        >
+          {expanded ? (
+            <ChevronDown class="h-3.5 w-3.5 flex-none text-ink-300" aria-hidden="true" />
+          ) : (
+            <ChevronRight class="h-3.5 w-3.5 flex-none text-ink-300" aria-hidden="true" />
           )}
-        </div>
-        <span class="rounded-full border border-line-strong px-2 py-0.5 text-[10px] text-ink-300">{statusLabel(status)}</span>
+          <div class="min-w-0 flex-1">
+            <div class="text-[12px] font-semibold text-ink-100">{label}</div>
+            {receivers.length > 0 && (
+              <div class="mt-0.5 truncate font-mono text-[10px] text-ink-400" title={receivers.join(", ")}>
+                {receivers.map(shortThreadID).join(", ")}
+              </div>
+            )}
+          </div>
+          <span class="flex-none rounded-full border border-line-strong px-2 py-0.5 text-[10px] text-ink-300">
+            {statusLabel(status)}
+          </span>
+        </button>
       </header>
-      <div class="space-y-2 p-3">
+      {expanded && <div class="space-y-2 border-t border-line p-3">
         {typeof part.data.prompt === "string" && (
           <p class="text-[12px] leading-relaxed text-ink-300">{part.data.prompt}</p>
         )}
@@ -54,7 +80,9 @@ export function CollaborationCard({ part }: { part: CollaborationPart }) {
                 <span class="text-[10px] text-ink-400">{typeof state.status === "string" ? state.status : "unknown"}</span>
               </div>
               {typeof state.message === "string" && state.message && (
-                <div class="codex-prose mt-2 whitespace-pre-wrap text-[12px] leading-relaxed text-ink-200">{state.message}</div>
+                <div class="codex-prose mt-2 text-[12px] leading-relaxed text-ink-200">
+                  <Markdown chatId={chatId} cwd={cwd}>{state.message}</Markdown>
+                </div>
               )}
               {isSubagentThread && !(typeof state.message === "string" && state.message) && (
                 <div class="mt-2 text-[11px] text-ink-400">
@@ -64,13 +92,17 @@ export function CollaborationCard({ part }: { part: CollaborationPart }) {
             </div>
           );
         })}
-      </div>
+      </div>}
     </section>
   );
 }
 
 function statusLabel(status: string): string {
   return status === "turnEnded" ? "turn ended" : status;
+}
+
+function isTerminalStatus(status: string): boolean {
+  return ["completed", "failed", "interrupted", "cancelled", "canceled", "turnEnded"].includes(status);
 }
 
 function emptyStateMessage(status: string): string {

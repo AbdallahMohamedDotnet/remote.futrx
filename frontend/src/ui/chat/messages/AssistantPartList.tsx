@@ -90,7 +90,14 @@ function renderAssistantParts(
     }
 
     if (part.kind === "collaboration") {
-      rendered.push(<CollaborationCard key={part.id} part={part} />);
+      rendered.push(
+        <CollaborationCard
+          key={part.id}
+          part={part}
+          chatId={context.chatId}
+          cwd={context.cwd}
+        />
+      );
       return;
     }
 
