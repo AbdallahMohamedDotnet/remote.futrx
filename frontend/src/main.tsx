@@ -1,5 +1,6 @@
 import { render } from "preact";
 import { App } from "./app/App";
+import { VIEWPORT_FOCUS_SETTLE_DELAY_MS } from "./config/viewport.ts";
 import "./index.css";
 import { viewportHeightService } from "./services/platform/viewportHeightService";
 
@@ -38,7 +39,7 @@ function installViewportHeightFix() {
   window.addEventListener("resize", sync);
   window.addEventListener("orientationchange", sync);
   window.addEventListener("focusin", sync);
-  window.addEventListener("focusout", () => window.setTimeout(sync, 120));
+  window.addEventListener("focusout", () => window.setTimeout(sync, VIEWPORT_FOCUS_SETTLE_DELAY_MS));
   window.visualViewport?.addEventListener("resize", sync);
   window.visualViewport?.addEventListener("scroll", sync);
 }
