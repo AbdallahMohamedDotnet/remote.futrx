@@ -26,8 +26,7 @@ export type AssistantMessagePart =
       data: Record<string, unknown>;
       status: string;
     }
-  | { kind: "turn-status"; status: string; data?: Record<string, unknown> }
-  | { kind: "provider-event"; id: string; name: string; data?: unknown; status?: string };
+  | { kind: "turn-status"; status: string; data?: Record<string, unknown> };
 
 export type AssistantMessageBlock = {
   type: "assistant";

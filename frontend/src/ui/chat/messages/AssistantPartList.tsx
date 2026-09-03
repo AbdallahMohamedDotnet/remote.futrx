@@ -5,7 +5,6 @@ import { StreamingText } from "./StreamingText";
 import { ToolGroup } from "./ToolGroup";
 import { InteractionCard } from "../interactions/InteractionCard";
 import { CollaborationCard } from "./CollaborationCard";
-import { ProviderEventCard } from "./ProviderEventCard";
 import type { ChatInteractionResponder } from "../../../types/chatApi";
 
 type ToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
@@ -92,11 +91,6 @@ function renderAssistantParts(
 
     if (part.kind === "collaboration") {
       rendered.push(<CollaborationCard key={part.id} part={part} />);
-      return;
-    }
-
-    if (part.kind === "provider-event") {
-      rendered.push(<ProviderEventCard key={part.id} part={part} />);
       return;
     }
 

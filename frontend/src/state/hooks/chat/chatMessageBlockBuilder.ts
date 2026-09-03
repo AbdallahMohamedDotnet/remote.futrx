@@ -103,17 +103,11 @@ class ChatMessageBlockBuilder {
         }
         return next;
       }
-      case "provider_event": {
-        const { blocks: next, assistant } = this.ensureTrailingAssistant(blocks, event.t);
-        assistant.parts.push({
-          kind: "provider-event",
-          id: `${event.seq ?? event.t}-${event.name || "event"}`,
-          name: event.name || "Codex event",
-          data: event.data,
-          status: event.status,
-        });
-        return next;
-      }
+      // Provider-native fallback events stay in the persisted event stream for
+      // diagnostics and future typed projections. They are protocol telemetry,
+      // not conversation content, so the normal transcript does not render them.
+      case "provider_event":
+        return blocks;
       case "complete":
 		return this.endTrailingAssistant(this.updateTrailingTurnStatus(
 		  blocks,

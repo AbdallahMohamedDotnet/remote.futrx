@@ -96,6 +96,33 @@ test("preserves pending interactions and final subagent reports across replay", 
   });
 });
 
+test("retains provider events without rendering them in the transcript", () => {
+  const events: ChatEvent[] = [
+    { type: "user", text: "hello", t: 1 },
+    {
+      type: "provider_event",
+      name: "thread/settings/updated",
+      data: { model: "gpt-5.6-sol" },
+      t: 2,
+    },
+    { type: "assistant_text", text: "hello", t: 3 },
+    { type: "complete", t: 4 },
+  ];
+
+  const state = chatEventStateProjector.fromEvents(events, { hasMore: false });
+
+  assert.equal(state.events, events);
+  assert.deepEqual(state.blocks, [
+    { type: "user", text: "hello", t: 1 },
+    {
+      type: "assistant",
+      parts: [{ kind: "text", text: "hello" }],
+      t: 3,
+      isComplete: true,
+    },
+  ]);
+});
+
 test("prepends an older event page before current blocks and adopts hasMore", () => {
   const latest = chatEventStateProjector.fromEvents(
     [
