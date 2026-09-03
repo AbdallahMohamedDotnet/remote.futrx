@@ -21,7 +21,7 @@ export function AssistantMessage({
   const reasoningActive = block.parts.at(-1)?.kind === "thinking";
 
   return (
-    <div class="codex-assistant-block space-y-2 max-w-full">
+    <div class="codex-assistant-block min-w-0 space-y-2 max-w-full">
       <AssistantPartList
         parts={block.parts}
         streaming={streaming}

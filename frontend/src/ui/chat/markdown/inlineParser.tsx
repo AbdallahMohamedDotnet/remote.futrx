@@ -33,7 +33,7 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
       if (end > index + 1) {
         flush();
         nodes.push(
-          <code key={`${keyPrefix}-${nodes.length}`} class="bg-tint-strong text-ink-100 px-1 py-0.5 rounded text-[12.5px] font-mono">
+          <code key={`${keyPrefix}-${nodes.length}`} class="bg-tint-strong text-ink-100 px-1 py-0.5 rounded text-[12.5px] font-mono break-all [overflow-wrap:anywhere]">
             {text.slice(index + 1, end)}
           </code>
         );
@@ -82,7 +82,7 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-accent-blue hover:underline"
+                class="text-accent-blue hover:underline break-all [overflow-wrap:anywhere]"
                 onClick={(event) => maybeOpenMediaViewer(event, href)}
               >
                 {renderInline(text.slice(index + 1, labelEnd), key, context)}
@@ -100,7 +100,7 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
       const href = trimTrailingUrlPunctuation(url);
       flush();
       nodes.push(
-        <a key={`${keyPrefix}-${nodes.length}`} href={href} target="_blank" rel="noopener noreferrer" class="text-accent-blue hover:underline">
+        <a key={`${keyPrefix}-${nodes.length}`} href={href} target="_blank" rel="noopener noreferrer" class="text-accent-blue hover:underline break-all [overflow-wrap:anywhere]">
           {href}
         </a>
       );
