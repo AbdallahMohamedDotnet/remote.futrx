@@ -25,7 +25,14 @@ type appServerThreadResult struct {
 }
 
 type appServerThread struct {
-	ID string `json:"id"`
+	ID             string  `json:"id"`
+	ParentThreadID *string `json:"parentThreadId,omitempty"`
+	AgentNickname  *string `json:"agentNickname,omitempty"`
+	AgentRole      *string `json:"agentRole,omitempty"`
+}
+
+type appServerThreadStartedParams struct {
+	Thread appServerThread `json:"thread"`
 }
 
 type appServerThreadRequest struct {
@@ -162,6 +169,7 @@ type appServerTurnResult struct {
 	ID     string          `json:"id"`
 	Status string          `json:"status"`
 	Error  *appServerError `json:"error"`
+	Items  []appServerItem `json:"items,omitempty"`
 }
 
 type appServerErrorParams struct {

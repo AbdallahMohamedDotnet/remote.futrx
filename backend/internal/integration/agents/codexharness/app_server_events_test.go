@@ -65,6 +65,22 @@ func TestAppServerPreservesCompletedSubagentMessages(t *testing.T) {
 	}
 }
 
+func TestAppServerKeepsEmptyWaitLifecycleAsHiddenNativeTelemetry(t *testing.T) {
+	parser := newAppServerEventParser(agent.RunRequest{
+		Provider: agent.ProviderCodex, ConversationID: "chat-1",
+	}, "Codex")
+	events := parser.ParseNotification("item/completed", json.RawMessage(`{
+		"threadId":"parent","turnId":"turn-1","item":{
+			"id":"wait-1","type":"collabAgentToolCall","tool":"wait","status":"completed",
+			"senderThreadId":"parent","receiverThreadIds":[],"agentsStates":{}
+		}
+	}`))
+	if len(events) != 1 || events[0].Type != agent.EventProviderNative ||
+		events[0].Native == nil || events[0].Native.Method != "item/completed" {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
 func TestAppServerUnknownNotificationHasNativeFallback(t *testing.T) {
 	parser := newAppServerEventParser(agent.RunRequest{
 		Provider: agent.ProviderCodex, ConversationID: "chat-1",
