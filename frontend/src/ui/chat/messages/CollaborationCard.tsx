@@ -2,8 +2,20 @@ import type { AssistantMessagePart } from "../../../models/chatMessage";
 import { useState } from "preact/hooks";
 import { ChevronDown, ChevronRight } from "../../primitives/icons";
 import { Markdown } from "../markdown/Markdown";
+import { CodeBlock } from "../tool-calls/CodeBlock";
 
 type CollaborationPart = Extract<AssistantMessagePart, { kind: "collaboration" }>;
+type SubagentTool = {
+  id: string;
+  name: string;
+  status: string;
+  isError: boolean;
+  input?: unknown;
+  output?: string;
+  startedAt?: number;
+  completedAt?: number;
+  durationMs?: number;
+};
 
 export function CollaborationCard({
   part,
@@ -19,15 +31,11 @@ export function CollaborationCard({
   const receivers = Array.isArray(part.data.receiverThreadIds)
     ? part.data.receiverThreadIds.filter((item): item is string => typeof item === "string")
     : [];
-  const toolCount = typeof part.data.toolCount === "number" ? part.data.toolCount : 0;
+  const tools = subagentTools(part.data.tools);
+  const toolCount = typeof part.data.toolCount === "number" ? part.data.toolCount : tools.length;
   const failedToolCount = typeof part.data.failedToolCount === "number"
     ? part.data.failedToolCount
-    : 0;
-  const toolNames = Array.isArray(part.data.tools)
-    ? part.data.tools.flatMap((item) => (
-        isObject(item) && typeof item.name === "string" ? [item.name] : []
-      ))
-    : [];
+    : tools.filter((tool) => tool.isError).length;
   const label = part.name || "Subagent orchestration";
   const status = part.status || "inProgress";
   const [expanded, setExpanded] = useState(() => !isTerminalStatus(status));
@@ -62,12 +70,12 @@ export function CollaborationCard({
         {typeof part.data.prompt === "string" && (
           <p class="text-[12px] leading-relaxed text-ink-300">{part.data.prompt}</p>
         )}
-        {isSubagentThread && toolCount > 0 && (
-          <div class="text-[10px] text-ink-400">
-            {toolCount} {toolCount === 1 ? "tool" : "tools"} used
-            {failedToolCount > 0 ? ` · ${failedToolCount} failed` : ""}
-            {toolNames.length > 0 ? ` · ${unique(toolNames).join(", ")}` : ""}
-          </div>
+        {isSubagentThread && tools.length > 0 && (
+          <SubagentTools
+            tools={tools}
+            toolCount={toolCount}
+            failedToolCount={failedToolCount}
+          />
         )}
         {Object.entries(states).length === 0 ? (
           <p class="text-[11px] text-ink-400">{emptyStateMessage(status)}</p>
@@ -97,6 +105,110 @@ export function CollaborationCard({
   );
 }
 
+function SubagentTools({
+  tools,
+  toolCount,
+  failedToolCount,
+}: {
+  tools: SubagentTool[];
+  toolCount: number;
+  failedToolCount: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const toolNames = unique(tools.map((tool) => tool.name));
+  return (
+    <div class="overflow-hidden rounded-control border border-line bg-canvas">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+        class="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-tint"
+      >
+        {expanded ? (
+          <ChevronDown class="h-3 w-3 flex-none text-ink-400" aria-hidden="true" />
+        ) : (
+          <ChevronRight class="h-3 w-3 flex-none text-ink-400" aria-hidden="true" />
+        )}
+        <span class="text-[11px] font-medium text-ink-300">
+          {toolCount} {toolCount === 1 ? "tool" : "tools"} used
+        </span>
+        <span class="min-w-0 flex-1 truncate text-[10px] text-ink-400" title={toolNames.join(", ")}>
+          {toolNames.join(", ")}
+        </span>
+        {failedToolCount > 0 && (
+          <span class="flex-none text-[10px] text-accent-red">
+            {failedToolCount} failed
+          </span>
+        )}
+      </button>
+      {expanded && (
+        <ol class="divide-y divide-line border-t border-line bg-inset">
+          {tools.map((tool, index) => (
+            <SubagentToolDetails key={tool.id || `${tool.name}-${index}`} tool={tool} index={index} />
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function SubagentToolDetails({ tool, index }: { tool: SubagentTool; index: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDetails = tool.input !== undefined || tool.output !== undefined;
+  const timing = toolTiming(tool);
+  return (
+    <li>
+      <button
+        type="button"
+        disabled={!hasDetails}
+        aria-expanded={hasDetails ? expanded : undefined}
+        onClick={() => hasDetails && setExpanded((current) => !current)}
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left enabled:hover:bg-tint disabled:cursor-default"
+      >
+        {hasDetails ? (
+          expanded ? (
+            <ChevronDown class="h-3 w-3 flex-none text-ink-400" aria-hidden="true" />
+          ) : (
+            <ChevronRight class="h-3 w-3 flex-none text-ink-400" aria-hidden="true" />
+          )
+        ) : (
+          <span class="h-3 w-3 flex-none" />
+        )}
+        <span class="w-4 flex-none text-right font-mono text-[9px] text-ink-500">
+          {index + 1}
+        </span>
+        <span class="min-w-0 flex-1 truncate font-mono text-[10px] text-ink-300" title={tool.id}>
+          {tool.name}
+        </span>
+        {timing.label && (
+          <span class="flex-none font-mono text-[9px] text-ink-500" title={timing.title}>
+            {timing.label}
+          </span>
+        )}
+        <span class={`flex-none text-[10px] ${tool.isError ? "text-accent-red" : "text-ink-400"}`}>
+          {tool.isError ? "failed" : statusLabel(tool.status)}
+        </span>
+      </button>
+      {expanded && hasDetails && (
+        <div class="divide-y divide-line border-t border-line bg-canvas">
+          {tool.input !== undefined && (
+            <div>
+              <div class="bg-tint px-3 py-1 text-[10px] font-medium text-ink-400">Input</div>
+              <CodeBlock text={formatToolInput(tool.input)} lang="json" />
+            </div>
+          )}
+          {tool.output !== undefined && (
+            <div>
+              <div class="bg-tint px-3 py-1 text-[10px] font-medium text-ink-400">Output</div>
+              <CodeBlock text={tool.output} />
+            </div>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 function statusLabel(status: string): string {
   return status === "turnEnded" ? "turn ended" : status;
 }
@@ -119,6 +231,46 @@ function shortThreadID(threadID: string): string {
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function subagentTools(value: unknown): SubagentTool[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isObject(item)) return [];
+    return [{
+      id: typeof item.id === "string" ? item.id : "",
+      name: typeof item.name === "string" && item.name ? item.name : "Tool",
+      status: typeof item.status === "string" && item.status ? item.status : "unknown",
+      isError: item.isError === true,
+      input: item.input,
+      output: typeof item.output === "string" ? item.output : undefined,
+      startedAt: typeof item.startedAt === "number" ? item.startedAt : undefined,
+      completedAt: typeof item.completedAt === "number" ? item.completedAt : undefined,
+      durationMs: typeof item.durationMs === "number" ? item.durationMs : undefined,
+    }];
+  });
+}
+
+function formatToolInput(input: unknown): string {
+  if (typeof input === "string") return input;
+  return JSON.stringify(input, null, 2) ?? String(input);
+}
+
+function toolTiming(tool: SubagentTool): { label: string; title?: string } {
+  const timestamps = [
+    tool.startedAt === undefined ? "" : `Started ${new Date(tool.startedAt).toLocaleString()}`,
+    tool.completedAt === undefined ? "" : `Completed ${new Date(tool.completedAt).toLocaleString()}`,
+  ].filter(Boolean).join(" · ");
+  if (tool.durationMs === undefined) return { label: "", title: timestamps || undefined };
+  return { label: formatDuration(tool.durationMs), title: timestamps || undefined };
+}
+
+function formatDuration(durationMs: number): string {
+  if (durationMs < 1_000) return `${durationMs}ms`;
+  if (durationMs < 60_000) return `${(durationMs / 1_000).toFixed(durationMs < 10_000 ? 1 : 0)}s`;
+  const minutes = Math.floor(durationMs / 60_000);
+  const seconds = Math.round((durationMs % 60_000) / 1_000);
+  return `${minutes}m ${seconds}s`;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
