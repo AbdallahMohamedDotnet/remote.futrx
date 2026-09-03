@@ -87,6 +87,7 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		out.Name = ev.ToolName
 	case agent.EventTurnStatus, agent.EventRunInterrupted:
 		out.Type = "turn_status"
+		out.Provider = servicechat.Provider(ev.Provider)
 		out.Data = ev.Data
 		if ev.Type == agent.EventRunInterrupted && out.Status == "" {
 			out.Status = "interrupted"

@@ -105,6 +105,7 @@ class ChatMessageBlockBuilder {
           kind: "turn-status",
           status: event.status || "unknown",
           data: event.data,
+          ...(event.provider ? { provider: event.provider } : {}),
         };
         if (existing >= 0) assistant.parts[existing] = part;
         else assistant.parts.push(part);
@@ -122,10 +123,11 @@ class ChatMessageBlockBuilder {
         return this.endTrailingAssistant(this.updateTrailingTurnStatus(
           blocks,
           event.status || "completed",
+          event.provider,
         ));
       case "error": {
         const withStatus = event.status === "failed"
-          ? this.updateTrailingTurnStatus(blocks, "failed")
+          ? this.updateTrailingTurnStatus(blocks, "failed", event.provider)
           : blocks;
         const next = this.endTrailingAssistant(withStatus, "failed");
         return [...next, { type: "error", message: event.message, t: event.t }];
@@ -225,6 +227,7 @@ class ChatMessageBlockBuilder {
   private updateTrailingTurnStatus(
     blocks: ChatMessageBlock[],
     status: string,
+    provider?: string,
   ): ChatMessageBlock[] {
     const lastIndex = blocks.length - 1;
     const last = blocks[lastIndex];
@@ -235,7 +238,11 @@ class ChatMessageBlockBuilder {
     if (part.kind !== "turn-status") return blocks;
     const next = blocks.slice();
     const parts = last.parts.slice();
-    parts[partIndex] = { ...part, status };
+    parts[partIndex] = {
+      ...part,
+      status,
+      ...(provider ? { provider } : {}),
+    };
     next[lastIndex] = { ...last, parts };
     return next;
   }
