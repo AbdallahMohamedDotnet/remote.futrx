@@ -179,6 +179,9 @@ func (parser *appServerEventParser) itemStarted(
 	case "dynamicToolCall":
 		return []agent.Event{parser.toolStarted(now, method, raw, item.ID, joinedToolName(item.Namespace, item.Tool), item.Arguments)}
 	case "collabAgentToolCall":
+		if !projectCollaboration(item) {
+			return parser.nativeEvent(now, method, raw)
+		}
 		return []agent.Event{parser.collaboration(now, method, raw, item)}
 	case "webSearch":
 		return []agent.Event{parser.toolStarted(now, method, raw, item.ID, "WebSearch", mustJSON(map[string]any{
@@ -207,12 +210,20 @@ func (parser *appServerEventParser) itemCompleted(
 	case "mcpToolCall", "dynamicToolCall":
 		return []agent.Event{parser.toolCompleted(now, method, raw, item.ID, appServerToolOutput(item), appServerItemFailed(item))}
 	case "collabAgentToolCall":
+		if !projectCollaboration(item) {
+			return parser.nativeEvent(now, method, raw)
+		}
 		return []agent.Event{parser.collaboration(now, method, raw, item)}
 	case "webSearch":
 		return []agent.Event{parser.toolCompleted(now, method, raw, item.ID, item.Query, false)}
 	default:
 		return parser.nativeEvent(now, method, raw)
 	}
+}
+
+func projectCollaboration(item appServerItem) bool {
+	return strings.TrimSpace(item.Tool) != "wait" ||
+		len(item.ReceiverThreadIDs) > 0 || len(item.AgentsStates) > 0 || item.Prompt != nil
 }
 
 func (parser *appServerEventParser) completedText(

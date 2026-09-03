@@ -73,6 +73,10 @@ class ChatMessageBlockBuilder {
       case "interaction_resolved":
         return this.updateInteraction(blocks, event.id, { status: event.status || "resolved" });
       case "collaboration": {
+        // wait is an internal parent/subagent synchronization primitive. Its
+        // native event stays in the transcript log, while child-thread updates
+        // provide the user-facing status and report cards.
+        if (event.name === "wait") return blocks;
         const { blocks: next, assistant } = this.ensureTrailingAssistant(blocks, event.t);
         const existing = assistant.parts.findIndex(
           (part) => part.kind === "collaboration" && part.id === event.id,

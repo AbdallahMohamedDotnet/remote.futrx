@@ -36,6 +36,7 @@ type appServerRun struct {
 
 	emit               func(agent.Event)
 	eventParser        *appServerEventParser
+	subagents          *appServerSubagentTracker
 	requestHandler     *appServerRequestHandler
 	threadID           string
 	turnID             string
@@ -99,6 +100,7 @@ func (run *appServerRun) start() error {
 		return err
 	}
 	run.eventParser = newAppServerEventParser(run.req, run.providerLabel)
+	run.subagents = newAppServerSubagentTracker(run.eventParser)
 	run.requestHandler = newAppServerRequestHandler(run.req, run.emit, run.process.write)
 	return nil
 }
@@ -264,7 +266,16 @@ func (run *appServerRun) handleNotification(envelope appServerEnvelope) {
 	if run.threadID == "" {
 		run.threadID = ids.ThreadID
 	}
-	if run.turnID == "" {
+	if run.threadID != "" && ids.ThreadID != "" && ids.ThreadID != run.threadID {
+		// App Server multiplexes descendant subagent threads on the same stdout
+		// stream. Keep their activity inspectable without allowing their messages,
+		// usage, or turn completion to become the parent run's events.
+		for _, event := range run.subagents.ParseNotification(run.threadID, envelope.Method, envelope.Params) {
+			run.emit(event)
+		}
+		return
+	}
+	if run.turnID == "" && (ids.ThreadID == "" || ids.ThreadID == run.threadID) {
 		run.turnID = ids.TurnID
 	}
 	if run.cancelRequested {
@@ -320,13 +331,19 @@ func (run *appServerRun) finalizeTerminal() {
 	if run.terminalEvent == nil {
 		return
 	}
-	status := "turnEnded"
+	rootStatus := "completed"
+	collaborationStatus := "turnEnded"
 	if run.interrupted {
-		status = "interrupted"
+		rootStatus = "interrupted"
+		collaborationStatus = "interrupted"
 	} else if run.runFailed {
-		status = "failed"
+		rootStatus = "failed"
+		collaborationStatus = "failed"
 	}
-	run.finalizeOpenCollaborations(status)
+	for _, event := range run.subagents.Finalize(rootStatus) {
+		run.emit(event)
+	}
+	run.finalizeOpenCollaborations(collaborationStatus)
 	run.emit(*run.terminalEvent)
 	run.terminalEvent = nil
 }
@@ -479,6 +496,9 @@ func (run *appServerRun) finish() error {
 	if run.terminal {
 		run.finalizeTerminal()
 	} else {
+		for _, event := range run.subagents.Finalize("failed") {
+			run.emit(event)
+		}
 		run.finalizeOpenCollaborations("failed")
 	}
 	if run.protocolErr != nil || !run.terminal {

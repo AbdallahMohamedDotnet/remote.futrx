@@ -102,7 +102,7 @@ test("closes an unfinished collaboration when its parent turn completes", () => 
     {
       type: "collaboration",
       id: "wait-1",
-      name: "wait",
+      name: "spawn_agent",
       status: "inProgress",
       data: {},
       t: 2,
@@ -117,11 +117,86 @@ test("closes an unfinished collaboration when its parent turn completes", () => 
   assert.deepEqual(assistant.parts, [{
     kind: "collaboration",
     id: "wait-1",
-    name: "wait",
+    name: "spawn_agent",
     status: "turnEnded",
     data: {},
   }]);
   assert.equal(assistant.isComplete, true);
+});
+
+test("replaces child-thread activity with the completed subagent report", () => {
+  const events: ChatEvent[] = [
+    { type: "user", text: "delegate", t: 1 },
+    {
+      type: "collaboration",
+      id: "subagent:child-1",
+      name: "Subagent",
+      status: "inProgress",
+      data: {
+        type: "subagentThread",
+        receiverThreadIds: ["child-1"],
+        agentsStates: { "child-1": { status: "inProgress" } },
+        toolCount: 1,
+      },
+      t: 2,
+    },
+    {
+      type: "collaboration",
+      id: "subagent:child-1",
+      name: "Subagent",
+      status: "completed",
+      data: {
+        type: "subagentThread",
+        receiverThreadIds: ["child-1"],
+        agentsStates: { "child-1": { status: "completed", message: "child report" } },
+        toolCount: 2,
+      },
+      t: 3,
+    },
+    { type: "assistant_text", text: "parent synthesis", t: 4 },
+    { type: "complete", t: 5 },
+  ];
+
+  const state = chatEventStateProjector.fromEvents(events, { hasMore: false });
+  const assistant = state.blocks[1];
+  assert.equal(assistant.type, "assistant");
+  if (assistant.type !== "assistant") return;
+  assert.equal(assistant.parts.length, 2);
+  assert.deepEqual(assistant.parts[0], {
+    kind: "collaboration",
+    id: "subagent:child-1",
+    name: "Subagent",
+    status: "completed",
+    data: {
+      type: "subagentThread",
+      receiverThreadIds: ["child-1"],
+      agentsStates: { "child-1": { status: "completed", message: "child report" } },
+      toolCount: 2,
+    },
+  });
+  assert.deepEqual(assistant.parts[1], { kind: "text", text: "parent synthesis" });
+});
+
+test("does not render legacy empty wait mechanics", () => {
+  const events: ChatEvent[] = [
+    { type: "user", text: "delegate", t: 1 },
+    {
+      type: "collaboration",
+      id: "wait-1",
+      name: "wait",
+      status: "completed",
+      data: { receiverThreadIds: [], agentsStates: {} },
+      t: 2,
+    },
+    { type: "assistant_text", text: "parent result", t: 3 },
+    { type: "complete", t: 4 },
+  ];
+
+  const state = chatEventStateProjector.fromEvents(events, { hasMore: false });
+  const assistant = state.blocks[1];
+  assert.equal(assistant.type, "assistant");
+  if (assistant.type !== "assistant") return;
+  assert.deepEqual(assistant.parts, [{ kind: "text", text: "parent result" }]);
 });
 
 test("closes a running tool when its parent turn is interrupted", () => {

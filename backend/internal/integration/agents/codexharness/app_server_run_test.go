@@ -73,6 +73,84 @@ done`
 	}
 }
 
+func TestRunAppServerKeepsChildTurnsSeparateUntilParentCompletes(t *testing.T) {
+	script := `
+while IFS= read -r line; do
+  case "$line" in
+    *'"id":1'*) printf '%s\n' '{"id":1,"result":{}}' ;;
+    *'"id":2'*) printf '%s\n' '{"id":2,"result":{"thread":{"id":"parent-thread"},"model":"gpt-test"}}' ;;
+    *'"id":3'*)
+      printf '%s\n' '{"id":3,"result":{"turn":{"id":"parent-turn","status":"inProgress","items":[]}}}'
+      printf '%s\n' '{"method":"turn/started","params":{"threadId":"child-thread","turn":{"id":"child-turn","status":"inProgress","items":[]}}}'
+      printf '%s\n' '{"method":"item/started","params":{"threadId":"child-thread","turnId":"child-turn","item":{"id":"child-tool","type":"commandExecution","status":"inProgress","command":"inspect"}}}'
+      printf '%s\n' '{"method":"item/completed","params":{"threadId":"child-thread","turnId":"child-turn","item":{"id":"child-tool","type":"commandExecution","status":"completed","command":"inspect","aggregatedOutput":"done"}}}'
+      printf '%s\n' '{"method":"item/completed","params":{"threadId":"child-thread","turnId":"child-turn","item":{"id":"child-message","type":"agentMessage","text":"child report"}}}'
+      printf '%s\n' '{"method":"thread/tokenUsage/updated","params":{"threadId":"child-thread","tokenUsage":{"last":{"inputTokens":100,"cachedInputTokens":10,"outputTokens":20,"reasoningOutputTokens":0}}}}'
+      printf '%s\n' '{"method":"turn/completed","params":{"threadId":"child-thread","turn":{"id":"child-turn","status":"completed","items":[{"id":"child-message","type":"agentMessage","text":"child report"}]}}}'
+      printf '%s\n' '{"method":"thread/status/changed","params":{"threadId":"child-thread","status":{"type":"idle"}}}'
+      printf '%s\n' '{"method":"item/completed","params":{"threadId":"parent-thread","turnId":"parent-turn","item":{"id":"parent-message","type":"agentMessage","text":"parent synthesis"}}}'
+      printf '%s\n' '{"method":"thread/tokenUsage/updated","params":{"threadId":"parent-thread","tokenUsage":{"last":{"inputTokens":12,"cachedInputTokens":2,"outputTokens":4,"reasoningOutputTokens":0}}}}'
+      printf '%s\n' '{"method":"turn/completed","params":{"threadId":"parent-thread","turn":{"id":"parent-turn","status":"completed","items":[{"id":"parent-message","type":"agentMessage","text":"parent synthesis"}]}}}'
+      exit 0
+      ;;
+  esac
+done`
+
+	var events []agent.Event
+	err := Run(
+		context.Background(),
+		exec.Command("sh", "-c", script),
+		agent.RunRequest{Provider: agent.ProviderCodex, ConversationID: "chat-1", Prompt: "delegate"},
+		"Codex",
+		func(event agent.Event) { events = append(events, event) },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var assistantText strings.Builder
+	var completions []agent.Event
+	for _, event := range events {
+		if event.Type == agent.EventAssistantTextDelta {
+			assistantText.WriteString(event.Text)
+		}
+		if event.Type == agent.EventRunCompleted {
+			completions = append(completions, event)
+		}
+	}
+	if assistantText.String() != "parent synthesis" {
+		t.Fatalf("main assistant text = %q, want only parent synthesis", assistantText.String())
+	}
+	if len(completions) != 1 || completions[0].Native == nil || completions[0].Native.ThreadID != "parent-thread" {
+		t.Fatalf("run completions = %#v", completions)
+	}
+	usage, ok := agent.ParseUsage(completions[0].Usage)
+	if !ok || usage.InputTokens != 10 || usage.CacheReadTokens != 2 || usage.OutputTokens != 4 {
+		t.Fatalf("parent completion usage = %#v (ok=%t)", usage, ok)
+	}
+
+	collaborations := collaborationEvents(events)
+	if len(collaborations) == 0 {
+		t.Fatalf("no subagent activity emitted: %#v", events)
+	}
+	last := collaborations[len(collaborations)-1]
+	if last.ItemID != "subagent:child-thread" || last.Status != "completed" {
+		t.Fatalf("final subagent state = %#v", last)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(last.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	states, _ := data["agentsStates"].(map[string]any)
+	child, _ := states["child-thread"].(map[string]any)
+	if child["message"] != "child report" || data["toolCount"] != float64(1) {
+		t.Fatalf("subagent activity data = %#v", data)
+	}
+	if events[len(events)-1].Type != agent.EventRunCompleted {
+		t.Fatalf("parent completion was not the final event: %#v", events)
+	}
+}
+
 func TestRunAppServerDrainsLateCollaborationCompletion(t *testing.T) {
 	script := `
 while IFS= read -r line; do
