@@ -124,6 +124,43 @@ test("closes an unfinished collaboration when its parent turn completes", () => 
   assert.equal(assistant.isComplete, true);
 });
 
+test("closes a running tool when its parent turn is interrupted", () => {
+  const events: ChatEvent[] = [
+    { type: "user", text: "run a long command", t: 1 },
+    {
+      type: "tool_use_start",
+      id: "tool-1",
+      name: "Bash",
+      input: { command: "sleep 60" },
+      t: 2,
+    },
+    { type: "turn_status", status: "interrupted", t: 3 },
+  ];
+
+  const state = chatEventStateProjector.fromEvents(events, { hasMore: false });
+  const assistant = state.blocks[1];
+  assert.equal(assistant.type, "assistant");
+  if (assistant.type !== "assistant") return;
+  assert.deepEqual(assistant.parts, [
+    {
+      kind: "tool",
+      id: "tool-1",
+      name: "Bash",
+      input: { command: "sleep 60" },
+      status: "done",
+    },
+    { kind: "turn-status", status: "interrupted", data: undefined },
+  ]);
+  assert.equal(assistant.isComplete, true);
+});
+
+test("terminal turn status does not reactivate a run after its final sync", () => {
+  const interrupted: ChatEvent = { type: "turn_status", status: "interrupted", t: 1 };
+
+  assert.equal(chatEventStateProjector.statusAfter(interrupted, "ready"), "ready");
+  assert.equal(chatEventStateProjector.statusAfter(interrupted, "streaming"), "streaming");
+});
+
 test("retains provider events without rendering them in the transcript", () => {
   const events: ChatEvent[] = [
     { type: "user", text: "hello", t: 1 },

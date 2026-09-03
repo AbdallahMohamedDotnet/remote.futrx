@@ -133,11 +133,15 @@ class ChatMessageBlockBuilder {
     const last = blocks[lastIndex];
     if (!last || last.type !== "assistant" || last.isComplete) return blocks;
     const next = blocks.slice();
-    const parts = last.parts.map((part) => (
-      part.kind === "collaboration" && part.status === "inProgress"
-        ? { ...part, status: unfinishedCollaborationStatus }
-        : part
-    ));
+    const parts: AssistantMessagePart[] = last.parts.map((part) => {
+      if (part.kind === "tool" && part.status === "running") {
+        return { ...part, status: "done" };
+      }
+      if (part.kind === "collaboration" && part.status === "inProgress") {
+        return { ...part, status: unfinishedCollaborationStatus };
+      }
+      return part;
+    });
     next[lastIndex] = { ...last, parts, isComplete: true };
     return next;
   }
