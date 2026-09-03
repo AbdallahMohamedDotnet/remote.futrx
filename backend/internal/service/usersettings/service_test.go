@@ -19,6 +19,9 @@ func TestDefaultSettingsUseCodexChatDefaults(t *testing.T) {
 	if settings.Chat.Model != "" || settings.Chat.ReasoningEffort != "" {
 		t.Fatalf("expected auto model and reasoning effort, got %+v", settings.Chat)
 	}
+	if settings.Chat.ApprovalPolicy != "on-request" || settings.Chat.SandboxPolicy != "workspaceWrite" {
+		t.Fatalf("expected default execution policies, got %+v", settings.Chat)
+	}
 }
 
 func TestUpdatePersistsChatPreferences(t *testing.T) {
@@ -103,6 +106,20 @@ func TestUpdateRejectsInvalidChatPreferences(t *testing.T) {
 				ReasoningEffort: ptr(ReasoningEffort("bad value")),
 			}},
 			want: ErrInvalidReasoningEffort,
+		},
+		{
+			name: "approval policy",
+			in: UpdateInput{Chat: &ChatUpdate{
+				ApprovalPolicy: ptr(ApprovalPolicy("bad")),
+			}},
+			want: ErrInvalidApprovalPolicy,
+		},
+		{
+			name: "sandbox policy",
+			in: UpdateInput{Chat: &ChatUpdate{
+				SandboxPolicy: ptr(SandboxPolicy("bad")),
+			}},
+			want: ErrInvalidSandboxPolicy,
 		},
 	}
 

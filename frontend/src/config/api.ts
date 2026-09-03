@@ -13,6 +13,7 @@ export const DEFAULT_UPLOAD_MEDIA_TYPE = "application/octet-stream";
 export const CHAT_STREAM_MESSAGE_TYPES = {
   prompt: "prompt",
   cancel: "cancel",
+	interactionResponse: "interaction_response",
 } as const;
 /** Usage records fetched per drill-down page. */
 export const USAGE_RECORD_PAGE_LIMIT = 100;

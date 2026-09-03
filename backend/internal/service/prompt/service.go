@@ -125,6 +125,7 @@ type Service struct {
 	agentPolicy   AgentPolicy
 	scheduleTools ScheduleToolIssuer
 	usage         UsageRecorder
+	interactions  interactionResponseRouter
 }
 
 func New(
@@ -139,11 +140,12 @@ func New(
 		hub = runhub.New(store)
 	}
 	service := &Service{
-		store:    store,
-		tmux:     tmux,
-		projects: projects,
-		hub:      hub,
-		agents:   agents,
+		store:        store,
+		tmux:         tmux,
+		projects:     projects,
+		hub:          hub,
+		agents:       agents,
+		interactions: newInteractionResponseRouter(),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -175,17 +177,20 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 		})
 		return RunHandle{}, ErrPromptAlreadyRunning
 	}
+	responses := rnr.interactions.open(input.ChatID, runID)
 
 	done := make(chan RunResult, 1)
 	ledgerRunID := newLedgerRunID()
 	go func() {
 		defer close(done)
 		defer rnr.hub.FinishRun(input.ChatID, runID)
+		defer rnr.interactions.remove(input.ChatID, runID)
 		var output strings.Builder
 		err := rnr.runPromptAs(
 			ctx,
 			input,
 			ledgerRunID,
+			responses,
 			func(ev ChatEvent) {
 				// Stamp the originating task so a scheduled run's events stay
 				// distinguishable from an interactive turn's downstream.
@@ -206,6 +211,10 @@ func (rnr *Service) CancelPrompt(id servicechat.ID) bool {
 	return rnr.hub.CancelRun(id)
 }
 
+func (rnr *Service) RespondInteraction(id servicechat.ID, response agent.InteractionResponse) error {
+	return rnr.interactions.respond(id, response)
+}
+
 func (rnr *Service) runPrompt(
 	ctx context.Context,
 	id servicechat.ID,
@@ -217,6 +226,7 @@ func (rnr *Service) runPrompt(
 		ctx,
 		StartInput{ChatID: id, Prompt: prompt},
 		newLedgerRunID(),
+		nil,
 		emit,
 		emitTransient,
 	)
@@ -226,6 +236,7 @@ func (rnr *Service) runPromptAs(
 	ctx context.Context,
 	input StartInput,
 	ledgerRunID string,
+	interactionResponses <-chan agent.InteractionResponse,
 	emit func(ChatEvent),
 	emitTransient func(ChatEvent),
 ) error {
@@ -380,10 +391,13 @@ func (rnr *Service) runPromptAs(
 			Preferences: agent.RunPreferences{
 				ReasoningEffort: agent.ReasoningEffort(meta.ReasoningEffort),
 				ServiceTier:     agent.ServiceTier(meta.ServiceTier),
+				ApprovalPolicy:  servicechat.NormalizeApprovalPolicy(meta.ApprovalPolicy),
+				SandboxPolicy:   servicechat.NormalizeSandboxPolicy(meta.SandboxPolicy),
 			},
-			EnableBrowser:       enableBrowser,
-			EnableScheduleTools: enableScheduleTools,
-			RuntimeEnv:          runtimeEnv,
+			EnableBrowser:        enableBrowser,
+			EnableScheduleTools:  enableScheduleTools,
+			RuntimeEnv:           runtimeEnv,
+			InteractionResponses: interactionResponses,
 		}, func(ev agent.Event) {
 			// qa added the provider argument; the ledger hook is this
 			// branch's and sits after the emit as before.
