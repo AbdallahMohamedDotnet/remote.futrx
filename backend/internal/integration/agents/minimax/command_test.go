@@ -3,6 +3,8 @@ package minimax
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -116,6 +118,40 @@ func TestBuildCmdPublishesLiveCatalogAndPreservesManagedSecret(t *testing.T) {
 		strings.Contains(joined, "/workspace/attacker-home") ||
 		strings.Contains(joined, "/workspace/attacker-codex-home") {
 		t.Fatalf("untrusted environment escaped into MiniMax command: %#v", cmd.Args)
+	}
+}
+
+func TestBuildCmdProcessOutlivesRequestCancellation(t *testing.T) {
+	binDir := t.TempDir()
+	lxcPath := filepath.Join(binDir, "lxc")
+	if err := os.WriteFile(lxcPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	provider := newProvider(
+		miniMaxTestPreparer{project: agent.PreparedProject{ContainerName: "project-container"}},
+		miniMaxTestAPIKeys{key: "managed-key"},
+		miniMaxTestModels{},
+		&miniMaxTestRuntimeAssets{},
+		"codex",
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd, err := provider.buildCmd(
+		ctx,
+		agent.RunRequest{ProjectID: "project", Model: "MiniMax-M3"},
+		provider.args(agent.RunRequest{Model: "MiniMax-M3"}),
+		"managed-key",
+		[]byte(`{"models":[]}`),
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("app-server command did not outlive request cancellation: %v", err)
 	}
 }
 

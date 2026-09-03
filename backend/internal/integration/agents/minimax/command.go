@@ -76,7 +76,9 @@ func (p *Provider) buildCmd(
 		runtimeEnvironment[key] = value
 	}
 	runtimeEnvironment[configconstants.MiniMaxAPIKeyEnvironment] = apiKey
-	return agentruntime.BuildContainerCommand(ctx, agentruntime.ContainerCommandSpec{
+	// The app-server process must outlive request cancellation long enough for
+	// codexharness.Run to send turn/interrupt and receive the terminal status.
+	return agentruntime.BuildContainerCommand(context.WithoutCancel(ctx), agentruntime.ContainerCommandSpec{
 		ContainerName: project.ContainerName,
 		Secrets:       project.Secrets,
 		ExcludedSecrets: []string{
