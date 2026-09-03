@@ -109,15 +109,15 @@ class ChatMessageBlockBuilder {
       case "provider_event":
         return blocks;
       case "complete":
-		return this.endTrailingAssistant(this.updateTrailingTurnStatus(
-		  blocks,
-		  event.status || "completed",
-		));
+        return this.endTrailingAssistant(this.updateTrailingTurnStatus(
+          blocks,
+          event.status || "completed",
+        ));
       case "error": {
-		const withStatus = event.status === "failed"
-		  ? this.updateTrailingTurnStatus(blocks, "failed")
-		  : blocks;
-		const next = this.endTrailingAssistant(withStatus);
+        const withStatus = event.status === "failed"
+          ? this.updateTrailingTurnStatus(blocks, "failed")
+          : blocks;
+        const next = this.endTrailingAssistant(withStatus, "failed");
         return [...next, { type: "error", message: event.message, t: event.t }];
       }
       default:
@@ -125,12 +125,20 @@ class ChatMessageBlockBuilder {
     }
   }
 
-  private endTrailingAssistant(blocks: ChatMessageBlock[]): ChatMessageBlock[] {
+  private endTrailingAssistant(
+    blocks: ChatMessageBlock[],
+    unfinishedCollaborationStatus = "turnEnded",
+  ): ChatMessageBlock[] {
     const lastIndex = blocks.length - 1;
     const last = blocks[lastIndex];
     if (!last || last.type !== "assistant" || last.isComplete) return blocks;
     const next = blocks.slice();
-    next[lastIndex] = { ...last, isComplete: true };
+    const parts = last.parts.map((part) => (
+      part.kind === "collaboration" && part.status === "inProgress"
+        ? { ...part, status: unfinishedCollaborationStatus }
+        : part
+    ));
+    next[lastIndex] = { ...last, parts, isComplete: true };
     return next;
   }
 
@@ -200,23 +208,23 @@ class ChatMessageBlockBuilder {
     return blocks;
   }
 
-	private updateTrailingTurnStatus(
-		blocks: ChatMessageBlock[],
-		status: string,
-	): ChatMessageBlock[] {
-		const lastIndex = blocks.length - 1;
-		const last = blocks[lastIndex];
-		if (!last || last.type !== "assistant") return blocks;
-		const partIndex = last.parts.findIndex((part) => part.kind === "turn-status");
-		if (partIndex < 0) return blocks;
-		const part = last.parts[partIndex];
-		if (part.kind !== "turn-status") return blocks;
-		const next = blocks.slice();
-		const parts = last.parts.slice();
-		parts[partIndex] = { ...part, status };
-		next[lastIndex] = { ...last, parts };
-		return next;
-	}
+  private updateTrailingTurnStatus(
+    blocks: ChatMessageBlock[],
+    status: string,
+  ): ChatMessageBlock[] {
+    const lastIndex = blocks.length - 1;
+    const last = blocks[lastIndex];
+    if (!last || last.type !== "assistant") return blocks;
+    const partIndex = last.parts.findIndex((part) => part.kind === "turn-status");
+    if (partIndex < 0) return blocks;
+    const part = last.parts[partIndex];
+    if (part.kind !== "turn-status") return blocks;
+    const next = blocks.slice();
+    const parts = last.parts.slice();
+    parts[partIndex] = { ...part, status };
+    next[lastIndex] = { ...last, parts };
+    return next;
+  }
 }
 
 export const chatMessageBlockBuilder = new ChatMessageBlockBuilder();

@@ -96,6 +96,34 @@ test("preserves pending interactions and final subagent reports across replay", 
   });
 });
 
+test("closes an unfinished collaboration when its parent turn completes", () => {
+  const events: ChatEvent[] = [
+    { type: "user", text: "delegate", t: 1 },
+    {
+      type: "collaboration",
+      id: "wait-1",
+      name: "wait",
+      status: "inProgress",
+      data: {},
+      t: 2,
+    },
+    { type: "complete", t: 3 },
+  ];
+
+  const state = chatEventStateProjector.fromEvents(events, { hasMore: false });
+  const assistant = state.blocks[1];
+  assert.equal(assistant.type, "assistant");
+  if (assistant.type !== "assistant") return;
+  assert.deepEqual(assistant.parts, [{
+    kind: "collaboration",
+    id: "wait-1",
+    name: "wait",
+    status: "turnEnded",
+    data: {},
+  }]);
+  assert.equal(assistant.isComplete, true);
+});
+
 test("retains provider events without rendering them in the transcript", () => {
   const events: ChatEvent[] = [
     { type: "user", text: "hello", t: 1 },

@@ -73,6 +73,106 @@ done`
 	}
 }
 
+func TestRunAppServerDrainsLateCollaborationCompletion(t *testing.T) {
+	script := `
+while IFS= read -r line; do
+  case "$line" in
+    *'"id":1'*) printf '%s\n' '{"id":1,"result":{}}' ;;
+    *'"id":2'*) printf '%s\n' '{"id":2,"result":{"thread":{"id":"thread-1"},"model":"gpt-test"}}' ;;
+    *'"id":3'*)
+      printf '%s\n' '{"id":3,"result":{"turn":{"id":"turn-1","status":"inProgress","items":[]}}}'
+      printf '%s\n' '{"method":"item/started","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"wait-1","type":"collabAgentToolCall","tool":"wait","status":"inProgress","receiverThreadIds":["child-1"]}}}'
+      printf '%s\n' '{"method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[]}}}'
+      printf '%s\n' '{"method":"item/completed","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"wait-1","type":"collabAgentToolCall","tool":"wait","status":"completed","receiverThreadIds":["child-1"],"agentsStates":{"child-1":{"status":"completed","message":"done"}}}}}'
+      exit 0
+      ;;
+  esac
+done`
+
+	var events []agent.Event
+	err := Run(
+		context.Background(),
+		exec.Command("sh", "-c", script),
+		agent.RunRequest{Provider: agent.ProviderCodex, ConversationID: "chat-1", Prompt: "wait"},
+		"Codex",
+		func(event agent.Event) { events = append(events, event) },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	collaborations := collaborationEvents(events)
+	if len(collaborations) != 2 {
+		t.Fatalf("collaboration events = %#v", collaborations)
+	}
+	if collaborations[0].Status != "inProgress" || collaborations[1].Status != "completed" {
+		t.Fatalf("collaboration statuses = %q, %q", collaborations[0].Status, collaborations[1].Status)
+	}
+	if collaborations[1].Native == nil || collaborations[1].Native.Method != "item/completed" {
+		t.Fatalf("late completion was not preserved as native: %#v", collaborations[1])
+	}
+	if events[len(events)-1].Type != agent.EventRunCompleted {
+		t.Fatalf("terminal event must follow the drained item completion: %#v", events)
+	}
+}
+
+func TestRunAppServerResolvesUnfinishedCollaborationBeforeCompletion(t *testing.T) {
+	script := `
+while IFS= read -r line; do
+  case "$line" in
+    *'"id":1'*) printf '%s\n' '{"id":1,"result":{}}' ;;
+    *'"id":2'*) printf '%s\n' '{"id":2,"result":{"thread":{"id":"thread-1"},"model":"gpt-test"}}' ;;
+    *'"id":3'*)
+      printf '%s\n' '{"id":3,"result":{"turn":{"id":"turn-1","status":"inProgress","items":[]}}}'
+      printf '%s\n' '{"method":"item/started","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"wait-1","type":"collabAgentToolCall","tool":"wait","status":"inProgress","receiverThreadIds":["child-1"]}}}'
+      printf '%s\n' '{"method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[]}}}'
+      exit 0
+      ;;
+  esac
+done`
+
+	var events []agent.Event
+	err := Run(
+		context.Background(),
+		exec.Command("sh", "-c", script),
+		agent.RunRequest{Provider: agent.ProviderCodex, ConversationID: "chat-1", Prompt: "wait"},
+		"Codex",
+		func(event agent.Event) { events = append(events, event) },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	collaborations := collaborationEvents(events)
+	if len(collaborations) != 2 {
+		t.Fatalf("collaboration events = %#v", collaborations)
+	}
+	resolved := collaborations[1]
+	if resolved.Status != "turnEnded" || resolved.Native != nil || len(resolved.Raw) != 0 {
+		t.Fatalf("synthetic collaboration resolution = %#v", resolved)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(resolved.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if data["remoteResolution"] != "missingItemCompletion" || data["status"] != "turnEnded" {
+		t.Fatalf("synthetic resolution data = %#v", data)
+	}
+	if events[len(events)-1].Type != agent.EventRunCompleted {
+		t.Fatalf("terminal event must follow collaboration reconciliation: %#v", events)
+	}
+}
+
+func collaborationEvents(events []agent.Event) []agent.Event {
+	var collaborations []agent.Event
+	for _, event := range events {
+		if event.Type == agent.EventCollaboration {
+			collaborations = append(collaborations, event)
+		}
+	}
+	return collaborations
+}
+
 func TestRunAppServerMapsMissingResumeThread(t *testing.T) {
 	script := `
 while IFS= read -r line; do

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,17 +34,19 @@ type appServerRun struct {
 	providerLabel string
 	process       *appServerProcess
 
-	emit            func(agent.Event)
-	eventParser     *appServerEventParser
-	requestHandler  *appServerRequestHandler
-	threadID        string
-	turnID          string
-	cancelRequested bool
-	interruptSent   bool
-	terminal        bool
-	interrupted     bool
-	runFailed       bool
-	protocolErr     error
+	emit               func(agent.Event)
+	eventParser        *appServerEventParser
+	requestHandler     *appServerRequestHandler
+	threadID           string
+	turnID             string
+	cancelRequested    bool
+	interruptSent      bool
+	terminal           bool
+	interrupted        bool
+	runFailed          bool
+	protocolErr        error
+	terminalEvent      *agent.Event
+	openCollaborations map[string]agent.Event
 }
 
 // Run owns one Codex app-server process for one Remote turn. Provider adapters
@@ -70,11 +73,12 @@ func newAppServerRun(
 	emit func(agent.Event),
 ) *appServerRun {
 	return &appServerRun{
-		ctx:           ctx,
-		req:           req,
-		providerLabel: providerLabel,
-		emit:          emit,
-		process:       newAppServerProcess(cmd, req.Provider, providerLabel, req.ConversationID),
+		ctx:                ctx,
+		req:                req,
+		providerLabel:      providerLabel,
+		emit:               emit,
+		process:            newAppServerProcess(cmd, req.Provider, providerLabel, req.ConversationID),
+		openCollaborations: make(map[string]agent.Event),
 	}
 }
 
@@ -128,32 +132,52 @@ func (run *appServerRun) consumeOutput() {
 	responses := run.req.InteractionResponses
 	var interruptTimer *time.Timer
 	var interruptTimeout <-chan time.Time
+	var terminalTimer *time.Timer
+	var terminalTimeout <-chan time.Time
 	defer func() {
 		if interruptTimer != nil {
 			interruptTimer.Stop()
 		}
+		if terminalTimer != nil {
+			terminalTimer.Stop()
+		}
 	}()
+	startTerminalDrain := func() {
+		if !run.terminal || terminalTimer != nil {
+			return
+		}
+		ctxDone = nil
+		responses = nil
+		interruptTimeout = nil
+		terminalTimer = time.NewTimer(configconstants.CodexHarnessTerminalDrainTimeout)
+		terminalTimeout = terminalTimer.C
+	}
 
 	for {
 		select {
 		case result, ok := <-scanned:
 			if !ok {
+				run.finalizeTerminal()
 				return
 			}
 			if result.err != nil {
+				if run.terminal {
+					run.finalizeTerminal()
+					return
+				}
 				run.protocolErr = result.err
 				return
 			}
-			if !run.handleEnvelope(result.envelope) {
+			if run.terminal {
+				run.handlePostTerminalEnvelope(result.envelope)
+			} else if !run.handleEnvelope(result.envelope) {
 				return
 			}
 			if run.interruptSent && interruptTimer == nil {
 				interruptTimer = time.NewTimer(configconstants.CodexHarnessInterruptTimeout)
 				interruptTimeout = interruptTimer.C
 			}
-			if run.terminal {
-				return
-			}
+			startTerminalDrain()
 
 		case response, ok := <-responses:
 			if !ok {
@@ -180,7 +204,21 @@ func (run *appServerRun) consumeOutput() {
 		case <-interruptTimeout:
 			run.protocolErr = errAppServerInterruptTimeout
 			return
+
+		case <-terminalTimeout:
+			run.finalizeTerminal()
+			run.process.kill()
+			return
 		}
+	}
+}
+
+func (run *appServerRun) handlePostTerminalEnvelope(envelope appServerEnvelope) {
+	// A provider may flush item lifecycle notifications immediately after the
+	// authoritative turn/completed notification. Only drain notifications here:
+	// the turn has ended, so no new requests or responses should be acted on.
+	if envelope.Method != "" && len(envelope.ID) == 0 {
+		run.handleNotification(envelope)
 	}
 }
 
@@ -237,16 +275,95 @@ func (run *appServerRun) handleNotification(envelope appServerEnvelope) {
 	}
 
 	for _, event := range run.eventParser.ParseNotification(envelope.Method, envelope.Params) {
-		run.emit(event)
-		switch event.Type {
-		case agent.EventRunCompleted, agent.EventRunFailed, agent.EventRunInterrupted:
-			run.terminal = true
-			run.runFailed = event.Type == agent.EventRunFailed
-			run.interrupted = event.Type == agent.EventRunInterrupted
-			run.requestHandler.ResolveAll("turn_ended")
-			run.process.closeInput()
+		if isTerminalEvent(event.Type) {
+			run.beginTerminal(event)
+			continue
 		}
+		run.trackCollaboration(event)
+		run.emit(event)
 	}
+}
+
+func isTerminalEvent(eventType agent.EventType) bool {
+	switch eventType {
+	case agent.EventRunCompleted, agent.EventRunFailed, agent.EventRunInterrupted:
+		return true
+	default:
+		return false
+	}
+}
+
+func (run *appServerRun) beginTerminal(event agent.Event) {
+	if run.terminal {
+		return
+	}
+	run.terminal = true
+	run.runFailed = event.Type == agent.EventRunFailed
+	run.interrupted = event.Type == agent.EventRunInterrupted
+	run.terminalEvent = &event
+	run.requestHandler.ResolveAll("turn_ended")
+	run.process.closeInput()
+}
+
+func (run *appServerRun) trackCollaboration(event agent.Event) {
+	if event.Type != agent.EventCollaboration || event.ItemID == "" {
+		return
+	}
+	if event.Native != nil && event.Native.Method == "item/completed" {
+		delete(run.openCollaborations, event.ItemID)
+		return
+	}
+	run.openCollaborations[event.ItemID] = event
+}
+
+func (run *appServerRun) finalizeTerminal() {
+	if run.terminalEvent == nil {
+		return
+	}
+	status := "turnEnded"
+	if run.interrupted {
+		status = "interrupted"
+	} else if run.runFailed {
+		status = "failed"
+	}
+	run.finalizeOpenCollaborations(status)
+	run.emit(*run.terminalEvent)
+	run.terminalEvent = nil
+}
+
+func (run *appServerRun) finalizeOpenCollaborations(status string) {
+	if len(run.openCollaborations) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(run.openCollaborations))
+	for id := range run.openCollaborations {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		event := run.openCollaborations[id]
+		event.T = time.Now().UnixMilli()
+		event.Status = status
+		event.Data = collaborationResolutionData(event.Data, status)
+		event.Raw = nil
+		event.Native = nil
+		run.emit(event)
+		delete(run.openCollaborations, id)
+	}
+}
+
+func collaborationResolutionData(raw json.RawMessage, status string) json.RawMessage {
+	data := make(map[string]any)
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &data)
+	}
+	data["status"] = status
+	data["remoteResolution"] = "missingItemCompletion"
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return cloneRaw(raw)
+	}
+	return encoded
 }
 
 func (run *appServerRun) maybeInterrupt() error {
@@ -359,6 +476,11 @@ func isMissingThread(message string) bool {
 }
 
 func (run *appServerRun) finish() error {
+	if run.terminal {
+		run.finalizeTerminal()
+	} else {
+		run.finalizeOpenCollaborations("failed")
+	}
 	if run.protocolErr != nil || !run.terminal {
 		run.process.closeInput()
 		run.process.kill()
