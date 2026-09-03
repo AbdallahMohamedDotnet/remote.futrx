@@ -1,4 +1,5 @@
 import type { ComponentChildren } from "preact";
+import { providerDisplayLabel } from "../../../config/chat";
 import type { AssistantMessagePart } from "../../../models/chatMessage";
 import { ToolCall } from "../tool-calls/ToolCall";
 import { StreamingText } from "./StreamingText";
@@ -67,7 +68,7 @@ function renderAssistantParts(
 
     if (part.kind === "text") {
       rendered.push(
-        <div key={index} class="codex-prose text-[14.5px] leading-[1.7] text-ink-100">
+        <div key={index} class="codex-prose min-w-0 max-w-full text-[14.5px] leading-[1.7] text-ink-100 [overflow-wrap:anywhere]">
           <StreamingText text={part.text} streaming={context.streaming} chatId={context.chatId} cwd={context.cwd} />
         </div>
       );
@@ -105,10 +106,11 @@ function renderAssistantParts(
     }
 
     if (part.kind === "turn-status") {
+      const providerLabel = part.provider ? providerDisplayLabel(part.provider) : "Agent";
       rendered.push(
         <div key={`status-${index}`} class="my-2 flex items-center gap-2 text-[11px] text-ink-400">
           <span class="h-1.5 w-1.5 rounded-full bg-accent-blue" aria-hidden="true" />
-          Codex turn: {part.status}
+          {providerLabel} turn: {part.status}
         </div>
       );
       return;

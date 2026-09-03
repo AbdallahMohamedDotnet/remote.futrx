@@ -1,3 +1,5 @@
+import type { ChatProvider } from "./chat";
+
 export type AssistantMessagePart =
   | { kind: "text"; text: string }
   | {
@@ -26,7 +28,7 @@ export type AssistantMessagePart =
       data: Record<string, unknown>;
       status: string;
     }
-  | { kind: "turn-status"; status: string; data?: Record<string, unknown> };
+  | { kind: "turn-status"; status: string; data?: Record<string, unknown>; provider?: ChatProvider };
 
 export type AssistantMessageBlock = {
   type: "assistant";
