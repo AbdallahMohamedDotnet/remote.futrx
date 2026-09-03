@@ -2,9 +2,9 @@ package usersettings
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 var (
@@ -15,6 +15,8 @@ var (
 	ErrInvalidChatMode        = errors.New("invalid chat mode")
 	ErrInvalidReasoningEffort = errors.New("invalid reasoning effort")
 	ErrInvalidServiceTier     = errors.New("invalid service tier")
+	ErrInvalidApprovalPolicy  = errors.New("invalid approval policy")
+	ErrInvalidSandboxPolicy   = errors.New("invalid sandbox policy")
 )
 
 type Key string
@@ -72,6 +74,8 @@ const (
 )
 
 type ServiceTier string
+type ApprovalPolicy string
+type SandboxPolicy string
 
 const (
 	ServiceTierAuto     ServiceTier = ""
@@ -86,6 +90,8 @@ type Chat struct {
 	Mode            ChatMode        `json:"mode"`
 	ReasoningEffort ReasoningEffort `json:"reasoningEffort"`
 	ServiceTier     ServiceTier     `json:"serviceTier"`
+	ApprovalPolicy  ApprovalPolicy  `json:"approvalPolicy"`
+	SandboxPolicy   SandboxPolicy   `json:"sandboxPolicy"`
 }
 
 type UpdateInput struct {
@@ -104,6 +110,8 @@ type ChatUpdate struct {
 	Mode            *ChatMode        `json:"mode,omitempty"`
 	ReasoningEffort *ReasoningEffort `json:"reasoningEffort,omitempty"`
 	ServiceTier     *ServiceTier     `json:"serviceTier,omitempty"`
+	ApprovalPolicy  *ApprovalPolicy  `json:"approvalPolicy,omitempty"`
+	SandboxPolicy   *SandboxPolicy   `json:"sandboxPolicy,omitempty"`
 }
 
 func DefaultSettings() Settings {
@@ -122,6 +130,8 @@ func defaultChatSettings() Chat {
 		Mode:            ChatModeDefault,
 		ReasoningEffort: ReasoningEffortAuto,
 		ServiceTier:     ServiceTierAuto,
+		ApprovalPolicy:  ApprovalPolicy(configconstants.DefaultAgentApprovalPolicy),
+		SandboxPolicy:   SandboxPolicy(configconstants.DefaultAgentSandboxPolicy),
 	}
 }
 
@@ -148,21 +158,17 @@ func ValidChatMode(mode ChatMode) bool {
 }
 
 func ValidReasoningEffort(effort ReasoningEffort) bool {
-	return validCapabilityValue(string(effort))
+	return agent.ValidPreferenceValue(string(effort))
 }
 
 func ValidServiceTier(tier ServiceTier) bool {
-	return validCapabilityValue(string(tier))
+	return agent.ValidPreferenceValue(string(tier))
 }
 
-func validCapabilityValue(value string) bool {
-	value = strings.TrimSpace(value)
-	for _, r := range value {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
-			r == '-' || r == '_' || r == '.' {
-			continue
-		}
-		return false
-	}
-	return true
+func ValidApprovalPolicy(policy ApprovalPolicy) bool {
+	return agent.ValidApprovalPolicy(string(policy))
+}
+
+func ValidSandboxPolicy(policy SandboxPolicy) bool {
+	return agent.ValidSandboxPolicy(string(policy))
 }

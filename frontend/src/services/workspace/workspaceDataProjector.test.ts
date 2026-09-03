@@ -69,3 +69,28 @@ test("treats omitted and empty selected-skill collections as equivalent", () => 
 
   assert.equal(same, current);
 });
+
+test("detects approval and sandbox preference changes from a workspace upsert", () => {
+  const current: ChatMeta[] = [{
+    id: "chat",
+    title: "Chat",
+    createdAt: 1,
+    lastMessageAt: 1,
+    approvalPolicy: "on-request",
+    sandboxPolicy: "workspaceWrite",
+  }];
+
+  const approvalChanged = workspaceDataProjector.upsertChat(current, {
+    ...current[0],
+    approvalPolicy: "never",
+  });
+  assert.notEqual(approvalChanged, current);
+  assert.equal(approvalChanged[0].approvalPolicy, "never");
+
+  const sandboxChanged = workspaceDataProjector.upsertChat(current, {
+    ...current[0],
+    sandboxPolicy: "dangerFullAccess",
+  });
+  assert.notEqual(sandboxChanged, current);
+  assert.equal(sandboxChanged[0].sandboxPolicy, "dangerFullAccess");
+});

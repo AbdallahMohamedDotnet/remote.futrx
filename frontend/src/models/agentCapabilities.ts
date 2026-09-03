@@ -4,6 +4,9 @@ export interface AgentCapabilityOption {
   value: string;
   label: string;
   description?: string;
+  model?: string;
+  reasoningEffort?: string;
+  raw?: unknown;
 }
 
 export interface AgentModelCapability {
@@ -15,6 +18,15 @@ export interface AgentModelCapability {
   defaultReasoningEffort?: string;
   serviceTiers: AgentCapabilityOption[];
   defaultServiceTier?: string;
+  inputModalities?: string[];
+  supportsPersonality?: boolean;
+  multiAgentVersion?: string;
+  hidden?: boolean;
+  modelSpecialty?: string;
+  upgrade?: string;
+  upgradeInfo?: unknown;
+  availabilityNux?: unknown;
+  raw?: unknown;
 }
 
 export interface AgentProviderCapabilities {

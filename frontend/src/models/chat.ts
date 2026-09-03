@@ -7,6 +7,8 @@ export type ChatProvider = string;
 export type ChatMode = string;
 export type ReasoningEffort = string;
 export type ServiceTier = string;
+export type ApprovalPolicy = "untrusted" | "on-request" | "never";
+export type SandboxPolicy = "readOnly" | "workspaceWrite" | "dangerFullAccess";
 
 export interface ChatMeta {
   id: string;
@@ -27,6 +29,8 @@ export interface ChatMeta {
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;
   serviceTier?: ServiceTier;
+  approvalPolicy?: ApprovalPolicy;
+  sandboxPolicy?: SandboxPolicy;
   projectId?: string;
   selectedSkills?: SelectedSkill[];
 }
@@ -38,7 +42,23 @@ export interface SelectedSkill {
   source?: string;
 }
 
-type ChatEventBase = { seq?: number; t: number; turnId?: string };
+export interface ProviderNativeEnvelope {
+  schemaVersion: number;
+  method: string;
+  threadId?: string;
+  turnId?: string;
+  itemId?: string;
+  requestId?: string;
+  payload?: unknown;
+}
+
+type ChatEventBase = {
+  seq?: number;
+  t: number;
+  turnId?: string;
+  native?: ProviderNativeEnvelope;
+  status?: string;
+};
 
 export type ChatEvent = ChatEventBase & (
   | { type: "user"; text: string }
@@ -47,6 +67,12 @@ export type ChatEvent = ChatEventBase & (
   | { type: "tool_use_start"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_use_end"; id: string; output?: string; isError?: boolean }
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
+  | { type: "interaction_request"; id: string; interactionId?: string; name: string; input?: Record<string, unknown> }
+  | { type: "interaction_resolved"; id: string; interactionId?: string; name?: string }
+  | { type: "collaboration"; id: string; name?: string; data?: Record<string, unknown> }
+  | { type: "turn_status"; data?: Record<string, unknown> }
+  | { type: "provider_event"; name?: string; data?: unknown }
+  | { type: "usage_update"; usage?: ChatUsagePayload }
   | { type: "system"; subtype: string; data?: Record<string, unknown> }
   | { type: "session"; provider?: ChatProvider; sessionId?: string; claudeSessionId?: string; codexSessionId?: string; kimiSessionId?: string; antigravitySessionId?: string }
   | { type: "complete"; usage?: ChatUsagePayload }
@@ -64,6 +90,7 @@ export interface ChatEventPage {
 export type ClientToServer =
   | { type: "prompt"; text: string; clientId?: string }
   | { type: "cancel" }
+  | { type: "interaction_response"; interactionId: string; result?: unknown; error?: unknown }
   | { type: "permission"; id: string; approved: boolean };
 
 export type ChatStatus = "loading" | "ready" | "streaming" | "error";
@@ -106,6 +133,8 @@ export interface CreateChatInput {
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;
   serviceTier?: ServiceTier;
+  approvalPolicy?: ApprovalPolicy;
+  sandboxPolicy?: SandboxPolicy;
   projectId?: string;
   selectedSkills?: SelectedSkill[];
 }
@@ -118,6 +147,8 @@ export interface UpdateChatInput {
   mode?: ChatMode;
   reasoningEffort?: ReasoningEffort;
   serviceTier?: ServiceTier;
+  approvalPolicy?: ApprovalPolicy;
+  sandboxPolicy?: SandboxPolicy;
   selectedSkills?: SelectedSkill[];
 }
 
@@ -140,4 +171,6 @@ export interface ResolvedChatMeta extends ChatMeta {
   mode: ChatMode;
   reasoningEffort: ReasoningEffort;
   serviceTier: ServiceTier;
+  approvalPolicy: ApprovalPolicy;
+  sandboxPolicy: SandboxPolicy;
 }

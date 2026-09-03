@@ -22,6 +22,9 @@ func TestDefaultSettingsUseCodexChatDefaults(t *testing.T) {
 	if settings.Chat.Model != "" || settings.Chat.ReasoningEffort != "" {
 		t.Fatalf("expected auto model and reasoning effort, got %+v", settings.Chat)
 	}
+	if settings.Chat.ApprovalPolicy != "on-request" || settings.Chat.SandboxPolicy != "workspaceWrite" {
+		t.Fatalf("expected default execution policies, got %+v", settings.Chat)
+	}
 }
 
 func TestUpdatePersistsProjectOnlyProviderAsProjectPreference(t *testing.T) {
@@ -32,15 +35,26 @@ func TestUpdatePersistsProjectOnlyProviderAsProjectPreference(t *testing.T) {
 	}))
 	provider := ChatProviderMiniMax
 	model := "MiniMax-M3"
+	approvalPolicy := ApprovalPolicy("never")
+	sandboxPolicy := SandboxPolicy("readOnly")
 
 	settings, err := service.Update(context.Background(), "sub:user", UpdateInput{
-		ProjectChat: &ChatUpdate{Provider: &provider, Model: &model},
+		ProjectChat: &ChatUpdate{
+			Provider:       &provider,
+			Model:          &model,
+			ApprovalPolicy: &approvalPolicy,
+			SandboxPolicy:  &sandboxPolicy,
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if settings.ProjectChat.Provider != ChatProviderMiniMax || settings.ProjectChat.Model != model {
 		t.Fatalf("unexpected project chat settings: %+v", settings.ProjectChat)
+	}
+	if settings.ProjectChat.ApprovalPolicy != approvalPolicy ||
+		settings.ProjectChat.SandboxPolicy != sandboxPolicy {
+		t.Fatalf("unexpected project execution policy: %+v", settings.ProjectChat)
 	}
 	if settings.Chat.Provider != ChatProviderCodex {
 		t.Fatalf("host chat provider = %q, want codex", settings.Chat.Provider)
@@ -156,6 +170,20 @@ func TestUpdateRejectsInvalidChatPreferences(t *testing.T) {
 				ReasoningEffort: ptr(ReasoningEffort("bad value")),
 			}},
 			want: ErrInvalidReasoningEffort,
+		},
+		{
+			name: "approval policy",
+			in: UpdateInput{Chat: &ChatUpdate{
+				ApprovalPolicy: ptr(ApprovalPolicy("bad")),
+			}},
+			want: ErrInvalidApprovalPolicy,
+		},
+		{
+			name: "sandbox policy",
+			in: UpdateInput{Chat: &ChatUpdate{
+				SandboxPolicy: ptr(SandboxPolicy("bad")),
+			}},
+			want: ErrInvalidSandboxPolicy,
 		},
 	}
 

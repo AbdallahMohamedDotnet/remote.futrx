@@ -109,7 +109,6 @@ func (s *Service) normalize(settings Settings) Settings {
 		s.validProviderForScope(settings.Chat.Provider, agentmodule.ScopeProject) {
 		projectChat = settings.Chat
 	}
-
 	settings.Chat = s.normalizeChat(settings.Chat, defaults.Chat, agentmodule.ScopeHost)
 	settings.ProjectChat = s.normalizeChat(projectChat, defaults.ProjectChat, agentmodule.ScopeProject)
 	return settings
@@ -163,6 +162,20 @@ func (s *Service) applyChatUpdate(chat *Chat, update *ChatUpdate, scope agentmod
 		}
 		chat.ServiceTier = tier
 	}
+	if update.ApprovalPolicy != nil {
+		policy := ApprovalPolicy(strings.TrimSpace(string(*update.ApprovalPolicy)))
+		if !ValidApprovalPolicy(policy) {
+			return ErrInvalidApprovalPolicy
+		}
+		chat.ApprovalPolicy = policy
+	}
+	if update.SandboxPolicy != nil {
+		policy := SandboxPolicy(strings.TrimSpace(string(*update.SandboxPolicy)))
+		if !ValidSandboxPolicy(policy) {
+			return ErrInvalidSandboxPolicy
+		}
+		chat.SandboxPolicy = policy
+	}
 	return nil
 }
 
@@ -183,6 +196,14 @@ func (s *Service) normalizeChat(chat, defaults Chat, scope agentmodule.Execution
 	chat.ServiceTier = normalizeServiceTier(chat.ServiceTier)
 	if !ValidServiceTier(chat.ServiceTier) {
 		chat.ServiceTier = defaults.ServiceTier
+	}
+	chat.ApprovalPolicy = ApprovalPolicy(strings.TrimSpace(string(chat.ApprovalPolicy)))
+	if !ValidApprovalPolicy(chat.ApprovalPolicy) {
+		chat.ApprovalPolicy = defaults.ApprovalPolicy
+	}
+	chat.SandboxPolicy = SandboxPolicy(strings.TrimSpace(string(chat.SandboxPolicy)))
+	if !ValidSandboxPolicy(chat.SandboxPolicy) {
+		chat.SandboxPolicy = defaults.SandboxPolicy
 	}
 	return chat
 }
