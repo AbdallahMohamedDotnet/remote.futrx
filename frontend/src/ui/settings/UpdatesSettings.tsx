@@ -1,5 +1,9 @@
 import type { SelfUpdateStatus } from "../../models/selfUpdate";
 import { AlertCircle, Download, Loader, RotateCcw } from "../primitives/icons";
+import {
+  formatUpdateRelativeTime,
+  formatUpdateTime,
+} from "./updates/updateTime";
 
 export function UpdatesSettings({
   status,
@@ -54,7 +58,7 @@ export function UpdatesSettings({
                   {lastCheck.updateAvailable && latestTag !== ""
                     ? `release ${latestTag} is available`
                     : "up to date with the newest release"}
-                  {` · checked ${formatTime(lastCheck.checkedAt)}`}
+                  {` · checked ${formatUpdateTime(lastCheck.checkedAt)}`}
                 </>
               )}
             </div>
@@ -143,9 +147,9 @@ export function UpdatesSettings({
               </div>
             )}
             <div class="text-[12px] text-ink-300 mt-0.5">
-              Started {formatTime(run.startedAt)}
+              Started {formatUpdateTime(run.startedAt)}
               {run.startedBy ? ` by ${run.startedBy}` : ""}
-              {run.finishedAt ? ` · finished ${formatTime(run.finishedAt)}` : ""}
+              {run.finishedAt ? ` · finished ${formatUpdateTime(run.finishedAt)}` : ""}
             </div>
             {run.state === "running" && restarting && (
               <div class="mt-2 text-[12px] text-accent-yellow">
@@ -187,7 +191,7 @@ export function UpdatesSettings({
                   </div>
                 )}
                 <div class="mt-1.5 text-[10.5px] text-ink-400">
-                  Progress updated {formatRelativeTime(progress.updatedAt)}
+                  Progress updated {formatUpdateRelativeTime(progress.updatedAt)}
                 </div>
               </div>
             )}
@@ -205,7 +209,7 @@ export function UpdatesSettings({
             <div class="bg-inset">
               <div class="px-4 pt-2.5 text-[10.5px] text-ink-400">
                 Installer log
-                {run.logUpdatedAt ? ` · updated ${formatRelativeTime(run.logUpdatedAt)}` : ""}
+                {run.logUpdatedAt ? ` · updated ${formatUpdateRelativeTime(run.logUpdatedAt)}` : ""}
               </div>
               <pre class="m-0 px-4 pb-3 pt-1.5 text-[11px] leading-snug font-mono text-ink-200 max-h-72 overflow-auto whitespace-pre-wrap">
                 {run.log}
@@ -216,21 +220,4 @@ export function UpdatesSettings({
       )}
     </div>
   );
-}
-
-function formatRelativeTime(unixSeconds: number): string {
-  const elapsedSeconds = Math.max(0, Math.round(Date.now() / 1000 - unixSeconds));
-  if (elapsedSeconds < 5) return "just now";
-  if (elapsedSeconds < 60) return `${elapsedSeconds} seconds ago`;
-  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
-  return `${elapsedMinutes} minute${elapsedMinutes === 1 ? "" : "s"} ago`;
-}
-
-function formatTime(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
