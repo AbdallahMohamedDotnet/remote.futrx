@@ -67,30 +67,24 @@ export function useSlashCommandMenu({
 
   function onKeyDown(event: KeyboardEvent): boolean {
     if (!open) return false;
-    switch (event.key) {
-      case "ArrowDown":
+    switch (slashCommandMenuPolicy.actionForKey(event, items.length)) {
+      case "next":
         event.preventDefault();
         setHighlight((index) => slashCommandMenuPolicy.moveHighlight(index, 1, items.length));
         return true;
-      case "ArrowUp":
+      case "previous":
         event.preventDefault();
         setHighlight((index) => slashCommandMenuPolicy.moveHighlight(index, -1, items.length));
         return true;
-      case "Tab":
-      case "Enter": {
-        // Leave newline (Shift+Enter) and the send shortcut (Ctrl/Cmd+Enter)
-        // to the textarea; only plain Enter/Tab confirms a command.
-        if (event.key === "Enter" && (event.shiftKey || event.ctrlKey || event.metaKey)) return false;
-        if (!items.length) return false;
+      case "choose":
         event.preventDefault();
         choose(items[safeHighlight]);
         return true;
-      }
-      case "Escape":
+      case "dismiss":
         event.preventDefault();
         setDismissed(true);
         return true;
-      default:
+      case "ignore":
         return false;
     }
   }
