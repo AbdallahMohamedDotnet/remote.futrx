@@ -77,11 +77,11 @@ export function WorkspaceProvider({
   }, []);
 
   const createChat = useCallback(async (projectId?: string): Promise<ChatMeta> => {
-    const chat = await chatApi.create(createChatInput(settings.chat, projectId));
+    const chat = await chatApi.create(createChatInput(settings, projectId));
     data.seedChat(chat);
     dispatch({ type: "select-chat", chatId: chat.id });
     return chat;
-  }, [settings.chat, data.seedChat]);
+  }, [settings, data.seedChat]);
 
   const deleteChat = useCallback(async (chatId: string) => {
     await chatApi.delete(chatId);

@@ -78,8 +78,10 @@ class WorkspaceDataProjector {
         left.mode !== right.mode ||
         left.reasoningEffort !== right.reasoningEffort ||
         left.serviceTier !== right.serviceTier ||
+        left.approvalPolicy !== right.approvalPolicy ||
+        left.sandboxPolicy !== right.sandboxPolicy ||
         left.projectId !== right.projectId ||
-        !this.sameSkills(left.selectedSkills, right.selectedSkills)
+        !this.sameSelectedSkills(left.selectedSkills, right.selectedSkills)
       ) {
         return false;
       }
@@ -90,7 +92,7 @@ class WorkspaceDataProjector {
   // A skill-only upsert carries no other field change, so leaving skills out
   // of this comparison made the projector keep the stale chat and drop the
   // update: removing a chip left it on screen until the chat was reopened.
-  private sameSkills(
+  private sameSelectedSkills(
     left: SelectedSkill[] | undefined,
     right: SelectedSkill[] | undefined
   ): boolean {
@@ -98,20 +100,21 @@ class WorkspaceDataProjector {
     const leftSkills = left ?? [];
     const rightSkills = right ?? [];
     if (leftSkills.length !== rightSkills.length) return false;
-    return leftSkills.every((skill, index) => this.sameSkill(skill, rightSkills[index]));
-  }
 
-  // `name` is compared in its own right rather than behind `command`: the chip
-  // renders `name || command`, so a skill renamed under a stable command is a
-  // visible change, and folding the two together would leave the old label on
-  // screen -- the same staleness this comparison exists to prevent.
-  private sameSkill(left: SelectedSkill, right: SelectedSkill): boolean {
-    return (
-      left.name === right.name &&
-      (left.command ?? "") === (right.command ?? "") &&
-      (left.provider ?? "") === (right.provider ?? "") &&
-      (left.source ?? "") === (right.source ?? "")
-    );
+    const key = (skill: SelectedSkill): string => {
+      const provider = (skill.provider ?? "").trim().toLowerCase();
+      const command = (skill.command ?? skill.name).trim().toLowerCase();
+      const source = command === "scheduled-tasks"
+        ? "remote"
+        : (skill.source ?? "").trim().toLowerCase();
+      const name = skill.name.trim();
+      return `${provider}:${source}:${command}:${name}`;
+    };
+
+    for (let index = 0; index < leftSkills.length; index++) {
+      if (key(leftSkills[index]) !== key(rightSkills[index])) return false;
+    }
+    return true;
   }
 
   private sameStringRecord(

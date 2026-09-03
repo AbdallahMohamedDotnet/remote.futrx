@@ -10,6 +10,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/googleoauth"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
@@ -37,6 +38,13 @@ type TmuxClient interface {
 	servicetmux.SessionClient
 }
 
+// ChatStore is the complete persistence capability required at composition;
+// individual services receive only the narrower contracts they consume.
+type ChatStore interface {
+	servicechat.Repository
+	servicechat.TranscriptEventSource
+}
+
 // PushStore persists Web Push registrations and the server's long-lived VAPID
 // key pair. VAPIDKeys mints the pair on first use and returns the stored one
 // thereafter; rotating it would invalidate every browser subscription.
@@ -47,7 +55,7 @@ type PushStore interface {
 }
 
 type Dependencies struct {
-	Chats             servicechat.Repository
+	Chats             ChatStore
 	Projects          serviceproject.Repository
 	ProjectSecrets    serviceproject.SecretsRepository
 	ProjectAccess     serviceproject.AccessRepository
@@ -55,13 +63,17 @@ type Dependencies struct {
 	Auth              AuthStore
 	Users             serviceuser.Repository
 	UserSettings      serviceusersettings.Repository
+	TwoFactor         serviceauth.TwoFactorStore
+	SessionRegistry   serviceauth.SessionRegistryStore
 	Push              PushStore
 	Usage             serviceusage.Repository
 	AuthBaseURL       string
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
 	AgentModules      *agentmodule.Catalog
+	AgentAPIKeys      agentauth.APIKeyStore
 	AgentOptions      AgentOptions
+	AuthOptions       AuthOptions
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
 	ScheduleLimits    ScheduleLimits
@@ -84,6 +96,15 @@ type AgentOptions struct {
 	DegradedCapabilityCacheTTL time.Duration
 	CredentialSyncTimeout      time.Duration
 	BrowserIdleTTL             time.Duration
+}
+
+// AuthOptions mirrors application-wide account security policy without
+// coupling the service layer to the config package.
+type AuthOptions struct {
+	PendingLoginTTL     time.Duration
+	EnrollmentTTL       time.Duration
+	RecoveryCodeCount   int
+	SessionHistoryLimit int
 }
 
 type Services struct {
@@ -144,6 +165,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	agentRuntime, err := deps.AgentModules.Build(agentmodule.BuildDependencies{
 		Projects:              agentProjectResolver{projects: projectService},
 		Containers:            deps.AgentContainers,
+		APIKeys:               deps.AgentAPIKeys,
 		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,
 	})
 	if err != nil {
@@ -165,6 +187,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		chatProjectResolver{projects: projectService},
 		tmuxResolver,
 		runs,
+		servicechat.WithTranscriptEventSource(deps.Chats),
 		servicechat.WithCopiedEventAppender(chats),
 		servicechat.WithSessionPolicy(agentRuntime),
 		servicechat.WithProviderPolicy(agentRuntime),
@@ -174,17 +197,30 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	userService := serviceuser.New(
 		deps.Users,
 		serviceuser.WithRemovalCleanup(userRemovalCleanup{
-			projects:      projectService,
-			subscriptions: deps.Push,
+			projects:        projectService,
+			subscriptions:   deps.Push,
+			twoFactor:       deps.TwoFactor,
+			sessionRegistry: deps.SessionRegistry,
 		}),
 	)
-	authService, err := newAuth(ctx, deps.Auth, userService, deps.AuthBaseURL)
+	authService, err := newAuth(
+		ctx,
+		deps.Auth,
+		userService,
+		deps.AuthBaseURL,
+		deps.TwoFactor,
+		deps.SessionRegistry,
+		deps.AuthOptions,
+	)
 	if err != nil {
 		return Services{}, err
 	}
 	scheduleCaps := schedulecapability.New(deps.AuthBaseURL)
 	var usageService *serviceusage.Service
-	promptOptions := []prompt.Option{prompt.WithScheduleToolIssuer(scheduleCaps)}
+	promptOptions := []prompt.Option{
+		prompt.WithScheduleToolIssuer(scheduleCaps),
+		prompt.WithAgentPolicy(agentRuntime),
+	}
 	if deps.Usage != nil {
 		usageService = serviceusage.New(deps.Usage, projectService, chats)
 		promptOptions = append(promptOptions, prompt.WithUsageRecorder(usageService))
@@ -195,10 +231,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		projectService,
 		runs,
 		agentRuntime,
-		append([]prompt.Option{
-			prompt.WithScheduleToolIssuer(scheduleCaps),
-			prompt.WithAgentPolicy(agentRuntime),
-		}, promptOptions...)...,
+		promptOptions...,
 	)
 	scheduleService := serviceschedule.New(
 		deps.Schedules,
@@ -409,6 +442,9 @@ func newAuth(
 	store AuthStore,
 	users *serviceuser.Service,
 	baseURL string,
+	twoFactor serviceauth.TwoFactorStore,
+	sessionRegistry serviceauth.SessionRegistryStore,
+	options AuthOptions,
 ) (*serviceauth.Service, error) {
 	if store == nil {
 		return nil, errors.New("authentication store is required")
@@ -435,6 +471,14 @@ func newAuth(
 		},
 		baseURL,
 		sessionKey,
+		twoFactor,
+		sessionRegistry,
+		serviceauth.Options{
+			PendingLoginTTL:     options.PendingLoginTTL,
+			EnrollmentTTL:       options.EnrollmentTTL,
+			RecoveryCodeCount:   options.RecoveryCodeCount,
+			SessionHistoryLimit: options.SessionHistoryLimit,
+		},
 	)
 }
 

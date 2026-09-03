@@ -33,7 +33,44 @@ test("detects generic and legacy provider session changes", () => {
   assert.notEqual(legacyChanged, current);
 });
 
-test("keeps skill-only chat upserts instead of dropping them as unchanged", () => {
+test("detects selected-skill removal from a workspace upsert", () => {
+  const current: ChatMeta[] = [{
+    id: "chat",
+    title: "Chat",
+    createdAt: 1,
+    lastMessageAt: 1,
+    selectedSkills: [{
+      name: "Code Refactorer",
+      command: "code-refactorer",
+      provider: "codex",
+      source: "project",
+    }],
+  }];
+  const { selectedSkills: _selectedSkills, ...withoutSelectedSkills } = current[0];
+
+  const removed = workspaceDataProjector.upsertChat(current, withoutSelectedSkills);
+
+  assert.notEqual(removed, current);
+  assert.equal(removed[0].selectedSkills, undefined);
+});
+
+test("treats omitted and empty selected-skill collections as equivalent", () => {
+  const current: ChatMeta[] = [{
+    id: "chat",
+    title: "Chat",
+    createdAt: 1,
+    lastMessageAt: 1,
+  }];
+
+  const same = workspaceDataProjector.upsertChat(current, {
+    ...current[0],
+    selectedSkills: [],
+  });
+
+  assert.equal(same, current);
+});
+
+test("detects selected-skill field changes from a workspace upsert", () => {
   const current: ChatMeta[] = [{
     id: "chat",
     title: "Chat",
@@ -47,17 +84,6 @@ test("keeps skill-only chat upserts instead of dropping them as unchanged", () =
     selectedSkills: [{ name: "browser", command: "browser", provider: "claude", source: "builtin" }],
   });
   assert.equal(same, current);
-
-  // The removal upsert omits selectedSkills entirely (server drops the empty
-  // list), which is what left the chip on screen before.
-  const cleared = workspaceDataProjector.upsertChat(current, {
-    id: "chat",
-    title: "Chat",
-    createdAt: 1,
-    lastMessageAt: 1,
-  });
-  assert.notEqual(cleared, current);
-  assert.equal(cleared[0].selectedSkills, undefined);
 
   // The chip renders `name || command`, so a rename under a stable command has
   // to reach the list or the old label stays on screen.
@@ -74,4 +100,29 @@ test("keeps skill-only chat upserts instead of dropping them as unchanged", () =
   });
   assert.notEqual(swapped, current);
   assert.equal(swapped[0].selectedSkills?.[0].command, "run");
+});
+
+test("detects approval and sandbox preference changes from a workspace upsert", () => {
+  const current: ChatMeta[] = [{
+    id: "chat",
+    title: "Chat",
+    createdAt: 1,
+    lastMessageAt: 1,
+    approvalPolicy: "on-request",
+    sandboxPolicy: "workspaceWrite",
+  }];
+
+  const approvalChanged = workspaceDataProjector.upsertChat(current, {
+    ...current[0],
+    approvalPolicy: "never",
+  });
+  assert.notEqual(approvalChanged, current);
+  assert.equal(approvalChanged[0].approvalPolicy, "never");
+
+  const sandboxChanged = workspaceDataProjector.upsertChat(current, {
+    ...current[0],
+    sandboxPolicy: "dangerFullAccess",
+  });
+  assert.notEqual(sandboxChanged, current);
+  assert.equal(sandboxChanged[0].sandboxPolicy, "dangerFullAccess");
 });
