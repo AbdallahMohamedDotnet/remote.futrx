@@ -22,7 +22,7 @@ export function UpdatesSettings({
 }) {
   if (loading && status == null) {
     return (
-      <div class="rounded-lg border border-white/10 bg-[#101318] px-4 py-12 flex items-center justify-center gap-2 text-[13px] text-ink-300">
+      <div class="rounded-card border border-line bg-surface px-4 py-12 flex items-center justify-center gap-2 text-[13px] text-ink-300">
         <Loader class="w-4 h-4 animate-spin" /> Loading update status…
       </div>
     );
@@ -33,12 +33,14 @@ export function UpdatesSettings({
   const runActive = run?.state === "running";
   const latestTag = lastCheck?.latestTag ?? "";
   const updateAvailable = !runActive && lastCheck?.updateAvailable === true && latestTag !== "";
+  const updateKind = lastCheck?.updateKind ?? "infrastructure";
+  const infrastructureUpdate = updateKind === "infrastructure";
 
   return (
     <div class="space-y-4">
-      <section class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
+      <section class="rounded-card border border-line bg-surface overflow-hidden">
         <header class="px-4 py-3 flex items-start gap-3">
-          <div class="mt-0.5 w-9 h-9 rounded-md bg-white/[0.06] border border-white/10 grid place-items-center flex-none">
+          <div class="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-control bg-tint">
             <Download class="w-4 h-4 text-ink-200" />
           </div>
           <div class="flex-1 min-w-0">
@@ -60,7 +62,7 @@ export function UpdatesSettings({
             type="button"
             onClick={() => void onCheck()}
             disabled={checking || runActive}
-            class="h-9 px-2.5 rounded-md inline-flex items-center gap-2 text-[12px] text-ink-200 hover:text-ink-50 hover:bg-white/[0.08] disabled:opacity-60"
+            class="h-9 px-2.5 rounded-md inline-flex items-center gap-2 text-[12px] text-ink-200 hover:text-ink-50 hover:bg-tint-strong disabled:opacity-60"
           >
             <RotateCcw class={`w-3.5 h-3.5 ${checking ? "animate-spin" : ""}`} />
             <span class="hidden sm:inline">{checking ? "Checking…" : "Check for updates"}</span>
@@ -81,42 +83,61 @@ export function UpdatesSettings({
       {updateAvailable && (
         <section class="rounded-lg border border-accent-blue/25 bg-accent-blue/[0.06] p-4">
           <div class="text-[13.5px] font-semibold text-ink-50">
-            Release {latestTag} is ready to install
+            {infrastructureUpdate ? "Infrastructure" : "Application"} release {latestTag} is ready
           </div>
           <p class="mt-1 text-[12.5px] leading-relaxed text-ink-300">
-            Updating pulls the release onto the server, rebuilds the application, restarts it,
-            and recycles idle project containers onto the fresh base image. Containers with a
-            running agent are skipped. Expect a few minutes where the app is unreachable.
+            {infrastructureUpdate ? (
+              <>
+                This release crosses a major or minor version boundary. It converges the host,
+                rebuilds the application and base image, and recycles idle project containers.
+                Containers with a running agent are skipped. Expect a few minutes where the app
+                is unreachable.
+              </>
+            ) : (
+              <>
+                This patch release rebuilds and restarts the frontend/backend application only.
+                Host configuration, the base image, and project containers remain unchanged.
+                Expect a brief reconnect while the service restarts.
+              </>
+            )}
           </p>
           <button
             type="button"
             onClick={() => void onApply(latestTag)}
             disabled={applying}
-            class="mt-3 h-10 px-3 rounded bg-accent-blue/80 hover:bg-accent-blue text-white text-[13px] font-medium disabled:opacity-50"
+            class="btn btn-primary mt-3 disabled:opacity-50"
           >
-            {applying ? "Starting update…" : `Update to ${latestTag}`}
+            {applying
+              ? infrastructureUpdate
+                ? "Starting infrastructure update…"
+                : "Starting application deploy…"
+              : infrastructureUpdate
+                ? `Update infrastructure to ${latestTag}`
+                : `Deploy ${latestTag}`}
           </button>
         </section>
       )}
 
       {run && (
-        <section class="rounded-lg border border-white/10 bg-[#101318] overflow-hidden">
-          <header class="px-4 py-3 border-b border-white/[0.06]">
+        <section class="rounded-card border border-line bg-surface overflow-hidden">
+          <header class="px-4 py-3 border-b border-line">
             {run.state === "running" && (
               <div class="flex items-center gap-2 text-[13.5px] font-semibold text-ink-50">
                 <Loader class="w-4 h-4 animate-spin text-accent-blue" />
-                Updating to {run.target}…
+                {run.updateKind === "application"
+                  ? `Deploying application release ${run.target}…`
+                  : `Updating infrastructure to ${run.target}…`}
               </div>
             )}
             {run.state === "succeeded" && (
               <div class="text-[13.5px] font-semibold text-accent-green">
-                Updated to {run.target}
+                {run.updateKind === "application" ? "Deployed" : "Updated to"} {run.target}
               </div>
             )}
             {run.state === "failed" && (
               <div class="flex items-center gap-2 text-[13.5px] font-semibold text-accent-red">
                 <AlertCircle class="w-4 h-4 flex-none" />
-                Update to {run.target} failed
+                {run.updateKind === "application" ? "Deployment of" : "Update to"} {run.target} failed
                 {typeof run.exitCode === "number" ? ` (exit ${run.exitCode})` : ""}
               </div>
             )}
@@ -127,22 +148,23 @@ export function UpdatesSettings({
             </div>
             {run.state === "running" && restarting && (
               <div class="mt-2 text-[12px] text-accent-yellow">
-                The server is restarting as part of the update — reconnecting… This can take a
-                few minutes while containers are recycled.
+                {run.updateKind === "application"
+                  ? "The application is restarting — reconnecting…"
+                  : "The server is restarting as part of the update — reconnecting… This can take a few minutes while containers are recycled."}
               </div>
             )}
             {run.state === "succeeded" && (
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                class="mt-2.5 h-9 px-3 rounded bg-accent-green/80 hover:bg-accent-green text-white text-[13px] font-medium"
+                class="btn btn-primary btn-sm mt-2.5 font-medium"
               >
                 Reload to use the new version
               </button>
             )}
           </header>
           {run.log && (
-            <pre class="m-0 px-4 py-3 text-[11px] leading-snug font-mono text-ink-200 bg-black/30 max-h-72 overflow-auto whitespace-pre-wrap">
+            <pre class="m-0 px-4 py-3 text-[11px] leading-snug font-mono text-ink-200 bg-inset max-h-72 overflow-auto whitespace-pre-wrap">
               {run.log}
             </pre>
           )}

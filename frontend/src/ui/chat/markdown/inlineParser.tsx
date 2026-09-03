@@ -1,8 +1,8 @@
 import type { ComponentChildren } from "preact";
-import { mediaViewerState } from "../../../state/chat/mediaViewerState";
-import { viewableMediaKind } from "../files/fileMeta";
+import { mediaViewerStore } from "../../../state/stores/media/mediaViewerStore";
+import { fileService } from "../../../services/files/fileService.ts";
 import { internalPathOpenUrl } from "../ideLinks";
-import { getTextDirection, hasLtrText, isRtlText, splitBidiSegments } from "./bidi";
+import { hasLtrText, isRtlText, splitBidiSegments } from "./bidi";
 
 const urlPattern = /^https?:\/\/[^\s<]+/;
 
@@ -18,42 +18,30 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
   let index = 0;
 
   const flush = () => {
-    if (plain) {
-      if (context.isRtl || isRtlText(plain)) {
-        const segments = splitBidiSegments(plain);
-        for (const seg of segments) {
-          if (seg.isLtr) {
-            nodes.push(
-              <span
-                key={`${keyPrefix}-bidi-${nodes.length}`}
-                dir="ltr"
-                class="bidi-isolate"
-              >
-                {seg.text}
-              </span>
-            );
-          } else if (seg.text) {
-            nodes.push(seg.text);
-          }
+    if (!plain) return;
+    if (context.isRtl || isRtlText(plain)) {
+      for (const segment of splitBidiSegments(plain)) {
+        if (segment.isLtr) {
+          nodes.push(<span key={`${keyPrefix}-bidi-${nodes.length}`} dir="ltr" style={{ unicodeBidi: "isolate" }}>{segment.text}</span>);
+        } else if (segment.text) {
+          nodes.push(segment.text);
         }
-      } else {
-        nodes.push(plain);
       }
-      plain = "";
+    } else {
+      nodes.push(plain);
     }
+    plain = "";
   };
 
   const addWrapped = (tag: "strong" | "em" | "del", content: string, markerLength: number, end: number) => {
     flush();
     const key = `${keyPrefix}-${nodes.length}`;
     const isLtrWrap = !isRtlText(content) && hasLtrText(content);
-    const wrapDir = isLtrWrap ? "ltr" : undefined;
-    const childContext = isLtrWrap ? { ...context, isRtl: false } : context;
-    const children = renderInline(content, key, childContext);
-    const wrapClass = isLtrWrap ? "bidi-isolate" : undefined;
-    if (tag === "strong") nodes.push(<strong key={key} dir={wrapDir} class={wrapClass}>{children}</strong>);
-    if (tag === "em") nodes.push(<em key={key} dir={wrapDir} class={wrapClass}>{children}</em>);
-    if (tag === "del") nodes.push(<del key={key} dir={wrapDir} class={wrapClass}>{children}</del>);
+    const children = renderInline(content, key, isLtrWrap ? { ...context, isRtl: false } : context);
+    const props = isLtrWrap ? { dir: "ltr" as const, style: { unicodeBidi: "isolate" as const } } : {};
+    if (tag === "strong") nodes.push(<strong key={key} {...props}>{children}</strong>);
+    if (tag === "em") nodes.push(<em key={key} {...props}>{children}</em>);
+    if (tag === "del") nodes.push(<del key={key} {...props}>{children}</del>);
     index = end + markerLength;
   };
 
@@ -62,15 +50,7 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
       const end = text.indexOf("`", index + 1);
       if (end > index + 1) {
         flush();
-        nodes.push(
-          <code
-            key={`${keyPrefix}-${nodes.length}`}
-            dir="ltr"
-            class="bg-white/[0.08] text-ink-100 px-1 py-0.5 rounded text-[12.5px] font-mono md-inline-code"
-          >
-            {text.slice(index + 1, end)}
-          </code>
-        );
+        nodes.push(<code key={`${keyPrefix}-${nodes.length}`} dir="ltr" style={{ unicodeBidi: "isolate" }} class="bg-tint-strong text-ink-100 px-1 py-0.5 rounded text-[12.5px] font-mono break-all [overflow-wrap:anywhere]">{text.slice(index + 1, end)}</code>);
         index = end + 1;
         continue;
       }
@@ -78,26 +58,15 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
 
     if (text.startsWith("**", index)) {
       const end = text.indexOf("**", index + 2);
-      if (end > index + 2) {
-        addWrapped("strong", text.slice(index + 2, end), 2, end);
-        continue;
-      }
+      if (end > index + 2) { addWrapped("strong", text.slice(index + 2, end), 2, end); continue; }
     }
-
     if (text.startsWith("~~", index)) {
       const end = text.indexOf("~~", index + 2);
-      if (end > index + 2) {
-        addWrapped("del", text.slice(index + 2, end), 2, end);
-        continue;
-      }
+      if (end > index + 2) { addWrapped("del", text.slice(index + 2, end), 2, end); continue; }
     }
-
     if (text[index] === "*" && text[index + 1] !== "*") {
       const end = text.indexOf("*", index + 1);
-      if (end > index + 1) {
-        addWrapped("em", text.slice(index + 1, end), 1, end);
-        continue;
-      }
+      if (end > index + 1) { addWrapped("em", text.slice(index + 1, end), 1, end); continue; }
     }
 
     if (text[index] === "[") {
@@ -111,21 +80,10 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
             flush();
             const key = `${keyPrefix}-${nodes.length}`;
             const labelText = text.slice(index + 1, labelEnd);
-            const isLtrLink = !isRtlText(labelText) && hasLtrText(labelText);
-            const labelDir = isLtrLink ? "ltr" : undefined;
-            const labelClass = isLtrLink ? "text-accent-blue hover:underline bidi-isolate" : "text-accent-blue hover:underline";
-            const labelContext = isLtrLink ? { ...context, isRtl: false } : context;
+            const ltr = !isRtlText(labelText) && hasLtrText(labelText);
             nodes.push(
-              <a
-                key={key}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                dir={labelDir}
-                class={labelClass}
-                onClick={(event) => maybeOpenMediaViewer(event, href)}
-              >
-                {renderInline(labelText, key, labelContext)}
+              <a key={key} href={href} target="_blank" rel="noopener noreferrer" dir={ltr ? "ltr" : undefined} style={ltr ? { unicodeBidi: "isolate" } : undefined} class="text-accent-blue hover:underline break-all [overflow-wrap:anywhere]" onClick={(event) => maybeOpenMediaViewer(event, href)}>
+                {renderInline(labelText, key, ltr ? { ...context, isRtl: false } : context)}
               </a>
             );
             index = hrefEnd + 1;
@@ -139,18 +97,7 @@ export function renderInline(text: string, keyPrefix: string, context: InlineRen
     if (url) {
       const href = trimTrailingUrlPunctuation(url);
       flush();
-      nodes.push(
-        <a
-          key={`${keyPrefix}-${nodes.length}`}
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          dir="ltr"
-          class="text-accent-blue hover:underline bidi-isolate"
-        >
-          {href}
-        </a>
-      );
+      nodes.push(<a key={`${keyPrefix}-${nodes.length}`} href={href} target="_blank" rel="noopener noreferrer" dir="ltr" style={{ unicodeBidi: "isolate" }} class="text-accent-blue hover:underline break-all [overflow-wrap:anywhere]">{href}</a>);
       index += href.length;
       continue;
     }
@@ -167,34 +114,21 @@ function safeHref(raw: string, context: InlineRenderContext): string | null {
   const href = raw.trim();
   const internalHref = internalPathOpenUrl(href, context);
   if (internalHref) return internalHref;
-  if (
-    href.startsWith("https://") ||
-    href.startsWith("http://") ||
-    href.startsWith("mailto:") ||
-    href.startsWith("/") ||
-    href.startsWith("#")
-  ) {
-    return href;
-  }
+  if (href.startsWith("https://") || href.startsWith("http://") || href.startsWith("mailto:") || href.startsWith("/") || href.startsWith("#")) return href;
   return null;
 }
 
-function trimTrailingUrlPunctuation(url: string): string {
-  return url.replace(/[),.;:!?]+$/, "");
-}
+function trimTrailingUrlPunctuation(url: string): string { return url.replace(/[),.;:!?]+$/, ""); }
 
-// Media links produced by internalPathOpenUrl point at the inline media-open
-// endpoint; render those in the in-app viewer instead of a new tab. Modified
-// clicks (cmd/ctrl/shift/middle) keep the browser's default behavior.
 function maybeOpenMediaViewer(event: MouseEvent, href: string): void {
   if (event.defaultPrevented) return;
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   if (!href.includes("/media-open?")) return;
   const name = mediaOpenFileName(href);
-  const kind = name ? viewableMediaKind(name) : null;
+  const kind = name ? fileService.viewableMediaKind(name) : null;
   if (!name || !kind) return;
   event.preventDefault();
-  mediaViewerState.open({ url: href, name, kind });
+  mediaViewerStore.getState().open({ url: href, name, kind });
 }
 
 function mediaOpenFileName(href: string): string {
@@ -202,7 +136,6 @@ function mediaOpenFileName(href: string): string {
     const url = new URL(href, window.location.origin);
     const path = url.searchParams.get("path") || "";
     const base = path.split("/").pop() || "";
-    // Paths may carry :line or :line:column suffixes — strip them for display.
     return base.replace(/(:\d+){1,2}$/, "");
   } catch {
     return "";
