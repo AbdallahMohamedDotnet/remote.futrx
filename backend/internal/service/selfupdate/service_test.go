@@ -21,12 +21,12 @@ func (f *fakeHost) ListRemoteTags(context.Context, string) ([]string, error) {
 	return f.tags, f.tagsErr
 }
 
-func (f *fakeHost) StartUpdater(_ string, tag, kind, logPath, donePath, progressPath string) (int, error) {
+func (f *fakeHost) StartUpdater(launch UpdaterLaunch) (int, error) {
 	if f.startErr != nil {
 		return 0, f.startErr
 	}
-	f.started = append(f.started, tag)
-	f.kinds = append(f.kinds, kind)
+	f.started = append(f.started, launch.Target)
+	f.kinds = append(f.kinds, string(launch.Kind))
 	return f.pid, nil
 }
 
