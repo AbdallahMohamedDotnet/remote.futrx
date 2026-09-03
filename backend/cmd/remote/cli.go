@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/futrx-com/remote.futrx.com/internal/config"
-	service "github.com/futrx-com/remote.futrx.com/internal/service"
 )
 
 // runCLICommand handles remote's non-server subcommands (currently just
@@ -22,14 +21,7 @@ func runCLICommand(ctx context.Context, cfg config.Config, args []string) bool {
 	}
 	switch command := args[1]; command {
 	case "setup-token":
-		authOptions := service.AuthOptions{
-			PendingLoginTTL:     cfg.Auth.PendingLoginTTL,
-			EnrollmentTTL:       cfg.Auth.EnrollmentTTL,
-			RecoveryCodeCount:   cfg.Auth.RecoveryCodeCount,
-			SessionHistoryLimit: cfg.Auth.SessionHistoryLimit,
-			SetupTokenTTL:       cfg.Auth.SetupTokenTTL,
-		}
-		if err := runSetupToken(ctx, cfg.DataDir, cfg.BaseURL, authOptions, os.Stdout); err != nil {
+		if err := runSetupToken(ctx, cfg.DataDir, cfg.BaseURL, cfg.Auth.SetupTokenTTL, os.Stdout); err != nil {
 			log.Fatalf("setup-token: %v", err)
 		}
 		return true

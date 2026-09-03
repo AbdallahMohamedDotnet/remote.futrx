@@ -5,32 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
+	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
-	"github.com/futrx-com/remote.futrx.com/internal/stores/filesessions"
-	"github.com/futrx-com/remote.futrx.com/internal/stores/filetwofactor"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusers"
 )
-
-// unsignedAuthStore is the auth store as this command needs it: it reads the
-// credential and the token record, but never mints a session key.
-//
-// NewAuth asks its store for one, and fileauth creates session.key when it is
-// missing. This command signs nothing, so that file would be pure side effect -
-// and an operator running the command under sudo before the service has ever
-// started would leave the signing key owned by root, which the service cannot
-// read and refuses to start without.
-type unsignedAuthStore struct {
-	*fileauth.Store
-}
-
-// SessionKey returns a throwaway key. It is never used to sign or verify
-// anything here; auth.New only requires it to be non-empty.
-func (unsignedAuthStore) SessionKey(context.Context) ([]byte, error) {
-	return make([]byte, 32), nil
-}
 
 // runSetupToken reissues the first-boot setup token and prints it. It is
 // reachable only from the server's own terminal, which is what keeps it from
@@ -43,39 +25,31 @@ func (unsignedAuthStore) SessionKey(context.Context) ([]byte, error) {
 // It asks the auth service whether setup is still gated rather than deciding
 // for itself, so this command and the running server can never disagree about
 // when a token is worth printing.
-func runSetupToken(ctx context.Context, dataDir, baseURL string, authOptions service.AuthOptions, out io.Writer) error {
-	authStore := unsignedAuthStore{Store: fileauth.New(dataDir)}
+func runSetupToken(ctx context.Context, dataDir, baseURL string, setupTokenTTL time.Duration, out io.Writer) error {
+	if _, err := serviceauth.NormalizeBaseURL(baseURL); err != nil {
+		return err
+	}
+	authStore := fileauth.New(dataDir)
 	usersStore, err := fileusers.New(dataDir)
 	if err != nil {
 		return fmt.Errorf("open user directory: %w", err)
 	}
-	twoFactorStore, err := filetwofactor.New(dataDir)
-	if err != nil {
-		return fmt.Errorf("open two-factor store: %w", err)
-	}
-	sessionRegistryStore, err := filesessions.New(dataDir)
-	if err != nil {
-		return fmt.Errorf("open session registry store: %w", err)
-	}
-	auth, err := service.NewAuth(
+	setupTokens, err := service.NewSetupTokenIssuer(
 		ctx,
 		authStore,
 		serviceuser.New(usersStore),
-		baseURL,
-		twoFactorStore,
-		sessionRegistryStore,
-		authOptions,
+		setupTokenTTL,
 	)
 	if err != nil {
 		return err
 	}
 
-	token, err := auth.EnsureSetupToken(ctx)
+	token, err := setupTokens.EnsureSetupToken(ctx)
 	if err != nil {
 		return err
 	}
 	if token == "" {
-		if auth.LocalAdminConfigured() {
+		if setupTokens.LocalAdminConfigured() {
 			return errors.New(
 				"this server already has a local administrator; " +
 					"remove DATA_DIR/local-admin.json on the host to start setup over",
@@ -87,6 +61,6 @@ func runSetupToken(ctx context.Context, dataDir, baseURL string, authOptions ser
 		)
 	}
 
-	announceSetupTokenLink(out, baseURL, token, auth.SetupTokenTTL())
+	announceSetupTokenLink(out, baseURL, token, setupTokens.SetupTokenTTL())
 	return nil
 }

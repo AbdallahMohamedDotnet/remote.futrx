@@ -72,6 +72,13 @@ type User struct {
 	Picture string
 }
 
+// UserDirectoryEntry is the minimal projection of the administrator exposed
+// through auth status. It avoids leaking the full directory to anonymous
+// callers.
+type UserDirectoryEntry struct {
+	Email string
+}
+
 type Session struct {
 	Email string `json:"email"`
 	Sub   string `json:"sub"`

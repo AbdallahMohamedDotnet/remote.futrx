@@ -18,9 +18,6 @@ const (
 	// is defence in depth rather than the thing standing between an attacker
 	// and the credential.
 	setupTokenBytes = 32
-	// defaultSetupTokenTTL bounds how long a printed token stays usable, so a
-	// token left in scrollback or a terminal log stops mattering fairly soon.
-	defaultSetupTokenTTL = 30 * time.Minute
 )
 
 var (
@@ -45,13 +42,95 @@ type SetupTokenGuard struct {
 }
 
 func newSetupTokenGuard(store SetupTokenStore, ttl time.Duration, now func() time.Time) *SetupTokenGuard {
-	if ttl <= 0 {
-		ttl = defaultSetupTokenTTL
-	}
 	if now == nil {
 		now = time.Now
 	}
 	return &SetupTokenGuard{store: store, ttl: ttl, now: now}
+}
+
+// SetupTokenIssuer owns the operator workflow around the token guard: issue a
+// token only while no local credential or directory administrator can
+// authorize the claim. Keeping this use case separate lets the setup-token
+// CLI depend on setup state alone rather than constructing OAuth, sessions,
+// and two-factor authentication.
+type SetupTokenIssuer struct {
+	tokens               *SetupTokenGuard
+	admins               SetupTokenAdminDirectory
+	localAdminConfigured func() bool
+}
+
+// NewSetupTokenIssuer builds the standalone setup-token use case. It loads
+// local-admin presence once because the CLI performs one command and exits;
+// the server uses newSetupTokenIssuer with its live in-memory auth state.
+func NewSetupTokenIssuer(
+	ctx context.Context,
+	store SetupTokenIssuerStore,
+	admins SetupTokenAdminDirectory,
+	ttl time.Duration,
+) (*SetupTokenIssuer, error) {
+	if store == nil {
+		return nil, errors.New("setup token store is required")
+	}
+	if admins == nil {
+		return nil, errors.New("admin directory is required")
+	}
+	if err := validateSetupTokenTTL(ttl); err != nil {
+		return nil, err
+	}
+	credential, err := store.LocalAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return newSetupTokenIssuer(
+		newSetupTokenGuard(store, ttl, time.Now),
+		admins,
+		func() bool { return credential != nil },
+	), nil
+}
+
+func newSetupTokenIssuer(
+	tokens *SetupTokenGuard,
+	admins SetupTokenAdminDirectory,
+	localAdminConfigured func() bool,
+) *SetupTokenIssuer {
+	return &SetupTokenIssuer{
+		tokens:               tokens,
+		admins:               admins,
+		localAdminConfigured: localAdminConfigured,
+	}
+}
+
+// EnsureSetupToken rotates the setup token while a first-boot claim is gated
+// on it, and returns an empty token once another authority exists.
+func (i *SetupTokenIssuer) EnsureSetupToken(ctx context.Context) (string, error) {
+	if i.LocalAdminConfigured() || i.admins == nil {
+		return "", nil
+	}
+	first, err := i.admins.FirstAdmin(ctx)
+	if err != nil {
+		return "", err
+	}
+	if first != nil {
+		return "", nil
+	}
+	return i.tokens.Issue(ctx)
+}
+
+// SetupTokenTTL is how long a freshly issued setup token remains valid.
+func (i *SetupTokenIssuer) SetupTokenTTL() time.Duration {
+	return i.tokens.TTL()
+}
+
+// LocalAdminConfigured reports why a command found setup no longer pending.
+func (i *SetupTokenIssuer) LocalAdminConfigured() bool {
+	return i.localAdminConfigured != nil && i.localAdminConfigured()
+}
+
+func validateSetupTokenTTL(ttl time.Duration) error {
+	if ttl <= 0 {
+		return errors.New("setup token TTL must be positive")
+	}
+	return nil
 }
 
 // TTL is how long a token this guard issues stays valid.

@@ -23,6 +23,20 @@ type SetupTokenStore interface {
 	SaveSetupToken(context.Context, SetupTokenRecord) error
 }
 
+// SetupTokenIssuerStore is the narrow persistent state needed by the
+// operator-only setup-token workflow. In particular, it does not expose the
+// session key or OAuth configuration required by the full auth service.
+type SetupTokenIssuerStore interface {
+	SetupTokenStore
+	LocalAdmin(context.Context) (*LocalAdminCredential, error)
+}
+
+// SetupTokenAdminDirectory is the one directory query needed to decide
+// whether a first-boot claim must be authorized by a setup token.
+type SetupTokenAdminDirectory interface {
+	FirstAdmin(context.Context) (*UserDirectoryEntry, error)
+}
+
 type Store interface {
 	OAuthConfigStore
 	LocalAdminStore
