@@ -209,7 +209,7 @@ test("closes a running tool when its parent turn is interrupted", () => {
       input: { command: "sleep 60" },
       t: 2,
     },
-    { type: "turn_status", status: "interrupted", t: 3 },
+    { type: "turn_status", provider: "minimax", status: "interrupted", t: 3 },
   ];
 
   const state = chatEventStateProjector.fromEvents(events, { hasMore: false });
@@ -224,7 +224,7 @@ test("closes a running tool when its parent turn is interrupted", () => {
       input: { command: "sleep 60" },
       status: "done",
     },
-    { kind: "turn-status", status: "interrupted", data: undefined },
+    { kind: "turn-status", status: "interrupted", data: undefined, provider: "minimax" },
   ]);
   assert.equal(assistant.isComplete, true);
 });

@@ -57,6 +57,7 @@ type ChatEventBase = {
   t: number;
   turnId?: string;
   native?: ProviderNativeEnvelope;
+  provider?: ChatProvider;
   status?: string;
 };
 
@@ -74,7 +75,7 @@ export type ChatEvent = ChatEventBase & (
   | { type: "provider_event"; name?: string; data?: unknown }
   | { type: "usage_update"; usage?: ChatUsagePayload }
   | { type: "system"; subtype: string; data?: Record<string, unknown> }
-  | { type: "session"; provider?: ChatProvider; sessionId?: string; claudeSessionId?: string; codexSessionId?: string; kimiSessionId?: string; antigravitySessionId?: string }
+  | { type: "session"; sessionId?: string; claudeSessionId?: string; codexSessionId?: string; kimiSessionId?: string; antigravitySessionId?: string }
   | { type: "complete"; usage?: ChatUsagePayload }
   | { type: "error"; message: string }
   | { type: "sync"; running?: boolean }

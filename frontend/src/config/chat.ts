@@ -24,7 +24,18 @@ export function modelShortLabel(model?: string): string {
 
 export function providerDisplayLabel(provider?: string): string {
   if (!provider) return "Codex";
-  return provider.charAt(0).toUpperCase() + provider.slice(1);
+  const knownLabels: Record<string, string> = {
+    antigravity: "Antigravity",
+    claude: "Claude",
+    codex: "Codex",
+    kimi: "Kimi",
+    minimax: "MiniMax",
+  };
+  return knownLabels[provider] ?? provider
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 /**
