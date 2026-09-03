@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { ChatProvider } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
+import { slashCommandMenuPolicy } from "./slashCommandMenuPolicy";
 import { useAvailableSkills } from "./useAvailableSkills";
 
-// The palette is only meant to trigger while the composer holds a bare command
-// token: a leading "/" followed by no whitespace. As soon as the user types a
-// space (i.e. starts writing a real prompt) the trigger falls away.
-const SLASH_PATTERN = /^\/(\S*)$/;
+const NO_SKILLS: RegisteredSkill[] = [];
 
 export interface SlashCommandMenuState {
   open: boolean;
@@ -35,24 +33,16 @@ export function useSlashCommandMenu({
   onTextChange: (text: string) => void;
   focusTextarea: () => void;
 }): SlashCommandMenuState {
-  const match = SLASH_PATTERN.exec(text);
-  const query = match ? match[1] : null;
-  const triggered = query !== null;
-
   const { skills, loading, error } = useAvailableSkills(provider, projectId);
   const [highlight, setHighlight] = useState(0);
   const [dismissed, setDismissed] = useState(false);
-
-  const items = useMemo(() => {
-    if (!triggered) return [];
-    const term = (query ?? "").trim().toLowerCase();
-    if (!term) return skills;
-    return skills.filter((skill) =>
-      `${skill.name} ${skill.command || ""} ${skill.description || ""} ${skill.source || ""}`
-        .toLowerCase()
-        .includes(term)
-    );
-  }, [triggered, query, skills]);
+  const menu = useMemo(
+    () => slashCommandMenuPolicy.resolve(text, skills),
+    [text, skills],
+  );
+  const triggered = menu !== null;
+  const query = menu?.query ?? null;
+  const items = menu?.items ?? NO_SKILLS;
 
   // Escape only hides the palette for the current token; once the trigger goes
   // away (text cleared or a space typed) a fresh "/" should open it again.
@@ -66,7 +56,7 @@ export function useSlashCommandMenu({
   }, [query, skills]);
 
   const open = triggered && !dismissed;
-  const safeHighlight = items.length ? Math.min(highlight, items.length - 1) : 0;
+  const safeHighlight = slashCommandMenuPolicy.clampHighlight(highlight, items.length);
 
   function choose(skill: RegisteredSkill) {
     onSelectSkill(skill);
@@ -80,11 +70,11 @@ export function useSlashCommandMenu({
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
-        setHighlight((index) => (items.length ? (index + 1) % items.length : 0));
+        setHighlight((index) => slashCommandMenuPolicy.moveHighlight(index, 1, items.length));
         return true;
       case "ArrowUp":
         event.preventDefault();
-        setHighlight((index) => (items.length ? (index - 1 + items.length) % items.length : 0));
+        setHighlight((index) => slashCommandMenuPolicy.moveHighlight(index, -1, items.length));
         return true;
       case "Tab":
       case "Enter": {
