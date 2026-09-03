@@ -69,3 +69,23 @@ test("an open keyboard still resizes the app shell", () => {
     null
   );
 });
+
+test("keyboard coverage must exceed the minimum threshold", () => {
+  assert.equal(
+    viewportHeightService.keyboardOverride({
+      layoutHeight: IOS_LAYOUT_HEIGHT,
+      visual: { height: IOS_LAYOUT_HEIGHT - 120, offsetTop: 0 },
+      inputFocused: true,
+    }),
+    null
+  );
+
+  assert.deepEqual(
+    viewportHeightService.keyboardOverride({
+      layoutHeight: IOS_LAYOUT_HEIGHT,
+      visual: { height: IOS_LAYOUT_HEIGHT - 121, offsetTop: 0 },
+      inputFocused: true,
+    }),
+    { height: IOS_LAYOUT_HEIGHT - 121, offsetTop: 0 }
+  );
+});
