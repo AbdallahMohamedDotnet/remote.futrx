@@ -16,16 +16,13 @@ type announcerStub struct {
 func (s announcerStub) EnsureSetupToken(context.Context) (string, error) { return s.token, s.err }
 func (s announcerStub) SetupTokenTTL() time.Duration                     { return 30 * time.Minute }
 
-func TestAnnounceSetupTokenPrintsTheFragmentLink(t *testing.T) {
+func TestAnnounceSetupTokenPrintsTheQueryLink(t *testing.T) {
 	var out strings.Builder
 	announceSetupToken(context.Background(), announcerStub{token: "abc123"}, "https://remote.example.com/", &out)
 
 	printed := out.String()
-	if !strings.Contains(printed, "https://remote.example.com/#token=abc123") {
-		t.Fatalf("printed output lacks the fragment link:\n%s", printed)
-	}
-	if strings.Contains(printed, "?token=") {
-		t.Fatalf("token printed as a query string, which proxies log:\n%s", printed)
+	if !strings.Contains(printed, "https://remote.example.com/?token=abc123") {
+		t.Fatalf("printed output lacks the query link:\n%s", printed)
 	}
 }
 
@@ -57,7 +54,7 @@ func TestAnnounceSetupTokenWarnsRatherThanFailingOnADirectoryError(t *testing.T)
 	if !strings.Contains(printed, "parse users.json") {
 		t.Fatalf("warning drops the underlying cause:\n%s", printed)
 	}
-	if strings.Contains(printed, "#token=") {
+	if strings.Contains(printed, "?token=") {
 		t.Fatalf("printed a setup link despite being unable to decide:\n%s", printed)
 	}
 }

@@ -21,8 +21,8 @@ export function useLocalAuthController({
   // Local State
   ////////////////
   // Read once at mount and hold in memory: the effect below clears the
-  // fragment straight away, so re-reading later would find nothing.
-  const [setupToken] = useState(() => setupTokenPolicy.read(location.hash));
+  // query parameter straight away, so re-reading later would find nothing.
+  const [setupToken] = useState(() => setupTokenPolicy.read(location.search));
   useEffect(() => {
     if (!setupToken) return;
     history.replaceState(null, "", setupTokenPolicy.strippedUrl(location.pathname, location.search));

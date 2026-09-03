@@ -33,18 +33,13 @@ func announceSetupToken(ctx context.Context, auth setupTokenAnnouncer, baseURL s
 	if token == "" {
 		return
 	}
-	// The token goes in the URL fragment, which browsers never send to the
-	// server, so it cannot land in a proxy access log the way a query string
-	// would.
 	announceSetupTokenLink(out, baseURL, token, auth.SetupTokenTTL())
 }
 
-// announceSetupTokenLink formats the one line an operator acts on. The token
-// goes in the URL fragment, which browsers never send to the server, so it
-// cannot land in a proxy access log the way a query string would.
+// announceSetupTokenLink formats the one line an operator acts on.
 func announceSetupTokenLink(out io.Writer, baseURL, token string, ttl time.Duration) {
 	fmt.Fprintf(out,
-		"first-time setup required\n  visit:   %s/#token=%s\n  expires: %s from now (reissue with: remote setup-token)\n",
+		"first-time setup required\n  visit:   %s/?token=%s\n  expires: %s from now (reissue with: remote setup-token)\n",
 		strings.TrimRight(baseURL, "/"), token, ttl,
 	)
 }

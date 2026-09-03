@@ -87,8 +87,6 @@ func runSetupToken(ctx context.Context, dataDir, baseURL string, authOptions ser
 		)
 	}
 
-	// The fragment keeps the token out of the request line, so it never
-	// reaches a proxy access log.
 	announceSetupTokenLink(out, baseURL, token, auth.SetupTokenTTL())
 	return nil
 }

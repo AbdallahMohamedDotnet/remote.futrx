@@ -23,7 +23,7 @@ var testAuthOptions = service.AuthOptions{
 	SetupTokenTTL:       30 * time.Minute,
 }
 
-func TestSetupTokenCommandPrintsAFragmentURLAndStoresOnlyTheHash(t *testing.T) {
+func TestSetupTokenCommandPrintsAQueryURLAndStoresOnlyTheHash(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer
 
@@ -32,20 +32,15 @@ func TestSetupTokenCommandPrintsAFragmentURLAndStoresOnlyTheHash(t *testing.T) {
 	}
 
 	printed := out.String()
-	// A fragment never reaches the server, so the token cannot land in a
-	// proxy access log the way a query string would.
-	if !strings.Contains(printed, "https://remote.example.com/#token=") {
-		t.Fatalf("printed output did not carry a fragment token URL:\n%s", printed)
-	}
-	if strings.Contains(printed, "?token=") {
-		t.Fatalf("token was printed as a query string, which proxies log:\n%s", printed)
+	if !strings.Contains(printed, "https://remote.example.com/?token=") {
+		t.Fatalf("printed output did not carry a query token URL:\n%s", printed)
 	}
 
 	record, err := fileauth.New(dir).SetupToken(context.Background())
 	if err != nil || record == nil {
 		t.Fatalf("SetupToken record = %#v, %v", record, err)
 	}
-	token := strings.TrimSpace(strings.SplitN(strings.SplitN(printed, "#token=", 2)[1], "\n", 2)[0])
+	token := strings.TrimSpace(strings.SplitN(strings.SplitN(printed, "?token=", 2)[1], "\n", 2)[0])
 	if token == "" {
 		t.Fatal("could not read the printed token back")
 	}
