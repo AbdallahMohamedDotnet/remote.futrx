@@ -81,6 +81,7 @@ export function ChatComposer({
     reasoningEffortOptions,
     serviceTierOptions,
     modeOptions,
+    supportsExecutionPolicies,
     loading: modelsLoading,
     refreshing,
     error: capabilityError,
@@ -109,7 +110,7 @@ export function ChatComposer({
       ? "Using fallback capabilities; refresh to retry live discovery"
       : "");
   const hasExecutionControls =
-    preferences.provider === "codex"
+    supportsExecutionPolicies
     || reasoningEffortOptions.length > 0
     || serviceTierOptions.length > 0
     || modeOptions.length > 1;
@@ -186,6 +187,7 @@ export function ChatComposer({
                     reasoningEffortOptions={reasoningEffortOptions}
                     serviceTierOptions={serviceTierOptions}
                     modeOptions={modeOptions}
+                    supportsExecutionPolicies={supportsExecutionPolicies}
                   />
                 </>
               )}
@@ -257,6 +259,7 @@ export function ChatComposer({
                   reasoningEffortOptions={reasoningEffortOptions}
                   serviceTierOptions={serviceTierOptions}
                   modeOptions={modeOptions}
+                  supportsExecutionPolicies={supportsExecutionPolicies}
                 />
               </>
             )}
