@@ -7,13 +7,8 @@ package selfupdate
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,17 +21,11 @@ var (
 	ErrUnknownTag       = errors.New("tag does not exist on origin")
 )
 
-const (
-	stateDirName = "self-update"
-	logTailBytes = 16 * 1024
-	runFileMode  = 0o600
-)
-
 type Service struct {
 	currentVersion string
 	installDir     string
-	stateDir       string
 	host           HostClient
+	runs           runState
 
 	mu        sync.Mutex
 	lastCheck *CheckResult
@@ -46,8 +35,8 @@ func New(currentVersion, installDir, dataDir string, host HostClient) *Service {
 	return &Service{
 		currentVersion: currentVersion,
 		installDir:     installDir,
-		stateDir:       filepath.Join(dataDir, stateDirName),
 		host:           host,
+		runs:           newRunState(dataDir),
 	}
 }
 
@@ -60,7 +49,7 @@ func (s *Service) Status(context.Context) Status {
 	return Status{
 		CurrentVersion: s.currentVersion,
 		LastCheck:      check,
-		Run:            s.runStatus(),
+		Run:            s.runs.status(s.host.ProcessAlive),
 	}
 }
 
@@ -105,20 +94,11 @@ func (s *Service) Apply(ctx context.Context, startedBy, tag string) (Status, err
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if run := s.runStatus(); run != nil && run.State == "running" {
+	if run := s.runs.status(s.host.ProcessAlive); run != nil && run.State == "running" {
 		return s.statusLocked(), ErrUpdateInProgress
 	}
-	if err := os.MkdirAll(s.stateDir, 0o700); err != nil {
-		return s.statusLocked(), err
-	}
 	// A fresh run replaces the previous run's records.
-	if err := os.Remove(s.donePath()); err != nil && !os.IsNotExist(err) {
-		return s.statusLocked(), err
-	}
-	if err := os.Remove(s.progressPath()); err != nil && !os.IsNotExist(err) {
-		return s.statusLocked(), err
-	}
-	if err := os.WriteFile(s.logPath(), nil, runFileMode); err != nil {
+	if err := s.runs.reset(); err != nil {
 		return s.statusLocked(), err
 	}
 	kind := classifyUpdate(s.currentVersion, tag)
@@ -126,27 +106,20 @@ func (s *Service) Apply(ctx context.Context, startedBy, tag string) (Status, err
 	if kind == UpdateKindApplication {
 		message = "Preparing the application update"
 	}
-	if err := writeJSONFile(s.progressPath(), Progress{
+	if err := s.runs.writeProgress(Progress{
 		Phase: "preparing", Message: message, UpdatedAt: time.Now().Unix(),
 	}); err != nil {
 		return s.statusLocked(), err
 	}
-	pid, err := s.host.StartUpdater(UpdaterLaunch{
-		InstallDir:   s.installDir,
-		Target:       tag,
-		Kind:         kind,
-		LogPath:      s.logPath(),
-		DonePath:     s.donePath(),
-		ProgressPath: s.progressPath(),
-	})
+	pid, err := s.host.StartUpdater(s.runs.launch(s.installDir, tag, kind))
 	if err != nil {
-		_ = os.Remove(s.progressPath())
+		s.runs.removeProgress()
 		return s.statusLocked(), fmt.Errorf("start updater: %w", err)
 	}
 	record := runRecord{
 		Target: tag, UpdateKind: kind, StartedAt: time.Now().Unix(), StartedBy: startedBy, PID: pid,
 	}
-	if err := writeJSONFile(s.runPath(), record); err != nil {
+	if err := s.runs.writeRecord(record); err != nil {
 		return s.statusLocked(), err
 	}
 	return s.statusLocked(), nil
@@ -156,52 +129,8 @@ func (s *Service) statusLocked() Status {
 	return Status{
 		CurrentVersion: s.currentVersion,
 		LastCheck:      s.lastCheck,
-		Run:            s.runStatus(),
+		Run:            s.runs.status(s.host.ProcessAlive),
 	}
-}
-
-func (s *Service) runPath() string      { return filepath.Join(s.stateDir, "run.json") }
-func (s *Service) donePath() string     { return filepath.Join(s.stateDir, "done.json") }
-func (s *Service) logPath() string      { return filepath.Join(s.stateDir, "run.log") }
-func (s *Service) progressPath() string { return filepath.Join(s.stateDir, "progress.json") }
-
-// runStatus reconstructs the last run from disk: the done marker wins, a
-// live PID means running, and a dead PID without a marker means the run
-// crashed before it could report.
-func (s *Service) runStatus() *RunStatus {
-	var record runRecord
-	if err := readJSONFile(s.runPath(), &record); err != nil {
-		return nil
-	}
-	logText, logUpdatedAt := readLog(s.logPath(), logTailBytes)
-	status := &RunStatus{
-		State:        "running",
-		Target:       record.Target,
-		UpdateKind:   record.UpdateKind,
-		StartedAt:    record.StartedAt,
-		StartedBy:    record.StartedBy,
-		Log:          stripANSI(logText),
-		LogUpdatedAt: logUpdatedAt,
-	}
-	var progress Progress
-	if err := readJSONFile(s.progressPath(), &progress); err == nil && progress.Phase != "" {
-		status.Progress = &progress
-	}
-	var done doneRecord
-	switch err := readJSONFile(s.donePath(), &done); {
-	case err == nil:
-		status.FinishedAt = done.FinishedAt
-		status.ExitCode = &done.ExitCode
-		if done.ExitCode == 0 {
-			status.State = "succeeded"
-		} else {
-			status.State = "failed"
-		}
-	case !s.host.ProcessAlive(record.PID):
-		status.State = "failed"
-		status.Log += "\n(updater process exited without reporting a result)"
-	}
-	return status
 }
 
 // describeBase extracts the release tag a git-describe string is based on:
@@ -288,49 +217,4 @@ func containsTag(tags []string, tag string) bool {
 		}
 	}
 	return false
-}
-
-func readJSONFile(path string, v any) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(data, v)
-}
-
-func writeJSONFile(path string, v any) error {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, runFileMode)
-}
-
-// readLog returns up to the last max bytes and the file's modification time.
-func readLog(path string, max int64) (string, int64) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", 0
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return "", 0
-	}
-	if size := info.Size(); size > max {
-		if _, err := f.Seek(size-max, io.SeekStart); err != nil {
-			return "", 0
-		}
-	}
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return "", 0
-	}
-	return string(data), info.ModTime().Unix()
-}
-
-var ansiEscape = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
-
-func stripANSI(value string) string {
-	return ansiEscape.ReplaceAllString(value, "")
 }

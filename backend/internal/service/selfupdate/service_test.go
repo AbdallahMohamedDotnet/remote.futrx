@@ -190,7 +190,7 @@ func TestApplyLifecycle(t *testing.T) {
 	}
 
 	// A finished marker wins over liveness.
-	if err := writeJSONFile(svc.donePath(), doneRecord{ExitCode: 0, FinishedAt: 99}); err != nil {
+	if err := writeJSONFile(svc.runs.donePath(), doneRecord{ExitCode: 0, FinishedAt: 99}); err != nil {
 		t.Fatal(err)
 	}
 	if run := svc.Status(context.Background()).Run; run == nil || run.State != "succeeded" {
@@ -204,14 +204,14 @@ func TestRunStatusReportsCleanLogAndStructuredProgress(t *testing.T) {
 	if _, err := svc.Apply(context.Background(), "admin@example.com", "0.2"); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(svc.logPath(), []byte("\x1b[1;36m==> Installing healer\x1b[0m\n"), 0o600); err != nil {
+	if err := os.WriteFile(svc.runs.logPath(), []byte("\x1b[1;36m==> Installing healer\x1b[0m\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	wantProgress := Progress{
 		Phase: "workspace-migration", Message: "Recycling workspace 3 of 8",
 		Completed: 2, Total: 8, CurrentItem: "astrology", UpdatedAt: 123,
 	}
-	if err := writeJSONFile(svc.progressPath(), wantProgress); err != nil {
+	if err := writeJSONFile(svc.runs.progressPath(), wantProgress); err != nil {
 		t.Fatal(err)
 	}
 
