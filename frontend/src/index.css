@@ -510,7 +510,7 @@ html[data-theme="light"] {
    holds its contents clear of the clock.
 --------------------------------------------------------------------------- */
 @media (max-width: 767px) {
-  .codex-sidebar.safe-top {
+  .codex-sidebar.mobile-sheet {
     top: env(safe-area-inset-top, 0px);
     padding-top: 0;
     height: calc(var(--app-height, 100vh) - env(safe-area-inset-top, 0px));
