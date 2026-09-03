@@ -146,6 +146,20 @@ done`
 	if child["message"] != "child report" || data["toolCount"] != float64(1) {
 		t.Fatalf("subagent activity data = %#v", data)
 	}
+	tools, _ := data["tools"].([]any)
+	if len(tools) != 1 {
+		t.Fatalf("subagent tools = %#v", data["tools"])
+	}
+	tool, _ := tools[0].(map[string]any)
+	input, _ := tool["input"].(map[string]any)
+	startedAt, started := tool["startedAt"].(float64)
+	completedAt, completed := tool["completedAt"].(float64)
+	duration, timed := tool["durationMs"].(float64)
+	if tool["name"] != "Bash" || tool["status"] != "completed" ||
+		input["command"] != "inspect" || tool["output"] != "done" ||
+		!started || !completed || !timed || completedAt < startedAt || duration < 0 {
+		t.Fatalf("subagent tool detail = %#v", tool)
+	}
 	if events[len(events)-1].Type != agent.EventRunCompleted {
 		t.Fatalf("parent completion was not the final event: %#v", events)
 	}

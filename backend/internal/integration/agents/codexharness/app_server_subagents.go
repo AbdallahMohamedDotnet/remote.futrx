@@ -27,10 +27,15 @@ type appServerSubagentState struct {
 }
 
 type appServerSubagentTool struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	IsError bool   `json:"isError,omitempty"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Status      string          `json:"status"`
+	Input       json.RawMessage `json:"input,omitempty"`
+	Output      string          `json:"output,omitempty"`
+	IsError     bool            `json:"isError,omitempty"`
+	StartedAt   int64           `json:"startedAt,omitempty"`
+	CompletedAt int64           `json:"completedAt,omitempty"`
+	DurationMs  *int64          `json:"durationMs,omitempty"`
 }
 
 func newAppServerSubagentTracker(parser *appServerEventParser) *appServerSubagentTracker {
@@ -45,12 +50,13 @@ func (tracker *appServerSubagentTracker) ParseNotification(
 	method string,
 	raw json.RawMessage,
 ) []agent.Event {
+	now := time.Now().UnixMilli()
 	if rootThreadID != "" {
 		tracker.rootThreadID = rootThreadID
 	}
 	ids := nativeIDs(raw)
 	if ids.ThreadID == "" {
-		return tracker.parser.nativeEvent(time.Now().UnixMilli(), method, raw)
+		return tracker.parser.nativeEvent(now, method, raw)
 	}
 	state := tracker.state(ids.ThreadID)
 	changed := false
@@ -105,7 +111,7 @@ func (tracker *appServerSubagentTracker) ParseNotification(
 			break
 		}
 		if subagentWorkItem(params.Item.Type) {
-			state.updateTool(params.Item, method == "item/completed")
+			state.updateTool(params.Item, method == "item/completed", now)
 			if !isTerminalSubagentStatus(state.status) {
 				state.status = "inProgress"
 			}
@@ -114,9 +120,9 @@ func (tracker *appServerSubagentTracker) ParseNotification(
 	}
 
 	if !changed {
-		return tracker.parser.nativeEvent(time.Now().UnixMilli(), method, raw)
+		return tracker.parser.nativeEvent(now, method, raw)
 	}
-	return []agent.Event{tracker.event(rootThreadID, method, raw, state)}
+	return []agent.Event{tracker.event(now, rootThreadID, method, raw, state)}
 }
 
 func (tracker *appServerSubagentTracker) Finalize(rootStatus string) []agent.Event {
@@ -161,12 +167,13 @@ func (tracker *appServerSubagentTracker) state(threadID string) *appServerSubage
 }
 
 func (tracker *appServerSubagentTracker) event(
+	now int64,
 	rootThreadID string,
 	method string,
 	raw json.RawMessage,
 	state *appServerSubagentState,
 ) agent.Event {
-	return tracker.parser.event(time.Now().UnixMilli(), method, agent.EventCollaboration, raw, func(event *agent.Event) {
+	return tracker.parser.event(now, method, agent.EventCollaboration, raw, func(event *agent.Event) {
 		event.ItemID = subagentEventID(state.threadID)
 		event.ItemKind = agent.ItemToolCall
 		event.ToolName = state.label()
@@ -228,21 +235,39 @@ func (state *appServerSubagentState) captureMessages(items []appServerItem) {
 	}
 }
 
-func (state *appServerSubagentState) updateTool(item appServerItem, completed bool) {
+func (state *appServerSubagentState) updateTool(item appServerItem, completed bool, now int64) {
 	tool := state.tools[item.ID]
 	if tool == nil {
 		tool = &appServerSubagentTool{ID: item.ID, Name: subagentToolName(item)}
 		state.tools[item.ID] = tool
 		state.toolOrder = append(state.toolOrder, item.ID)
 	}
+	if input := subagentToolInput(item); len(input) > 0 {
+		tool.Input = cloneRaw(input)
+	}
 	if completed {
-		tool.Status = "completed"
+		tool.Status = strings.TrimSpace(item.Status)
+		if tool.Status == "" {
+			tool.Status = "completed"
+		}
+		tool.Output = subagentToolOutput(item)
 		tool.IsError = appServerItemFailed(item)
+		tool.CompletedAt = now
+		if tool.StartedAt > 0 && now >= tool.StartedAt {
+			duration := now - tool.StartedAt
+			tool.DurationMs = &duration
+		}
 		if tool.IsError {
 			state.failedToolIDs[item.ID] = struct{}{}
 		}
 	} else {
-		tool.Status = "inProgress"
+		tool.Status = strings.TrimSpace(item.Status)
+		if tool.Status == "" {
+			tool.Status = "inProgress"
+		}
+		if tool.StartedAt == 0 {
+			tool.StartedAt = now
+		}
 	}
 }
 
@@ -302,6 +327,54 @@ func subagentToolName(item appServerItem) string {
 		return "WebSearch"
 	default:
 		return item.Type
+	}
+}
+
+func subagentToolInput(item appServerItem) json.RawMessage {
+	switch item.Type {
+	case "commandExecution":
+		if strings.TrimSpace(item.Command) == "" {
+			return nil
+		}
+		return mustJSON(map[string]any{"command": item.Command})
+	case "fileChange":
+		if len(item.Changes) == 0 || string(item.Changes) == "null" {
+			return nil
+		}
+		return mustJSON(map[string]any{"changes": item.Changes})
+	case "mcpToolCall", "dynamicToolCall":
+		if len(item.Arguments) == 0 || string(item.Arguments) == "null" {
+			return nil
+		}
+		return cloneRaw(item.Arguments)
+	case "webSearch":
+		if strings.TrimSpace(item.Query) == "" && (len(item.Action) == 0 || string(item.Action) == "null") {
+			return nil
+		}
+		return mustJSON(map[string]any{"query": item.Query, "action": item.Action})
+	default:
+		return nil
+	}
+}
+
+func subagentToolOutput(item appServerItem) string {
+	switch item.Type {
+	case "commandExecution":
+		return item.AggregatedOutput
+	case "fileChange":
+		return item.Status
+	case "mcpToolCall", "dynamicToolCall":
+		return appServerToolOutput(item)
+	case "webSearch":
+		if len(item.Error) > 0 && string(item.Error) != "null" {
+			return compactJSON(item.Error)
+		}
+		if len(item.Result) > 0 && string(item.Result) != "null" {
+			return compactJSON(item.Result)
+		}
+		return item.Query
+	default:
+		return ""
 	}
 }
 
