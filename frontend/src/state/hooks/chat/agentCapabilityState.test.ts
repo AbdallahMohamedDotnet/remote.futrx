@@ -92,6 +92,51 @@ test("keeps a saved provider available when discovery temporarily omits it", () 
   ]);
 });
 
+test("keeps a managed API-key provider locked until its credential exists", () => {
+  const withMiniMax: AgentCapabilitiesCatalog = {
+    providers: [
+      ...catalog.providers,
+      {
+        provider: "minimax",
+        label: "MiniMax",
+        source: "fallback",
+        authentication: {
+          mode: "managed-api-key",
+          satisfiesAccessGate: false,
+          apiKey: {
+            createUrl: "https://platform.minimax.io/subscribe/token-plan",
+            createLabel: "Get a MiniMax Token Plan subscription key",
+            credentialLabel: "MiniMax Token Plan subscription key",
+          },
+        },
+        models: [{
+          id: "MiniMax-M3",
+          label: "MiniMax M3",
+          reasoningEfforts: [],
+          serviceTiers: [],
+        }],
+        modes: [],
+      },
+    ],
+  };
+
+  const state = agentCapabilityState.resolve(
+    withMiniMax,
+    "minimax",
+    "MiniMax-M3",
+    false,
+    { minimax: "Sign in to MiniMax in Settings → Agents, then refresh models." },
+  );
+
+  assert.deepEqual(state.providerOptions.map((option) => option.value), ["codex", "minimax"]);
+  assert.equal(state.providerOptions[1].disabled, true);
+  assert.equal(
+    state.providerOptions[1].disabledReason,
+    "Sign in to MiniMax in Settings → Agents, then refresh models.",
+  );
+  assert.equal(state.providerCapabilities?.provider, "minimax");
+});
+
 test("corrects selections unsupported by a live catalog", () => {
   const state = agentCapabilityState.resolve(catalog, "codex", "gpt-fast", false);
   assert.deepEqual(

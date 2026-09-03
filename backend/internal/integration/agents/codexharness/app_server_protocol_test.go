@@ -56,6 +56,28 @@ func TestAppServerTurnIgnoresInvalidServiceTier(t *testing.T) {
 	}
 }
 
+func TestAppServerTurnNormalizesExecutionPolicies(t *testing.T) {
+	params := buildAppServerTurnParams(agent.RunRequest{
+		Preferences: agent.RunPreferences{
+			ApprovalPolicy: " never ",
+			SandboxPolicy:  " readOnly ",
+		},
+	}, "thread-1", "gpt-5.5")
+	if params.ApprovalPolicy != "never" || params.SandboxPolicy.Type != "readOnly" {
+		t.Fatalf("turn execution policies = %#v", params)
+	}
+
+	params = buildAppServerTurnParams(agent.RunRequest{
+		Preferences: agent.RunPreferences{
+			ApprovalPolicy: "unknown",
+			SandboxPolicy:  "unknown",
+		},
+	}, "thread-1", "gpt-5.5")
+	if params.ApprovalPolicy != "on-request" || params.SandboxPolicy.Type != "workspaceWrite" {
+		t.Fatalf("turn execution policy fallbacks = %#v", params)
+	}
+}
+
 func TestAppServerResumesThread(t *testing.T) {
 	request := buildAppServerThreadRequest(agent.RunRequest{ResumeID: "thread-123"})
 	if request.Method != "thread/resume" || request.Params.ThreadID != "thread-123" {
@@ -73,8 +95,25 @@ func TestNativePlanTurnUsesCollaborationMode(t *testing.T) {
 		t.Fatalf("collaboration mode = %#v", params.CollaborationMode)
 	}
 	settings := params.CollaborationMode.Settings
-	if settings.DeveloperInstructions != nil || settings.ReasoningEffort == nil || *settings.ReasoningEffort != "medium" {
+	if settings.DeveloperInstructions != nil || settings.ReasoningEffort != nil {
 		t.Fatalf("plan settings = %#v", settings)
+	}
+}
+
+func TestNativePlanTurnUsesSelectedReasoningPreset(t *testing.T) {
+	params := buildAppServerTurnParams(
+		agent.RunRequest{
+			Mode: agent.RunModePlan,
+			Preferences: agent.RunPreferences{
+				ReasoningEffort: agent.ReasoningEffort("high"),
+			},
+		},
+		"thread-123",
+		"gpt-5.5",
+	)
+	if params.CollaborationMode.Settings.ReasoningEffort == nil ||
+		*params.CollaborationMode.Settings.ReasoningEffort != "high" {
+		t.Fatalf("plan settings = %#v", params.CollaborationMode.Settings)
 	}
 }
 

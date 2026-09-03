@@ -216,10 +216,19 @@ func (c *Service) decorate(capabilities *agent.Capabilities) {
 	for index, scope := range descriptor.ExecutionScopes {
 		capabilities.ExecutionScopes[index] = string(scope)
 	}
+	var apiKey *agent.CapabilityAPIKeyAuthentication
+	if descriptor.APIKeyAuth != nil {
+		apiKey = &agent.CapabilityAPIKeyAuthentication{
+			CreateURL:       descriptor.APIKeyAuth.CreateURL,
+			CreateLabel:     descriptor.APIKeyAuth.CreateLabel,
+			CredentialLabel: descriptor.APIKeyAuth.CredentialLabel,
+		}
+	}
 	capabilities.Authentication = agent.CapabilityAuthentication{
 		Mode:                string(descriptor.Auth),
 		Instructions:        descriptor.AuthInstructions,
 		SatisfiesAccessGate: descriptor.SatisfiesAccessGate,
+		APIKey:              apiKey,
 	}
 	capabilities.Features = agent.CapabilityFeatures{
 		Sessions: agent.CapabilitySessionSupport{

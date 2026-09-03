@@ -5,6 +5,7 @@ import type { ChatMessageBlock } from "../../../models/chatMessage";
 import { MessageBlock } from "./MessageBlock";
 import { MessageSkeleton } from "./MessageSkeleton";
 import { ThreadEmptyState } from "./ThreadEmptyState";
+import type { ChatInteractionResponder } from "../../../types/chatApi";
 
 const INITIAL_VISIBLE_BLOCKS = 80;
 const LOAD_MORE_BLOCKS = 80;
@@ -22,6 +23,7 @@ export function MessageList({
   bottomRef,
   onScroll,
   onAnswerQuestion,
+  onRespondInteraction,
   onLoadOlder,
   onRewind,
 }: {
@@ -37,6 +39,7 @@ export function MessageList({
   bottomRef: RefObject<HTMLDivElement>;
   onScroll: () => void;
   onAnswerQuestion: (text: string) => void;
+  onRespondInteraction?: ChatInteractionResponder;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;
 }) {
@@ -108,6 +111,7 @@ export function MessageList({
               chatId={chatId}
               cwd={cwd}
               onAnswerQuestion={onAnswerQuestion}
+              onRespondInteraction={onRespondInteraction}
               onRewind={onRewind}
             />
           );

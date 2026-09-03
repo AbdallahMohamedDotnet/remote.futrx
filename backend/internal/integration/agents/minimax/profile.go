@@ -27,14 +27,6 @@ var miniMaxProfile = provisioning.Profile{
 		WorkspaceHome: configconstants.MiniMaxWorkspaceHome,
 		HomeSkillsDir: configconstants.MiniMaxContainerSkills,
 	},
-	RuntimeAssets: []provisioning.RuntimeAsset{{
-		Content:       configconstants.MiniMaxModelCatalog(),
-		Path:          configconstants.MiniMaxContainerCatalog,
-		HashPath:      configconstants.MiniMaxContainerCatalogHash,
-		Mode:          configconstants.DefaultRuntimeAssetFileMode,
-		Directory:     configconstants.MiniMaxContainerHome,
-		DirectoryMode: configconstants.DefaultRuntimeAssetDirectoryMode,
-	}},
 }
 
 // Profile returns MiniMax's isolated Codex runtime policy.

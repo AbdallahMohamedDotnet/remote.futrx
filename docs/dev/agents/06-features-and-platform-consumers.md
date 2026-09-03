@@ -18,7 +18,7 @@ runtime: each provider still has to implement the behavior it advertises.
 | `Label` | auth/capability APIs, frontend, instruction-style skill prompts | Human-readable name; descriptor value overrides a label returned by capability probing. |
 | `Default` | chat and user-settings services | Preferred default in every compatible scope. The catalog rejects multiple defaults and a default without host scope. If none is declared, the first compatible module wins. |
 | `ExecutionScopes` | chat create/update/run, capability discovery, skills, profile selection | Controls whether the provider may be used for loose host chats, project chats, or both. |
-| `Auth` and `AuthInstructions` | auth registry, HTTP/WebSocket routes, onboarding and Settings | Selects `managed-code`, `managed-device`, `external`, or `none` behavior. |
+| `Auth`, `AuthInstructions`, and optional `APIKeyAuth` | auth registry, HTTP/WebSocket routes, onboarding and Settings | Selects `managed-code`, `managed-device`, `managed-api-key`, `external`, or `none` behavior and supplies an HTTPS key-creation URL when required. |
 | `SatisfiesAccessGate` | startup validation and auth middleware | Allows an authenticated deployment to open after a managed binding authenticates, or immediately for `none`. External auth cannot satisfy the gate. |
 | `LegacySkillRoots` | skill catalog | Adds provider-specific host skill locations behind the canonical `.agents/skills` root. |
 | `Features.Sessions` | prompt service and chat forking | Enables saved-session resume and, separately, native fork. Fork requires resume. |
@@ -47,7 +47,7 @@ does not change the catalog.
 | --- | ---: | --- | --- | --- | --- | ---: | ---: |
 | Claude | No | host, project | managed code | resume, fork | slash-style skill trigger | Yes | Yes |
 | Codex | Yes | host, project | managed device | resume, fork | dollar mention | Yes | Yes |
-| MiniMax | No | project | external API key | resume, fork | dollar mention | Yes | Yes |
+| MiniMax | No | project | managed API key | resume, fork | dollar mention | Yes | Yes |
 | Kimi | No | host, project | managed device | resume | instructions | No | Yes |
 | Antigravity | No | host, project | external | resume | instructions | No | Yes |
 
@@ -174,12 +174,13 @@ The four supported modes are:
 | --- | --- | --- |
 | `managed-code` | `auth.NewCodeBinding` | Remote starts an interactive code-paste CLI flow and exposes start/submit/cancel actions. |
 | `managed-device` | `auth.NewDeviceBinding` | Remote starts a device login and exposes URL/code/progress. |
+| `managed-api-key` | `auth.NewAPIKeyBinding` | Remote exposes a write-only key form plus configured/unconfigured status and save/remove actions. |
 | `external` | `auth.NewExternalBinding` | Remote shows instructions only; there is no managed status stream or mutation action. |
 | `none` | no binding | Provider is treated as authenticated; instructions must be empty. |
 
 The normalized catalog is `GET /api/agent-auth`. Every non-`none` binding gets
 provider-ID-derived legacy status routes; an external binding has no usable
-status stream. Managed bindings additionally receive their code/device action
+status stream. Managed bindings additionally receive their flow-specific action
 routes and `/ws/agent-auth/<provider>`. Route construction is generic in
 [`AgentAuthHandler`](../../../backend/internal/transport/http/handlers/agent_auth_handler.go)
 and [`AgentAuthSocket`](../../../backend/internal/transport/ws/agent_auth_socket.go).

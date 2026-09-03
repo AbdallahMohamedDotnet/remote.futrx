@@ -78,6 +78,8 @@ class WorkspaceDataProjector {
         left.mode !== right.mode ||
         left.reasoningEffort !== right.reasoningEffort ||
         left.serviceTier !== right.serviceTier ||
+        left.approvalPolicy !== right.approvalPolicy ||
+        left.sandboxPolicy !== right.sandboxPolicy ||
         left.projectId !== right.projectId ||
         !this.sameSelectedSkills(left.selectedSkills, right.selectedSkills)
       ) {
