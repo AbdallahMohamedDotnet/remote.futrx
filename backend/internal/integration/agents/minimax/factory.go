@@ -1,6 +1,8 @@
 package minimax
 
 import (
+	"context"
+
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
@@ -16,8 +18,13 @@ func NewFactory() (agentmodule.Factory, error) {
 		ID:               agent.ProviderMiniMax,
 		Label:            configconstants.MiniMaxLabel,
 		ExecutionScopes:  []agentmodule.ExecutionScope{agentmodule.ScopeProject},
-		Auth:             agentmodule.AuthExternal,
+		Auth:             agentmodule.AuthManagedAPIKey,
 		AuthInstructions: configconstants.MiniMaxAuthInstructions,
+		APIKeyAuth: &agentmodule.APIKeyAuth{
+			CreateURL:       configconstants.MiniMaxAPIKeyCreateURL,
+			CreateLabel:     configconstants.MiniMaxAPIKeyCreateLabel,
+			CredentialLabel: configconstants.MiniMaxAPIKeyCredentialLabel,
+		},
 		Features: agentmodule.Features{
 			Sessions:       agentmodule.SessionSupport{Resume: true, Fork: true},
 			Skills:         agentmodule.SkillsDollarMention,
@@ -25,10 +32,25 @@ func NewFactory() (agentmodule.Factory, error) {
 			ScheduledTools: true,
 		},
 	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
-		binding := agentauth.NewExternalBinding(agent.ProviderMiniMax)
+		apiKeys, err := agentauth.NewAPIKeyService(
+			context.Background(),
+			agent.ProviderMiniMax,
+			deps.APIKeys,
+			newAPIKeyValidator(),
+		)
+		if err != nil {
+			return agentmodule.Components{}, err
+		}
+		binding := agentauth.NewAPIKeyBinding(agent.ProviderMiniMax, apiKeys)
 		return agentmodule.Components{
-			Provider: newProvider(deps.ProjectPreparer, validatedProfile.CLI.Binary),
-			Auth:     &binding,
+			Provider: newProvider(
+				deps.ProjectPreparer,
+				apiKeys,
+				newModelCatalogClient(),
+				deps.RuntimeAssets,
+				validatedProfile.CLI.Binary,
+			),
+			Auth: &binding,
 		}, nil
 	}, agentmodule.WithProjectPreparation(agentmodule.ProjectPreparationPolicy{
 		SkillLinksRequired: true,

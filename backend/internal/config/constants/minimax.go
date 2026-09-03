@@ -1,14 +1,15 @@
 package constants
 
-import _ "embed"
+import "time"
 
 const (
 	MiniMaxLabel                        = "MiniMax"
-	MiniMaxModel                        = "MiniMax-M3"
-	MiniMaxModelDescription             = "MiniMax M3 with a 1,000,000-token context window"
 	MiniMaxAutoModelLabel               = "MiniMax default"
-	MiniMaxModelContextWindow           = 1_000_000
+	MiniMaxDefaultModelContextWindow    = 204_800
+	MiniMaxLargeModelContextWindow      = 1_000_000
 	MiniMaxAPIBaseURL                   = "https://api.minimax.io/v1"
+	MiniMaxModelsURL                    = MiniMaxAPIBaseURL + "/models"
+	MiniMaxAPIValidationTimeout         = 10 * time.Second
 	MiniMaxAPIKeyEnvironment            = "MINIMAX_API_KEY"
 	MiniMaxWireAPI                      = "responses"
 	MiniMaxReasoningDisabled            = "none"
@@ -22,7 +23,12 @@ const (
 	MiniMaxCredentialName               = "minimax"
 	MiniMaxPersistentDevice             = "minimax-home"
 	MiniMaxHostDirectory                = "minimax"
-	MiniMaxAuthInstructions             = "Add a MiniMax API key as `MINIMAX_API_KEY` in each project's Secrets settings."
+	MiniMaxAuthInstructions             = "MiniMax is available only with a Token Plan subscription. Add a Token Plan subscription key to use it in project chats; pay-as-you-go API keys are not supported."
+	MiniMaxAPIKeyCreateURL              = "https://platform.minimax.io/subscribe/token-plan"
+	MiniMaxAPIKeyCreateLabel            = "Get a MiniMax Token Plan subscription key"
+	MiniMaxAPIKeyCredentialLabel        = "MiniMax Token Plan subscription key"
+	MiniMaxTokenPlanKeyPrefix           = "sk-cp-"
+	MiniMaxTokenPlanValidationURL       = MiniMaxAPIBaseURL + "/token_plan/remains"
 
 	MiniMaxContainerHome             = "/root/.minimax"
 	MiniMaxContainerCatalog          = MiniMaxContainerHome + "/model-catalog.json"
@@ -32,11 +38,3 @@ const (
 	MiniMaxContainerSkills           = MiniMaxContainerHome + "/skills"
 	MiniMaxWorkspaceHome             = "/workspace/.minimax"
 )
-
-//go:embed assets/minimax-model-catalog.json
-var miniMaxModelCatalog []byte
-
-// MiniMaxModelCatalog returns an independent copy of the compiled-in catalog.
-func MiniMaxModelCatalog() []byte {
-	return append([]byte(nil), miniMaxModelCatalog...)
-}

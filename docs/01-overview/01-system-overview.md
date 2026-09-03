@@ -148,8 +148,8 @@ The main shell switches between three views without browser routing:
   `/root/.gemini/antigravity-cli`.
 - Claude, Codex, and Kimi credentials are host-managed and synchronized into
   project credential locations, primarily those homes; Claude also uses
-  `/root/.claude.json` outside its mounted home. MiniMax instead reads the
-  project-scoped `MINIMAX_API_KEY` secret at launch.
+  `/root/.claude.json` outside its mounted home. Remote injects MiniMax's
+  host-managed Token Plan subscription key only into MiniMax runs.
 - Remote's supported Antigravity flow authenticates inside each project and
   stores its current state in the durable
   `/root/.gemini/antigravity-cli` provider mount.

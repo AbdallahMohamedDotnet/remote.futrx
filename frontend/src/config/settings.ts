@@ -11,6 +11,15 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     approvalPolicy: "on-request",
     sandboxPolicy: "workspaceWrite",
   },
+  projectChat: {
+    provider: "codex",
+    model: "",
+    mode: "default",
+    reasoningEffort: "",
+    serviceTier: "",
+    approvalPolicy: "on-request",
+    sandboxPolicy: "workspaceWrite",
+  },
 };
 
 export const VALID_APPEARANCE_THEMES = new Set<AppearanceTheme>([

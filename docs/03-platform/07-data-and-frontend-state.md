@@ -136,7 +136,8 @@ Project metadata and workspaces are separate:
 - `/var/lib/remote/projects/<slug>/workspace` stores durable project content.
 - `/var/lib/remote/projects/<slug>/agent-home/*` stores durable provider configuration, authentication, and session state.
 - `/var/lib/remote/projects/<slug>/agent-home/minimax` stores the isolated
-  Codex-harness catalog and MiniMax sessions; its API key remains a project secret.
+  Codex-harness catalog and MiniMax sessions; the host injects the managed key
+  only when starting MiniMax.
 - `/var/lib/remote/projects/<slug>/agent-home/antigravity` stores durable
   Antigravity state and is mounted at `/root/.gemini/antigravity-cli`.
 - Access and secrets use separate mode-`0600` files.
@@ -148,6 +149,7 @@ Project metadata and workspaces are separate:
 | --- | --- |
 | `local-admin.json` | Local administrator email and password hash |
 | `oauth.json` | Google OAuth client ID and secret |
+| `agent-api-keys.json` | Host-managed provider API keys, including MiniMax's Token Plan subscription key; mode `0600` |
 | `session.key` | Random key used to sign platform sessions |
 | `users.json` | Registered emails, roles, inviter, and timestamps |
 | `user-settings/sha256-*.json` | Theme and default chat provider/model/mode/reasoning/tier |
