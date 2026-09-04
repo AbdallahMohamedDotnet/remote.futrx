@@ -83,7 +83,6 @@ type Service struct {
 	users             UserDirectory
 	local             *LocalAdminAuthenticator
 	google            *GoogleAuthenticator
-	setupTokens       *setupTokenGuard
 	setupTokenIssuer  *SetupTokenIssuer
 	baseURL           string
 	cookieDomain      string
@@ -159,7 +158,6 @@ func New(
 	service := &Service{
 		users:            users,
 		local:            local,
-		setupTokens:      setupTokens,
 		setupTokenIssuer: setupTokenIssuer,
 		google:           google,
 		baseURL:          baseURL,
@@ -193,13 +191,6 @@ func (s *Service) AuthCodeURL(state string) (string, error) {
 
 func (s *Service) LoginGoogle(ctx context.Context, code string) (User, error) {
 	return s.google.login(ctx, code)
-}
-
-// IssueSetupToken mints and stores a fresh first-boot token, returning the
-// plaintext for the caller to print to the terminal. Issuing rotates: whatever
-// was printed before stops working immediately.
-func (s *Service) IssueSetupToken(ctx context.Context) (string, error) {
-	return s.setupTokens.issue(ctx)
 }
 
 // EnsureSetupToken issues a token when a claim made now would actually be

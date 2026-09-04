@@ -187,9 +187,9 @@ func (o authTestOAuth) ExchangeUser(context.Context, string) (User, error) { ret
 // A claim that an existing administrator authorises does not need one.
 func issueSetupTokenForTest(t *testing.T, service *Service) string {
 	t.Helper()
-	token, err := service.IssueSetupToken(context.Background())
+	token, err := service.setupTokenIssuer.tokens.issue(context.Background())
 	if err != nil {
-		t.Fatalf("IssueSetupToken: %v", err)
+		t.Fatalf("issue setup token: %v", err)
 	}
 	return token
 }

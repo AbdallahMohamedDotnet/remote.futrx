@@ -15,9 +15,7 @@ func TestClaimRejectedWithoutSetupTokenOnFirstBoot(t *testing.T) {
 	store := &authTestStore{}
 	users := newAuthTestUsers()
 	service := newAuthTestService(t, store, users, User{})
-	if _, err := service.IssueSetupToken(context.Background()); err != nil {
-		t.Fatalf("IssueSetupToken: %v", err)
-	}
+	issueSetupTokenForTest(t, service)
 
 	_, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{
 		Email: "attacker@example.com", Password: claimTestPassword,
@@ -37,9 +35,7 @@ func TestClaimRejectedWithWrongSetupToken(t *testing.T) {
 	store := &authTestStore{}
 	users := newAuthTestUsers()
 	service := newAuthTestService(t, store, users, User{})
-	if _, err := service.IssueSetupToken(context.Background()); err != nil {
-		t.Fatalf("IssueSetupToken: %v", err)
-	}
+	issueSetupTokenForTest(t, service)
 
 	_, err := service.ClaimLocalAdmin(context.Background(), ClaimRequest{
 		Email: "attacker@example.com", Password: claimTestPassword,
