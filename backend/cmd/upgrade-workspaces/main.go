@@ -21,6 +21,7 @@ import (
 func main() {
 	dryRun := flag.Bool("dry-run", false, "show the project upgrade plan without changing containers")
 	includeBusy := flag.Bool("include-busy", false, "stop and replace containers with active agent processes")
+	progressFile := flag.String("progress-file", "", "atomically publish structured workspace-upgrade progress")
 	flag.Parse()
 
 	cfg := config.Load()
@@ -47,9 +48,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("list projects: %v", err)
 	}
+	progress := newProgressWriter(*progressFile)
+	total := len(metas)
+	if err := progress.write(0, total, "", "Preparing workspace migration"); err != nil {
+		log.Printf("progress: %v", err)
+	}
 
 	upgraded, skipped, failed := 0, 0, 0
-	for _, meta := range metas {
+	for index, meta := range metas {
+		message := fmt.Sprintf("Recycling workspace %d of %d", index+1, total)
+		if err := progress.write(index, total, meta.Slug, message); err != nil {
+			log.Printf("progress: %v", err)
+		}
 		state, stateErr := containerStack.Lifecycle.State(ctx, meta.ContainerName)
 		if stateErr != nil {
 			failed++
@@ -92,8 +102,15 @@ func main() {
 		}
 		upgraded++
 		log.Printf("OK %s: persistent agent state migrated; container replaced and validated", meta.Slug)
+		if err := progress.write(index+1, total, "", message); err != nil {
+			log.Printf("progress: %v", err)
+		}
 	}
 
+	summary := fmt.Sprintf("Workspace migration complete: %d upgraded, %d busy skipped, %d failed", upgraded, skipped, failed)
+	if err := progress.write(total, total, "", summary); err != nil {
+		log.Printf("progress: %v", err)
+	}
 	fmt.Printf("workspace upgrade: %d upgraded, %d busy skipped, %d failed\n", upgraded, skipped, failed)
 	if failed > 0 {
 		os.Exit(1)
