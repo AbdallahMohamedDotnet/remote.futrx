@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	"github.com/futrx-com/remote.futrx.com/internal/integration/googleoauth"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
@@ -106,6 +105,7 @@ type AuthOptions struct {
 	EnrollmentTTL       time.Duration
 	RecoveryCodeCount   int
 	SessionHistoryLimit int
+	SetupTokenTTL       time.Duration
 }
 
 type Services struct {
@@ -397,93 +397,6 @@ type scheduledPromptHandle struct {
 
 func (h scheduledPromptHandle) Done() <-chan serviceschedule.RunResult {
 	return h.done
-}
-
-// userDirectoryAdapter wraps *serviceuser.Service to satisfy
-// serviceauth.UserDirectory. AddBootstrapAdmin is the one method the auth
-// service needs that the regular user.Service.Add doesn't quite cover (no
-// "addedBy" since it's the bootstrap path).
-type userDirectoryAdapter struct {
-	users *serviceuser.Service
-}
-
-func (a userDirectoryAdapter) IsAdmin(ctx context.Context, email string) (bool, error) {
-	return a.users.IsAdmin(ctx, email)
-}
-
-func (a userDirectoryAdapter) IsRegistered(ctx context.Context, email string) (bool, error) {
-	return a.users.IsRegistered(ctx, email)
-}
-
-func (a userDirectoryAdapter) AddBootstrapAdmin(ctx context.Context, email string) error {
-	_, err := a.users.Add(ctx, email, serviceuser.RoleAdmin, "")
-	return err
-}
-
-func (a userDirectoryAdapter) FirstAdmin(ctx context.Context) (*serviceauth.UserDirectoryEntry, error) {
-	list, err := a.users.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var oldest *serviceuser.User
-	for i := range list {
-		u := &list[i]
-		if u.Role != serviceuser.RoleAdmin {
-			continue
-		}
-		if oldest == nil || u.AddedAt < oldest.AddedAt {
-			oldest = u
-		}
-	}
-	if oldest == nil {
-		return nil, nil
-	}
-	return &serviceauth.UserDirectoryEntry{Email: oldest.Email}, nil
-}
-
-func newAuth(
-	ctx context.Context,
-	store AuthStore,
-	users *serviceuser.Service,
-	baseURL string,
-	twoFactor serviceauth.TwoFactorStore,
-	sessionRegistry serviceauth.SessionRegistryStore,
-	options AuthOptions,
-) (*serviceauth.Service, error) {
-	if store == nil {
-		return nil, errors.New("authentication store is required")
-	}
-	baseURL, err := serviceauth.NormalizeBaseURL(baseURL)
-	if err != nil {
-		return nil, err
-	}
-	sessionKey, err := store.SessionKey(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var directory serviceauth.UserDirectory
-	if users != nil {
-		directory = userDirectoryAdapter{users: users}
-	}
-	return serviceauth.New(
-		ctx,
-		store,
-		directory,
-		func(clientID, clientSecret, redirectURL string) serviceauth.OAuthProvider {
-			return googleoauth.New(clientID, clientSecret, redirectURL)
-		},
-		baseURL,
-		sessionKey,
-		twoFactor,
-		sessionRegistry,
-		serviceauth.Options{
-			PendingLoginTTL:     options.PendingLoginTTL,
-			EnrollmentTTL:       options.EnrollmentTTL,
-			RecoveryCodeCount:   options.RecoveryCodeCount,
-			SessionHistoryLimit: options.SessionHistoryLimit,
-		},
-	)
 }
 
 type chatProjectResolver struct {
