@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -102,6 +103,15 @@ func TestSetupTokenRecordIsPrivateAndRotates(t *testing.T) {
 	}
 	if got := info.Mode().Perm(); got != 0o600 {
 		t.Fatalf("setup-token.json mode = %o, want 600", got)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "setup-token.json"))
+	if err != nil {
+		t.Fatalf("read setup-token.json: %v", err)
+	}
+	for _, field := range []string{`"hash"`, `"expiresAt"`, `"used"`} {
+		if !strings.Contains(string(raw), field) {
+			t.Fatalf("setup-token.json = %s; missing field %s", raw, field)
+		}
 	}
 
 	// Saving again replaces rather than appends: a reissue must invalidate
