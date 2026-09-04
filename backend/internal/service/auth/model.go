@@ -60,9 +60,9 @@ type ClaimRequest struct {
 // Used is set after a claim consumes the token, which is what makes a token
 // single-use even before it expires.
 type SetupTokenRecord struct {
-	Hash      string    `json:"hash"`
-	ExpiresAt time.Time `json:"expiresAt"`
-	Used      bool      `json:"used"`
+	Hash      string
+	ExpiresAt time.Time
+	Used      bool
 }
 
 type User struct {
