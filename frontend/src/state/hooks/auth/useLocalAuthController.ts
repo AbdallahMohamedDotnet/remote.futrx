@@ -1,10 +1,10 @@
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { localAuthApi } from "../../../api/authApi";
 import type { LoginMode } from "../../../models/auth";
 import { localAuthFormState } from "./localAuthFormState";
 import { returnUrlPolicy } from "./returnUrlPolicy";
-import { setupTokenPolicy } from "./setupTokenPolicy";
 import { usePendingTwoFactorChallenge } from "./usePendingTwoFactorChallenge";
+import { useSetupToken } from "./useSetupToken";
 
 interface LocalAuthControllerOptions {
   mode: LoginMode;
@@ -20,13 +20,7 @@ export function useLocalAuthController({
   ////////////////
   // Local State
   ////////////////
-  // Read once at mount and hold in memory: the effect below clears the
-  // query parameter straight away, so re-reading later would find nothing.
-  const [setupToken] = useState(() => setupTokenPolicy.read(location.search));
-  useEffect(() => {
-    if (!setupToken) return;
-    history.replaceState(null, "", setupTokenPolicy.strippedUrl(location.pathname, location.search));
-  }, [setupToken]);
+  const setupToken = useSetupToken();
   const [email, setEmail] = useState(mode === "legacy-setup" ? adminEmail : "");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
