@@ -127,3 +127,37 @@ func TestSetupTokenRecordIsPrivateAndRotates(t *testing.T) {
 		t.Fatalf("rotated record = %#v, %v; want hash-two", persisted, err)
 	}
 }
+
+func TestAgentAPIKeysArePrivateAndReplaceable(t *testing.T) {
+	dir := t.TempDir()
+	store := New(dir)
+	ctx := context.Background()
+
+	if key, err := store.AgentAPIKey(ctx, "minimax"); err != nil || key != "" {
+		t.Fatalf("initial AgentAPIKey = %q, %v", key, err)
+	}
+	if err := store.SaveAgentAPIKey(ctx, "minimax", "first-key"); err != nil {
+		t.Fatalf("SaveAgentAPIKey: %v", err)
+	}
+	if err := store.SaveAgentAPIKey(ctx, "minimax", "replacement-key"); err != nil {
+		t.Fatalf("replace AgentAPIKey: %v", err)
+	}
+	if key, err := store.AgentAPIKey(ctx, "minimax"); err != nil || key != "replacement-key" {
+		t.Fatalf("stored AgentAPIKey = %q, %v", key, err)
+	}
+
+	info, err := os.Stat(filepath.Join(dir, agentAPIKeysFile))
+	if err != nil {
+		t.Fatalf("stat %s: %v", agentAPIKeysFile, err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("%s mode = %o, want 600", agentAPIKeysFile, got)
+	}
+
+	if err := store.DeleteAgentAPIKey(ctx, "minimax"); err != nil {
+		t.Fatalf("DeleteAgentAPIKey: %v", err)
+	}
+	if key, err := store.AgentAPIKey(ctx, "minimax"); err != nil || key != "" {
+		t.Fatalf("AgentAPIKey after delete = %q, %v", key, err)
+	}
+}

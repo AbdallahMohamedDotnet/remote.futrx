@@ -66,6 +66,11 @@ These are the constraints worth understanding before you deploy or rely on remot
   container, so all users and projects share the same provider accounts and
   subscription quotas. There is no per-user or per-project identity for those
   providers, and each allows only one interactive login at a time.
+- **MiniMax identity is an installation-wide Token Plan subscription key.** The key is stored in a
+  mode-`0600` control-plane file without application-level encryption and is
+  injected into every MiniMax run. MiniMax uses a separate `/root/.minimax`
+  runtime home, but container root can also read the other mounted provider
+  homes; that separation is not a security boundary.
 - **Codex's API-key guard does not inspect newer project-local auth before a
   run.** Remote rejects a host `auth.json` explicitly marked `apikey` and clears
   `OPENAI_API_KEY`, but credential seeding does not overwrite a newer
@@ -89,8 +94,8 @@ These are the constraints worth understanding before you deploy or rely on remot
 - **Session recovery drops context.** When a provider session is missing (or you switch provider mid-chat), the chat is "recovered" by replaying at most the last ~24 KB of visible transcript as plain text into a fresh session — earlier context and all tool-call state are dropped.
 - **Provider Plan modes differ.** Remote forwards provider-native Default and
   Plan modes instead of adding workflow prompts. Claude Plan is read-only;
-  Codex Plan is a provider collaboration-instruction preset rather than an
-  OS-level read-only sandbox. Default project runs bypass provider approvals,
+  Codex and MiniMax Plan use a Codex-harness collaboration-instruction preset
+  rather than an OS-level read-only sandbox. Default project runs bypass provider approvals,
   and Remote has no human-confirmation gate for irreversible or external
   actions.
 - **Provider-specific gaps.** Kimi has no fork primitive (forked Kimi chats

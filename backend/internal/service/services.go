@@ -9,6 +9,7 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
@@ -36,6 +37,13 @@ type TmuxClient interface {
 	servicetmux.SessionClient
 }
 
+// ChatStore is the complete persistence capability required at composition;
+// individual services receive only the narrower contracts they consume.
+type ChatStore interface {
+	servicechat.Repository
+	servicechat.TranscriptEventSource
+}
+
 // PushStore persists Web Push registrations and the server's long-lived VAPID
 // key pair. VAPIDKeys mints the pair on first use and returns the stored one
 // thereafter; rotating it would invalidate every browser subscription.
@@ -46,7 +54,7 @@ type PushStore interface {
 }
 
 type Dependencies struct {
-	Chats             servicechat.Repository
+	Chats             ChatStore
 	Projects          serviceproject.Repository
 	ProjectSecrets    serviceproject.SecretsRepository
 	ProjectAccess     serviceproject.AccessRepository
@@ -62,6 +70,7 @@ type Dependencies struct {
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
 	AgentModules      *agentmodule.Catalog
+	AgentAPIKeys      agentauth.APIKeyStore
 	AgentOptions      AgentOptions
 	AuthOptions       AuthOptions
 	TmuxClient        TmuxClient
@@ -156,6 +165,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	agentRuntime, err := deps.AgentModules.Build(agentmodule.BuildDependencies{
 		Projects:              agentProjectResolver{projects: projectService},
 		Containers:            deps.AgentContainers,
+		APIKeys:               deps.AgentAPIKeys,
 		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,
 	})
 	if err != nil {
@@ -177,6 +187,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		chatProjectResolver{projects: projectService},
 		tmuxResolver,
 		runs,
+		servicechat.WithTranscriptEventSource(deps.Chats),
 		servicechat.WithCopiedEventAppender(chats),
 		servicechat.WithSessionPolicy(agentRuntime),
 		servicechat.WithProviderPolicy(agentRuntime),
