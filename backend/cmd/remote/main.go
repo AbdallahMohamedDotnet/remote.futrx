@@ -27,6 +27,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/updatecli"
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
 	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
+	servicemaintenance "github.com/futrx-com/remote.futrx.com/internal/service/maintenance"
 	serviceselfupdate "github.com/futrx-com/remote.futrx.com/internal/service/selfupdate"
 	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
 	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
@@ -69,6 +70,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("init stores: %v", err)
 	}
+	maintenanceGuard := servicemaintenance.New(cfg.DataDir)
+	selfUpdateService := serviceselfupdate.New(
+		version.Version,
+		cfg.InstallDir,
+		cfg.DataDir,
+		updatecli.New(),
+	)
 
 	// Register application services
 	tmuxClient := tmuxcli.New()
@@ -111,6 +119,7 @@ func main() {
 			MaxConcurrentRuns:  cfg.Schedule.MaxConcurrentRuns,
 			MaxTasksPerProject: cfg.Schedule.MaxTasksPerProject,
 		},
+		PromptStartGate: maintenanceGuard,
 	})
 	if err != nil {
 		log.Fatalf("init services: %v", err)
@@ -153,12 +162,7 @@ func main() {
 			cfg.DataDir,
 			fileproject.WorkspaceRoot,
 		),
-		SelfUpdate: serviceselfupdate.New(
-			version.Version,
-			cfg.InstallDir,
-			cfg.DataDir,
-			updatecli.New(),
-		),
+		SelfUpdate: selfUpdateService,
 		Files:      serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore()),
 		GitHistory: servicegithistory.New(gitcli.NewHistoryClient()),
 		IDE:        serviceworkspaceide.New(codeServerBaseURL, fileproject.WorkspaceRoot),

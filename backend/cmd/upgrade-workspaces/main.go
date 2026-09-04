@@ -22,6 +22,7 @@ import (
 func main() {
 	dryRun := flag.Bool("dry-run", false, "show the project upgrade plan without changing containers")
 	includeBusy := flag.Bool("include-busy", false, "stop and replace containers with active agent processes")
+	progressFile := flag.String("progress-file", "", "atomically publish structured workspace-upgrade progress")
 	flag.Parse()
 
 	cfg := config.Load()
@@ -45,7 +46,15 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	upgraded, skipped, failed, err := upgradeAll(ctx, projects, containerStack.Lifecycle, *dryRun, *includeBusy)
+	progress := newProgressWriter(*progressFile)
+	upgraded, skipped, failed, err := upgradeAll(
+		ctx,
+		projects,
+		containerStack.Lifecycle,
+		*dryRun,
+		*includeBusy,
+		progress,
+	)
 	if err != nil {
 		log.Fatalf("list projects: %v", err)
 	}
@@ -65,13 +74,22 @@ func upgradeAll(
 	projects *serviceproject.Service,
 	lifecycle *servicelifecycle.Service,
 	dryRun, includeBusy bool,
+	progress progressWriter,
 ) (upgraded, skipped, failed int, err error) {
 	metas, err := projects.List(ctx)
 	if err != nil {
 		return 0, 0, 0, err
 	}
+	total := len(metas)
+	if err := progress.write(0, total, "", "Preparing workspace migration"); err != nil {
+		log.Printf("progress: %v", err)
+	}
 
-	for _, meta := range metas {
+	for index, meta := range metas {
+		message := fmt.Sprintf("Recycling workspace %d of %d", index+1, total)
+		if err := progress.write(index, total, meta.Slug, message); err != nil {
+			log.Printf("progress: %v", err)
+		}
 		state, stateErr := lifecycle.State(ctx, meta.ContainerName)
 		if stateErr != nil {
 			failed++
@@ -114,7 +132,14 @@ func upgradeAll(
 		}
 		upgraded++
 		log.Printf("OK %s: persistent agent state migrated; container replaced and validated", meta.Slug)
+		if err := progress.write(index+1, total, "", message); err != nil {
+			log.Printf("progress: %v", err)
+		}
 	}
 
+	summary := fmt.Sprintf("Workspace migration complete: %d upgraded, %d busy skipped, %d failed", upgraded, skipped, failed)
+	if err := progress.write(total, total, "", summary); err != nil {
+		log.Printf("progress: %v", err)
+	}
 	return upgraded, skipped, failed, nil
 }
