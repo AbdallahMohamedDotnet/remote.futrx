@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
@@ -58,6 +59,7 @@ type Stores struct {
 	SessionRegistry serviceauth.SessionRegistryStore
 	Push            PushStore
 	Usage           serviceusage.Repository
+	AgentAPIKeys    agentauth.APIKeyStore
 }
 
 func New(dataDir string) (Stores, error) {
@@ -116,18 +118,20 @@ func New(dataDir string) (Stores, error) {
 		return Stores{}, fmt.Errorf("init push subscriptions store: %w", err)
 	}
 
+	authStore := fileauth.New(dataDir)
 	return Stores{
 		Chats:           chats,
 		Projects:        projects,
 		ProjectSecrets:  projectSecrets,
 		ProjectAccess:   projectAccess,
 		Schedules:       schedules,
-		Auth:            fileauth.New(dataDir),
+		Auth:            authStore,
 		Users:           users,
 		UserSettings:    userSettings,
 		TwoFactor:       twoFactor,
 		SessionRegistry: sessionRegistry,
 		Push:            push,
 		Usage:           usage,
+		AgentAPIKeys:    authStore,
 	}, nil
 }
