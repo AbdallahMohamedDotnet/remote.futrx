@@ -94,14 +94,23 @@ func (s *Service) Apply(ctx context.Context, startedBy, tag string) (Status, err
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if run := s.runs.status(s.host.ProcessAlive); run != nil && run.State == "running" {
+	prevRun := s.runs.status(s.host.ProcessAlive)
+	if prevRun != nil && prevRun.State == "running" {
 		return s.statusLocked(), ErrUpdateInProgress
 	}
 	// A fresh run replaces the previous run's records.
 	if err := s.runs.reset(); err != nil {
 		return s.statusLocked(), err
 	}
+	// Reuse the previous failed run's classification when retrying toward the
+	// same target. A failed infrastructure update may have already replaced
+	// the binary, so the new currentVersion can no longer distinguish the
+	// partial install from a clean release; falling back to the failed kind
+	// keeps the host convergence path that actually failed in scope.
 	kind := classifyUpdate(s.currentVersion, tag)
+	if prevRun != nil && prevRun.State == "failed" && prevRun.Target == tag && prevRun.UpdateKind != "" {
+		kind = prevRun.UpdateKind
+	}
 	message := "Preparing the infrastructure update"
 	if kind == UpdateKindApplication {
 		message = "Preparing the application update"
