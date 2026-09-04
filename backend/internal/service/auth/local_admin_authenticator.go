@@ -16,7 +16,7 @@ var localAdminEmailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 type LocalAdminAuthenticator struct {
 	store       LocalAdminStore
 	users       UserDirectory
-	setupTokens *SetupTokenGuard
+	setupTokens *setupTokenGuard
 
 	mu         sync.RWMutex
 	credential *LocalAdminCredential
@@ -27,7 +27,7 @@ type LocalAdminAuthenticator struct {
 func newLocalAdminAuthenticator(
 	store LocalAdminStore,
 	users UserDirectory,
-	setupTokens *SetupTokenGuard,
+	setupTokens *setupTokenGuard,
 	credential *LocalAdminCredential,
 ) *LocalAdminAuthenticator {
 	return &LocalAdminAuthenticator{
@@ -69,7 +69,7 @@ func (a *LocalAdminAuthenticator) claim(ctx context.Context, req ClaimRequest) (
 	// between whoever loads the page first and ownership of the server.
 	tokenGated := first == nil
 	if tokenGated {
-		if err := a.setupTokens.Verify(ctx, req.SetupToken); err != nil {
+		if err := a.setupTokens.verify(ctx, req.SetupToken); err != nil {
 			return User{}, err
 		}
 	} else {
@@ -108,7 +108,7 @@ func (a *LocalAdminAuthenticator) claim(ctx context.Context, req ClaimRequest) (
 		// Failing to mark it used is deliberately not fatal - the credential
 		// is already written, and the already-claimed check at the top of
 		// this method rejects every later attempt regardless.
-		_ = a.setupTokens.Consume(ctx)
+		_ = a.setupTokens.consume(ctx)
 	}
 	return localAdminUser(email), nil
 }

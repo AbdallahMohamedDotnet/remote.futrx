@@ -30,22 +30,22 @@ var (
 	ErrSetupTokenUnavailable = errors.New("setup token state is unavailable")
 )
 
-// SetupTokenGuard owns the first-boot setup token: it issues one, checks a
+// setupTokenGuard owns the first-boot setup token: it issues one, checks a
 // presented token against the stored hash, and marks it used. All state lives
 // in the store rather than in memory, so a token issued by the CLI in a
 // separate process is honoured by the already-running server without a
 // restart.
-type SetupTokenGuard struct {
+type setupTokenGuard struct {
 	store SetupTokenStore
 	ttl   time.Duration
 	now   func() time.Time
 }
 
-func newSetupTokenGuard(store SetupTokenStore, ttl time.Duration, now func() time.Time) *SetupTokenGuard {
+func newSetupTokenGuard(store SetupTokenStore, ttl time.Duration, now func() time.Time) *setupTokenGuard {
 	if now == nil {
 		now = time.Now
 	}
-	return &SetupTokenGuard{store: store, ttl: ttl, now: now}
+	return &setupTokenGuard{store: store, ttl: ttl, now: now}
 }
 
 // SetupTokenIssuer owns the operator workflow around the token guard: issue a
@@ -54,7 +54,7 @@ func newSetupTokenGuard(store SetupTokenStore, ttl time.Duration, now func() tim
 // CLI depend on setup state alone rather than constructing OAuth, sessions,
 // and two-factor authentication.
 type SetupTokenIssuer struct {
-	tokens               *SetupTokenGuard
+	tokens               *setupTokenGuard
 	admins               SetupTokenAdminDirectory
 	localAdminConfigured func() bool
 }
@@ -89,7 +89,7 @@ func NewSetupTokenIssuer(
 }
 
 func newSetupTokenIssuer(
-	tokens *SetupTokenGuard,
+	tokens *setupTokenGuard,
 	admins SetupTokenAdminDirectory,
 	localAdminConfigured func() bool,
 ) *SetupTokenIssuer {
@@ -113,12 +113,12 @@ func (i *SetupTokenIssuer) EnsureSetupToken(ctx context.Context) (string, error)
 	if first != nil {
 		return "", nil
 	}
-	return i.tokens.Issue(ctx)
+	return i.tokens.issue(ctx)
 }
 
 // SetupTokenTTL is how long a freshly issued setup token remains valid.
 func (i *SetupTokenIssuer) SetupTokenTTL() time.Duration {
-	return i.tokens.TTL()
+	return i.tokens.ttlValue()
 }
 
 // LocalAdminConfigured reports why a command found setup no longer pending.
@@ -133,13 +133,13 @@ func validateSetupTokenTTL(ttl time.Duration) error {
 	return nil
 }
 
-// TTL is how long a token this guard issues stays valid.
-func (g *SetupTokenGuard) TTL() time.Duration { return g.ttl }
+// ttlValue is how long a token this guard issues stays valid.
+func (g *setupTokenGuard) ttlValue() time.Duration { return g.ttl }
 
-// Issue generates a token, persists only its hash, and returns the plaintext.
+// issue generates a token, persists only its hash, and returns the plaintext.
 // That return value is the single moment the token exists anywhere outside the
 // terminal it gets printed to; it is never stored and never sent over HTTP.
-func (g *SetupTokenGuard) Issue(ctx context.Context) (string, error) {
+func (g *setupTokenGuard) issue(ctx context.Context) (string, error) {
 	raw := make([]byte, setupTokenBytes)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("generate setup token: %w", err)
@@ -158,7 +158,7 @@ func (g *SetupTokenGuard) Issue(ctx context.Context) (string, error) {
 // Verify accepts presented only when it matches the stored hash and is neither
 // expired nor already used. It does not mutate anything: the token is spent by
 // Consume, and only once the claim it authorised has actually succeeded.
-func (g *SetupTokenGuard) Verify(ctx context.Context, presented string) error {
+func (g *setupTokenGuard) verify(ctx context.Context, presented string) error {
 	if presented == "" {
 		return ErrSetupTokenRequired
 	}
@@ -179,7 +179,7 @@ func (g *SetupTokenGuard) Verify(ctx context.Context, presented string) error {
 
 // Consume marks the stored token used, which is what makes a token work
 // exactly once even while it is still unexpired.
-func (g *SetupTokenGuard) Consume(ctx context.Context) error {
+func (g *setupTokenGuard) consume(ctx context.Context) error {
 	record, err := g.store.SetupToken(ctx)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrSetupTokenUnavailable, err)

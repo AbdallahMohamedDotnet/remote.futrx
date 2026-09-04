@@ -22,9 +22,9 @@ import (
 // Issuing rotates, so whatever was printed before stops working. That is the
 // recovery path for an operator who lost the terminal or let the token expire.
 //
-// It asks the auth service whether setup is still gated rather than deciding
-// for itself, so this command and the running server can never disagree about
-// when a token is worth printing.
+// It asks the setup-token use case whether setup is still gated rather than
+// deciding for itself, so this command and the running server cannot disagree
+// about when a token is worth printing.
 func runSetupToken(ctx context.Context, dataDir, baseURL string, setupTokenTTL time.Duration, out io.Writer) error {
 	if _, err := serviceauth.NormalizeBaseURL(baseURL); err != nil {
 		return err

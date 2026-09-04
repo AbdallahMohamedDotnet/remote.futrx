@@ -83,7 +83,7 @@ type Service struct {
 	users             UserDirectory
 	local             *LocalAdminAuthenticator
 	google            *GoogleAuthenticator
-	setupTokens       *SetupTokenGuard
+	setupTokens       *setupTokenGuard
 	setupTokenIssuer  *SetupTokenIssuer
 	baseURL           string
 	cookieDomain      string
@@ -199,7 +199,7 @@ func (s *Service) LoginGoogle(ctx context.Context, code string) (User, error) {
 // plaintext for the caller to print to the terminal. Issuing rotates: whatever
 // was printed before stops working immediately.
 func (s *Service) IssueSetupToken(ctx context.Context) (string, error) {
-	return s.setupTokens.Issue(ctx)
+	return s.setupTokens.issue(ctx)
 }
 
 // EnsureSetupToken issues a token when a claim made now would actually be
