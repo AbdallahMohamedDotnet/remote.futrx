@@ -132,6 +132,10 @@ type Services struct {
 	Presence          *servicepresence.Service
 	Usage             *serviceusage.Service
 	Email             *serviceemail.Service
+	// Mailer is the entry point every other service uses to send email. It
+	// hides credentials, MIME and HTML email markup behind a builder; see
+	// service/email.Mail.
+	Mailer *serviceemail.Mailer
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -284,6 +288,11 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	pushNotifier.audience.projects = projectService
 	pushNotifier.audience.users = userService
 
+	// The admin settings handler takes the Service (it manages the credential);
+	// every feature that merely wants to send mail takes the Mailer facade.
+	emailService := serviceemail.New(deps.Email, emailSender{client: smtp.New()})
+	mailer := serviceemail.NewMailer(emailService, emailDirectory{users: userService})
+
 	return Services{
 		Chats:             chatService,
 		ChatAccess:        chatAccessService,
@@ -304,7 +313,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Push:              pushService,
 		Presence:          presenceService,
 		Usage:             usageService,
-		Email:             serviceemail.New(deps.Email, emailSender{client: smtp.New()}),
+		Email:             emailService,
+		Mailer:            mailer,
 	}, nil
 }
 
