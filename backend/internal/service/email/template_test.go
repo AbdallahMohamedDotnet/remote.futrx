@@ -25,9 +25,9 @@ func TestHTMLTemplateStructure(t *testing.T) {
 		"Remote",
 		"Sent by Remote",
 		"Powered by FutrX",
-		"#0e0f12",  // dark background
-		"#2f6feb",  // accent blue
-		"#f4f5f8",  // footer bg
+		"#0e0f12", // dark background
+		"#2f6feb", // accent blue
+		"#f4f5f8", // footer bg
 	}
 	for _, want := range checks {
 		if !strings.Contains(out, want) {

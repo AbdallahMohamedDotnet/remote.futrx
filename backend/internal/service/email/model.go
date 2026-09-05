@@ -50,4 +50,13 @@ var (
 	ErrVerificationFailed = errors.New("email: verification failed")
 	// ErrSendFailed wraps the cause returned by the sender's Send call.
 	ErrSendFailed = errors.New("email: send failed")
+	// ErrIncompleteMail means a Mail was sent before it was fully composed:
+	// no recipient, no subject, no content, or a block given an unusable
+	// value. It is a programming error in the calling service, reported at
+	// Build or Send rather than mid-chain so the builder stays fluent.
+	ErrIncompleteMail = errors.New("email: incomplete mail")
+	// ErrUnknownRecipient means a Directory could not resolve a user key to a
+	// deliverable address - the user is not registered, or has no address on
+	// file.
+	ErrUnknownRecipient = errors.New("email: unknown recipient")
 )
