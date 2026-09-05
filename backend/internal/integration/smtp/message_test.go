@@ -125,4 +125,3 @@ func TestBuildMultipart(t *testing.T) {
 		t.Errorf("expected boundary %q at least 3 times, got %d", boundary, count)
 	}
 }
-
