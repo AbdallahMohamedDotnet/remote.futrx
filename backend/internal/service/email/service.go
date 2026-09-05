@@ -84,6 +84,10 @@ func (s *Service) SendTest(ctx context.Context, recipient string) error {
 		To:      to,
 		Subject: "Remote test email",
 		Body:    "This is a test email sent from your Remote server's Email settings.",
+		HTMLBody: HTMLTemplate(
+			"Your test email worked!",
+			"This confirms that your Remote server\u2019s email settings are configured correctly.",
+		),
 	}
 	if err := s.sender.Send(ctx, *creds, msg); err != nil {
 		return fmt.Errorf("%w: %v", ErrSendFailed, err)

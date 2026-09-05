@@ -22,11 +22,14 @@ type Settings struct {
 }
 
 // Message is one outbound email. There is no From: the sender identity comes
-// from the stored Credentials, never from the caller.
+// from the stored Credentials, never from the caller. When HTMLBody is
+// non-empty the sender builds a multipart/alternative message with both a
+// text/plain fallback (Body) and a text/html part (HTMLBody).
 type Message struct {
-	To      string
-	Subject string
-	Body    string
+	To       string
+	Subject  string
+	Body     string
+	HTMLBody string
 }
 
 var (

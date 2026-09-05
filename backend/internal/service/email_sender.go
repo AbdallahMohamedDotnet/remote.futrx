@@ -20,9 +20,10 @@ func (s emailSender) Verify(ctx context.Context, creds serviceemail.Credentials)
 
 func (s emailSender) Send(ctx context.Context, creds serviceemail.Credentials, msg serviceemail.Message) error {
 	return s.client.Send(ctx, smtp.Account{Address: creds.Address, AppPassword: creds.AppPassword}, smtp.Message{
-		From:    creds.Address,
-		To:      msg.To,
-		Subject: msg.Subject,
-		Body:    msg.Body,
+		From:     creds.Address,
+		To:       msg.To,
+		Subject:  msg.Subject,
+		Body:     msg.Body,
+		HTMLBody: msg.HTMLBody,
 	})
 }

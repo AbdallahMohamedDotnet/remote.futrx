@@ -65,3 +65,64 @@ func TestBuild(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildPlainTextOnly(t *testing.T) {
+	msg := Message{From: "a@b.com", To: "c@d.com", Subject: "hi", Body: "plain"}
+	raw, err := buildRFC5322(msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := string(raw)
+	if !strings.Contains(out, "Content-Type: text/plain") {
+		t.Error("expected text/plain content type for plain-text-only message")
+	}
+	if strings.Contains(out, "multipart/alternative") {
+		t.Error("plain-text-only message should not be multipart")
+	}
+}
+
+func TestBuildMultipart(t *testing.T) {
+	msg := Message{
+		From:     "sender@example.com",
+		To:       "to@example.com",
+		Subject:  "Test",
+		Body:     "plain text body",
+		HTMLBody: "<html><body><h1>Hello</h1></body></html>",
+	}
+	raw, err := buildRFC5322(msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := string(raw)
+
+	if !strings.Contains(out, "multipart/alternative") {
+		t.Error("expected multipart/alternative content type")
+	}
+	if !strings.Contains(out, "Content-Type: text/plain") {
+		t.Error("expected text/plain part")
+	}
+	if !strings.Contains(out, "Content-Type: text/html") {
+		t.Error("expected text/html part")
+	}
+	if !strings.Contains(out, "plain text body") {
+		t.Error("expected plain text body in output")
+	}
+	if !strings.Contains(out, "<html><body><h1>Hello</h1></body></html>") {
+		t.Error("expected HTML body in output")
+	}
+	// Verify boundary appears at least 3 times (open, between, close)
+	boundary := ""
+	for _, line := range strings.Split(out, "\r\n") {
+		if strings.HasPrefix(line, "Content-Type: multipart/alternative; boundary=") {
+			boundary = strings.Trim(strings.TrimPrefix(line, "Content-Type: multipart/alternative; boundary="), "\"")
+			break
+		}
+	}
+	if boundary == "" {
+		t.Fatal("could not extract boundary from Content-Type header")
+	}
+	if count := strings.Count(out, boundary); count < 3 {
+		t.Errorf("expected boundary %q at least 3 times, got %d", boundary, count)
+	}
+}
+
