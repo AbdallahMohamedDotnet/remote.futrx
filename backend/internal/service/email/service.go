@@ -63,15 +63,12 @@ func (s *Service) Configure(ctx context.Context, creds Credentials) (Settings, e
 	return Settings{Configured: true, Address: normalized.Address}, nil
 }
 
-// SendTest sends a fixed test message to recipient using the stored
-// credentials.
-func (s *Service) SendTest(ctx context.Context, recipient string) error {
+// send delivers one already-composed message with the stored credentials. It
+// is the single point where a Message meets the sender, used by SendTest and
+// by Mailer; composition and recipient policy belong to the caller.
+func (s *Service) send(ctx context.Context, msg Message) error {
 	if !s.configured() {
 		return ErrNotConfigured
-	}
-	to, err := normalizeAddress(recipient)
-	if err != nil {
-		return ErrInvalidRecipient
 	}
 	creds, err := s.store.Credentials(ctx)
 	if err != nil {
@@ -80,19 +77,35 @@ func (s *Service) SendTest(ctx context.Context, recipient string) error {
 	if creds == nil {
 		return ErrNotConfigured
 	}
-	msg := Message{
-		To:      to,
-		Subject: "Remote test email",
-		Body:    "This is a test email sent from your Remote server's Email settings.",
-		HTMLBody: HTMLTemplate(
-			"Your test email worked!",
-			"This confirms that your Remote server\u2019s email settings are configured correctly.",
-		),
-	}
 	if err := s.sender.Send(ctx, *creds, msg); err != nil {
 		return fmt.Errorf("%w: %v", ErrSendFailed, err)
 	}
 	return nil
+}
+
+// mail starts composing a message this package sends itself (SendTest), bound
+// to this Service alone. It has no Directory - ToUser is not used here - and
+// no concurrency limit of its own, since it never overlaps with Mailer's
+// bounded background sends.
+func (s *Service) mail() *Mail {
+	return &Mail{mailer: &Mailer{svc: s}}
+}
+
+// SendTest sends a fixed test message to recipient using the stored
+// credentials. It is marked Required: unlike mail a feature raises for a
+// user, an unconfigured server here is an error, not a silent no-op, because
+// an administrator asked directly and must be told.
+func (s *Service) SendTest(ctx context.Context, recipient string) error {
+	if !s.configured() {
+		return ErrNotConfigured
+	}
+	return s.mail().
+		To(recipient).
+		Subject("Remote test email").
+		Heading("Your test email worked!").
+		Text("This confirms that your Remote server\u2019s email settings are configured correctly.").
+		Required().
+		Send(ctx)
 }
 
 // Disable removes any stored credential. It is idempotent.
