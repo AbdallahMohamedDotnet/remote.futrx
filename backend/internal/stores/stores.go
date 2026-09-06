@@ -61,6 +61,7 @@ type Stores struct {
 	Push            PushStore
 	Usage           serviceusage.Repository
 	AgentAPIKeys    agentauth.APIKeyStore
+	closeResources  func() error
 }
 
 func New(dataDir string) (Stores, error) {
@@ -68,6 +69,12 @@ func New(dataDir string) (Stores, error) {
 	if err != nil {
 		return Stores{}, fmt.Errorf("init chat store: %w", err)
 	}
+	initialized := false
+	defer func() {
+		if !initialized {
+			_ = chats.Close()
+		}
+	}()
 
 	projects, err := fileproject.New(dataDir)
 	if err != nil {
@@ -120,7 +127,7 @@ func New(dataDir string) (Stores, error) {
 	}
 
 	authStore := fileauth.New(dataDir)
-	return Stores{
+	storeSet := Stores{
 		Chats:           chats,
 		Projects:        projects,
 		ProjectSecrets:  projectSecrets,
@@ -134,5 +141,16 @@ func New(dataDir string) (Stores, error) {
 		Push:            push,
 		Usage:           usage,
 		AgentAPIKeys:    authStore,
-	}, nil
+		closeResources:  chats.Close,
+	}
+	initialized = true
+	return storeSet, nil
+}
+
+// Close releases resources owned by the composed store set.
+func (s Stores) Close() error {
+	if s.closeResources == nil {
+		return nil
+	}
+	return s.closeResources()
 }

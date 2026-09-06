@@ -77,3 +77,7 @@ func newChatEventIndex(root string) (*chatEventIndex, error) {
 	}
 	return &chatEventIndex{db: db}, nil
 }
+
+func (index *chatEventIndex) close() error {
+	return index.db.Close()
+}

@@ -46,10 +46,15 @@ func New(root string) (*Store, error) {
 		metas: map[servicechat.ID]servicechat.Meta{},
 	}
 	if err := store.loadMetaIndex(); err != nil {
-		_ = index.db.Close()
+		_ = index.close()
 		return nil, err
 	}
 	return store, nil
+}
+
+// Close releases the derived chat event index. Callers own the Store lifetime.
+func (s *Store) Close() error {
+	return s.index.close()
 }
 
 func (s *Store) chatDir(id servicechat.ID) string {

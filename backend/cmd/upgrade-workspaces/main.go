@@ -30,6 +30,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("init stores: %v", err)
 	}
+	defer func() { _ = storeSet.Close() }()
 	lxcClient := lxc.New()
 	agentModules, err := config.NewAgentModules()
 	if err != nil {

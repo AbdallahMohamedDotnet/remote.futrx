@@ -26,10 +26,7 @@ func TestTranscriptIndexBackfillsExistingChatAndReadsBoundedTurnWindow(t *testin
 	}
 	writeStoredChat(t, root, "abcd", events)
 
-	store, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := newIndexedTestStore(t, root)
 	service := servicechat.New(
 		store,
 		nil,
@@ -95,10 +92,7 @@ func TestTranscriptIndexBackfillsExistingChatAndReadsBoundedTurnWindow(t *testin
 
 func TestTranscriptIndexIncrementallyRepairsOutOfBandAppend(t *testing.T) {
 	root := t.TempDir()
-	store, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := newIndexedTestStore(t, root)
 	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
 		t.Fatal(err)
 	}
@@ -164,10 +158,7 @@ func TestTranscriptIndexMatchesLegacySequenceAndTurnRules(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := newIndexedTestStore(t, root)
 	window, err := store.ReadTranscriptEventWindow(context.Background(), "abcd", 0, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -202,10 +193,7 @@ func TestTranscriptIndexMatchesLegacySequenceAndTurnRules(t *testing.T) {
 
 func TestTranscriptIndexRebuildsAfterRewindAndCleansUpAfterDelete(t *testing.T) {
 	root := t.TempDir()
-	store, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := newIndexedTestStore(t, root)
 	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd", CreatedAt: 1}); err != nil {
 		t.Fatal(err)
 	}
@@ -256,10 +244,7 @@ func TestTranscriptIndexRebuildsAfterRewindAndCleansUpAfterDelete(t *testing.T) 
 
 func TestTranscriptIndexFailuresFallBackToCanonicalEventLog(t *testing.T) {
 	root := t.TempDir()
-	store, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := newIndexedTestStore(t, root)
 	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
 		t.Fatal(err)
 	}
@@ -332,10 +317,7 @@ func BenchmarkTranscriptIndexLatestPage(b *testing.B) {
 	}
 	writeStoredChat(b, root, "abcd", events)
 
-	store, err := New(root)
-	if err != nil {
-		b.Fatal(err)
-	}
+	store := newIndexedTestStore(b, root)
 	service := servicechat.New(
 		store,
 		nil,
@@ -416,4 +398,14 @@ func appendStoredEvent(t testing.TB, path string, event servicechat.Event) {
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func newIndexedTestStore(t testing.TB, root string) *Store {
+	t.Helper()
+	store, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	return store
 }
