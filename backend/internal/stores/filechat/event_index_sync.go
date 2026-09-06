@@ -16,6 +16,24 @@ type chatIndexState struct {
 	fileMtimeNS  int64
 }
 
+func (index *chatEventIndex) lastEventSeq(
+	ctx context.Context,
+	id servicechat.ID,
+	eventsPath string,
+) (int64, error) {
+	state, err := index.syncChat(ctx, id, eventsPath)
+	return state.lastSeq, err
+}
+
+func (index *chatEventIndex) refresh(
+	ctx context.Context,
+	id servicechat.ID,
+	eventsPath string,
+) error {
+	_, err := index.syncChat(ctx, id, eventsPath)
+	return err
+}
+
 // syncChat incrementally indexes bytes appended since the last successful
 // transaction. A missing state row or a shorter JSONL file triggers a rebuild.
 func (index *chatEventIndex) syncChat(

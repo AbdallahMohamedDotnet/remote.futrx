@@ -226,8 +226,7 @@ func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicech
 	lk.Lock()
 	defer lk.Unlock()
 
-	state, indexErr := s.index.syncChat(ctx, id, s.eventsPath(id))
-	seq := state.lastSeq
+	seq, indexErr := s.index.lastEventSeq(ctx, id, s.eventsPath(id))
 	var err error
 	if indexErr != nil {
 		seq, err = s.lastEventSeqLocked(id)
@@ -257,7 +256,7 @@ func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicech
 	}
 	// JSONL is authoritative. If this derived update fails, the next indexed
 	// read or append retries from the last committed byte offset.
-	_, _ = s.index.syncChat(context.Background(), id, s.eventsPath(id))
+	_ = s.index.refresh(context.Background(), id, s.eventsPath(id))
 	if eventTouchesChatMeta(ev.Type) {
 		meta, err := s.Get(ctx, id)
 		if err == nil {
