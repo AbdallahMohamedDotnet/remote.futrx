@@ -20,6 +20,78 @@ type indexedEventLocation struct {
 	seq    int64
 }
 
+func (index *chatEventIndex) readEventPage(
+	ctx context.Context,
+	id servicechat.ID,
+	eventsPath string,
+	beforeSeq int64,
+	limit int,
+) (servicechat.EventPage, error) {
+	state, err := index.syncChat(ctx, id, eventsPath)
+	if err != nil {
+		return servicechat.EventPage{}, err
+	}
+	locations, hasMore, err := index.eventPageLocations(ctx, id, beforeSeq, limit)
+	if err != nil {
+		return servicechat.EventPage{}, err
+	}
+	events, err := readIndexedEvents(ctx, eventsPath, locations)
+	if err != nil {
+		return servicechat.EventPage{}, err
+	}
+	var nextBefore int64
+	if hasMore && len(events) > 0 {
+		nextBefore = events[0].Seq
+	}
+	return servicechat.EventPage{
+		Events:     events,
+		NextBefore: nextBefore,
+		LastSeq:    state.lastSeq,
+		HasMore:    hasMore,
+	}, nil
+}
+
+func (index *chatEventIndex) readEventsAfter(
+	ctx context.Context,
+	id servicechat.ID,
+	eventsPath string,
+	afterSeq int64,
+) ([]servicechat.Event, error) {
+	if _, err := index.syncChat(ctx, id, eventsPath); err != nil {
+		return nil, err
+	}
+	locations, err := index.eventLocationsAfter(ctx, id, afterSeq)
+	if err != nil {
+		return nil, err
+	}
+	return readIndexedEvents(ctx, eventsPath, locations)
+}
+
+func (index *chatEventIndex) readTranscriptWindow(
+	ctx context.Context,
+	id servicechat.ID,
+	eventsPath string,
+	beforeSeq int64,
+	turnLimit int,
+) (servicechat.TranscriptEventWindow, error) {
+	state, err := index.syncChat(ctx, id, eventsPath)
+	if err != nil {
+		return servicechat.TranscriptEventWindow{}, err
+	}
+	locations, err := index.transcriptLocations(ctx, id, beforeSeq, turnLimit)
+	if err != nil {
+		return servicechat.TranscriptEventWindow{}, err
+	}
+	events, err := readIndexedEvents(ctx, eventsPath, locations)
+	if err != nil {
+		return servicechat.TranscriptEventWindow{}, err
+	}
+	return servicechat.TranscriptEventWindow{
+		Events:  events,
+		LastSeq: state.lastSeq,
+	}, nil
+}
+
 func (index *chatEventIndex) transcriptLocations(
 	ctx context.Context,
 	id servicechat.ID,

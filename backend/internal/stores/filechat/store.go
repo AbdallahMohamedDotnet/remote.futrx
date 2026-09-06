@@ -307,29 +307,9 @@ func (s *Store) ReadEventsPage(
 	lk.Lock()
 	defer lk.Unlock()
 
-	state, err := s.index.syncChat(ctx, id, s.eventsPath(id))
+	page, err := s.index.readEventPage(ctx, id, s.eventsPath(id), query.BeforeSeq, limit)
 	if err == nil {
-		locations, hasMore, locationErr := s.index.eventPageLocations(
-			ctx,
-			id,
-			query.BeforeSeq,
-			limit,
-		)
-		if locationErr == nil {
-			events, readErr := readIndexedEvents(ctx, s.eventsPath(id), locations)
-			if readErr == nil {
-				var nextBefore int64
-				if hasMore && len(events) > 0 {
-					nextBefore = events[0].Seq
-				}
-				return servicechat.EventPage{
-					Events:     events,
-					NextBefore: nextBefore,
-					LastSeq:    state.lastSeq,
-					HasMore:    hasMore,
-				}, nil
-			}
-		}
+		return page, nil
 	}
 	return s.readEventsPageFile(ctx, id, query, limit)
 }
@@ -387,13 +367,9 @@ func (s *Store) ReadEventsAfter(
 	lk.Lock()
 	defer lk.Unlock()
 
-	if _, err := s.index.syncChat(ctx, id, s.eventsPath(id)); err == nil {
-		locations, locationErr := s.index.eventLocationsAfter(ctx, id, afterSeq)
-		if locationErr == nil {
-			if events, readErr := readIndexedEvents(ctx, s.eventsPath(id), locations); readErr == nil {
-				return events, nil
-			}
-		}
+	events, err := s.index.readEventsAfter(ctx, id, s.eventsPath(id), afterSeq)
+	if err == nil {
+		return events, nil
 	}
 	return s.readEventsAfterFile(ctx, id, afterSeq)
 }
@@ -429,23 +405,14 @@ func (s *Store) ReadTranscriptEventWindow(
 	lk.Lock()
 	defer lk.Unlock()
 
-	state, err := s.index.syncChat(ctx, id, s.eventsPath(id))
+	window, err := s.index.readTranscriptWindow(ctx, id, s.eventsPath(id), beforeSeq, turnLimit)
 	if err == nil {
-		locations, locationErr := s.index.transcriptLocations(ctx, id, beforeSeq, turnLimit)
-		if locationErr == nil {
-			events, readErr := readIndexedEvents(ctx, s.eventsPath(id), locations)
-			if readErr == nil {
-				return servicechat.TranscriptEventWindow{
-					Events:  events,
-					LastSeq: state.lastSeq,
-				}, nil
-			}
-		}
+		return window, nil
 	}
 
 	// The index is disposable. Preserve availability by falling back to the
 	// canonical log if it cannot be synchronized or read.
-	window := servicechat.TranscriptEventWindow{}
+	window = servicechat.TranscriptEventWindow{}
 	err = s.scanEventsFile(ctx, id, func(event servicechat.Event) bool {
 		window.Events = append(window.Events, event)
 		if event.Seq > window.LastSeq {
