@@ -47,7 +47,6 @@ func run(ctx context.Context, dataDir string, dryRun bool) error {
 	if err != nil {
 		return fmt.Errorf("open chat store: %w", err)
 	}
-	defer func() { _ = chats.Close() }()
 	projects, err := fileproject.New(dataDir)
 	if err != nil {
 		return fmt.Errorf("open project store: %w", err)

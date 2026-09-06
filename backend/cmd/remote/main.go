@@ -70,7 +70,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("init stores: %v", err)
 	}
-	defer func() { _ = storeSet.Close() }()
 	maintenanceGuard := servicemaintenance.New(cfg.DataDir)
 	selfUpdateService := serviceselfupdate.New(
 		version.Version,
