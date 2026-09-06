@@ -292,6 +292,23 @@ func TestTranscriptPageUsesIndexedEventWindowWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestTranscriptPagePropagatesIndexedEventWindowError(t *testing.T) {
+	windowErr := errors.New("window failed")
+	repository := &transcriptWindowRepository{windowErr: windowErr}
+	service := New(repository, nil, nil, nil, WithTranscriptEventSource(repository))
+
+	if _, err := service.TranscriptPage(
+		context.Background(),
+		"abcd",
+		TranscriptPageQuery{},
+	); !errors.Is(err, windowErr) {
+		t.Fatalf("window error = %v, want %v", err, windowErr)
+	}
+	if repository.windows != 1 || repository.scans != 0 {
+		t.Fatalf("indexed windows = %d, full scans = %d", repository.windows, repository.scans)
+	}
+}
+
 func TestTranscriptEventsCoalesceOnlyWhenIdentityMatches(t *testing.T) {
 	base := Event{
 		Type:            "assistant_text",

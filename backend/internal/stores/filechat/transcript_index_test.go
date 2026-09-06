@@ -254,6 +254,67 @@ func TestTranscriptIndexRebuildsAfterRewindAndCleansUpAfterDelete(t *testing.T) 
 	}
 }
 
+func TestTranscriptIndexFailuresFallBackToCanonicalEventLog(t *testing.T) {
+	root := t.TempDir()
+	store, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []servicechat.Event{
+		{T: 1, Type: "user", TurnID: "turn-1", Text: "first"},
+		{T: 2, Type: "complete", TurnID: "turn-1"},
+	} {
+		if _, err := store.AppendEvent(context.Background(), "abcd", event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.index.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	appended, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{
+		T: 3, Type: "user", TurnID: "turn-2", Text: "second",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if appended.Seq != 3 {
+		t.Fatalf("fallback append sequence = %d, want 3", appended.Seq)
+	}
+
+	page, err := store.ReadEventsPage(
+		context.Background(),
+		"abcd",
+		servicechat.EventPageQuery{Limit: 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Events) != 1 || page.Events[0].Seq != 3 ||
+		page.NextBefore != 3 || page.LastSeq != 3 || !page.HasMore {
+		t.Fatalf("fallback event page = %#v", page)
+	}
+
+	after, err := store.ReadEventsAfter(context.Background(), "abcd", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 2 || after[0].Seq != 2 || after[1].Seq != 3 {
+		t.Fatalf("fallback events after cursor = %#v", after)
+	}
+
+	window, err := store.ReadTranscriptEventWindow(context.Background(), "abcd", 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(window.Events) != 3 || window.LastSeq != 3 {
+		t.Fatalf("fallback transcript window = %#v", window)
+	}
+}
+
 func BenchmarkTranscriptIndexLatestPage(b *testing.B) {
 	root := b.TempDir()
 	events := make([]servicechat.Event, 0, 15_000)
