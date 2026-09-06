@@ -22,7 +22,7 @@ const (
 	maxEventRecordBytes     = 16 * 1024 * 1024
 )
 
-type transcriptIndex struct {
+type chatEventIndex struct {
 	db *sql.DB
 }
 
@@ -46,7 +46,7 @@ type indexedEventLocation struct {
 	seq    int64
 }
 
-func newTranscriptIndex(root string) (*transcriptIndex, error) {
+func newChatEventIndex(root string) (*chatEventIndex, error) {
 	databaseURL := &url.URL{
 		Scheme: "file",
 		Path:   filepath.Join(root, transcriptIndexFilename),
@@ -103,12 +103,12 @@ func newTranscriptIndex(root string) (*transcriptIndex, error) {
 			return nil, fmt.Errorf("initialize transcript index: %w", err)
 		}
 	}
-	return &transcriptIndex{db: db}, nil
+	return &chatEventIndex{db: db}, nil
 }
 
 // syncChat incrementally indexes bytes appended since the last successful
 // transaction. A missing state row or a shorter JSONL file triggers a rebuild.
-func (index *transcriptIndex) syncChat(
+func (index *chatEventIndex) syncChat(
 	ctx context.Context,
 	id servicechat.ID,
 	eventsPath string,
@@ -178,7 +178,7 @@ func (index *transcriptIndex) syncChat(
 	return state, nil
 }
 
-func (index *transcriptIndex) rebuildChat(
+func (index *chatEventIndex) rebuildChat(
 	ctx context.Context,
 	id servicechat.ID,
 	eventsPath string,
@@ -190,7 +190,7 @@ func (index *transcriptIndex) rebuildChat(
 	return err
 }
 
-func (index *transcriptIndex) deleteChat(ctx context.Context, id servicechat.ID) error {
+func (index *chatEventIndex) deleteChat(ctx context.Context, id servicechat.ID) error {
 	tx, err := index.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -215,7 +215,7 @@ func deleteChatIndexRows(ctx context.Context, tx *sql.Tx, id servicechat.ID) err
 	return nil
 }
 
-func (index *transcriptIndex) readState(
+func (index *chatEventIndex) readState(
 	ctx context.Context,
 	id servicechat.ID,
 ) (chatIndexState, bool, error) {
@@ -410,7 +410,7 @@ func indexTranscriptTurn(
 	return err
 }
 
-func (index *transcriptIndex) transcriptLocations(
+func (index *chatEventIndex) transcriptLocations(
 	ctx context.Context,
 	id servicechat.ID,
 	beforeSeq int64,
@@ -455,7 +455,7 @@ func (index *transcriptIndex) transcriptLocations(
 	return index.eventLocationsInRange(ctx, id, firstOffset, lastOffset)
 }
 
-func (index *transcriptIndex) eventPageLocations(
+func (index *chatEventIndex) eventPageLocations(
 	ctx context.Context,
 	id servicechat.ID,
 	beforeSeq int64,
@@ -485,7 +485,7 @@ func (index *transcriptIndex) eventPageLocations(
 	return locations, hasMore, nil
 }
 
-func (index *transcriptIndex) eventLocationsAfter(
+func (index *chatEventIndex) eventLocationsAfter(
 	ctx context.Context,
 	id servicechat.ID,
 	afterSeq int64,
@@ -502,7 +502,7 @@ func (index *transcriptIndex) eventLocationsAfter(
 	return scanEventLocations(rows)
 }
 
-func (index *transcriptIndex) eventLocationsInRange(
+func (index *chatEventIndex) eventLocationsInRange(
 	ctx context.Context,
 	id servicechat.ID,
 	startOffset int64,

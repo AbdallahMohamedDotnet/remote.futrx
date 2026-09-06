@@ -24,7 +24,7 @@ var _ servicechat.TranscriptEventWindowSource = (*Store)(nil)
 // map; concurrent access across different chats is fine.
 type Store struct {
 	root   string
-	index  *transcriptIndex
+	index  *chatEventIndex
 	mu     sync.Mutex
 	locks  map[servicechat.ID]*sync.Mutex
 	metaMu sync.RWMutex
@@ -35,7 +35,7 @@ func New(root string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Join(root, "chats"), 0o755); err != nil {
 		return nil, err
 	}
-	index, err := newTranscriptIndex(root)
+	index, err := newChatEventIndex(root)
 	if err != nil {
 		return nil, err
 	}
