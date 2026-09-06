@@ -21,8 +21,8 @@ flowchart TB
 
     subgraph Host["Single host (Ubuntu/Debian, runs as root)"]
         Caddy["Caddy — public HTTPS edge<br/>on-demand TLS, forward_auth, cookie stripping"]
-        Go["Go backend — 127.0.0.1:7682<br/>embedded Preact SPA + REST + WebSockets"]
-        Stores["Stores under DATA_DIR<br/>JSON metadata + JSONL chat logs<br/>derived SQLite chat index"]
+        Go["Go backend — 127.0.0.1:7682<br/>embedded Preact SPA + REST + WebSockets<br/>process-local chat indexes"]
+        Stores["Stores under DATA_DIR<br/>JSON metadata + JSONL chat logs"]
         LXD["LXD daemon"]
 
         subgraph C1["Project container A (unprivileged LXD)"]
@@ -51,7 +51,7 @@ flowchart TB
 
 - The Go backend is **one process, bound to loopback** (`HOST=127.0.0.1:7682`, [`backend/internal/config/config.go`](backend/internal/config/config.go)). Caddy is the only thing listening on the public interface.
 - The backend runs as **root** ([`infra/templates/remote.futrx.service.tmpl`](infra/templates/remote.futrx.service.tmpl), `User=root`) because it drives the `lxc` CLI and chowns workspace files into the container idmap. This is a deliberate design choice with security consequences — see the [threat model](docs/threat-model.md).
-- There is **no external database service.** Authoritative platform state is flat files under `DATA_DIR` (`/opt/remote.futrx/data`): JSON for auth/users/projects/access/secrets and append-only JSONL for chat event logs. A disposable embedded SQLite database indexes chat event offsets and transcript turns for bounded reads; it can be rebuilt from the JSONL logs. Concurrency is guarded by in-process mutexes only.
+- There is **no database.** Authoritative platform state is flat files under `DATA_DIR` (`/opt/remote.futrx/data`): JSON for auth/users/projects/access/secrets and append-only JSONL for chat event logs. The backend lazily derives process-local event offsets and transcript-turn ranges for bounded reads, validating them against JSONL file metadata and a prefix fingerprint before extending them. Concurrency is guarded by in-process mutexes only.
 - Each project is **one unprivileged LXD container** built from a shared base image (`futrx-remote-dev-base`: Ubuntu 24.04 + Node 22 + pinned agent CLIs + Chromium + code-server). Durable state lives on the host and is bind-mounted in.
 
 ## The four public host classes
@@ -229,7 +229,7 @@ A chat with **no project** ("loose chat") runs the CLI directly on the host inst
 | Project membership | `DATA_DIR/projectaccess/<id>.json` | JSON | flat email list |
 | Project secrets | `DATA_DIR/projectsecrets/<id>.json` | JSON | **plaintext**, mode 0600, not encrypted at rest |
 | Chat events | `DATA_DIR/chats/<id>/events.jsonl` | JSONL | append-only, monotonic `seq`, no rotation |
-| Chat event index | `DATA_DIR/transcript-index.sqlite` | SQLite | disposable event-offset and transcript-turn index rebuilt from chat JSONL |
+| Chat event index | Backend process memory | Go slices | lazy event-offset and transcript-turn index rebuilt from chat JSONL after restart |
 | Scheduled tasks | `DATA_DIR/scheduled-tasks/tasks.json` | JSON | definitions, deadlines, durable claims, pending state, and last outcomes |
 | Push subscriptions | `DATA_DIR/push-subscriptions/sha256-<hash>.json` | JSON | one file per user, filename hashes the email |
 | Web Push signing key | `DATA_DIR/webpush-vapid.json` | JSON | VAPID P-256 pair, mode 0600; rotating it invalidates every browser subscription |
@@ -241,7 +241,7 @@ A chat with **no project** ("loose chat") runs the CLI directly on the host inst
 | Workspace files | `/var/lib/remote/projects/<slug>/workspace` | on-disk tree | bind-mounted to `/workspace` |
 | Agent homes | `/var/lib/remote/projects/<slug>/agent-home/*` | on-disk tree | bind-mounted to `/root/.claude` etc. |
 
-JSON and metadata writes use temp-file + rename. Chat events are different: they append directly to JSONL with `O_APPEND`. The SQLite chat index is derived state, transactionally refreshed from those logs, and is not a source of truth. The authoritative file paths do not add `fsync`, file locking, or a transaction spanning multiple stores. The design assumes exactly one backend process touching `DATA_DIR`.
+JSON and metadata writes use temp-file + rename. Chat events are different: they append directly to JSONL with `O_APPEND`. Process-local chat indexes are derived state, incrementally refreshed from those logs, and rebuilt lazily after restart; they are not a source of truth. The authoritative file paths do not add `fsync`, file locking, or a transaction spanning multiple stores. The design assumes exactly one backend process touching `DATA_DIR`.
 
 ## Container model
 

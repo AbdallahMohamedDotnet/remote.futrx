@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,12 +12,6 @@ import (
 
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
-
-type indexedEventLocation struct {
-	offset int64
-	length int64
-	seq    int64
-}
 
 func (index *chatEventIndex) readEventPage(
 	ctx context.Context,
@@ -31,7 +24,7 @@ func (index *chatEventIndex) readEventPage(
 	if err != nil {
 		return servicechat.EventPage{}, err
 	}
-	locations, hasMore, err := index.eventPageLocations(ctx, id, beforeSeq, limit)
+	locations, hasMore, err := eventPageLocations(ctx, state, beforeSeq, limit)
 	if err != nil {
 		return servicechat.EventPage{}, err
 	}
@@ -57,10 +50,11 @@ func (index *chatEventIndex) readEventsAfter(
 	eventsPath string,
 	afterSeq int64,
 ) ([]servicechat.Event, error) {
-	if _, err := index.syncChat(ctx, id, eventsPath); err != nil {
+	state, err := index.syncChat(ctx, id, eventsPath)
+	if err != nil {
 		return nil, err
 	}
-	locations, err := index.eventLocationsAfter(ctx, id, afterSeq)
+	locations, err := eventLocationsAfter(ctx, state, afterSeq)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +72,7 @@ func (index *chatEventIndex) readTranscriptWindow(
 	if err != nil {
 		return servicechat.TranscriptEventWindow{}, err
 	}
-	locations, err := index.transcriptLocations(ctx, id, beforeSeq, turnLimit)
+	locations, err := transcriptLocations(ctx, state, beforeSeq, turnLimit)
 	if err != nil {
 		return servicechat.TranscriptEventWindow{}, err
 	}
@@ -92,70 +86,59 @@ func (index *chatEventIndex) readTranscriptWindow(
 	}, nil
 }
 
-func (index *chatEventIndex) transcriptLocations(
+func transcriptLocations(
 	ctx context.Context,
-	id servicechat.ID,
+	state chatIndexState,
 	beforeSeq int64,
 	turnLimit int,
 ) ([]indexedEventLocation, error) {
 	if turnLimit <= 0 {
 		turnLimit = 1
 	}
-	rows, err := index.db.QueryContext(ctx, `
-		SELECT start_offset, end_offset
-		FROM chat_transcript_turns
-		WHERE chat_id = ? AND (? <= 0 OR start_seq < ?)
-		ORDER BY turn_ordinal DESC
-		LIMIT ?`, id, beforeSeq, beforeSeq, turnLimit+1,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var firstOffset int64 = -1
-	var lastOffset int64
-	for rows.Next() {
-		var startOffset, endOffset int64
-		if err := rows.Scan(&startOffset, &endOffset); err != nil {
+	firstEvent := -1
+	lastEvent := 0
+	selected := 0
+	for i := len(state.turns) - 1; i >= 0 && selected < turnLimit+1; i-- {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if firstOffset < 0 || startOffset < firstOffset {
-			firstOffset = startOffset
+		turn := state.turns[i]
+		if beforeSeq > 0 && turn.startSeq >= beforeSeq {
+			continue
 		}
-		if endOffset > lastOffset {
-			lastOffset = endOffset
+		if firstEvent < 0 || turn.startEvent < firstEvent {
+			firstEvent = turn.startEvent
 		}
+		if turn.endEvent > lastEvent {
+			lastEvent = turn.endEvent
+		}
+		selected++
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if firstOffset < 0 {
+	if firstEvent < 0 {
 		return nil, nil
 	}
-
-	return index.eventLocationsInRange(ctx, id, firstOffset, lastOffset)
+	if firstEvent > len(state.events) || lastEvent > len(state.events) || firstEvent > lastEvent {
+		return nil, errors.New("indexed transcript turn range is invalid")
+	}
+	return state.events[firstEvent:lastEvent], nil
 }
 
-func (index *chatEventIndex) eventPageLocations(
+func eventPageLocations(
 	ctx context.Context,
-	id servicechat.ID,
+	state chatIndexState,
 	beforeSeq int64,
 	limit int,
 ) ([]indexedEventLocation, bool, error) {
-	rows, err := index.db.QueryContext(ctx, `
-		SELECT byte_offset, byte_length, event_seq
-		FROM chat_event_offsets
-		WHERE chat_id = ? AND (? <= 0 OR event_seq < ?)
-		ORDER BY event_ordinal DESC
-		LIMIT ?`, id, beforeSeq, beforeSeq, limit+1,
-	)
-	if err != nil {
-		return nil, false, err
-	}
-	locations, err := scanEventLocations(rows)
-	if err != nil {
-		return nil, false, err
+	locations := make([]indexedEventLocation, 0, limit+1)
+	for i := len(state.events) - 1; i >= 0 && len(locations) <= limit; i-- {
+		if err := ctx.Err(); err != nil {
+			return nil, false, err
+		}
+		location := state.events[i]
+		if beforeSeq > 0 && location.seq >= beforeSeq {
+			continue
+		}
+		locations = append(locations, location)
 	}
 	hasMore := len(locations) > limit
 	if hasMore {
@@ -167,52 +150,21 @@ func (index *chatEventIndex) eventPageLocations(
 	return locations, hasMore, nil
 }
 
-func (index *chatEventIndex) eventLocationsAfter(
+func eventLocationsAfter(
 	ctx context.Context,
-	id servicechat.ID,
+	state chatIndexState,
 	afterSeq int64,
 ) ([]indexedEventLocation, error) {
-	rows, err := index.db.QueryContext(ctx, `
-		SELECT byte_offset, byte_length, event_seq
-		FROM chat_event_offsets
-		WHERE chat_id = ? AND event_seq > ?
-		ORDER BY event_ordinal`, id, afterSeq,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return scanEventLocations(rows)
-}
-
-func (index *chatEventIndex) eventLocationsInRange(
-	ctx context.Context,
-	id servicechat.ID,
-	startOffset int64,
-	endOffset int64,
-) ([]indexedEventLocation, error) {
-	rows, err := index.db.QueryContext(ctx, `
-		SELECT byte_offset, byte_length, event_seq
-		FROM chat_event_offsets
-		WHERE chat_id = ? AND byte_offset >= ? AND byte_offset < ?
-		ORDER BY event_ordinal`, id, startOffset, endOffset,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return scanEventLocations(rows)
-}
-
-func scanEventLocations(rows *sql.Rows) ([]indexedEventLocation, error) {
-	defer rows.Close()
-	locations := make([]indexedEventLocation, 0, 64)
-	for rows.Next() {
-		var location indexedEventLocation
-		if err := rows.Scan(&location.offset, &location.length, &location.seq); err != nil {
+	locations := make([]indexedEventLocation, 0, 32)
+	for _, location := range state.events {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		locations = append(locations, location)
+		if location.seq > afterSeq {
+			locations = append(locations, location)
+		}
 	}
-	return locations, rows.Err()
+	return locations, nil
 }
 
 func readIndexedEvents(

@@ -35,26 +35,27 @@ func New(root string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Join(root, "chats"), 0o755); err != nil {
 		return nil, err
 	}
-	index, err := newChatEventIndex(root)
-	if err != nil {
-		return nil, err
-	}
+	removeLegacyTranscriptIndexes(root)
 	store := &Store{
 		root:  root,
-		index: index,
+		index: newChatEventIndex(),
 		locks: map[servicechat.ID]*sync.Mutex{},
 		metas: map[servicechat.ID]servicechat.Meta{},
 	}
 	if err := store.loadMetaIndex(); err != nil {
-		_ = index.close()
 		return nil, err
 	}
 	return store, nil
 }
 
-// Close releases the derived chat event index. Callers own the Store lifetime.
-func (s *Store) Close() error {
-	return s.index.close()
+func removeLegacyTranscriptIndexes(root string) {
+	for _, name := range []string{
+		"transcript-index.sqlite",
+		"transcript-index.sqlite-wal",
+		"transcript-index.sqlite-shm",
+	} {
+		_ = os.Remove(filepath.Join(root, name))
+	}
 }
 
 func (s *Store) chatDir(id servicechat.ID) string {
@@ -89,6 +90,10 @@ func (s *Store) Create(ctx context.Context, meta servicechat.Meta) (servicechat.
 	if !servicechat.ValidID(meta.ID) {
 		return servicechat.Meta{}, servicechat.ErrInvalidID
 	}
+	lk := s.lock(meta.ID)
+	lk.Lock()
+	defer lk.Unlock()
+
 	now := time.Now().UnixMilli()
 	if meta.CreatedAt == 0 {
 		meta.CreatedAt = now
@@ -110,7 +115,7 @@ func (s *Store) Create(ctx context.Context, meta servicechat.Meta) (servicechat.
 	if meta.Mode == "" {
 		meta.Mode = "default"
 	}
-	if err := s.index.deleteChat(ctx, meta.ID); err != nil {
+	if err := s.index.forget(ctx, meta.ID); err != nil {
 		return meta, err
 	}
 	dir := s.chatDir(meta.ID)
@@ -197,7 +202,7 @@ func (s *Store) Delete(ctx context.Context, id servicechat.ID) error {
 	lk.Lock()
 	defer lk.Unlock()
 
-	if err := s.index.deleteChat(ctx, id); err != nil {
+	if err := s.index.forget(ctx, id); err != nil {
 		return err
 	}
 	if err := os.RemoveAll(s.chatDir(id)); err != nil {
@@ -206,9 +211,8 @@ func (s *Store) Delete(ctx context.Context, id servicechat.ID) error {
 	s.metaMu.Lock()
 	delete(s.metas, id)
 	s.metaMu.Unlock()
-	s.mu.Lock()
-	delete(s.locks, id)
-	s.mu.Unlock()
+	// Keep the mutex entry for the process lifetime. A waiter may already hold
+	// its pointer, and delete/recreate operations must continue sharing it.
 	return nil
 }
 
@@ -255,8 +259,14 @@ func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicech
 		return servicechat.Event{}, err
 	}
 	// JSONL is authoritative. If this derived update fails, the next indexed
-	// read or append retries from the last committed byte offset.
-	_ = s.index.refresh(context.Background(), id, s.eventsPath(id))
+	// read or append retries from the last cached byte offset.
+	if indexErr == nil {
+		_ = s.index.refreshAfterAppend(context.Background(), id, s.eventsPath(id))
+	} else {
+		// The fallback scan assigned the sequence from canonical JSONL, but it
+		// did not validate the cached prefix. Revalidate before extending it.
+		_ = s.index.refreshAfterFallback(context.Background(), id, s.eventsPath(id))
+	}
 	if eventTouchesChatMeta(ev.Type) {
 		meta, err := s.Get(ctx, id)
 		if err == nil {
@@ -393,8 +403,8 @@ func (s *Store) readEventsAfterFile(
 	return out, err
 }
 
-// ReadTranscriptEventWindow uses the derived turn/offset index to read only
-// the requested page plus one older turn. That extra turn lets the service
+// ReadTranscriptEventWindow uses the process-local turn/offset index to read
+// only the requested page plus one older turn. That extra turn lets the service
 // preserve its existing HasMore and cursor projection behavior.
 func (s *Store) ReadTranscriptEventWindow(
 	ctx context.Context,
@@ -478,7 +488,7 @@ func (s *Store) TruncateEventsBefore(ctx context.Context, id servicechat.ID, bef
 		_ = os.Remove(tmp)
 		return nil, err
 	}
-	// A rewind replaces the JSONL file. Rebuild the disposable offsets now;
+	// A rewind replaces the JSONL file. Rebuild the cached offsets now;
 	// size-based recovery on the next read remains a backstop.
 	_ = s.index.rebuildChat(context.Background(), id, final)
 

@@ -1,12 +1,16 @@
 package filechat
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
@@ -61,22 +65,15 @@ func TestTranscriptIndexBackfillsExistingChatAndReadsBoundedTurnWindow(t *testin
 		t.Fatalf("older indexed page = %#v", older)
 	}
 
-	var indexedEvents, indexedTurns int
-	if err := store.index.db.QueryRow(
-		"SELECT count(*) FROM chat_event_offsets WHERE chat_id = ?", "abcd",
-	).Scan(&indexedEvents); err != nil {
-		t.Fatal(err)
+	state, found := store.index.snapshot("abcd")
+	if !found {
+		t.Fatal("chat index was not cached")
 	}
-	if err := store.index.db.QueryRow(
-		"SELECT count(*) FROM chat_transcript_turns WHERE chat_id = ?", "abcd",
-	).Scan(&indexedTurns); err != nil {
-		t.Fatal(err)
-	}
-	if indexedEvents != 9 || indexedTurns != 3 {
-		t.Fatalf("indexed events = %d, turns = %d", indexedEvents, indexedTurns)
+	if len(state.events) != 9 || len(state.turns) != 3 {
+		t.Fatalf("indexed events = %d, turns = %d", len(state.events), len(state.turns))
 	}
 
-	locations, err := store.index.transcriptLocations(context.Background(), "abcd", 0, 1)
+	locations, err := transcriptLocations(context.Background(), state, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,8 +83,8 @@ func TestTranscriptIndexBackfillsExistingChatAndReadsBoundedTurnWindow(t *testin
 	if locations[0].seq != 4 || locations[len(locations)-1].seq != 9 {
 		t.Fatalf("bounded window locations = %#v", locations)
 	}
-	if _, err := os.Stat(filepath.Join(root, transcriptIndexFilename)); err != nil {
-		t.Fatalf("transcript index was not created: %v", err)
+	if _, err := os.Stat(filepath.Join(root, "transcript-index.sqlite")); !os.IsNotExist(err) {
+		t.Fatalf("durable transcript index should not exist: %v", err)
 	}
 }
 
@@ -127,12 +124,375 @@ func TestTranscriptIndexIncrementallyRepairsOutOfBandAppend(t *testing.T) {
 		t.Fatalf("events after indexed cursor = %#v", after)
 	}
 
-	state, found, err := store.index.readState(context.Background(), "abcd")
+	state, found := store.index.snapshot("abcd")
+	if !found || state.eventOrdinal != 4 || state.lastSeq != 4 {
+		t.Fatalf("incremental index state = %#v, found = %t", state, found)
+	}
+}
+
+func TestTranscriptIndexRebuildsLazilyAfterStoreRestart(t *testing.T) {
+	root := t.TempDir()
+	store := newIndexedTestStore(t, root)
+	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []servicechat.Event{
+		{T: 1, Type: "user", TurnID: "turn-1", Text: "first"},
+		{T: 2, Type: "complete", TurnID: "turn-1"},
+	} {
+		if _, err := store.AppendEvent(context.Background(), "abcd", event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, found := store.index.snapshot("abcd"); !found {
+		t.Fatal("first store did not cache the chat index")
+	}
+
+	reopened := newIndexedTestStore(t, root)
+	if _, found := reopened.index.snapshot("abcd"); found {
+		t.Fatal("new store unexpectedly inherited process-local index state")
+	}
+	page, err := reopened.ReadEventsPage(
+		context.Background(),
+		"abcd",
+		servicechat.EventPageQuery{Limit: 10},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !found || state.eventOrdinal != 4 || state.lastSeq != 4 {
-		t.Fatalf("incremental index state = %#v, found = %t", state, found)
+	if len(page.Events) != 2 || page.LastSeq != 2 {
+		t.Fatalf("reopened page = %#v", page)
+	}
+	state, found := reopened.index.snapshot("abcd")
+	if !found || len(state.events) != 2 || len(state.turns) != 1 {
+		t.Fatalf("rebuilt index state = %#v, found = %t", state, found)
+	}
+}
+
+func TestTranscriptIndexRebuildsAfterSameSizeRewrite(t *testing.T) {
+	root := t.TempDir()
+	writeStoredChat(t, root, "abcd", []servicechat.Event{
+		{Seq: 1, T: 1, Type: "user", TurnID: "turn-1", Text: "first"},
+	})
+	store := newIndexedTestStore(t, root)
+	page, err := store.ReadEventsPage(
+		context.Background(),
+		"abcd",
+		servicechat.EventPageQuery{Limit: 10},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Events) != 1 || page.Events[0].Text != "first" {
+		t.Fatalf("initial page = %#v", page)
+	}
+
+	path := store.eventsPath("abcd")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rewritten := bytes.Replace(data, []byte(`"first"`), []byte(`"other"`), 1)
+	if len(rewritten) != len(data) || bytes.Equal(rewritten, data) {
+		t.Fatal("test rewrite must change content without changing file size")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, rewritten, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	changed := info.ModTime().Add(time.Second)
+	if err := os.Chtimes(path, changed, changed); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err = store.ReadEventsPage(
+		context.Background(),
+		"abcd",
+		servicechat.EventPageQuery{Limit: 10},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Events) != 1 || page.Events[0].Text != "other" {
+		t.Fatalf("rewritten page = %#v", page)
+	}
+}
+
+func TestTranscriptIndexRebuildsWhenLargerRewriteChangesIndexedPrefix(t *testing.T) {
+	root := t.TempDir()
+	writeStoredChat(t, root, "abcd", []servicechat.Event{
+		{Seq: 1, T: 1, Type: "user", TurnID: "turn-1", Text: "old"},
+		{Seq: 2, T: 2, Type: "complete", TurnID: "turn-1"},
+	})
+	store := newIndexedTestStore(t, root)
+	if _, err := store.ReadEventsPage(
+		context.Background(),
+		"abcd",
+		servicechat.EventPageQuery{Limit: 10},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	writeStoredChat(t, root, "abcd", []servicechat.Event{
+		{Seq: 10, T: 10, Type: "user", TurnID: "replacement", Text: "new and longer"},
+		{Seq: 11, T: 11, Type: "assistant_text", TurnID: "replacement", Text: "answer"},
+		{Seq: 12, T: 12, Type: "complete", TurnID: "replacement"},
+	})
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	appended, err := store.AppendEvent(canceled, "abcd", servicechat.Event{
+		T: 13, Type: "assistant_text", TurnID: "replacement-2", Text: "after rewrite",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if appended.Seq != 13 {
+		t.Fatalf("appended sequence after rewrite = %d, want 13", appended.Seq)
+	}
+	page, err := store.ReadEventsPage(
+		context.Background(),
+		"abcd",
+		servicechat.EventPageQuery{Limit: 10},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Events) != 4 || page.Events[0].Seq != 10 ||
+		page.Events[0].Text != "new and longer" || page.Events[3].Text != "after rewrite" ||
+		page.LastSeq != 13 {
+		t.Fatalf("page after larger rewrite = %#v", page)
+	}
+}
+
+func TestChatLockRemainsStableAcrossDeleteAndRecreate(t *testing.T) {
+	store := newIndexedTestStore(t, t.TempDir())
+	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
+		t.Fatal(err)
+	}
+	before := store.lock("abcd")
+	if err := store.Delete(context.Background(), "abcd"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
+		t.Fatal(err)
+	}
+	after := store.lock("abcd")
+	if before != after {
+		t.Fatal("delete and recreate replaced the per-chat mutex")
+	}
+}
+
+func TestTranscriptIndexEvictsLeastRecentlyUsedChats(t *testing.T) {
+	root := t.TempDir()
+	writeStoredChat(t, root, "aaaa", []servicechat.Event{
+		{Seq: 1, T: 1, Type: "user", TurnID: "turn-a"},
+	})
+	writeStoredChat(t, root, "bbbb", []servicechat.Event{
+		{Seq: 1, T: 1, Type: "user", TurnID: "turn-b"},
+	})
+	store := newIndexedTestStore(t, root)
+	store.index.maxLocations = 2
+
+	if _, err := store.ReadEventsPage(
+		context.Background(),
+		"aaaa",
+		servicechat.EventPageQuery{Limit: 10},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ReadEventsPage(
+		context.Background(),
+		"bbbb",
+		servicechat.EventPageQuery{Limit: 10},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := store.index.snapshot("aaaa"); found {
+		t.Fatal("least recently used chat was not evicted")
+	}
+	if _, found := store.index.snapshot("bbbb"); !found {
+		t.Fatal("current chat was evicted")
+	}
+
+	if _, err := store.ReadEventsPage(
+		context.Background(),
+		"aaaa",
+		servicechat.EventPageQuery{Limit: 10},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := store.index.snapshot("aaaa"); !found {
+		t.Fatal("evicted chat was not rebuilt on demand")
+	}
+}
+
+func TestTranscriptIndexBoundsCachedEmptyChats(t *testing.T) {
+	root := t.TempDir()
+	writeStoredChat(t, root, "aaaa", nil)
+	writeStoredChat(t, root, "bbbb", nil)
+	store := newIndexedTestStore(t, root)
+	store.index.maxChats = 1
+
+	for _, id := range []servicechat.ID{"aaaa", "bbbb"} {
+		if _, err := store.ReadEventsPage(
+			context.Background(),
+			id,
+			servicechat.EventPageQuery{Limit: 10},
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, found := store.index.snapshot("aaaa"); found {
+		t.Fatal("least recently used empty chat was not evicted")
+	}
+	if _, found := store.index.snapshot("bbbb"); !found {
+		t.Fatal("current empty chat was evicted")
+	}
+}
+
+func TestNewRemovesLegacyTranscriptIndexFiles(t *testing.T) {
+	root := t.TempDir()
+	legacy := []string{
+		"transcript-index.sqlite",
+		"transcript-index.sqlite-wal",
+		"transcript-index.sqlite-shm",
+	}
+	for _, name := range legacy {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("disposable"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	newIndexedTestStore(t, root)
+	for _, name := range legacy {
+		if _, err := os.Stat(filepath.Join(root, name)); !os.IsNotExist(err) {
+			t.Fatalf("legacy index %q still exists: %v", name, err)
+		}
+	}
+}
+
+func TestTranscriptIndexRebuildsWhenAnIncompleteTailGrows(t *testing.T) {
+	root := t.TempDir()
+	writeStoredChat(t, root, "abcd", nil)
+	path := filepath.Join(root, "chats", "abcd", "events.jsonl")
+	if err := os.WriteFile(path, []byte(`{"t":1,"type":"user","text":"hel`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := newIndexedTestStore(t, root)
+	page, err := store.ReadEventsPage(
+		context.Background(),
+		"abcd",
+		servicechat.EventPageQuery{Limit: 10},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Events) != 0 || page.LastSeq != 0 {
+		t.Fatalf("incomplete page = %#v", page)
+	}
+	state, found := store.index.snapshot("abcd")
+	if !found || state.tailComplete {
+		t.Fatalf("incomplete tail state = %#v, found = %t", state, found)
+	}
+
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString("lo\"}\n"); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err = store.ReadEventsPage(
+		context.Background(),
+		"abcd",
+		servicechat.EventPageQuery{Limit: 10},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Events) != 1 || page.Events[0].Seq != 1 || page.Events[0].Text != "hello" {
+		t.Fatalf("completed page = %#v", page)
+	}
+	state, found = store.index.snapshot("abcd")
+	if !found || !state.tailComplete || state.eventOrdinal != 1 {
+		t.Fatalf("rebuilt tail state = %#v, found = %t", state, found)
+	}
+}
+
+func TestTranscriptIndexDoesNotPublishCanceledBuild(t *testing.T) {
+	root := t.TempDir()
+	writeStoredChat(t, root, "abcd", []servicechat.Event{
+		{Seq: 1, T: 1, Type: "user", Text: "first"},
+	})
+	store := newIndexedTestStore(t, root)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := store.index.syncChat(ctx, "abcd", store.eventsPath("abcd")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("sync error = %v, want context.Canceled", err)
+	}
+	if _, found := store.index.snapshot("abcd"); found {
+		t.Fatal("canceled build published partial state")
+	}
+}
+
+func TestTranscriptIndexSupportsConcurrentChatReadsAndAppends(t *testing.T) {
+	store := newIndexedTestStore(t, t.TempDir())
+	if _, err := store.Create(context.Background(), servicechat.Meta{ID: "abcd"}); err != nil {
+		t.Fatal(err)
+	}
+
+	const eventCount = 100
+	errs := make(chan error, 2)
+	var workers sync.WaitGroup
+	workers.Add(2)
+	go func() {
+		defer workers.Done()
+		for i := 1; i <= eventCount; i++ {
+			_, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{
+				T: int64(i), Type: "user", Text: fmt.Sprintf("event-%d", i),
+			})
+			if err != nil {
+				errs <- err
+				return
+			}
+		}
+	}()
+	go func() {
+		defer workers.Done()
+		for range eventCount {
+			if _, err := store.ReadEventsPage(
+				context.Background(),
+				"abcd",
+				servicechat.EventPageQuery{Limit: 20},
+			); err != nil {
+				errs <- err
+				return
+			}
+		}
+	}()
+	workers.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+
+	page, err := store.ReadEventsPage(
+		context.Background(),
+		"abcd",
+		servicechat.EventPageQuery{Limit: eventCount},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Events) != eventCount || page.LastSeq != eventCount {
+		t.Fatalf("final concurrent page = %#v", page)
 	}
 }
 
@@ -220,27 +580,16 @@ func TestTranscriptIndexRebuildsAfterRewindAndCleansUpAfterDelete(t *testing.T) 
 	if window.LastSeq != 2 || len(window.Events) != 2 || window.Events[0].Text != "keep" {
 		t.Fatalf("rewound indexed window = %#v", window)
 	}
-	var turns int
-	if err := store.index.db.QueryRow(
-		"SELECT count(*) FROM chat_transcript_turns WHERE chat_id = ?", "abcd",
-	).Scan(&turns); err != nil {
-		t.Fatal(err)
-	}
-	if turns != 1 {
-		t.Fatalf("rewound turn rows = %d, want 1", turns)
+	state, found := store.index.snapshot("abcd")
+	if !found || len(state.turns) != 1 {
+		t.Fatalf("rewound index state = %#v, found = %t", state, found)
 	}
 
 	if err := store.Delete(context.Background(), "abcd"); err != nil {
 		t.Fatal(err)
 	}
-	var states int
-	if err := store.index.db.QueryRow(
-		"SELECT count(*) FROM chat_event_index_state WHERE chat_id = ?", "abcd",
-	).Scan(&states); err != nil {
-		t.Fatal(err)
-	}
-	if states != 0 {
-		t.Fatalf("deleted chat retained %d index state rows", states)
+	if _, found := store.index.snapshot("abcd"); found {
+		t.Fatal("deleted chat retained cached index state")
 	}
 }
 
@@ -258,11 +607,9 @@ func TestTranscriptIndexFailuresFallBackToCanonicalEventLog(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := store.index.db.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	appended, err := store.AppendEvent(context.Background(), "abcd", servicechat.Event{
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	appended, err := store.AppendEvent(canceled, "abcd", servicechat.Event{
 		T: 3, Type: "user", TurnID: "turn-2", Text: "second",
 	})
 	if err != nil {
@@ -271,6 +618,14 @@ func TestTranscriptIndexFailuresFallBackToCanonicalEventLog(t *testing.T) {
 	if appended.Seq != 3 {
 		t.Fatalf("fallback append sequence = %d, want 3", appended.Seq)
 	}
+	state, found := store.index.snapshot("abcd")
+	if !found || len(state.events) != 3 {
+		t.Fatalf("refreshed index state = %#v, found = %t", state, found)
+	}
+	state.events = append([]indexedEventLocation(nil), state.events...)
+	state.turns = append([]indexedTurnRange(nil), state.turns...)
+	state.events[len(state.events)-1].length = maxEventRecordBytes + 3
+	store.index.publish("abcd", state)
 
 	page, err := store.ReadEventsPage(
 		context.Background(),
@@ -409,6 +764,5 @@ func newIndexedTestStore(t testing.TB, root string) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = store.Close() })
 	return store
 }
