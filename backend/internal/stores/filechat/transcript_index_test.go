@@ -33,6 +33,7 @@ func TestTranscriptIndexBackfillsExistingChatAndReadsBoundedTurnWindow(t *testin
 		nil,
 		nil,
 		servicechat.WithTranscriptEventSource(store),
+		servicechat.WithTranscriptEventWindowSource(store),
 	)
 	page, err := service.TranscriptPage(
 		context.Background(),
@@ -176,6 +177,7 @@ func TestTranscriptIndexMatchesLegacySequenceAndTurnRules(t *testing.T) {
 		nil,
 		nil,
 		servicechat.WithTranscriptEventSource(store),
+		servicechat.WithTranscriptEventWindowSource(store),
 	)
 	page, err := service.TranscriptPage(
 		context.Background(),
@@ -324,6 +326,7 @@ func BenchmarkTranscriptIndexLatestPage(b *testing.B) {
 		nil,
 		nil,
 		servicechat.WithTranscriptEventSource(store),
+		servicechat.WithTranscriptEventWindowSource(store),
 	)
 	if _, err := service.TranscriptPage(
 		context.Background(),

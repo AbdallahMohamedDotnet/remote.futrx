@@ -257,7 +257,7 @@ func TestTranscriptPagePreservesValidationAndScanErrors(t *testing.T) {
 	}
 }
 
-func TestTranscriptPageUsesIndexedEventWindowWhenAvailable(t *testing.T) {
+func TestTranscriptPageUsesConfiguredEventWindow(t *testing.T) {
 	repository := &transcriptWindowRepository{
 		transcriptRepository: transcriptRepository{events: []Event{{Seq: 99, Type: "user"}}},
 		window: TranscriptEventWindow{
@@ -270,7 +270,14 @@ func TestTranscriptPageUsesIndexedEventWindowWhenAvailable(t *testing.T) {
 			LastSeq: 55,
 		},
 	}
-	service := New(repository, nil, nil, nil, WithTranscriptEventSource(repository))
+	service := New(
+		repository,
+		nil,
+		nil,
+		nil,
+		WithTranscriptEventSource(repository),
+		WithTranscriptEventWindowSource(repository),
+	)
 
 	page, err := service.TranscriptPage(
 		context.Background(),
@@ -292,10 +299,17 @@ func TestTranscriptPageUsesIndexedEventWindowWhenAvailable(t *testing.T) {
 	}
 }
 
-func TestTranscriptPagePropagatesIndexedEventWindowError(t *testing.T) {
+func TestTranscriptPagePropagatesConfiguredEventWindowError(t *testing.T) {
 	windowErr := errors.New("window failed")
 	repository := &transcriptWindowRepository{windowErr: windowErr}
-	service := New(repository, nil, nil, nil, WithTranscriptEventSource(repository))
+	service := New(
+		repository,
+		nil,
+		nil,
+		nil,
+		WithTranscriptEventSource(repository),
+		WithTranscriptEventWindowSource(repository),
+	)
 
 	if _, err := service.TranscriptPage(
 		context.Background(),

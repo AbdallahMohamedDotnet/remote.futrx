@@ -190,6 +190,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxResolver,
 		runs,
 		servicechat.WithTranscriptEventSource(deps.Chats),
+		servicechat.WithTranscriptEventWindowSource(deps.Chats),
 		servicechat.WithCopiedEventAppender(chats),
 		servicechat.WithSessionPolicy(agentRuntime),
 		servicechat.WithProviderPolicy(agentRuntime),

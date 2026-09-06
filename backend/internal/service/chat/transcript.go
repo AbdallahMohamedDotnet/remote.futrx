@@ -7,24 +7,6 @@ import (
 	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
-// TranscriptEventSource exposes storage-order events without making the
-// repository responsible for transcript projection policy.
-type TranscriptEventSource interface {
-	ScanEvents(ctx context.Context, id ID, visit func(Event)) error
-}
-
-// TranscriptEventWindowSource can select the small, contiguous event window
-// needed to project one transcript page. Implementations may use a derived
-// index; the append-only event stream remains authoritative.
-type TranscriptEventWindowSource interface {
-	ReadTranscriptEventWindow(
-		ctx context.Context,
-		id ID,
-		beforeSeq int64,
-		turnLimit int,
-	) (TranscriptEventWindow, error)
-}
-
 // TranscriptEventWindow contains enough whole turns to determine a page and
 // whether an older page exists. LastSeq describes the complete event stream,
 // not only the returned window.
@@ -38,9 +20,14 @@ type TranscriptEventWindow struct {
 func WithTranscriptEventSource(source TranscriptEventSource) Option {
 	return func(service *Service) {
 		service.transcriptEvents = source
-		if window, ok := source.(TranscriptEventWindowSource); ok {
-			service.transcriptWindow = window
-		}
+	}
+}
+
+// WithTranscriptEventWindowSource supplies the optimized event-window reader
+// explicitly, independently of the canonical event scanner.
+func WithTranscriptEventWindowSource(source TranscriptEventWindowSource) Option {
+	return func(service *Service) {
+		service.transcriptWindow = source
 	}
 }
 
