@@ -9,10 +9,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const (
-	transcriptIndexFilename = "transcript-index.sqlite"
-	maxEventRecordBytes     = 16 * 1024 * 1024
-)
+const transcriptIndexFilename = "transcript-index.sqlite"
 
 type chatEventIndex struct {
 	db *sql.DB
