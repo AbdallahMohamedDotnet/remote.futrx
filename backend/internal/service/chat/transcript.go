@@ -13,11 +13,34 @@ type TranscriptEventSource interface {
 	ScanEvents(ctx context.Context, id ID, visit func(Event)) error
 }
 
+// TranscriptEventWindowSource can select the small, contiguous event window
+// needed to project one transcript page. Implementations may use a derived
+// index; the append-only event stream remains authoritative.
+type TranscriptEventWindowSource interface {
+	ReadTranscriptEventWindow(
+		ctx context.Context,
+		id ID,
+		beforeSeq int64,
+		turnLimit int,
+	) (TranscriptEventWindow, error)
+}
+
+// TranscriptEventWindow contains enough whole turns to determine a page and
+// whether an older page exists. LastSeq describes the complete event stream,
+// not only the returned window.
+type TranscriptEventWindow struct {
+	Events  []Event
+	LastSeq int64
+}
+
 // WithTranscriptEventSource supplies the ordered event stream used to build
 // transcript pages.
 func WithTranscriptEventSource(source TranscriptEventSource) Option {
 	return func(service *Service) {
 		service.transcriptEvents = source
+		if window, ok := source.(TranscriptEventWindowSource); ok {
+			service.transcriptWindow = window
+		}
 	}
 }
 
@@ -60,6 +83,22 @@ func (s *Service) TranscriptPage(
 	}
 
 	projection := newTranscriptProjection(query)
+	if s.transcriptWindow != nil {
+		window, err := s.transcriptWindow.ReadTranscriptEventWindow(
+			ctx,
+			id,
+			projection.beforeSeq,
+			projection.limit,
+		)
+		if err != nil {
+			return TranscriptPage{}, err
+		}
+		projection.lastSeq = window.LastSeq
+		for _, event := range window.Events {
+			projection.visit(event)
+		}
+		return projection.page(), nil
+	}
 	err := s.transcriptEvents.ScanEvents(ctx, id, projection.visit)
 	if err != nil {
 		return TranscriptPage{}, err
@@ -142,16 +181,28 @@ type transcriptTurnBuffer struct {
 }
 
 func (turn *transcriptTurnBuffer) startsNewTurn(ev Event) bool {
-	if len(turn.events) == 0 {
+	return EventStartsTranscriptTurn(turn.id, turn.hasUser, len(turn.events) > 0, ev)
+}
+
+// EventStartsTranscriptTurn is the shared boundary rule for transcript
+// projection and derived storage indexes. Keeping it here prevents an index
+// migration from silently disagreeing with the user-visible projection.
+func EventStartsTranscriptTurn(
+	currentTurnID string,
+	currentHasUser bool,
+	currentHasEvents bool,
+	event Event,
+) bool {
+	if !currentHasEvents {
 		return false
 	}
-	if ev.TurnID != "" {
-		if turn.id != "" {
-			return turn.id != ev.TurnID
+	if event.TurnID != "" {
+		if currentTurnID != "" {
+			return currentTurnID != event.TurnID
 		}
-		return turn.hasUser
+		return currentHasUser
 	}
-	return ev.Type == "user" && (turn.hasUser || turn.id != "")
+	return event.Type == "user" && (currentHasUser || currentTurnID != "")
 }
 
 func (turn *transcriptTurnBuffer) append(ev Event) {

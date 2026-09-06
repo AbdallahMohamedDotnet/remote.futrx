@@ -18,11 +18,13 @@ import (
 
 var _ servicechat.Repository = (*Store)(nil)
 var _ servicechat.TranscriptEventSource = (*Store)(nil)
+var _ servicechat.TranscriptEventWindowSource = (*Store)(nil)
 
 // Store manages chat dirs on disk. Single writer per chat via a per-id mutex
 // map; concurrent access across different chats is fine.
 type Store struct {
 	root   string
+	index  *transcriptIndex
 	mu     sync.Mutex
 	locks  map[servicechat.ID]*sync.Mutex
 	metaMu sync.RWMutex
@@ -33,12 +35,18 @@ func New(root string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Join(root, "chats"), 0o755); err != nil {
 		return nil, err
 	}
+	index, err := newTranscriptIndex(root)
+	if err != nil {
+		return nil, err
+	}
 	store := &Store{
 		root:  root,
+		index: index,
 		locks: map[servicechat.ID]*sync.Mutex{},
 		metas: map[servicechat.ID]servicechat.Meta{},
 	}
 	if err := store.loadMetaIndex(); err != nil {
+		_ = index.db.Close()
 		return nil, err
 	}
 	return store, nil
@@ -46,6 +54,10 @@ func New(root string) (*Store, error) {
 
 func (s *Store) chatDir(id servicechat.ID) string {
 	return filepath.Join(s.root, "chats", string(id))
+}
+
+func (s *Store) eventsPath(id servicechat.ID) string {
+	return filepath.Join(s.chatDir(id), "events.jsonl")
 }
 
 func (s *Store) lock(id servicechat.ID) *sync.Mutex {
@@ -93,6 +105,9 @@ func (s *Store) Create(ctx context.Context, meta servicechat.Meta) (servicechat.
 	if meta.Mode == "" {
 		meta.Mode = "default"
 	}
+	if err := s.index.deleteChat(ctx, meta.ID); err != nil {
+		return meta, err
+	}
 	dir := s.chatDir(meta.ID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return meta, err
@@ -101,11 +116,14 @@ func (s *Store) Create(ctx context.Context, meta servicechat.Meta) (servicechat.
 		return meta, err
 	}
 	s.setCachedMeta(meta)
-	f, err := os.OpenFile(filepath.Join(dir, "events.jsonl"), os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(s.eventsPath(meta.ID), os.O_CREATE|os.O_WRONLY, 0o644)
 	if err == nil {
-		f.Close()
+		err = f.Close()
 	}
-	return meta, err
+	if err != nil {
+		return meta, err
+	}
+	return meta, nil
 }
 
 func (s *Store) List(ctx context.Context) ([]servicechat.Meta, error) {
@@ -174,6 +192,9 @@ func (s *Store) Delete(ctx context.Context, id servicechat.ID) error {
 	lk.Lock()
 	defer lk.Unlock()
 
+	if err := s.index.deleteChat(ctx, id); err != nil {
+		return err
+	}
 	if err := os.RemoveAll(s.chatDir(id)); err != nil {
 		return err
 	}
@@ -200,7 +221,12 @@ func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicech
 	lk.Lock()
 	defer lk.Unlock()
 
-	seq, err := s.lastEventSeqLocked(id)
+	state, indexErr := s.index.syncChat(ctx, id, s.eventsPath(id))
+	seq := state.lastSeq
+	var err error
+	if indexErr != nil {
+		seq, err = s.lastEventSeqLocked(id)
+	}
 	if err != nil {
 		return servicechat.Event{}, err
 	}
@@ -213,7 +239,7 @@ func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicech
 	line = append(line, '\n')
 
 	f, err := os.OpenFile(
-		filepath.Join(s.chatDir(id), "events.jsonl"),
+		s.eventsPath(id),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		0o644,
 	)
@@ -224,6 +250,9 @@ func (s *Store) AppendEvent(ctx context.Context, id servicechat.ID, ev servicech
 	if _, err := f.Write(line); err != nil {
 		return servicechat.Event{}, err
 	}
+	// JSONL is authoritative. If this derived update fails, the next indexed
+	// read or append retries from the last committed byte offset.
+	_, _ = s.index.syncChat(context.Background(), id, s.eventsPath(id))
 	if eventTouchesChatMeta(ev.Type) {
 		meta, err := s.Get(ctx, id)
 		if err == nil {
@@ -274,7 +303,43 @@ func (s *Store) ReadEventsPage(
 	if limit > 1000 {
 		limit = 1000
 	}
+	lk := s.lock(id)
+	lk.Lock()
+	defer lk.Unlock()
 
+	state, err := s.index.syncChat(ctx, id, s.eventsPath(id))
+	if err == nil {
+		locations, hasMore, locationErr := s.index.eventPageLocations(
+			ctx,
+			id,
+			query.BeforeSeq,
+			limit,
+		)
+		if locationErr == nil {
+			events, readErr := readIndexedEvents(ctx, s.eventsPath(id), locations)
+			if readErr == nil {
+				var nextBefore int64
+				if hasMore && len(events) > 0 {
+					nextBefore = events[0].Seq
+				}
+				return servicechat.EventPage{
+					Events:     events,
+					NextBefore: nextBefore,
+					LastSeq:    state.lastSeq,
+					HasMore:    hasMore,
+				}, nil
+			}
+		}
+	}
+	return s.readEventsPageFile(ctx, id, query, limit)
+}
+
+func (s *Store) readEventsPageFile(
+	ctx context.Context,
+	id servicechat.ID,
+	query servicechat.EventPageQuery,
+	limit int,
+) (servicechat.EventPage, error) {
 	var lastSeq int64
 	var candidates int
 	events := make([]servicechat.Event, 0, limit)
@@ -318,6 +383,26 @@ func (s *Store) ReadEventsAfter(
 	if !servicechat.ValidID(id) {
 		return nil, servicechat.ErrInvalidID
 	}
+	lk := s.lock(id)
+	lk.Lock()
+	defer lk.Unlock()
+
+	if _, err := s.index.syncChat(ctx, id, s.eventsPath(id)); err == nil {
+		locations, locationErr := s.index.eventLocationsAfter(ctx, id, afterSeq)
+		if locationErr == nil {
+			if events, readErr := readIndexedEvents(ctx, s.eventsPath(id), locations); readErr == nil {
+				return events, nil
+			}
+		}
+	}
+	return s.readEventsAfterFile(ctx, id, afterSeq)
+}
+
+func (s *Store) readEventsAfterFile(
+	ctx context.Context,
+	id servicechat.ID,
+	afterSeq int64,
+) ([]servicechat.Event, error) {
 	out := make([]servicechat.Event, 0, 32)
 	err := s.scanEventsFile(ctx, id, func(ev servicechat.Event) bool {
 		if ev.Seq > afterSeq {
@@ -326,6 +411,49 @@ func (s *Store) ReadEventsAfter(
 		return true
 	})
 	return out, err
+}
+
+// ReadTranscriptEventWindow uses the derived turn/offset index to read only
+// the requested page plus one older turn. That extra turn lets the service
+// preserve its existing HasMore and cursor projection behavior.
+func (s *Store) ReadTranscriptEventWindow(
+	ctx context.Context,
+	id servicechat.ID,
+	beforeSeq int64,
+	turnLimit int,
+) (servicechat.TranscriptEventWindow, error) {
+	if !servicechat.ValidID(id) {
+		return servicechat.TranscriptEventWindow{}, servicechat.ErrInvalidID
+	}
+	lk := s.lock(id)
+	lk.Lock()
+	defer lk.Unlock()
+
+	state, err := s.index.syncChat(ctx, id, s.eventsPath(id))
+	if err == nil {
+		locations, locationErr := s.index.transcriptLocations(ctx, id, beforeSeq, turnLimit)
+		if locationErr == nil {
+			events, readErr := readIndexedEvents(ctx, s.eventsPath(id), locations)
+			if readErr == nil {
+				return servicechat.TranscriptEventWindow{
+					Events:  events,
+					LastSeq: state.lastSeq,
+				}, nil
+			}
+		}
+	}
+
+	// The index is disposable. Preserve availability by falling back to the
+	// canonical log if it cannot be synchronized or read.
+	window := servicechat.TranscriptEventWindow{}
+	err = s.scanEventsFile(ctx, id, func(event servicechat.Event) bool {
+		window.Events = append(window.Events, event)
+		if event.Seq > window.LastSeq {
+			window.LastSeq = event.Seq
+		}
+		return true
+	})
+	return window, err
 }
 
 // TruncateEventsBefore rewinds a chat by removing the selected event and every
@@ -379,6 +507,9 @@ func (s *Store) TruncateEventsBefore(ctx context.Context, id servicechat.ID, bef
 		_ = os.Remove(tmp)
 		return nil, err
 	}
+	// A rewind replaces the JSONL file. Rebuild the disposable offsets now;
+	// size-based recovery on the next read remains a backstop.
+	_ = s.index.rebuildChat(context.Background(), id, final)
 
 	if meta, err := s.Get(ctx, id); err == nil {
 		if lastT == 0 {
@@ -472,7 +603,7 @@ func (s *Store) scanEventsFile(
 	id servicechat.ID,
 	visit func(servicechat.Event) bool,
 ) error {
-	f, err := os.Open(filepath.Join(s.chatDir(id), "events.jsonl"))
+	f, err := os.Open(s.eventsPath(id))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil

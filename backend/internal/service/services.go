@@ -42,6 +42,7 @@ type TmuxClient interface {
 type ChatStore interface {
 	servicechat.Repository
 	servicechat.TranscriptEventSource
+	servicechat.TranscriptEventWindowSource
 }
 
 // PushStore persists Web Push registrations and the server's long-lived VAPID
