@@ -1,14 +1,10 @@
 package filechat
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -31,13 +27,6 @@ type chatIndexState struct {
 	eventOrdinal int64
 	lastSeq      int64
 	fileMtimeNS  int64
-}
-
-type indexedTurnState struct {
-	ordinal     int64
-	sourceID    string
-	hasUser     bool
-	hasExisting bool
 }
 
 func newChatEventIndex(root string) (*chatEventIndex, error) {
@@ -147,7 +136,9 @@ func (index *chatEventIndex) syncChat(
 		return chatIndexState{}, err
 	}
 	if fileSize > state.indexedBytes {
-		if err := indexFileTail(ctx, tx, id, eventsPath, &state, &turn); err != nil {
+		writer := newChatIndexWriter(ctx, tx, id, state, turn)
+		state, err = writer.indexTail(eventsPath)
+		if err != nil {
 			return chatIndexState{}, err
 		}
 	}
@@ -246,160 +237,4 @@ func readLastIndexedTurn(
 	}
 	turn.hasExisting = true
 	return turn, nil
-}
-
-func indexFileTail(
-	ctx context.Context,
-	tx *sql.Tx,
-	id servicechat.ID,
-	eventsPath string,
-	state *chatIndexState,
-	turn *indexedTurnState,
-) error {
-	file, err := os.Open(eventsPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	if _, err := file.Seek(state.indexedBytes, io.SeekStart); err != nil {
-		return err
-	}
-
-	eventStatement, err := tx.PrepareContext(ctx, `
-		INSERT INTO chat_event_offsets
-			(chat_id, event_ordinal, event_seq, byte_offset, byte_length)
-		VALUES (?, ?, ?, ?, ?)`)
-	if err != nil {
-		return err
-	}
-	defer eventStatement.Close()
-	turnInsertStatement, err := tx.PrepareContext(ctx, `
-		INSERT INTO chat_transcript_turns
-			(chat_id, turn_ordinal, source_turn_id, has_user,
-			 start_seq, end_seq, start_offset, end_offset)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-	if err != nil {
-		return err
-	}
-	defer turnInsertStatement.Close()
-	turnUpdateStatement, err := tx.PrepareContext(ctx, `
-		UPDATE chat_transcript_turns
-		SET source_turn_id = ?, has_user = ?, end_seq = ?, end_offset = ?
-		WHERE chat_id = ? AND turn_ordinal = ?`)
-	if err != nil {
-		return err
-	}
-	defer turnUpdateStatement.Close()
-
-	reader := bufio.NewReader(file)
-	offset := state.indexedBytes
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		raw, readErr := reader.ReadBytes('\n')
-		if len(raw) > 0 {
-			lineOffset := offset
-			offset += int64(len(raw))
-			line := bytes.TrimSuffix(raw, []byte{'\n'})
-			line = bytes.TrimSuffix(line, []byte{'\r'})
-			if len(line) > 0 {
-				state.eventOrdinal++
-				if len(line) > maxEventRecordBytes {
-					return fmt.Errorf("event record exceeds %d bytes", maxEventRecordBytes)
-				}
-				var record eventRecord
-				if err := json.Unmarshal(line, &record); err == nil {
-					event := record.toDomain()
-					if event.Seq == 0 {
-						event.Seq = state.eventOrdinal
-					}
-					if event.Seq > state.lastSeq {
-						state.lastSeq = event.Seq
-					}
-					if _, err := eventStatement.ExecContext(
-						ctx,
-						id,
-						state.eventOrdinal,
-						event.Seq,
-						lineOffset,
-						len(raw),
-					); err != nil {
-						return err
-					}
-					if err := indexTranscriptTurn(
-						ctx,
-						turnInsertStatement,
-						turnUpdateStatement,
-						id,
-						event,
-						lineOffset,
-						offset,
-						turn,
-					); err != nil {
-						return err
-					}
-				}
-			}
-		}
-		if errors.Is(readErr, io.EOF) {
-			break
-		}
-		if readErr != nil {
-			return readErr
-		}
-	}
-	state.indexedBytes = offset
-	return nil
-}
-
-func indexTranscriptTurn(
-	ctx context.Context,
-	insertStatement *sql.Stmt,
-	updateStatement *sql.Stmt,
-	id servicechat.ID,
-	event servicechat.Event,
-	startOffset int64,
-	endOffset int64,
-	turn *indexedTurnState,
-) error {
-	startsNew := !turn.hasExisting || servicechat.EventStartsTranscriptTurn(
-		turn.sourceID,
-		turn.hasUser,
-		true,
-		event,
-	)
-	if startsNew {
-		turn.ordinal++
-		turn.sourceID = event.TurnID
-		turn.hasUser = event.Type == "user"
-		turn.hasExisting = true
-		_, err := insertStatement.ExecContext(
-			ctx,
-			id,
-			turn.ordinal,
-			turn.sourceID,
-			turn.hasUser,
-			event.Seq,
-			event.Seq,
-			startOffset,
-			endOffset,
-		)
-		return err
-	}
-
-	if turn.sourceID == "" && event.TurnID != "" {
-		turn.sourceID = event.TurnID
-	}
-	turn.hasUser = turn.hasUser || event.Type == "user"
-	_, err := updateStatement.ExecContext(
-		ctx,
-		turn.sourceID,
-		turn.hasUser,
-		event.Seq,
-		endOffset,
-		id,
-		turn.ordinal,
-	)
-	return err
 }
