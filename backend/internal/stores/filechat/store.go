@@ -580,7 +580,7 @@ func (s *Store) scanEventsFile(
 	defer f.Close()
 
 	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+	sc.Buffer(make([]byte, 0, 64*1024), maxEventRecordBytes)
 	var seq int64
 	for sc.Scan() {
 		if err := ctx.Err(); err != nil {
