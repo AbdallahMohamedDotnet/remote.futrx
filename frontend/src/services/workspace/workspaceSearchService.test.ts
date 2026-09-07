@@ -7,6 +7,7 @@ import type { ProjectMeta } from "../../models/project.ts";
 import { UNASSIGNED_PROJECT } from "../../models/search.ts";
 import type { ChatSearchDoc, SearchFilters } from "../../models/search.ts";
 import { searchFilterService } from "./searchFilterService.ts";
+import { searchFacetService } from "./searchFacetService.ts";
 import { workspaceSearchService } from "./workspaceSearchService.ts";
 
 const NOW = new Date(2026, 7, 29, 12, 0, 0).getTime();
@@ -101,7 +102,7 @@ function offeredValues(
   withCounts = true
 ): string[] {
   const outcome = workspaceSearchService.run(over, active, "", "relevance", NOW, { withCounts });
-  return workspaceSearchService
+  return searchFacetService
     .facetViews(over, active, outcome)
     .find((view) => view.id === facetId)!
     .options.map((option) => option.value);

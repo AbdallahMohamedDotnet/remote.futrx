@@ -15,6 +15,7 @@ import type {
 } from "../../../models/search.ts";
 import { searchFilterService } from "../../../services/workspace/searchFilterService.ts";
 import { workspaceSearchService } from "../../../services/workspace/workspaceSearchService.ts";
+import { searchFacetService } from "../../../services/workspace/searchFacetService.ts";
 import {
   paletteSearchStore,
   sidebarSearchStore,
@@ -147,7 +148,7 @@ export function useWorkspaceSearch(
   );
 
   const facetViews = useMemo(
-    () => workspaceSearchService.facetViews(docs, filters, outcome),
+    () => searchFacetService.facetViews(docs, filters, outcome),
     [docs, filters, outcome],
   );
 
