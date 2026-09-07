@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
 
@@ -208,11 +209,11 @@ func TestChatIndexCheckpointEndsOnARecordBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	size := chatIndexCheckpointBytes + 20
+	size := configconstants.ChatIndexCheckpointBytes + 20
 	if err := file.Truncate(size); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := file.WriteAt([]byte("abc\ndef"), chatIndexCheckpointBytes); err != nil {
+	if _, err := file.WriteAt([]byte("abc\ndef"), configconstants.ChatIndexCheckpointBytes); err != nil {
 		t.Fatal(err)
 	}
 	if err := file.Close(); err != nil {
@@ -222,8 +223,8 @@ func TestChatIndexCheckpointEndsOnARecordBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if checkpoint != chatIndexCheckpointBytes+4 {
-		t.Fatalf("checkpoint = %d, want %d", checkpoint, chatIndexCheckpointBytes+4)
+	if checkpoint != configconstants.ChatIndexCheckpointBytes+4 {
+		t.Fatalf("checkpoint = %d, want %d", checkpoint, configconstants.ChatIndexCheckpointBytes+4)
 	}
 }
 

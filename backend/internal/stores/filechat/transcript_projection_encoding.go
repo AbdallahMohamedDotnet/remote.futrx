@@ -8,10 +8,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
-
-const transcriptInlineFieldBytes = 32 * 1024
 
 type transcriptContentRef struct {
 	id           string
@@ -85,22 +84,22 @@ func compactTranscriptEvent(
 	var refs []transcriptContentRef
 	switch event.Type {
 	case "tool_use_start":
-		if len(event.Input) > transcriptInlineFieldBytes {
+		if len(event.Input) > configconstants.ChatTranscriptInlineFieldBytes {
 			ref := makeRef("tool_input", "", len(event.Input))
 			refs = append(refs, ref)
 			preview, _ := json.Marshal(map[string]any{
-				"preview":    utf8Prefix(string(event.Input), transcriptInlineFieldBytes),
+				"preview":    utf8Prefix(string(event.Input), configconstants.ChatTranscriptInlineFieldBytes),
 				"truncated":  true,
 				"contentRef": ref.id,
 			})
 			event.Input = preview
 		}
 	case "tool_use_end":
-		if len(event.Output) > transcriptInlineFieldBytes {
+		if len(event.Output) > configconstants.ChatTranscriptInlineFieldBytes {
 			fullBytes := len(event.Output)
 			ref := makeRef("tool_output", "", fullBytes)
 			refs = append(refs, ref)
-			event.Output = utf8Prefix(event.Output, transcriptInlineFieldBytes)
+			event.Output = utf8Prefix(event.Output, configconstants.ChatTranscriptInlineFieldBytes)
 			event.OutputRef = ref.id
 			event.OutputBytes = int64(fullBytes)
 			event.OutputTruncated = true
@@ -127,21 +126,21 @@ func compactCollaborationData(
 				continue
 			}
 			key := strconv.Itoa(index)
-			if output, ok := tool["output"].(string); ok && len(output) > transcriptInlineFieldBytes {
+			if output, ok := tool["output"].(string); ok && len(output) > configconstants.ChatTranscriptInlineFieldBytes {
 				ref := makeRef("collaboration_tool_output", key, len(output))
 				refs = append(refs, ref)
-				tool["output"] = utf8Prefix(output, transcriptInlineFieldBytes)
+				tool["output"] = utf8Prefix(output, configconstants.ChatTranscriptInlineFieldBytes)
 				tool["outputRef"] = ref.id
 				tool["outputBytes"] = len(output)
 				tool["outputTruncated"] = true
 			}
 			if input, exists := tool["input"]; exists {
 				encoded, err := json.Marshal(input)
-				if err == nil && len(encoded) > transcriptInlineFieldBytes {
+				if err == nil && len(encoded) > configconstants.ChatTranscriptInlineFieldBytes {
 					ref := makeRef("collaboration_tool_input", key, len(encoded))
 					refs = append(refs, ref)
 					tool["input"] = map[string]any{
-						"preview":    utf8Prefix(string(encoded), transcriptInlineFieldBytes),
+						"preview":    utf8Prefix(string(encoded), configconstants.ChatTranscriptInlineFieldBytes),
 						"truncated":  true,
 						"contentRef": ref.id,
 					}
@@ -155,10 +154,10 @@ func compactCollaborationData(
 			if !ok {
 				continue
 			}
-			if message, ok := state["message"].(string); ok && len(message) > transcriptInlineFieldBytes {
+			if message, ok := state["message"].(string); ok && len(message) > configconstants.ChatTranscriptInlineFieldBytes {
 				ref := makeRef("collaboration_agent_message", threadID, len(message))
 				refs = append(refs, ref)
-				state["message"] = utf8Prefix(message, transcriptInlineFieldBytes)
+				state["message"] = utf8Prefix(message, configconstants.ChatTranscriptInlineFieldBytes)
 				state["messageRef"] = ref.id
 				state["messageBytes"] = len(message)
 				state["messageTruncated"] = true

@@ -7,10 +7,9 @@ import (
 	"io"
 	"os"
 
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
-
-const chatIndexCheckpointBytes int64 = 32 * 1024 * 1024
 
 func (index *chatEventIndex) lastEventSeq(
 	ctx context.Context,
@@ -152,7 +151,7 @@ func (index *chatEventIndex) syncChatWithGrowth(
 }
 
 func chatIndexCheckpoint(eventsPath string, indexedBytes, fileSize int64) (int64, error) {
-	target := indexedBytes + chatIndexCheckpointBytes
+	target := indexedBytes + configconstants.ChatIndexCheckpointBytes
 	if target >= fileSize {
 		return fileSize, nil
 	}

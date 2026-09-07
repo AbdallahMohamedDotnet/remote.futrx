@@ -12,12 +12,8 @@ import (
 	"strconv"
 	"unicode/utf8"
 
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
-)
-
-const (
-	defaultTranscriptContentPageBytes = 256 * 1024
-	maxTranscriptContentPageBytes     = 1024 * 1024
 )
 
 func (s *Store) ReadTranscriptContent(
@@ -39,13 +35,13 @@ func (s *Store) ReadTranscriptContent(
 		)
 	}
 	if limitBytes <= 0 {
-		limitBytes = defaultTranscriptContentPageBytes
+		limitBytes = configconstants.DefaultChatTranscriptContentPageBytes
 	}
 	if limitBytes < utf8.UTFMax {
 		limitBytes = utf8.UTFMax
 	}
-	if limitBytes > maxTranscriptContentPageBytes {
-		limitBytes = maxTranscriptContentPageBytes
+	if limitBytes > configconstants.MaxChatTranscriptContentPageBytes {
+		limitBytes = configconstants.MaxChatTranscriptContentPageBytes
 	}
 
 	ref, err := s.index.readTranscriptContentRef(ctx, id, contentID)
