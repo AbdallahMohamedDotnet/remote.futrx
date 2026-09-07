@@ -651,13 +651,9 @@ func (s *Store) scanEventsFile(
 			continue
 		}
 		seq++
-		var rec eventRecord
-		if err := json.Unmarshal(line, &rec); err != nil {
+		ev, err := decodeStoredEvent(line, seq)
+		if err != nil {
 			continue
-		}
-		ev := rec.toDomain()
-		if ev.Seq == 0 {
-			ev.Seq = seq
 		}
 		if !visit(ev) {
 			break

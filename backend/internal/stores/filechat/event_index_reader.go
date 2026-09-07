@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -276,8 +275,8 @@ func readIndexedEvents(
 		position += location.length
 		line = bytes.TrimSuffix(line, []byte{'\n'})
 		line = bytes.TrimSuffix(line, []byte{'\r'})
-		var record eventRecord
-		if err := json.Unmarshal(line, &record); err != nil {
+		event, err := decodeStoredEvent(line, location.seq)
+		if err != nil {
 			return nil, fmt.Errorf(
 				"%w: decode event at byte %d: %v",
 				errInvalidChatEventIndex,
@@ -285,10 +284,7 @@ func readIndexedEvents(
 				err,
 			)
 		}
-		event := record.toDomain()
-		if event.Seq == 0 {
-			event.Seq = location.seq
-		} else if event.Seq != location.seq {
+		if event.Seq != location.seq {
 			return nil, fmt.Errorf(
 				"%w: event sequence mismatch at byte %d: row has %d, record has %d",
 				errInvalidChatEventIndex,

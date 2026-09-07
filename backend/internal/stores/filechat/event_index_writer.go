@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -166,13 +165,9 @@ func (writer *chatIndexWriter) indexRecord(raw []byte, startOffset, endOffset in
 	if len(line) > maxEventRecordBytes {
 		return fmt.Errorf("event record exceeds %d bytes", maxEventRecordBytes)
 	}
-	var record eventRecord
-	if err := json.Unmarshal(line, &record); err != nil {
+	event, err := decodeStoredEvent(line, writer.state.eventOrdinal)
+	if err != nil {
 		return nil
-	}
-	event := record.toDomain()
-	if event.Seq == 0 {
-		event.Seq = writer.state.eventOrdinal
 	}
 	if event.Seq > writer.state.lastSeq {
 		writer.state.lastSeq = event.Seq
