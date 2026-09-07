@@ -2,7 +2,8 @@ import { File } from "../../../primitives/icons";
 import type { ToolCallProps } from "../ToolCallTypes";
 import { CodeBlock } from "../CodeBlock";
 import { ToolShell } from "../ToolShell";
-import { READ_TOOL_OUTPUT_PREVIEW_CHARS, shortPath, truncate } from "../utils";
+import { READ_TOOL_OUTPUT_PREVIEW_CHARS } from "../../../../config/chat";
+import { shortPath, truncate } from "../utils";
 
 export function ReadCall({ input, output, outputExpanded, status, isError }: Omit<ToolCallProps, "name">) {
   const path = (input?.file_path as string) ?? "";

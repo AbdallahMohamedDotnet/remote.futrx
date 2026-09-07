@@ -2,7 +2,8 @@ import { TerminalIcon } from "../../../primitives/icons";
 import type { ToolCallProps } from "../ToolCallTypes";
 import { CodeBlock } from "../CodeBlock";
 import { ToolShell } from "../ToolShell";
-import { DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS, truncate } from "../utils";
+import { DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS } from "../../../../config/chat";
+import { truncate } from "../utils";
 
 export function GenericCall({ name, input, output, outputExpanded, status, isError }: ToolCallProps) {
   return (

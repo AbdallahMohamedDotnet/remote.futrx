@@ -1,5 +1,8 @@
 import type { ApprovalPolicy, SandboxPolicy } from "../models/chat";
 
+export const DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS = 6000;
+export const READ_TOOL_OUTPUT_PREVIEW_CHARS = 8000;
+
 export const APPROVAL_POLICY_OPTIONS: readonly {
   value: ApprovalPolicy;
   label: string;

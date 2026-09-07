@@ -2,7 +2,8 @@ import { TerminalIcon } from "../../../primitives/icons";
 import type { ToolCallProps } from "../ToolCallTypes";
 import { CodeBlock } from "../CodeBlock";
 import { ToolShell } from "../ToolShell";
-import { DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS, shortPath, truncate } from "../utils";
+import { DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS } from "../../../../config/chat";
+import { shortPath, truncate } from "../utils";
 
 export function SearchCall({ name, input, output, outputExpanded, status, isError }: ToolCallProps) {
   const pattern = (input?.pattern as string) ?? (input?.query as string) ?? "";

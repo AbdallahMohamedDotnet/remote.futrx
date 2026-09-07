@@ -9,11 +9,12 @@ export function truncate(value: string, max: number): string {
   return value.slice(0, max) + `\n\n... (${value.length - max} more characters truncated)`;
 }
 
-export const DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS = 6000;
-export const READ_TOOL_OUTPUT_PREVIEW_CHARS = 8000;
-
 export function toolOutputPreviewLimit(name: string): number | null {
   if (name === "Read") return READ_TOOL_OUTPUT_PREVIEW_CHARS;
   if (name === "Edit" || name === "MultiEdit" || name === "Write") return null;
   return DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS;
 }
+import {
+  DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS,
+  READ_TOOL_OUTPUT_PREVIEW_CHARS,
+} from "../../../config/chat.ts";

@@ -3,8 +3,8 @@ import test from "node:test";
 import {
   DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS,
   READ_TOOL_OUTPUT_PREVIEW_CHARS,
-  toolOutputPreviewLimit,
-} from "./utils.ts";
+} from "../../../config/chat.ts";
+import { toolOutputPreviewLimit } from "./utils.ts";
 
 test("tool output expansion follows each renderer preview limit", () => {
   assert.equal(toolOutputPreviewLimit("Read"), READ_TOOL_OUTPUT_PREVIEW_CHARS);
