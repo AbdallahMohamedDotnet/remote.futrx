@@ -5,17 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 
 	sqlite "modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
-const (
-	chatEventIndexFilename = "transcript-index.sqlite"
-	chatEventIndexFileMode = 0o600
-)
+const chatEventIndexFilename = "transcript-index.sqlite"
 
 type chatEventIndex struct {
 	db          *sql.DB
@@ -76,25 +72,6 @@ func openChatEventIndex(path string) (*chatEventIndex, error) {
 	return index, nil
 }
 
-func createPrivateIndexFile(path string) error {
-	if info, err := os.Lstat(path); err == nil {
-		if !info.Mode().IsRegular() {
-			return fmt.Errorf("chat event index is not a regular file: %s", path)
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, chatEventIndexFileMode)
-	if err != nil {
-		return fmt.Errorf("open chat event index: %w", err)
-	}
-	closeErr := file.Close()
-	if err := os.Chmod(path, chatEventIndexFileMode); err != nil {
-		return fmt.Errorf("set chat event index permissions: %w", err)
-	}
-	return closeErr
-}
-
 func isCorruptIndexError(err error) bool {
 	var sqliteErr *sqlite.Error
 	if !errors.As(err, &sqliteErr) {
@@ -102,26 +79,6 @@ func isCorruptIndexError(err error) bool {
 	}
 	code := sqliteErr.Code() & 0xff
 	return code == sqlite3.SQLITE_CORRUPT || code == sqlite3.SQLITE_NOTADB
-}
-
-func removeChatEventIndexFiles(path string) error {
-	for _, suffix := range []string{"", "-wal", "-shm"} {
-		candidate := path + suffix
-		info, err := os.Lstat(candidate)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return fmt.Errorf("refuse to remove non-regular chat index file: %s", candidate)
-		}
-		if err := os.Remove(candidate); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func unavailableChatEventIndex(root string, err error) *chatEventIndex {
@@ -136,16 +93,6 @@ func (index *chatEventIndex) availabilityError() error {
 		return errors.New("chat event index is unavailable")
 	}
 	return index.unavailable
-}
-
-func (index *chatEventIndex) restrictFiles() error {
-	for _, suffix := range []string{"", "-wal", "-shm"} {
-		err := os.Chmod(index.path+suffix, chatEventIndexFileMode)
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	}
-	return nil
 }
 
 func (index *chatEventIndex) close() error {
