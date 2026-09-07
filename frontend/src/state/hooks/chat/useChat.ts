@@ -288,7 +288,9 @@ export function useChat(chatId: string): UseChatResult {
     indexingProgress,
     status,
     error,
-    canSendPrompt: !indexingProgress && wsReady && synced && status === "ready",
+    // A known canonical tail lets the socket synchronize safely even while
+    // older transcript items continue materializing in the background.
+    canSendPrompt: wsReady && synced && status === "ready",
     sendPrompt,
     promptOutcome,
     cancel,

@@ -8,6 +8,7 @@ import { GenericCall } from "./renderers/GenericCall";
 import { ReadCall } from "./renderers/ReadCall";
 import { SearchCall } from "./renderers/SearchCall";
 import { WriteCall } from "./renderers/WriteCall";
+import { fullResponseErrorMessage, toolOutputPreviewLimit } from "./utils";
 
 export function ToolCall(props: ToolCallProps) {
   const {
@@ -23,7 +24,11 @@ export function ToolCall(props: ToolCallProps) {
   const [fullOutput, setFullOutput] = useState<string | null>(null);
   const [loadingOutput, setLoadingOutput] = useState(false);
   const [outputError, setOutputError] = useState<string | null>(null);
-  const canExpandInline = !outputRef && !!output && output.length > 6000;
+  const previewLimit = toolOutputPreviewLimit(name);
+  const canExpandInline = !outputRef
+    && !!output
+    && previewLimit !== null
+    && output.length > previewLimit;
 
   if (name === "AskUserQuestion" && toolUseId && chatId && onAnswerQuestion) {
     return (
@@ -76,7 +81,7 @@ export function ToolCall(props: ToolCallProps) {
     try {
       setFullOutput(await chatApi.fetchFullTranscriptContent(chatId, outputRef));
     } catch (error) {
-      setOutputError((error as Error).message);
+      setOutputError(fullResponseErrorMessage(error));
     } finally {
       setLoadingOutput(false);
     }

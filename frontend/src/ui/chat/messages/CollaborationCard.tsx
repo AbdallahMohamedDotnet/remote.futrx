@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from "../../primitives/icons";
 import { Markdown } from "../markdown/Markdown";
 import { CodeBlock } from "../tool-calls/CodeBlock";
 import { chatApi } from "../../../api/chatApi";
+import { fullResponseErrorMessage } from "../tool-calls/utils";
 
 type CollaborationPart = Extract<AssistantMessagePart, { kind: "collaboration" }>;
 type SubagentTool = {
@@ -241,7 +242,7 @@ function SubagentToolDetails({ tool, index, chatId }: { tool: SubagentTool; inde
     try {
       setFullOutput(await chatApi.fetchFullTranscriptContent(chatId, tool.outputRef));
     } catch (error) {
-      setOutputError((error as Error).message);
+      setOutputError(fullResponseErrorMessage(error));
     } finally {
       setLoadingOutput(false);
     }
@@ -271,7 +272,7 @@ function SubagentMessage({
     try {
       setFullMessage(await chatApi.fetchFullTranscriptContent(chatId, messageRef));
     } catch (loadError) {
-      setError((loadError as Error).message);
+      setError(fullResponseErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
