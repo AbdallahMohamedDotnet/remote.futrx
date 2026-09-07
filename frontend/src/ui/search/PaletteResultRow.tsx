@@ -1,5 +1,5 @@
 import type { SearchHit } from "../../models/search";
-import { relativeTimeService } from "../../services/platform/relativeTimeService.ts";
+import { useRelativeTime } from "../../state/hooks/shared/useRelativeTime.ts";
 import { HighlightedText } from "../primitives/HighlightedText";
 import { CornerDownLeft, Folder, Loader, MessageSquare } from "../primitives/icons";
 
@@ -28,6 +28,7 @@ export function PaletteResultRow({
   onSelect: () => void;
 }) {
   const chat = hit.doc.chat;
+  const activityAge = useRelativeTime(chat.lastMessageAt);
 
   return (
     <button
@@ -65,7 +66,7 @@ export function PaletteResultRow({
             <span class="truncate">Unassigned</span>
           )}
           <span aria-hidden="true">·</span>
-          <span class="flex-none">{relativeTimeService.ago(chat.lastMessageAt)}</span>
+          <span class="flex-none">{activityAge}</span>
           {reason && (
             <>
               <span aria-hidden="true">·</span>

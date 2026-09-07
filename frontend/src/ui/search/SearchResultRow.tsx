@@ -1,6 +1,6 @@
 import type { SearchHit } from "../../models/search";
 import { modelShortLabel } from "../../config/chat";
-import { relativeTimeService } from "../../services/platform/relativeTimeService.ts";
+import { useRelativeTime } from "../../state/hooks/shared/useRelativeTime.ts";
 import { HighlightedText } from "../primitives/HighlightedText";
 import { Clock, Folder, Loader, MessageSquare } from "../primitives/icons";
 
@@ -20,6 +20,7 @@ export function SearchResultRow({
 }) {
   const chat = hit.doc.chat;
   const unread = !active && !chat.running && hit.doc.unread;
+  const activityAge = useRelativeTime(chat.lastMessageAt);
 
   return (
     <button
@@ -58,7 +59,7 @@ export function SearchResultRow({
             {modelShortLabel(chat.model)}
           </span>
           <Clock class="h-3 w-3 flex-none" />
-          <span class="flex-none">{relativeTimeService.ago(chat.lastMessageAt)}</span>
+          <span class="flex-none">{activityAge}</span>
         </span>
       </span>
     </button>
