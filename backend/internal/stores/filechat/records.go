@@ -253,3 +253,15 @@ func (r eventRecord) toDomain() servicechat.Event {
 	event.NormalizeSession()
 	return event
 }
+
+func decodeStoredEvent(data []byte, fallbackSeq int64) (servicechat.Event, error) {
+	var record eventRecord
+	if err := json.Unmarshal(data, &record); err != nil {
+		return servicechat.Event{}, err
+	}
+	event := record.toDomain()
+	if event.Seq == 0 {
+		event.Seq = fallbackSeq
+	}
+	return event, nil
+}

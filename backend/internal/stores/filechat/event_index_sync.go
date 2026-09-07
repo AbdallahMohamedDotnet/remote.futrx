@@ -35,9 +35,9 @@ func (index *chatEventIndex) refreshAfterFallback(
 	return err
 }
 
-// syncChat validates the process-local snapshot against the authoritative
-// JSONL file. Appends extend the cached state; rewrites and truncations rebuild
-// it. A scan is published only after the complete observed file range succeeds.
+// syncChat validates the durable snapshot against the authoritative JSONL
+// file. Appends extend the committed rows; rewrites and truncations rebuild
+// them. No new state becomes visible until the whole observed range commits.
 func (index *chatEventIndex) syncChat(
 	ctx context.Context,
 	id servicechat.ID,
@@ -52,6 +52,9 @@ func (index *chatEventIndex) syncChatWithGrowth(
 	eventsPath string,
 	trustedAppend bool,
 ) (chatIndexState, error) {
+	if err := index.availabilityError(); err != nil {
+		return chatIndexState{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return chatIndexState{}, err
 	}
@@ -67,7 +70,10 @@ func (index *chatEventIndex) syncChatWithGrowth(
 		fileMtimeNS = info.ModTime().UnixNano()
 	}
 
-	state, found := index.snapshot(id)
+	state, found, err := index.readState(ctx, id)
+	if err != nil {
+		return chatIndexState{}, err
+	}
 	rebuild := !found || state.indexedBytes > fileSize ||
 		(state.indexedBytes == fileSize && state.fileMtimeNS != fileMtimeNS) ||
 		(state.indexedBytes < fileSize && !state.tailComplete)
@@ -81,21 +87,42 @@ func (index *chatEventIndex) syncChatWithGrowth(
 	if !rebuild && state.indexedBytes == fileSize {
 		return state, nil
 	}
+
+	tx, err := index.db.BeginTx(ctx, nil)
+	if err != nil {
+		return chatIndexState{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
 	if rebuild {
+		if err := deleteChatIndexRows(ctx, tx, id); err != nil {
+			return chatIndexState{}, err
+		}
 		state = newChatIndexState()
 	}
 
-	next, err := buildChatIndexTail(ctx, eventsPath, fileSize, state)
+	turn, err := readLastIndexedTurn(ctx, tx, id)
 	if err != nil {
-		// Tail builds extend cached slice storage in place. Discard the entry if
-		// a partial scan fails so no mutated prefix can be observed or reused.
-		index.invalidate(id)
 		return chatIndexState{}, err
 	}
-	next.indexedBytes = fileSize
-	next.fileMtimeNS = fileMtimeNS
-	index.publish(id, next)
-	return next, nil
+	if fileSize > state.indexedBytes {
+		writer := newChatIndexWriter(ctx, tx, id, state, turn)
+		state, err = writer.indexTail(eventsPath, fileSize)
+		if err != nil {
+			return chatIndexState{}, err
+		}
+	}
+	state.indexedBytes = fileSize
+	state.fileMtimeNS = fileMtimeNS
+	if err := writeChatIndexState(ctx, tx, id, state); err != nil {
+		return chatIndexState{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return chatIndexState{}, err
+	}
+	if err := index.restrictFiles(); err != nil {
+		return chatIndexState{}, err
+	}
+	return state, nil
 }
 
 func (index *chatEventIndex) rebuildChat(
@@ -103,9 +130,24 @@ func (index *chatEventIndex) rebuildChat(
 	id servicechat.ID,
 	eventsPath string,
 ) error {
-	if err := index.forget(ctx, id); err != nil {
+	if err := index.deleteChat(ctx, id); err != nil {
 		return err
 	}
 	_, err := index.syncChat(ctx, id, eventsPath)
 	return err
+}
+
+func (index *chatEventIndex) deleteChat(ctx context.Context, id servicechat.ID) error {
+	if err := index.availabilityError(); err != nil {
+		return err
+	}
+	tx, err := index.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := deleteChatIndexRows(ctx, tx, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

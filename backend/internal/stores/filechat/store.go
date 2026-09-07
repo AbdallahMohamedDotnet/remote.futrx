@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -35,27 +37,62 @@ func New(root string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Join(root, "chats"), 0o755); err != nil {
 		return nil, err
 	}
-	removeLegacyTranscriptIndexes(root)
+	index, err := newChatEventIndex(root)
+	if err != nil {
+		log.Printf("chat event index unavailable; using canonical JSONL scans: %v", err)
+		index = unavailableChatEventIndex(root, err)
+	}
 	store := &Store{
 		root:  root,
-		index: newChatEventIndex(),
+		index: index,
 		locks: map[servicechat.ID]*sync.Mutex{},
 		metas: map[servicechat.ID]servicechat.Meta{},
 	}
 	if err := store.loadMetaIndex(); err != nil {
+		_ = index.close()
 		return nil, err
 	}
 	return store, nil
 }
 
-func removeLegacyTranscriptIndexes(root string) {
-	for _, name := range []string{
-		"transcript-index.sqlite",
-		"transcript-index.sqlite-wal",
-		"transcript-index.sqlite-shm",
-	} {
-		_ = os.Remove(filepath.Join(root, name))
+// Close releases the derived chat event index. Callers that create a bounded
+// Store lifetime (notably commands and tests) should call it explicitly.
+func (s *Store) Close() error {
+	return s.index.close()
+}
+
+// WarmRecentChatIndexes best-effort synchronizes the most recently active
+// chats in one worker. It is intended for background startup migration:
+// startup itself stays fast, while likely-to-open chats avoid paying the
+// one-time backfill on their first request.
+func (s *Store) WarmRecentChatIndexes(ctx context.Context, limit int) error {
+	if limit <= 0 {
+		return nil
 	}
+	if err := s.index.availabilityError(); err != nil {
+		return err
+	}
+	metas, err := s.List(ctx)
+	if err != nil {
+		return err
+	}
+	if len(metas) > limit {
+		metas = metas[:limit]
+	}
+	var warmErrors []error
+	for _, meta := range metas {
+		if err := ctx.Err(); err != nil {
+			return errors.Join(append(warmErrors, err)...)
+		}
+		lk := s.lock(meta.ID)
+		lk.Lock()
+		_, err := s.index.syncChat(ctx, meta.ID, s.eventsPath(meta.ID))
+		lk.Unlock()
+		if err != nil {
+			warmErrors = append(warmErrors, fmt.Errorf("chat %s: %w", meta.ID, err))
+		}
+	}
+	return errors.Join(warmErrors...)
 }
 
 func (s *Store) chatDir(id servicechat.ID) string {
@@ -115,9 +152,7 @@ func (s *Store) Create(ctx context.Context, meta servicechat.Meta) (servicechat.
 	if meta.Mode == "" {
 		meta.Mode = "default"
 	}
-	if err := s.index.forget(ctx, meta.ID); err != nil {
-		return meta, err
-	}
+	_ = s.index.deleteChat(ctx, meta.ID)
 	dir := s.chatDir(meta.ID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return meta, err
@@ -202,9 +237,7 @@ func (s *Store) Delete(ctx context.Context, id servicechat.ID) error {
 	lk.Lock()
 	defer lk.Unlock()
 
-	if err := s.index.forget(ctx, id); err != nil {
-		return err
-	}
+	_ = s.index.deleteChat(ctx, id)
 	if err := os.RemoveAll(s.chatDir(id)); err != nil {
 		return err
 	}
@@ -325,6 +358,7 @@ func (s *Store) ReadEventsPage(
 	if err == nil {
 		return page, nil
 	}
+	s.discardInvalidChatIndex(ctx, id, err)
 	return s.readEventsPageFile(ctx, id, query, limit)
 }
 
@@ -385,6 +419,7 @@ func (s *Store) ReadEventsAfter(
 	if err == nil {
 		return events, nil
 	}
+	s.discardInvalidChatIndex(ctx, id, err)
 	return s.readEventsAfterFile(ctx, id, afterSeq)
 }
 
@@ -403,7 +438,7 @@ func (s *Store) readEventsAfterFile(
 	return out, err
 }
 
-// ReadTranscriptEventWindow uses the process-local turn/offset index to read
+// ReadTranscriptEventWindow uses the derived turn/offset index to read
 // only the requested page plus one older turn. That extra turn lets the service
 // preserve its existing HasMore and cursor projection behavior.
 func (s *Store) ReadTranscriptEventWindow(
@@ -423,6 +458,7 @@ func (s *Store) ReadTranscriptEventWindow(
 	if err == nil {
 		return window, nil
 	}
+	s.discardInvalidChatIndex(ctx, id, err)
 
 	// The index is disposable. Preserve availability by falling back to the
 	// canonical log if it cannot be synchronized or read.
@@ -435,6 +471,16 @@ func (s *Store) ReadTranscriptEventWindow(
 		return true
 	})
 	return window, err
+}
+
+func (s *Store) discardInvalidChatIndex(
+	ctx context.Context,
+	id servicechat.ID,
+	readErr error,
+) {
+	if ctx.Err() == nil && errors.Is(readErr, errInvalidChatEventIndex) {
+		_ = s.index.deleteChat(ctx, id)
+	}
 }
 
 // TruncateEventsBefore rewinds a chat by removing the selected event and every
@@ -605,13 +651,9 @@ func (s *Store) scanEventsFile(
 			continue
 		}
 		seq++
-		var rec eventRecord
-		if err := json.Unmarshal(line, &rec); err != nil {
+		ev, err := decodeStoredEvent(line, seq)
+		if err != nil {
 			continue
-		}
-		ev := rec.toDomain()
-		if ev.Seq == 0 {
-			ev.Seq = seq
 		}
 		if !visit(ev) {
 			break

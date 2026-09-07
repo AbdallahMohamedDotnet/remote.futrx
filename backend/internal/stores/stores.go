@@ -39,6 +39,10 @@ type ChatStore interface {
 	servicechat.TranscriptEventWindowSource
 }
 
+type recentChatIndexWarmer interface {
+	WarmRecentChatIndexes(context.Context, int) error
+}
+
 // PushStore exposes the subscription, account-cleanup, and VAPID capabilities
 // required at the application composition boundary.
 type PushStore interface {
@@ -49,6 +53,7 @@ type PushStore interface {
 
 type Stores struct {
 	Chats           ChatStore
+	chatIndexWarmer recentChatIndexWarmer
 	Projects        serviceproject.Repository
 	ProjectSecrets  serviceproject.SecretsRepository
 	ProjectAccess   serviceproject.AccessRepository
@@ -61,6 +66,15 @@ type Stores struct {
 	Push            PushStore
 	Usage           serviceusage.Repository
 	AgentAPIKeys    agentauth.APIKeyStore
+}
+
+// WarmRecentChatIndexes populates disposable read indexes through the
+// startup-only capability retained by the composition bundle.
+func (stores Stores) WarmRecentChatIndexes(ctx context.Context, limit int) error {
+	if stores.chatIndexWarmer == nil {
+		return nil
+	}
+	return stores.chatIndexWarmer.WarmRecentChatIndexes(ctx, limit)
 }
 
 func New(dataDir string) (Stores, error) {
@@ -122,6 +136,7 @@ func New(dataDir string) (Stores, error) {
 	authStore := fileauth.New(dataDir)
 	return Stores{
 		Chats:           chats,
+		chatIndexWarmer: chats,
 		Projects:        projects,
 		ProjectSecrets:  projectSecrets,
 		ProjectAccess:   projectAccess,
