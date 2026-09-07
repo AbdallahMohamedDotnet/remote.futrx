@@ -94,3 +94,44 @@ test("each surface owns its selection", () => {
   assert.deepEqual(palette.getState().filters.facets.project, ["alpha"]);
   assert.deepEqual(sidebar.getState().filters.facets.project, []);
 });
+
+test("hydrates in read order and publishes before each synchronous preference write", () => {
+  const events: string[] = [];
+  const preferences = recordingPreferences();
+  preferences.readFilters = () => {
+    events.push("read filters");
+    return searchFilterService.defaults();
+  };
+  preferences.readSort = () => {
+    events.push("read sort");
+    return "relevance";
+  };
+  preferences.writeFilters = () => events.push("write filters");
+  preferences.writeSort = () => events.push("write sort");
+  const store = createWorkspaceSearchStore(preferences);
+  assert.deepEqual(events, ["read filters", "read sort"]);
+
+  const unsubscribe = store.subscribe(() => events.push("publish"));
+  events.length = 0;
+  store.getState().toggleFacetValue("provider", "codex");
+  store.getState().setSort("title");
+  store.getState().clearAll();
+  assert.deepEqual(events, [
+    "publish", "write filters", "publish", "write sort", "publish", "write filters",
+  ]);
+  unsubscribe();
+});
+
+test("a preference write error propagates after the selection has been published", () => {
+  const preferences = recordingPreferences();
+  const error = new Error("preference write failed");
+  preferences.writeFilters = () => { throw error; };
+  const store = createWorkspaceSearchStore(preferences);
+  let notifications = 0;
+  const unsubscribe = store.subscribe(() => notifications += 1);
+
+  assert.throws(() => store.getState().toggleFacetValue("provider", "codex"), (thrown) => thrown === error);
+  assert.deepEqual(store.getState().filters.facets.provider, ["codex"]);
+  assert.equal(notifications, 1);
+  unsubscribe();
+});
