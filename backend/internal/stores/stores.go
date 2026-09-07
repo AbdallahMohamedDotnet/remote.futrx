@@ -39,6 +39,10 @@ type ChatStore interface {
 	servicechat.TranscriptEventWindowSource
 }
 
+type recentChatIndexWarmer interface {
+	WarmRecentIndexes(context.Context, int) error
+}
+
 // PushStore exposes the subscription, account-cleanup, and VAPID capabilities
 // required at the application composition boundary.
 type PushStore interface {
@@ -61,6 +65,17 @@ type Stores struct {
 	Push            PushStore
 	Usage           serviceusage.Repository
 	AgentAPIKeys    agentauth.APIKeyStore
+}
+
+// WarmRecentChatIndexes asks the concrete chat store to populate disposable
+// read indexes. It stays outside the service-facing chat contract because it
+// is process-startup optimization, not domain behavior.
+func (stores Stores) WarmRecentChatIndexes(ctx context.Context, limit int) error {
+	warmer, ok := stores.Chats.(recentChatIndexWarmer)
+	if !ok {
+		return nil
+	}
+	return warmer.WarmRecentIndexes(ctx, limit)
 }
 
 func New(dataDir string) (Stores, error) {

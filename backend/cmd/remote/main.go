@@ -38,6 +38,8 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/version"
 )
 
+const startupChatIndexWarmLimit = 20
+
 func main() {
 	// Prepare configuration
 	ctx := context.Background()
@@ -174,6 +176,11 @@ func main() {
 	// Start HTTP server
 	address := cfg.Addr()
 	server := transport.NewHTTPServer(address, handler)
+	go func() {
+		if err := storeSet.WarmRecentChatIndexes(ctx, startupChatIndexWarmLimit); err != nil {
+			log.Printf("chat event index warmup warning: %v", err)
+		}
+	}()
 	log.Printf("remote.futrx listening on %s", address)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
