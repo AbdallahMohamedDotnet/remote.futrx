@@ -6,6 +6,8 @@ const (
 	DefaultChatTranscriptTurnLimit = 20
 	// MaxChatTranscriptTurnLimit caps transcript page sizes.
 	MaxChatTranscriptTurnLimit = 100
+	// StartupChatIndexWarmLimit bounds the recent chats indexed during startup.
+	StartupChatIndexWarmLimit = 20
 	// PromptInteractionResponseQueueCapacity bounds browser answers waiting for
 	// the active provider turn to consume them.
 	PromptInteractionResponseQueueCapacity = 64

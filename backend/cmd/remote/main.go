@@ -19,6 +19,7 @@ import (
 	remote "github.com/futrx-com/remote.futrx.com"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/config"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/gitcli"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/hostfs"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/hostinfo"
@@ -37,8 +38,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/transport"
 	"github.com/futrx-com/remote.futrx.com/internal/version"
 )
-
-const startupChatIndexWarmLimit = 20
 
 func main() {
 	// Prepare configuration
@@ -177,7 +176,7 @@ func main() {
 	address := cfg.Addr()
 	server := transport.NewHTTPServer(address, handler)
 	go func() {
-		if err := storeSet.WarmRecentChatIndexes(ctx, startupChatIndexWarmLimit); err != nil {
+		if err := storeSet.WarmRecentChatIndexes(ctx, configconstants.StartupChatIndexWarmLimit); err != nil {
 			log.Printf("chat event index warmup warning: %v", err)
 		}
 	}()

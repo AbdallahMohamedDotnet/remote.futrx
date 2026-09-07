@@ -53,6 +53,7 @@ type PushStore interface {
 
 type Stores struct {
 	Chats           ChatStore
+	chatIndexWarmer recentChatIndexWarmer
 	Projects        serviceproject.Repository
 	ProjectSecrets  serviceproject.SecretsRepository
 	ProjectAccess   serviceproject.AccessRepository
@@ -67,15 +68,13 @@ type Stores struct {
 	AgentAPIKeys    agentauth.APIKeyStore
 }
 
-// WarmRecentChatIndexes asks the concrete chat store to populate disposable
-// read indexes. It stays outside the service-facing chat contract because it
-// is process-startup optimization, not domain behavior.
+// WarmRecentChatIndexes populates disposable read indexes through the
+// startup-only capability retained by the composition bundle.
 func (stores Stores) WarmRecentChatIndexes(ctx context.Context, limit int) error {
-	warmer, ok := stores.Chats.(recentChatIndexWarmer)
-	if !ok {
+	if stores.chatIndexWarmer == nil {
 		return nil
 	}
-	return warmer.WarmRecentIndexes(ctx, limit)
+	return stores.chatIndexWarmer.WarmRecentIndexes(ctx, limit)
 }
 
 func New(dataDir string) (Stores, error) {
@@ -137,6 +136,7 @@ func New(dataDir string) (Stores, error) {
 	authStore := fileauth.New(dataDir)
 	return Stores{
 		Chats:           chats,
+		chatIndexWarmer: chats,
 		Projects:        projects,
 		ProjectSecrets:  projectSecrets,
 		ProjectAccess:   projectAccess,
