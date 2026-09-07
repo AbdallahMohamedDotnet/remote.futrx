@@ -1,3 +1,8 @@
+import {
+  DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS,
+  READ_TOOL_OUTPUT_PREVIEW_CHARS,
+} from "../../../config/chat.ts";
+
 export function shortPath(path: string | undefined): string {
   if (!path) return "";
   if (path.startsWith("/root/")) return "~" + path.slice(5);
@@ -14,7 +19,3 @@ export function toolOutputPreviewLimit(name: string): number | null {
   if (name === "Edit" || name === "MultiEdit" || name === "Write") return null;
   return DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS;
 }
-import {
-  DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS,
-  READ_TOOL_OUTPUT_PREVIEW_CHARS,
-} from "../../../config/chat.ts";
