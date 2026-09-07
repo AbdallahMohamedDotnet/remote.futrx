@@ -155,6 +155,8 @@ func skillRefRecordsToDomain(records []skillRefRecord) []servicechat.SkillRef {
 	return skills
 }
 
+const maxEventRecordBytes = 16 * 1024 * 1024
+
 type eventRecord struct {
 	Seq                  int64                 `json:"seq,omitempty"`
 	T                    int64                 `json:"t"`

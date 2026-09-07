@@ -42,6 +42,7 @@ type TmuxClient interface {
 type ChatStore interface {
 	servicechat.Repository
 	servicechat.TranscriptEventSource
+	servicechat.TranscriptEventWindowSource
 }
 
 // PushStore persists Web Push registrations and the server's long-lived VAPID
@@ -189,6 +190,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxResolver,
 		runs,
 		servicechat.WithTranscriptEventSource(deps.Chats),
+		servicechat.WithTranscriptEventWindowSource(deps.Chats),
 		servicechat.WithCopiedEventAppender(chats),
 		servicechat.WithSessionPolicy(agentRuntime),
 		servicechat.WithProviderPolicy(agentRuntime),
