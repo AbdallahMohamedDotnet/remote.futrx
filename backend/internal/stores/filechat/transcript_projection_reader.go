@@ -3,28 +3,15 @@ package filechat
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"sort"
-	"strconv"
 
 	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
-
-type projectedTranscriptItem struct {
-	turnOrdinal  int64
-	turnID       string
-	turnStart    int64
-	startSeq     int64
-	endSeq       int64
-	payload      []servicechat.Event
-	payloadBytes int
-}
 
 // ReadTranscriptPage serves only complete materialized snapshots. Missing or
 // stale legacy projections are rebuilt in the background and exposed as byte
@@ -182,10 +169,7 @@ func (index *chatEventIndex) readProjectedTranscriptPage(
 	}
 	defer rows.Close()
 
-	items := make([]projectedTranscriptItem, 0, 64)
-	turns := make(map[int64]struct{}, turnLimit)
-	usedBytes := 0
-	hasMore := false
+	pageBuffer := newTranscriptPageBuffer(turnLimit, byteLimit)
 	for rows.Next() {
 		var item projectedTranscriptItem
 		var payloadJSON []byte
@@ -200,66 +184,17 @@ func (index *chatEventIndex) readProjectedTranscriptPage(
 		); err != nil {
 			return servicechat.TranscriptPage{}, err
 		}
-		_, knownTurn := turns[item.turnOrdinal]
-		if (!knownTurn && len(turns) == turnLimit) ||
-			(len(items) > 0 && usedBytes+item.payloadBytes > byteLimit) {
-			hasMore = true
+		appended, err := pageBuffer.appendItem(item, payloadJSON)
+		if err != nil {
+			return servicechat.TranscriptPage{}, err
+		}
+		if !appended {
 			break
 		}
-		if err := json.Unmarshal(payloadJSON, &item.payload); err != nil {
-			return servicechat.TranscriptPage{}, fmt.Errorf(
-				"%w: decode projected item: %v", errInvalidChatEventIndex, err,
-			)
-		}
-		items = append(items, item)
-		turns[item.turnOrdinal] = struct{}{}
-		usedBytes += item.payloadBytes
 	}
 	if err := rows.Err(); err != nil {
 		return servicechat.TranscriptPage{}, err
 	}
 
-	for left, right := 0, len(items)-1; left < right; left, right = left+1, right-1 {
-		items[left], items[right] = items[right], items[left]
-	}
-	projectedTurns := make([]servicechat.TranscriptTurn, 0, len(turns))
-	var lastTurnOrdinal int64 = -1
-	for _, item := range items {
-		last := len(projectedTurns) - 1
-		if last < 0 || lastTurnOrdinal != item.turnOrdinal {
-			projectedTurns = append(projectedTurns, servicechat.TranscriptTurn{
-				ID:       projectedTurnID(item),
-				StartSeq: item.startSeq,
-				EndSeq:   item.endSeq,
-				Events:   append([]servicechat.Event(nil), item.payload...),
-			})
-			lastTurnOrdinal = item.turnOrdinal
-			continue
-		}
-		projectedTurns[last].EndSeq = item.endSeq
-		projectedTurns[last].Events = append(projectedTurns[last].Events, item.payload...)
-	}
-	for index := range projectedTurns {
-		sort.SliceStable(projectedTurns[index].Events, func(left, right int) bool {
-			return projectedTurns[index].Events[left].Seq < projectedTurns[index].Events[right].Seq
-		})
-	}
-
-	var nextBefore int64
-	if hasMore && len(items) > 0 {
-		nextBefore = items[0].startSeq
-	}
-	return servicechat.TranscriptPage{
-		Turns:      projectedTurns,
-		NextBefore: nextBefore,
-		LastSeq:    state.lastSeq,
-		HasMore:    hasMore,
-	}, nil
-}
-
-func projectedTurnID(item projectedTranscriptItem) string {
-	if item.turnID != "" {
-		return item.turnID
-	}
-	return "legacy-" + strconv.FormatInt(item.turnStart, 10)
+	return pageBuffer.page(state.lastSeq), nil
 }
