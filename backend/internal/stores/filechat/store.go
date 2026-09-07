@@ -61,11 +61,11 @@ func (s *Store) Close() error {
 	return s.index.close()
 }
 
-// WarmRecentIndexes best-effort synchronizes the most recently active chats in
-// one worker. It is intended for background startup migration: startup itself
-// stays fast, while likely-to-open chats avoid paying the one-time backfill on
-// their first request.
-func (s *Store) WarmRecentIndexes(ctx context.Context, limit int) error {
+// WarmRecentChatIndexes best-effort synchronizes the most recently active
+// chats in one worker. It is intended for background startup migration:
+// startup itself stays fast, while likely-to-open chats avoid paying the
+// one-time backfill on their first request.
+func (s *Store) WarmRecentChatIndexes(ctx context.Context, limit int) error {
 	if limit <= 0 {
 		return nil
 	}

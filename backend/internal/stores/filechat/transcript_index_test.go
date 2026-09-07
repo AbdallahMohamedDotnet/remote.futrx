@@ -250,7 +250,7 @@ func TestTranscriptIndexPersistsAcrossStoreRestart(t *testing.T) {
 	}
 }
 
-func TestWarmRecentIndexesHonorsRecencyAndLimit(t *testing.T) {
+func TestWarmRecentChatIndexesHonorsRecencyAndLimit(t *testing.T) {
 	root := t.TempDir()
 	for chat, eventCount := range []int{1, 2, 3} {
 		events := make([]servicechat.Event, eventCount)
@@ -262,7 +262,7 @@ func TestWarmRecentIndexesHonorsRecencyAndLimit(t *testing.T) {
 		writeStoredChat(t, root, servicechat.ID(fmt.Sprintf("%04x", chat)), events)
 	}
 	store := newIndexedTestStore(t, root)
-	if err := store.WarmRecentIndexes(context.Background(), 2); err != nil {
+	if err := store.WarmRecentChatIndexes(context.Background(), 2); err != nil {
 		t.Fatal(err)
 	}
 

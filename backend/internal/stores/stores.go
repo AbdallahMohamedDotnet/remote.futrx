@@ -40,7 +40,7 @@ type ChatStore interface {
 }
 
 type recentChatIndexWarmer interface {
-	WarmRecentIndexes(context.Context, int) error
+	WarmRecentChatIndexes(context.Context, int) error
 }
 
 // PushStore exposes the subscription, account-cleanup, and VAPID capabilities
@@ -74,7 +74,7 @@ func (stores Stores) WarmRecentChatIndexes(ctx context.Context, limit int) error
 	if stores.chatIndexWarmer == nil {
 		return nil
 	}
-	return stores.chatIndexWarmer.WarmRecentIndexes(ctx, limit)
+	return stores.chatIndexWarmer.WarmRecentChatIndexes(ctx, limit)
 }
 
 func New(dataDir string) (Stores, error) {
