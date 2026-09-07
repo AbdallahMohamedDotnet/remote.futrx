@@ -29,10 +29,10 @@ import type {
   DateFilter,
   DatePresetId,
   SearchFilters,
-  SearchPreferences,
   SortId,
 } from "../../models/search.ts";
 import { browserStorageService } from "../platform/browserStorageService.ts";
+import type { SearchPreferences } from "../../port/workspaceSearch.ts";
 import { searchFilterService } from "./searchFilterService.ts";
 
 /** Remembered across reloads. What the sidebar's search uses. */
@@ -86,7 +86,7 @@ class SearchPreferenceService implements SearchPreferences {
 }
 
 /**
- * Starts from the defaults every mount and saves nothing. What the palette
+ * Starts from the defaults when composed and saves nothing. What the palette
  * uses, so its filters neither outlive the session nor reach into the
  * sidebar's stored selection.
  */

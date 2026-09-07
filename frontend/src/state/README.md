@@ -84,6 +84,14 @@ function of that selection and of the chats the feed is pushing, so
 `useWorkspaceSearch` derives them where both are in hand rather than mirroring
 them into state that could fall behind either input.
 
+Search selection commands live in `services/workspace/searchSelectionService`.
+The store publishes atomic selection changes and retains count requests; it
+does not load or save preferences. `app/workspaceSearch.ts` hydrates and
+constructs the two page-lifetime surfaces, then `WorkspaceRoute` supplies them
+through `WorkspaceSearchContext`. Hooks subscribe to each surface's store and
+expose its selection commands. This keeps the sidebar persistent and the
+palette ephemeral without resetting either on dismissal or component remount.
+
 **Commands may be dispatched from anywhere.** Writing to a store is not a
 subscription and carries no re-render obligation. This matters because some
 dispatch sites are not components and cannot call a hook — see

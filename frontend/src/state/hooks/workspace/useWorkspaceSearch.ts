@@ -1,6 +1,5 @@
 import { useMemo } from "preact/hooks";
 import { useStore } from "zustand";
-import type { StoreApi } from "zustand/vanilla";
 import type { ChatMeta } from "../../../models/chat.ts";
 import type { ProjectMeta } from "../../../models/project.ts";
 import type {
@@ -11,26 +10,14 @@ import type {
   SearchOutcome,
   SortId,
   WorkspaceSearchStoreActions,
-  WorkspaceSearchStoreState,
 } from "../../../models/search.ts";
 import { searchFilterService } from "../../../services/workspace/searchFilterService.ts";
 import { workspaceSearchService } from "../../../services/workspace/workspaceSearchService.ts";
 import { searchFacetService } from "../../../services/workspace/searchFacetService.ts";
-import {
-  paletteSearchStore,
-  sidebarSearchStore,
-} from "../../stores/workspace/workspaceSearchStore.ts";
+import type { SearchSelectionCommands } from "../../../port/workspaceSearch.ts";
+import { useWorkspaceSearchContext } from "../../context/WorkspaceSearchContext.ts";
+import type { WorkspaceSearchSurface } from "../../context/WorkspaceSearchContext.ts";
 import { useWorkspaceContext } from "../../context/WorkspaceContext";
-
-/** A handle on one surface's selection. Named here because `stores/` declares
- *  no types and a store handle is not a data shape. */
-export type WorkspaceSearchStore = StoreApi<
-  WorkspaceSearchStoreState & WorkspaceSearchStoreActions
->;
-
-// Each surface takes the commands straight from the store's contract, so their
-// signatures are stated once, in `models/search.ts`, and a change to one of
-// them reaches the components that call it.
 
 /** The keyword box: the text, and how to change it. */
 export interface QueryControl extends Pick<WorkspaceSearchStoreActions, "setQuery"> {
@@ -39,7 +26,7 @@ export interface QueryControl extends Pick<WorkspaceSearchStoreActions, "setQuer
 
 /** The filter menu and the chips: the selection, and every way to change it. */
 export interface FilterControl extends Pick<
-  WorkspaceSearchStoreActions,
+  SearchSelectionCommands,
   | "setSort"
   | "toggleFacetValue"
   | "setFacetValues"
@@ -47,8 +34,7 @@ export interface FilterControl extends Pick<
   | "setDateFilter"
   | "clearDate"
   | "resetFilters"
-  | "retainCounts"
-> {
+>, Pick<WorkspaceSearchStoreActions, "retainCounts"> {
   filters: SearchFilters;
   facetViews: FacetView[];
   dateView: DateFilterView;
@@ -75,7 +61,7 @@ export interface WorkspaceSearch
   extends QueryControl,
     FilterControl,
     ResultsView,
-    Pick<WorkspaceSearchStoreActions, "clearAll"> {}
+    Pick<SearchSelectionCommands, "clearAll"> {}
 
 // Closes over nothing, so it is built once rather than per render. Forwarded
 // rather than handed over as a method reference, which would depend on the
@@ -85,13 +71,15 @@ const describeMatch = (hit: SearchHit) => workspaceSearchService.describeMatch(h
 /** The sidebar's search: its selection is remembered across reloads. */
 export function useSidebarSearch(): WorkspaceSearch {
   const workspace = useWorkspaceContext();
-  return useWorkspaceSearch(sidebarSearchStore, workspace.chats, workspace.projects);
+  const { sidebar } = useWorkspaceSearchContext();
+  return useWorkspaceSearch(sidebar, workspace.chats, workspace.projects);
 }
 
 /** The palette's search, independent of the sidebar's and saved nowhere. */
 export function usePaletteSearch(): WorkspaceSearch {
   const workspace = useWorkspaceContext();
-  return useWorkspaceSearch(paletteSearchStore, workspace.chats, workspace.projects);
+  const { palette } = useWorkspaceSearchContext();
+  return useWorkspaceSearch(palette, workspace.chats, workspace.projects);
 }
 
 /**
@@ -108,7 +96,7 @@ export function usePaletteSearch(): WorkspaceSearch {
  * open, since nothing else displays them.
  */
 export function useWorkspaceSearch(
-  store: WorkspaceSearchStore,
+  { store, selection }: WorkspaceSearchSurface,
   chats: readonly ChatMeta[],
   projects: readonly ProjectMeta[],
 ): WorkspaceSearch {
@@ -117,20 +105,12 @@ export function useWorkspaceSearch(
   const sort = useStore(store, (state) => state.sort);
   const countsEnabled = useStore(store, (state) => state.countsRetained > 0);
 
-  // The commands, read the same way the state above is. Each is an identity
-  // the store creates once, so a selector per command costs nothing and none
-  // of them can trigger a render -- which an object of them all would, on
-  // every notification, being a new object each time it was selected.
   const setQuery = useStore(store, (state) => state.setQuery);
-  const setSort = useStore(store, (state) => state.setSort);
-  const toggleFacetValue = useStore(store, (state) => state.toggleFacetValue);
-  const setFacetValues = useStore(store, (state) => state.setFacetValues);
-  const clearFacet = useStore(store, (state) => state.clearFacet);
-  const setDateFilter = useStore(store, (state) => state.setDateFilter);
-  const clearDate = useStore(store, (state) => state.clearDate);
-  const resetFilters = useStore(store, (state) => state.resetFilters);
-  const clearAll = useStore(store, (state) => state.clearAll);
   const retainCounts = useStore(store, (state) => state.retainCounts);
+  const {
+    setSort, toggleFacetValue, setFacetValues, clearFacet,
+    setDateFilter, clearDate, resetFilters, clearAll,
+  } = selection;
 
   const docs = useMemo(
     () => workspaceSearchService.buildIndex(chats, projects),

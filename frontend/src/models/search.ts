@@ -209,18 +209,6 @@ export type CommandPaletteKeyAction =
   | { kind: "close" };
 
 // ---------------------------------------------------------------------------
-// Boundaries
-// ---------------------------------------------------------------------------
-
-/** How one search surface loads and saves its selection. */
-export interface SearchPreferences {
-  readFilters(): SearchFilters;
-  writeFilters(filters: SearchFilters): void;
-  readSort(): SortId;
-  writeSort(sort: SortId): void;
-}
-
-// ---------------------------------------------------------------------------
 // The stores
 // ---------------------------------------------------------------------------
 
@@ -238,15 +226,8 @@ export interface WorkspaceSearchStoreState {
 export interface WorkspaceSearchStoreActions {
   setQuery: (query: string) => void;
   setSort: (sort: SortId) => void;
-  toggleFacetValue: (facetId: FacetId, value: string) => void;
-  setFacetValues: (facetId: FacetId, values: string[]) => void;
-  clearFacet: (facetId: FacetId) => void;
-  setDateFilter: (date: DateFilter) => void;
-  /** Drop the date window, keeping which timestamp the user was asking about. */
-  clearDate: () => void;
-  resetFilters: () => void;
-  /** Drop the keyword and every filter at once. */
-  clearAll: () => void;
+  /** Publish a complete selection in one notification. */
+  replaceSelection: (filters: SearchFilters, query: string) => void;
   /**
    * Ask for per-option facet counts, and release them with the returned
    * function. They are only worth their cost while a filter menu is on screen,
