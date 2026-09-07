@@ -13,13 +13,6 @@ import (
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
 
-type indexedTurnState struct {
-	ordinal     int64
-	sourceID    string
-	hasUser     bool
-	hasExisting bool
-}
-
 type chatIndexWriter struct {
 	ctx          context.Context
 	tx           *sql.Tx
@@ -29,13 +22,6 @@ type chatIndexWriter struct {
 	eventOffsets *sql.Stmt
 	insertTurn   *sql.Stmt
 	updateTurn   *sql.Stmt
-}
-
-func newChatIndexState() chatIndexState {
-	return chatIndexState{
-		prefixHash:   indexPrefixHashOffset64,
-		tailComplete: true,
-	}
 }
 
 func newChatIndexWriter(
