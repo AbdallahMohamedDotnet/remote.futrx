@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ANY_DATE } from "../../config/search.ts";
+import { ANY_DATE, UNASSIGNED_PROJECT } from "../../config/search.ts";
 import { DAY_MS as DAY } from "../../config/time.ts";
 import type { ChatMeta } from "../../models/chat.ts";
 import type { ProjectMeta } from "../../models/project.ts";
-import { UNASSIGNED_PROJECT } from "../../models/search.ts";
 import type { ChatSearchDoc, SearchFilters } from "../../models/search.ts";
 import { searchFilterService } from "./searchFilterService.ts";
 import { searchFacetService } from "./searchFacetService.ts";

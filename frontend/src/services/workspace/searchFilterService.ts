@@ -9,9 +9,8 @@
 // means their calendar day, not UTC's. `now` is always injected so the
 // resolver stays pure.
 
-import { ANY_DATE, DATE_FIELD_LABELS, DATE_PRESET_LABELS } from "../../config/search.ts";
+import { ANY_DATE, DATE_FIELD_LABELS, DATE_PRESET_LABELS, FACET_IDS } from "../../config/search.ts";
 import { DAY_MS } from "../../config/time.ts";
-import { FACET_IDS } from "../../models/search.ts";
 import type {
   DateFilter,
   FacetId,

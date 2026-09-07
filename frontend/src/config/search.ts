@@ -1,17 +1,8 @@
-// What workspace search is tuned to and what it calls things.
-//
-// The label tables are `Record`s keyed by the id unions in `models/search.ts`,
-// so a new id is a compile error here until it is given a name — the guarantee
-// the old paired option-table/id-list arrangement was written to provide, now
-// enforced by the compiler rather than by both lists being edited together.
+// Workspace search vocabulary, defaults, and ranking settings.
+// Model unions derive from these ordered catalogs, so label tables and service
+// registries remain exhaustive without duplicating the accepted ids.
 
 import { DAY_MS } from "./time.ts";
-import {
-  DATE_FIELD_IDS,
-  DATE_PRESET_IDS,
-  SEARCH_FIELD_IDS,
-  SORT_IDS,
-} from "../models/search.ts";
 import type {
   DateField,
   DateFilter,
@@ -19,6 +10,53 @@ import type {
   SearchFieldId,
   SortId,
 } from "../models/search.ts";
+
+// ---------------------------------------------------------------------------
+// Ordered catalogs and sentinel values
+// ---------------------------------------------------------------------------
+
+export const SORT_IDS = ["relevance", "recent", "oldest", "title"] as const;
+
+export const DATE_PRESET_IDS = [
+  "any",
+  "today",
+  "yesterday",
+  "7d",
+  "30d",
+  "90d",
+  "custom",
+] as const;
+
+export const DATE_FIELD_IDS = ["lastMessageAt", "createdAt"] as const;
+
+export const FACET_IDS = [
+  "project",
+  "provider",
+  "model",
+  "mode",
+  "status",
+  "effort",
+  "tier",
+  "skill",
+] as const;
+
+/** Sentinel for chats that belong to no project, so it can be a normal option. */
+export const UNASSIGNED_PROJECT = " unassigned";
+
+export const STATUS_UNREAD = "unread";
+
+export const STATUS_RUNNING = "running";
+
+/**
+ * The facet value standing for "this chat recorded nothing here" — no provider,
+ * no model, no mode. A sentinel rather than an absence, so an unset field is a
+ * tickable option like any other instead of a hole in the list.
+ */
+export const UNSET_FACET_VALUE = "";
+
+// Declaration order is also evaluation order, and ties in the "best field"
+// comparison keep the earlier entry — so this order is the tie-break rule.
+export const SEARCH_FIELD_IDS = ["title", "project", "path", "skill", "model"] as const;
 
 // ---------------------------------------------------------------------------
 // Vocabulary the filter menu renders

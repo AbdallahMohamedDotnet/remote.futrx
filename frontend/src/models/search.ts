@@ -1,12 +1,13 @@
-// The vocabulary and shapes of workspace search.
-//
-// Ids are declared here as ordered tuples with their unions derived, so the
-// order is part of the type: it is the order the filter menu lists options in,
-// and for `SEARCH_FIELD_IDS` it is also the ranking tie-break rule. The label
-// tables in `config/search.ts` and the registries in `workspaceSearchService`
-// are keyed by these unions, so the compiler rejects an id that gains a
-// vocabulary entry without gaining a definition.
+// Data shapes for workspace search. Id unions derive from the ordered catalogs
+// in config/search.ts, which also fixes menu order and search-field tie breaks.
 
+import type {
+  DATE_FIELD_IDS,
+  DATE_PRESET_IDS,
+  FACET_IDS,
+  SEARCH_FIELD_IDS,
+  SORT_IDS,
+} from "../config/search.ts";
 import type { ChatMeta } from "./chat.ts";
 import type { ProjectMeta } from "./project.ts";
 
@@ -26,27 +27,13 @@ export interface FieldMatch {
 // Ordering
 // ---------------------------------------------------------------------------
 
-export const SORT_IDS = ["relevance", "recent", "oldest", "title"] as const;
-
 export type SortId = (typeof SORT_IDS)[number];
 
 // ---------------------------------------------------------------------------
 // Date filtering
 // ---------------------------------------------------------------------------
 
-export const DATE_PRESET_IDS = [
-  "any",
-  "today",
-  "yesterday",
-  "7d",
-  "30d",
-  "90d",
-  "custom",
-] as const;
-
 export type DatePresetId = (typeof DATE_PRESET_IDS)[number];
-
-export const DATE_FIELD_IDS = ["lastMessageAt", "createdAt"] as const;
 
 export type DateField = (typeof DATE_FIELD_IDS)[number];
 
@@ -69,31 +56,7 @@ export interface ResolvedRange {
 // Facets
 // ---------------------------------------------------------------------------
 
-export const FACET_IDS = [
-  "project",
-  "provider",
-  "model",
-  "mode",
-  "status",
-  "effort",
-  "tier",
-  "skill",
-] as const;
-
 export type FacetId = (typeof FACET_IDS)[number];
-
-/** Sentinel for chats that belong to no project, so it can be a normal option. */
-export const UNASSIGNED_PROJECT = " unassigned";
-
-export const STATUS_UNREAD = "unread";
-export const STATUS_RUNNING = "running";
-
-/**
- * The facet value standing for "this chat recorded nothing here" — no provider,
- * no model, no mode. A sentinel rather than an absence, so an unset field is a
- * tickable option like any other instead of a hole in the list.
- */
-export const UNSET_FACET_VALUE = "";
 
 export interface FacetOption {
   value: string;
@@ -113,13 +76,14 @@ export interface SearchFilters {
   date: DateFilter;
 }
 
+/** Compute per-option facet counts. Only an open filter menu needs these. */
+export interface SearchOptions {
+  withCounts?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // The index
 // ---------------------------------------------------------------------------
-
-// Declaration order is also evaluation order, and ties in the "best field"
-// comparison keep the earlier entry — so this order is the tie-break rule.
-export const SEARCH_FIELD_IDS = ["title", "project", "path", "skill", "model"] as const;
 
 export type SearchFieldId = (typeof SEARCH_FIELD_IDS)[number];
 
@@ -198,8 +162,8 @@ export interface DateFilterView {
 
 /**
  * The palette's next step after a key press, resolved by
- * `ui/search/commandPaletteKeyState`. `index` is a row to highlight, not to
- * open: moving the cursor and opening what it sits on are separate presses.
+ * `services/workspace/commandPaletteKeyService`. `index` is a row to highlight,
+ * not to open: moving the cursor and opening what it sits on are separate presses.
  */
 export type CommandPaletteKeyAction =
   | { kind: "ignore" }

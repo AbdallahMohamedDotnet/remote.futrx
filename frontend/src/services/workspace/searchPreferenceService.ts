@@ -13,17 +13,18 @@
 //
 // Stored values are treated as untrusted: a hand-edited or stale entry (say, a
 // facet that no longer exists) must degrade to "no filter" rather than throw
-// during startup. The accepted vocabularies are the ones models/search.ts
+// during startup. The accepted vocabularies are the ones config/search.ts
 // declares, so this file never needs updating when a preset or sort is added.
 
-import { ANY_DATE, DEFAULT_SORT } from "../../config/search.ts";
 import { STORAGE_KEYS } from "../../config/storageKeys.ts";
 import {
+  ANY_DATE,
+  DEFAULT_SORT,
   DATE_FIELD_IDS,
   DATE_PRESET_IDS,
   FACET_IDS,
   SORT_IDS,
-} from "../../models/search.ts";
+} from "../../config/search.ts";
 import type {
   DateField,
   DateFilter,

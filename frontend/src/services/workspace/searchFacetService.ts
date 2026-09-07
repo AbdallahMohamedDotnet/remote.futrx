@@ -10,7 +10,7 @@ import {
   STATUS_UNREAD,
   UNASSIGNED_PROJECT,
   UNSET_FACET_VALUE,
-} from "../../models/search.ts";
+} from "../../config/search.ts";
 import type {
   ChatSearchDoc,
   FacetCounts,

@@ -7,12 +7,12 @@ import {
   HIGHLIGHTED_FIELD_INDEX,
   RECENCY_WEIGHT,
   RECENCY_WINDOW_MS,
+  SEARCH_FIELD_IDS,
   SEARCH_FIELD_WEIGHTS,
   SECONDARY_FIELD_BONUS,
 } from "../../config/search.ts";
 import type { ChatMeta } from "../../models/chat.ts";
 import type { ProjectMeta } from "../../models/project.ts";
-import { SEARCH_FIELD_IDS } from "../../models/search.ts";
 import type {
   ChatSearchDoc,
   MatchedField,
@@ -20,6 +20,7 @@ import type {
   SearchFieldId,
   SearchFilters,
   SearchHit,
+  SearchOptions,
   SearchOutcome,
   SortId,
 } from "../../models/search.ts";
@@ -66,11 +67,6 @@ const SEARCH_FIELDS: Record<SearchFieldId, SearchFieldDefinition> = {
 };
 
 const SEARCH_FIELD_COUNT = SEARCH_FIELD_IDS.length;
-
-/** Compute per-option facet counts. Only an open filter menu needs these. */
-export interface SearchOptions {
-  withCounts?: boolean;
-}
 
 class WorkspaceSearchService {
   /**
