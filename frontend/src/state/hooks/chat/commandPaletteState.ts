@@ -1,6 +1,6 @@
 import type { RegisteredSkill } from "../../../models/skill";
 
-export type CommandPaletteKeyAction = "dismiss" | "next" | "previous" | "choose" | "ignore";
+type CommandPaletteKeyAction = "dismiss" | "next" | "previous" | "choose" | "ignore";
 
 class CommandPaletteState {
   query(text: string): string | null {
@@ -42,7 +42,7 @@ class CommandPaletteState {
   }
 
   moveHighlight(highlight: number, step: -1 | 1, itemCount: number): number {
-    return (highlight + step + itemCount) % itemCount;
+    return itemCount ? (highlight + step + itemCount) % itemCount : 0;
   }
 
   selectedItem(items: RegisteredSkill[], highlight: number): RegisteredSkill | undefined {

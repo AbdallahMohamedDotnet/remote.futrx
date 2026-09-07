@@ -76,6 +76,7 @@ test("highlight movement wraps and selection clamps to the last item", () => {
   assert.equal(commandPaletteState.moveHighlight(0, 1, 3), 1);
   assert.equal(commandPaletteState.moveHighlight(2, 1, 3), 0);
   assert.equal(commandPaletteState.moveHighlight(0, -1, 3), 2);
+  assert.equal(commandPaletteState.moveHighlight(2, 1, 0), 0);
   assert.equal(commandPaletteState.selectedItem(skills, 9), skills[2]);
   assert.equal(commandPaletteState.selectedItem([], 0), undefined);
 });
