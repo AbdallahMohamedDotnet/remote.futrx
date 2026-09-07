@@ -4,7 +4,7 @@ import { CodeBlock } from "../CodeBlock";
 import { ToolShell } from "../ToolShell";
 import { shortPath, truncate } from "../utils";
 
-export function SearchCall({ name, input, output, status, isError }: ToolCallProps) {
+export function SearchCall({ name, input, output, outputExpanded, status, isError }: ToolCallProps) {
   const pattern = (input?.pattern as string) ?? (input?.query as string) ?? "";
   const path = (input?.path as string) ?? "";
   return (
@@ -20,7 +20,7 @@ export function SearchCall({ name, input, output, status, isError }: ToolCallPro
       status={status}
       isError={isError}
     >
-      {output ? <CodeBlock text={truncate(output, 6000)} /> : null}
+      {output ? <CodeBlock text={outputExpanded ? output : truncate(output, 6000)} /> : null}
     </ToolShell>
   );
 }

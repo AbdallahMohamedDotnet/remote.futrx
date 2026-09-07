@@ -4,7 +4,7 @@ import { CodeBlock } from "../CodeBlock";
 import { ToolShell } from "../ToolShell";
 import { shortPath, truncate } from "../utils";
 
-export function ReadCall({ input, output, status, isError }: Omit<ToolCallProps, "name">) {
+export function ReadCall({ input, output, outputExpanded, status, isError }: Omit<ToolCallProps, "name">) {
   const path = (input?.file_path as string) ?? "";
   return (
     <ToolShell
@@ -13,7 +13,7 @@ export function ReadCall({ input, output, status, isError }: Omit<ToolCallProps,
       status={status}
       isError={isError}
     >
-      {output ? <CodeBlock text={truncate(output, 8000)} /> : null}
+      {output ? <CodeBlock text={outputExpanded ? output : truncate(output, 8000)} /> : null}
     </ToolShell>
   );
 }

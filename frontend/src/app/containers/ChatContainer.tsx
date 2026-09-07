@@ -36,6 +36,7 @@ export function ChatContainer({
     eventCount,
     hasOlder,
     loadingOlder,
+    indexingProgress,
     status,
     error,
     canSendPrompt,
@@ -202,6 +203,7 @@ export function ChatContainer({
             blocks={blocks}
             hasOlder={hasOlder}
             loadingOlder={loadingOlder}
+            indexingProgress={indexingProgress}
             status={status}
             error={error}
             composer={composerView}

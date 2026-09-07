@@ -6,6 +6,12 @@ const (
 	DefaultChatTranscriptTurnLimit = 20
 	// MaxChatTranscriptTurnLimit caps transcript page sizes.
 	MaxChatTranscriptTurnLimit = 100
+	// DefaultChatTranscriptByteLimit bounds a history response independently
+	// of turn size. Large turns are continued with the existing sequence cursor.
+	DefaultChatTranscriptByteLimit = 4 * 1024 * 1024
+	// MaxChatTranscriptByteLimit prevents callers from turning one history read
+	// back into an unbounded allocation.
+	MaxChatTranscriptByteLimit = 8 * 1024 * 1024
 	// StartupChatIndexWarmupChatLimit bounds the recent chats indexed during
 	// startup. It counts chats, not transcript turns.
 	StartupChatIndexWarmupChatLimit = 10

@@ -3,6 +3,7 @@ import { useState } from "preact/hooks";
 import { ChevronDown, ChevronRight } from "../../primitives/icons";
 import { Markdown } from "../markdown/Markdown";
 import { CodeBlock } from "../tool-calls/CodeBlock";
+import { chatApi } from "../../../api/chatApi";
 
 type CollaborationPart = Extract<AssistantMessagePart, { kind: "collaboration" }>;
 type SubagentTool = {
@@ -12,6 +13,8 @@ type SubagentTool = {
   isError: boolean;
   input?: unknown;
   output?: string;
+  outputRef?: string;
+  outputBytes?: number;
   startedAt?: number;
   completedAt?: number;
   durationMs?: number;
@@ -75,6 +78,7 @@ export function CollaborationCard({
             tools={tools}
             toolCount={toolCount}
             failedToolCount={failedToolCount}
+            chatId={chatId}
           />
         )}
         {Object.entries(states).length === 0 ? (
@@ -88,9 +92,13 @@ export function CollaborationCard({
                 <span class="text-[10px] text-ink-400">{typeof state.status === "string" ? state.status : "unknown"}</span>
               </div>
               {typeof state.message === "string" && state.message && (
-                <div class="codex-prose mt-2 text-[12px] leading-relaxed text-ink-200">
-                  <Markdown chatId={chatId} cwd={cwd}>{state.message}</Markdown>
-                </div>
+                <SubagentMessage
+                  message={state.message}
+                  messageRef={typeof state.messageRef === "string" ? state.messageRef : undefined}
+                  messageBytes={typeof state.messageBytes === "number" ? state.messageBytes : undefined}
+                  chatId={chatId}
+                  cwd={cwd}
+                />
               )}
               {isSubagentThread && !(typeof state.message === "string" && state.message) && (
                 <div class="mt-2 text-[11px] text-ink-400">
@@ -109,10 +117,12 @@ function SubagentTools({
   tools,
   toolCount,
   failedToolCount,
+  chatId,
 }: {
   tools: SubagentTool[];
   toolCount: number;
   failedToolCount: number;
+  chatId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const toolNames = unique(tools.map((tool) => tool.name));
@@ -144,7 +154,7 @@ function SubagentTools({
       {expanded && (
         <ol class="divide-y divide-line border-t border-line bg-inset">
           {tools.map((tool, index) => (
-            <SubagentToolDetails key={tool.id || `${tool.name}-${index}`} tool={tool} index={index} />
+            <SubagentToolDetails key={tool.id || `${tool.name}-${index}`} tool={tool} index={index} chatId={chatId} />
           ))}
         </ol>
       )}
@@ -152,8 +162,11 @@ function SubagentTools({
   );
 }
 
-function SubagentToolDetails({ tool, index }: { tool: SubagentTool; index: number }) {
+function SubagentToolDetails({ tool, index, chatId }: { tool: SubagentTool; index: number; chatId?: string }) {
   const [expanded, setExpanded] = useState(false);
+  const [fullOutput, setFullOutput] = useState<string | null>(null);
+  const [loadingOutput, setLoadingOutput] = useState(false);
+  const [outputError, setOutputError] = useState<string | null>(null);
   const hasDetails = tool.input !== undefined || tool.output !== undefined;
   const timing = toolTiming(tool);
   return (
@@ -200,12 +213,86 @@ function SubagentToolDetails({ tool, index }: { tool: SubagentTool; index: numbe
           {tool.output !== undefined && (
             <div>
               <div class="bg-tint px-3 py-1 text-[10px] font-medium text-ink-400">Output</div>
-              <CodeBlock text={tool.output} />
+              <CodeBlock text={fullOutput ?? tool.output} />
+              {tool.outputRef && fullOutput === null && (
+                <div class="flex items-center gap-2 border-t border-line px-3 py-2 text-[10px]">
+                  <button
+                    type="button"
+                    disabled={!chatId || loadingOutput}
+                    onClick={() => void loadOutput()}
+                    class="text-accent-blue hover:underline disabled:opacity-50"
+                  >
+                    {loadingOutput ? "Loading full response…" : `Load full response${tool.outputBytes ? ` (${formatBytes(tool.outputBytes)})` : ""}`}
+                  </button>
+                  {outputError && <span class="text-accent-red">{outputError}</span>}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
     </li>
+  );
+
+  async function loadOutput() {
+    if (!chatId || !tool.outputRef || loadingOutput) return;
+    setLoadingOutput(true);
+    setOutputError(null);
+    try {
+      setFullOutput(await chatApi.fetchFullTranscriptContent(chatId, tool.outputRef));
+    } catch (error) {
+      setOutputError((error as Error).message);
+    } finally {
+      setLoadingOutput(false);
+    }
+  }
+}
+
+function SubagentMessage({
+  message,
+  messageRef,
+  messageBytes,
+  chatId,
+  cwd,
+}: {
+  message: string;
+  messageRef?: string;
+  messageBytes?: number;
+  chatId?: string;
+  cwd?: string;
+}) {
+  const [fullMessage, setFullMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function loadMessage() {
+    if (!chatId || !messageRef || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setFullMessage(await chatApi.fetchFullTranscriptContent(chatId, messageRef));
+    } catch (loadError) {
+      setError((loadError as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <div class="codex-prose mt-2 text-[12px] leading-relaxed text-ink-200">
+      <Markdown chatId={chatId} cwd={cwd}>{fullMessage ?? message}</Markdown>
+      {messageRef && fullMessage === null && (
+        <div class="mt-2 flex items-center gap-2 text-[10px]">
+          <button
+            type="button"
+            disabled={!chatId || loading}
+            onClick={() => void loadMessage()}
+            class="text-accent-blue hover:underline disabled:opacity-50"
+          >
+            {loading ? "Loading full response…" : `Load full response${messageBytes ? ` (${formatBytes(messageBytes)})` : ""}`}
+          </button>
+          {error && <span class="text-accent-red">{error}</span>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -244,11 +331,19 @@ function subagentTools(value: unknown): SubagentTool[] {
       isError: item.isError === true,
       input: item.input,
       output: typeof item.output === "string" ? item.output : undefined,
+      outputRef: typeof item.outputRef === "string" ? item.outputRef : undefined,
+      outputBytes: typeof item.outputBytes === "number" ? item.outputBytes : undefined,
       startedAt: typeof item.startedAt === "number" ? item.startedAt : undefined,
       completedAt: typeof item.completedAt === "number" ? item.completedAt : undefined,
       durationMs: typeof item.durationMs === "number" ? item.durationMs : undefined,
     }];
   });
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatToolInput(input: unknown): string {
