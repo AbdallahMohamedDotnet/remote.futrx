@@ -95,7 +95,8 @@ During a run, Remote can show:
 
 - streamed assistant text and Markdown;
 - syntax-highlighted code;
-- visible reasoning blocks when the provider emits them;
+- reasoning blocks that stay collapsed by default and can be expanded at any
+  time, including while the provider is still streaming them;
 - grouped read, write, edit, search, shell, and other tool calls;
 - working, completion, usage, and error states; and
 - a question form when the agent emits a supported `AskUserQuestion` tool.

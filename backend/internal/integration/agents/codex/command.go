@@ -35,7 +35,9 @@ func (p *Provider) buildCmd(
 		if err := ensureHostSubscriptionAuth(); err != nil {
 			return nil, "", err
 		}
-		cmd := exec.CommandContext(ctx, "codex", args...)
+		// The app-server process must outlive request cancellation long enough for
+		// runAppServer to send turn/interrupt and receive the terminal status.
+		cmd := exec.CommandContext(context.WithoutCancel(ctx), "codex", args...)
 		cmd.Dir = cwd
 		cmd.Env = agent.WithRuntimeEnvironment(codexEnv(os.Environ()), req.RuntimeEnv)
 		return cmd, "", nil
@@ -50,7 +52,7 @@ func (p *Provider) buildCmd(
 	if err != nil {
 		return nil, "", err
 	}
-	cmd := agentruntime.BuildContainerCommand(ctx, agentruntime.ContainerCommandSpec{
+	cmd := agentruntime.BuildContainerCommand(context.WithoutCancel(ctx), agentruntime.ContainerCommandSpec{
 		ContainerName:      project.ContainerName,
 		PrefixEnvironment:  []string{"HOME=/root", "CODEX_HOME=/root/.codex"},
 		Secrets:            project.Secrets,

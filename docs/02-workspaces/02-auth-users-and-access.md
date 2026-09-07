@@ -4,8 +4,8 @@ The application separates three concerns:
 
 1. Platform identity: who may open `remote.futrx`.
 2. Agent credentials: whether a provider can run, with host-wide onboarding
-   for Claude, Codex, and Kimi, a project `MINIMAX_API_KEY` for MiniMax, and a
-   supported project-local sign-in flow for Antigravity.
+   for Claude, Codex, Kimi, and MiniMax, plus a supported project-local sign-in
+   flow for Antigravity.
 3. Project membership: which registered users may access a project.
 
 ## Application gate
@@ -31,7 +31,7 @@ stateDiagram-v2
 
 The backend middleware applies the same order to `/api/*` and `/ws*`: valid
 registered session, completed local-admin setup, then at least one agent module
-marked `SatisfiesAccessGate` ready. Managed code/device modules require an
+marked `SatisfiesAccessGate` ready. Managed code/device/API-key modules require an
 authenticated binding; no-auth modules are ready immediately; external flows
 cannot be gate providers because Remote has no authoritative status signal.
 `GET /api/agent-auth`, normalized `/ws/agent-auth/<provider>` streams, and
@@ -84,7 +84,7 @@ From Settings → Security, any account (local admin or invited user) can indepe
 | **Sign-in history** | Every login (bounded, newest-first) is recorded and shown in the Security tab | Nothing — works with or without 2FA |
 | **Recovery-code alert** | A login completed with a recovery code (instead of a normal authenticator code) sets an alert shown on `/auth/me` until acknowledged | Two-factor authentication must already be on — recovery codes only exist once 2FA is enrolled |
 
-Enrollment issues a TOTP secret (shown as a QR code and as text for manual entry), confirms one code from the user's authenticator app, and returns ten one-time recovery codes shown exactly once. Confirming enrollment, or turning on single active session, re-issues the browser's *current* session as tracked in the same response, so the tab that just made the change is never immediately treated as "the other device."
+Enrollment issues a TOTP secret (shown as a QR code and as text for manual entry), confirms one code from the user's authenticator app, and returns ten one-time recovery codes shown exactly once. Because that is the only time they are shown, the panel offers them as a downloadable PDF or `.txt` file (built in the browser from the codes already on screen — they are never re-fetched, and no download endpoint exists). Confirming enrollment, or turning on single active session, re-issues the browser's *current* session as tracked in the same response, so the tab that just made the change is never immediately treated as "the other device."
 
 An account that leaves all four toggles off — the default for every account, including ones that predate this feature — sees byte-for-byte the same login flow, session cookie, and `/auth/me` response as before any of this existed.
 
@@ -138,11 +138,15 @@ flowchart TD
 
 Claude uses an interactive authorization URL plus a pasted code. Codex and Kimi use device-code flows. Credential files are later synchronized into project containers before agent execution.
 
-MiniMax is project-only and uses an external auth binding. Its global card
-shows instructions rather than a login action or status stream. Add
-`MINIMAX_API_KEY` in the project's **Secrets** settings; the key does not
-satisfy the initial provider gate because Remote does not expose it as managed
-host authentication.
+MiniMax is project-only but uses a host-managed API-key binding for Token Plan
+subscription keys only. Its global card opens a write-only key field, states
+that pay-as-you-go keys are unsupported, and links only to MiniMax's Token Plan
+subscription page. The backend requires the documented `sk-cp-…` prefix and
+validates a submitted key against MiniMax's non-generation Token Plan quota
+endpoint before storing it; rejected keys remain unconfigured. The status
+stream publishes only whether a validated key exists. Before setup, the project
+picker lists MiniMax as locked under **Sign in to use** and does not expose its
+models. MiniMax does not satisfy the initial provider gate.
 
 Antigravity is deliberately outside this host-wide flow. Its global card shows
 the module's provider-managed instructions but has no managed login action or
@@ -183,7 +187,7 @@ Project access is enforced independently on project/chat HTTP resources, chat so
 
 ## Preview and IDE authentication
 
-Caddy calls `/auth/verify` before forwarding IDE or preview traffic. For a preview host, the backend extracts the project slug and checks membership. IDE hosts currently receive the registered-user check but not a per-project membership check. After verification, Caddy strips platform session cookies before the request enters project-controlled code.
+Caddy calls `/auth/verify` before forwarding IDE or preview traffic. For a preview host, the backend extracts the project slug and checks membership; failing that, it accepts a valid [public share link](../03-platform/06-previews-and-browser.md#public-share-links) for that exact slug and port, which is the one path that authorizes a caller with no platform account. IDE hosts currently receive the registered-user check but not a per-project membership check, and never accept share links. After verification, Caddy strips platform session and share cookies before the request enters project-controlled code.
 
 ```mermaid
 sequenceDiagram

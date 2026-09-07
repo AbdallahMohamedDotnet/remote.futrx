@@ -37,4 +37,3 @@ export function filterCommands(
 function commandTerm(skill: RegisteredSkill): string {
   return (skill.command || skill.name).replace(/^\//, "").toLowerCase();
 }
-

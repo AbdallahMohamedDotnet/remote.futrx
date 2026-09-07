@@ -41,6 +41,7 @@ export function ChatContainer({
     sendPrompt,
     promptOutcome,
     cancel,
+    respondInteraction,
     rewind,
     loadOlder,
     refreshMeta,
@@ -142,12 +143,16 @@ export function ChatContainer({
       mode: displayMode,
       reasoningEffort: displayMeta.reasoningEffort || "",
       serviceTier: displayMeta.serviceTier || "",
+      approvalPolicy: displayMeta.approvalPolicy,
+      sandboxPolicy: displayMeta.sandboxPolicy,
     },
     preferenceActions: {
       changeAgent: preferences.changeAgent,
       changeMode: preferences.changeMode,
       changeReasoningEffort: preferences.changeReasoningEffort,
       changeServiceTier: preferences.changeServiceTier,
+      changeApprovalPolicy: preferences.changeApprovalPolicy,
+      changeSandboxPolicy: preferences.changeSandboxPolicy,
     },
     queuedPrompts: composer.queue.queuedPrompts,
     selectedSkills,
@@ -188,6 +193,7 @@ export function ChatContainer({
             onScroll={composer.scroll.onScroll}
             onJumpToBottom={composer.scroll.jumpToBottom}
             onAnswerQuestion={composer.handleAnswerQuestion}
+            onRespondInteraction={respondInteraction}
             onLoadOlder={loadOlder}
             onRewind={composer.handleRewind}
             projectName={project?.name}

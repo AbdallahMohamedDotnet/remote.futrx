@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { chatApi } from "../../../api/chatApi";
-import { CHAT_TRANSCRIPT_TURN_PAGE_LIMIT } from "../../../config/api.ts";
-import type { ChatStream } from "../../../types/chatApi";
+import {
+  CHAT_INITIAL_TRANSCRIPT_TURN_LIMIT,
+  CHAT_TRANSCRIPT_TURN_PAGE_LIMIT,
+} from "../../../config/api.ts";
+import type {
+  ChatInteractionResponder,
+  ChatStream,
+} from "../../../types/chatApi";
 import type {
   ChatEvent,
   ChatEventPage,
@@ -25,6 +31,7 @@ interface UseChatResult {
   sendPrompt: (text: string, clientId?: string) => boolean;
   promptOutcome: PromptOutcome | null;
   cancel: () => void;
+  respondInteraction: ChatInteractionResponder;
   rewind: (beforeT: number) => Promise<ChatEventPage>;
   loadOlder: () => Promise<void>;
   refreshMeta: () => Promise<void>;
@@ -106,7 +113,7 @@ export function useChat(chatId: string): UseChatResult {
         const [m, page] = await Promise.all([
           chatApi.fetch(chatId),
           chatApi.fetchTranscript(chatId, {
-            limit: CHAT_TRANSCRIPT_TURN_PAGE_LIMIT,
+            limit: CHAT_INITIAL_TRANSCRIPT_TURN_LIMIT,
           }),
         ]);
         if (cancelled) return;
@@ -203,6 +210,12 @@ export function useChat(chatId: string): UseChatResult {
     if (stream?.isOpen) stream.cancel();
   }, []);
 
+  const respondInteraction = useCallback<ChatInteractionResponder>((interactionId, method, intent) => {
+    const stream = streamRef.current;
+    if (!wsReady || !synced || !stream?.isOpen || status !== "streaming") return false;
+    return stream.respondInteraction(interactionId, method, intent);
+  }, [status, wsReady, synced]);
+
   const rewind = useCallback(async (beforeT: number) => {
     const res = await chatApi.rewind(chatId, beforeT);
     clearPendingEvents();
@@ -249,6 +262,7 @@ export function useChat(chatId: string): UseChatResult {
     sendPrompt,
     promptOutcome,
     cancel,
+    respondInteraction,
     rewind,
     loadOlder,
     refreshMeta,

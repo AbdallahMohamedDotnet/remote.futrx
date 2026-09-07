@@ -88,6 +88,22 @@ func TestChatEventFromAgentEventPersistsCompletionProvider(t *testing.T) {
 	}
 }
 
+func TestChatEventFromAgentEventPersistsTurnStatusProvider(t *testing.T) {
+	ev, ok := chatEventFromAgentEvent(agent.Event{
+		T:        123,
+		Type:     agent.EventTurnStatus,
+		Provider: agent.ProviderMiniMax,
+		Status:   "inProgress",
+	})
+	if !ok {
+		t.Fatal("expected event to map")
+	}
+	if ev.Type != "turn_status" || ev.Provider != servicechat.Provider(agent.ProviderMiniMax) ||
+		ev.Status != "inProgress" {
+		t.Fatalf("unexpected turn status event: %#v", ev)
+	}
+}
+
 func TestChatEventFromAgentEventPreservesMessageIdentity(t *testing.T) {
 	ev, ok := chatEventFromAgentEvent(agent.Event{
 		T:      123,

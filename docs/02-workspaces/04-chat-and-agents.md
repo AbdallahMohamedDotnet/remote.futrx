@@ -290,9 +290,9 @@ flowchart TD
 
 Persisted events receive a monotonic `seq`. On reconnect, the UI sends its last sequence so the server can replay only missed events. A transient `sync` event communicates the current run lock without entering history.
 
-The UI groups text, reasoning, and tool events into readable assistant messages. Known read, write, edit, search, shell, and question tools receive specialized renderers; unknown tools use a generic view.
+The UI groups text, reasoning, and tool events into readable assistant messages. Consecutive reasoning deltas become one live-updating disclosure that is collapsed by default and remains expandable while the run streams. Known read, write, edit, search, shell, and question tools receive specialized renderers; unknown tools use a generic view.
 
-The thread also provides Markdown and syntax-highlighted code, grouped tool calls, visible reasoning blocks, token-usage totals, a working indicator, older-history loading, jump-to-latest behavior, and an error block. An `AskUserQuestion` tool call becomes a paged answer form whose submitted answer is sent as the next prompt.
+The thread also provides Markdown and syntax-highlighted code, grouped tool calls, expandable reasoning blocks, token-usage totals, a working indicator, older-history loading, jump-to-latest behavior, and an error block. An `AskUserQuestion` tool call becomes a paged answer form whose submitted answer is sent as the next prompt.
 
 Antigravity currently contributes streamed assistant text and session/error
 state, not structured reasoning, tools, or usage.

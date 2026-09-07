@@ -38,8 +38,9 @@ native-mode metadata into one catalog. Loose chats use the host CLIs instead.
 The composer therefore follows the installed CLI version and the connected
 account rather than a model list compiled into the frontend.
 
-MiniMax appears only for project chats because its supported credential source
-is the project's `MINIMAX_API_KEY` secret. It is intentionally absent from
+MiniMax appears only for project chats. Before an administrator saves its API
+key under **Settings → Agents**, the project picker shows it as locked under
+**Sign in to use** without exposing its models. It remains absent from
 loose-chat capability catalogs.
 
 On a successful live probe, the model picker uses the catalog published through

@@ -41,11 +41,11 @@ enter the workspace; the others can be connected later.
 A future module may declare that no authentication is required. Such a module
 is ready immediately and opens the gate without presenting a sign-in action.
 
-MiniMax and Antigravity are also available in project chats, but neither uses
-this host-wide onboarding screen or satisfies the initial provider gate. First
-connect Claude, Codex, or Kimi. You can then add a project's
-`MINIMAX_API_KEY` secret for MiniMax or sign in to Antigravity from that
-project's Terminal, then choose **Refresh models** in the chat picker.
+MiniMax and Antigravity are also available in project chats, but neither
+satisfies the initial provider gate. First connect Claude, Codex, or Kimi.
+You can then save the installation-wide MiniMax Token Plan subscription key in **Settings →
+Agents**, or sign in to Antigravity from a project's Terminal and choose
+**Refresh models** in the chat picker.
 
 ![Agent authentication cards for Claude, Codex, and Kimi](/assets/docs/screenshots/03-agent-authentication-01m05s.webp)
 
