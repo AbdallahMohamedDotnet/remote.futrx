@@ -5,16 +5,16 @@
 // divide by zero, and the filter menu's claim on the arrows are all decisions
 // worth pinning, and none of them needs a palette on screen to be true.
 //
-// The component keeps what a test cannot have -- the focus moves, the store
-// writes, the scroll into view -- and reads its next step from here.
+// The presentation hook owns focus, state updates and scrolling, and reads
+// the next step from here.
 
-import { isDismissShortcut } from "../../config/shortcuts.ts";
+import { shortcutService } from "../platform/shortcutService.ts";
 import type { CommandPaletteKeyAction } from "../../models/search";
 import type { ShortcutChord } from "../../models/shortcuts.ts";
 
 const IGNORE: CommandPaletteKeyAction = { kind: "ignore" };
 
-class CommandPaletteKeyState {
+class CommandPaletteKeyService {
   /**
    * What `chord` does, given where the cursor is and how many rows there are.
    *
@@ -30,8 +30,8 @@ class CommandPaletteKeyState {
       filtersOpen: boolean;
     }
   ): CommandPaletteKeyAction {
-    if (filtersOpen) return isDismissShortcut(chord) ? { kind: "closeFilters" } : IGNORE;
-    if (isDismissShortcut(chord)) return { kind: "close" };
+    if (filtersOpen) return shortcutService.isDismiss(chord) ? { kind: "closeFilters" } : IGNORE;
+    if (shortcutService.isDismiss(chord)) return { kind: "close" };
 
     switch (chord.key) {
       case "ArrowDown":
@@ -58,4 +58,4 @@ class CommandPaletteKeyState {
   }
 }
 
-export const commandPaletteKeyState = new CommandPaletteKeyState();
+export const commandPaletteKeyService = new CommandPaletteKeyService();

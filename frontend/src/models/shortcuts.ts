@@ -2,8 +2,8 @@
 //
 // It lives apart from any one feature's model because the same chords are read
 // by search, find-in-chat, the sidebar, and every dismissible overlay. The
-// predicates that interpret it are in `config/shortcuts.ts`; the binding that
-// listens for it is `state/hooks/shared/useShortcut.ts`.
+// predicates that interpret it are in `services/platform/shortcutService.ts`;
+// the binding that listens for it is `state/hooks/shared/useShortcut.ts`.
 
 /**
  * The subset of a keyboard event a shortcut decision depends on.

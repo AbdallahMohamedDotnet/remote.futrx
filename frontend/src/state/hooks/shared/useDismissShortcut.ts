@@ -2,7 +2,7 @@
 //
 // Find-in-chat, the menus, the modals, the mobile sidebar, and a streaming
 // reply all close on Escape, and each was pairing `useShortcut` with
-// `isDismissShortcut` itself. Naming the pairing says the intent once.
+// `shortcutService.isDismiss` itself. Naming the pairing says the intent once.
 //
 // Which of them a press reaches is `dismissStackService`'s rule, not this
 // hook's: every open surface listens, and the one holding the dismissal acts.
@@ -10,7 +10,7 @@
 // way out -- which is the half a test cannot reach.
 
 import { useEffect, useRef } from "preact/hooks";
-import { isDismissShortcut } from "../../../config/shortcuts.ts";
+import { shortcutService } from "../../../services/platform/shortcutService.ts";
 import {
   NO_DISMISS_CLAIM,
   dismissStackService,
@@ -55,7 +55,7 @@ export function useDismissShortcut(
   }, [enabled, fallback]);
 
   useShortcut(
-    isDismissShortcut,
+    shortcutService.isDismiss,
     (event) => {
       if (!dismissStackService.owns(claimRef.current)) return;
       onDismiss(event);

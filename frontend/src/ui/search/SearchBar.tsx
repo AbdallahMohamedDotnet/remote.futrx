@@ -3,7 +3,7 @@ import type {
   FilterControl,
   QueryControl,
 } from "../../state/hooks/workspace/useWorkspaceSearch";
-import { isDismissShortcut } from "../../config/shortcuts.ts";
+import { useDismissKeyDown } from "../../state/hooks/shared/useDismissKeyDown.ts";
 import { useDismissOnOutside } from "../primitives/popover";
 import { ActiveFilterChips } from "./ActiveFilterChips";
 import { FilterPanel } from "./FilterPanel";
@@ -28,6 +28,14 @@ export function SearchBar({
 
   useDismissOnOutside(filtersOpen, () => setFiltersOpen(false), rootRef);
 
+  const onKeyDown = useDismissKeyDown((event) => {
+    if (!search.query) return;
+    // Clear the query before letting Escape bubble out and close the
+    // whole sidebar — one Escape, one obvious effect.
+    event.stopPropagation();
+    search.setQuery("");
+  });
+
   const showClear = search.query.length > 0;
 
   return (
@@ -40,14 +48,7 @@ export function SearchBar({
             ref={inputRef}
             value={search.query}
             onInput={(event) => search.setQuery((event.currentTarget as HTMLInputElement).value)}
-            onKeyDown={(event) => {
-              if (!isDismissShortcut(event)) return;
-              if (!search.query) return;
-              // Clear the query before letting Escape bubble out and close the
-              // whole sidebar — one Escape, one obvious effect.
-              event.stopPropagation();
-              search.setQuery("");
-            }}
+            onKeyDown={onKeyDown}
             placeholder="Search chats and projects"
             class="min-w-0 flex-1 bg-transparent text-[13px] text-ink-100 placeholder:text-ink-400 focus:outline-none"
             autocomplete="off"

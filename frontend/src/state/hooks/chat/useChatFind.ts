@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "preact/hooks";
 import type { RefObject } from "preact";
 import { CHAT_FIND_SKIP_SELECTOR } from "../../../config/chat.ts";
-import { isFindShortcut } from "../../../config/shortcuts.ts";
+import { shortcutService } from "../../../services/platform/shortcutService.ts";
 import { chatFindHighlightService } from "../../../services/chat/chatFindHighlightService.ts";
 import { domTextSearchService } from "../../../services/platform/domTextSearchService.ts";
 import { useDismissShortcut } from "../shared/useDismissShortcut.ts";
@@ -52,7 +52,7 @@ export function useChatFind({
 
   const close = useCallback(() => setOpen(false), []);
 
-  useShortcut(isFindShortcut, (event) => {
+  useShortcut(shortcutService.isFind, (event) => {
     // The browser's own find would otherwise open alongside ours.
     event.preventDefault();
     setOpen(true);

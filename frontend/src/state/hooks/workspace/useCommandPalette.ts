@@ -1,5 +1,5 @@
 import { useStore } from "zustand";
-import { isPaletteShortcut } from "../../../config/shortcuts.ts";
+import { shortcutService } from "../../../services/platform/shortcutService.ts";
 import { commandPaletteStore } from "../../stores/workspace/commandPaletteStore.ts";
 import { useShortcut } from "../shared/useShortcut.ts";
 
@@ -16,7 +16,7 @@ export function useCommandPalette(): { open: boolean; close: () => void } {
   const close = useStore(commandPaletteStore, (state) => state.closePalette);
   const toggle = useStore(commandPaletteStore, (state) => state.togglePalette);
 
-  useShortcut(isPaletteShortcut, (event) => {
+  useShortcut(shortcutService.isPalette, (event) => {
     // Browsers map Cmd/Ctrl+P to Print; preventDefault suppresses it.
     event.preventDefault();
     toggle();
