@@ -35,44 +35,68 @@ type pendingTranscriptItem struct {
 	displaySeq  int64
 }
 
-func (writer *chatIndexWriter) indexTranscriptItem(
+// transcriptProjectionWriter owns materialized items and replacement snapshots
+// within one index checkpoint. The event writer owns the surrounding transaction.
+type transcriptProjectionWriter struct {
+	ctx     context.Context
+	tx      *sql.Tx
+	chatID  servicechat.ID
+	pending map[string]pendingTranscriptItem
+}
+
+func newTranscriptProjectionWriter(
+	ctx context.Context,
+	tx *sql.Tx,
+	chatID servicechat.ID,
+) *transcriptProjectionWriter {
+	return &transcriptProjectionWriter{
+		ctx:     ctx,
+		tx:      tx,
+		chatID:  chatID,
+		pending: make(map[string]pendingTranscriptItem),
+	}
+}
+
+func (writer *transcriptProjectionWriter) indexItem(
 	event servicechat.Event,
+	eventOrdinal int64,
+	turnOrdinal int64,
 	startOffset int64,
 	endOffset int64,
 ) error {
-	itemKey, mode, visible := transcriptItemIdentity(event, writer.state.eventOrdinal)
+	itemKey, mode, visible := transcriptItemIdentity(event, eventOrdinal)
 	if !visible {
 		return nil
 	}
 	if mode == transcriptItemReplace {
-		key := strconv.FormatInt(writer.turn.ordinal, 10) + "\x00" + itemKey
+		key := strconv.FormatInt(turnOrdinal, 10) + "\x00" + itemKey
 		displaySeq := event.Seq
-		if pending, exists := writer.pendingTranscriptItems[key]; exists {
+		if pending, exists := writer.pending[key]; exists {
 			displaySeq = pending.displaySeq
 		}
-		writer.pendingTranscriptItems[key] = pendingTranscriptItem{
+		writer.pending[key] = pendingTranscriptItem{
 			event:       event,
 			itemKey:     itemKey,
 			startOffset: startOffset,
 			endOffset:   endOffset,
-			turnOrdinal: writer.turn.ordinal,
+			turnOrdinal: turnOrdinal,
 			displaySeq:  displaySeq,
 		}
 		return nil
 	}
 	return writer.persistTranscriptItem(
-		event, itemKey, mode, startOffset, endOffset, writer.turn.ordinal, event.Seq,
+		event, itemKey, mode, startOffset, endOffset, turnOrdinal, event.Seq,
 	)
 }
 
-func (writer *chatIndexWriter) flushPendingTranscriptItems() error {
-	keys := make([]string, 0, len(writer.pendingTranscriptItems))
-	for key := range writer.pendingTranscriptItems {
+func (writer *transcriptProjectionWriter) flush() error {
+	keys := make([]string, 0, len(writer.pending))
+	for key := range writer.pending {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		item := writer.pendingTranscriptItems[key]
+		item := writer.pending[key]
 		if err := writer.persistTranscriptItem(
 			item.event,
 			item.itemKey,
@@ -88,7 +112,7 @@ func (writer *chatIndexWriter) flushPendingTranscriptItems() error {
 	return nil
 }
 
-func (writer *chatIndexWriter) persistTranscriptItem(
+func (writer *transcriptProjectionWriter) persistTranscriptItem(
 	event servicechat.Event,
 	itemKey string,
 	mode transcriptItemMode,
@@ -97,7 +121,6 @@ func (writer *chatIndexWriter) persistTranscriptItem(
 	turnOrdinal int64,
 	displaySeq int64,
 ) error {
-
 	existingStart, existingPayload, found, err := readTranscriptItem(
 		writer.ctx,
 		writer.tx,
@@ -268,7 +291,7 @@ func deleteTranscriptContentRefs(
 	return err
 }
 
-func (writer *chatIndexWriter) compactTranscriptEvent(
+func (writer *transcriptProjectionWriter) compactTranscriptEvent(
 	event servicechat.Event,
 	itemKey string,
 	sourceOffset int64,
