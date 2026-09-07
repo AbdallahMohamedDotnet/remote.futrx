@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -13,55 +13,111 @@ import (
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 )
 
-const (
-	indexPrefixHashOffset64 = uint64(14695981039346656037)
-	indexPrefixHashPrime64  = uint64(1099511628211)
-)
+type chatIndexWriter struct {
+	ctx          context.Context
+	tx           *sql.Tx
+	chatID       servicechat.ID
+	state        chatIndexState
+	turn         indexedTurnState
+	eventOffsets *sql.Stmt
+	insertTurn   *sql.Stmt
+	updateTurn   *sql.Stmt
+}
 
-func newChatIndexState() chatIndexState {
-	return chatIndexState{
-		prefixHash:   indexPrefixHashOffset64,
-		tailComplete: true,
+func newChatIndexWriter(
+	ctx context.Context,
+	tx *sql.Tx,
+	chatID servicechat.ID,
+	state chatIndexState,
+	turn indexedTurnState,
+) *chatIndexWriter {
+	return &chatIndexWriter{
+		ctx:    ctx,
+		tx:     tx,
+		chatID: chatID,
+		state:  state,
+		turn:   turn,
 	}
 }
 
-// buildChatIndexTail extends state while the Store's per-chat lock is held.
-// The reader is capped at observedSize so a concurrent out-of-band append is
-// picked up by the next stat/sync rather than half-indexed here.
-func buildChatIndexTail(
-	ctx context.Context,
+func (writer *chatIndexWriter) prepare() error {
+	var err error
+	writer.eventOffsets, err = writer.tx.PrepareContext(writer.ctx, `
+		INSERT INTO chat_event_offsets
+			(chat_id, event_ordinal, event_seq, byte_offset, byte_length)
+		VALUES (?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	writer.insertTurn, err = writer.tx.PrepareContext(writer.ctx, `
+		INSERT INTO chat_transcript_turns
+			(chat_id, turn_ordinal, source_turn_id, has_user,
+			 start_seq, end_seq, start_offset, end_offset)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		writer.close()
+		return err
+	}
+	writer.updateTurn, err = writer.tx.PrepareContext(writer.ctx, `
+		UPDATE chat_transcript_turns
+		SET source_turn_id = ?, has_user = ?, end_seq = ?, end_offset = ?
+		WHERE chat_id = ? AND turn_ordinal = ?`)
+	if err != nil {
+		writer.close()
+		return err
+	}
+	return nil
+}
+
+func (writer *chatIndexWriter) close() {
+	if writer.updateTurn != nil {
+		_ = writer.updateTurn.Close()
+	}
+	if writer.insertTurn != nil {
+		_ = writer.insertTurn.Close()
+	}
+	if writer.eventOffsets != nil {
+		_ = writer.eventOffsets.Close()
+	}
+}
+
+// indexTail scans no farther than observedSize. If another process appends
+// concurrently, those bytes are picked up by the next synchronization.
+func (writer *chatIndexWriter) indexTail(
 	eventsPath string,
 	observedSize int64,
-	state chatIndexState,
 ) (chatIndexState, error) {
-	next := state
-	if observedSize == next.indexedBytes {
-		return next, nil
+	if observedSize == writer.state.indexedBytes {
+		return writer.state, nil
 	}
 	file, err := os.Open(eventsPath)
 	if err != nil {
 		return chatIndexState{}, err
 	}
 	defer file.Close()
-	if _, err := file.Seek(next.indexedBytes, io.SeekStart); err != nil {
+	if _, err := file.Seek(writer.state.indexedBytes, io.SeekStart); err != nil {
 		return chatIndexState{}, err
 	}
+	if err := writer.prepare(); err != nil {
+		return chatIndexState{}, err
+	}
+	defer writer.close()
 
-	remaining := observedSize - next.indexedBytes
+	remaining := observedSize - writer.state.indexedBytes
 	reader := bufio.NewReader(io.LimitReader(file, remaining))
-	offset := next.indexedBytes
-	next.tailComplete = true
+	offset := writer.state.indexedBytes
+	writer.state.tailComplete = true
 	for offset < observedSize {
-		if err := ctx.Err(); err != nil {
+		if err := writer.ctx.Err(); err != nil {
 			return chatIndexState{}, err
 		}
 		raw, readErr := reader.ReadBytes('\n')
 		if len(raw) > 0 {
-			lineOffset := offset
+			startOffset := offset
 			offset += int64(len(raw))
-			next.tailComplete = raw[len(raw)-1] == '\n'
-			next.prefixHash = updateIndexPrefixHash(next.prefixHash, raw)
-			if err := indexEventRecord(&next, raw, lineOffset); err != nil {
+			writer.state.tailComplete = raw[len(raw)-1] == '\n'
+			writer.state.prefixHash = updateIndexPrefixHash(writer.state.prefixHash, raw)
+			if err := writer.indexRecord(raw, startOffset, offset); err != nil {
 				return chatIndexState{}, err
 			}
 		}
@@ -75,104 +131,83 @@ func buildChatIndexTail(
 	if offset != observedSize {
 		return chatIndexState{}, io.ErrUnexpectedEOF
 	}
-	return next, nil
+	writer.state.indexedBytes = offset
+	return writer.state, nil
 }
 
-func updateIndexPrefixHash(value uint64, data []byte) uint64 {
-	for _, item := range data {
-		value ^= uint64(item)
-		value *= indexPrefixHashPrime64
-	}
-	return value
-}
-
-func chatIndexPrefixMatches(
-	ctx context.Context,
-	eventsPath string,
-	state chatIndexState,
-) (bool, error) {
-	file, err := os.Open(eventsPath)
-	if err != nil {
-		return false, err
-	}
-	defer file.Close()
-
-	value := indexPrefixHashOffset64
-	remaining := state.indexedBytes
-	buffer := make([]byte, 32*1024)
-	for remaining > 0 {
-		if err := ctx.Err(); err != nil {
-			return false, err
-		}
-		readSize := int64(len(buffer))
-		if remaining < readSize {
-			readSize = remaining
-		}
-		count, readErr := io.ReadFull(file, buffer[:int(readSize)])
-		if count > 0 {
-			value = updateIndexPrefixHash(value, buffer[:count])
-			remaining -= int64(count)
-		}
-		if readErr != nil {
-			if errors.Is(readErr, io.EOF) || errors.Is(readErr, io.ErrUnexpectedEOF) {
-				return false, nil
-			}
-			return false, readErr
-		}
-	}
-	return value == state.prefixHash, nil
-}
-
-func indexEventRecord(state *chatIndexState, raw []byte, offset int64) error {
+func (writer *chatIndexWriter) indexRecord(raw []byte, startOffset, endOffset int64) error {
 	line := bytes.TrimSuffix(raw, []byte{'\n'})
 	line = bytes.TrimSuffix(line, []byte{'\r'})
 	if len(line) == 0 {
 		return nil
 	}
 
-	state.eventOrdinal++
+	writer.state.eventOrdinal++
 	if len(line) > maxEventRecordBytes {
 		return fmt.Errorf("event record exceeds %d bytes", maxEventRecordBytes)
 	}
-	var record eventRecord
-	if err := json.Unmarshal(line, &record); err != nil {
+	event, err := decodeStoredEvent(line, writer.state.eventOrdinal)
+	if err != nil {
 		return nil
 	}
-	event := record.toDomain()
-	if event.Seq == 0 {
-		event.Seq = state.eventOrdinal
+	if event.Seq > writer.state.lastSeq {
+		writer.state.lastSeq = event.Seq
 	}
-	if event.Seq > state.lastSeq {
-		state.lastSeq = event.Seq
+	if _, err := writer.eventOffsets.ExecContext(
+		writer.ctx,
+		writer.chatID,
+		writer.state.eventOrdinal,
+		event.Seq,
+		startOffset,
+		len(raw),
+	); err != nil {
+		return err
 	}
+	return writer.indexTranscriptTurn(event, startOffset, endOffset)
+}
 
-	eventIndex := len(state.events)
-	state.events = append(state.events, indexedEventLocation{
-		offset: offset,
-		length: int64(len(raw)),
-		seq:    event.Seq,
-	})
-	startsNewTurn := len(state.turns) == 0 || servicechat.EventStartsTranscriptTurn(
-		state.currentTurnID,
-		state.currentTurnHasUser,
+func (writer *chatIndexWriter) indexTranscriptTurn(
+	event servicechat.Event,
+	startOffset int64,
+	endOffset int64,
+) error {
+	startsNew := !writer.turn.hasExisting || servicechat.EventStartsTranscriptTurn(
+		writer.turn.sourceID,
+		writer.turn.hasUser,
 		true,
 		event,
 	)
-	if startsNewTurn {
-		state.turns = append(state.turns, indexedTurnRange{
-			startEvent: eventIndex,
-			endEvent:   eventIndex + 1,
-			startSeq:   event.Seq,
-		})
-		state.currentTurnID = event.TurnID
-		state.currentTurnHasUser = event.Type == "user"
-		return nil
+	if startsNew {
+		writer.turn.ordinal++
+		writer.turn.sourceID = event.TurnID
+		writer.turn.hasUser = event.Type == "user"
+		writer.turn.hasExisting = true
+		_, err := writer.insertTurn.ExecContext(
+			writer.ctx,
+			writer.chatID,
+			writer.turn.ordinal,
+			writer.turn.sourceID,
+			writer.turn.hasUser,
+			event.Seq,
+			event.Seq,
+			startOffset,
+			endOffset,
+		)
+		return err
 	}
 
-	state.turns[len(state.turns)-1].endEvent = eventIndex + 1
-	if state.currentTurnID == "" && event.TurnID != "" {
-		state.currentTurnID = event.TurnID
+	if writer.turn.sourceID == "" && event.TurnID != "" {
+		writer.turn.sourceID = event.TurnID
 	}
-	state.currentTurnHasUser = state.currentTurnHasUser || event.Type == "user"
-	return nil
+	writer.turn.hasUser = writer.turn.hasUser || event.Type == "user"
+	_, err := writer.updateTurn.ExecContext(
+		writer.ctx,
+		writer.turn.sourceID,
+		writer.turn.hasUser,
+		event.Seq,
+		endOffset,
+		writer.chatID,
+		writer.turn.ordinal,
+	)
+	return err
 }

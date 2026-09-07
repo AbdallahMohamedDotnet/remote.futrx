@@ -1,145 +1,103 @@
 package filechat
 
 import (
-	"context"
-	"sync"
+	"database/sql"
+	"errors"
+	"fmt"
+	"net/url"
+	"path/filepath"
 
-	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
+	sqlite "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
-type indexedEventLocation struct {
-	offset int64
-	length int64
-	seq    int64
-}
+const chatEventIndexFilename = "transcript-index.sqlite"
 
-// indexedTurnRange addresses a complete transcript turn inside events. The end
-// is exclusive, matching Go slice bounds.
-type indexedTurnRange struct {
-	startEvent int
-	endEvent   int
-	startSeq   int64
-}
-
-// chatIndexState is mutated only while the Store's per-chat lock is held.
-// Different chats can still build and read their indexes concurrently.
-type chatIndexState struct {
-	indexedBytes int64
-	eventOrdinal int64
-	lastSeq      int64
-	fileMtimeNS  int64
-	prefixHash   uint64
-	tailComplete bool
-
-	events []indexedEventLocation
-	turns  []indexedTurnRange
-
-	currentTurnID      string
-	currentTurnHasUser bool
-}
-
-type cachedChatIndex struct {
-	state    chatIndexState
-	lastUsed uint64
-}
-
-const (
-	defaultMaxCachedIndexChats     = 10_000
-	defaultMaxCachedIndexLocations = 2_000_000
-)
-
-// chatEventIndex caches derived offsets and turn boundaries for chats touched
-// during this process lifetime. The Store's per-chat lock serializes each
-// state's mutation; this mutex only protects the map itself.
 type chatEventIndex struct {
-	mu           sync.Mutex
-	states       map[servicechat.ID]cachedChatIndex
-	clock        uint64
-	locations    int
-	maxChats     int
-	maxLocations int
+	db          *sql.DB
+	path        string
+	unavailable error
 }
 
-func newChatEventIndex() *chatEventIndex {
+func newChatEventIndex(root string) (*chatEventIndex, error) {
+	path := filepath.Join(root, chatEventIndexFilename)
+	index, err := openChatEventIndex(path)
+	if err == nil {
+		return index, nil
+	}
+	if !isCorruptIndexError(err) {
+		return nil, err
+	}
+	if removeErr := removeChatEventIndexFiles(path); removeErr != nil {
+		return nil, errors.Join(err, removeErr)
+	}
+	return openChatEventIndex(path)
+}
+
+func openChatEventIndex(path string) (*chatEventIndex, error) {
+	if err := createPrivateIndexFile(path); err != nil {
+		return nil, err
+	}
+
+	databaseURL := &url.URL{Scheme: "file", Path: path}
+	query := databaseURL.Query()
+	query.Set("_busy_timeout", "5000")
+	query.Set("_defensive", "1")
+	query.Set("_dqs", "0")
+	query.Set("_foreign_keys", "on")
+	query.Set("_journal_mode", "WAL")
+	query.Set("_synchronous", "NORMAL")
+	query.Set("_txlock", "immediate")
+	query.Add("_pragma", "trusted_schema(OFF)")
+	databaseURL.RawQuery = query.Encode()
+
+	db, err := sql.Open("sqlite", databaseURL.String())
+	if err != nil {
+		return nil, err
+	}
+	// WAL lets reads for already-indexed chats proceed while another chat is
+	// backfilled. Every pooled connection receives the hardened DSN settings.
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(4)
+
+	index := &chatEventIndex{db: db, path: path}
+	if err := index.initializeSchema(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize chat event index: %w", err)
+	}
+	if err := index.restrictFiles(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("secure chat event index: %w", err)
+	}
+	return index, nil
+}
+
+func isCorruptIndexError(err error) bool {
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+	code := sqliteErr.Code() & 0xff
+	return code == sqlite3.SQLITE_CORRUPT || code == sqlite3.SQLITE_NOTADB
+}
+
+func unavailableChatEventIndex(root string, err error) *chatEventIndex {
 	return &chatEventIndex{
-		states:       make(map[servicechat.ID]cachedChatIndex),
-		maxChats:     defaultMaxCachedIndexChats,
-		maxLocations: defaultMaxCachedIndexLocations,
+		path:        filepath.Join(root, chatEventIndexFilename),
+		unavailable: err,
 	}
 }
 
-func (index *chatEventIndex) snapshot(id servicechat.ID) (chatIndexState, bool) {
-	index.mu.Lock()
-	defer index.mu.Unlock()
-	entry, found := index.states[id]
-	if !found {
-		return chatIndexState{}, false
+func (index *chatEventIndex) availabilityError() error {
+	if index == nil {
+		return errors.New("chat event index is unavailable")
 	}
-	index.clock++
-	entry.lastUsed = index.clock
-	index.states[id] = entry
-	return entry.state, true
+	return index.unavailable
 }
 
-func (index *chatEventIndex) publish(id servicechat.ID, state chatIndexState) {
-	index.mu.Lock()
-	defer index.mu.Unlock()
-	if previous, found := index.states[id]; found {
-		index.locations -= chatIndexLocations(previous.state)
+func (index *chatEventIndex) close() error {
+	if index == nil || index.db == nil {
+		return nil
 	}
-	index.clock++
-	index.states[id] = cachedChatIndex{state: state, lastUsed: index.clock}
-	index.locations += chatIndexLocations(state)
-	index.evict(id)
-}
-
-func (index *chatEventIndex) forget(ctx context.Context, id servicechat.ID) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	index.mu.Lock()
-	defer index.mu.Unlock()
-	index.remove(id)
-	return nil
-}
-
-func (index *chatEventIndex) invalidate(id servicechat.ID) {
-	index.mu.Lock()
-	defer index.mu.Unlock()
-	index.remove(id)
-}
-
-func (index *chatEventIndex) remove(id servicechat.ID) {
-	if entry, found := index.states[id]; found {
-		index.locations -= chatIndexLocations(entry.state)
-		delete(index.states, id)
-	}
-}
-
-func (index *chatEventIndex) evict(current servicechat.ID) {
-	for index.overBudget() && len(index.states) > 1 {
-		var oldestID servicechat.ID
-		var oldestUse uint64
-		for id, entry := range index.states {
-			if id == current || (oldestID != "" && entry.lastUsed >= oldestUse) {
-				continue
-			}
-			oldestID = id
-			oldestUse = entry.lastUsed
-		}
-		if oldestID == "" {
-			return
-		}
-		index.remove(oldestID)
-	}
-}
-
-func (index *chatEventIndex) overBudget() bool {
-	tooManyChats := index.maxChats > 0 && len(index.states) > index.maxChats
-	tooManyLocations := index.maxLocations > 0 && index.locations > index.maxLocations
-	return tooManyChats || tooManyLocations
-}
-
-func chatIndexLocations(state chatIndexState) int {
-	return cap(state.events) + cap(state.turns)
+	return index.db.Close()
 }
