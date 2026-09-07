@@ -1,6 +1,6 @@
 # Data and frontend state
 
-The application does not use a database. Durable metadata is stored as JSON files; chat events use append-only JSONL. Project source files live in a separate host workspace tree.
+The application does not use a database. Durable metadata is stored as JSON files; chat events use append-only JSONL. The backend lazily builds a process-local index of chat event offsets and transcript turns for bounded reads. Project source files live in a separate host workspace tree.
 
 ## Host storage layout
 
@@ -107,8 +107,11 @@ flowchart LR
     Append --> Seq["Assign next monotonic seq"]
     Seq --> Meta["Update lastMessageAt for visible events"]
     Meta --> Cache["Refresh in-memory metadata index"]
+    Append -.-> Index["Refresh process-local offset/turn index"]
     Append --> Replay["Replay live events after seq"]
     Append --> Transcript["Project complete, compacted turn pages"]
+    Index -.-> Replay
+    Index -.-> Transcript
     Replay --> Client["Chat UI"]
     Transcript --> Client
 ```
@@ -120,13 +123,24 @@ a read-time transcript projection by `turnId` (or legacy `user` boundaries) and
 coalesce adjacent streaming text/reasoning deltas. The cursor is still a raw
 event sequence, so existing chat files require no migration.
 
+Each chat's event-offset and turn-range index is derived in process from its
+JSONL log. It is built lazily on first access after a backend start and refreshed
+incrementally as bytes are appended. File metadata and a prefix fingerprint
+detect rewrites or truncations and trigger a rebuild. A bounded cache evicts
+least-recently-used chats and rebuilds them on demand; one chat larger than the
+budget may remain cached. A rewind requests an immediate rebuild, while deletion
+drops the cached entry. Indexed-read failures fall back to scanning the canonical
+JSONL file. No index data is written to disk. On upgrade, startup removes the
+disposable `transcript-index.sqlite` file and its WAL/SHM sidecars created by the
+short-lived SQLite implementation.
+
 Scheduled-task definitions are separate from chat metadata. One versioned
 `scheduled-tasks/tasks.json` document holds every task plus persisted active
 claims, pending occurrence state, retry deadline, counts, and last result.
 Writes atomically replace the document. The scheduler loop is in-memory, but it
 reconstructs deadlines and abandons stale claims after a backend restart.
 
-Rewind rewrites `events.jsonl` atomically with only events before the selected timestamp. Chat deletion removes that chat directory.
+Rewind rewrites `events.jsonl` atomically with only events before the selected timestamp and best-effort rebuilds that chat's process-local index. Chat deletion removes the chat directory and drops the cached index entry.
 
 ## Project persistence
 
