@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	"github.com/futrx-com/remote.futrx.com/internal/integration/googleoauth"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
@@ -22,6 +21,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
 	serviceschedule "github.com/futrx-com/remote.futrx.com/internal/service/schedule"
 	"github.com/futrx-com/remote.futrx.com/internal/service/schedulecapability"
+	serviceshare "github.com/futrx-com/remote.futrx.com/internal/service/share"
 	serviceskills "github.com/futrx-com/remote.futrx.com/internal/service/skills"
 	servicetmux "github.com/futrx-com/remote.futrx.com/internal/service/tmux"
 	serviceusage "github.com/futrx-com/remote.futrx.com/internal/service/usage"
@@ -43,6 +43,8 @@ type TmuxClient interface {
 type ChatStore interface {
 	servicechat.Repository
 	servicechat.TranscriptEventSource
+	servicechat.TranscriptEventWindowSource
+	servicechat.TranscriptProjectionSource
 }
 
 // PushStore persists Web Push registrations and the server's long-lived VAPID
@@ -59,6 +61,7 @@ type Dependencies struct {
 	Projects          serviceproject.Repository
 	ProjectSecrets    serviceproject.SecretsRepository
 	ProjectAccess     serviceproject.AccessRepository
+	ProjectShares     serviceshare.Repository
 	Schedules         serviceschedule.Repository
 	Auth              AuthStore
 	Users             serviceuser.Repository
@@ -77,6 +80,7 @@ type Dependencies struct {
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
 	ScheduleLimits    ScheduleLimits
+	PromptStartGate   prompt.StartGate
 }
 
 // ScheduleLimits mirrors the deployment's scheduled-task guardrails without
@@ -105,12 +109,14 @@ type AuthOptions struct {
 	EnrollmentTTL       time.Duration
 	RecoveryCodeCount   int
 	SessionHistoryLimit int
+	SetupTokenTTL       time.Duration
 }
 
 type Services struct {
 	Chats             *servicechat.Service
 	ChatAccess        *servicechat.AccessService
 	Projects          *serviceproject.Service
+	Shares            *serviceshare.Service
 	Prompt            *prompt.Service
 	Schedules         *serviceschedule.Service
 	ScheduleCaps      *schedulecapability.Registry
@@ -188,6 +194,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		tmuxResolver,
 		runs,
 		servicechat.WithTranscriptEventSource(deps.Chats),
+		servicechat.WithTranscriptEventWindowSource(deps.Chats),
+		servicechat.WithTranscriptProjectionSource(deps.Chats),
 		servicechat.WithCopiedEventAppender(chats),
 		servicechat.WithSessionPolicy(agentRuntime),
 		servicechat.WithProviderPolicy(agentRuntime),
@@ -220,6 +228,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	promptOptions := []prompt.Option{
 		prompt.WithScheduleToolIssuer(scheduleCaps),
 		prompt.WithAgentPolicy(agentRuntime),
+	}
+	if deps.PromptStartGate != nil {
+		promptOptions = append(promptOptions, prompt.WithStartGate(deps.PromptStartGate))
 	}
 	if deps.Usage != nil {
 		usageService = serviceusage.New(deps.Usage, projectService, chats)
@@ -267,6 +278,10 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if authService != nil {
 		accessVerifier = serviceauth.NewAccessVerifier(authService, projectService)
 	}
+	var shareService *serviceshare.Service
+	if deps.ProjectShares != nil {
+		shareService = serviceshare.New(deps.ProjectShares, projectService)
+	}
 	var tmuxService *servicetmux.Service
 	if deps.TmuxClient != nil {
 		tmuxService = servicetmux.NewSessions(deps.TmuxClient)
@@ -280,6 +295,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Chats:             chatService,
 		ChatAccess:        chatAccessService,
 		Projects:          projectService,
+		Shares:            shareService,
 		Prompt:            promptService,
 		Schedules:         scheduleService,
 		ScheduleCaps:      scheduleCaps,
@@ -362,7 +378,7 @@ func (e scheduledPromptExecutor) StartScheduledPrompt(
 		ScheduledRunID:  task.ActiveRunID,
 		ParentContext:   ctx,
 	}, nil)
-	if errors.Is(err, prompt.ErrPromptAlreadyRunning) {
+	if errors.Is(err, prompt.ErrPromptAlreadyRunning) || errors.Is(err, prompt.ErrMaintenance) {
 		return nil, serviceschedule.ErrExecutorBusy
 	}
 	if err != nil {
@@ -393,93 +409,6 @@ type scheduledPromptHandle struct {
 
 func (h scheduledPromptHandle) Done() <-chan serviceschedule.RunResult {
 	return h.done
-}
-
-// userDirectoryAdapter wraps *serviceuser.Service to satisfy
-// serviceauth.UserDirectory. AddBootstrapAdmin is the one method the auth
-// service needs that the regular user.Service.Add doesn't quite cover (no
-// "addedBy" since it's the bootstrap path).
-type userDirectoryAdapter struct {
-	users *serviceuser.Service
-}
-
-func (a userDirectoryAdapter) IsAdmin(ctx context.Context, email string) (bool, error) {
-	return a.users.IsAdmin(ctx, email)
-}
-
-func (a userDirectoryAdapter) IsRegistered(ctx context.Context, email string) (bool, error) {
-	return a.users.IsRegistered(ctx, email)
-}
-
-func (a userDirectoryAdapter) AddBootstrapAdmin(ctx context.Context, email string) error {
-	_, err := a.users.Add(ctx, email, serviceuser.RoleAdmin, "")
-	return err
-}
-
-func (a userDirectoryAdapter) FirstAdmin(ctx context.Context) (*serviceauth.UserDirectoryEntry, error) {
-	list, err := a.users.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var oldest *serviceuser.User
-	for i := range list {
-		u := &list[i]
-		if u.Role != serviceuser.RoleAdmin {
-			continue
-		}
-		if oldest == nil || u.AddedAt < oldest.AddedAt {
-			oldest = u
-		}
-	}
-	if oldest == nil {
-		return nil, nil
-	}
-	return &serviceauth.UserDirectoryEntry{Email: oldest.Email}, nil
-}
-
-func newAuth(
-	ctx context.Context,
-	store AuthStore,
-	users *serviceuser.Service,
-	baseURL string,
-	twoFactor serviceauth.TwoFactorStore,
-	sessionRegistry serviceauth.SessionRegistryStore,
-	options AuthOptions,
-) (*serviceauth.Service, error) {
-	if store == nil {
-		return nil, errors.New("authentication store is required")
-	}
-	baseURL, err := serviceauth.NormalizeBaseURL(baseURL)
-	if err != nil {
-		return nil, err
-	}
-	sessionKey, err := store.SessionKey(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var directory serviceauth.UserDirectory
-	if users != nil {
-		directory = userDirectoryAdapter{users: users}
-	}
-	return serviceauth.New(
-		ctx,
-		store,
-		directory,
-		func(clientID, clientSecret, redirectURL string) serviceauth.OAuthProvider {
-			return googleoauth.New(clientID, clientSecret, redirectURL)
-		},
-		baseURL,
-		sessionKey,
-		twoFactor,
-		sessionRegistry,
-		serviceauth.Options{
-			PendingLoginTTL:     options.PendingLoginTTL,
-			EnrollmentTTL:       options.EnrollmentTTL,
-			RecoveryCodeCount:   options.RecoveryCodeCount,
-			SessionHistoryLimit: options.SessionHistoryLimit,
-		},
-	)
 }
 
 type chatProjectResolver struct {

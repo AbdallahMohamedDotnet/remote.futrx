@@ -1,7 +1,10 @@
 import type { ApprovalPolicy, SandboxPolicy } from "../models/chat";
 import { capitalize } from "./text.ts";
 
-export const CODEX_APPROVAL_POLICY_OPTIONS: readonly {
+export const DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS = 6000;
+export const READ_TOOL_OUTPUT_PREVIEW_CHARS = 8000;
+
+export const APPROVAL_POLICY_OPTIONS: readonly {
   value: ApprovalPolicy;
   label: string;
 }[] = [
@@ -10,7 +13,7 @@ export const CODEX_APPROVAL_POLICY_OPTIONS: readonly {
   { value: "never", label: "Never ask" },
 ];
 
-export const CODEX_SANDBOX_POLICY_OPTIONS: readonly {
+export const SANDBOX_POLICY_OPTIONS: readonly {
   value: SandboxPolicy;
   label: string;
 }[] = [

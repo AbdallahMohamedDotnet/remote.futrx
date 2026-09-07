@@ -59,6 +59,8 @@ class AgentCapabilityState {
       reasoningEffortOptions: selectedModel?.reasoningEfforts ?? [],
       serviceTierOptions: selectedModel?.serviceTiers ?? [],
       modeOptions: providerCapabilities?.modes ?? [],
+      supportsExecutionPolicies:
+        providerCapabilities?.features?.executionPolicies === true,
     };
   }
 
