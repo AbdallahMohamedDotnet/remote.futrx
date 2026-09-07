@@ -355,6 +355,16 @@ html[data-theme="light"] {
     overflow-wrap: normal;
   }
 
+  /* Tables keep words intact so columns retain their natural minimum width
+     and overflow scrolls inside the table frame. Inline code and links opt
+     out of their usual aggressive wrapping here as well. */
+  .md-table,
+  .md-table a,
+  .md-table code {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
   .codex-prose > * + * { margin-top: 0.85em; }
   .codex-prose h1,
   .codex-prose h2,
