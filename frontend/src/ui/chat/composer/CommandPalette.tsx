@@ -2,9 +2,9 @@ import { forwardRef } from "preact/compat";
 import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ChatProvider } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
+import { commandPaletteState } from "../../../state/hooks/chat/commandPaletteState";
 import { useAvailableSkills } from "../../../state/hooks/chat/useAvailableSkills";
 import { Code } from "../../primitives/icons";
-import { filterCommands } from "./commandQuery";
 
 const MAX_VISIBLE = 8;
 
@@ -31,7 +31,7 @@ export const CommandPalette = forwardRef<CommandPaletteHandle, {
     const listRef = useRef<HTMLDivElement>(null);
 
     const results = useMemo(
-      () => filterCommands(skills, query),
+      () => commandPaletteState.filter(skills, query),
       [skills, query],
     );
     resultsRef.current = results;
@@ -51,30 +51,34 @@ export const CommandPalette = forwardRef<CommandPaletteHandle, {
     useImperativeHandle(ref, () => ({
       handleKeyDown(event: KeyboardEvent): boolean {
         const items = resultsRef.current;
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onDismiss();
-          return true;
-        }
-        if (items.length === 0) return false;
-        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-          event.preventDefault();
-          if (event.key === "ArrowDown") {
-            setHighlighted((current) => (current + 1) % items.length);
-          } else {
-            setHighlighted((current) => (current - 1 + items.length) % items.length);
+        switch (commandPaletteState.actionForKey(event.key, items.length)) {
+          case "dismiss":
+            event.preventDefault();
+            onDismiss();
+            return true;
+          case "next":
+            event.preventDefault();
+            setHighlighted((current) =>
+              commandPaletteState.moveHighlight(current, 1, items.length)
+            );
+            return true;
+          case "previous":
+            event.preventDefault();
+            setHighlighted((current) =>
+              commandPaletteState.moveHighlight(current, -1, items.length)
+            );
+            return true;
+          case "choose": {
+            const chosen = commandPaletteState.selectedItem(items, highlighted);
+            if (!chosen) return false;
+            event.preventDefault();
+            onSelect(chosen);
+            onDismiss();
+            return true;
           }
-          return true;
+          case "ignore":
+            return false;
         }
-        if (event.key === "Enter" || event.key === "Tab") {
-          const chosen = items[Math.min(highlighted, items.length - 1)];
-          if (!chosen) return false;
-          event.preventDefault();
-          onSelect(chosen);
-          onDismiss();
-          return true;
-        }
-        return false;
       },
     }), [highlighted, onSelect, onDismiss]);
 
