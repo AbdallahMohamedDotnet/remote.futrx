@@ -125,15 +125,18 @@ coalesce adjacent streaming text/reasoning deltas. The cursor is still a raw
 event sequence, so existing chat files require no migration.
 
 `DATA_DIR/transcript-index.sqlite` is derived from the chat JSONL logs. At
-startup, a background worker backfills up to the 20 most recently active chats;
+startup, a background worker backfills up to the 10 most recently active chats;
 other chats are backfilled lazily on first access. The result persists across
 backend restarts and is refreshed incrementally as bytes are appended. File
-metadata, a prefix fingerprint, and incomplete-tail state detect rewrites or
-truncations and trigger a transactional rebuild. A rewind requests an immediate
-rebuild, while deletion removes the chat's rows. Indexed-read failures fall back
-to scanning canonical JSONL. The index can be deleted while the service is
-stopped and will rebuild automatically. The browser initially requests 10
-complete turns and requests older history in 20-turn pages.
+size and modification time, incomplete-tail state, and a prefix fingerprint
+checked before untrusted growth decide when to rebuild transactionally. A
+rewind requests an immediate rebuild, while deletion removes the chat's rows.
+Indexed-read failures fall back to scanning canonical JSONL. The index can be
+deleted while the service is stopped and will rebuild automatically. The
+browser initially requests 10 complete turns and requests older history in
+20-turn pages. See the
+[durable chat transcript index developer guide](../dev/chat-transcript-index/)
+for the layer ownership and read, write, and recovery flows.
 
 Scheduled-task definitions are separate from chat metadata. One versioned
 `scheduled-tasks/tasks.json` document holds every task plus persisted active
