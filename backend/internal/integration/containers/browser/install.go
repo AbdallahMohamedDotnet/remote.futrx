@@ -61,7 +61,18 @@ func (r browserAssetRenderer) launcherScript() []byte {
 func (r browserAssetRenderer) stackCheck() string {
 	// Playwright's Chromium lives under chrome-linux64/ on x86_64 and
 	// chrome-linux/ on aarch64; probe both so arm64 installs resolve.
-	return `command -v Xvfb >/dev/null 2>&1 && for browser_bin in /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome /root/.cache/ms-playwright/chromium-*/chrome-linux/chrome; do [ -x "$browser_bin" ] || continue; "$browser_bin" --version 2>/dev/null | grep -Fq '` + r.pin("PW_CFT_VERSION") + `' && exit 0; done; exit 1`
+	// On aarch64 there is no Chrome for Testing build, so Playwright installs
+	// its own Chromium whose patch component differs from the pin (for
+	// example 148.0.7778.0 against a pinned 148.0.7778.96). Match the
+	// major.minor.build prefix instead. The trailing [[:space:]]* is
+	// required: chrome --version emits a trailing space.
+	v := r.pin("PW_CFT_VERSION")
+	prefix := v
+	if i := strings.LastIndex(v, "."); i >= 0 {
+		prefix = v[:i]
+	}
+	prefix = strings.ReplaceAll(prefix, ".", `\.`)
+	return `command -v Xvfb >/dev/null 2>&1 && for browser_bin in /root/.cache/ms-playwright/chromium-*/chrome-linux64/chrome /root/.cache/ms-playwright/chromium-*/chrome-linux/chrome; do [ -x "$browser_bin" ] || continue; "$browser_bin" --version 2>/dev/null | grep -Eq '^Chromium ` + prefix + `\.[0-9]+[[:space:]]*$' && exit 0; done; exit 1`
 }
 
 func renderedGUIUpScript() []byte {
