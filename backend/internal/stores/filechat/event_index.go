@@ -13,47 +13,9 @@ import (
 )
 
 const (
-	chatEventIndexFilename      = "transcript-index.sqlite"
-	chatEventIndexSchemaVersion = 1
-	chatEventIndexFileMode      = 0o600
+	chatEventIndexFilename = "transcript-index.sqlite"
+	chatEventIndexFileMode = 0o600
 )
-
-var chatEventIndexSchema = []string{
-	`CREATE TABLE chat_event_index_state (
-		chat_id TEXT PRIMARY KEY,
-		indexed_bytes INTEGER NOT NULL,
-		event_ordinal INTEGER NOT NULL,
-		last_seq INTEGER NOT NULL,
-		file_mtime_ns INTEGER NOT NULL,
-		prefix_hash INTEGER NOT NULL,
-		tail_complete INTEGER NOT NULL
-	)`,
-	`CREATE TABLE chat_event_offsets (
-		chat_id TEXT NOT NULL,
-		event_ordinal INTEGER NOT NULL,
-		event_seq INTEGER NOT NULL,
-		byte_offset INTEGER NOT NULL,
-		byte_length INTEGER NOT NULL,
-		PRIMARY KEY (chat_id, event_ordinal)
-	) WITHOUT ROWID`,
-	`CREATE INDEX chat_event_offsets_by_seq
-		ON chat_event_offsets (chat_id, event_seq)`,
-	`CREATE INDEX chat_event_offsets_by_offset
-		ON chat_event_offsets (chat_id, byte_offset)`,
-	`CREATE TABLE chat_transcript_turns (
-		chat_id TEXT NOT NULL,
-		turn_ordinal INTEGER NOT NULL,
-		source_turn_id TEXT NOT NULL,
-		has_user INTEGER NOT NULL,
-		start_seq INTEGER NOT NULL,
-		end_seq INTEGER NOT NULL,
-		start_offset INTEGER NOT NULL,
-		end_offset INTEGER NOT NULL,
-		PRIMARY KEY (chat_id, turn_ordinal)
-	) WITHOUT ROWID`,
-	`CREATE INDEX chat_transcript_turns_by_start_seq
-		ON chat_transcript_turns (chat_id, start_seq)`,
-}
 
 type chatEventIndex struct {
 	db          *sql.DB
@@ -174,69 +136,6 @@ func (index *chatEventIndex) availabilityError() error {
 		return errors.New("chat event index is unavailable")
 	}
 	return index.unavailable
-}
-
-func (index *chatEventIndex) initializeSchema() error {
-	var version int
-	if err := index.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
-		return err
-	}
-	if version == chatEventIndexSchemaVersion {
-		current, err := index.hasCurrentSchema()
-		if err != nil {
-			return err
-		}
-		if current {
-			return nil
-		}
-	}
-
-	// The index is derived state. Replacing an unknown or obsolete schema is
-	// safer and simpler than migrating rows that can be rebuilt from JSONL.
-	tx, err := index.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	for _, statement := range []string{
-		"DROP TABLE IF EXISTS chat_event_offsets",
-		"DROP TABLE IF EXISTS chat_transcript_turns",
-		"DROP TABLE IF EXISTS chat_event_index_state",
-	} {
-		if _, err := tx.Exec(statement); err != nil {
-			return err
-		}
-	}
-	for _, statement := range chatEventIndexSchema {
-		if _, err := tx.Exec(statement); err != nil {
-			return err
-		}
-	}
-	if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", chatEventIndexSchemaVersion)); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-func (index *chatEventIndex) hasCurrentSchema() (bool, error) {
-	var count int
-	err := index.db.QueryRow(`
-		SELECT COUNT(*)
-		FROM sqlite_schema
-		WHERE (type = 'table' AND name IN (
-			'chat_event_index_state',
-			'chat_event_offsets',
-			'chat_transcript_turns'
-		)) OR (type = 'index' AND name IN (
-			'chat_event_offsets_by_seq',
-			'chat_event_offsets_by_offset',
-			'chat_transcript_turns_by_start_seq'
-		))
-	`).Scan(&count)
-	if err != nil {
-		return false, err
-	}
-	return count == len(chatEventIndexSchema), nil
 }
 
 func (index *chatEventIndex) restrictFiles() error {
