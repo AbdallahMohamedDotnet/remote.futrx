@@ -17,9 +17,3 @@ export function toolOutputPreviewLimit(name: string): number | null {
   if (name === "Edit" || name === "MultiEdit" || name === "Write") return null;
   return DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS;
 }
-
-export function fullResponseErrorMessage(cause: unknown): string {
-  if (cause instanceof Error && cause.message) return cause.message;
-  if (typeof cause === "string" && cause.trim()) return cause;
-  return "Failed to load the full response.";
-}
