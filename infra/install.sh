@@ -37,6 +37,8 @@
 # Environment:
 #   GITHUB_TOKEN                                same as --github-token.
 #   FUTRX_INSTALL_DIR                           override /opt/remote.futrx (QA/tests).
+#   FUTRX_REMOTE_ENV_FILE                       override /etc/default/remote.futrx (tests).
+#   FUTRX_REMOTE_CLI_PATH                       override /usr/local/bin/remote (tests).
 
 set -euo pipefail
 
@@ -206,6 +208,13 @@ SERVICE_PORT="${SERVICE_PORT:-7682}"
 HOST_CLI_PREFIX="$INSTALL_DIR/data/host-clis"
 HOST_CLI_BIN_DIR="$HOST_CLI_PREFIX/bin"
 
+# Canonical runtime config and CLI entry point shared by the systemd unit and
+# an operator's interactive shell (e.g. `remote setup-token`). Fixed system
+# paths, not install-dir-relative, so they resolve the same way regardless of
+# FUTRX_INSTALL_DIR.
+REMOTE_ENV_FILE="${FUTRX_REMOTE_ENV_FILE:-/etc/default/remote.futrx}"
+REMOTE_CLI_PATH="${FUTRX_REMOTE_CLI_PATH:-/usr/local/bin/remote}"
+
 # Host agent installation and the backend must resolve the same executables.
 # Use an application-owned prefix ahead of host-global locations so legacy or
 # manually installed binaries cannot shadow Remote's pinned toolchain.
@@ -217,6 +226,7 @@ HOSTNAME_RE="$(printf '%s' "$HOSTNAME" | sed 's/\./\\./g')"
 
 export INFRA_DIR INSTALL_DIR LEGACY_INSTALL_DIR REPO_URL SERVICE_PORT HOSTNAME_RE
 export HOST_CLI_PREFIX HOST_CLI_BIN_DIR PATH
+export REMOTE_ENV_FILE REMOTE_CLI_PATH
 
 # ───────────────── helpers (sourced by steps) ─────────────────
 log()  { printf "\n\033[1;36m==> %s\033[0m\n" "$*"; }

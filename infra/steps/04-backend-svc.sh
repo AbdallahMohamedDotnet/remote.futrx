@@ -8,6 +8,7 @@
 # Expects from caller:
 #   - log / ok / err helpers
 #   - $INFRA_DIR, $INSTALL_DIR, $HOSTNAME, $SERVICE_PORT
+#   - $REMOTE_ENV_FILE, $REMOTE_CLI_PATH
 set -euo pipefail
 
 SERVICE_NAME="remote.futrx.service"
@@ -20,6 +21,34 @@ HOST_CLI_PROFILE_PATH="/etc/profile.d/remote-futrx-host-clis.sh"
 . "$INFRA_DIR/lib/install-migration.sh"
 # shellcheck source=../lib/health-check.sh
 . "$INFRA_DIR/lib/health-check.sh"
+
+# ───────────────── canonical config + CLI launcher ─────────────────
+# Both the systemd unit below and an operator's interactive shell invoke
+# $REMOTE_CLI_PATH, which reads $REMOTE_ENV_FILE for BASE_URL/DATA_DIR/
+# INSTALL_DIR. Rendering both here, before the unit, keeps them the single
+# source of truth instead of duplicating install-specific values into the
+# unit file.
+log "Rendering $REMOTE_ENV_FILE"
+render_template "${INFRA_DIR}/templates/remote.futrx.env.tmpl" \
+                "$REMOTE_ENV_FILE"
+chown root:root "$REMOTE_ENV_FILE"
+chmod 0644 "$REMOTE_ENV_FILE"
+
+if [ -e "$REMOTE_CLI_PATH" ] && [ -d "$REMOTE_CLI_PATH" ]; then
+    err "$REMOTE_CLI_PATH exists and is a directory; refusing to replace it"
+    exit 1
+fi
+log "Installing $REMOTE_CLI_PATH"
+REMOTE_CLI_TMP="$(mktemp)"
+cp "${INFRA_DIR}/templates/remote-cli.sh.tmpl" "$REMOTE_CLI_TMP"
+bash -n "$REMOTE_CLI_TMP"
+# install(1) writes through an existing symlink rather than replacing it, so
+# a stale link left by a manual repair attempt could get followed to an
+# unrelated file. Removing first guarantees $REMOTE_CLI_PATH always ends up a
+# plain, root-owned, 0755 regular file.
+rm -f -- "$REMOTE_CLI_PATH"
+install -o root -g root -m 0755 "$REMOTE_CLI_TMP" "$REMOTE_CLI_PATH"
+rm -f -- "$REMOTE_CLI_TMP"
 
 # ───────────────── systemd unit ─────────────────
 log "Rendering $HOST_CLI_PROFILE_PATH"

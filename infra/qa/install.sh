@@ -87,6 +87,47 @@ fi
 systemctl is-active --quiet remote.futrx
 . infra/lib/health-check.sh
 wait_for_http_health http://127.0.0.1:7682/ 30
+
+command -v remote >/dev/null 2>&1 || { echo "remote CLI entry point is not on PATH" >&2; exit 1; }
+
+cli_path="$(command -v remote)"
+[ "$cli_path" = "/usr/local/bin/remote" ] || {
+    echo "remote resolved to $cli_path, expected /usr/local/bin/remote" >&2
+    exit 1
+}
+cli_owner="$(stat -c '%U:%G' /usr/local/bin/remote)"
+cli_mode="$(stat -c '%a' /usr/local/bin/remote)"
+[ "$cli_owner" = "root:root" ] && [ "$cli_mode" = "755" ] || {
+    echo "/usr/local/bin/remote has wrong owner/mode: $cli_owner $cli_mode" >&2
+    exit 1
+}
+env_owner="$(stat -c '%U:%G' /etc/default/remote.futrx)"
+env_mode="$(stat -c '%a' /etc/default/remote.futrx)"
+[ "$env_owner" = "root:root" ] && [ "$env_mode" = "644" ] || {
+    echo "/etc/default/remote.futrx has wrong owner/mode: $env_owner $env_mode" >&2
+    exit 1
+}
+
+setup_out="$(sudo remote setup-token)"
+echo "$setup_out" | grep -qF "https://$public_host/?token=" || {
+    echo "setup-token did not print the expected URL:" >&2
+    echo "$setup_out" >&2
+    exit 1
+}
+[ -f "$install_dir/data/setup-token.json" ] || {
+    echo "setup-token.json was not written under $install_dir/data" >&2
+    exit 1
+}
+first_hash="$(sha256sum "$install_dir/data/setup-token.json")"
+sudo remote setup-token >/dev/null
+second_hash="$(sha256sum "$install_dir/data/setup-token.json")"
+[ "$first_hash" != "$second_hash" ] || {
+    echo "reissuing the setup token did not change the stored record" >&2
+    exit 1
+}
+
+systemctl is-active --quiet remote.futrx
+wait_for_http_health http://127.0.0.1:7682/ 30
 printf 'QA_INSTALLED_SHA=%s\n' "$deployed_sha"
 REMOTE
 

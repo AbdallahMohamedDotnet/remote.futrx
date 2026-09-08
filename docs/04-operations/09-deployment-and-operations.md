@@ -32,6 +32,7 @@ one convergence cannot mix policy from two commits.
 | --- | --- |
 | `/opt/remote.futrx` | Application checkout, built binary, frontend assets, infrastructure scripts, and data |
 | `remote.futrx.service` | Go backend on loopback port `7682` by default |
+| `/usr/local/bin/remote` | CLI launcher (e.g. `sudo remote setup-token`); shares `/etc/default/remote.futrx` with the systemd unit so both resolve the same backend binary and config |
 | Caddy | Public HTTPS, compression, authentication, and proxy routing |
 | LXD | Project-container runtime and base-image store |
 | Catalog-declared host agent CLIs | Local binaries for host-scoped execution and managed authentication |
@@ -307,4 +308,6 @@ sudo bash /opt/remote.futrx/infra/upgrade-workspaces.sh --dry-run
 - Updater: [`infra/update.sh`](../../infra/update.sh)
 - Workspace upgrade: [`infra/upgrade-workspaces.sh`](../../infra/upgrade-workspaces.sh)
 - Systemd template: [`infra/templates/remote.futrx.service.tmpl`](../../infra/templates/remote.futrx.service.tmpl)
+- CLI launcher template: [`infra/templates/remote-cli.sh.tmpl`](../../infra/templates/remote-cli.sh.tmpl)
+- Canonical runtime config template: [`infra/templates/remote.futrx.env.tmpl`](../../infra/templates/remote.futrx.env.tmpl)
 - Base-image builder: [`backend/internal/service/container/image/builder.go`](../../backend/internal/service/container/image/builder.go)

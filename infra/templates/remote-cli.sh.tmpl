@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# remote.futrx CLI launcher.
+#
+# Interactive shells and remote.futrx.service both invoke this script so
+# they resolve the backend binary and BASE_URL/DATA_DIR/INSTALL_DIR from the
+# same canonical configuration file, rather than keeping independently
+# editable copies. Repair a missing or stale copy with a full
+# infra/install.sh (or infra/update.sh) convergence.
+#
+# Not envsubst-rendered: every value below is read from the config file at
+# run time, so the same installed copy works for every install path.
+set -euo pipefail
+
+ENV_FILE="${FUTRX_REMOTE_ENV_FILE:-/etc/default/remote.futrx}"
+if [ ! -r "$ENV_FILE" ]; then
+    echo "remote: missing configuration at $ENV_FILE; run infra/install.sh to repair it" >&2
+    exit 1
+fi
+# shellcheck source=/dev/null
+. "$ENV_FILE"
+
+if [ -z "${BASE_URL:-}" ] || [ -z "${DATA_DIR:-}" ] || [ -z "${INSTALL_DIR:-}" ]; then
+    echo "remote: $ENV_FILE is missing BASE_URL, DATA_DIR, or INSTALL_DIR" >&2
+    exit 1
+fi
+export BASE_URL DATA_DIR INSTALL_DIR
+
+BACKEND_BIN="$INSTALL_DIR/backend/remote"
+if [ ! -x "$BACKEND_BIN" ]; then
+    echo "remote: backend binary not found or not executable at $BACKEND_BIN" >&2
+    exit 1
+fi
+
+cd "$INSTALL_DIR"
+exec "$BACKEND_BIN" "$@"

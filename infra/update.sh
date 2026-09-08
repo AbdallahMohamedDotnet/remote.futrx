@@ -36,15 +36,18 @@
 #                      project containers; host dependencies/configuration and
 #                      the application are still fully converged
 #
-# With no hostname, the script reads it from the installed systemd unit.
+# With no hostname, the script reads it from the canonical env file, falling
+# back to the installed systemd unit.
 # Test/QA overrides: FUTRX_INSTALL_DIR, FUTRX_LEGACY_INSTALL_DIR,
-# FUTRX_SERVICE_UNIT_PATH, and FUTRX_LEGACY_SERVICE_UNIT_PATH.
+# FUTRX_SERVICE_UNIT_PATH, FUTRX_LEGACY_SERVICE_UNIT_PATH, and
+# FUTRX_REMOTE_ENV_FILE.
 set -euo pipefail
 
 INSTALL_DIR="${FUTRX_INSTALL_DIR:-/opt/remote.futrx}"
 LEGACY_INSTALL_DIR="${FUTRX_LEGACY_INSTALL_DIR:-/opt/remote.futrx.dev}"
 UNIT="${FUTRX_SERVICE_UNIT_PATH:-/etc/systemd/system/remote.futrx.service}"
 LEGACY_UNIT="${FUTRX_LEGACY_SERVICE_UNIT_PATH:-/etc/systemd/system/remote.futrx.dev.service}"
+REMOTE_ENV_FILE="${FUTRX_REMOTE_ENV_FILE:-/etc/default/remote.futrx}"
 
 usage() {
     sed -n '2,/^set -euo pipefail$/ { /^set -euo pipefail$/d; s/^# \{0,1\}//p; }' "$0"
@@ -104,12 +107,14 @@ fi
 
 INFRA_DIR="$INSTALL_DIR/infra"
 if [ -z "$HOSTNAME" ]; then
-    # The installer renders BASE_URL=https://<hostname> into the unit. During
-    # a rename migration, only the legacy unit may exist yet.
-    HOSTNAME="$(installed_hostname_from_units "$UNIT" "$LEGACY_UNIT" || true)"
+    # The installer renders BASE_URL=https://<hostname> into the canonical
+    # env file. An installation predating that env file (or mid-migration)
+    # may only have it recorded in the systemd unit, or the legacy unit.
+    HOSTNAME="$(installed_hostname_from_env_file "$REMOTE_ENV_FILE" || \
+        installed_hostname_from_units "$UNIT" "$LEGACY_UNIT" || true)"
 fi
 if [ -z "$HOSTNAME" ]; then
-    echo "could not detect hostname from $UNIT or $LEGACY_UNIT — pass it explicitly:" >&2
+    echo "could not detect hostname from $REMOTE_ENV_FILE, $UNIT, or $LEGACY_UNIT — pass it explicitly:" >&2
     echo "  sudo bash $0 <hostname>" >&2
     exit 1
 fi

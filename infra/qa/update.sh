@@ -52,6 +52,13 @@ if [ ! -d "$install_dir/.git" ]; then
     exit 3
 fi
 
+# Deliberately damage the managed CLI entry point before convergence, so this
+# run also proves a full update repairs a missing/stale launcher instead of
+# only ever creating it fresh. Only ever run this against the QA host.
+rm -f /usr/local/bin/remote
+printf '#!/usr/bin/env bash\necho stale\n' > /usr/local/bin/remote
+chmod 0777 /usr/local/bin/remote
+
 cd "$install_dir"
 git fetch --quiet origin "$requested_ref"
 remote_sha="$(git rev-parse --verify 'FETCH_HEAD^{commit}')"
@@ -73,6 +80,21 @@ fi
 systemctl is-active --quiet remote.futrx
 . infra/lib/health-check.sh
 wait_for_http_health http://127.0.0.1:7682/ 30
+
+command -v remote >/dev/null 2>&1 || { echo "remote CLI entry point was not repaired" >&2; exit 1; }
+cli_owner="$(stat -c '%U:%G' /usr/local/bin/remote)"
+cli_mode="$(stat -c '%a' /usr/local/bin/remote)"
+[ "$cli_owner" = "root:root" ] && [ "$cli_mode" = "755" ] || {
+    echo "repaired /usr/local/bin/remote has wrong owner/mode: $cli_owner $cli_mode" >&2
+    exit 1
+}
+if grep -q 'echo stale' /usr/local/bin/remote; then
+    echo "stale launcher content was not replaced" >&2
+    exit 1
+fi
+[ -r /etc/default/remote.futrx ] || { echo "/etc/default/remote.futrx is missing after convergence" >&2; exit 1; }
+sudo remote setup-token >/dev/null 2>&1 || true
+
 printf 'QA_UPDATED_SHA=%s\n' "$deployed_sha"
 REMOTE
 
