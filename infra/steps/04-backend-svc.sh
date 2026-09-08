@@ -9,6 +9,9 @@
 #   - log / ok / err helpers
 #   - $INFRA_DIR, $INSTALL_DIR, $HOSTNAME, $SERVICE_PORT
 #   - $REMOTE_ENV_FILE, $REMOTE_CLI_PATH
+#
+# Env:
+#   FUTRX_ROOT_BASHRC   override /root/.bashrc (tests).
 set -euo pipefail
 
 SERVICE_NAME="remote.futrx.service"
@@ -82,6 +85,27 @@ bash -n "$REMOTE_CLI_TMP"
 rm -f -- "$REMOTE_CLI_PATH"
 install -o root -g root -m 0755 "$REMOTE_CLI_TMP" "$REMOTE_CLI_PATH"
 rm -f -- "$REMOTE_CLI_TMP"
+
+# ───────────────── root-shell PATH for interactive `remote` ─────────────────
+# $REMOTE_CLI_PATH's directory is normally on PATH already (it's one of
+# /usr/local/bin's default entries), but pin it explicitly in root's login
+# shell so a fresh `sudo -i` / root login always finds `remote` regardless of
+# distro PATH defaults. Marker-guarded so re-running the installer never
+# duplicates the block.
+ROOT_BASHRC="${FUTRX_ROOT_BASHRC:-/root/.bashrc}"
+CLI_BIN_DIR="$(dirname "$REMOTE_CLI_PATH")"
+PATH_MARKER="# remote.futrx: ensure $CLI_BIN_DIR is on PATH"
+touch "$ROOT_BASHRC"
+if ! grep -Fq "$PATH_MARKER" "$ROOT_BASHRC" 2>/dev/null; then
+    log "Ensuring $CLI_BIN_DIR is on root's PATH in $ROOT_BASHRC"
+    {
+        printf '\n%s\n' "$PATH_MARKER"
+        printf 'case ":$PATH:" in\n'
+        printf '    *":%s:"*) ;;\n' "$CLI_BIN_DIR"
+        printf '    *) export PATH="%s:$PATH" ;;\n' "$CLI_BIN_DIR"
+        printf 'esac\n'
+    } >> "$ROOT_BASHRC"
+fi
 
 # ───────────────── systemd unit ─────────────────
 log "Rendering $HOST_CLI_PROFILE_PATH"

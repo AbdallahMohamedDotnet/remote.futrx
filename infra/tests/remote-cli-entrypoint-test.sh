@@ -42,6 +42,48 @@ grep -Fq 'install -o root -g root -m 0755' "$BACKEND_SVC_STEP" || \
     fail "backend-svc step does not install the launcher as root:root 0755"
 grep -Fq 'chmod 0644 "$REMOTE_ENV_FILE"' "$BACKEND_SVC_STEP" || \
     fail "backend-svc step does not set 0644 on the canonical config file"
+grep -Fq 'ROOT_BASHRC="${FUTRX_ROOT_BASHRC:-/root/.bashrc}"' "$BACKEND_SVC_STEP" || \
+    fail "backend-svc step does not pin the CLI directory onto root's PATH"
+
+# ───────────────── root .bashrc PATH pinning ─────────────────
+# Exercise the exact snippet from the step (kept in sync by grepping it out
+# below) against a scratch bashrc, without needing root or systemd.
+BASHRC_SNIPPET="$(sed -n '/^ROOT_BASHRC=/,/^fi$/p' "$BACKEND_SVC_STEP")"
+[ -n "$BASHRC_SNIPPET" ] || fail "could not extract the root .bashrc PATH snippet from the step"
+
+log() { :; }
+export -f log
+
+run_bashrc_snippet() {
+    local remote_cli_path="$1" bashrc="$2"
+    REMOTE_CLI_PATH="$remote_cli_path" FUTRX_ROOT_BASHRC="$bashrc" \
+        bash -c "$(declare -f log); $BASHRC_SNIPPET"
+}
+
+SCRATCH_BASHRC="$TEST_DIR/bashrc"
+SCRATCH_CLI_DIR="$TEST_DIR/usr-local-bin"
+SCRATCH_CLI_BIN="$SCRATCH_CLI_DIR/remote"
+
+run_bashrc_snippet "$SCRATCH_CLI_BIN" "$SCRATCH_BASHRC"
+grep -Fq 'remote.futrx: ensure' "$SCRATCH_BASHRC" || \
+    fail "root bashrc snippet did not add a PATH block"
+grep -Fq "$SCRATCH_CLI_DIR" "$SCRATCH_BASHRC" || \
+    fail "root bashrc snippet did not reference the CLI's directory"
+FIRST_RUN_LINES="$(wc -l < "$SCRATCH_BASHRC")"
+
+# Re-running (as install.sh does on every convergence) must not duplicate it.
+run_bashrc_snippet "$SCRATCH_CLI_BIN" "$SCRATCH_BASHRC"
+SECOND_RUN_LINES="$(wc -l < "$SCRATCH_BASHRC")"
+[ "$FIRST_RUN_LINES" -eq "$SECOND_RUN_LINES" ] || \
+    fail "root bashrc snippet duplicated the PATH block on re-run"
+
+# A fresh root login shell sourcing the resulting bashrc must resolve `remote`.
+mkdir -p "$SCRATCH_CLI_DIR"
+printf '#!/usr/bin/env bash\necho ok\n' > "$SCRATCH_CLI_BIN"
+chmod 0755 "$SCRATCH_CLI_BIN"
+RESOLVED="$(bash -c "PATH='/usr/bin:/bin'; . '$SCRATCH_BASHRC'; command -v remote")"
+[ "$RESOLVED" = "$SCRATCH_CLI_BIN" ] || \
+    fail "sourcing root bashrc did not put the CLI on PATH (got: $RESOLVED)"
 
 # ───────────────── render the canonical config the way install.sh does ─────
 # Mirrors install.sh's render_template whitelist without sourcing the whole
