@@ -3,7 +3,7 @@ Description=remote.futrx — self-hosted agent chat UI
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/remote
+ExecStart=${REMOTE_CLI_PATH}
 WorkingDirectory=${INSTALL_DIR}
 Environment=HOST=127.0.0.1
 Environment=PORT=${SERVICE_PORT}

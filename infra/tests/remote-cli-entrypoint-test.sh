@@ -27,7 +27,7 @@ trap 'command rm -rf -- "$TEST_DIR"' EXIT
 bash -n "$CLI_TEMPLATE" || fail "launcher template has a syntax error"
 bash -n "$BACKEND_SVC_STEP" || fail "backend-svc step has a syntax error"
 
-grep -Fq 'ExecStart=/usr/local/bin/remote' "$SERVICE_TEMPLATE" || \
+grep -Fq 'ExecStart=${REMOTE_CLI_PATH}' "$SERVICE_TEMPLATE" || \
     fail "systemd unit does not launch through the shared CLI entry point"
 for stale_env in 'Environment=DATA_DIR=' 'Environment=INSTALL_DIR=' 'Environment=BASE_URL='; do
     if grep -Fq "$stale_env" "$SERVICE_TEMPLATE"; then
