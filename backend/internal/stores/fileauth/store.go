@@ -294,7 +294,7 @@ func (s *Store) SessionKey(ctx context.Context) ([]byte, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := os.MkdirAll(s.dataDir, 0o750); err != nil {
+	if err := os.MkdirAll(s.dataDir, 0o700); err != nil {
 		return nil, err
 	}
 	keyPath := filepath.Join(s.dataDir, "session.key")
