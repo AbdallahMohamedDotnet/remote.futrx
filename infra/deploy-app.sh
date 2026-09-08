@@ -26,6 +26,10 @@
 # Test-only overrides: FUTRX_INSTALL_DIR, FUTRX_SERVICE_NAME, FUTRX_SERVICE_PORT.
 set -euo pipefail
 
+SCRIPT_INFRA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=lib/common.sh
+. "$SCRIPT_INFRA_DIR/lib/common.sh"
+
 usage() {
     sed -n '2,/^set -euo pipefail$/ { /^set -euo pipefail$/d; s/^# \{0,1\}//p; }' "$0"
 }
@@ -61,9 +65,8 @@ fi
 # demanding root there would make the script untestable in CI. The
 # missing-installation check above intentionally runs first so a bad path
 # reports the actionable error instead of a misleading root demand.
-if [ -z "${FUTRX_INSTALL_DIR:-}" ] && [ "$EUID" -ne 0 ]; then
-    echo "this application deployer needs root; rerun with sudo" >&2
-    exit 1
+if [ -z "${FUTRX_INSTALL_DIR:-}" ]; then
+    require_root "this application deployer"
 fi
 if ! systemctl cat "$SERVICE_NAME" >/dev/null 2>&1; then
     echo "$SERVICE_NAME is not installed; run infra/install.sh first" >&2
@@ -81,7 +84,6 @@ for command_name in git npm go systemctl; do
     }
 done
 
-SCRIPT_INFRA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=lib/release-version.sh
 . "$SCRIPT_INFRA_DIR/lib/release-version.sh"
 # shellcheck source=lib/update-progress.sh
