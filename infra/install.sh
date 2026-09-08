@@ -351,6 +351,10 @@ cat <<EOF
 
  $AUTH_NOTE
 
+ If your setup link expires or gets lost, reissue it with:
+   remote setup-token
+ (no sudo needed once you've logged out and back in, or run: newgrp remote)
+
  Next:
    1. Open https://$HOSTNAME (Caddy fetches the cert on first hit, ~10s)
    2. Create the administrator email and password

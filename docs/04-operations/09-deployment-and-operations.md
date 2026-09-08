@@ -32,7 +32,7 @@ one convergence cannot mix policy from two commits.
 | --- | --- |
 | `/opt/remote.futrx` | Application checkout, built binary, frontend assets, infrastructure scripts, and data |
 | `remote.futrx.service` | Go backend on loopback port `7682` by default |
-| `/usr/local/bin/remote` | CLI launcher (e.g. `sudo remote setup-token`); shares `/etc/default/remote.futrx` with the systemd unit so both resolve the same backend binary and config |
+| `/usr/local/bin/remote` | CLI launcher (e.g. `remote setup-token`, runnable without sudo by members of the `remote` group the installer creates); shares `/etc/default/remote.futrx` with the systemd unit so both resolve the same backend binary and config |
 | Caddy | Public HTTPS, compression, authentication, and proxy routing |
 | LXD | Project-container runtime and base-image store |
 | Catalog-declared host agent CLIs | Local binaries for host-scoped execution and managed authentication |

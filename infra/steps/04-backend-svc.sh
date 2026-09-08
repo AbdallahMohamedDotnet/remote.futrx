@@ -34,6 +34,39 @@ render_template "${INFRA_DIR}/templates/remote.futrx.env.tmpl" \
 chown root:root "$REMOTE_ENV_FILE"
 chmod 0644 "$REMOTE_ENV_FILE"
 
+# ───────────────── operator group for setup-token ─────────────────
+# `remote setup-token` needs to read local-admin.json/users.json and write
+# setup-token.json without sudo. Membership in this group is how the
+# install-time operator gets that without making those files world- or
+# every-local-user-readable; every other file in DATA_DIR (OAuth secret,
+# agent API keys, session key) stays root-only 0600 — see
+# backend/internal/stores/fileauth/store.go's groupReadableAuthFiles.
+DATA_DIR="$INSTALL_DIR/data"
+REMOTE_GROUP="remote"
+log "Ensuring group $REMOTE_GROUP and operator membership"
+if ! getent group "$REMOTE_GROUP" >/dev/null; then
+    groupadd --system "$REMOTE_GROUP"
+fi
+OPERATOR_USER="${SUDO_USER:-}"
+if [ -n "$OPERATOR_USER" ] && [ "$OPERATOR_USER" != "root" ] && id "$OPERATOR_USER" >/dev/null 2>&1; then
+    usermod -aG "$REMOTE_GROUP" "$OPERATOR_USER"
+    ok "$OPERATOR_USER can run 'remote setup-token' without sudo (after their next login)"
+else
+    warn "Could not determine a non-root operator to add to '$REMOTE_GROUP'; add one manually: sudo usermod -aG $REMOTE_GROUP <you>"
+fi
+
+# setgid so files the backend (running as root) creates under DATA_DIR
+# inherit group $REMOTE_GROUP instead of root's primary group.
+mkdir -p "$DATA_DIR"
+chgrp "$REMOTE_GROUP" "$DATA_DIR"
+chmod 2750 "$DATA_DIR"
+for f in local-admin.json setup-token.json users.json; do
+    if [ -f "$DATA_DIR/$f" ]; then
+        chgrp "$REMOTE_GROUP" "$DATA_DIR/$f"
+        chmod 0640 "$DATA_DIR/$f"
+    fi
+done
+
 if [ -e "$REMOTE_CLI_PATH" ] && [ -d "$REMOTE_CLI_PATH" ]; then
     err "$REMOTE_CLI_PATH exists and is a directory; refusing to replace it"
     exit 1

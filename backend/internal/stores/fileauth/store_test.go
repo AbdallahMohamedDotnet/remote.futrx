@@ -25,8 +25,10 @@ func TestLocalAdminCredentialIsPrivateAndCreateOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat local-admin.json: %v", err)
 	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Fatalf("local-admin.json mode = %o, want 600", got)
+	// Group-readable (not 0600): the "remote" system group needs to read this
+	// to run `remote setup-token` without sudo. See groupReadableAuthFiles.
+	if got := info.Mode().Perm(); got != 0o640 {
+		t.Fatalf("local-admin.json mode = %o, want 640", got)
 	}
 	if err := store.CreateLocalAdmin(context.Background(), credential); !errors.Is(err, serviceauth.ErrLocalAdminAlreadyClaimed) {
 		t.Fatalf("second CreateLocalAdmin error = %v", err)
@@ -81,7 +83,9 @@ func TestOAuthSecretIsPrivate(t *testing.T) {
 }
 
 // The setup token is a bearer credential for the very first claim, so its
-// record must be no more readable than the credential it protects.
+// record must be no more readable than the credential it protects — but it
+// must also be group-readable/writable, so `remote setup-token` works for
+// the "remote" group without sudo.
 func TestSetupTokenRecordIsPrivateAndRotates(t *testing.T) {
 	dir := t.TempDir()
 	store := New(dir)
@@ -101,8 +105,8 @@ func TestSetupTokenRecordIsPrivateAndRotates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat setup-token.json: %v", err)
 	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Fatalf("setup-token.json mode = %o, want 600", got)
+	if got := info.Mode().Perm(); got != 0o640 {
+		t.Fatalf("setup-token.json mode = %o, want 640", got)
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, "setup-token.json"))
 	if err != nil {

@@ -294,7 +294,7 @@ func (s *Store) SessionKey(ctx context.Context) ([]byte, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := os.MkdirAll(s.dataDir, 0o700); err != nil {
+	if err := os.MkdirAll(s.dataDir, 0o750); err != nil {
 		return nil, err
 	}
 	keyPath := filepath.Join(s.dataDir, "session.key")
@@ -316,8 +316,18 @@ func (s *Store) SessionKey(ctx context.Context) ([]byte, error) {
 	return sessionKey, nil
 }
 
+// groupReadableAuthFiles are the records the "remote" system group can read
+// and write, so `remote setup-token` works for whichever operator was added
+// to that group at install time without needing sudo. They hold no more than
+// a bcrypt/argon2 hash or a setup-token hash — never the OAuth client secret,
+// an agent API key, or the session-signing key, which stay root-only below.
+var groupReadableAuthFiles = map[string]bool{
+	"local-admin.json": true,
+	"setup-token.json": true,
+}
+
 func (s *Store) writeJSONLocked(name string, value any) error {
-	if err := os.MkdirAll(s.dataDir, 0o700); err != nil {
+	if err := os.MkdirAll(s.dataDir, 0o750); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(s.dataDir, ".auth-*.json.tmp")
@@ -326,7 +336,11 @@ func (s *Store) writeJSONLocked(name string, value any) error {
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
-	if err := tmp.Chmod(0o600); err != nil {
+	mode := os.FileMode(0o600)
+	if groupReadableAuthFiles[name] {
+		mode = 0o640
+	}
+	if err := tmp.Chmod(mode); err != nil {
 		tmp.Close()
 		return err
 	}
