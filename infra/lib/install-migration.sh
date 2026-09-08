@@ -50,14 +50,6 @@ migrate_legacy_install_dir() {
     FUTRX_INSTALL_PATH_MIGRATED=1
 }
 
-installed_hostname_from_env_file() {
-    local env_file="$1" hostname
-    [ -r "$env_file" ] || return 1
-    hostname="$(sed -n 's|^BASE_URL=https://||p' "$env_file" | head -1)"
-    [ -n "$hostname" ] || return 1
-    printf '%s\n' "$hostname"
-}
-
 installed_hostname_from_units() {
     local unit hostname
     for unit in "$@"; do

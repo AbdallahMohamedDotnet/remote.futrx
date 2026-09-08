@@ -41,14 +41,6 @@ rm -f -- "$CANONICAL_UNIT"
 [ "$(installed_hostname_from_units "$CANONICAL_UNIT" "$LEGACY_UNIT")" = "old.example.com" ] || \
     fail "legacy unit hostname was not detected"
 
-ENV_FILE="$TEST_DIR/remote.futrx.env"
-if installed_hostname_from_env_file "$ENV_FILE" >/dev/null 2>&1; then
-    fail "missing env file was reported as having a hostname"
-fi
-printf 'DATA_DIR=/opt/remote.futrx/data\nBASE_URL=https://env.example.com\nINSTALL_DIR=/opt/remote.futrx\n' > "$ENV_FILE"
-[ "$(installed_hostname_from_env_file "$ENV_FILE")" = "env.example.com" ] || \
-    fail "env file hostname was not detected"
-
 SYSTEMCTL_LOG="$TEST_DIR/systemctl.log"
 LEGACY_ACTIVE=1
 LEGACY_ENABLED=1

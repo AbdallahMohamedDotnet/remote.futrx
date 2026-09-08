@@ -25,10 +25,8 @@ func TestLocalAdminCredentialIsPrivateAndCreateOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat local-admin.json: %v", err)
 	}
-	if runtimeSupportsFileModes() {
-		if got := info.Mode().Perm(); got != 0o600 {
-			t.Fatalf("local-admin.json mode = %o, want 600", got)
-		}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("local-admin.json mode = %o, want 600", got)
 	}
 	if err := store.CreateLocalAdmin(context.Background(), credential); !errors.Is(err, serviceauth.ErrLocalAdminAlreadyClaimed) {
 		t.Fatalf("second CreateLocalAdmin error = %v", err)
@@ -77,10 +75,8 @@ func TestOAuthSecretIsPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat oauth.json: %v", err)
 	}
-	if runtimeSupportsFileModes() {
-		if got := info.Mode().Perm(); got != 0o600 {
-			t.Fatalf("oauth.json mode = %o, want 600", got)
-		}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("oauth.json mode = %o, want 600", got)
 	}
 }
 
@@ -105,10 +101,8 @@ func TestSetupTokenRecordIsPrivateAndRotates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat setup-token.json: %v", err)
 	}
-	if runtimeSupportsFileModes() {
-		if got := info.Mode().Perm(); got != 0o600 {
-			t.Fatalf("setup-token.json mode = %o, want 600", got)
-		}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("setup-token.json mode = %o, want 600", got)
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, "setup-token.json"))
 	if err != nil {
@@ -156,10 +150,8 @@ func TestAgentAPIKeysArePrivateAndReplaceable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat %s: %v", agentAPIKeysFile, err)
 	}
-	if runtimeSupportsFileModes() {
-		if got := info.Mode().Perm(); got != 0o600 {
-			t.Fatalf("%s mode = %o, want 600", agentAPIKeysFile, got)
-		}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("%s mode = %o, want 600", agentAPIKeysFile, got)
 	}
 
 	if err := store.DeleteAgentAPIKey(ctx, "minimax"); err != nil {
@@ -168,10 +160,4 @@ func TestAgentAPIKeysArePrivateAndReplaceable(t *testing.T) {
 	if key, err := store.AgentAPIKey(ctx, "minimax"); err != nil || key != "" {
 		t.Fatalf("AgentAPIKey after delete = %q, %v", key, err)
 	}
-}
-
-// runtimeSupportsFileModes reports whether POSIX permission bits survive on
-// this platform. Windows reports 0666 regardless of Chmod.
-func runtimeSupportsFileModes() bool {
-	return os.PathSeparator == '/'
 }

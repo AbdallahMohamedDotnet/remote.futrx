@@ -317,7 +317,7 @@ func (s *Store) SessionKey(ctx context.Context) ([]byte, error) {
 }
 
 func (s *Store) writeJSONLocked(name string, value any) error {
-	if err := os.MkdirAll(s.dataDir, 0o750); err != nil {
+	if err := os.MkdirAll(s.dataDir, 0o700); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(s.dataDir, ".auth-*.json.tmp")

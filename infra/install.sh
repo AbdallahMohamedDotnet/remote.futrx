@@ -37,8 +37,6 @@
 # Environment:
 #   GITHUB_TOKEN                                same as --github-token.
 #   FUTRX_INSTALL_DIR                           override /opt/remote.futrx (QA/tests).
-#   FUTRX_REMOTE_ENV_FILE                       override /etc/default/remote.futrx (tests).
-#   FUTRX_REMOTE_CLI_PATH                       override /usr/local/bin/remote (tests).
 
 set -euo pipefail
 
@@ -49,24 +47,6 @@ set -euo pipefail
 # files on disk.
 INFRA_DIR_PROBE="$( cd "$( dirname "${BASH_SOURCE[0]:-}" 2>/dev/null || echo . )" >/dev/null 2>&1 && pwd || true )"
 if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
-    # Parse bootstrap-only values before requiring root or touching either
-    # checkout, matching the direct-invocation path below (which validates
-    # --ref before its own root check): a malformed --ref is a usage error
-    # the caller should see regardless of privilege. The full argument loop
-    # further down parses them again after we re-exec from disk.
-    BOOTSTRAP_TOKEN="${GITHUB_TOKEN:-}"
-    BOOTSTRAP_REF=""
-    for a in "$@"; do
-        case "$a" in
-            --github-token=*) BOOTSTRAP_TOKEN="${a#*=}" ;;
-            --ref=*)          BOOTSTRAP_REF="${a#*=}" ;;
-        esac
-    done
-    if [ -n "$BOOTSTRAP_REF" ] && ! printf '%s' "$BOOTSTRAP_REF" | grep -qE '^[0-9a-fA-F]{40}$'; then
-        echo "--ref must be a full 40-character commit SHA" >&2
-        exit 1
-    fi
-
     if [ "$EUID" -ne 0 ]; then
         echo "this installer needs root; rerun with sudo" >&2
         exit 1
@@ -80,6 +60,21 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
     TARGET="${FUTRX_INSTALL_DIR:-/opt/remote.futrx}"
     LEGACY_TARGET="${FUTRX_LEGACY_INSTALL_DIR:-/opt/remote.futrx.dev}"
     MAIN_REFSPEC="+refs/heads/main:refs/remotes/origin/main"
+
+    # Parse bootstrap-only values before touching either checkout. The full
+    # argument loop below parses them again after we re-exec from disk.
+    BOOTSTRAP_TOKEN="${GITHUB_TOKEN:-}"
+    BOOTSTRAP_REF=""
+    for a in "$@"; do
+        case "$a" in
+            --github-token=*) BOOTSTRAP_TOKEN="${a#*=}" ;;
+            --ref=*)          BOOTSTRAP_REF="${a#*=}" ;;
+        esac
+    done
+    if [ -n "$BOOTSTRAP_REF" ] && ! printf '%s' "$BOOTSTRAP_REF" | grep -qE '^[0-9a-fA-F]{40}$'; then
+        echo "--ref must be a full 40-character commit SHA" >&2
+        exit 1
+    fi
 
     # A pre-rename checkout can update itself in place, then the checked-out
     # installer below performs the guarded path migration with rollback.
@@ -211,13 +206,6 @@ SERVICE_PORT="${SERVICE_PORT:-7682}"
 HOST_CLI_PREFIX="$INSTALL_DIR/data/host-clis"
 HOST_CLI_BIN_DIR="$HOST_CLI_PREFIX/bin"
 
-# Canonical runtime config and CLI entry point shared by the systemd unit and
-# an operator's interactive shell (e.g. `remote setup-token`). Fixed system
-# paths, not install-dir-relative, so they resolve the same way regardless of
-# FUTRX_INSTALL_DIR.
-REMOTE_ENV_FILE="${FUTRX_REMOTE_ENV_FILE:-/etc/default/remote.futrx}"
-REMOTE_CLI_PATH="${FUTRX_REMOTE_CLI_PATH:-/usr/local/bin/remote}"
-
 # Host agent installation and the backend must resolve the same executables.
 # Use an application-owned prefix ahead of host-global locations so legacy or
 # manually installed binaries cannot shadow Remote's pinned toolchain.
@@ -229,7 +217,6 @@ HOSTNAME_RE="$(printf '%s' "$HOSTNAME" | sed 's/\./\\./g')"
 
 export INFRA_DIR INSTALL_DIR LEGACY_INSTALL_DIR REPO_URL SERVICE_PORT HOSTNAME_RE
 export HOST_CLI_PREFIX HOST_CLI_BIN_DIR PATH
-export REMOTE_ENV_FILE REMOTE_CLI_PATH
 
 # ───────────────── helpers (sourced by steps) ─────────────────
 log()  { printf "\n\033[1;36m==> %s\033[0m\n" "$*"; }
@@ -244,7 +231,7 @@ export -f log warn ok err
 # regex `\$` anchors) survive untouched.
 render_template() {
     local tmpl="$1" dest="$2"
-    envsubst '$HOSTNAME $HOSTNAME_RE $INSTALL_DIR $SERVICE_PORT $LXD_BRIDGE_IP $LXD_BRIDGE $HOST_CLI_BIN_DIR $REMOTE_CLI_PATH' \
+    envsubst '$HOSTNAME $HOSTNAME_RE $INSTALL_DIR $SERVICE_PORT $LXD_BRIDGE_IP $LXD_BRIDGE $HOST_CLI_BIN_DIR' \
         < "$tmpl" > "$dest"
 }
 export -f render_template
@@ -350,10 +337,6 @@ cat <<EOF
  ✓ Base image:    futrx-remote-dev-base (project containers launch from this)
 
  $AUTH_NOTE
-
- If your setup link expires or gets lost, reissue it with:
-   remote setup-token
- (no sudo needed once you've logged out and back in, or run: newgrp remote)
 
  Next:
    1. Open https://$HOSTNAME (Caddy fetches the cert on first hit, ~10s)

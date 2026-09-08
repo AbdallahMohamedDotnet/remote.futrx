@@ -8,10 +8,6 @@
 # Expects from caller:
 #   - log / ok / err helpers
 #   - $INFRA_DIR, $INSTALL_DIR, $HOSTNAME, $SERVICE_PORT
-#   - $REMOTE_ENV_FILE, $REMOTE_CLI_PATH
-#
-# Env:
-#   FUTRX_ROOT_BASHRC   override /root/.bashrc (tests).
 set -euo pipefail
 
 SERVICE_NAME="remote.futrx.service"
@@ -25,87 +21,15 @@ HOST_CLI_PROFILE_PATH="/etc/profile.d/remote-futrx-host-clis.sh"
 # shellcheck source=../lib/health-check.sh
 . "$INFRA_DIR/lib/health-check.sh"
 
-# ───────────────── canonical config + CLI launcher ─────────────────
-# Both the systemd unit below and an operator's interactive shell invoke
-# $REMOTE_CLI_PATH, which reads $REMOTE_ENV_FILE for BASE_URL/DATA_DIR/
-# INSTALL_DIR. Rendering both here, before the unit, keeps them the single
-# source of truth instead of duplicating install-specific values into the
-# unit file.
-log "Rendering $REMOTE_ENV_FILE"
-render_template "${INFRA_DIR}/templates/remote.futrx.env.tmpl" \
-                "$REMOTE_ENV_FILE"
-chown root:root "$REMOTE_ENV_FILE"
-chmod 0644 "$REMOTE_ENV_FILE"
-
-# ───────────────── operator group for setup-token ─────────────────
-# `remote setup-token` needs to read local-admin.json/users.json and write
-# setup-token.json without sudo. Membership in this group is how the
-# install-time operator gets that without making those files world- or
-# every-local-user-readable; every other file in DATA_DIR (OAuth secret,
-# agent API keys, session key) stays root-only 0600 — see
-# backend/internal/stores/fileauth/store.go's groupReadableAuthFiles.
-DATA_DIR="$INSTALL_DIR/data"
-REMOTE_GROUP="remote"
-log "Ensuring group $REMOTE_GROUP and operator membership"
-if ! getent group "$REMOTE_GROUP" >/dev/null; then
-    groupadd --system "$REMOTE_GROUP"
-fi
-OPERATOR_USER="${SUDO_USER:-}"
-if [ -n "$OPERATOR_USER" ] && [ "$OPERATOR_USER" != "root" ] && id "$OPERATOR_USER" >/dev/null 2>&1; then
-    usermod -aG "$REMOTE_GROUP" "$OPERATOR_USER"
-    ok "$OPERATOR_USER can run 'remote setup-token' without sudo (after their next login)"
-else
-    warn "Could not determine a non-root operator to add to '$REMOTE_GROUP'; add one manually: sudo usermod -aG $REMOTE_GROUP <you>"
-fi
-
-# setgid so files the backend (running as root) creates under DATA_DIR
-# inherit group $REMOTE_GROUP instead of root's primary group.
-mkdir -p "$DATA_DIR"
-chgrp "$REMOTE_GROUP" "$DATA_DIR"
-chmod 2750 "$DATA_DIR"
-for f in local-admin.json setup-token.json users.json; do
-    if [ -f "$DATA_DIR/$f" ]; then
-        chgrp "$REMOTE_GROUP" "$DATA_DIR/$f"
-        chmod 0640 "$DATA_DIR/$f"
-    fi
-done
-
-if [ -e "$REMOTE_CLI_PATH" ] && [ -d "$REMOTE_CLI_PATH" ]; then
-    err "$REMOTE_CLI_PATH exists and is a directory; refusing to replace it"
-    exit 1
-fi
-log "Installing $REMOTE_CLI_PATH"
-REMOTE_CLI_TMP="$(mktemp)"
-cp "${INFRA_DIR}/templates/remote-cli.sh.tmpl" "$REMOTE_CLI_TMP"
-bash -n "$REMOTE_CLI_TMP"
-# install(1) writes through an existing symlink rather than replacing it, so
-# a stale link left by a manual repair attempt could get followed to an
-# unrelated file. Removing first guarantees $REMOTE_CLI_PATH always ends up a
-# plain, root-owned, 0755 regular file.
-rm -f -- "$REMOTE_CLI_PATH"
-install -o root -g root -m 0755 "$REMOTE_CLI_TMP" "$REMOTE_CLI_PATH"
-rm -f -- "$REMOTE_CLI_TMP"
-
-# ───────────────── root-shell PATH for interactive `remote` ─────────────────
-# $REMOTE_CLI_PATH's directory is normally on PATH already (it's one of
-# /usr/local/bin's default entries), but pin it explicitly in root's login
-# shell so a fresh `sudo -i` / root login always finds `remote` regardless of
-# distro PATH defaults. Marker-guarded so re-running the installer never
-# duplicates the block.
-ROOT_BASHRC="${FUTRX_ROOT_BASHRC:-/root/.bashrc}"
-CLI_BIN_DIR="$(dirname "$REMOTE_CLI_PATH")"
-PATH_MARKER="# remote.futrx: ensure $CLI_BIN_DIR is on PATH"
-touch "$ROOT_BASHRC"
-if ! grep -Fq "$PATH_MARKER" "$ROOT_BASHRC" 2>/dev/null; then
-    log "Ensuring $CLI_BIN_DIR is on root's PATH in $ROOT_BASHRC"
-    {
-        printf '\n%s\n' "$PATH_MARKER"
-        printf 'case ":$PATH:" in\n'
-        printf '    *":%s:"*) ;;\n' "$CLI_BIN_DIR"
-        printf '    *) export PATH="%s:$PATH" ;;\n' "$CLI_BIN_DIR"
-        printf 'esac\n'
-    } >> "$ROOT_BASHRC"
-fi
+# Shell commands need the same installation settings as the service below.
+log "Installing /usr/local/bin/remote"
+{
+    printf '#!/bin/bash\n'
+    printf 'export BASE_URL=%q\n' "https://$HOSTNAME"
+    printf 'export DATA_DIR=%q\n' "$INSTALL_DIR/data"
+    printf 'export INSTALL_DIR=%q\n' "$INSTALL_DIR"
+    printf 'exec %q "$@"\n' "$INSTALL_DIR/backend/remote"
+} | install -o root -g root -m 0755 -T /dev/stdin /usr/local/bin/remote
 
 # ───────────────── systemd unit ─────────────────
 log "Rendering $HOST_CLI_PROFILE_PATH"

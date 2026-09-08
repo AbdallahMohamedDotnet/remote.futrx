@@ -1,12 +1,8 @@
 package fileusers
 
 // File-backed storage for registered users. Single JSON file at
-// <dataDir>/users.json, mode 0640 (group "remote" readable/writable, per
-// backend/internal/stores/fileauth/store.go's groupReadableAuthFiles — the
-// setup-token CLI reads this file to find the first administrator, and it
-// carries no secret, just email/role/addedAt). Wraps writes in temp+rename
-// for atomicity. All emails normalized (lowercased, trimmed) before
-// persisting.
+// <dataDir>/users.json, mode 0600. Wraps writes in temp+rename for atomicity.
+// All emails normalized (lowercased, trimmed) before persisting.
 
 import (
 	"context"
@@ -35,7 +31,7 @@ type Store struct {
 }
 
 func New(dataDir string) (*Store, error) {
-	if err := os.MkdirAll(dataDir, 0o750); err != nil {
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 	return &Store{
@@ -86,7 +82,7 @@ func (s *Store) saveLocked(m map[string]user.User) error {
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
-	if err := tmp.Chmod(0o640); err != nil {
+	if err := tmp.Chmod(0o600); err != nil {
 		tmp.Close()
 		return err
 	}
