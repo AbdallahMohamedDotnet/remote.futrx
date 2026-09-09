@@ -174,12 +174,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		deps.ProjectAccess,
 		serviceproject.WithChatCleanup(projectChatCleanup{
 			chats: chats,
-			isRunning: func(id servicechat.ID) bool {
-				return runs != nil && runs.IsRunning(id)
-			},
 			cancel: func(ctx context.Context, id servicechat.ID) error {
 				if runs == nil {
-					return nil
+					return errors.New("run controller is unavailable")
 				}
 				return runs.Cancel(ctx, id)
 			},

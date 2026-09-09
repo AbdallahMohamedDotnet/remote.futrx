@@ -12,9 +12,8 @@ import (
 // projectChatCleanup adapts the chat service's persistence and run controls to
 // the narrow cleanup contract owned by the project service.
 type projectChatCleanup struct {
-	chats     servicechat.Repository
-	isRunning func(servicechat.ID) bool
-	cancel    func(context.Context, servicechat.ID) error
+	chats  servicechat.Repository
+	cancel func(context.Context, servicechat.ID) error
 }
 
 func (cleanup projectChatCleanup) DeleteProjectChats(
@@ -31,11 +30,13 @@ func (cleanup projectChatCleanup) DeleteProjectChats(
 		if chat.ProjectID != servicechat.ProjectID(projectID) {
 			continue
 		}
-		if cleanup.isRunning != nil && cleanup.isRunning(chat.ID) && cleanup.cancel != nil {
-			if err := cleanup.cancel(ctx, chat.ID); err != nil {
-				failures = append(failures, fmt.Errorf("cancel chat %s: %w", chat.ID, err))
-				continue
-			}
+		if cleanup.cancel == nil {
+			failures = append(failures, fmt.Errorf("cancel chat %s: cancellation unavailable", chat.ID))
+			continue
+		}
+		if err := cleanup.cancel(ctx, chat.ID); err != nil {
+			failures = append(failures, fmt.Errorf("cancel chat %s: %w", chat.ID, err))
+			continue
 		}
 		if err := cleanup.chats.Delete(ctx, chat.ID); err != nil {
 			failures = append(failures, fmt.Errorf("delete chat %s: %w", chat.ID, err))
