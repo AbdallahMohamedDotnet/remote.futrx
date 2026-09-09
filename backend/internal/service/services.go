@@ -167,7 +167,24 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		push: pushNotifier,
 	}
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
-	projectService := serviceproject.New(projects, deps.ProjectContainers, deps.ProjectSecrets, deps.ProjectAccess)
+	projectService := serviceproject.New(
+		projects,
+		deps.ProjectContainers,
+		deps.ProjectSecrets,
+		deps.ProjectAccess,
+		serviceproject.WithChatCleanup(projectChatCleanup{
+			chats: chats,
+			isRunning: func(id servicechat.ID) bool {
+				return runs != nil && runs.IsRunning(id)
+			},
+			cancel: func(ctx context.Context, id servicechat.ID) error {
+				if runs == nil {
+					return nil
+				}
+				return runs.Cancel(ctx, id)
+			},
+		}),
+	)
 	agentRuntime, err := deps.AgentModules.Build(agentmodule.BuildDependencies{
 		Projects:              agentProjectResolver{projects: projectService},
 		Containers:            deps.AgentContainers,
