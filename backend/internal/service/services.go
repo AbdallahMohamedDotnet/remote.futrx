@@ -327,7 +327,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		// data: URI fallback, which Gmail and some other webmail clients
 		// strip on display.
 		emailOptions = append(emailOptions, serviceemail.WithLogoURL(
-			strings.TrimRight(deps.AuthBaseURL, "/")+"/apple-touch-icon.png",
+			strings.TrimRight(deps.AuthBaseURL, "/")+"/icon-192.png",
 		))
 	}
 	emailService := serviceemail.New(deps.Email, smtp.New(constants.SMTPDialTimeout), emailOptions...)
