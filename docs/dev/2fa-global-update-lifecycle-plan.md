@@ -379,3 +379,27 @@ Stage only exact task-owned paths or hunks. Preserve the user's pre-existing `.g
 - Changes to the updater, deployment scripts, infrastructure, Caddy, LXD, or workspace images.
 
 These exclusions keep the requested change reviewable and prevent the global hook from turning into an unbounded event-bus rewrite.
+
+## Progress
+
+- [x] 1. Characterize the existing mutation boundaries — `verified`: 6 new characterization tests in `service_test.go`/`twofactor_test.go`; `go test ./internal/service/auth` green.
+- [x] 2. Implement the global publisher — `verified`: `go test -race ./internal/integration/lifecycle/publishers` green, including the reentrant-callback and concurrent-registry tests.
+- [x] 3. Introduce the auth publishing seam — `verified-indirectly`: covered by step 5's lifecycle test suite plus the full `go test ./internal/service/auth` and `go vet ./...` runs, since the seam has no independent behavior to check before it is exercised.
+- [x] 4. Wire the single publisher at startup — `verified`: `go build ./...` and `go vet ./...` clean across `main.go`, `setup_token.go`, and `services.go`; no production observer registered.
+- [x] 5. Verify 2FA lifecycle coverage — `verified`: 14 new tests in `twofactor_test.go` covering every item in the plan's checklist; `go test -race ./internal/service/auth` and full `go test ./...` green.
+
+## Status
+
+done
+
+## Outcome
+
+**Deviations from the plan:** None. `ConfirmEnrollment`'s lifecycle subject is `normalizeEmail(expectedEmail)` (the authenticated caller's account), computed before any validation runs — this was necessary rather than a choice, since the pending token (and its embedded `pending.Email`) isn't trustworthy until after verification, and the plan requires a `Started` event even for an invalid-token attempt.
+
+**Plan defects:** None found. The plan's dispatch semantics, the four mutation boundaries, and the file layout all matched the current code exactly.
+
+**Steps not fully verified:** None outstanding. Step 3 has no standalone verification command of its own in the plan (its command is folded into step 5's), so it is marked `verified-indirectly` against step 5's coverage and the full test/vet run rather than a dedicated command.
+
+**Left behind:** No production observer is registered yet, exactly as the plan specifies ("Deliberately not included"). A future change wiring a concrete consumer (logging, auditing, etc.) is expected and out of scope here.
+
+**For the next plan in this area:** `enrollTestAccount` in `twofactor_test.go` already performs one real `ConfirmEnrollment` (and thus one Save call and one cache-population of BeginEnrollment's "not enrolled" nil placeholder) as test setup — any future characterization or lifecycle test built on it needs to account for that baseline state/call count rather than assuming a virgin store or empty cache.
