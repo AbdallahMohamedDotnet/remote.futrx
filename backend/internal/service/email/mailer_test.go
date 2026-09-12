@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	emailapplication "github.com/futrx-com/remote.futrx.com/internal/model/email/application"
 )
 
 type fakeDirectory struct {
@@ -63,7 +65,7 @@ func TestMailerSendUsesStoredCredentials(t *testing.T) {
 	if len(sender.sentMessages) != 1 {
 		t.Fatalf("sent %d messages, want 1", len(sender.sentMessages))
 	}
-	if got := sender.sentTo[0].Address; got != "server@example.com" {
+	if got := sender.sentTo[0].FromAddress; got != "server@example.com" {
 		t.Errorf("sent as %q, want the stored sender identity", got)
 	}
 	if got := sender.sentMessages[0].To; got != "someone@example.com" {
@@ -93,7 +95,11 @@ func TestMailerUnconfiguredIsASilentNoop(t *testing.T) {
 }
 
 func TestMailerReportsSendFailures(t *testing.T) {
-	store := &fakeStore{creds: &Credentials{Address: "server@example.com", AppPassword: "abcdefghijklmnop"}}
+	store := &fakeStore{cfg: &emailapplication.SMTPConfiguration{
+		Host: "smtp.example.com", Port: 587, TLSMode: emailapplication.TLSModeSTARTTLS,
+		Authentication: emailapplication.AuthenticationPlain, Username: "server@example.com",
+		Password: "abcdefghijklmnop", FromAddress: "server@example.com",
+	}}
 	sender := &fakeSender{sendErr: errors.New("mailbox full")}
 	mailer := NewMailer(New(store, sender), nil)
 

@@ -7,6 +7,8 @@ import (
 
 	serviceemail "github.com/futrx-com/remote.futrx.com/internal/service/email"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
+
+	emailoutbound "github.com/futrx-com/remote.futrx.com/internal/port/email/outbound"
 )
 
 // emailDirectory wraps *user.Service to satisfy email.Directory, the same way
@@ -20,7 +22,7 @@ type emailDirectory struct {
 	users *serviceuser.Service
 }
 
-var _ serviceemail.Directory = emailDirectory{}
+var _ emailoutbound.Directory = emailDirectory{}
 
 // Address resolves userKey via the user directory. Only "this key names
 // nobody we may mail" becomes ErrUnknownRecipient - a real lookup failure

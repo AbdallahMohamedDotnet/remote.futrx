@@ -6,6 +6,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	emaildomain "github.com/futrx-com/remote.futrx.com/internal/model/email/domain"
+	emailoutbound "github.com/futrx-com/remote.futrx.com/internal/port/email/outbound"
 )
 
 // deliveryTimeout bounds a background send. It matches push's delivery budget:
@@ -16,7 +19,7 @@ const deliveryTimeout = 30 * time.Second
 // maxConcurrentSends bounds how many SMTP sessions this process holds open at
 // once. Each recipient of each Mail is its own session (see Mail.Build), so a
 // mail with many recipients - or many mails in flight together - could
-// otherwise open unbounded connections against Gmail and pile up unbounded
+// otherwise open unbounded connections against the SMTP server and pile up unbounded
 // goroutines. A background send blocks here before dialing, so the goroutine
 // count can grow but the concurrent SMTP work cannot.
 const maxConcurrentSends = 20
@@ -33,21 +36,21 @@ const maxConcurrentSends = 20
 //
 // Like the rest of this repository, an unavailable dependency degrades rather
 // than refusing to boot: a nil Mailer, a nil Service, or a server with no
-// Gmail credential saved turns every send into a logged no-op (or, for mail
+// SMTP configuration saved turns every send into a logged no-op (or, for mail
 // marked Required, into ErrNotConfigured). Every exported method on *Mailer
 // is safe to call on a nil receiver, and so is every method reachable from
 // Mailer.Mail() - Mail, Send and SendAsync included - so a caller never has
 // to nil-check before composing.
 type Mailer struct {
 	svc  *Service
-	dir  Directory
+	dir  emailoutbound.Directory
 	wg   sync.WaitGroup
 	sema chan struct{}
 }
 
 // NewMailer builds the facade. dir may be nil, in which case Mail.ToUser is
 // rejected but literal addresses still work.
-func NewMailer(svc *Service, dir Directory) *Mailer {
+func NewMailer(svc *Service, dir emailoutbound.Directory) *Mailer {
 	return &Mailer{svc: svc, dir: dir, sema: make(chan struct{}, maxConcurrentSends)}
 }
 
@@ -58,16 +61,17 @@ func (m *Mailer) Mail() *Mail {
 	return &Mail{mailer: m}
 }
 
-// Enabled reports whether a send would actually reach Gmail: the service is
-// wired and an administrator has saved a credential. Callers do not need to
-// consult it before sending - it exists so a feature can tell a user whether
-// email notifications are available at all.
+// Enabled reports whether a send would actually reach the configured SMTP
+// server: the service is wired and an administrator has saved a
+// configuration. Callers do not need to consult it before sending - it
+// exists so a feature can tell a user whether email notifications are
+// available at all.
 func (m *Mailer) Enabled(ctx context.Context) bool {
 	if m == nil || m.svc == nil {
 		return false
 	}
 	settings, err := m.svc.Settings(ctx)
-	return err == nil && settings.Configured
+	return err == nil && settings.Configuration != nil
 }
 
 // Wait blocks until every background send started by SendAsync has finished.
@@ -97,9 +101,9 @@ func (m *Mailer) release() {
 }
 
 // deliver sends every message, attempting all recipients before reporting.
-// When no credential is configured, it is a logged no-op unless required is
-// set, in which case it reports ErrNotConfigured.
-func (m *Mailer) deliver(ctx context.Context, messages []Message, required bool) error {
+// When no SMTP configuration is stored, it is a logged no-op unless required
+// is set, in which case it reports ErrNotConfigured.
+func (m *Mailer) deliver(ctx context.Context, messages []emaildomain.Message, required bool) error {
 	if m == nil || m.svc == nil {
 		if required {
 			return ErrNotConfigured
@@ -111,11 +115,11 @@ func (m *Mailer) deliver(ctx context.Context, messages []Message, required bool)
 	if err != nil {
 		return err
 	}
-	if !settings.Configured {
+	if settings.Configuration == nil {
 		if required {
 			return ErrNotConfigured
 		}
-		logSkipped(messages, "no Gmail credential is configured")
+		logSkipped(messages, "no SMTP configuration is set")
 		return nil
 	}
 	m.acquire()
@@ -139,7 +143,7 @@ func (m *Mailer) deliver(ctx context.Context, messages []Message, required bool)
 // is usually already answered, and its cancellation must not abort the send.
 // context.WithoutCancel keeps request-scoped values (trace/log fields) while
 // detaching from that cancellation.
-func (m *Mailer) dispatchAsync(ctx context.Context, messages []Message, required bool) {
+func (m *Mailer) dispatchAsync(ctx context.Context, messages []emaildomain.Message, required bool) {
 	if m == nil {
 		return
 	}
@@ -157,7 +161,7 @@ func (m *Mailer) dispatchAsync(ctx context.Context, messages []Message, required
 // logSkipped records mail that was composed but never sent, so a silently
 // undelivered notification is still traceable in the server log. Addresses
 // are masked: the log is diagnostic, not a mailing list.
-func logSkipped(messages []Message, reason string) {
+func logSkipped(messages []emaildomain.Message, reason string) {
 	for _, msg := range messages {
 		log.Printf("email: skipped %q to %s: %s", msg.Subject, maskAddress(msg.To), reason)
 	}

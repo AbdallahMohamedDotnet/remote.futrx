@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	emaildomain "github.com/futrx-com/remote.futrx.com/internal/model/email/domain"
 )
 
 // Mail composes one outbound email from A to Z: who it goes to, what it says,
@@ -26,8 +28,8 @@ import (
 // first failure wins; later steps still record their blocks but Build/Send
 // return the original error.
 //
-// A Mail carries no From: the sender identity is the server's stored Gmail
-// credential and is applied below this layer.
+// A Mail carries no From: the sender identity is the server's stored SMTP
+// configuration and is applied below this layer.
 type Mail struct {
 	mailer   *Mailer
 	subject  string
@@ -86,7 +88,7 @@ func (b *Mail) Subject(subject string) *Mail {
 	return b
 }
 
-// Required marks the mail as one that must actually reach Gmail: a 2FA code,
+// Required marks the mail as one that must actually reach the SMTP server: a 2FA code,
 // a password reset, an invitation - anything where silently dropping the
 // message on an unconfigured server would be a security or correctness
 // failure, not a missed notification. Send/SendAsync on a Required mail
@@ -206,7 +208,7 @@ func (b *Mail) Note(note string) *Mail {
 // separate messages rather than a shared To list so that no recipient learns
 // who else was mailed, and because the SMTP layer addresses one envelope at a
 // time anyway.
-func (b *Mail) Build(ctx context.Context) ([]Message, error) {
+func (b *Mail) Build(ctx context.Context) ([]emaildomain.Message, error) {
 	if b.err != nil {
 		return nil, b.err
 	}
@@ -222,9 +224,9 @@ func (b *Mail) Build(ctx context.Context) ([]Message, error) {
 		return nil, err
 	}
 	htmlBody, textBody := renderBlocks(b.blocks)
-	messages := make([]Message, 0, len(recipients))
+	messages := make([]emaildomain.Message, 0, len(recipients))
 	for _, to := range recipients {
-		messages = append(messages, Message{
+		messages = append(messages, emaildomain.Message{
 			To:       to,
 			Subject:  subject,
 			Body:     textBody,
@@ -243,7 +245,7 @@ func (b *Mail) recipients(ctx context.Context) ([]string, error) {
 	seen := make(map[string]struct{}, len(b.addrs)+len(b.users))
 	out := make([]string, 0, len(b.addrs)+len(b.users))
 	add := func(addr string) error {
-		normalized, err := normalizeAddress(addr)
+		normalized, err := emaildomain.NormalizeAddress(addr)
 		if err != nil {
 			return fmt.Errorf("%w: %q", ErrInvalidRecipient, addr)
 		}
@@ -278,7 +280,7 @@ func (b *Mail) recipients(ctx context.Context) ([]string, error) {
 // recipient is attempted even if an earlier one fails, and the failures are
 // joined, so one bad address does not silently cancel the rest.
 //
-// When the server has no Gmail credential configured, Send is a logged no-op
+// When the server has no SMTP configuration set, Send is a logged no-op
 // returning nil, unless the mail was marked Required, in which case it
 // returns ErrNotConfigured: a feature that merely notifies a user must not
 // fail because an administrator has not set up email, but a feature that

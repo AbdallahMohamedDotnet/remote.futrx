@@ -1,22 +1,30 @@
-// Package fileemail is file-backed storage for the server's single Gmail
-// SMTP credential, at <dataDir>/smtp.json, mode 0600. The file's absence -
-// Credentials returns (nil, nil) - is the correct "not configured" state,
+// Package fileemail is file-backed storage for the server's single SMTP
+// configuration, at <dataDir>/smtp.json, mode 0600. The file's absence -
+// Configuration returns (nil, nil) - is the correct "not configured" state,
 // not an error.
 package fileemail
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 
-	serviceemail "github.com/futrx-com/remote.futrx.com/internal/service/email"
+	emailapplication "github.com/futrx-com/remote.futrx.com/internal/model/email/application"
+	emailoutbound "github.com/futrx-com/remote.futrx.com/internal/port/email/outbound"
 )
 
-var _ serviceemail.Store = (*Store)(nil)
+var _ emailoutbound.ConfigurationStore = (*Store)(nil)
 
 const fileName = "smtp.json"
+
+// recordVersion is the persisted schema version. Version 1 was the
+// unreleased Gmail-only MVP record (address + appPassword); it is not
+// migrated, per the provider-neutral SMTP refactor plan, because no
+// version-1 install was ever a supported release.
+const recordVersion = 2
 
 type Store struct {
 	dataDir string
@@ -27,12 +35,22 @@ func New(dataDir string) *Store {
 	return &Store{dataDir: dataDir}
 }
 
-type credentialsRecord struct {
-	Address     string `json:"address"`
-	AppPassword string `json:"appPassword"`
+// configurationRecord is the private on-disk shape of the SMTP
+// configuration. It is intentionally not exported: the application model is
+// the public contract, and this record is an implementation detail mapped
+// to and from it only at this store's boundary.
+type configurationRecord struct {
+	Version        int    `json:"version"`
+	Host           string `json:"host"`
+	Port           uint16 `json:"port"`
+	TLSMode        string `json:"tlsMode"`
+	Authentication string `json:"authentication"`
+	Username       string `json:"username"`
+	Password       string `json:"password"`
+	FromAddress    string `json:"fromAddress"`
 }
 
-func (s *Store) Credentials(ctx context.Context) (*serviceemail.Credentials, error) {
+func (s *Store) Configuration(ctx context.Context) (*emailapplication.SMTPConfiguration, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -49,14 +67,25 @@ func (s *Store) Credentials(ctx context.Context) (*serviceemail.Credentials, err
 		}
 		return nil, err
 	}
-	var record credentialsRecord
+	var record configurationRecord
 	if err := json.Unmarshal(data, &record); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fileemail: malformed configuration record: %w", err)
 	}
-	return &serviceemail.Credentials{Address: record.Address, AppPassword: record.AppPassword}, nil
+	if record.Version != recordVersion {
+		return nil, fmt.Errorf("fileemail: unsupported configuration record version %d", record.Version)
+	}
+	return &emailapplication.SMTPConfiguration{
+		Host:           record.Host,
+		Port:           record.Port,
+		TLSMode:        emailapplication.TLSMode(record.TLSMode),
+		Authentication: emailapplication.AuthenticationMode(record.Authentication),
+		Username:       record.Username,
+		Password:       record.Password,
+		FromAddress:    record.FromAddress,
+	}, nil
 }
 
-func (s *Store) Save(ctx context.Context, creds serviceemail.Credentials) error {
+func (s *Store) Save(ctx context.Context, cfg emailapplication.SMTPConfiguration) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -65,7 +94,16 @@ func (s *Store) Save(ctx context.Context, creds serviceemail.Credentials) error 
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.writeJSONLocked(credentialsRecord{Address: creds.Address, AppPassword: creds.AppPassword})
+	return s.writeJSONLocked(configurationRecord{
+		Version:        recordVersion,
+		Host:           cfg.Host,
+		Port:           cfg.Port,
+		TLSMode:        string(cfg.TLSMode),
+		Authentication: string(cfg.Authentication),
+		Username:       cfg.Username,
+		Password:       cfg.Password,
+		FromAddress:    cfg.FromAddress,
+	})
 }
 
 func (s *Store) Delete(ctx context.Context) error {

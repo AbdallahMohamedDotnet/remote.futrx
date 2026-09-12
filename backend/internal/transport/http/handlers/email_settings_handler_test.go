@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	emailapplication "github.com/futrx-com/remote.futrx.com/internal/model/email/application"
+	emaildomain "github.com/futrx-com/remote.futrx.com/internal/model/email/domain"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	serviceemail "github.com/futrx-com/remote.futrx.com/internal/service/email"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
@@ -40,18 +42,18 @@ func (emailTestOAuth) ExchangeUser(context.Context, string) (serviceauth.User, e
 }
 
 type fakeEmailStore struct {
-	creds *serviceemail.Credentials
+	cfg *emailapplication.SMTPConfiguration
 }
 
-func (f *fakeEmailStore) Credentials(context.Context) (*serviceemail.Credentials, error) {
-	return f.creds, nil
+func (f *fakeEmailStore) Configuration(context.Context) (*emailapplication.SMTPConfiguration, error) {
+	return f.cfg, nil
 }
-func (f *fakeEmailStore) Save(_ context.Context, creds serviceemail.Credentials) error {
-	f.creds = &creds
+func (f *fakeEmailStore) Save(_ context.Context, cfg emailapplication.SMTPConfiguration) error {
+	f.cfg = &cfg
 	return nil
 }
 func (f *fakeEmailStore) Delete(context.Context) error {
-	f.creds = nil
+	f.cfg = nil
 	return nil
 }
 
@@ -60,10 +62,10 @@ type fakeEmailSender struct {
 	sendErr   error
 }
 
-func (f *fakeEmailSender) Verify(context.Context, serviceemail.Credentials) error {
+func (f *fakeEmailSender) Verify(context.Context, emailapplication.SMTPConfiguration) error {
 	return f.verifyErr
 }
-func (f *fakeEmailSender) Send(context.Context, serviceemail.Credentials, serviceemail.Message) error {
+func (f *fakeEmailSender) Send(context.Context, emailapplication.SMTPConfiguration, emaildomain.Message) error {
 	return f.sendErr
 }
 
@@ -128,6 +130,18 @@ func sessionRequest(t *testing.T, auth *serviceauth.Service, email, method, path
 	return request
 }
 
+func validSaveBody() map[string]any {
+	return map[string]any{
+		"host":           "smtp.example.com",
+		"port":           587,
+		"tlsMode":        "starttls",
+		"authentication": "plain",
+		"username":       "mailer@example.com",
+		"password":       "s3cret-value",
+		"fromAddress":    "mailer@example.com",
+	}
+}
+
 func TestEmailSettingsHandlerAuthorization(t *testing.T) {
 	handler, auth, _, _ := newEmailTestHandler(t, map[string]bool{"admin@example.com": true, "member@example.com": false})
 	mux := http.NewServeMux()
@@ -155,15 +169,32 @@ func TestEmailSettingsHandlerValidation(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 
+	body := validSaveBody()
+	body["host"] = "https://smtp.example.com/path"
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, sessionRequest(t, auth, "admin@example.com", http.MethodPut, "/api/admin/email", map[string]string{
-		"address": "admin@example.com", "appPassword": "abcd efgh ijkl mno",
-	}))
+	mux.ServeHTTP(rec, sessionRequest(t, auth, "admin@example.com", http.MethodPut, "/api/admin/email", body))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400, body = %s", rec.Code, rec.Body.String())
 	}
-	if store.creds != nil {
-		t.Fatalf("smtp credentials were saved despite invalid input: %+v", store.creds)
+	if store.cfg != nil {
+		t.Fatalf("smtp configuration was saved despite invalid input: %+v", store.cfg)
+	}
+}
+
+func TestEmailSettingsHandlerUnrecognizedEnum(t *testing.T) {
+	handler, auth, store, _ := newEmailTestHandler(t, map[string]bool{"admin@example.com": true})
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+
+	body := validSaveBody()
+	body["tlsMode"] = "wrapped-in-magic"
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, sessionRequest(t, auth, "admin@example.com", http.MethodPut, "/api/admin/email", body))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body = %s", rec.Code, rec.Body.String())
+	}
+	if store.cfg != nil {
+		t.Fatalf("smtp configuration was saved despite an unrecognized tlsMode: %+v", store.cfg)
 	}
 }
 
@@ -174,14 +205,12 @@ func TestEmailSettingsHandlerVerificationFailure(t *testing.T) {
 	handler.RegisterRoutes(mux)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, sessionRequest(t, auth, "admin@example.com", http.MethodPut, "/api/admin/email", map[string]string{
-		"address": "admin@example.com", "appPassword": "abcd efgh ijkl mnop",
-	}))
+	mux.ServeHTTP(rec, sessionRequest(t, auth, "admin@example.com", http.MethodPut, "/api/admin/email", validSaveBody()))
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, want 502, body = %s", rec.Code, rec.Body.String())
 	}
-	if store.creds != nil {
-		t.Fatalf("smtp credentials were saved despite failed verification: %+v", store.creds)
+	if store.cfg != nil {
+		t.Fatalf("smtp configuration was saved despite failed verification: %+v", store.cfg)
 	}
 }
 
@@ -194,6 +223,12 @@ func TestEmailSettingsHandlerDelete(t *testing.T) {
 	mux.ServeHTTP(rec, sessionRequest(t, auth, "admin@example.com", http.MethodDelete, "/api/admin/email", nil))
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204, body = %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, sessionRequest(t, auth, "admin@example.com", http.MethodDelete, "/api/admin/email", nil))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("second delete status = %d, want 204 (idempotent), body = %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -209,9 +244,8 @@ func TestEmailSettingsHandlerMethodNotAllowed(t *testing.T) {
 	}
 }
 
-func TestEmailSettingsHandlerGetOmitsAppPassword(t *testing.T) {
-	handler, auth, store, _ := newEmailTestHandler(t, map[string]bool{"admin@example.com": true})
-	store.creds = &serviceemail.Credentials{Address: "admin@example.com", AppPassword: "abcdefghijklmnop"}
+func TestEmailSettingsHandlerGetUnconfigured(t *testing.T) {
+	handler, auth, _, _ := newEmailTestHandler(t, map[string]bool{"admin@example.com": true})
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 
@@ -221,10 +255,31 @@ func TestEmailSettingsHandlerGetOmitsAppPassword(t *testing.T) {
 		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "address") {
-		t.Errorf("response missing address field: %s", body)
+	if strings.Contains(body, "configuration") {
+		t.Errorf("unconfigured response carries a configuration object: %s", body)
 	}
-	if strings.Contains(body, "appPassword") || strings.Contains(body, "abcdefghijklmnop") {
-		t.Errorf("response leaks the app password: %s", body)
+}
+
+func TestEmailSettingsHandlerGetOmitsPassword(t *testing.T) {
+	handler, auth, store, _ := newEmailTestHandler(t, map[string]bool{"admin@example.com": true})
+	store.cfg = &emailapplication.SMTPConfiguration{
+		Host: "smtp.example.com", Port: 587, TLSMode: emailapplication.TLSModeSTARTTLS,
+		Authentication: emailapplication.AuthenticationPlain, Username: "admin@example.com",
+		Password: "abcdefghijklmnop", FromAddress: "admin@example.com",
+	}
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, sessionRequest(t, auth, "admin@example.com", http.MethodGet, "/api/admin/email", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "passwordConfigured") {
+		t.Errorf("response missing passwordConfigured field: %s", body)
+	}
+	if strings.Contains(body, "abcdefghijklmnop") || strings.Contains(body, `"password"`) {
+		t.Errorf("response leaks the password: %s", body)
 	}
 }

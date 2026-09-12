@@ -24,8 +24,8 @@ type Message struct {
 }
 
 // buildRFC5322 renders msg as a CRLF-terminated RFC 5322 message ready to
-// hand to the DATA command. No Message-ID header is generated - Gmail
-// assigns one on submission.
+// hand to the DATA command. No Message-ID header is generated - the
+// receiving SMTP server assigns one on submission.
 func buildRFC5322(msg Message) ([]byte, error) {
 	if msg.From == "" {
 		return nil, fmt.Errorf("smtp: message From is empty")

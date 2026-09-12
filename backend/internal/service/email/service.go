@@ -3,21 +3,25 @@ package email
 import (
 	"context"
 	"fmt"
+
+	emailapplication "github.com/futrx-com/remote.futrx.com/internal/model/email/application"
+	emaildomain "github.com/futrx-com/remote.futrx.com/internal/model/email/domain"
+	emailoutbound "github.com/futrx-com/remote.futrx.com/internal/port/email/outbound"
 )
 
-// Service owns the policy for the server's single Gmail sender identity:
-// normalise, validate, verify, persist, send. The protocol itself is
-// delegated to a Sender.
+// Service owns the policy for the server's single SMTP configuration:
+// validate, verify, persist, send. The protocol itself is delegated to a
+// Sender.
 type Service struct {
-	store  Store
-	sender Sender
+	store  emailoutbound.ConfigurationStore
+	sender emailoutbound.Sender
 }
 
 // New builds a Service. It is total: a nil store or sender simply makes the
 // feature report ErrNotConfigured everywhere instead of panicking, matching
 // how the rest of this repository degrades an unavailable dependency instead
 // of refusing to boot.
-func New(store Store, sender Sender) *Service {
+func New(store emailoutbound.ConfigurationStore, sender emailoutbound.Sender) *Service {
 	return &Service{store: store, sender: sender}
 }
 
@@ -25,59 +29,60 @@ func (s *Service) configured() bool {
 	return s != nil && s.store != nil && s.sender != nil
 }
 
-// Settings reports whether a credential is stored, and its address. A store
-// holding nothing is reported as Settings{Configured: false} with a nil
+// Settings reports the stored configuration's secret-free projection. A
+// store holding nothing is reported as a nil Configuration with a nil
 // error; only a real I/O failure is an error.
-func (s *Service) Settings(ctx context.Context) (Settings, error) {
+func (s *Service) Settings(ctx context.Context) (emailapplication.SMTPSettings, error) {
 	if !s.configured() {
-		return Settings{}, ErrNotConfigured
+		return emailapplication.SMTPSettings{}, ErrNotConfigured
 	}
-	creds, err := s.store.Credentials(ctx)
+	cfg, err := s.store.Configuration(ctx)
 	if err != nil {
-		return Settings{}, err
+		return emailapplication.SMTPSettings{}, err
 	}
-	if creds == nil {
-		return Settings{Configured: false}, nil
-	}
-	return Settings{Configured: true, Address: creds.Address}, nil
+	return emailapplication.SMTPSettings{Configuration: emailapplication.Public(cfg)}, nil
 }
 
-// Configure normalises and verifies creds against the live server, and only
-// on success persists them. A failed verification leaves any previously
-// stored credential untouched, so a bad edit cannot break a working
-// configuration.
-func (s *Service) Configure(ctx context.Context, creds Credentials) (Settings, error) {
+// Configure validates req against the stored configuration, verifies the
+// resulting candidate against the live server, and only on success persists
+// it. A failed validation or verification leaves any previously stored
+// configuration untouched, so a bad edit cannot break a working setup.
+func (s *Service) Configure(ctx context.Context, req ConfigureRequest) (emailapplication.SMTPSettings, error) {
 	if !s.configured() {
-		return Settings{}, ErrNotConfigured
+		return emailapplication.SMTPSettings{}, ErrNotConfigured
 	}
-	normalized, err := normalize(creds)
+	current, err := s.store.Configuration(ctx)
 	if err != nil {
-		return Settings{}, err
+		return emailapplication.SMTPSettings{}, err
 	}
-	if err := s.sender.Verify(ctx, normalized); err != nil {
-		return Settings{}, fmt.Errorf("%w: %v", ErrVerificationFailed, err)
+	candidate, err := buildCandidate(current, req)
+	if err != nil {
+		return emailapplication.SMTPSettings{}, err
 	}
-	if err := s.store.Save(ctx, normalized); err != nil {
-		return Settings{}, err
+	if err := s.sender.Verify(ctx, candidate); err != nil {
+		return emailapplication.SMTPSettings{}, fmt.Errorf("%w: %v", ErrVerificationFailed, err)
 	}
-	return Settings{Configured: true, Address: normalized.Address}, nil
+	if err := s.store.Save(ctx, candidate); err != nil {
+		return emailapplication.SMTPSettings{}, err
+	}
+	return emailapplication.SMTPSettings{Configuration: emailapplication.Public(&candidate)}, nil
 }
 
-// send delivers one already-composed message with the stored credentials. It
-// is the single point where a Message meets the sender, used by SendTest and
-// by Mailer; composition and recipient policy belong to the caller.
-func (s *Service) send(ctx context.Context, msg Message) error {
+// send delivers one already-composed message with the stored configuration.
+// It is the single point where a Message meets the sender, used by SendTest
+// and by Mailer; composition and recipient policy belong to the caller.
+func (s *Service) send(ctx context.Context, msg emaildomain.Message) error {
 	if !s.configured() {
 		return ErrNotConfigured
 	}
-	creds, err := s.store.Credentials(ctx)
+	cfg, err := s.store.Configuration(ctx)
 	if err != nil {
 		return err
 	}
-	if creds == nil {
+	if cfg == nil {
 		return ErrNotConfigured
 	}
-	if err := s.sender.Send(ctx, *creds, msg); err != nil {
+	if err := s.sender.Send(ctx, *cfg, msg); err != nil {
 		return fmt.Errorf("%w: %v", ErrSendFailed, err)
 	}
 	return nil
@@ -92,7 +97,7 @@ func (s *Service) mail() *Mail {
 }
 
 // SendTest sends a fixed test message to recipient using the stored
-// credentials. It is marked Required: unlike mail a feature raises for a
+// configuration. It is marked Required: unlike mail a feature raises for a
 // user, an unconfigured server here is an error, not a silent no-op, because
 // an administrator asked directly and must be told.
 func (s *Service) SendTest(ctx context.Context, recipient string) error {
@@ -103,12 +108,12 @@ func (s *Service) SendTest(ctx context.Context, recipient string) error {
 		To(recipient).
 		Subject("Remote test email").
 		Heading("Your test email worked!").
-		Text("This confirms that your Remote server\u2019s email settings are configured correctly.").
+		Text("This confirms that your Remote server’s email settings are configured correctly.").
 		Required().
 		Send(ctx)
 }
 
-// Disable removes any stored credential. It is idempotent.
+// Disable removes any stored configuration. It is idempotent.
 func (s *Service) Disable(ctx context.Context) error {
 	if !s.configured() {
 		return ErrNotConfigured

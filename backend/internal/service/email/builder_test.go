@@ -5,12 +5,19 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	emailapplication "github.com/futrx-com/remote.futrx.com/internal/model/email/application"
+	emailoutbound "github.com/futrx-com/remote.futrx.com/internal/port/email/outbound"
 )
 
 // configuredMailer builds a Mailer over a store that already holds a
-// credential, so sends reach the fake sender.
-func configuredMailer(dir Directory) (*Mailer, *fakeSender) {
-	store := &fakeStore{creds: &Credentials{Address: "server@example.com", AppPassword: "abcdefghijklmnop"}}
+// configuration, so sends reach the fake sender.
+func configuredMailer(dir emailoutbound.Directory) (*Mailer, *fakeSender) {
+	store := &fakeStore{cfg: &emailapplication.SMTPConfiguration{
+		Host: "smtp.example.com", Port: 587, TLSMode: emailapplication.TLSModeSTARTTLS,
+		Authentication: emailapplication.AuthenticationPlain, Username: "server@example.com",
+		Password: "abcdefghijklmnop", FromAddress: "server@example.com",
+	}}
 	sender := &fakeSender{}
 	return NewMailer(New(store, sender), dir), sender
 }

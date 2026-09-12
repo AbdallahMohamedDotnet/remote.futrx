@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
+	"github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/smtp"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
@@ -29,6 +30,8 @@ import (
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	serviceusersettings "github.com/futrx-com/remote.futrx.com/internal/service/usersettings"
 	"github.com/futrx-com/remote.futrx.com/internal/service/workspacehub"
+
+	emailoutbound "github.com/futrx-com/remote.futrx.com/internal/port/email/outbound"
 )
 
 type AuthStore interface {
@@ -68,7 +71,7 @@ type Dependencies struct {
 	SessionRegistry   serviceauth.SessionRegistryStore
 	Push              PushStore
 	Usage             serviceusage.Repository
-	Email             serviceemail.Store
+	Email             emailoutbound.ConfigurationStore
 	AuthBaseURL       string
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
@@ -288,9 +291,11 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	pushNotifier.audience.projects = projectService
 	pushNotifier.audience.users = userService
 
-	// The admin settings handler takes the Service (it manages the credential);
-	// every feature that merely wants to send mail takes the Mailer facade.
-	emailService := serviceemail.New(deps.Email, emailSender{client: smtp.New()})
+	// The admin settings handler takes the Service (it manages the
+	// configuration); every feature that merely wants to send mail takes the
+	// Mailer facade. smtp.Client satisfies emailoutbound.Sender directly, so
+	// composition needs no adapter between the two.
+	emailService := serviceemail.New(deps.Email, smtp.New(constants.SMTPDialTimeout))
 	mailer := serviceemail.NewMailer(emailService, emailDirectory{users: userService})
 
 	return Services{

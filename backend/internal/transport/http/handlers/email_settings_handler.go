@@ -4,13 +4,15 @@ import (
 	"errors"
 	"net/http"
 
+	emailapi "github.com/futrx-com/remote.futrx.com/internal/model/email/api"
+	emailapplication "github.com/futrx-com/remote.futrx.com/internal/model/email/application"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	serviceemail "github.com/futrx-com/remote.futrx.com/internal/service/email"
 	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
 // EmailSettingsHandler exposes the admin-only surface for configuring,
-// testing, and clearing the server's single Gmail SMTP credential.
+// testing, and clearing the server's single SMTP configuration.
 type EmailSettingsHandler struct {
 	email *serviceemail.Service
 	auth  *serviceauth.Service
@@ -38,11 +40,6 @@ func (h *EmailSettingsHandler) requireAdmin(w http.ResponseWriter, r *http.Reque
 	return email, true
 }
 
-type emailSettingsResponse struct {
-	Configured bool   `json:"configured"`
-	Address    string `json:"address"`
-}
-
 func (h *EmailSettingsHandler) handleSettings(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.requireAdmin(w, r); !ok {
 		return
@@ -55,32 +52,38 @@ func (h *EmailSettingsHandler) handleSettings(w http.ResponseWriter, r *http.Req
 			sendEmailError(w, err)
 			return
 		}
-		httptransport.SendJSON(w, http.StatusOK, emailSettingsResponse{
-			Configured: settings.Configured,
-			Address:    settings.Address,
-		})
+		httptransport.SendJSON(w, http.StatusOK, settingsResponse(settings))
 
 	case http.MethodPut:
-		var body struct {
-			Address     string `json:"address"`
-			AppPassword string `json:"appPassword"`
-		}
+		var body emailapi.SaveSMTPSettingsRequest
 		if err := readJSONBody(r, &body); err != nil {
 			httptransport.SendErr(w, http.StatusBadRequest, "invalid request")
 			return
 		}
-		settings, err := h.email.Configure(r.Context(), serviceemail.Credentials{
-			Address:     body.Address,
-			AppPassword: body.AppPassword,
+		tlsMode, ok := emailapi.ParseTLSMode(body.TLSMode)
+		if !ok {
+			httptransport.SendErr(w, http.StatusBadRequest, "unrecognized tlsMode")
+			return
+		}
+		authentication, ok := emailapi.ParseAuthenticationMode(body.Authentication)
+		if !ok {
+			httptransport.SendErr(w, http.StatusBadRequest, "unrecognized authentication")
+			return
+		}
+		settings, err := h.email.Configure(r.Context(), serviceemail.ConfigureRequest{
+			Host:           body.Host,
+			Port:           body.Port,
+			TLSMode:        tlsMode,
+			Authentication: authentication,
+			Username:       body.Username,
+			Password:       body.Password,
+			FromAddress:    body.FromAddress,
 		})
 		if err != nil {
 			sendEmailError(w, err)
 			return
 		}
-		httptransport.SendJSON(w, http.StatusOK, emailSettingsResponse{
-			Configured: settings.Configured,
-			Address:    settings.Address,
-		})
+		httptransport.SendJSON(w, http.StatusOK, settingsResponse(settings))
 
 	case http.MethodDelete:
 		if err := h.email.Disable(r.Context()); err != nil && !errors.Is(err, serviceemail.ErrNotConfigured) {
@@ -117,10 +120,16 @@ func (h *EmailSettingsHandler) handleTest(w http.ResponseWriter, r *http.Request
 	httptransport.SendJSON(w, http.StatusOK, map[string]bool{"sent": true})
 }
 
+func settingsResponse(settings emailapplication.SMTPSettings) emailapi.SMTPSettingsResponse {
+	return emailapi.SMTPSettingsResponse{
+		Configured:    settings.Configuration != nil,
+		Configuration: emailapi.PublicConfigurationDTO(settings.Configuration),
+	}
+}
+
 func sendEmailError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, serviceemail.ErrInvalidAddress),
-		errors.Is(err, serviceemail.ErrInvalidAppPassword),
+	case errors.Is(err, serviceemail.ErrInvalidConfiguration),
 		errors.Is(err, serviceemail.ErrInvalidRecipient):
 		httptransport.SendErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, serviceemail.ErrNotConfigured):
