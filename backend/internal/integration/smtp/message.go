@@ -2,19 +2,24 @@ package smtp
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"mime"
 	"strings"
 	"time"
+
+	emaildomain "github.com/futrx-com/remote.futrx.com/internal/model/email/domain"
 )
 
 // Message is the wire representation of an outbound email: exactly the
 // headers and body this package knows how to serialize. It carries its own
 // From, unlike the service-layer Message, because the envelope sender is not
 // implied by anything at this layer. When HTMLBody is non-empty the message
-// is rendered as multipart/alternative (text/plain + text/html); otherwise
-// it falls back to the original text/plain format.
+// is rendered as multipart/related, wrapping a multipart/alternative
+// (text/plain + text/html) alongside the inline branded logo the HTML part
+// references via cid:; otherwise it falls back to the original plain-text
+// format.
 type Message struct {
 	From     string
 	To       string
@@ -51,31 +56,66 @@ func buildRFC5322(msg Message) ([]byte, error) {
 		b.WriteString("Content-Type: text/plain; charset=\"utf-8\"\r\n")
 		b.WriteString("\r\n")
 		b.WriteString(msg.Body)
-	} else {
-		// multipart/alternative with text/plain and text/html parts.
-		boundary := generateBoundary()
-		fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=\"%s\"\r\n", boundary)
-		b.WriteString("\r\n")
-
-		// text/plain part
-		fmt.Fprintf(&b, "--%s\r\n", boundary)
-		b.WriteString("Content-Type: text/plain; charset=\"utf-8\"\r\n")
-		b.WriteString("\r\n")
-		b.WriteString(msg.Body)
-		b.WriteString("\r\n")
-
-		// text/html part
-		fmt.Fprintf(&b, "--%s\r\n", boundary)
-		b.WriteString("Content-Type: text/html; charset=\"utf-8\"\r\n")
-		b.WriteString("\r\n")
-		b.WriteString(msg.HTMLBody)
-		b.WriteString("\r\n")
-
-		// closing boundary
-		fmt.Fprintf(&b, "--%s--\r\n", boundary)
+		return []byte(b.String()), nil
 	}
 
+	// Outer multipart/related: the alternative text/html+text/plain part,
+	// plus the inline logo image the HTML part references via cid:.
+	relatedBoundary := generateBoundary()
+	fmt.Fprintf(&b, "Content-Type: multipart/related; boundary=\"%s\"\r\n", relatedBoundary)
+	b.WriteString("\r\n")
+
+	altBoundary := generateBoundary()
+	fmt.Fprintf(&b, "--%s\r\n", relatedBoundary)
+	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=\"%s\"\r\n", altBoundary)
+	b.WriteString("\r\n")
+
+	// text/plain part
+	fmt.Fprintf(&b, "--%s\r\n", altBoundary)
+	b.WriteString("Content-Type: text/plain; charset=\"utf-8\"\r\n")
+	b.WriteString("\r\n")
+	b.WriteString(msg.Body)
+	b.WriteString("\r\n")
+
+	// text/html part
+	fmt.Fprintf(&b, "--%s\r\n", altBoundary)
+	b.WriteString("Content-Type: text/html; charset=\"utf-8\"\r\n")
+	b.WriteString("\r\n")
+	b.WriteString(msg.HTMLBody)
+	b.WriteString("\r\n")
+
+	fmt.Fprintf(&b, "--%s--\r\n", altBoundary)
+
+	// Inline logo image, embedded once per message and referenced from the
+	// HTML part by Content-ID rather than a data: URI or a hosted URL.
+	fmt.Fprintf(&b, "--%s\r\n", relatedBoundary)
+	b.WriteString("Content-Type: image/png\r\n")
+	b.WriteString("Content-Transfer-Encoding: base64\r\n")
+	fmt.Fprintf(&b, "Content-ID: <%s>\r\n", emaildomain.LogoContentID)
+	b.WriteString("Content-Disposition: inline; filename=\"logo.png\"\r\n")
+	b.WriteString("\r\n")
+	b.WriteString(base64Wrapped(emaildomain.LogoPNG))
+
+	fmt.Fprintf(&b, "--%s--\r\n", relatedBoundary)
+
 	return []byte(b.String()), nil
+}
+
+// base64Wrapped encodes data as base64, split into 76-character lines per
+// RFC 2045 §6.8.
+func base64Wrapped(data []byte) string {
+	encoded := base64.StdEncoding.EncodeToString(data)
+	var out strings.Builder
+	out.Grow(len(encoded) + len(encoded)/76*2)
+	for i := 0; i < len(encoded); i += 76 {
+		end := i + 76
+		if end > len(encoded) {
+			end = len(encoded)
+		}
+		out.WriteString(encoded[i:end])
+		out.WriteString("\r\n")
+	}
+	return out.String()
 }
 
 // generateBoundary returns a random MIME boundary string.

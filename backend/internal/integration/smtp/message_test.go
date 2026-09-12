@@ -1,8 +1,11 @@
 package smtp
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
+
+	emaildomain "github.com/futrx-com/remote.futrx.com/internal/model/email/domain"
 )
 
 func TestBuild(t *testing.T) {
@@ -123,5 +126,55 @@ func TestBuildMultipart(t *testing.T) {
 	}
 	if count := strings.Count(out, boundary); count < 3 {
 		t.Errorf("expected boundary %q at least 3 times, got %d", boundary, count)
+	}
+}
+
+func TestBuildEmbedsLogoInline(t *testing.T) {
+	msg := Message{
+		From:     "sender@example.com",
+		To:       "to@example.com",
+		Subject:  "Test",
+		Body:     "plain text body",
+		HTMLBody: `<img src="cid:` + emaildomain.LogoContentID + `">`,
+	}
+	raw, err := buildRFC5322(msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := string(raw)
+
+	if !strings.Contains(out, "Content-Type: multipart/related") {
+		t.Error("expected an outer multipart/related envelope")
+	}
+	wantContentID := "Content-ID: <" + emaildomain.LogoContentID + ">"
+	if !strings.Contains(out, wantContentID) {
+		t.Errorf("expected %q, got: %q", wantContentID, out)
+	}
+	if !strings.Contains(out, "Content-Type: image/png") {
+		t.Error("expected an image/png part for the embedded logo")
+	}
+	if !strings.Contains(out, "Content-Disposition: inline") {
+		t.Error("expected the logo part to be marked inline, not an attachment")
+	}
+	if !strings.Contains(out, `src="cid:`+emaildomain.LogoContentID+`"`) {
+		t.Error("expected the HTML part to reference the logo by cid:")
+	}
+
+	// The embedded bytes must round-trip: extract everything between the
+	// blank line after the image headers and the next boundary, strip the
+	// CRLF line wraps, and decode.
+	afterHeaders := out[strings.Index(out, wantContentID):]
+	afterHeaders = afterHeaders[strings.Index(afterHeaders, "\r\n\r\n")+4:]
+	boundaryEnd := strings.Index(afterHeaders, "\r\n--")
+	if boundaryEnd == -1 {
+		t.Fatal("could not find the end of the embedded image part")
+	}
+	encoded := strings.ReplaceAll(afterHeaders[:boundaryEnd], "\r\n", "")
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatalf("embedded image is not valid base64: %v", err)
+	}
+	if len(decoded) != len(emaildomain.LogoPNG) {
+		t.Errorf("decoded embedded image is %d bytes, want %d", len(decoded), len(emaildomain.LogoPNG))
 	}
 }

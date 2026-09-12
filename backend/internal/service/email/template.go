@@ -12,6 +12,6 @@ func HTMLTemplate(heading, body string) string {
 	htmlBody, _ := renderBlocks([]block{
 		headingBlock{value: heading},
 		textBlock{value: body},
-	}, "")
+	})
 	return htmlBody
 }

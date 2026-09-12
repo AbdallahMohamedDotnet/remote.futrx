@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	emailapplication "github.com/futrx-com/remote.futrx.com/internal/model/email/application"
+	emaildomain "github.com/futrx-com/remote.futrx.com/internal/model/email/domain"
 	emailoutbound "github.com/futrx-com/remote.futrx.com/internal/port/email/outbound"
 )
 
@@ -164,35 +165,18 @@ func TestMailReportsTheFirstErrorNotTheLast(t *testing.T) {
 	}
 }
 
-func TestMailBuildUsesTheConfiguredLogoURL(t *testing.T) {
-	store := &fakeStore{cfg: &emailapplication.SMTPConfiguration{
-		Host: "smtp.example.com", Port: 587, TLSMode: emailapplication.TLSModeSTARTTLS,
-		Authentication: emailapplication.AuthenticationPlain, Username: "server@example.com",
-		Password: "abcdefghijklmnop", FromAddress: "server@example.com",
-	}}
-	svc := New(store, &fakeSender{}, WithLogoURL("https://remote.example.com/apple-touch-icon.png"))
-	mailer := NewMailer(svc, nil)
-
-	messages, err := mailer.Mail().To("a@example.com").Subject("s").Heading("h").Build(context.Background())
-	if err != nil {
-		t.Fatalf("Build returned %v", err)
-	}
-	if !strings.Contains(messages[0].HTMLBody, `src="https://remote.example.com/apple-touch-icon.png"`) {
-		t.Errorf("HTMLBody does not use the configured logo URL: %s", messages[0].HTMLBody)
-	}
-	if strings.Contains(messages[0].HTMLBody, "data:image") {
-		t.Error("HTMLBody still carries the data: URI fallback despite a configured logo URL")
-	}
-}
-
-func TestMailBuildFallsBackToDataURILogoWhenUnconfigured(t *testing.T) {
+func TestMailBuildReferencesTheEmbeddedLogoByContentID(t *testing.T) {
 	mailer, _ := configuredMailer(nil)
 
 	messages, err := mailer.Mail().To("a@example.com").Subject("s").Heading("h").Build(context.Background())
 	if err != nil {
 		t.Fatalf("Build returned %v", err)
 	}
-	if !strings.Contains(messages[0].HTMLBody, "data:image/svg+xml;base64,") {
-		t.Error("HTMLBody does not fall back to the inline logo when no logo URL is configured")
+	want := `src="cid:` + emaildomain.LogoContentID + `"`
+	if !strings.Contains(messages[0].HTMLBody, want) {
+		t.Errorf("HTMLBody = %q, want it to reference the embedded logo via %q", messages[0].HTMLBody, want)
+	}
+	if strings.Contains(messages[0].HTMLBody, "data:image") {
+		t.Error("HTMLBody still carries a data: URI logo, which Gmail strips on display")
 	}
 }
