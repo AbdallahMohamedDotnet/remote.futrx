@@ -294,6 +294,7 @@ func TestNewRejectsNonPositiveSetupTokenTTL(t *testing.T) {
 			[]byte("test-session-key"),
 			newAuthTestTwoFactorStore(),
 			newAuthTestSessionRegistryStore(),
+			newNoopLifecyclePublisher(),
 			options,
 		)
 		if err == nil {
