@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
@@ -320,7 +321,16 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	// configuration); every feature that merely wants to send mail takes the
 	// Mailer facade. smtp.Client satisfies emailoutbound.Sender directly, so
 	// composition needs no adapter between the two.
-	emailService := serviceemail.New(deps.Email, smtp.New(constants.SMTPDialTimeout))
+	var emailOptions []serviceemail.Option
+	if deps.AuthBaseURL != "" {
+		// A hosted PNG is used for the logo rather than the shell's inline
+		// data: URI fallback, which Gmail and some other webmail clients
+		// strip on display.
+		emailOptions = append(emailOptions, serviceemail.WithLogoURL(
+			strings.TrimRight(deps.AuthBaseURL, "/")+"/apple-touch-icon.png",
+		))
+	}
+	emailService := serviceemail.New(deps.Email, smtp.New(constants.SMTPDialTimeout), emailOptions...)
 	mailer := serviceemail.NewMailer(emailService, emailDirectory{users: userService})
 
 	return Services{

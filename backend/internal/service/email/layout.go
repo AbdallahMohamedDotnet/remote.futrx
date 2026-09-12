@@ -1,6 +1,9 @@
 package email
 
-import "strings"
+import (
+	"html"
+	"strings"
+)
 
 // The branded shell every outbound email is rendered into: dark ground, white
 // rounded card, gradient accent bar, logo lockup, separator, then the caller's
@@ -12,7 +15,7 @@ import "strings"
 // markup. The markup itself is unchanged from the original single-purpose
 // template.
 const (
-	shellHead = `<!DOCTYPE html>
+	shellHeadBeforeLogo = `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <meta charset="utf-8">
@@ -37,8 +40,20 @@ const (
 <!-- Logo area -->
 <tr><td align="center" style="padding:36px 40px 0 40px;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center">
-<!-- Inline SVG logo mark: browser window with cloud -->
-<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDQ4IDQ4Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMyZjZmZWIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiM2MGM4ZmYiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB4PSI0IiB5PSI2IiB3aWR0aD0iMzYiIGhlaWdodD0iMzAiIHJ4PSI1IiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjZykiIHN0cm9rZS13aWR0aD0iMy41Ii8+PGNpcmNsZSBjeD0iMTEiIGN5PSIxMi41IiByPSIxLjUiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSIxNiIgY3k9IjEyLjUiIHI9IjEuNSIgZmlsbD0idXJsKCNnKSIvPjxjaXJjbGUgY3g9IjIxIiBjeT0iMTIuNSIgcj0iMS41IiBmaWxsPSJ1cmwoI2cpIi8+PHBhdGggZD0iTTMxIDI4YTggOCAwIDAgMC0xNiAwIiBmaWxsPSJ1cmwoI2cpIiBvcGFjaXR5PSIwLjkiLz48ZWxsaXBzZSBjeD0iMjMiIGN5PSIyNSIgcng9IjEwIiByeT0iNy41IiBmaWxsPSJ1cmwoI2cpIi8+PC9zdmc+" alt="Remote" width="48" height="48" style="display:block;border:0;width:48px;height:48px;">
+`
+
+	// logoImgAttrs is shared by both the hosted-URL and the data-URI fallback
+	// logo tags so the two stay visually identical apart from src.
+	logoImgAttrs = ` alt="Remote" width="48" height="48" style="display:block;border:0;width:48px;height:48px;">`
+
+	// fallbackLogoDataURI is used only when no publicly reachable logo URL is
+	// configured (deps.AuthBaseURL empty, e.g. local/offline development). A
+	// data: URI image is silently stripped by Gmail and some other webmail
+	// clients, which is why a hosted URL (see WithLogoURL) is preferred
+	// whenever one is available.
+	fallbackLogoDataURI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDQ4IDQ4Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMyZjZmZWIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiM2MGM4ZmYiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB4PSI0IiB5PSI2IiB3aWR0aD0iMzYiIGhlaWdodD0iMzAiIHJ4PSI1IiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjZykiIHN0cm9rZS13aWR0aD0iMy41Ii8+PGNpcmNsZSBjeD0iMTEiIGN5PSIxMi41IiByPSIxLjUiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSIxNiIgY3k9IjEyLjUiIHI9IjEuNSIgZmlsbD0idXJsKCNnKSIvPjxjaXJjbGUgY3g9IjIxIiBjeT0iMTIuNSIgcj0iMS41IiBmaWxsPSJ1cmwoI2cpIi8+PHBhdGggZD0iTTMxIDI4YTggOCAwIDAgMC0xNiAwIiBmaWxsPSJ1cmwoI2cpIiBvcGFjaXR5PSIwLjkiLz48ZWxsaXBzZSBjeD0iMjMiIGN5PSIyNSIgcng9IjEwIiByeT0iNy41IiBmaWxsPSJ1cmwoI2cpIi8+PC9zdmc+"
+
+	shellHeadAfterLogo = `
 </td></tr><tr><td align="center" style="padding-top:12px;">
 <span style="font-size:22px;font-weight:700;color:#2f6feb;letter-spacing:-0.02em;">Remote</span>
 </td></tr></table>
@@ -84,11 +99,24 @@ Sent by Remote &middot; Powered by FutrX
 )
 
 // renderShell wraps already-rendered, already-escaped content in the branded
-// card. Callers pass block HTML, never user input.
-func renderShell(content string) string {
+// card. Callers pass block HTML, never user input. logoURL is a publicly
+// reachable https URL for the logo image; when empty, the shell falls back
+// to an inline data: URI, which Gmail and some other webmail clients strip
+// on display.
+func renderShell(content, logoURL string) string {
+	src := logoURL
+	if src == "" {
+		src = fallbackLogoDataURI
+	}
+
 	var sb strings.Builder
-	sb.Grow(len(shellHead) + len(content) + len(shellTail))
-	sb.WriteString(shellHead)
+	sb.Grow(len(shellHeadBeforeLogo) + len(src) + len(shellHeadAfterLogo) + len(content) + len(shellTail))
+	sb.WriteString(shellHeadBeforeLogo)
+	sb.WriteString(`<img src="`)
+	sb.WriteString(html.EscapeString(src))
+	sb.WriteString(`"`)
+	sb.WriteString(logoImgAttrs)
+	sb.WriteString(shellHeadAfterLogo)
 	sb.WriteString(content)
 	sb.WriteString(shellTail)
 	return sb.String()
@@ -100,8 +128,9 @@ func renderShell(content string) string {
 const blockGap = `padding:0 0 20px 0;`
 
 // renderBlocks renders blocks into the HTML card and the plain-text
-// alternative in one pass, so the two parts can never drift apart.
-func renderBlocks(blocks []block) (htmlBody, textBody string) {
+// alternative in one pass, so the two parts can never drift apart. logoURL
+// is forwarded to renderShell; see its doc comment.
+func renderBlocks(blocks []block, logoURL string) (htmlBody, textBody string) {
 	var h, t strings.Builder
 	h.WriteString(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">`)
 	for i, b := range blocks {
@@ -126,5 +155,5 @@ func renderBlocks(blocks []block) (htmlBody, textBody string) {
 		t.WriteString("\n\n--\n")
 		t.WriteString(textFooter)
 	}
-	return renderShell(h.String()), t.String()
+	return renderShell(h.String(), logoURL), t.String()
 }

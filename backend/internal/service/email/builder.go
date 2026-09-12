@@ -223,7 +223,7 @@ func (b *Mail) Build(ctx context.Context) ([]emaildomain.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	htmlBody, textBody := renderBlocks(b.blocks)
+	htmlBody, textBody := renderBlocks(b.blocks, b.logoURL())
 	messages := make([]emaildomain.Message, 0, len(recipients))
 	for _, to := range recipients {
 		messages = append(messages, emaildomain.Message{
@@ -234,6 +234,16 @@ func (b *Mail) Build(ctx context.Context) ([]emaildomain.Message, error) {
 		})
 	}
 	return messages, nil
+}
+
+// logoURL reports the configured public logo URL, or "" when none is
+// configured (a nil Mailer/Service degrades the same way every other Mailer
+// capability does).
+func (b *Mail) logoURL() string {
+	if b.mailer == nil || b.mailer.svc == nil {
+		return ""
+	}
+	return b.mailer.svc.logoURL
 }
 
 // recipients resolves user keys, validates literal addresses, and returns the

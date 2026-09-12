@@ -105,7 +105,7 @@ func TestRenderBlocksSpacesAllButTheLast(t *testing.T) {
 	htmlBody, textBody := renderBlocks([]block{
 		headingBlock{value: "One"},
 		textBlock{value: "Two"},
-	})
+	}, "")
 	if got := strings.Count(htmlBody, blockGap); got != 1 {
 		t.Errorf("block gaps = %d, want 1 (every block but the last)", got)
 	}

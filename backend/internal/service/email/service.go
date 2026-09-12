@@ -13,16 +13,36 @@ import (
 // validate, verify, persist, send. The protocol itself is delegated to a
 // Sender.
 type Service struct {
-	store  emailoutbound.ConfigurationStore
-	sender emailoutbound.Sender
+	store   emailoutbound.ConfigurationStore
+	sender  emailoutbound.Sender
+	logoURL string
+}
+
+// Option configures optional Service behavior beyond its required
+// collaborators.
+type Option func(*Service)
+
+// WithLogoURL sets the publicly reachable https URL the branded email shell
+// uses for its logo image. Without one, the shell falls back to an inline
+// data: URI, which Gmail and some other webmail clients strip on display.
+func WithLogoURL(url string) Option {
+	return func(s *Service) {
+		s.logoURL = url
+	}
 }
 
 // New builds a Service. It is total: a nil store or sender simply makes the
 // feature report ErrNotConfigured everywhere instead of panicking, matching
 // how the rest of this repository degrades an unavailable dependency instead
 // of refusing to boot.
-func New(store emailoutbound.ConfigurationStore, sender emailoutbound.Sender) *Service {
-	return &Service{store: store, sender: sender}
+func New(store emailoutbound.ConfigurationStore, sender emailoutbound.Sender, opts ...Option) *Service {
+	s := &Service{store: store, sender: sender}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(s)
+		}
+	}
+	return s
 }
 
 func (s *Service) configured() bool {
