@@ -204,10 +204,6 @@ INFRA_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # shellcheck source=lib/../config/defaults.sh
 . "$INFRA_DIR/config/defaults.sh"
 
-if [ -n "$TARGET_REF" ]; then
-    export FUTRX_CHECKOUT_REF="$TARGET_REF"
-fi
-
 # ───────────────── globals ─────────────────
 # INFRA_DIR was resolved before argument parsing (see above) so the shared
 # helpers are available to every validation gate.
@@ -223,11 +219,7 @@ HOST_CLI_BIN_DIR="$HOST_CLI_PREFIX/bin"
 # manually installed binaries cannot shadow Remote's pinned toolchain.
 PATH="$HOST_CLI_BIN_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
 
-# Escape dots in HOSTNAME for Caddy regex (dots match any char in regex; we
-# want literal matches).
-HOSTNAME_RE="$(printf '%s' "$HOSTNAME" | sed 's/\./\\./g')"
-
-export INFRA_DIR INSTALL_DIR LEGACY_INSTALL_DIR REPO_URL SERVICE_PORT HOSTNAME_RE
+export INFRA_DIR INSTALL_DIR LEGACY_INSTALL_DIR REPO_URL SERVICE_PORT
 export HOST_CLI_PREFIX HOST_CLI_BIN_DIR PATH
 
 # ───────────────── helpers (sourced by steps) ─────────────────
@@ -247,6 +239,20 @@ render_template() {
 export -f render_template
 }
 
+remote_finalize_install_configuration() {
+if [ -n "$TARGET_REF" ]; then
+    export FUTRX_CHECKOUT_REF="$TARGET_REF"
+fi
+
+# These values depend on parsed arguments. Finalize and export them only after
+# remote_parse_install_arguments has populated HOSTNAME and TARGET_REF.
+# Escape dots in HOSTNAME for Caddy regex (dots match any char in regex; we
+# want literal matches).
+HOSTNAME_RE="$(printf '%s' "$HOSTNAME" | sed 's/\./\\./g')"
+
+export HOSTNAME HOSTNAME_RE
+}
+
 remote_migrate_legacy_install() {
 # ───────────────── pre-rename installation migration ─────────────────
 # shellcheck source=lib/install-migration.sh
@@ -264,7 +270,7 @@ remote_select_checkout() {
 # as commit-consistent as update.sh.
 # shellcheck source=steps/00-checkout.sh
 . "$INFRA_DIR/steps/00-checkout.sh"
-step_00_checkout
+step_00_checkout "$@"
 }
 
 remote_validate_host() {
@@ -392,9 +398,10 @@ main() {
     remote_self_bootstrap "$@"
     remote_load_configuration
     remote_parse_install_arguments "$@"
+    remote_finalize_install_configuration
     require_root "this installer"
     remote_migrate_legacy_install
-    remote_select_checkout
+    remote_select_checkout "$@"
     remote_validate_host
     remote_converge_host
     remote_print_install_summary
