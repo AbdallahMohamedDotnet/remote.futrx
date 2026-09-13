@@ -25,8 +25,10 @@ export const API_ROUTES = {
       `/api/chats/${encodeURIComponent(id)}/media-open?path=${encodeURIComponent(path)}`,
     ideOpen: (id: string, path: string) =>
       `/api/chats/${encodeURIComponent(id)}/ide-open?path=${encodeURIComponent(path)}`,
-    events: (id: string, query: string) =>
-      `/api/chats/${encodeURIComponent(id)}/events${query ? `?${query}` : ""}`,
+    transcript: (id: string, query: string) =>
+      `/api/chats/${encodeURIComponent(id)}/transcript${query ? `?${query}` : ""}`,
+    transcriptContent: (id: string, query: string) =>
+      `/api/chats/${encodeURIComponent(id)}/transcript/content?${query}`,
     rewind: (id: string) => `/api/chats/${encodeURIComponent(id)}/rewind`,
     historyRepos: (id: string) =>
       `/api/chats/${encodeURIComponent(id)}/history/repos`,
@@ -53,6 +55,8 @@ export const API_ROUTES = {
       `/api/${encodeURIComponent(provider)}/login/cancel`,
     startDeviceLogin: (provider: string) =>
       `/api/${encodeURIComponent(provider)}/login/device`,
+    apiKey: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/login/api-key`,
   },
   projects: {
     collection: "/api/projects",
@@ -78,11 +82,23 @@ export const API_ROUTES = {
       `/api/projects/${encodeURIComponent(id)}/secrets/${encodeURIComponent(key)}`,
     usage: (id: string, query = "") =>
       `/api/projects/${encodeURIComponent(id)}/usage${query ? `?${query}` : ""}`,
+    shares: (id: string) => `/api/projects/${encodeURIComponent(id)}/shares`,
+    share: (id: string, shareId: string) =>
+      `/api/projects/${encodeURIComponent(id)}/shares/${encodeURIComponent(shareId)}`,
     access: (id: string) => `/api/projects/${encodeURIComponent(id)}/access`,
     accessMember: (id: string, email: string) =>
       `/api/projects/${encodeURIComponent(id)}/access/${encodeURIComponent(email)}`,
   },
   settings: "/api/me/settings",
+  security: {
+    summary: "/api/me/security",
+    enroll: "/api/me/security/2fa/enroll",
+    confirm: "/api/me/security/2fa/confirm",
+    disable: "/api/me/security/2fa/disable",
+    regenerateRecoveryCodes: "/api/me/security/2fa/recovery-codes/regenerate",
+    preferences: "/api/me/security/preferences",
+    ackAlert: "/api/me/security/alerts/ack",
+  },
   usage: {
     summary: (query: string) => `/api/usage/summary${query ? `?${query}` : ""}`,
     records: (query: string) => `/api/usage/records${query ? `?${query}` : ""}`,
@@ -95,6 +111,10 @@ export const API_ROUTES = {
     subscriptionStatus: "/api/push/subscriptions/status",
     test: "/api/push/test",
     presence: "/api/push/presence",
+  },
+  auth2fa: {
+    verify: "/auth/2fa/verify",
+    cancel: "/auth/2fa/cancel",
   },
   serverInfo: "/api/server/info",
   selfUpdate: {

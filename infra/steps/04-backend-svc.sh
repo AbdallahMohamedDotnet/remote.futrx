@@ -10,6 +10,7 @@
 #   - $INFRA_DIR, $INSTALL_DIR, $HOSTNAME, $SERVICE_PORT
 set -euo pipefail
 
+step_04_backend_svc() {
 SERVICE_NAME="remote.futrx.service"
 SERVICE_UNIT_PATH="/etc/systemd/system/$SERVICE_NAME"
 LEGACY_SERVICE_NAME="remote.futrx.dev.service"
@@ -20,6 +21,16 @@ HOST_CLI_PROFILE_PATH="/etc/profile.d/remote-futrx-host-clis.sh"
 . "$INFRA_DIR/lib/install-migration.sh"
 # shellcheck source=../lib/health-check.sh
 . "$INFRA_DIR/lib/health-check.sh"
+
+# Shell commands need the same installation settings as the service below.
+log "Installing /usr/local/bin/remote"
+{
+    printf '#!/bin/bash\n'
+    printf 'export BASE_URL=%q\n' "https://$HOSTNAME"
+    printf 'export DATA_DIR=%q\n' "$INSTALL_DIR/data"
+    printf 'export INSTALL_DIR=%q\n' "$INSTALL_DIR"
+    printf 'exec %q "$@"\n' "$INSTALL_DIR/backend/remote"
+} | install -o root -g root -m 0755 -T /dev/stdin /usr/local/bin/remote
 
 # ───────────────── systemd unit ─────────────────
 log "Rendering $HOST_CLI_PROFILE_PATH"
@@ -88,3 +99,4 @@ if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active
     ufw allow 80/tcp  >/dev/null || true
     ufw allow 443/tcp >/dev/null || true
 fi
+}

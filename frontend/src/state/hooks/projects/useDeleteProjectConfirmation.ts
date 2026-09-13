@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import { useDismissShortcut } from "../shared/useDismissShortcut.ts";
 
 export function useDeleteProjectConfirmation({
   open,
@@ -25,14 +26,9 @@ export function useDeleteProjectConfirmation({
     return () => clearTimeout(timer);
   }, [open, projectName]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
+  // close() reads `deleting`, and the handler is read through a ref, so an
+  // Escape mid-delete sees the current flag without re-registering.
+  useDismissShortcut(close, { enabled: open });
 
   const isConfirmed = confirmation === projectName;
 

@@ -1,6 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import type { ConfirmTone } from "../../state/context/ConfirmContext";
+import { useDismissShortcut } from "../../state/hooks/shared/useDismissShortcut.ts";
 import { AlertCircle, Loader, X } from "./icons";
 
 /**
@@ -45,14 +46,14 @@ export function ConfirmDialog({
     return () => clearTimeout(timer);
   }, [open, title]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !pending) onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
+  // The handler is read through a ref, so an Escape mid-confirmation sees the
+  // current pending flag rather than the one it was registered with.
+  useDismissShortcut(
+    () => {
+      if (!pending) onCancel();
+    },
+    { enabled: open }
+  );
 
   if (!open) return null;
 

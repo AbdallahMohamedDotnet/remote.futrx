@@ -1,8 +1,7 @@
 import { useLocalAuthController } from "../../state/hooks/auth/useLocalAuthController";
-import type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
+import type { LoginMode } from "../../models/auth";
 import { Key, Loader, MessageSquare } from "../primitives/icons";
-
-export type { LoginMode } from "../../state/hooks/auth/useLocalAuthController";
+import { TwoFactorChallengeStep } from "./TwoFactorChallengeStep";
 
 export function LoginScreen({
   mode,
@@ -29,21 +28,46 @@ export function LoginScreen({
     setEmail,
     setPassword,
     setup,
+    setupToken,
     submit,
     submitting,
+    challenge,
   } = useLocalAuthController({ mode, adminEmail, onSuccess });
-  const title = mode === "claim"
+  // A first-boot claim is authorised solely by the token printed to the
+  // server terminal. Without one there is nothing to submit, so offer the
+  // instructions rather than a form that can only be rejected.
+  const awaitingSetupToken = mode === "claim" && !setupToken;
+  const title = awaitingSetupToken
+    ? "Finish setup from the server terminal"
+    : mode === "claim"
     ? "Create your admin account"
     : mode === "legacy-setup"
       ? "Secure your admin account"
       : "Sign in";
-  const description = mode === "claim"
+  const description = awaitingSetupToken
+    ? "No one has set up this server yet. Find the person who installed it and ask them to look at the server\u2019s terminal window for a one-time setup link \u2014 if they don\u2019t see one, they can type \u0060sudo remote setup-token\u0060 there to get a new one."
+    : mode === "claim"
     ? "This email and password will be the private administrator login for this server."
     : mode === "legacy-setup"
       ? "Create a local password so Google is no longer required for administrator access."
       : !localAdminConfigured
         ? "The existing administrator must sign in with Google once, then create a local password."
         : "Administrators use their local password. Invited users sign in with Google.";
+
+  if (challenge.pending) {
+    return (
+      <div class="app-shell overflow-y-auto grid place-items-center bg-[#090b0f] text-ink-100 p-5">
+        <TwoFactorChallengeStep
+          code={challenge.code}
+          error={challenge.error}
+          submitting={challenge.submitting}
+          onCodeChange={challenge.setCode}
+          onSubmit={challenge.submit}
+          onCancel={challenge.cancel}
+        />
+      </div>
+    );
+  }
 
   return (
     <div class="app-shell overflow-y-auto grid place-items-center bg-app text-ink-100 p-5">
@@ -58,7 +82,7 @@ export function LoginScreen({
           </div>
         </div>
 
-        {(setup || localAdminConfigured) && (
+        {!awaitingSetupToken && (setup || localAdminConfigured) && (
           <form onSubmit={submit} class="space-y-3">
             <label class="block space-y-1.5">
               <span class="text-xs text-ink-300">Admin email</span>

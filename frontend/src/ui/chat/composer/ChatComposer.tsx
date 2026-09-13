@@ -1,13 +1,15 @@
 import type { RefObject } from "preact";
-import { useState } from "preact/hooks";
+import { useMemo, useRef, useState } from "preact/hooks";
 import { modelShortLabel, providerDisplayLabel } from "../../../config/chat";
 import type { QueuedPrompt, SelectedSkill } from "../../../models/chat";
 import type { RegisteredSkill } from "../../../models/skill";
 import type { Attachment } from "../../../models/upload";
+import { commandPaletteState } from "../../../state/hooks/chat/commandPaletteState";
 import { useComposerAgentCapabilities } from "../../../state/hooks/chat/useComposerAgentCapabilities";
 import { ChevronDown, Settings } from "../../primitives/icons";
 import { AttachmentTray } from "./AttachmentTray";
 import { AttachButton } from "./AttachButton";
+import { CommandPalette, type CommandPaletteHandle } from "./CommandPalette";
 import { ComposerAgentControls } from "./ComposerAgentControls";
 import { ComposerDropOverlay } from "./ComposerDropOverlay";
 import { ComposerExecutionControls } from "./ComposerExecutionControls";
@@ -81,12 +83,16 @@ export function ChatComposer({
     reasoningEffortOptions,
     serviceTierOptions,
     modeOptions,
+    supportsExecutionPolicies,
     loading: modelsLoading,
     refreshing,
     error: capabilityError,
     refresh: refreshCapabilities,
   } = capabilityState;
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const commandPaletteRef = useRef<CommandPaletteHandle | null>(null);
+  const commandQueryText = useMemo(() => commandPaletteState.query(text), [text]);
+  const showCommandPalette = commandQueryText !== null;
   const disconnected = !canSendPrompt && !streaming;
   const hasContent = text.trim().length > 0 || attachments.some((attachment) => attachment.serverPath);
   const canSend = !uploading && !disconnected && hasContent;
@@ -98,8 +104,21 @@ export function ChatComposer({
   )?.label || modelShortLabel(preferences.model);
   const settingsSummary = `${providerLabel} · ${modelLabel}`;
   const skillsEnabled = capabilityState.providerCapabilities?.features?.skills !== "none";
+	const selectedModelCapability = capabilityState.providerCapabilities?.models.find(
+		(item) => item.id === preferences.model,
+	) ?? capabilityState.providerCapabilities?.models.find((item) => item.id === "");
+	const attachmentsUnsupported = !!selectedModelCapability?.inputModalities?.length
+		&& !selectedModelCapability.inputModalities.includes("image");
+  const capabilityNotice = capabilityError
+    || capabilityState.providerCapabilities?.warning
+    || (capabilityState.providerCapabilities?.source === "fallback"
+      ? "Using fallback capabilities; refresh to retry live discovery"
+      : "");
   const hasExecutionControls =
-    reasoningEffortOptions.length > 0 || serviceTierOptions.length > 0 || modeOptions.length > 1;
+    supportsExecutionPolicies
+    || reasoningEffortOptions.length > 0
+    || serviceTierOptions.length > 0
+    || modeOptions.length > 1;
 
   function toggleMobileSettings() {
     setMobileSettingsOpen((open) => {
@@ -108,9 +127,29 @@ export function ChatComposer({
     });
   }
 
+  function handleCommandKeyDown(event: KeyboardEvent): boolean {
+    if (!showCommandPalette) return false;
+    return commandPaletteRef.current?.handleKeyDown(event) ?? false;
+  }
+
+  function dismissCommandPalette() {
+    onTextChange("");
+  }
+
   return (
     <div class="codex-composer-shell relative z-20 flex-none bg-canvas">
       {dragging && <ComposerDropOverlay />}
+
+      {showCommandPalette && commandQueryText !== null && (
+        <CommandPalette
+          ref={commandPaletteRef}
+          provider={preferences.provider}
+          projectId={projectId}
+          query={commandQueryText}
+          onSelect={onSelectSkill}
+          onDismiss={dismissCommandPalette}
+        />
+      )}
 
       <SelectedSkillChips skills={selectedSkills} onRemove={onRemoveSelectedSkill} />
       <QueuedPromptList queuedPrompts={queuedPrompts} onRemove={onRemoveQueued} />
@@ -134,6 +173,7 @@ export function ChatComposer({
             onTextChange={onTextChange}
             onPaste={onPaste}
             onSend={onSend}
+            onKeyDown={handleCommandKeyDown}
           />
 
           <div class="codex-composer-control-deck flex min-w-0 items-center gap-1.5 pt-1.5">
@@ -141,6 +181,7 @@ export function ChatComposer({
               fileInputRef={fileInputRef}
               uploading={uploading}
               disconnected={disconnected}
+              unsupported={attachmentsUnsupported}
               onFilesSelected={onFilesSelected}
             />
 
@@ -154,7 +195,7 @@ export function ChatComposer({
                 modelOptions={modelOptions}
                 modelsLoading={modelsLoading}
                 modelsRefreshing={refreshing}
-                modelError={capabilityError}
+                modelError={capabilityNotice}
                 selectedSkills={selectedSkills}
                 providerLabel={providerLabel}
                 skillsEnabled={skillsEnabled}
@@ -172,6 +213,7 @@ export function ChatComposer({
                     reasoningEffortOptions={reasoningEffortOptions}
                     serviceTierOptions={serviceTierOptions}
                     modeOptions={modeOptions}
+                    supportsExecutionPolicies={supportsExecutionPolicies}
                   />
                 </>
               )}
@@ -222,7 +264,7 @@ export function ChatComposer({
               modelOptions={modelOptions}
               modelsLoading={modelsLoading}
               modelsRefreshing={refreshing}
-              modelError={capabilityError}
+              modelError={capabilityNotice}
               selectedSkills={selectedSkills}
               providerLabel={providerLabel}
               skillsEnabled={skillsEnabled}
@@ -243,6 +285,7 @@ export function ChatComposer({
                   reasoningEffortOptions={reasoningEffortOptions}
                   serviceTierOptions={serviceTierOptions}
                   modeOptions={modeOptions}
+                  supportsExecutionPolicies={supportsExecutionPolicies}
                 />
               </>
             )}

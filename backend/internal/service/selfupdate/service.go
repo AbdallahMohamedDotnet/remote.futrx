@@ -7,24 +7,14 @@ package selfupdate
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
-
-// HostClient is implemented by integration/updatecli.
-type HostClient interface {
-	ListRemoteTags(ctx context.Context, installDir string) ([]string, error)
-	StartUpdater(installDir, tag, kind, logPath, donePath string) (int, error)
-	ProcessAlive(pid int) bool
-}
 
 var (
 	ErrUpdateInProgress = errors.New("an update is already running")
@@ -32,93 +22,42 @@ var (
 	ErrUnknownTag       = errors.New("tag does not exist on origin")
 )
 
-const (
-	stateDirName = "self-update"
-	logTailBytes = 16 * 1024
-	runFileMode  = 0o600
-)
-
-// UpdateKind selects the smallest safe deployment path for a release.
-// Application updates stay within the installed major/minor release line;
-// crossing either boundary requires full infrastructure convergence.
-type UpdateKind string
-
-const (
-	UpdateKindApplication    UpdateKind = "application"
-	UpdateKindInfrastructure UpdateKind = "infrastructure"
-)
+const lifecycleReconcileInterval = time.Second
 
 type Service struct {
 	currentVersion string
 	installDir     string
-	stateDir       string
 	host           HostClient
+	lifecycle      UpdateLifecyclePublisher
+	runs           runState
 
-	mu        sync.Mutex
-	lastCheck *CheckResult
+	mu          sync.Mutex
+	lastCheck   *CheckResult
+	launching   bool
+	reconciling bool
+	dispatching bool
 }
 
-func New(currentVersion, installDir, dataDir string, host HostClient) *Service {
+func New(
+	currentVersion, installDir, dataDir string,
+	host HostClient,
+	lifecycle UpdateLifecyclePublisher,
+) *Service {
 	return &Service{
 		currentVersion: currentVersion,
 		installDir:     installDir,
-		stateDir:       filepath.Join(dataDir, stateDirName),
 		host:           host,
+		lifecycle:      lifecycle,
+		runs:           newRunState(dataDir),
 	}
-}
-
-// CheckResult is the outcome of one tag lookup against origin.
-type CheckResult struct {
-	CheckedAt       int64      `json:"checkedAt"`
-	LatestTag       string     `json:"latestTag,omitempty"`
-	UpdateAvailable bool       `json:"updateAvailable"`
-	UpdateKind      UpdateKind `json:"updateKind,omitempty"`
-	Error           string     `json:"error,omitempty"`
-}
-
-// RunStatus describes the most recent apply run, reconstructed from disk so
-// it stays accurate across the restart the update itself triggers.
-type RunStatus struct {
-	State      string     `json:"state"` // running | succeeded | failed
-	Target     string     `json:"target"`
-	UpdateKind UpdateKind `json:"updateKind,omitempty"`
-	StartedAt  int64      `json:"startedAt"`
-	StartedBy  string     `json:"startedBy,omitempty"`
-	FinishedAt int64      `json:"finishedAt,omitempty"`
-	ExitCode   *int       `json:"exitCode,omitempty"`
-	Log        string     `json:"log,omitempty"`
-}
-
-type Status struct {
-	CurrentVersion string       `json:"currentVersion"`
-	LastCheck      *CheckResult `json:"lastCheck,omitempty"`
-	Run            *RunStatus   `json:"run,omitempty"`
-}
-
-type runRecord struct {
-	Target     string     `json:"target"`
-	UpdateKind UpdateKind `json:"updateKind,omitempty"`
-	StartedAt  int64      `json:"startedAt"`
-	StartedBy  string     `json:"startedBy"`
-	PID        int        `json:"pid"`
-}
-
-type doneRecord struct {
-	ExitCode   int   `json:"exitCode"`
-	FinishedAt int64 `json:"finishedAt"`
 }
 
 // Status reports the running version, the last check result, and the most
 // recent apply run.
 func (s *Service) Status(context.Context) Status {
 	s.mu.Lock()
-	check := s.lastCheck
-	s.mu.Unlock()
-	return Status{
-		CurrentVersion: s.currentVersion,
-		LastCheck:      check,
-		Run:            s.runStatus(),
-	}
+	defer s.mu.Unlock()
+	return s.statusLocked()
 }
 
 // Check queries origin for release tags and records whether one is newer
@@ -160,78 +99,192 @@ func (s *Service) Apply(ctx context.Context, startedBy, tag string) (Status, err
 		return s.Status(ctx), fmt.Errorf("%w: %s", ErrUnknownTag, tag)
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if run := s.runStatus(); run != nil && run.State == "running" {
-		return s.statusLocked(), ErrUpdateInProgress
-	}
-	if err := os.MkdirAll(s.stateDir, 0o700); err != nil {
-		return s.statusLocked(), err
-	}
-	// A fresh run replaces the previous run's records.
-	if err := os.Remove(s.donePath()); err != nil && !os.IsNotExist(err) {
-		return s.statusLocked(), err
-	}
-	if err := os.WriteFile(s.logPath(), nil, runFileMode); err != nil {
-		return s.statusLocked(), err
-	}
-	kind := classifyUpdate(s.currentVersion, tag)
-	pid, err := s.host.StartUpdater(s.installDir, tag, string(kind), s.logPath(), s.donePath())
+	status, err := s.startUpdate(ctx, startedBy, tag)
 	if err != nil {
-		return s.statusLocked(), fmt.Errorf("start updater: %w", err)
+		return status, err
+	}
+	return status, nil
+}
+
+func (s *Service) startUpdate(ctx context.Context, startedBy, tag string) (Status, error) {
+	s.mu.Lock()
+	if s.launching {
+		status := s.statusLocked()
+		s.mu.Unlock()
+		return status, ErrUpdateInProgress
+	}
+	// Capture the previous run BEFORE reset so we can reuse its classification
+	// on retry; reset clears run.json as part of the fresh-slate contract.
+	prevRun := s.runs.status(s.host.ProcessAlive)
+	if prevRun != nil && prevRun.State == RunStateRunning {
+		status := s.statusLocked()
+		s.mu.Unlock()
+		return status, ErrUpdateInProgress
+	}
+	if err := s.runs.reset(); err != nil {
+		status := s.statusLocked()
+		s.mu.Unlock()
+		return status, err
+	}
+	// A failed infrastructure update may have already replaced the binary,
+	// so classifyUpdate against currentVersion would collapse to an
+	// application-only deploy and skip the host convergence that actually
+	// failed. Fall back to the previous failed run's kind when retrying
+	// toward the same target.
+	kind := classifyUpdate(s.currentVersion, tag)
+	if prevRun != nil && prevRun.State == RunStateFailed && prevRun.Target == tag && prevRun.UpdateKind != "" {
+		kind = prevRun.UpdateKind
+	}
+	message := "Preparing the infrastructure update"
+	if kind == UpdateKindApplication {
+		message = "Preparing the application update"
+	}
+	if err := s.runs.writeProgress(Progress{
+		Phase: "preparing", Message: message, UpdatedAt: time.Now().Unix(),
+	}); err != nil {
+		status := s.statusLocked()
+		s.mu.Unlock()
+		return status, err
+	}
+	s.launching = true
+	s.mu.Unlock()
+
+	// Started is deliberately synchronous and precedes the detached process, so
+	// subscribers observe the transition before that process can replace this
+	// backend. Notifications cannot veto the launch.
+	s.lifecycle.PublishUpdateStarted(ctx, tag, string(kind), startedBy)
+	pid, err := s.host.StartUpdater(s.runs.launch(s.installDir, tag, kind))
+
+	s.mu.Lock()
+	s.launching = false
+	if err != nil {
+		// The new run never started; clear the half-written record so
+		// Status() does not report a stale run with the next attempt's
+		// target and an empty log. Kind preservation for the next call
+		// is best-effort: only the in-memory prevRun survives reset().
+		s.runs.removeProgress()
+		s.runs.removeRecord()
+		status := s.statusLocked()
+		s.mu.Unlock()
+		s.lifecycle.PublishUpdateFailed(ctx, tag, string(kind), startedBy)
+		return status, fmt.Errorf("start updater: %w", err)
 	}
 	record := runRecord{
 		Target: tag, UpdateKind: kind, StartedAt: time.Now().Unix(), StartedBy: startedBy, PID: pid,
 	}
-	if err := writeJSONFile(s.runPath(), record); err != nil {
-		return s.statusLocked(), err
+	if err := s.runs.writeRecord(record); err != nil {
+		status := s.statusLocked()
+		s.mu.Unlock()
+		return status, err
 	}
-	return s.statusLocked(), nil
+	status := s.statusLocked()
+	s.mu.Unlock()
+	return status, nil
+}
+
+// StartLifecycleReconciler delivers terminal update events from the durable
+// run state. A successful updater restarts the backend before it writes its
+// done marker, so the replacement process must resume this reconciliation;
+// an in-memory callback owned by the process that launched the updater cannot
+// observe completion reliably.
+func (s *Service) StartLifecycleReconciler(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := s.reconcileLifecycle(ctx); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	if s.reconciling {
+		s.mu.Unlock()
+		return nil
+	}
+	s.reconciling = true
+	s.mu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(lifecycleReconcileInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				// A transient read/write failure is retried on the next tick. The
+				// synchronous first pass above is returned to startup for logging.
+				_ = s.reconcileLifecycle(ctx)
+			}
+		}
+	}()
+	return nil
+}
+
+func (s *Service) reconcileLifecycle(ctx context.Context) error {
+	s.mu.Lock()
+	if s.dispatching {
+		s.mu.Unlock()
+		return nil
+	}
+
+	record, err := s.runs.readRecord()
+	if errors.Is(err, os.ErrNotExist) {
+		s.mu.Unlock()
+		return nil
+	}
+	if err != nil {
+		s.mu.Unlock()
+		return fmt.Errorf("read update lifecycle state: %w", err)
+	}
+	status := s.runs.status(s.host.ProcessAlive)
+	if status == nil || status.State == RunStateRunning || record.PublishedTerminalState == status.State {
+		s.mu.Unlock()
+		return nil
+	}
+	s.dispatching = true
+	s.mu.Unlock()
+
+	switch status.State {
+	case RunStateSucceeded:
+		s.lifecycle.PublishUpdateSucceeded(ctx, record.Target, string(record.UpdateKind), record.StartedBy)
+	case RunStateFailed:
+		s.lifecycle.PublishUpdateFailed(ctx, record.Target, string(record.UpdateKind), record.StartedBy)
+	default:
+		s.mu.Lock()
+		s.dispatching = false
+		s.mu.Unlock()
+		return nil
+	}
+
+	// Persist delivery after dispatch. If the process dies between those two
+	// operations, the replacement may deliver the event again; subscribers are
+	// therefore required to be idempotent. Losing the terminal event would be
+	// worse than an occasional duplicate.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dispatching = false
+	current, err := s.runs.readRecord()
+	if err != nil {
+		return fmt.Errorf("reread update lifecycle state: %w", err)
+	}
+	// A new Apply may have replaced the completed run while subscribers were
+	// executing. Never stamp the previous event onto that new run.
+	if current.Target != record.Target || current.StartedAt != record.StartedAt || current.PID != record.PID {
+		return nil
+	}
+	current.PublishedTerminalState = status.State
+	if err := s.runs.writeRecord(current); err != nil {
+		return fmt.Errorf("record published update lifecycle state: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) statusLocked() Status {
 	return Status{
 		CurrentVersion: s.currentVersion,
 		LastCheck:      s.lastCheck,
-		Run:            s.runStatus(),
+		Run:            s.runs.status(s.host.ProcessAlive),
 	}
-}
-
-func (s *Service) runPath() string  { return filepath.Join(s.stateDir, "run.json") }
-func (s *Service) donePath() string { return filepath.Join(s.stateDir, "done.json") }
-func (s *Service) logPath() string  { return filepath.Join(s.stateDir, "run.log") }
-
-// runStatus reconstructs the last run from disk: the done marker wins, a
-// live PID means running, and a dead PID without a marker means the run
-// crashed before it could report.
-func (s *Service) runStatus() *RunStatus {
-	var record runRecord
-	if err := readJSONFile(s.runPath(), &record); err != nil {
-		return nil
-	}
-	status := &RunStatus{
-		State:      "running",
-		Target:     record.Target,
-		UpdateKind: record.UpdateKind,
-		StartedAt:  record.StartedAt,
-		StartedBy:  record.StartedBy,
-		Log:        tailFile(s.logPath(), logTailBytes),
-	}
-	var done doneRecord
-	switch err := readJSONFile(s.donePath(), &done); {
-	case err == nil:
-		status.FinishedAt = done.FinishedAt
-		status.ExitCode = &done.ExitCode
-		if done.ExitCode == 0 {
-			status.State = "succeeded"
-		} else {
-			status.State = "failed"
-		}
-	case !s.host.ProcessAlive(record.PID):
-		status.State = "failed"
-		status.Log += "\n(updater process exited without reporting a result)"
-	}
-	return status
 }
 
 // describeBase extracts the release tag a git-describe string is based on:
@@ -318,43 +371,4 @@ func containsTag(tags []string, tag string) bool {
 		}
 	}
 	return false
-}
-
-func readJSONFile(path string, v any) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(data, v)
-}
-
-func writeJSONFile(path string, v any) error {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, runFileMode)
-}
-
-// tailFile returns up to the last max bytes of the file at path.
-func tailFile(path string, max int64) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return ""
-	}
-	if size := info.Size(); size > max {
-		if _, err := f.Seek(size-max, io.SeekStart); err != nil {
-			return ""
-		}
-	}
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return ""
-	}
-	return string(data)
 }

@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { capitalize } from "../../../config/text.ts";
 import type {
 	AgentContainerStatus,
   AuthBundleFileStatus,
@@ -12,7 +13,7 @@ import type {
   ResourceInfo,
   WorkspaceInfo,
 } from "../../../models/project";
-import type { ProjectContainerRecord } from "../../../state/projects/projectContainerRecords";
+import type { ProjectContainerRecord } from "../../../models/project";
 import { AlertCircle } from "../../primitives/icons";
 import { Field, Grid, Loading, Panel } from "./ProjectContainerPrimitives";
 import {
@@ -315,7 +316,7 @@ function providerLabel(provider: string): string {
   return provider
     .split("-")
     .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .map(capitalize)
     .join(" ") || "Agent";
 }
 

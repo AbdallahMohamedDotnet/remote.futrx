@@ -11,13 +11,16 @@ import (
 )
 
 type Service struct {
-	repo         Repository
-	copiedEvents CopiedEventAppender
-	projects     ProjectResolver
-	tmux         TmuxResolver
-	runs         RunController
-	sessions     SessionPolicy
-	providers    ProviderPolicy
+	repo                 Repository
+	transcriptEvents     TranscriptEventSource
+	transcriptWindow     TranscriptEventWindowSource
+	transcriptProjection TranscriptProjectionSource
+	copiedEvents         CopiedEventAppender
+	projects             ProjectResolver
+	tmux                 TmuxResolver
+	runs                 RunController
+	sessions             SessionPolicy
+	providers            ProviderPolicy
 }
 
 // SessionPolicy supplies provider-native behavior from the agent module
@@ -141,6 +144,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Meta, error) {
 		Mode:            mode,
 		ReasoningEffort: NormalizeReasoningEffort(in.ReasoningEffort),
 		ServiceTier:     NormalizeServiceTier(in.ServiceTier),
+		ApprovalPolicy:  NormalizeApprovalPolicy(in.ApprovalPolicy),
+		SandboxPolicy:   NormalizeSandboxPolicy(in.SandboxPolicy),
 		ProjectID:       in.ProjectID,
 		SelectedSkills:  NormalizeSelectedSkills(in.SelectedSkills, provider),
 	})
@@ -193,6 +198,8 @@ func (s *Service) Fork(ctx context.Context, id ID) (Meta, error) {
 		Mode:            src.Mode,
 		ReasoningEffort: src.ReasoningEffort,
 		ServiceTier:     src.ServiceTier,
+		ApprovalPolicy:  NormalizeApprovalPolicy(src.ApprovalPolicy),
+		SandboxPolicy:   NormalizeSandboxPolicy(src.SandboxPolicy),
 		ProjectID:       src.ProjectID,
 		SelectedSkills:  src.SelectedSkills,
 		ForkPending:     forkPending,
@@ -264,6 +271,12 @@ func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, erro
 		}
 		if in.ServiceTier != nil {
 			m.ServiceTier = NormalizeServiceTier(*in.ServiceTier)
+		}
+		if in.ApprovalPolicy != nil {
+			m.ApprovalPolicy = NormalizeApprovalPolicy(*in.ApprovalPolicy)
+		}
+		if in.SandboxPolicy != nil {
+			m.SandboxPolicy = NormalizeSandboxPolicy(*in.SandboxPolicy)
 		}
 		if in.SelectedSkills != nil {
 			m.SelectedSkills = NormalizeSelectedSkills(*in.SelectedSkills, m.Provider)

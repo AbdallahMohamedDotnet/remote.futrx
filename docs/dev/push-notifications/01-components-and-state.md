@@ -47,5 +47,6 @@ the rest of Remote still starts normally.
 - [`frontend/src/api/pushSubscriptionApi.ts`](../../../frontend/src/api/pushSubscriptionApi.ts)
 - [`frontend/src/api/pushDeviceRegistration.ts`](../../../frontend/src/api/pushDeviceRegistration.ts)
 - [`frontend/src/api/pushSubscriptionOwnership.ts`](../../../frontend/src/api/pushSubscriptionOwnership.ts)
-- [`frontend/src/state/push/pushPresenceState.ts`](../../../frontend/src/state/push/pushPresenceState.ts)
+- [`frontend/src/services/push/pushDeviceOptInService.ts`](../../../frontend/src/services/push/pushDeviceOptInService.ts)
+- [`frontend/src/state/stores/push/pushPresenceStore.ts`](../../../frontend/src/state/stores/push/pushPresenceStore.ts)
 - [`frontend/public/sw.js`](../../../frontend/public/sw.js)

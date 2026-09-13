@@ -1,3 +1,5 @@
+import type { ChatProvider } from "./chat";
+
 export type AssistantMessagePart =
   | { kind: "text"; text: string }
   | {
@@ -6,10 +8,30 @@ export type AssistantMessagePart =
       name: string;
       input: Record<string, unknown>;
       output?: string;
+      outputRef?: string;
+      outputBytes?: number;
+      outputTruncated?: boolean;
       isError?: boolean;
       status: "running" | "done";
     }
-  | { kind: "thinking"; text: string };
+  | { kind: "thinking"; text: string }
+  | {
+      kind: "interaction";
+      id: string;
+      method: string;
+      input: Record<string, unknown>;
+      interactionKind: string;
+      supportsCancellation: boolean;
+      status: string;
+    }
+  | {
+      kind: "collaboration";
+      id: string;
+      name?: string;
+      data: Record<string, unknown>;
+      status: string;
+    }
+  | { kind: "turn-status"; status: string; data?: Record<string, unknown>; provider?: ChatProvider };
 
 export type AssistantMessageBlock = {
   type: "assistant";

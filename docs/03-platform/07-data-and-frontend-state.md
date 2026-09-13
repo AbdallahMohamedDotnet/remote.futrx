@@ -1,6 +1,6 @@
 # Data and frontend state
 
-The application does not use a database. Durable metadata is stored as JSON files; chat events use append-only JSONL. Project source files live in a separate host workspace tree.
+The application does not use an external database service. Durable metadata is stored as JSON files; chat events use append-only JSONL. A disposable embedded SQLite database indexes chat event offsets and transcript turns for bounded reads. Project source files live in a separate host workspace tree.
 
 ## Host storage layout
 
@@ -9,6 +9,7 @@ The application does not use a database. Durable metadata is stored as JSON file
 ├── chats/<chat-id>/
 │   ├── meta.json
 │   └── events.jsonl
+├── transcript-index.sqlite              derived chat event offsets and transcript turns
 ├── projects/<project-id>/meta.json
 ├── projectaccess/<project-id>.json
 ├── projectsecrets/<project-id>.json
@@ -28,6 +29,7 @@ The application does not use a database. Durable metadata is stored as JSON file
 │   └── ...                              user source and generated files
 └── agent-home/                         durable provider-owned state
     ├── codex/                           mounted at /root/.codex
+    ├── minimax/                         mounted at /root/.minimax
     ├── claude/                          mounted at /root/.claude
     ├── kimi/                            mounted at /root/.kimi-code
     └── antigravity/                     mounted at /root/.gemini/antigravity-cli
@@ -106,11 +108,35 @@ flowchart LR
     Append --> Seq["Assign next monotonic seq"]
     Seq --> Meta["Update lastMessageAt for visible events"]
     Meta --> Cache["Refresh in-memory metadata index"]
-    Append --> Replay["Replay pages or events after seq"]
+    Append -.-> Index["Refresh derived SQLite offset/turn index"]
+    Append --> Replay["Replay live events after seq"]
+    Append --> Transcript["Project complete, compacted turn pages"]
+    Index -.-> Replay
+    Index -.-> Transcript
     Replay --> Client["Chat UI"]
+    Transcript --> Client
 ```
 
 Chat metadata includes title, provider, provider session IDs, working directory, project ID, read markers, model/mode controls, selected skills, and fork state. The `running` flag and cancellation handle are computed from the in-memory run hub and are not persisted. Provider child processes may survive a backend restart, so the restarted control plane cannot automatically rediscover or cancel them.
+
+The raw event log remains the source for live reconnects. History requests page
+a read-time transcript projection by `turnId` (or legacy `user` boundaries) and
+coalesce adjacent streaming text/reasoning deltas. The cursor is still a raw
+event sequence, so existing chat files require no migration.
+
+`DATA_DIR/transcript-index.sqlite` is derived from the chat JSONL logs. At
+startup, a background worker backfills up to the 10 most recently active chats;
+other chats are backfilled lazily on first access. The result persists across
+backend restarts and is refreshed incrementally as bytes are appended. File
+size and modification time, incomplete-tail state, and a prefix fingerprint
+checked before untrusted growth decide when to rebuild transactionally. A
+rewind requests an immediate rebuild, while deletion removes the chat's rows.
+Indexed-read failures fall back to scanning canonical JSONL. The index can be
+deleted while the service is stopped and will rebuild automatically. The
+browser initially requests 10 complete turns and requests older history in
+20-turn pages. See the
+[durable chat transcript index developer guide](../dev/chat-transcript-index/)
+for the layer ownership and read, write, and recovery flows.
 
 Scheduled-task definitions are separate from chat metadata. One versioned
 `scheduled-tasks/tasks.json` document holds every task plus persisted active
@@ -118,7 +144,7 @@ claims, pending occurrence state, retry deadline, counts, and last result.
 Writes atomically replace the document. The scheduler loop is in-memory, but it
 reconstructs deadlines and abandons stale claims after a backend restart.
 
-Rewind rewrites `events.jsonl` atomically with only events before the selected timestamp. Chat deletion removes that chat directory.
+Rewind rewrites `events.jsonl` atomically with only events before the selected timestamp and best-effort rebuilds that chat's derived index rows. Chat deletion removes the chat directory and corresponding index rows.
 
 ## Project persistence
 
@@ -127,6 +153,9 @@ Project metadata and workspaces are separate:
 - `data/projects/<id>/meta.json` stores identity, slug, container name, status, order, resource overrides, and timestamps.
 - `/var/lib/remote/projects/<slug>/workspace` stores durable project content.
 - `/var/lib/remote/projects/<slug>/agent-home/*` stores durable provider configuration, authentication, and session state.
+- `/var/lib/remote/projects/<slug>/agent-home/minimax` stores the isolated
+  Codex-harness catalog and MiniMax sessions; the host injects the managed key
+  only when starting MiniMax.
 - `/var/lib/remote/projects/<slug>/agent-home/antigravity` stores durable
   Antigravity state and is mounted at `/root/.gemini/antigravity-cli`.
 - Access and secrets use separate mode-`0600` files.
@@ -138,6 +167,7 @@ Project metadata and workspaces are separate:
 | --- | --- |
 | `local-admin.json` | Local administrator email and password hash |
 | `oauth.json` | Google OAuth client ID and secret |
+| `agent-api-keys.json` | Host-managed provider API keys, including MiniMax's Token Plan subscription key; mode `0600` |
 | `session.key` | Random key used to sign platform sessions |
 | `users.json` | Registered emails, roles, inviter, and timestamps |
 | `user-settings/sha256-*.json` | Theme and default chat provider/model/mode/reasoning/tier |
@@ -166,7 +196,7 @@ flowchart TD
 | --- | --- |
 | Authentication and user settings | Preact context; reloaded from HTTP after page reload |
 | Agent auth registry | Ordered `GET /api/agent-auth` snapshot in `AuthContext`, updated by one normalized WebSocket per managed provider |
-| Projects and chat summaries | Workspace WebSocket; server is authoritative |
+| Projects and chat summaries | Workspace WebSocket; server is authoritative. A chat created or forked from this client is seeded into the list on the create response so the new selection holds until its `chat.upsert` arrives |
 | Active view, selected chat, sidebar open state | In-memory reducer |
 | Chat events | Initial HTTP page plus reconnecting WebSocket updates |
 | Composer drafts and queued prompts | In-memory map mirrored to per-tab `sessionStorage`, keyed by chat ID |

@@ -9,15 +9,16 @@ import { WorkspaceActions } from "../../ui/chat/header/WorkspaceActions";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
 import { ScheduleDrawer } from "../../ui/chat/schedules/ScheduleDrawer";
-import { chatAttachmentState } from "../../state/chat/chatAttachmentState";
+import { chatAttachmentService } from "../../services/chat/chatAttachmentService.ts";
 import { useChat } from "../../state/hooks/chat/useChat";
 import { useChatBrowserController } from "../../state/hooks/chat/useChatBrowserController";
 import { useChatComposerController } from "../../state/hooks/chat/useChatComposerController";
 import { useChatDrawerController } from "../../state/hooks/chat/useChatDrawerController";
-import { useChatKeyboardShortcuts } from "../../state/hooks/chat/useChatKeyboardShortcuts";
+import { useChatFind } from "../../state/hooks/chat/useChatFind";
 import { useChatPreferences } from "../../state/hooks/chat/useChatPreferences";
 import { useChatReadMarker } from "../../state/hooks/chat/useChatReadMarker";
-import { useTerminalOverlayController } from "../../state/hooks/chat/useTerminalOverlayController";
+import { useDismissShortcut } from "../../state/hooks/shared/useDismissShortcut.ts";
+import { useTerminalOverlayController } from "../../ui/chat/terminal/useTerminalOverlayController";
 import { useWorkspaceGitRepos } from "../../state/hooks/chat/useWorkspaceGitRepos";
 
 export function ChatContainer({
@@ -35,19 +36,21 @@ export function ChatContainer({
     eventCount,
     hasOlder,
     loadingOlder,
+    indexingProgress,
     status,
     error,
     canSendPrompt,
     sendPrompt,
     promptOutcome,
     cancel,
+    respondInteraction,
     rewind,
     loadOlder,
     refreshMeta,
   } = useChat(chat.id);
   const preferences = useChatPreferences({ chat, loadedMeta: meta, refreshMeta });
   const { displayMeta, displayMode, selectedSkills } = preferences;
-  const attachmentBasePath = chatAttachmentState.basePath(displayMeta, projects);
+  const attachmentBasePath = chatAttachmentService.basePath(displayMeta, projects);
   const project = projects.find((candidate) => candidate.id === displayMeta.projectId);
   const composer = useChatComposerController({
     chatId: chat.id,
@@ -76,8 +79,19 @@ export function ChatContainer({
   });
   const terminal = useTerminalOverlayController(drawers.terminalOpen);
 
+  // `eventCount` stands in for "the thread changed": find re-reads the rendered
+  // messages on it, so a match list cannot go stale against a streaming reply.
+  const find = useChatFind({
+    scrollRef: composer.scroll.scrollRef,
+    contentRef: composer.scroll.contentRef,
+    revision: eventCount,
+  });
+
   useChatReadMarker({ chatId: chat.id, eventCount, status });
-  useChatKeyboardShortcuts({ status, onCancel: cancel });
+  // Escape cancels the reply being streamed, and is the weakest claim on the
+  // key in a chat: it falls behind find-in-chat, a menu, and every modal, so
+  // Escape only reaches the run when nothing is open over it.
+  useDismissShortcut(cancel, { enabled: status === "streaming", fallback: true });
   const { hasRepos } = useWorkspaceGitRepos({ chatId: chat.id, status });
   const workspaceActions = {
     cwd: displayMeta.cwd || "~",
@@ -142,12 +156,16 @@ export function ChatContainer({
       mode: displayMode,
       reasoningEffort: displayMeta.reasoningEffort || "",
       serviceTier: displayMeta.serviceTier || "",
+      approvalPolicy: displayMeta.approvalPolicy,
+      sandboxPolicy: displayMeta.sandboxPolicy,
     },
     preferenceActions: {
       changeAgent: preferences.changeAgent,
       changeMode: preferences.changeMode,
       changeReasoningEffort: preferences.changeReasoningEffort,
       changeServiceTier: preferences.changeServiceTier,
+      changeApprovalPolicy: preferences.changeApprovalPolicy,
+      changeSandboxPolicy: preferences.changeSandboxPolicy,
     },
     queuedPrompts: composer.queue.queuedPrompts,
     selectedSkills,
@@ -173,10 +191,12 @@ export function ChatContainer({
       <div class="flex h-full min-h-0 w-full overflow-hidden">
         <div class={`min-w-0 flex-1 h-full ${activePane ? "hidden md:block" : ""}`}>
           <ChatThread
+            find={find}
             chat={displayMeta}
             blocks={blocks}
             hasOlder={hasOlder}
             loadingOlder={loadingOlder}
+            indexingProgress={indexingProgress}
             status={status}
             error={error}
             composer={composerView}
@@ -188,6 +208,7 @@ export function ChatContainer({
             onScroll={composer.scroll.onScroll}
             onJumpToBottom={composer.scroll.jumpToBottom}
             onAnswerQuestion={composer.handleAnswerQuestion}
+            onRespondInteraction={respondInteraction}
             onLoadOlder={loadOlder}
             onRewind={composer.handleRewind}
             projectName={project?.name}
