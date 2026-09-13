@@ -116,7 +116,7 @@ func (s *Service) startUpdate(ctx context.Context, startedBy, tag string) (Statu
 	// Capture the previous run BEFORE reset so we can reuse its classification
 	// on retry; reset clears run.json as part of the fresh-slate contract.
 	prevRun := s.runs.status(s.host.ProcessAlive)
-	if prevRun != nil && prevRun.State == "running" {
+	if prevRun != nil && prevRun.State == RunStateRunning {
 		status := s.statusLocked()
 		s.mu.Unlock()
 		return status, ErrUpdateInProgress
@@ -132,7 +132,7 @@ func (s *Service) startUpdate(ctx context.Context, startedBy, tag string) (Statu
 	// failed. Fall back to the previous failed run's kind when retrying
 	// toward the same target.
 	kind := classifyUpdate(s.currentVersion, tag)
-	if prevRun != nil && prevRun.State == "failed" && prevRun.Target == tag && prevRun.UpdateKind != "" {
+	if prevRun != nil && prevRun.State == RunStateFailed && prevRun.Target == tag && prevRun.UpdateKind != "" {
 		kind = prevRun.UpdateKind
 	}
 	message := "Preparing the infrastructure update"
@@ -237,7 +237,7 @@ func (s *Service) reconcileLifecycle(ctx context.Context) error {
 		return fmt.Errorf("read update lifecycle state: %w", err)
 	}
 	status := s.runs.status(s.host.ProcessAlive)
-	if status == nil || status.State == "running" || record.PublishedTerminalState == status.State {
+	if status == nil || status.State == RunStateRunning || record.PublishedTerminalState == status.State {
 		s.mu.Unlock()
 		return nil
 	}
@@ -245,9 +245,9 @@ func (s *Service) reconcileLifecycle(ctx context.Context) error {
 	s.mu.Unlock()
 
 	switch status.State {
-	case "succeeded":
+	case RunStateSucceeded:
 		s.lifecycle.PublishUpdateSucceeded(ctx, record.Target, string(record.UpdateKind), record.StartedBy)
-	case "failed":
+	case RunStateFailed:
 		s.lifecycle.PublishUpdateFailed(ctx, record.Target, string(record.UpdateKind), record.StartedBy)
 	default:
 		s.mu.Lock()

@@ -90,7 +90,7 @@ func (r runState) status(processAlive func(int) bool) *RunStatus {
 	}
 	logText, logUpdatedAt := readLog(r.logPath(), logTailBytes)
 	status := &RunStatus{
-		State:        "running",
+		State:        RunStateRunning,
 		Target:       record.Target,
 		UpdateKind:   record.UpdateKind,
 		StartedAt:    record.StartedAt,
@@ -108,12 +108,12 @@ func (r runState) status(processAlive func(int) bool) *RunStatus {
 		status.FinishedAt = done.FinishedAt
 		status.ExitCode = &done.ExitCode
 		if done.ExitCode == 0 {
-			status.State = "succeeded"
+			status.State = RunStateSucceeded
 		} else {
-			status.State = "failed"
+			status.State = RunStateFailed
 		}
 	case !processAlive(record.PID):
-		status.State = "failed"
+		status.State = RunStateFailed
 		status.Log += "\n(updater process exited without reporting a result)"
 	}
 	return status
