@@ -1,5 +1,13 @@
 # Lifecycle events
 
+The lifecycle package provides typed, in-process publisher/subscriber communication.
+
+- `Registry` constructs and exposes every publisher.
+- Each publisher owns its events, subscribers, and dispatch behavior.
+- `Bindings` connects fully constructed services to publishers.
+- `cmd/remote/lifecycle.go` declares the application-specific connections.
+- Producers depend only on the publishing methods they use.
+
 ## Runtime
 
 ```mermaid
@@ -11,6 +19,14 @@ flowchart LR
     Producer["selfupdate.Service"] -->|"PublishUpdateStarted"| Core
     Core -->|"OnUpdateStarted"| Auth["auth.Service"]
 ```
+
+1. `main` constructs the publisher registry.
+2. `main` injects `registry.Core` into the self-update producer.
+3. `main` constructs the application services.
+4. `bindLifecycle` registers those services as typed subscribers.
+5. The producer publishes an event at the owning workflow transition.
+6. The publisher creates the event and calls every subscriber in registration order.
+7. The process invokes the aggregate unbind function during shutdown.
 
 ```mermaid
 sequenceDiagram
@@ -37,6 +53,14 @@ flowchart TD
     I --> S["6 · Subscriber implementation"]
     S --> B["7 · Binding"]
 ```
+
+1. Add the event struct to its owning publisher.
+2. Add the callback to the publisher's subscriber interface.
+3. Add a publish method that creates and dispatches the event.
+4. Add only that publish method to the producer-owned port.
+5. Publish at the service operation that authoritatively owns the transition.
+6. Implement the callback on every subscriber; use an explicit no-op when no reaction is required.
+7. Add new subscriber services to the existing publisher binding.
 
 ### `backend/internal/lifecycle/publishers/core.go`
 
@@ -111,6 +135,15 @@ flowchart TD
     Composition --> Dispatch
 ```
 
+1. Create the publisher around one cohesive lifecycle domain.
+2. Define its event types and subscriber interface.
+3. Keep subscriber storage, snapshots, dispatch, and unsubscribe behavior inside the publisher.
+4. Construct and expose the publisher through `Registry`.
+5. Add its subscriber slice and registration loop to `Bindings` and `Bind`.
+6. Inject the concrete publisher into producers through narrow producer-owned ports.
+7. Implement the subscriber interface on each consumer.
+8. Register application subscribers in `cmd/remote/lifecycle.go`.
+
 ### `backend/internal/lifecycle/publishers/jobs.go`
 
 ```go
@@ -171,6 +204,29 @@ return lifecycle.Bind(registry, lifecycle.Bindings{
         services.Audit,
     },
 })
+```
+
+## Subscriber behavior
+
+1. Implement the complete typed subscriber interface.
+2. Treat the received event as immutable input.
+3. Return promptly: dispatch is synchronous.
+4. Expect callbacks in subscriber registration order.
+5. Use the supplied context for subscriber work.
+6. Handle subscriber failures locally: callbacks cannot return errors.
+7. Avoid panics: a panic propagates through the publisher to the producer.
+8. Own any required queue or background work inside the subscriber.
+
+```mermaid
+flowchart TD
+    Event["Typed event"] --> Callback["OnEvent(ctx, event)"]
+    Callback --> Fast{"Fast work?"}
+    Fast -->|"yes"| Handle["Handle synchronously"]
+    Fast -->|"no"| Queue["Subscriber-owned queue"]
+    Handle --> Return["Return"]
+    Queue --> Return
+    Failure["Error"] --> Local["Handle/log locally"]
+    Local --> Return
 ```
 
 ## Verification
