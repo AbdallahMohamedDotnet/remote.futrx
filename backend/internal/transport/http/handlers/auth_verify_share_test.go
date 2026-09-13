@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futrx-com/remote.futrx.com/internal/integration/lifecycle/publishers"
+	"github.com/futrx-com/remote.futrx.com/internal/lifecycle/publishers"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	serviceshare "github.com/futrx-com/remote.futrx.com/internal/service/share"

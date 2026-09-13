@@ -1,5 +1,5 @@
-// Package publishers holds concrete, application-wide integration
-// publishers. Core is the update-lifecycle publisher: one process-wide
+// Package publishers holds concrete, application-wide lifecycle publishers.
+// Core is the update-lifecycle publisher: one process-wide
 // instance, constructed explicitly at startup and shared with every producer
 // and observer that is given it. It is generic and policy-free - it knows
 // nothing about auth, 2FA, or any other producer's semantics.

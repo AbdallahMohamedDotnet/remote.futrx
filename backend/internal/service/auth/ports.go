@@ -4,9 +4,9 @@ import "context"
 
 // UpdateLifecyclePublisher is the narrow publishing capability auth needs to
 // announce durable update attempts. It is satisfied structurally by the
-// concrete global publisher in internal/integration/lifecycle/publishers;
-// auth depends on this interface, not on that package, so the composition
-// root stays the only place that knows the concrete integration.
+// concrete global publisher in internal/lifecycle/publishers; auth depends on
+// this interface, not on that package, so the composition root stays the only
+// place that knows the concrete implementation.
 type UpdateLifecyclePublisher interface {
 	PublishUpdateStarted(ctx context.Context, source, operation, subject string)
 	PublishUpdateCompleted(ctx context.Context, source, operation, subject string)
