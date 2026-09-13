@@ -49,9 +49,8 @@ type twoFactorAuthenticator struct {
 	// mu only guards the cache map itself.
 	account keyedMutex
 
-	mu              sync.RWMutex
-	cache           map[string]*TwoFactorRecord
-	cacheGeneration uint64
+	mu    sync.RWMutex
+	cache map[string]*TwoFactorRecord
 }
 
 func newTwoFactorAuthenticator(
@@ -78,37 +77,19 @@ func (a *twoFactorAuthenticator) load(ctx context.Context, email string) (*TwoFa
 		a.mu.RUnlock()
 		return record, nil
 	}
-	generation := a.cacheGeneration
 	a.mu.RUnlock()
 
 	record, err := a.store.Get(ctx, email)
 	if err != nil {
 		return nil, err
 	}
-	a.mu.Lock()
-	// A lifecycle callback may have invalidated the cache while this disk read
-	// was in flight. Returning its result to the current caller is safe, but
-	// caching it would resurrect the stale process-local view.
-	if generation == a.cacheGeneration {
-		a.cache[email] = record
-	}
-	a.mu.Unlock()
+	a.setCache(email, record)
 	return record, nil
 }
 
 func (a *twoFactorAuthenticator) setCache(email string, record *TwoFactorRecord) {
 	a.mu.Lock()
 	a.cache[normalizeEmail(email)] = record
-	a.mu.Unlock()
-}
-
-// invalidateCache discards the process-local view of 2FA enrollment. The
-// file-backed store remains authoritative; the next account lookup reloads
-// its record from disk.
-func (a *twoFactorAuthenticator) invalidateCache() {
-	a.mu.Lock()
-	a.cacheGeneration++
-	clear(a.cache)
 	a.mu.Unlock()
 }
 
