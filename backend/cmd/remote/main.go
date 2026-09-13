@@ -19,12 +19,14 @@ import (
 	remote "github.com/futrx-com/remote.futrx.com"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/config"
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/gitcli"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/hostfs"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/hostinfo"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/tmuxcli"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/updatecli"
+	"github.com/futrx-com/remote.futrx.com/internal/lifecycle"
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
 	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
 	servicemaintenance "github.com/futrx-com/remote.futrx.com/internal/service/maintenance"
@@ -39,9 +41,16 @@ import (
 )
 
 func main() {
-	// Prepare configuration
+	// This executable is the process composition root. The sections below
+	// follow dependency direction from configuration and outbound adapters to
+	// application policy, inbound transport, and process-owned runtime work.
+
+	////////////////////////////////////////
+	// Configuration
+	////////////////////////////////////////
 	ctx := context.Background()
 	cfg := config.Load()
+
 	if runCLICommand(ctx, cfg, os.Args) {
 		return
 	}
@@ -50,13 +59,13 @@ func main() {
 		log.Fatalf("configure public hostname: %v", err)
 	}
 
-	// Register agent modules
+	////////////////////////////////////////
+	// Container and workspace capabilities
+	////////////////////////////////////////
 	agentModules, err := config.NewAgentModules()
 	if err != nil {
 		log.Fatalf("configure agent modules: %v", err)
 	}
-
-	// Prepare container stack
 	containerStack := config.NewContainerStack(
 		lxc.New(),
 		agentModules.Profiles(),
@@ -65,26 +74,37 @@ func main() {
 		},
 	)
 
-	// Prepare stores
+	////////////////////////////////////////
+	// Persistence
+	////////////////////////////////////////
 	storeSet, err := stores.New(cfg.DataDir)
 	if err != nil {
 		log.Fatalf("init stores: %v", err)
 	}
+
+	////////////////////////////////////////
+	// Application services
+	////////////////////////////////////////
 	maintenanceGuard := servicemaintenance.New(cfg.DataDir)
+
+	// The update publisher is process-wide. Producers receive only the
+	// publishing capability declared by their own service contract.
+	updateLifecycle := lifecycle.NewUpdatePublisher()
 	selfUpdateService := serviceselfupdate.New(
 		version.Version,
 		cfg.InstallDir,
 		cfg.DataDir,
 		updatecli.New(),
+		updateLifecycle,
 	)
 
-	// Register application services
 	tmuxClient := tmuxcli.New()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:             storeSet.Chats,
 		Projects:          storeSet.Projects,
 		ProjectSecrets:    storeSet.ProjectSecrets,
 		ProjectAccess:     storeSet.ProjectAccess,
+		ProjectShares:     storeSet.ProjectShares,
 		Schedules:         storeSet.Schedules,
 		Auth:              storeSet.Auth,
 		Users:             storeSet.Users,
@@ -124,6 +144,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("init services: %v", err)
 	}
+	// Terminal self-update events are reconciled from disk so a backend
+	// replacement can deliver the completion started by its predecessor.
+	if err := selfUpdateService.StartLifecycleReconciler(ctx); err != nil {
+		log.Printf("self-update: lifecycle reconcile warning: %v", err)
+	}
 	log.Printf(
 		"auth: local admin enabled; Google OAuth configured=%t; BASE_URL=%s",
 		serviceSet.Auth.GoogleOAuthEnabled(),
@@ -139,7 +164,9 @@ func main() {
 		log.Printf("services: reconcile warning: %v", err)
 	}
 
-	// Prepare HTTP dependencies
+	////////////////////////////////////////
+	// HTTP transport
+	////////////////////////////////////////
 	static, err := fs.Sub(remote.PublicFS, "public")
 	if err != nil {
 		log.Fatal(err)
@@ -149,7 +176,6 @@ func main() {
 		log.Fatalf("configure IDE URL: %v", err)
 	}
 
-	// Register HTTP transport
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:       serviceSet,
 		TmuxClient:     tmuxClient,
@@ -171,9 +197,17 @@ func main() {
 		log.Fatalf("init http handler: %v", err)
 	}
 
-	// Start HTTP server
+	////////////////////////////////////////
+	// Process runtime
+	////////////////////////////////////////
 	address := cfg.Addr()
 	server := transport.NewHTTPServer(address, handler)
+	startChatIndexWarmup(
+		ctx,
+		storeSet,
+		configconstants.StartupChatIndexWarmupChatLimit,
+		log.Default(),
+	)
 	log.Printf("remote.futrx listening on %s", address)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
