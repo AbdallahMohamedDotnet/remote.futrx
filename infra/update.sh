@@ -45,16 +45,16 @@ usage() {
     sed -n '2,/^set -euo pipefail$/ { /^set -euo pipefail$/d; s/^# \{0,1\}//p; }' "$0"
 }
 remote_load_configuration() {
-INSTALL_DIR="${FUTRX_INSTALL_DIR:-$FUTRX_DEFAULT_INSTALL_DIR}"
-LEGACY_INSTALL_DIR="${FUTRX_LEGACY_INSTALL_DIR:-$FUTRX_DEFAULT_LEGACY_INSTALL_DIR}"
-UNIT="${FUTRX_SERVICE_UNIT_PATH:-/etc/systemd/system/remote.futrx.service}"
-LEGACY_UNIT="${FUTRX_LEGACY_SERVICE_UNIT_PATH:-/etc/systemd/system/remote.futrx.dev.service}"
-
 SCRIPT_INFRA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=lib/common.sh
 . "$SCRIPT_INFRA_DIR/lib/common.sh"
 # shellcheck source=lib/../config/defaults.sh
 . "$SCRIPT_INFRA_DIR/config/defaults.sh"
+
+INSTALL_DIR="${FUTRX_INSTALL_DIR:-$FUTRX_DEFAULT_INSTALL_DIR}"
+LEGACY_INSTALL_DIR="${FUTRX_LEGACY_INSTALL_DIR:-$FUTRX_DEFAULT_LEGACY_INSTALL_DIR}"
+UNIT="${FUTRX_SERVICE_UNIT_PATH:-/etc/systemd/system/remote.futrx.service}"
+LEGACY_UNIT="${FUTRX_LEGACY_SERVICE_UNIT_PATH:-/etc/systemd/system/remote.futrx.dev.service}"
 }
 
 remote_parse_update_arguments() {
@@ -157,7 +157,7 @@ main() {
     remote_parse_update_arguments "$@"
     require_root "this updater"
     remote_migrate_legacy_install
-    remote_refresh_checkout
+    remote_refresh_checkout "$@"
     remote_detect_hostname
     remote_converge_update
 }
