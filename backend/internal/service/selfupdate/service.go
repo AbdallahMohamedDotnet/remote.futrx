@@ -149,9 +149,9 @@ func (s *Service) startUpdate(ctx context.Context, startedBy, tag string) (Statu
 	s.launching = true
 	s.mu.Unlock()
 
-	// Started is deliberately synchronous and precedes the detached process:
-	// subscribers must finish their pre-update work before that process can
-	// replace this backend.
+	// Started is deliberately synchronous and precedes the detached process, so
+	// subscribers observe the transition before that process can replace this
+	// backend. Notifications cannot veto the launch.
 	s.lifecycle.PublishUpdateStarted(ctx, tag, string(kind), startedBy)
 	pid, err := s.host.StartUpdater(s.runs.launch(s.installDir, tag, kind))
 

@@ -20,8 +20,8 @@ type HostClient interface {
 	ProcessAlive(pid int) bool
 }
 
-// UpdateLifecyclePublisher is the one core lifecycle capability used by the
-// self-update workflow. The concrete publisher is supplied at composition.
+// UpdateLifecyclePublisher is the lifecycle notification capability used by
+// the self-update workflow. The concrete publisher is supplied at composition.
 type UpdateLifecyclePublisher interface {
 	PublishUpdateStarted(ctx context.Context, target, kind, startedBy string)
 	PublishUpdateSucceeded(ctx context.Context, target, kind, startedBy string)
