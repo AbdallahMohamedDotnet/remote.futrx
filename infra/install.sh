@@ -40,6 +40,62 @@
 
 set -euo pipefail
 
+remote_replace_process() {
+    exec "$@"
+}
+
+remote_exec_selected_installer() {
+    local installer_path="$1"
+    shift
+
+    # The selected checkout must receive the original installer state, but
+    # credentials must not be replayed in its command line. Move the two
+    # sensitive values through an inherited anonymous file descriptor and
+    # forward only non-sensitive arguments.
+    local github_token="${GITHUB_TOKEN:-}"
+    local google_client_secret="${GOOGLE_CLIENT_SECRET:-}"
+    local arg
+    local -a forwarded_args=()
+    for arg in "$@"; do
+        case "$arg" in
+            --github-token=*)         github_token="${arg#*=}" ;;
+            --google-client-secret=*) google_client_secret="${arg#*=}" ;;
+            *)                        forwarded_args+=("$arg") ;;
+        esac
+    done
+
+    local secrets_fd
+    exec {secrets_fd}< <(printf '%s\0%s\0' "$github_token" "$google_client_secret")
+
+    # Do not accidentally inherit environment-provided credentials alongside
+    # the descriptor. The selected installer consumes and closes the descriptor
+    # before spawning any child processes.
+    unset GITHUB_TOKEN GOOGLE_CLIENT_SECRET
+    FUTRX_INSTALL_REEXEC_SECRETS_FD="$secrets_fd" \
+        remote_replace_process bash "$installer_path" "${forwarded_args[@]}"
+}
+
+remote_receive_reexec_secrets() {
+    local secrets_fd="${FUTRX_INSTALL_REEXEC_SECRETS_FD:-}"
+    FUTRX_INSTALL_REEXEC_HAS_SECRETS=0
+    if [ -z "$secrets_fd" ]; then
+        return 0
+    fi
+    if ! [[ "$secrets_fd" =~ ^[1-9][0-9]*$ ]] || (( 10#$secrets_fd < 10 )); then
+        echo "invalid installer credential descriptor" >&2
+        exit 1
+    fi
+
+    if ! IFS= read -r -d '' FUTRX_INSTALL_REEXEC_GITHUB_TOKEN <&"$secrets_fd" ||
+       ! IFS= read -r -d '' FUTRX_INSTALL_REEXEC_GOOGLE_CLIENT_SECRET <&"$secrets_fd"; then
+        echo "could not receive installer credentials from selected checkout" >&2
+        exit 1
+    fi
+    exec {secrets_fd}<&-
+    unset FUTRX_INSTALL_REEXEC_SECRETS_FD
+    FUTRX_INSTALL_REEXEC_HAS_SECRETS=1
+}
+
 remote_self_bootstrap() {
 # ───────────────── self-bootstrap (curl|bash mode) ─────────────────
 # When piped from curl, BASH_SOURCE points at /dev/stdin and there are no
@@ -104,7 +160,7 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
                 git -C "$LEGACY_TARGET" reset --hard origin/main
             fi
             export FUTRX_INSTALL_CHECKOUT_SELECTED=1
-            exec bash "$LEGACY_TARGET/infra/install.sh" "$@"
+            remote_exec_selected_installer "$LEGACY_TARGET/infra/install.sh" "$@"
         fi
     fi
 
@@ -149,7 +205,7 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
     fi
 
     export FUTRX_INSTALL_CHECKOUT_SELECTED=1
-    exec bash "$TARGET/infra/install.sh" "$@"
+    remote_exec_selected_installer "$TARGET/infra/install.sh" "$@"
 fi
 }
 
@@ -194,6 +250,12 @@ SKIP_DNS_CHECK=0
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+if [ "${FUTRX_INSTALL_REEXEC_HAS_SECRETS:-0}" = "1" ]; then
+    GITHUB_TOKEN="$FUTRX_INSTALL_REEXEC_GITHUB_TOKEN"
+    GOOGLE_CLIENT_SECRET="$FUTRX_INSTALL_REEXEC_GOOGLE_CLIENT_SECRET"
+fi
+unset FUTRX_INSTALL_REEXEC_HAS_SECRETS
+unset FUTRX_INSTALL_REEXEC_GITHUB_TOKEN FUTRX_INSTALL_REEXEC_GOOGLE_CLIENT_SECRET
 TARGET_REF=""
 # INFRA_DIR resolves before argument parsing so the shared helpers below
 # (and every validation gate) come from lib/common.sh. The curl|bash
@@ -395,6 +457,7 @@ EOF
 }
 
 main() {
+    remote_receive_reexec_secrets
     remote_self_bootstrap "$@"
     remote_load_configuration
     remote_parse_install_arguments "$@"

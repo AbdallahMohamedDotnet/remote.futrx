@@ -21,6 +21,9 @@ grep -Fq '    remote_select_checkout "$@"' "$INSTALL_SCRIPT" || \
     fail "installer main does not forward arguments to checkout selection"
 grep -Fq 'step_00_checkout "$@"' "$INSTALL_SCRIPT" || \
     fail "installer checkout wrapper does not forward arguments to the step"
+grep -Fq 'remote_exec_selected_installer "$INSTALL_DIR/infra/install.sh" "$@"' \
+    "$TESTS_DIR/../steps/00-checkout.sh" || \
+    fail "installer checkout step bypasses protected credential forwarding"
 
 # update.sh must load shared defaults before expanding them under `set -u`.
 # The second case mirrors the in-app launcher, which supplies only the primary
@@ -133,9 +136,9 @@ if [ "$parse_line" -ge "$finalize_line" ] || [ "$finalize_line" -ge "$root_line"
     fail "installer must parse arguments, finalize derived configuration, then require root"
 fi
 
-# The checkout phase re-executes install.sh. Preserve the complete original
-# argument vector across both function boundaries so hostname, ref, and
-# credential flags are parsed again by the selected checkout.
+# The checkout phase re-executes install.sh. Preserve non-sensitive arguments
+# in argv, while transferring credentials through an inherited descriptor so
+# they are not exposed in the selected root process's command line.
 (
     unset __FUTRX_DEFAULTS_SOURCED FUTRX_INSTALL_CHECKOUT_SELECTED
     # shellcheck source=../install.sh
@@ -147,6 +150,8 @@ fi
     export FUTRX_CHECKOUT_REF="$target_ref"
     exec_args="$TEST_DIR/reexec-args"
     expected_args="$TEST_DIR/reexec-expected"
+    received_github_token="$TEST_DIR/reexec-github-token"
+    received_google_secret="$TEST_DIR/reexec-google-secret"
 
     log() { :; }
     err() { :; }
@@ -156,8 +161,16 @@ fi
         fi
         return 0
     }
-    exec() {
+    remote_replace_process() {
         printf '%s\0' "$@" >"$exec_args"
+        secrets_fd="${FUTRX_INSTALL_REEXEC_SECRETS_FD:-}"
+        [ -n "$secrets_fd" ] || fail "checkout re-exec omitted credential descriptor"
+        IFS= read -r -d '' descriptor_github_token <&"$secrets_fd" ||
+            fail "checkout re-exec descriptor omitted GitHub token"
+        IFS= read -r -d '' descriptor_google_secret <&"$secrets_fd" ||
+            fail "checkout re-exec descriptor omitted Google client secret"
+        printf '%s' "$descriptor_github_token" >"$received_github_token"
+        printf '%s' "$descriptor_google_secret" >"$received_google_secret"
     }
 
     original_args=(
@@ -169,8 +182,38 @@ fi
         --github-token=test-token
     )
     remote_select_checkout "${original_args[@]}"
-    printf '%s\0' bash "$INSTALL_DIR/infra/install.sh" "${original_args[@]}" >"$expected_args"
-    cmp "$expected_args" "$exec_args" || fail "checkout re-exec dropped installer arguments"
+    printf '%s\0' bash "$INSTALL_DIR/infra/install.sh" \
+        remote.example.com \
+        --skip-dns-check \
+        "--ref=$target_ref" \
+        --google-client-id=test-client >"$expected_args"
+    cmp "$expected_args" "$exec_args" || fail "checkout re-exec forwarded incorrect arguments"
+    [ "$(<"$received_github_token")" = "test-token" ] ||
+        fail "checkout re-exec descriptor lost GitHub token"
+    [ "$(<"$received_google_secret")" = "test-secret" ] ||
+        fail "checkout re-exec descriptor lost Google client secret"
+    if grep -aFq 'test-token' "$exec_args" || grep -aFq 'test-secret' "$exec_args"; then
+        fail "checkout re-exec exposed credentials in argv"
+    fi
+)
+
+# The selected installer consumes the descriptor before loading configuration,
+# restores both values as unexported shell state, and closes the descriptor.
+(
+    unset __FUTRX_DEFAULTS_SOURCED GITHUB_TOKEN GOOGLE_CLIENT_SECRET
+    # shellcheck source=../install.sh
+    . "$INSTALL_SCRIPT"
+    exec {secrets_fd}< <(printf '%s\0%s\0' test-token test-secret)
+    export FUTRX_INSTALL_REEXEC_SECRETS_FD="$secrets_fd"
+    remote_receive_reexec_secrets
+    remote_load_configuration
+
+    [ "$GITHUB_TOKEN" = "test-token" ] || fail "selected installer lost GitHub token"
+    [ "$GOOGLE_CLIENT_SECRET" = "test-secret" ] ||
+        fail "selected installer lost Google client secret"
+    if printenv GITHUB_TOKEN >/dev/null || printenv GOOGLE_CLIENT_SECRET >/dev/null; then
+        fail "selected installer exported received credentials"
+    fi
 )
 
 echo "Production release entrypoint tests passed"

@@ -12,7 +12,9 @@ set -euo pipefail
 is_allowed_patch_hotfix_path() {
     local previous_tag="$1" target_tag="$2" path="$3"
     case "${previous_tag}:${target_tag}:${path}" in
-        0.16.0:0.16.1:infra/install.sh|0.16.0:0.16.1:infra/update.sh)
+        0.16.0:0.16.1:infra/install.sh|\
+        0.16.0:0.16.1:infra/update.sh|\
+        0.16.0:0.16.1:infra/steps/00-checkout.sh)
             return 0
             ;;
         *)

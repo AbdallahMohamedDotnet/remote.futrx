@@ -105,13 +105,14 @@ assert_output "$output" "kind=infrastructure"
 assert_output "$output" "label=Infrastructure"
 assert_output "$output" "previous=0.3.9"
 
-# 0.16.1 is the narrowly scoped recovery patch for the two release
-# entrypoints broken in 0.16.0. It stays application-classified for healthy
+# 0.16.1 is the narrowly scoped recovery patch for the release entrypoints
+# broken in 0.16.0. It stays application-classified for healthy
 # 0.16.0 hosts, while older hosts classify the cross-minor update themselves.
 commit_file README.md 0.16.0 release-0.16.0
 git -C "$TEST_REPO" tag 0.16.0
 commit_file infra/install.sh fixed-installer hotfix-installer
 commit_file infra/update.sh fixed-updater hotfix-updater
+commit_file infra/steps/00-checkout.sh fixed-checkout-reexec hotfix-checkout-reexec
 hotfix_commit="$(git -C "$TEST_REPO" rev-parse HEAD)"
 git -C "$TEST_REPO" tag 0.16.1
 output="$(cd "$TEST_REPO" && "$CLASSIFIER" 0.16.1)"

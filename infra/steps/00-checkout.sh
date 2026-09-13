@@ -5,6 +5,7 @@
 #
 # Expects from caller:
 #   - log / err helpers
+#   - remote_exec_selected_installer helper
 #   - $INSTALL_DIR, $REPO_URL, $GITHUB_TOKEN
 #   - $FUTRX_CHECKOUT_REF (optional; defaults to origin/main)
 set -euo pipefail
@@ -58,5 +59,5 @@ EOF
 fi
 
 export FUTRX_INSTALL_CHECKOUT_SELECTED=1
-exec bash "$INSTALL_DIR/infra/install.sh" "$@"
+remote_exec_selected_installer "$INSTALL_DIR/infra/install.sh" "$@"
 }
