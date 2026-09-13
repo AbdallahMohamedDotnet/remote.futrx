@@ -82,19 +82,18 @@ func main() {
 	// Application services and startup reconciliation: compose policy from
 	// persistence contracts and outbound capabilities, then initialize it.
 	maintenanceGuard := servicemaintenance.New(cfg.DataDir)
+	// The lifecycle manager only registers process-wide publishers. Services
+	// receive the specific publisher capability they produce events through.
+	lifecycleManager := lifecycle.NewManager()
 	selfUpdateService := serviceselfupdate.New(
 		version.Version,
 		cfg.InstallDir,
 		cfg.DataDir,
 		updatecli.New(),
+		lifecycleManager.Core,
 	)
 
 	tmuxClient := tmuxcli.New()
-	// One process-wide lifecycle manager constructs publishers and owns
-	// subscriber registration. Producers receive only their narrow publisher;
-	// future subscribers are registered with the manager here at composition.
-	lifecycleManager := lifecycle.NewManager()
-	lifecyclePublishers := lifecycleManager.Publishers()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:             storeSet.Chats,
 		Projects:          storeSet.Projects,
@@ -107,7 +106,6 @@ func main() {
 		UserSettings:      storeSet.UserSettings,
 		TwoFactor:         storeSet.TwoFactor,
 		SessionRegistry:   storeSet.SessionRegistry,
-		UpdateLifecycle:   lifecyclePublishers.Updates,
 		Push:              storeSet.Push,
 		Usage:             storeSet.Usage,
 		AuthBaseURL:       cfg.BaseURL,

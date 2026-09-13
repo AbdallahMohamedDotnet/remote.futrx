@@ -18,6 +18,28 @@ type fakeHost struct {
 	startErr error
 }
 
+type updateStartedEvent struct {
+	target    string
+	kind      string
+	startedBy string
+}
+
+type recordingUpdateLifecyclePublisher struct {
+	events []updateStartedEvent
+}
+
+func (p *recordingUpdateLifecyclePublisher) PublishUpdateStarted(_ context.Context, target, kind, startedBy string) {
+	p.events = append(p.events, updateStartedEvent{target: target, kind: kind, startedBy: startedBy})
+}
+
+type noopUpdateLifecyclePublisher struct{}
+
+func (noopUpdateLifecyclePublisher) PublishUpdateStarted(context.Context, string, string, string) {}
+
+func newTestService(currentVersion, installDir, dataDir string, host HostClient) *Service {
+	return New(currentVersion, installDir, dataDir, host, noopUpdateLifecyclePublisher{})
+}
+
 func (f *fakeHost) ListRemoteTags(context.Context, string) ([]string, error) {
 	return f.tags, f.tagsErr
 }
@@ -135,7 +157,7 @@ func TestCheckComparesAgainstDescribeOutput(t *testing.T) {
 		{"dev", false}, // unstamped build: cannot claim anything
 	}
 	for _, c := range cases {
-		svc := New(c.current, "/opt/x", t.TempDir(), host)
+		svc := newTestService(c.current, "/opt/x", t.TempDir(), host)
 		status := svc.Check(context.Background())
 		if status.LastCheck == nil {
 			t.Fatalf("current=%q: no check result", c.current)
@@ -155,7 +177,7 @@ func TestCheckComparesAgainstDescribeOutput(t *testing.T) {
 
 func TestCheckReportsApplicationUpdateWithinReleaseLine(t *testing.T) {
 	host := &fakeHost{tags: []string{"0.3.1", "0.3.2"}}
-	status := New("0.3.1", "/opt/x", t.TempDir(), host).Check(context.Background())
+	status := newTestService("0.3.1", "/opt/x", t.TempDir(), host).Check(context.Background())
 	if status.LastCheck == nil || status.LastCheck.UpdateKind != UpdateKindApplication {
 		t.Fatalf("last check = %+v, want application update", status.LastCheck)
 	}
@@ -163,7 +185,8 @@ func TestCheckReportsApplicationUpdateWithinReleaseLine(t *testing.T) {
 
 func TestApplyLifecycle(t *testing.T) {
 	host := &fakeHost{tags: []string{"0.1", "0.2"}, pid: 4242, alive: true}
-	svc := New("0.1", "/opt/x", t.TempDir(), host)
+	lifecycle := &recordingUpdateLifecyclePublisher{}
+	svc := New("0.1", "/opt/x", t.TempDir(), host, lifecycle)
 
 	status, err := svc.Apply(context.Background(), "admin@example.com", "")
 	if err != nil {
@@ -178,10 +201,17 @@ func TestApplyLifecycle(t *testing.T) {
 	if status.Run == nil || status.Run.State != "running" || status.Run.Target != "0.2" {
 		t.Fatalf("run status = %+v, want running 0.2", status.Run)
 	}
+	wantEvent := updateStartedEvent{target: "0.2", kind: string(UpdateKindInfrastructure), startedBy: "admin@example.com"}
+	if len(lifecycle.events) != 1 || lifecycle.events[0] != wantEvent {
+		t.Fatalf("update-started events = %+v, want [%+v]", lifecycle.events, wantEvent)
+	}
 
 	// Second apply while the first is alive must refuse.
 	if _, err := svc.Apply(context.Background(), "admin@example.com", ""); !errors.Is(err, ErrUpdateInProgress) {
 		t.Fatalf("second Apply err = %v, want ErrUpdateInProgress", err)
+	}
+	if len(lifecycle.events) != 1 {
+		t.Fatalf("in-progress Apply published another event: %+v", lifecycle.events)
 	}
 
 	// Process death without a done marker reads as failure.
@@ -201,7 +231,7 @@ func TestApplyLifecycle(t *testing.T) {
 
 func TestRunStatusReportsCleanLogAndStructuredProgress(t *testing.T) {
 	host := &fakeHost{tags: []string{"0.1", "0.2"}, pid: 4242, alive: true}
-	svc := New("0.1", "/opt/x", t.TempDir(), host)
+	svc := newTestService("0.1", "/opt/x", t.TempDir(), host)
 	if _, err := svc.Apply(context.Background(), "admin@example.com", "0.2"); err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +263,7 @@ func TestRunStatusReportsCleanLogAndStructuredProgress(t *testing.T) {
 
 func TestApplyStartsApplicationDeploymentWithinReleaseLine(t *testing.T) {
 	host := &fakeHost{tags: []string{"0.3.1", "0.3.2"}, pid: 4242, alive: true}
-	svc := New("0.3.1", "/opt/x", t.TempDir(), host)
+	svc := newTestService("0.3.1", "/opt/x", t.TempDir(), host)
 	status, err := svc.Apply(context.Background(), "admin@example.com", "0.3.2")
 	if err != nil {
 		t.Fatal(err)
@@ -248,7 +278,7 @@ func TestApplyStartsApplicationDeploymentWithinReleaseLine(t *testing.T) {
 
 func TestApplyValidatesTag(t *testing.T) {
 	host := &fakeHost{tags: []string{"0.1"}}
-	svc := New("0.1", "/opt/x", t.TempDir(), host)
+	svc := newTestService("0.1", "/opt/x", t.TempDir(), host)
 	if _, err := svc.Apply(context.Background(), "a@b.c", "0.9"); !errors.Is(err, ErrUnknownTag) {
 		t.Fatalf("Apply(unknown tag) err = %v, want ErrUnknownTag", err)
 	}
@@ -265,7 +295,7 @@ func TestApplyValidatesTag(t *testing.T) {
 // version would otherwise collapse the run to an application-only deploy.
 func TestApplyRetryPreservesInfrastructureKind(t *testing.T) {
 	host := &fakeHost{tags: []string{"0.11.0", "0.12.0"}, pid: 4242}
-	svc := New("0.11.0", "/opt/x", t.TempDir(), host)
+	svc := newTestService("0.11.0", "/opt/x", t.TempDir(), host)
 
 	if _, err := svc.Apply(context.Background(), "admin@example.com", "0.12.0"); err != nil {
 		t.Fatalf("first Apply: %v", err)
@@ -291,7 +321,7 @@ func TestApplyRetryPreservesInfrastructureKind(t *testing.T) {
 	// New binary is now reporting 0.12.0 because the previous infrastructure
 	// step rebuilt it before failing. A naive classification would now
 	// return application; the retry must instead re-use the failed kind.
-	svc2 := New("0.12.0", "/opt/x", filepath.Dir(svc.runs.dir), host)
+	svc2 := newTestService("0.12.0", "/opt/x", filepath.Dir(svc.runs.dir), host)
 	host.alive = true
 	if _, err := svc2.Apply(context.Background(), "admin@example.com", "0.12.0"); err != nil {
 		t.Fatalf("retry Apply: %v", err)
@@ -306,7 +336,7 @@ func TestApplyRetryPreservesInfrastructureKind(t *testing.T) {
 // against the exact same target reuses the failed run's kind.
 func TestApplyRetryReclassifiesWhenTargetChanges(t *testing.T) {
 	host := &fakeHost{tags: []string{"0.11.0", "0.12.0"}, pid: 4242}
-	svc := New("0.11.0", "/opt/x", t.TempDir(), host)
+	svc := newTestService("0.11.0", "/opt/x", t.TempDir(), host)
 
 	if _, err := svc.Apply(context.Background(), "admin@example.com", "0.12.0"); err != nil {
 		t.Fatal(err)
@@ -339,7 +369,8 @@ func TestApplyRetryReclassifiesWhenTargetChanges(t *testing.T) {
 // progress, and assume the new attempt had failed.
 func TestApplyStartUpdaterFailureClearsStaleRecord(t *testing.T) {
 	host := &fakeHost{tags: []string{"0.11.0", "0.12.0"}, pid: 4242}
-	svc := New("0.11.0", "/opt/x", t.TempDir(), host)
+	lifecycle := &recordingUpdateLifecyclePublisher{}
+	svc := New("0.11.0", "/opt/x", t.TempDir(), host, lifecycle)
 
 	// Land a prior failed infrastructure run on disk so the retry starts
 	// from the realistic partial-install state.
@@ -366,5 +397,8 @@ func TestApplyStartUpdaterFailureClearsStaleRecord(t *testing.T) {
 	}
 	if _, err := os.Stat(svc.runs.progressPath()); !os.IsNotExist(err) {
 		t.Fatalf("progress.json still present after StartUpdater failure: err=%v", err)
+	}
+	if len(lifecycle.events) != 1 {
+		t.Fatalf("failed updater launch published another update-started event: %+v", lifecycle.events)
 	}
 }

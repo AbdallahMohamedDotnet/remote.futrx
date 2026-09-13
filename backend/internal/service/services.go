@@ -68,7 +68,6 @@ type Dependencies struct {
 	UserSettings      serviceusersettings.Repository
 	TwoFactor         serviceauth.TwoFactorStore
 	SessionRegistry   serviceauth.SessionRegistryStore
-	UpdateLifecycle   serviceauth.UpdateLifecyclePublisher
 	Push              PushStore
 	Usage             serviceusage.Repository
 	AuthBaseURL       string
@@ -233,7 +232,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		deps.AuthBaseURL,
 		deps.TwoFactor,
 		deps.SessionRegistry,
-		deps.UpdateLifecycle,
 		deps.AuthOptions,
 	)
 	if err != nil {

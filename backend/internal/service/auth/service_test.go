@@ -138,16 +138,6 @@ func (s *authTestTwoFactorStore) Delete(_ context.Context, email string) error {
 	return nil
 }
 
-// noopLifecyclePublisher satisfies UpdateLifecyclePublisher for tests that
-// exercise auth/2FA behavior unrelated to lifecycle dispatch itself.
-type noopLifecyclePublisher struct{}
-
-func newNoopLifecyclePublisher() noopLifecyclePublisher { return noopLifecyclePublisher{} }
-
-func (noopLifecyclePublisher) BeginUpdate(context.Context, string, string, string) func(error) {
-	return func(error) {}
-}
-
 type authTestSessionRegistryStore struct {
 	records map[string]SessionRegistryRecord
 }
@@ -253,7 +243,6 @@ func newAuthTestServiceWithOptions(
 		[]byte("test-session-key"),
 		newAuthTestTwoFactorStore(),
 		newAuthTestSessionRegistryStore(),
-		newNoopLifecyclePublisher(),
 		options,
 	)
 	if err != nil {
@@ -293,7 +282,6 @@ func TestNewRejectsNonPositiveSetupTokenTTL(t *testing.T) {
 			[]byte("test-session-key"),
 			newAuthTestTwoFactorStore(),
 			newAuthTestSessionRegistryStore(),
-			newNoopLifecyclePublisher(),
 			options,
 		)
 		if err == nil {

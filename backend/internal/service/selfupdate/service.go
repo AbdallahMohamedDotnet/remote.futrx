@@ -25,17 +25,23 @@ type Service struct {
 	currentVersion string
 	installDir     string
 	host           HostClient
+	lifecycle      UpdateLifecyclePublisher
 	runs           runState
 
 	mu        sync.Mutex
 	lastCheck *CheckResult
 }
 
-func New(currentVersion, installDir, dataDir string, host HostClient) *Service {
+func New(
+	currentVersion, installDir, dataDir string,
+	host HostClient,
+	lifecycle UpdateLifecyclePublisher,
+) *Service {
 	return &Service{
 		currentVersion: currentVersion,
 		installDir:     installDir,
 		host:           host,
+		lifecycle:      lifecycle,
 		runs:           newRunState(dataDir),
 	}
 }
@@ -92,16 +98,25 @@ func (s *Service) Apply(ctx context.Context, startedBy, tag string) (Status, err
 		return s.Status(ctx), fmt.Errorf("%w: %s", ErrUnknownTag, tag)
 	}
 
+	status, kind, err := s.startUpdate(startedBy, tag)
+	if err != nil {
+		return status, err
+	}
+	s.lifecycle.PublishUpdateStarted(ctx, tag, string(kind), startedBy)
+	return status, nil
+}
+
+func (s *Service) startUpdate(startedBy, tag string) (Status, UpdateKind, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// Capture the previous run BEFORE reset so we can reuse its classification
 	// on retry; reset clears run.json as part of the fresh-slate contract.
 	prevRun := s.runs.status(s.host.ProcessAlive)
 	if prevRun != nil && prevRun.State == "running" {
-		return s.statusLocked(), ErrUpdateInProgress
+		return s.statusLocked(), "", ErrUpdateInProgress
 	}
 	if err := s.runs.reset(); err != nil {
-		return s.statusLocked(), err
+		return s.statusLocked(), "", err
 	}
 	// A failed infrastructure update may have already replaced the binary,
 	// so classifyUpdate against currentVersion would collapse to an
@@ -119,7 +134,7 @@ func (s *Service) Apply(ctx context.Context, startedBy, tag string) (Status, err
 	if err := s.runs.writeProgress(Progress{
 		Phase: "preparing", Message: message, UpdatedAt: time.Now().Unix(),
 	}); err != nil {
-		return s.statusLocked(), err
+		return s.statusLocked(), kind, err
 	}
 	pid, err := s.host.StartUpdater(s.runs.launch(s.installDir, tag, kind))
 	if err != nil {
@@ -129,15 +144,15 @@ func (s *Service) Apply(ctx context.Context, startedBy, tag string) (Status, err
 		// is best-effort: only the in-memory prevRun survives reset().
 		s.runs.removeProgress()
 		s.runs.removeRecord()
-		return s.statusLocked(), fmt.Errorf("start updater: %w", err)
+		return s.statusLocked(), kind, fmt.Errorf("start updater: %w", err)
 	}
 	record := runRecord{
 		Target: tag, UpdateKind: kind, StartedAt: time.Now().Unix(), StartedBy: startedBy, PID: pid,
 	}
 	if err := s.runs.writeRecord(record); err != nil {
-		return s.statusLocked(), err
+		return s.statusLocked(), kind, err
 	}
-	return s.statusLocked(), nil
+	return s.statusLocked(), kind, nil
 }
 
 func (s *Service) statusLocked() Status {

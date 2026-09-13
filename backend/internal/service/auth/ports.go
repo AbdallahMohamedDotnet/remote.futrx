@@ -2,15 +2,6 @@ package auth
 
 import "context"
 
-// UpdateLifecyclePublisher is the narrow publishing capability auth needs to
-// announce durable update attempts. BeginUpdate returns a terminal publisher:
-// passing nil completes the attempt, while passing an error fails it with that
-// exact error. Auth owns this contract and does not know about subscribers or
-// the concrete lifecycle manager.
-type UpdateLifecyclePublisher interface {
-	BeginUpdate(ctx context.Context, source, operation, subject string) (finish func(error))
-}
-
 type OAuthConfigStore interface {
 	OAuthConfig(context.Context) (OAuthConfig, error)
 	SaveOAuthConfig(context.Context, OAuthConfig) error
