@@ -9,7 +9,7 @@ import (
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
-	"github.com/futrx-com/remote.futrx.com/internal/lifecycle/publishers"
+	"github.com/futrx-com/remote.futrx.com/internal/lifecycle"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
@@ -94,7 +94,7 @@ func TestNewAuthAllowsLocalAdminWithoutGoogleOAuth(t *testing.T) {
 		"https://remote.example.com",
 		twoFactorStore,
 		sessionRegistryStore,
-		publishers.New(),
+		lifecycle.NewManager().Publishers().Updates,
 		AuthOptions{
 			PendingLoginTTL:     5 * time.Minute,
 			EnrollmentTTL:       10 * time.Minute,

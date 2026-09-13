@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futrx-com/remote.futrx.com/internal/lifecycle/publishers"
+	"github.com/futrx-com/remote.futrx.com/internal/lifecycle"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filesessions"
@@ -73,7 +73,7 @@ func newClaimTestServer(t *testing.T) (*http.ServeMux, *serviceauth.Service, str
 		[]byte("0123456789abcdef0123456789abcdef"),
 		twoFactorStore,
 		sessionRegistryStore,
-		publishers.New(),
+		lifecycle.NewManager().Publishers().Updates,
 		serviceauth.Options{
 			PendingLoginTTL:     5 * time.Minute,
 			EnrollmentTTL:       10 * time.Minute,

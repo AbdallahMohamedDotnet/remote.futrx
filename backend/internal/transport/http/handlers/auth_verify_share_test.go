@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futrx-com/remote.futrx.com/internal/lifecycle/publishers"
+	"github.com/futrx-com/remote.futrx.com/internal/lifecycle"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	serviceshare "github.com/futrx-com/remote.futrx.com/internal/service/share"
@@ -226,7 +226,7 @@ func newVerifyHandler(t *testing.T) (*authVerifyHandler, *shareAuthorizerStub) {
 		[]byte("verify-handler-test-key"),
 		twoFactorStoreForTest(t),
 		sessionRegistryStoreForTest(t),
-		publishers.New(),
+		lifecycle.NewManager().Publishers().Updates,
 		testAuthOptions(),
 	)
 	if err != nil {

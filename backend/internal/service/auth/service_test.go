@@ -144,9 +144,8 @@ type noopLifecyclePublisher struct{}
 
 func newNoopLifecyclePublisher() noopLifecyclePublisher { return noopLifecyclePublisher{} }
 
-func (noopLifecyclePublisher) PublishUpdateStarted(context.Context, string, string, string)   {}
-func (noopLifecyclePublisher) PublishUpdateCompleted(context.Context, string, string, string) {}
-func (noopLifecyclePublisher) PublishUpdateFailed(context.Context, string, string, string, error) {
+func (noopLifecyclePublisher) BeginUpdate(context.Context, string, string, string) func(error) {
+	return func(error) {}
 }
 
 type authTestSessionRegistryStore struct {

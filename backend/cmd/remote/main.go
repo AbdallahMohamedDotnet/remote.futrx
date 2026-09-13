@@ -26,7 +26,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/tmuxcli"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/updatecli"
-	"github.com/futrx-com/remote.futrx.com/internal/lifecycle/publishers"
+	"github.com/futrx-com/remote.futrx.com/internal/lifecycle"
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
 	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
 	servicemaintenance "github.com/futrx-com/remote.futrx.com/internal/service/maintenance"
@@ -90,11 +90,11 @@ func main() {
 	)
 
 	tmuxClient := tmuxcli.New()
-	// One process-wide update-lifecycle publisher, shared with every producer
-	// and observer that is explicitly given it. No production observer is
-	// registered yet; the empty publisher preserves current behavior while
-	// making the hook available.
-	updateLifecycle := publishers.New()
+	// One process-wide lifecycle manager constructs publishers and owns
+	// subscriber registration. Producers receive only their narrow publisher;
+	// future subscribers are registered with the manager here at composition.
+	lifecycleManager := lifecycle.NewManager()
+	lifecyclePublishers := lifecycleManager.Publishers()
 	serviceSet, err := service.New(ctx, service.Dependencies{
 		Chats:             storeSet.Chats,
 		Projects:          storeSet.Projects,
@@ -107,7 +107,7 @@ func main() {
 		UserSettings:      storeSet.UserSettings,
 		TwoFactor:         storeSet.TwoFactor,
 		SessionRegistry:   storeSet.SessionRegistry,
-		UpdateLifecycle:   updateLifecycle,
+		UpdateLifecycle:   lifecyclePublishers.Updates,
 		Push:              storeSet.Push,
 		Usage:             storeSet.Usage,
 		AuthBaseURL:       cfg.BaseURL,

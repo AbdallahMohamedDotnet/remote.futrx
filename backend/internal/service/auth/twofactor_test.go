@@ -25,9 +25,9 @@ func newTestTwoFactorAuthenticatorWithPublisher(publisher UpdateLifecyclePublish
 	)
 }
 
-// recordedLifecycleEvent is one call into recordingLifecyclePublisher, kept
-// generic enough (kind + the same fields the real publisher takes) to assert
-// both the started/terminal sequence and the exact values a producer sent.
+// recordedLifecycleEvent is one event emitted through
+// recordingLifecyclePublisher, kept generic enough to assert both the
+// started/terminal sequence and the exact values a producer sent.
 type recordedLifecycleEvent struct {
 	kind      string // "started", "completed", or "failed"
 	source    string
@@ -38,8 +38,8 @@ type recordedLifecycleEvent struct {
 
 // recordingLifecyclePublisher is the auth package's own UpdateLifecyclePublisher
 // test double, used to verify the 2FA lifecycle wrapping in this file. It is
-// distinct from the publishers package's own observer fakes, which verify the
-// publisher's dispatch mechanics rather than what 2FA sends into it.
+// distinct from the lifecycle package's subscriber tests, which verify the
+// manager's dispatch mechanics rather than what 2FA sends into it.
 type recordingLifecyclePublisher struct {
 	mu     sync.Mutex
 	events []recordedLifecycleEvent
@@ -49,22 +49,19 @@ func newRecordingLifecyclePublisher() *recordingLifecyclePublisher {
 	return &recordingLifecyclePublisher{}
 }
 
-func (p *recordingLifecyclePublisher) PublishUpdateStarted(_ context.Context, source, operation, subject string) {
+func (p *recordingLifecyclePublisher) BeginUpdate(_ context.Context, source, operation, subject string) func(error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.events = append(p.events, recordedLifecycleEvent{kind: "started", source: source, operation: operation, subject: subject})
-}
-
-func (p *recordingLifecyclePublisher) PublishUpdateCompleted(_ context.Context, source, operation, subject string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.events = append(p.events, recordedLifecycleEvent{kind: "completed", source: source, operation: operation, subject: subject})
-}
-
-func (p *recordingLifecyclePublisher) PublishUpdateFailed(_ context.Context, source, operation, subject string, err error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.events = append(p.events, recordedLifecycleEvent{kind: "failed", source: source, operation: operation, subject: subject, err: err})
+	p.mu.Unlock()
+	return func(err error) {
+		kind := "completed"
+		if err != nil {
+			kind = "failed"
+		}
+		p.mu.Lock()
+		p.events = append(p.events, recordedLifecycleEvent{kind: kind, source: source, operation: operation, subject: subject, err: err})
+		p.mu.Unlock()
+	}
 }
 
 func (p *recordingLifecyclePublisher) snapshot() []recordedLifecycleEvent {
@@ -706,11 +703,9 @@ func TestLifecycleEventsCarryNoSecretOrProofMaterial(t *testing.T) {
 		t.Fatalf("RegenerateRecoveryCodes: %v", err)
 	}
 
-	// UpdateEvent (the type these calls ultimately construct) only ever
-	// carries Source, Operation, and Subject - this test pins that no
-	// producer call site is ever given the secret, a code, or a recovery
-	// code as an extra argument by checking every recorded subject against
-	// the values that must never leak.
+	// The publisher contract accepts only Source, Operation, and Subject as
+	// producer-supplied identity. This test pins that no call site substitutes
+	// secret or proof material into the subject field.
 	forbidden := []string{
 		base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(record.Secret),
 		totp,
@@ -741,12 +736,10 @@ func TestBeginEnrollmentAndReadOnlyMethodsEmitNothing(t *testing.T) {
 	}
 }
 
-// completionObserver calls back into the authenticator from
-// PublishUpdateCompleted to prove the terminal callback runs after the
-// per-account lock is released and after the settled state is visible - not
-// under the 2FA lock, or this would deadlock, and not before the mutation, or
-// Enabled would read stale state.
-type completionObserver struct {
+// settledStatePublisher queries the authenticator when an update is finished
+// to prove the terminal publication runs after the per-account lock is
+// released and after the settled state is visible.
+type settledStatePublisher struct {
 	a                  *twoFactorAuthenticator
 	email              string
 	wantCodesRemaining int
@@ -754,20 +747,23 @@ type completionObserver struct {
 	sawCodes           int
 }
 
-func (o *completionObserver) PublishUpdateStarted(context.Context, string, string, string) {}
-func (o *completionObserver) PublishUpdateCompleted(ctx context.Context, _, _, _ string) {
-	o.sawEnabled = o.a.Enabled(ctx, o.email)
-	o.sawCodes = o.a.RecoveryCodesRemaining(ctx, o.email)
+func (p *settledStatePublisher) BeginUpdate(ctx context.Context, _, _, _ string) func(error) {
+	return func(err error) {
+		if err != nil {
+			return
+		}
+		p.sawEnabled = p.a.Enabled(ctx, p.email)
+		p.sawCodes = p.a.RecoveryCodesRemaining(ctx, p.email)
+	}
 }
-func (o *completionObserver) PublishUpdateFailed(context.Context, string, string, string, error) {}
 
-func TestCompletionCallbackMayQuerySettledStateWithoutDeadlock(t *testing.T) {
+func TestTerminalPublicationMayQuerySettledStateWithoutDeadlock(t *testing.T) {
 	a := newTestTwoFactorAuthenticatorWithPublisher(newNoopLifecyclePublisher())
 	email := "user@example.com"
 	codes := enrollTestAccount(t, a, email)
 
-	observer := &completionObserver{a: a, email: email, wantCodesRemaining: len(codes)}
-	a.publisher = observer
+	publisher := &settledStatePublisher{a: a, email: email, wantCodesRemaining: len(codes)}
+	a.publisher = publisher
 
 	done := make(chan struct{})
 	go func() {
@@ -787,13 +783,13 @@ func TestCompletionCallbackMayQuerySettledStateWithoutDeadlock(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("completion callback querying settled state deadlocked")
+		t.Fatal("terminal publication querying settled state deadlocked")
 	}
 
-	if !observer.sawEnabled {
-		t.Fatal("completion callback did not see the account as enabled")
+	if !publisher.sawEnabled {
+		t.Fatal("terminal publication did not see the account as enabled")
 	}
-	if observer.sawCodes != observer.wantCodesRemaining {
-		t.Fatalf("completion callback saw %d recovery codes remaining, want %d", observer.sawCodes, observer.wantCodesRemaining)
+	if publisher.sawCodes != publisher.wantCodesRemaining {
+		t.Fatalf("terminal publication saw %d recovery codes remaining, want %d", publisher.sawCodes, publisher.wantCodesRemaining)
 	}
 }

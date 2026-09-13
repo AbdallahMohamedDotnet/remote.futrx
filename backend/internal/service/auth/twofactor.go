@@ -94,13 +94,10 @@ func newTwoFactorAuthenticator(
 // operation's return type stays concrete - no any, reflection, or shared
 // result bag.
 func (a *twoFactorAuthenticator) runLifecycleMutation(ctx context.Context, operation, subject string, fn func() error) error {
-	a.publisher.PublishUpdateStarted(ctx, twoFactorLifecycleSource, operation, subject)
-	if err := fn(); err != nil {
-		a.publisher.PublishUpdateFailed(ctx, twoFactorLifecycleSource, operation, subject, err)
-		return err
-	}
-	a.publisher.PublishUpdateCompleted(ctx, twoFactorLifecycleSource, operation, subject)
-	return nil
+	finish := a.publisher.BeginUpdate(ctx, twoFactorLifecycleSource, operation, subject)
+	err := fn()
+	finish(err)
+	return err
 }
 
 func (a *twoFactorAuthenticator) load(ctx context.Context, email string) (*TwoFactorRecord, error) {
