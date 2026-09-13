@@ -14,9 +14,28 @@ type UpdateStartedEvent struct {
 	StartedBy string
 }
 
+// UpdateSucceededEvent describes an application self-update that completed
+// successfully. It is intentionally the same small, non-sensitive identity as
+// the start event; subscribers that need durable details own their own state.
+type UpdateSucceededEvent struct {
+	Target    string
+	Kind      string
+	StartedBy string
+}
+
+// UpdateFailedEvent describes an application self-update that terminated
+// unsuccessfully.
+type UpdateFailedEvent struct {
+	Target    string
+	Kind      string
+	StartedBy string
+}
+
 // CoreSubscriber receives events owned by the application's core lifecycle.
 type CoreSubscriber interface {
 	OnUpdateStarted(context.Context, UpdateStartedEvent)
+	OnUpdateSucceeded(context.Context, UpdateSucceededEvent)
+	OnUpdateFailed(context.Context, UpdateFailedEvent)
 }
 
 type coreSubscription struct {
@@ -70,6 +89,24 @@ func (c *Core) PublishUpdateStarted(ctx context.Context, target, kind, startedBy
 	event := UpdateStartedEvent{Target: target, Kind: kind, StartedBy: startedBy}
 	for _, subscription := range c.snapshot() {
 		subscription.subscriber.OnUpdateStarted(ctx, event)
+	}
+}
+
+// PublishUpdateSucceeded notifies subscribers that an application update
+// completed successfully.
+func (c *Core) PublishUpdateSucceeded(ctx context.Context, target, kind, startedBy string) {
+	event := UpdateSucceededEvent{Target: target, Kind: kind, StartedBy: startedBy}
+	for _, subscription := range c.snapshot() {
+		subscription.subscriber.OnUpdateSucceeded(ctx, event)
+	}
+}
+
+// PublishUpdateFailed notifies subscribers that an application update
+// terminated unsuccessfully.
+func (c *Core) PublishUpdateFailed(ctx context.Context, target, kind, startedBy string) {
+	event := UpdateFailedEvent{Target: target, Kind: kind, StartedBy: startedBy}
+	for _, subscription := range c.snapshot() {
+		subscription.subscriber.OnUpdateFailed(ctx, event)
 	}
 }
 

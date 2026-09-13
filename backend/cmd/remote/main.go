@@ -139,6 +139,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("init services: %v", err)
 	}
+	// Subscribers are registered only after their services are fully composed.
+	// Terminal self-update events are then reconciled from disk so a backend
+	// replacement can deliver the completion started by its predecessor.
+	lifecycleManager.Core.Subscribe(serviceSet.Auth)
+	if err := selfUpdateService.StartLifecycleReconciler(ctx); err != nil {
+		log.Printf("self-update: lifecycle reconcile warning: %v", err)
+	}
 	log.Printf(
 		"auth: local admin enabled; Google OAuth configured=%t; BASE_URL=%s",
 		serviceSet.Auth.GoogleOAuthEnabled(),

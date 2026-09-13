@@ -74,6 +74,12 @@ func (r runState) writeRecord(record runRecord) error {
 	return writeJSONFile(r.runPath(), record)
 }
 
+func (r runState) readRecord() (runRecord, error) {
+	var record runRecord
+	err := readJSONFile(r.runPath(), &record)
+	return record, err
+}
+
 // status reconstructs the last run from disk: the done marker wins, a live
 // PID means running, and a dead PID without a marker means the run crashed
 // before it could report.

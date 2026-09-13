@@ -53,11 +53,12 @@ type Status struct {
 }
 
 type runRecord struct {
-	Target     string     `json:"target"`
-	UpdateKind UpdateKind `json:"updateKind,omitempty"`
-	StartedAt  int64      `json:"startedAt"`
-	StartedBy  string     `json:"startedBy"`
-	PID        int        `json:"pid"`
+	Target                 string     `json:"target"`
+	UpdateKind             UpdateKind `json:"updateKind,omitempty"`
+	StartedAt              int64      `json:"startedAt"`
+	StartedBy              string     `json:"startedBy"`
+	PID                    int        `json:"pid"`
+	PublishedTerminalState string     `json:"publishedTerminalState,omitempty"`
 }
 
 type doneRecord struct {

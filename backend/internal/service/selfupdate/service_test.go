@@ -9,32 +9,49 @@ import (
 )
 
 type fakeHost struct {
-	tags     []string
-	tagsErr  error
-	started  []string
-	kinds    []string
-	pid      int
-	alive    bool
-	startErr error
+	tags        []string
+	tagsErr     error
+	started     []string
+	kinds       []string
+	pid         int
+	alive       bool
+	startErr    error
+	beforeStart func()
 }
 
-type updateStartedEvent struct {
+type updateLifecycleEvent struct {
+	state     string
 	target    string
 	kind      string
 	startedBy string
 }
 
 type recordingUpdateLifecyclePublisher struct {
-	events []updateStartedEvent
+	events []updateLifecycleEvent
 }
 
 func (p *recordingUpdateLifecyclePublisher) PublishUpdateStarted(_ context.Context, target, kind, startedBy string) {
-	p.events = append(p.events, updateStartedEvent{target: target, kind: kind, startedBy: startedBy})
+	p.record("started", target, kind, startedBy)
+}
+
+func (p *recordingUpdateLifecyclePublisher) PublishUpdateSucceeded(_ context.Context, target, kind, startedBy string) {
+	p.record("succeeded", target, kind, startedBy)
+}
+
+func (p *recordingUpdateLifecyclePublisher) PublishUpdateFailed(_ context.Context, target, kind, startedBy string) {
+	p.record("failed", target, kind, startedBy)
+}
+
+func (p *recordingUpdateLifecyclePublisher) record(state, target, kind, startedBy string) {
+	p.events = append(p.events, updateLifecycleEvent{state: state, target: target, kind: kind, startedBy: startedBy})
 }
 
 type noopUpdateLifecyclePublisher struct{}
 
 func (noopUpdateLifecyclePublisher) PublishUpdateStarted(context.Context, string, string, string) {}
+func (noopUpdateLifecyclePublisher) PublishUpdateSucceeded(context.Context, string, string, string) {
+}
+func (noopUpdateLifecyclePublisher) PublishUpdateFailed(context.Context, string, string, string) {}
 
 func newTestService(currentVersion, installDir, dataDir string, host HostClient) *Service {
 	return New(currentVersion, installDir, dataDir, host, noopUpdateLifecyclePublisher{})
@@ -45,6 +62,9 @@ func (f *fakeHost) ListRemoteTags(context.Context, string) ([]string, error) {
 }
 
 func (f *fakeHost) StartUpdater(launch UpdaterLaunch) (int, error) {
+	if f.beforeStart != nil {
+		f.beforeStart()
+	}
 	if f.startErr != nil {
 		return 0, f.startErr
 	}
@@ -184,8 +204,13 @@ func TestCheckReportsApplicationUpdateWithinReleaseLine(t *testing.T) {
 }
 
 func TestApplyLifecycle(t *testing.T) {
-	host := &fakeHost{tags: []string{"0.1", "0.2"}, pid: 4242, alive: true}
 	lifecycle := &recordingUpdateLifecyclePublisher{}
+	host := &fakeHost{tags: []string{"0.1", "0.2"}, pid: 4242, alive: true}
+	host.beforeStart = func() {
+		if len(lifecycle.events) != 1 || lifecycle.events[0].state != "started" {
+			t.Fatalf("updater launched before update-started dispatch: %+v", lifecycle.events)
+		}
+	}
 	svc := New("0.1", "/opt/x", t.TempDir(), host, lifecycle)
 
 	status, err := svc.Apply(context.Background(), "admin@example.com", "")
@@ -201,7 +226,7 @@ func TestApplyLifecycle(t *testing.T) {
 	if status.Run == nil || status.Run.State != "running" || status.Run.Target != "0.2" {
 		t.Fatalf("run status = %+v, want running 0.2", status.Run)
 	}
-	wantEvent := updateStartedEvent{target: "0.2", kind: string(UpdateKindInfrastructure), startedBy: "admin@example.com"}
+	wantEvent := updateLifecycleEvent{state: "started", target: "0.2", kind: string(UpdateKindInfrastructure), startedBy: "admin@example.com"}
 	if len(lifecycle.events) != 1 || lifecycle.events[0] != wantEvent {
 		t.Fatalf("update-started events = %+v, want [%+v]", lifecycle.events, wantEvent)
 	}
@@ -258,6 +283,62 @@ func TestRunStatusReportsCleanLogAndStructuredProgress(t *testing.T) {
 	}
 	if run.Progress == nil || *run.Progress != wantProgress {
 		t.Fatalf("progress = %+v, want %+v", run.Progress, wantProgress)
+	}
+}
+
+func TestReconcileLifecyclePublishesTerminalEventOnceAcrossRestart(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		exitCode  int
+		wantState string
+	}{
+		{name: "succeeded", exitCode: 0, wantState: "succeeded"},
+		{name: "failed", exitCode: 1, wantState: "failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dataDir := t.TempDir()
+			host := &fakeHost{}
+			publisher := &recordingUpdateLifecyclePublisher{}
+			svc := New("0.4.0", "/opt/x", dataDir, host, publisher)
+			record := runRecord{
+				Target: "0.5.0", UpdateKind: UpdateKindInfrastructure,
+				StartedAt: 10, StartedBy: "admin@example.com", PID: 4242,
+			}
+			if err := svc.runs.reset(); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.runs.writeRecord(record); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeJSONFile(svc.runs.donePath(), doneRecord{ExitCode: test.exitCode, FinishedAt: 20}); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := svc.reconcileLifecycle(context.Background()); err != nil {
+				t.Fatalf("reconcileLifecycle: %v", err)
+			}
+			want := updateLifecycleEvent{
+				state: test.wantState, target: "0.5.0",
+				kind: string(UpdateKindInfrastructure), startedBy: "admin@example.com",
+			}
+			if len(publisher.events) != 1 || publisher.events[0] != want {
+				t.Fatalf("events = %+v, want [%+v]", publisher.events, want)
+			}
+
+			// The marker is durable: neither another pass in this process nor a
+			// newly constructed replacement service publishes the event again.
+			if err := svc.reconcileLifecycle(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			restartedPublisher := &recordingUpdateLifecyclePublisher{}
+			restarted := New("0.5.0", "/opt/x", dataDir, host, restartedPublisher)
+			if err := restarted.reconcileLifecycle(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if len(publisher.events) != 1 || len(restartedPublisher.events) != 0 {
+				t.Fatalf("terminal event was duplicated: first=%+v restarted=%+v", publisher.events, restartedPublisher.events)
+			}
+		})
 	}
 }
 
@@ -398,7 +479,13 @@ func TestApplyStartUpdaterFailureClearsStaleRecord(t *testing.T) {
 	if _, err := os.Stat(svc.runs.progressPath()); !os.IsNotExist(err) {
 		t.Fatalf("progress.json still present after StartUpdater failure: err=%v", err)
 	}
-	if len(lifecycle.events) != 1 {
-		t.Fatalf("failed updater launch published another update-started event: %+v", lifecycle.events)
+	wantStates := []string{"started", "started", "failed"}
+	if len(lifecycle.events) != len(wantStates) {
+		t.Fatalf("lifecycle events = %+v, want states %v", lifecycle.events, wantStates)
+	}
+	for index, want := range wantStates {
+		if lifecycle.events[index].state != want {
+			t.Fatalf("lifecycle event states = %+v, want %v", lifecycle.events, wantStates)
+		}
 	}
 }

@@ -24,4 +24,6 @@ type HostClient interface {
 // self-update workflow. The concrete publisher is supplied at composition.
 type UpdateLifecyclePublisher interface {
 	PublishUpdateStarted(ctx context.Context, target, kind, startedBy string)
+	PublishUpdateSucceeded(ctx context.Context, target, kind, startedBy string)
+	PublishUpdateFailed(ctx context.Context, target, kind, startedBy string)
 }
