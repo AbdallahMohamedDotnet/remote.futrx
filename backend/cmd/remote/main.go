@@ -82,15 +82,15 @@ func main() {
 	// Application services and startup reconciliation: compose policy from
 	// persistence contracts and outbound capabilities, then initialize it.
 	maintenanceGuard := servicemaintenance.New(cfg.DataDir)
-	// The lifecycle registry exposes process-wide publishers. Services
-	// receive the specific publisher capability they produce events through.
-	lifecycleRegistry := lifecycle.NewRegistry()
+	// The update publisher is process-wide. Producers receive only the
+	// publishing capability declared by their own service contract.
+	updateLifecycle := lifecycle.NewUpdatePublisher()
 	selfUpdateService := serviceselfupdate.New(
 		version.Version,
 		cfg.InstallDir,
 		cfg.DataDir,
 		updatecli.New(),
-		lifecycleRegistry.Core,
+		updateLifecycle,
 	)
 
 	tmuxClient := tmuxcli.New()
@@ -139,11 +139,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("init services: %v", err)
 	}
-	// Subscribers are bound only after their services are fully composed.
-	// Terminal self-update events are then reconciled from disk so a backend
+	// Terminal self-update events are reconciled from disk so a backend
 	// replacement can deliver the completion started by its predecessor.
-	unbindLifecycle := bindLifecycle(lifecycleRegistry, serviceSet)
-	defer unbindLifecycle()
 	if err := selfUpdateService.StartLifecycleReconciler(ctx); err != nil {
 		log.Printf("self-update: lifecycle reconcile warning: %v", err)
 	}

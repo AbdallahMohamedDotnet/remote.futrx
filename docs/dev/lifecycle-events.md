@@ -1,245 +1,63 @@
 # Lifecycle events
 
-The lifecycle package provides typed, in-process publisher/subscriber communication.
+`internal/lifecycle` provides typed, synchronous notifications for application
+self-update transitions. The process composition root creates one
+`UpdatePublisher` and gives producers only the publish methods declared by
+their own service ports. No production subscriber is currently registered.
 
-- `Registry` constructs and exposes every publisher.
-- Each publisher owns its events, subscribers, and dispatch behavior.
-- `Bindings` connects fully constructed services to publishers.
-- `cmd/remote/lifecycle.go` declares the application-specific connections.
-- Producers depend only on the publishing methods they use.
+## Delivery contract
 
-## Runtime
+`UpdateEvent` carries only the target release, update kind, initiating account,
+and one of the defined `UpdateState` values: `started`, `succeeded`, or `failed`.
+It deliberately excludes logs, credentials, and mutable run state.
 
-```mermaid
-flowchart LR
-    Main["main.go"] --> Registry["lifecycle.Registry"]
-    Registry --> Core["publishers.Core"]
-    Main --> Bindings["lifecycle.Bindings"]
-    Bindings --> Core
-    Producer["selfupdate.Service"] -->|"PublishUpdateStarted"| Core
-    Core -->|"OnUpdateStarted"| Auth["auth.Service"]
-```
+For every publish call, `UpdatePublisher`:
 
-1. `main` constructs the publisher registry.
-2. `main` injects `registry.Core` into the self-update producer.
-3. `main` constructs the application services.
-4. `bindLifecycle` registers those services as typed subscribers.
-5. The producer publishes an event at the owning workflow transition.
-6. The publisher creates the event and calls every subscriber in registration order.
-7. The process invokes the aggregate unbind function during shutdown.
+1. snapshots the current subscriber list;
+2. calls that snapshot synchronously in registration order;
+3. passes through the producer's context and one immutable event value;
+4. allows subscriptions to change during a callback without deadlocking.
 
-```mermaid
-sequenceDiagram
-    participant P as Producer
-    participant C as Core publisher
-    participant S1 as Subscriber 1
-    participant S2 as Subscriber 2
-    P->>C: PublishEvent(ctx, data)
-    C->>S1: OnEvent(ctx, event)
-    S1-->>C: return
-    C->>S2: OnEvent(ctx, event)
-    S2-->>C: return
-    C-->>P: return
-```
+Subscriber errors are handled by the subscriber because the callback cannot
+return an error. A panic propagates to the producer. Long-running reactions
+must own their own queue rather than blocking publisher dispatch.
 
-## New event · existing publisher
+## Adding a subscriber
 
-```mermaid
-flowchart TD
-    E["1 · Event struct"] --> I["2 · Subscriber callback"]
-    I --> P["3 · Publish method"]
-    P --> O["4 · Producer port"]
-    O --> C["5 · Producer call"]
-    I --> S["6 · Subscriber implementation"]
-    S --> B["7 · Binding"]
-```
-
-1. Add the event struct to its owning publisher.
-2. Add the callback to the publisher's subscriber interface.
-3. Add a publish method that creates and dispatches the event.
-4. Add only that publish method to the producer-owned port.
-5. Publish at the service operation that authoritatively owns the transition.
-6. Implement the callback on every subscriber; use an explicit no-op when no reaction is required.
-7. Add new subscriber services to the existing publisher binding.
-
-### `backend/internal/lifecycle/publishers/core_update_events.go`
+Implement the single callback and register the service at the process
+composition root after all of its dependencies have been constructed:
 
 ```go
-type UpdateCancelledEvent struct {
-    Target    string
-    Kind      string
-    StartedBy string
+type auditSubscriber struct{}
+
+func (auditSubscriber) OnUpdate(ctx context.Context, event lifecycle.UpdateEvent) {
+    // React only to states owned by this subscriber.
 }
 
-type UpdateSubscriber interface {
-    OnUpdateStarted(context.Context, UpdateStartedEvent)
-    OnUpdateSucceeded(context.Context, UpdateSucceededEvent)
-    OnUpdateFailed(context.Context, UpdateFailedEvent)
-    OnUpdateCancelled(context.Context, UpdateCancelledEvent)
-}
+unsubscribe := updateLifecycle.Subscribe(auditSubscriber{})
+defer unsubscribe()
 ```
 
-### `backend/internal/lifecycle/publishers/core.go`
+The returned cleanup function is idempotent. Do not add an aggregate registry,
+binding catalog, or package-level singleton for a fixed composition
+relationship.
 
-```go
-func (c *Core) PublishUpdateCancelled(ctx context.Context, target, kind, startedBy string) {
-    event := UpdateCancelledEvent{Target: target, Kind: kind, StartedBy: startedBy}
-    for _, subscription := range c.snapshotUpdateSubscriptions() {
-        subscription.subscriber.OnUpdateCancelled(ctx, event)
-    }
-}
-```
+## Adding a transition
 
-### `backend/internal/service/<producer>/ports.go`
+When a new self-update transition has the same payload:
 
-```go
-type UpdateLifecyclePublisher interface {
-    PublishUpdateCancelled(context.Context, string, string, string)
-}
-```
+1. add its `UpdateState` constant;
+2. add the matching publish method to `UpdatePublisher`;
+3. add only that publish method to the producer-owned port;
+4. publish it at the service operation that owns the transition.
 
-### `backend/internal/service/<producer>/service.go`
-
-```go
-s.lifecycle.PublishUpdateCancelled(ctx, target, kind, startedBy)
-```
-
-### `backend/internal/service/<subscriber>/update_lifecycle.go`
-
-```go
-var _ publishers.UpdateSubscriber = (*Service)(nil)
-
-func (s *Service) OnUpdateCancelled(
-    ctx context.Context,
-    event publishers.UpdateCancelledEvent,
-) {
-    // subscriber-owned reaction
-}
-```
-
-### `backend/cmd/remote/lifecycle.go`
-
-```go
-CoreUpdates: []publishers.UpdateSubscriber{
-    services.Auth,
-    services.Audit,
-},
-```
-
-## New publisher
-
-```mermaid
-flowchart TD
-    Events["1 · publishers/jobs_events.go"] --> Publisher["2 · publishers/jobs.go"]
-    Publisher --> Registry["3 · Registry.Jobs"]
-    Registry --> BindingType["4 · Bindings.Jobs"]
-    BindingType --> Bind["5 · Bind: Jobs.Subscribe"]
-    Registry --> Producer["6 · Inject registry.Jobs"]
-    Bind --> Composition["7 · cmd/remote/lifecycle.go"]
-    Producer --> Dispatch["PublishJobStarted"]
-    Composition --> Dispatch
-```
-
-1. Define the event types and subscriber interface in a contract file.
-2. Create the publisher around one cohesive lifecycle domain.
-3. Keep subscriber storage, snapshots, dispatch, and unsubscribe behavior inside the publisher.
-4. Construct and expose the publisher through `Registry`.
-5. Add its subscriber slice and registration loop to `Bindings` and `Bind`.
-6. Inject the concrete publisher into producers through narrow producer-owned ports.
-7. Implement the subscriber interface on each consumer.
-8. Register application subscribers in `cmd/remote/lifecycle.go`.
-
-### `backend/internal/lifecycle/publishers/jobs_events.go`
-
-```go
-type JobStartedEvent struct {
-    ID string
-}
-
-type JobsSubscriber interface {
-    OnJobStarted(context.Context, JobStartedEvent)
-}
-```
-
-### `backend/internal/lifecycle/publishers/jobs.go`
-
-```go
-type Jobs struct { /* subscription state */ }
-
-func NewJobs() *Jobs
-func (j *Jobs) Subscribe(JobsSubscriber) func()
-func (j *Jobs) PublishJobStarted(context.Context, string)
-```
-
-### `backend/internal/lifecycle/registry.go`
-
-```go
-type Registry struct {
-    Core *publishers.Core
-    Jobs *publishers.Jobs
-}
-
-func NewRegistry() *Registry {
-    return &Registry{
-        Core: publishers.NewCore(),
-        Jobs: publishers.NewJobs(),
-    }
-}
-```
-
-### `backend/internal/lifecycle/bindings.go`
-
-```go
-type Bindings struct {
-    CoreUpdates []publishers.UpdateSubscriber
-    Jobs        []publishers.JobsSubscriber
-}
-
-for _, subscriber := range bindings.Jobs {
-    unsubscribes = append(unsubscribes, registry.Jobs.Subscribe(subscriber))
-}
-```
-
-### `backend/cmd/remote/lifecycle.go`
-
-```go
-return lifecycle.Bind(registry, lifecycle.Bindings{
-    CoreUpdates: []publishers.UpdateSubscriber{
-        services.Auth,
-    },
-    Jobs: []publishers.JobsSubscriber{
-        services.Audit,
-    },
-})
-```
-
-## Subscriber behavior
-
-1. Implement the complete typed subscriber interface.
-2. Treat the received event as immutable input.
-3. Return promptly: dispatch is synchronous.
-4. Expect callbacks in subscriber registration order.
-5. Use the supplied context for subscriber work.
-6. Handle subscriber failures locally: callbacks cannot return errors.
-7. Avoid panics: a panic propagates through the publisher to the producer.
-8. Own any required queue or background work inside the subscriber.
-
-```mermaid
-flowchart TD
-    Event["Typed event"] --> Callback["OnEvent(ctx, event)"]
-    Callback --> Fast{"Fast work?"}
-    Fast -->|"yes"| Handle["Handle synchronously"]
-    Fast -->|"no"| Queue["Subscriber-owned queue"]
-    Handle --> Return["Return"]
-    Queue --> Return
-    Failure["Error"] --> Local["Handle/log locally"]
-    Local --> Return
-```
+If a transition needs different data, give it a separate precise event type
+instead of adding optional fields to `UpdateEvent`.
 
 ## Verification
 
 ```bash
-go test -race ./internal/lifecycle/... ./internal/service/<producer> ./internal/service/<subscriber>
+go test -race ./internal/lifecycle ./internal/service/selfupdate
 go test ./...
 go vet ./...
 ```
