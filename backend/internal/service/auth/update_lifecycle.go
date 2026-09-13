@@ -6,7 +6,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/lifecycle/publishers"
 )
 
-var _ publishers.CoreSubscriber = (*Service)(nil)
+var _ publishers.UpdateSubscriber = (*Service)(nil)
 
 // OnUpdateStarted is the 2FA hook for application-update preparation. The
 // file-backed 2FA store already persists enrollment across process restarts,

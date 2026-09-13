@@ -7,24 +7,25 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/lifecycle/publishers"
 )
 
-type recordingCoreSubscriber struct {
+type recordingUpdateSubscriber struct {
 	started int
 }
 
-func (s *recordingCoreSubscriber) OnUpdateStarted(context.Context, publishers.UpdateStartedEvent) {
+func (s *recordingUpdateSubscriber) OnUpdateStarted(context.Context, publishers.UpdateStartedEvent) {
 	s.started++
 }
 
-func (*recordingCoreSubscriber) OnUpdateSucceeded(context.Context, publishers.UpdateSucceededEvent) {}
+func (*recordingUpdateSubscriber) OnUpdateSucceeded(context.Context, publishers.UpdateSucceededEvent) {
+}
 
-func (*recordingCoreSubscriber) OnUpdateFailed(context.Context, publishers.UpdateFailedEvent) {}
+func (*recordingUpdateSubscriber) OnUpdateFailed(context.Context, publishers.UpdateFailedEvent) {}
 
-func TestBindRegistersAndUnregistersCoreSubscribers(t *testing.T) {
+func TestBindRegistersAndUnregistersCoreUpdateSubscribers(t *testing.T) {
 	registry := NewRegistry()
-	first := &recordingCoreSubscriber{}
-	second := &recordingCoreSubscriber{}
+	first := &recordingUpdateSubscriber{}
+	second := &recordingUpdateSubscriber{}
 	unbind := Bind(registry, Bindings{
-		Core: []publishers.CoreSubscriber{first, second},
+		CoreUpdates: []publishers.UpdateSubscriber{first, second},
 	})
 
 	registry.Core.PublishUpdateStarted(context.Background(), "0.4.0", "application", "admin@example.com")

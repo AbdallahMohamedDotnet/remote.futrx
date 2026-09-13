@@ -50,8 +50,8 @@ func TestCorePublishesUpdateStartedToSubscribersInRegistrationOrder(t *testing.T
 	core := NewCore()
 	var mu sync.Mutex
 	var events []recordedEvent
-	core.Subscribe(recordingSubscriber{name: "first", mu: &mu, events: &events})
-	core.Subscribe(recordingSubscriber{name: "second", mu: &mu, events: &events})
+	core.SubscribeUpdates(recordingSubscriber{name: "first", mu: &mu, events: &events})
+	core.SubscribeUpdates(recordingSubscriber{name: "second", mu: &mu, events: &events})
 
 	ctx := context.Background()
 	core.PublishUpdateStarted(ctx, "0.4.0", "infrastructure", "admin@example.com")
@@ -76,7 +76,7 @@ func TestCorePublishesSucceededAndFailed(t *testing.T) {
 	core := NewCore()
 	var mu sync.Mutex
 	var events []recordedEvent
-	core.Subscribe(recordingSubscriber{name: "subscriber", mu: &mu, events: &events})
+	core.SubscribeUpdates(recordingSubscriber{name: "subscriber", mu: &mu, events: &events})
 
 	ctx := context.Background()
 	core.PublishUpdateSucceeded(ctx, "0.4.0", "application", "admin@example.com")
@@ -100,7 +100,7 @@ func TestCoreUnsubscribeStopsLaterEvents(t *testing.T) {
 	core := NewCore()
 	var mu sync.Mutex
 	var events []recordedEvent
-	unsubscribe := core.Subscribe(recordingSubscriber{mu: &mu, events: &events})
+	unsubscribe := core.SubscribeUpdates(recordingSubscriber{mu: &mu, events: &events})
 
 	core.PublishUpdateStarted(context.Background(), "0.4.0", "application", "admin@example.com")
 	unsubscribe()
@@ -112,11 +112,11 @@ func TestCoreUnsubscribeStopsLaterEvents(t *testing.T) {
 	}
 }
 
-func TestCoreSubscriberMayChangeSubscriptionsDuringDispatch(t *testing.T) {
+func TestUpdateSubscriberMayChangeSubscriptionsDuringDispatch(t *testing.T) {
 	core := NewCore()
 	done := make(chan struct{})
-	core.Subscribe(coreSubscriberFunc(func(context.Context, UpdateStartedEvent) {
-		unsubscribe := core.Subscribe(coreSubscriberFunc(func(context.Context, UpdateStartedEvent) {}))
+	core.SubscribeUpdates(updateSubscriberFunc(func(context.Context, UpdateStartedEvent) {
+		unsubscribe := core.SubscribeUpdates(updateSubscriberFunc(func(context.Context, UpdateStartedEvent) {}))
 		unsubscribe()
 		close(done)
 	}))
@@ -125,11 +125,11 @@ func TestCoreSubscriberMayChangeSubscriptionsDuringDispatch(t *testing.T) {
 	<-done
 }
 
-type coreSubscriberFunc func(context.Context, UpdateStartedEvent)
+type updateSubscriberFunc func(context.Context, UpdateStartedEvent)
 
-func (subscriber coreSubscriberFunc) OnUpdateStarted(ctx context.Context, event UpdateStartedEvent) {
+func (subscriber updateSubscriberFunc) OnUpdateStarted(ctx context.Context, event UpdateStartedEvent) {
 	subscriber(ctx, event)
 }
 
-func (coreSubscriberFunc) OnUpdateSucceeded(context.Context, UpdateSucceededEvent) {}
-func (coreSubscriberFunc) OnUpdateFailed(context.Context, UpdateFailedEvent)       {}
+func (updateSubscriberFunc) OnUpdateSucceeded(context.Context, UpdateSucceededEvent) {}
+func (updateSubscriberFunc) OnUpdateFailed(context.Context, UpdateFailedEvent)       {}

@@ -62,7 +62,7 @@ flowchart TD
 6. Implement the callback on every subscriber; use an explicit no-op when no reaction is required.
 7. Add new subscriber services to the existing publisher binding.
 
-### `backend/internal/lifecycle/publishers/core.go`
+### `backend/internal/lifecycle/publishers/core_update_events.go`
 
 ```go
 type UpdateCancelledEvent struct {
@@ -71,16 +71,20 @@ type UpdateCancelledEvent struct {
     StartedBy string
 }
 
-type CoreSubscriber interface {
+type UpdateSubscriber interface {
     OnUpdateStarted(context.Context, UpdateStartedEvent)
     OnUpdateSucceeded(context.Context, UpdateSucceededEvent)
     OnUpdateFailed(context.Context, UpdateFailedEvent)
     OnUpdateCancelled(context.Context, UpdateCancelledEvent)
 }
+```
 
+### `backend/internal/lifecycle/publishers/core.go`
+
+```go
 func (c *Core) PublishUpdateCancelled(ctx context.Context, target, kind, startedBy string) {
     event := UpdateCancelledEvent{Target: target, Kind: kind, StartedBy: startedBy}
-    for _, subscription := range c.snapshot() {
+    for _, subscription := range c.snapshotUpdateSubscriptions() {
         subscription.subscriber.OnUpdateCancelled(ctx, event)
     }
 }
@@ -103,7 +107,7 @@ s.lifecycle.PublishUpdateCancelled(ctx, target, kind, startedBy)
 ### `backend/internal/service/<subscriber>/update_lifecycle.go`
 
 ```go
-var _ publishers.CoreSubscriber = (*Service)(nil)
+var _ publishers.UpdateSubscriber = (*Service)(nil)
 
 func (s *Service) OnUpdateCancelled(
     ctx context.Context,
@@ -116,7 +120,7 @@ func (s *Service) OnUpdateCancelled(
 ### `backend/cmd/remote/lifecycle.go`
 
 ```go
-Core: []publishers.CoreSubscriber{
+CoreUpdates: []publishers.UpdateSubscriber{
     services.Auth,
     services.Audit,
 },
@@ -126,17 +130,18 @@ Core: []publishers.CoreSubscriber{
 
 ```mermaid
 flowchart TD
-    Publisher["1 · publishers/jobs.go"] --> Registry["2 · Registry.Jobs"]
-    Registry --> BindingType["3 · Bindings.Jobs"]
-    BindingType --> Bind["4 · Bind: Jobs.Subscribe"]
-    Registry --> Producer["5 · Inject registry.Jobs"]
-    Bind --> Composition["6 · cmd/remote/lifecycle.go"]
+    Events["1 · publishers/jobs_events.go"] --> Publisher["2 · publishers/jobs.go"]
+    Publisher --> Registry["3 · Registry.Jobs"]
+    Registry --> BindingType["4 · Bindings.Jobs"]
+    BindingType --> Bind["5 · Bind: Jobs.Subscribe"]
+    Registry --> Producer["6 · Inject registry.Jobs"]
+    Bind --> Composition["7 · cmd/remote/lifecycle.go"]
     Producer --> Dispatch["PublishJobStarted"]
     Composition --> Dispatch
 ```
 
-1. Create the publisher around one cohesive lifecycle domain.
-2. Define its event types and subscriber interface.
+1. Define the event types and subscriber interface in a contract file.
+2. Create the publisher around one cohesive lifecycle domain.
 3. Keep subscriber storage, snapshots, dispatch, and unsubscribe behavior inside the publisher.
 4. Construct and expose the publisher through `Registry`.
 5. Add its subscriber slice and registration loop to `Bindings` and `Bind`.
@@ -144,7 +149,7 @@ flowchart TD
 7. Implement the subscriber interface on each consumer.
 8. Register application subscribers in `cmd/remote/lifecycle.go`.
 
-### `backend/internal/lifecycle/publishers/jobs.go`
+### `backend/internal/lifecycle/publishers/jobs_events.go`
 
 ```go
 type JobStartedEvent struct {
@@ -154,10 +159,12 @@ type JobStartedEvent struct {
 type JobsSubscriber interface {
     OnJobStarted(context.Context, JobStartedEvent)
 }
+```
 
-type Jobs struct {
-    // Subscribe + snapshot ownership: core.go
-}
+### `backend/internal/lifecycle/publishers/jobs.go`
+
+```go
+type Jobs struct { /* subscription state */ }
 
 func NewJobs() *Jobs
 func (j *Jobs) Subscribe(JobsSubscriber) func()
@@ -184,8 +191,8 @@ func NewRegistry() *Registry {
 
 ```go
 type Bindings struct {
-    Core []publishers.CoreSubscriber
-    Jobs []publishers.JobsSubscriber
+    CoreUpdates []publishers.UpdateSubscriber
+    Jobs        []publishers.JobsSubscriber
 }
 
 for _, subscriber := range bindings.Jobs {
@@ -197,7 +204,7 @@ for _, subscriber := range bindings.Jobs {
 
 ```go
 return lifecycle.Bind(registry, lifecycle.Bindings{
-    Core: []publishers.CoreSubscriber{
+    CoreUpdates: []publishers.UpdateSubscriber{
         services.Auth,
     },
     Jobs: []publishers.JobsSubscriber{

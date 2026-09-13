@@ -10,7 +10,7 @@ import (
 // composition boundary while leaving main focused on startup sequencing.
 func bindLifecycle(registry *lifecycle.Registry, services service.Services) (unbind func()) {
 	return lifecycle.Bind(registry, lifecycle.Bindings{
-		Core: []publishers.CoreSubscriber{
+		CoreUpdates: []publishers.UpdateSubscriber{
 			services.Auth,
 		},
 	})
