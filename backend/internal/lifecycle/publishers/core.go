@@ -1,5 +1,5 @@
-// Package publishers contains the application lifecycle publishers registered
-// by lifecycle.Manager.
+// Package publishers contains the application lifecycle publishers exposed by
+// lifecycle.Registry.
 package publishers
 
 import (
@@ -44,7 +44,7 @@ type coreSubscription struct {
 }
 
 // Core publishes lifecycle events for the remote.futrx application itself.
-// It owns its subscribers; lifecycle.Manager only registers the publisher.
+// It owns its subscribers; lifecycle.Registry only exposes the publisher.
 type Core struct {
 	mu            sync.RWMutex
 	nextID        uint64
