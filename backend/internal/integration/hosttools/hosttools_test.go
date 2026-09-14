@@ -66,7 +66,7 @@ func tool(artifact []byte, compression string) svc.HostTool {
 }
 
 // The whole point of a declared host tool is that Remote installs exactly what
-// the image asked for and can then find it again — without a package manager
+// the application asked for and can then find it again — without a package manager
 // and without touching anything outside its own data directory.
 func TestEnsureInstallsDecompressesAndPublishes(t *testing.T) {
 	binary := []byte("#!/bin/sh\necho backup\n")
@@ -158,9 +158,9 @@ func TestEnsureSupportsBzip2AndUncompressedArtifacts(t *testing.T) {
 }
 
 // A checksum that is not enforced is decoration. Serving different bytes than
-// the image declared must leave nothing installed at all.
+// the application declared must leave nothing installed at all.
 func TestEnsureRejectsAMismatchedChecksum(t *testing.T) {
-	declared := []byte("what the image pinned\n")
+	declared := []byte("what the application pinned\n")
 	in, _ := testInstaller(t, []byte("what the network served\n"))
 
 	err := in.Ensure(context.Background(), []svc.HostTool{tool(declared, "")})
@@ -173,7 +173,7 @@ func TestEnsureRejectsAMismatchedChecksum(t *testing.T) {
 }
 
 // A binary that downloads but will not run is not installed: reporting the
-// image as installed would defer the failure to the first backup.
+// application as installed would defer the failure to the first backup.
 func TestEnsureRejectsABinaryThatWillNotRun(t *testing.T) {
 	artifact := []byte("binary\n")
 	in, _ := testInstaller(t, artifact)
@@ -199,7 +199,7 @@ func TestEnsureRejectsAnUnavailableArchitecture(t *testing.T) {
 }
 
 // Validate runs at catalog load, so a malformed declaration fails when the
-// image is read rather than on the host of whoever installs it first.
+// application is read rather than on the host of whoever installs it first.
 func TestValidateRejectsUnusableDeclarations(t *testing.T) {
 	sum := digest([]byte("x"))
 	ok := func() svc.HostTool {
@@ -248,7 +248,7 @@ func TestValidateRejectsUnusableDeclarations(t *testing.T) {
 	}
 }
 
-// A host that never installs such an image has nothing to look up, and must be
+// A host that never installs such an application has nothing to look up, and must be
 // told so rather than silently falling back to something unpinned.
 func TestLookupReportsAToolThatWasNeverInstalled(t *testing.T) {
 	if _, err := Lookup(t.TempDir(), "definitely-not-a-real-binary"); err == nil {

@@ -291,8 +291,8 @@ A **Preact** (not React) SPA built with Vite + Tailwind, whose production build 
 
 **Notifications.** The backend raises a Web Push notification when an agent calls `AskUserQuestion`, when a turn completes or fails, and when a scheduled run finishes. The trigger hangs off the chat repository's append path ([`push_notifier.go`](backend/internal/service/push_notifier.go)), so every producer — interactive prompts, scheduled runs, crash recovery — is covered by construction. The audience mirrors chat visibility: project members plus admins, or every registered user for a loose chat. VAPID signing and RFC 8291 payload encryption are implemented against the standard library only ([`integration/webpush`](backend/internal/integration/webpush/)), so push services relay ciphertext they cannot read and the dependency list is unchanged. It is strictly layered (`config → models → transport → api → state → app → ui`), uses no external state store and no URL router, and talks to the backend over REST (`fetch`, cookie session) plus WebSockets for live data. All auth is the same-origin cookie — **no token ever touches JavaScript**, and there are no CSRF tokens (protection rests on `SameSite=Lax` and the same-origin edge). The markdown renderer emits vnodes only, with an href allowlist and no `innerHTML`, keeping the XSS surface narrow — the one place the SPA does assign markup is the catalog extension host below, which renders assets compiled into the binary rather than anything a request supplied.
 
-**Catalog UI extensions.** An installable application image may ship a `ui/`
-directory ([`images/README.md`](images/README.md)), and
+**Catalog UI extensions.** An installable application may ship a `ui/`
+directory ([`applications/README.md`](applications/README.md)), and
 the SPA loads it for the apps a user has **installed** — globally, or in a
 project they belong to, and only while the instance is running
 (`GET /api/applications/ui`; being in the catalog grants nothing). The install
@@ -313,21 +313,21 @@ Contributions render into plain DOM nodes rather than the component tree, so
 extension code stays framework-free, and a throwing entry module, predicate, or
 handler is caught per contribution.
 
-An image also declares a `type`: a `service` image runs software on a port and
+An application also declares a `type`: a `service` application runs software on a port and
 gets a container (a dedicated LXD one at global scope), while `ui` and
-`backend` images install nothing in any container — their whole payload is the
+`backend` applications install nothing in any container — their whole payload is the
 extension or the plugin, so installing one allocates no container, port, or
 proxy device. That keeps "add a button to the UI" from provisioning a Linux
 container to do it, and both install on a host with no container runtime at
 all.
 
 **Catalog backend plugins.** The other half of "everything is a plugin": an
-image may also ship a `plugin/` directory of Go source
-([`docs/dev/installable-images/15-backend-plugins.md`](docs/dev/installable-images/15-backend-plugins.md)).
+application may also ship a `backend/` directory of Go source
+([`docs/dev/installable-applications/15-backend-plugins.md`](docs/dev/installable-applications/15-backend-plugins.md)).
 The server compiles it and runs it as a child process over
 **hashicorp/go-plugin**, one process per installed instance, and forwards HTTP
 calls to it at `/api/applications/<instance>/backend/<path>` — which the
-image's own `ui/` reaches through `remote.backend.call(...)`. So an image can
+application's own `ui/` reaches through `remote.backend.call(...)`. So an application can
 add a *server-side* feature rather than only a button that calls an endpoint
 someone else had to write. The contract a plugin implements is
 [`pkg/appplugin`](backend/pkg/appplugin/), a dependency-free package of wire
@@ -339,7 +339,7 @@ protocol would buy nothing but protobuf codegen.
 The catalog ships **source, not binaries**, because it is embedded in a server
 that runs on whatever architecture it runs on, and because source is reviewable
 as a diff. [`internal/integration/pluginhost`](backend/internal/integration/pluginhost/)
-materializes an image's `plugin/` beside a copy of the SDK into a generated
+materializes an application's `backend/` beside a copy of the SDK into a generated
 module whose dependency versions are read from the running binary's own build
 info — so `go build` resolves entirely from the module cache the server's build
 already populated, and the normal path needs no network. Binaries are cached by
@@ -352,13 +352,13 @@ storage that survives.
 The trust boundary here is **the build, not the request** — for both halves,
 and it has to carry more weight for the plugin one. `ui/` assets are embedded
 by `//go:embed` next to the SPA and served from
-`/api/applications/catalog/<image>/ui/<path>` to signed-in users only, so
+`/api/applications/catalog/<application>/ui/<path>` to signed-in users only, so
 extension code carries exactly the privileges of first-party frontend code and
-is reviewed as such. `plugin/` source is embedded the same way and then *runs
+is reviewed as such. `backend/` source is embedded the same way and then *runs
 as a child of the server process*, with the server's privileges and the
 install's secrets, so it is reviewed as backend code. There is no sandbox for
 either and none is implied; the server-side guarantees are narrower and
-specific — the registry resolves asset paths inside one image's `ui/` and
+specific — the registry resolves asset paths inside one application's `ui/` and
 nowhere else, responses are typed from the file extension with `nosniff`, and
 on the plugin path the caller identity is stamped from the session while the
 caller's own `Cookie` and `Authorization` headers are withheld, so a plugin can
@@ -430,7 +430,7 @@ These are the boundaries the [threat model](docs/threat-model.md) reasons about:
 - [`docs/01-overview/`](docs/01-overview/) — system overview and the code map
 - [`docs/02-workspaces/`](docs/02-workspaces/) — auth, projects/containers, chat/agents, workspace tools
 - [`docs/dev/agents/`](docs/dev/agents/) — agent module contracts and the complete extension guide
-- [`docs/dev/installable-images/`](docs/dev/installable-images/) — the installable-image format, extension slots, and backend plugins
+- [`docs/dev/installable-applications/`](docs/dev/installable-applications/) — the installable-application format, extension slots, and backend plugins
 - [`docs/03-platform/`](docs/03-platform/) — previews & browser, data & frontend state, API & realtime
 - [`docs/04-operations/`](docs/04-operations/) — deployment and operations
 - [Threat model](docs/threat-model.md) · [Known limitations](docs/known-limitations.md)

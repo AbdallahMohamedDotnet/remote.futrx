@@ -8,23 +8,23 @@ import (
 	"strings"
 )
 
-// InstallRequest is a validated user request to install an image.
+// InstallRequest is a validated user request to install an application.
 type InstallRequest struct {
-	ImageID      string
-	Scope        Scope
-	ProjectID    string
-	Name         string
-	Env          map[string]string
-	ExternalPort int    // 0 = auto-allocate
-	BindAddress  string // "" = image default
+	ApplicationID string
+	Scope         Scope
+	ProjectID     string
+	Name          string
+	Env           map[string]string
+	ExternalPort  int    // 0 = auto-allocate
+	BindAddress   string // "" = application default
 }
 
 // Install validates the request, provisions the app in a container, and
 // persists the resulting instance.
 func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error) {
-	img, ok := s.registry.Get(req.ImageID)
+	img, ok := s.registry.Get(req.ApplicationID)
 	if !ok {
-		return View{}, ErrUnknownImage
+		return View{}, ErrUnknownApplication
 	}
 	if !req.Scope.Valid() || !img.SupportsScope(req.Scope) {
 		return View{}, ErrScope
@@ -35,15 +35,15 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 
 	id := newInstanceID()
 	inst := Instance{
-		ID:           id,
-		ImageID:      img.ID,
-		ImageVersion: img.Version,
-		Name:         displayName(req.Name, img.Name),
-		Scope:        req.Scope,
-		ProjectID:    req.ProjectID,
-		Status:       StatusInstalling,
-		CreatedAt:    s.now(),
-		UpdatedAt:    s.now(),
+		ID:                 id,
+		ApplicationID:      img.ID,
+		ApplicationVersion: img.Version,
+		Name:               displayName(req.Name, img.Name),
+		Scope:              req.Scope,
+		ProjectID:          req.ProjectID,
+		Status:             StatusInstalling,
+		CreatedAt:          s.now(),
+		UpdatedAt:          s.now(),
 	}
 
 	// Resolve env inputs (apply defaults, generate secrets, enforce required).
@@ -53,10 +53,10 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	}
 	inst.Env = env
 
-	// A UI or backend image has no container side at all: installing one only
+	// A UI or backend application has no container side at all: installing one only
 	// records that the user turned it on, which is what makes its ui/ load and
 	// its plugin run. Everything below this branch — container, port, proxy
-	// device, install script — exists only for images that provision software.
+	// device, install script — exists only for applications that provision software.
 	if !img.Type.NeedsContainer() {
 		inst.Status = StatusRunning
 		if err := s.store.Put(ctx, inst); err != nil {
@@ -71,7 +71,7 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 
 	// Only the container half needs a container runtime, which is why the
 	// check is here rather than at the top: a server with no LXD can still
-	// install a UI or backend image.
+	// install a UI or backend application.
 	if s.installer == nil {
 		return View{}, ErrUnavailable
 	}
@@ -99,11 +99,11 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 		return View{}, err
 	}
 
-	if err := s.installer.Install(ctx, InstallSpec{Image: img, Instance: inst}); err != nil {
+	if err := s.installer.Install(ctx, InstallSpec{Application: img, Instance: inst}); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		return View{}, err
 	}
-	// A service image may ship a plugin too — the container half provisions
+	// A service application may ship a plugin too — the container half provisions
 	// the software, the plugin half is what its UI talks to.
 	if err := s.startBackend(ctx, img, inst); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
@@ -141,8 +141,8 @@ func (s *Service) resolveContainerTarget(ctx context.Context, req InstallRequest
 }
 
 // allocateHostPort assigns a free host port, preferring the requested port,
-// then the image default, then the internal port.
-func (s *Service) allocateHostPort(ctx context.Context, req InstallRequest, img Image, inst *Instance) error {
+// then the application default, then the internal port.
+func (s *Service) allocateHostPort(ctx context.Context, req InstallRequest, img Application, inst *Instance) error {
 	preferred := req.ExternalPort
 	if preferred == 0 {
 		preferred = img.Port.DefaultExternal
@@ -165,7 +165,7 @@ func (s *Service) allocateHostPort(ctx context.Context, req InstallRequest, img 
 	return nil
 }
 
-// claimInstallSlot enforces one instance per image per scope, and decides what
+// claimInstallSlot enforces one instance per application per scope, and decides what
 // installing over an existing one means.
 //
 // An instance whose install failed is not an installation: it is the record of
@@ -176,19 +176,19 @@ func (s *Service) allocateHostPort(ctx context.Context, req InstallRequest, img 
 // here exactly as an uninstall would tear it down.
 //
 // Installing over a *working* instance is still refused. That is the invariant
-// the rest of the system reads: one running copy per image per scope, so an
+// the rest of the system reads: one running copy per application per scope, so an
 // extension's identity and its backend are unambiguous.
-func (s *Service) claimInstallSlot(ctx context.Context, scope Scope, projectID, imageID string) error {
-	existing, found, err := s.instanceOfImage(ctx, scope, projectID, imageID)
+func (s *Service) claimInstallSlot(ctx context.Context, scope Scope, projectID, applicationID string) error {
+	existing, found, err := s.instanceOfApplication(ctx, scope, projectID, applicationID)
 	if err != nil || !found {
 		return err
 	}
 	if existing.Status != StatusError {
 		return ErrAlreadyInstalled
 	}
-	img, ok := s.registry.Get(existing.ImageID)
+	img, ok := s.registry.Get(existing.ApplicationID)
 	if !ok {
-		return ErrUnknownImage
+		return ErrUnknownApplication
 	}
 	if err := s.teardown(ctx, img, existing); err != nil {
 		return err
@@ -196,9 +196,9 @@ func (s *Service) claimInstallSlot(ctx context.Context, scope Scope, projectID, 
 	return s.store.Delete(ctx, existing.ID)
 }
 
-// instanceOfImage returns the instance of an image in the given scope
+// instanceOfApplication returns the instance of an application in the given scope
 // (globally, or within the given project), if there is one.
-func (s *Service) instanceOfImage(ctx context.Context, scope Scope, projectID, imageID string) (Instance, bool, error) {
+func (s *Service) instanceOfApplication(ctx context.Context, scope Scope, projectID, applicationID string) (Instance, bool, error) {
 	var (
 		list []Instance
 		err  error
@@ -212,7 +212,7 @@ func (s *Service) instanceOfImage(ctx context.Context, scope Scope, projectID, i
 		return Instance{}, false, err
 	}
 	for _, in := range list {
-		if in.ImageID == imageID {
+		if in.ApplicationID == applicationID {
 			return in, true, nil
 		}
 	}
@@ -275,7 +275,7 @@ func bindOr(a, b string) string {
 	return "127.0.0.1"
 }
 
-func secretKeys(img Image) map[string]bool {
+func secretKeys(img Application) map[string]bool {
 	m := map[string]bool{}
 	for _, e := range img.Env {
 		if e.Secret {
@@ -286,7 +286,7 @@ func secretKeys(img Image) map[string]bool {
 }
 
 // resolveEnv applies defaults, generates secrets, and enforces required inputs.
-func resolveEnv(img Image, provided map[string]string) (map[string]string, error) {
+func resolveEnv(img Application, provided map[string]string) (map[string]string, error) {
 	out := map[string]string{}
 	for _, e := range img.Env {
 		v := strings.TrimSpace(provided[e.Key])

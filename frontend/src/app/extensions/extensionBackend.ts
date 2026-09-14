@@ -1,7 +1,7 @@
-// The `remote.backend` half of the extension API: the client an image's `ui/`
-// uses to call the Go plugin the same image ships in its `plugin/` directory.
+// The `remote.backend` half of the extension API: the client an application's `ui/`
+// uses to call the Go plugin the same application ships in its `backend/` directory.
 //
-// An image can be installed in more than one place, and each install runs its
+// An application can be installed in more than one place, and each install runs its
 // own plugin process, so every call has to resolve to an instance before it
 // has a URL. That resolution is the only real logic here; the rest is a thin,
 // same-origin `fetch` that reports a plugin's own error message rather than a
@@ -10,7 +10,7 @@
 import type {
   AppBackendDescriptor,
   AppBackendInstance,
-  AppImage,
+  AppApplication,
 } from "../../models/application.ts";
 import type {
   ExtensionBackendApi,
@@ -20,10 +20,10 @@ import type {
 import { ExtensionBackendTargets } from "./extensionBackendTarget.ts";
 
 export function createBackendApi(
-  image: AppImage,
+  application: AppApplication,
   backends: AppBackendInstance[],
 ): ExtensionBackendApi {
-  const targets = new ExtensionBackendTargets(image.id, backends);
+  const targets = new ExtensionBackendTargets(application.id, backends);
 
   const request = async (
     path: string,
@@ -49,7 +49,7 @@ export function createBackendApi(
   };
 
   return {
-    available: Boolean(image.backend) && targets.instances.length > 0,
+    available: Boolean(application.backend) && targets.instances.length > 0,
     instances: targets.instances,
     url: (path, target) => targets.url(path, target),
     fetch: request,

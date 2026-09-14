@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import type { AppImage } from "../../models/application";
+import type { AppApplication } from "../../models/application";
 import type { ApplicationsController } from "../../state/hooks/applications/useApplications";
 import { AppIcon } from "./AppIcon";
 import { ApplicationEmptyState } from "./ApplicationEmptyState";
@@ -14,40 +14,40 @@ import {
 } from "../primitives/icons";
 
 export function CatalogGrid({
-  images,
+  applications,
   installedIds,
   failedIds,
   controller,
 }: {
-  images: AppImage[];
+  applications: AppApplication[];
   installedIds: Set<string>;
   failedIds: Set<string>;
   controller: ApplicationsController;
 }) {
-  const [installing, setInstalling] = useState<AppImage | null>(null);
+  const [installing, setInstalling] = useState<AppApplication | null>(null);
 
-  if (controller.catalogLoading && images.length === 0) {
+  if (controller.catalogLoading && applications.length === 0) {
     return <ApplicationEmptyState text="Loading catalog…" />;
   }
-  if (images.length === 0) {
+  if (applications.length === 0) {
     return <ApplicationEmptyState text="No applications available for this scope." />;
   }
   return (
     <>
       <div class="grid gap-2.5 sm:grid-cols-2">
-        {images.map((image) => (
+        {applications.map((application) => (
           <CatalogCard
-            key={image.id}
-            image={image}
-            installed={installedIds.has(image.id)}
-            failed={failedIds.has(image.id)}
-            onInstall={() => setInstalling(image)}
+            key={application.id}
+            application={application}
+            installed={installedIds.has(application.id)}
+            failed={failedIds.has(application.id)}
+            onInstall={() => setInstalling(application)}
           />
         ))}
       </div>
       {installing && (
         <InstallDialog
-          image={installing}
+          application={installing}
           onClose={() => setInstalling(null)}
           onInstall={controller.install}
         />
@@ -57,12 +57,12 @@ export function CatalogGrid({
 }
 
 function CatalogCard({
-  image,
+  application,
   installed,
   failed,
   onInstall,
 }: {
-  image: AppImage;
+  application: AppApplication;
   installed: boolean;
   failed: boolean;
   onInstall: () => void;
@@ -70,18 +70,18 @@ function CatalogCard({
   return (
     <div class="rounded-md border border-white/[0.08] bg-white/[0.03] p-3 flex items-start gap-3">
       <div class="h-9 w-9 flex-none rounded-md bg-white/[0.06] grid place-items-center text-ink-200">
-        <AppIcon image={image} class="w-4 h-4" />
+        <AppIcon application={application} class="w-4 h-4" />
       </div>
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          <span class="text-[13.5px] font-medium text-ink-50 truncate">{image.name}</span>
-          {image.version && (
-            <span class="text-[10.5px] text-ink-400 font-mono">{image.version}</span>
+          <span class="text-[13.5px] font-medium text-ink-50 truncate">{application.name}</span>
+          {application.version && (
+            <span class="text-[10.5px] text-ink-400 font-mono">{application.version}</span>
           )}
           {/* An uploaded app installs exactly like a built-in one; the badge
               says where it came from, because that is what tells an admin it
               can be removed from this server. */}
-          {image.source === "uploaded" && (
+          {application.source === "uploaded" && (
             <span
               title="Uploaded to this server"
               class="text-[10px] px-1.5 h-4 rounded inline-flex items-center text-ink-300 bg-white/[0.08]"
@@ -90,9 +90,9 @@ function CatalogCard({
             </span>
           )}
         </div>
-        {image.description && (
+        {application.description && (
           <p class="mt-0.5 text-[12px] text-ink-300 leading-snug line-clamp-2">
-            {image.description}
+            {application.description}
           </p>
         )}
       </div>
@@ -122,21 +122,21 @@ function CatalogCard({
 }
 
 function InstallDialog({
-  image,
+  application,
   onClose,
   onInstall,
 }: {
-  image: AppImage;
+  application: AppApplication;
   onClose: () => void;
   onInstall: ApplicationsController["install"];
 }) {
-  const [name, setName] = useState(image.name);
+  const [name, setName] = useState(application.name);
   const [env, setEnv] = useState<Record<string, string>>({});
   const [externalPort, setExternalPort] = useState<string>("");
   // A tool, a UI extension and a backend plugin bind no host port. Asking for
   // one would offer to configure something that does not exist — and would
-  // read image.port.internal, which is 0 for all three.
-  const asksForPort = hasPortBinding(image);
+  // read application.port.internal, which is 0 for all three.
+  const asksForPort = hasPortBinding(application);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -152,8 +152,8 @@ function InstallDialog({
         throw new Error("External port must be 1–65535.");
       }
       await onInstall({
-        imageId: image.id,
-        name: name.trim() || image.name,
+        applicationId: application.id,
+        name: name.trim() || application.name,
         env,
         externalPort: port,
       });
@@ -170,7 +170,7 @@ function InstallDialog({
       class="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
       onClick={onClose}
     >
-      {/* The field list is as long as the image's env[] makes it, so the
+      {/* The field list is as long as the application's env[] makes it, so the
           surface is capped to the viewport and the fields scroll inside it.
           The title and the buttons stay put: an install that cannot be
           confirmed because its button is below the fold is not installable. */}
@@ -181,7 +181,7 @@ function InstallDialog({
       >
         <div class="flex-none flex items-center gap-2 px-4 pt-4 pb-3">
           <Server class="w-4 h-4 text-ink-200" />
-          <h3 class="text-[14px] font-semibold text-ink-50">Install {image.name}</h3>
+          <h3 class="text-[14px] font-semibold text-ink-50">Install {application.name}</h3>
           <button
             type="button"
             onClick={onClose}
@@ -202,7 +202,7 @@ function InstallDialog({
             />
           </label>
 
-          {(image.env ?? []).map((variable) => (
+          {(application.env ?? []).map((variable) => (
             <label key={variable.key} class="block space-y-1">
               <span class="text-[11.5px] text-ink-300">
                 {variable.label || variable.key}
@@ -231,12 +231,12 @@ function InstallDialog({
           {asksForPort && (
             <label class="block space-y-1">
               <span class="text-[11.5px] text-ink-300">
-                Host port <span class="text-ink-400">— blank auto-picks a free one (internal {image.port.internal})</span>
+                Host port <span class="text-ink-400">— blank auto-picks a free one (internal {application.port.internal})</span>
               </span>
               <input
                 value={externalPort}
                 inputMode="numeric"
-                placeholder={String(image.port.defaultExternal || image.port.internal)}
+                placeholder={String(application.port.defaultExternal || application.port.internal)}
                 onInput={(event) => setExternalPort((event.target as HTMLInputElement).value)}
                 class="w-full h-9 px-2.5 rounded border border-white/10 bg-black/30 text-[13px] font-mono text-ink-50 placeholder-ink-400 focus:outline-none focus:border-accent-blue/50"
               />

@@ -7,7 +7,7 @@
 // main() and the host that launches it.
 //
 // The transport is go-plugin's net/rpc mode rather than gRPC. Plugins are Go
-// programs compiled from the image catalog, so there is nothing for a
+// programs compiled from the application catalog, so there is nothing for a
 // language-neutral protocol to buy, and net/rpc keeps a plugin's dependencies
 // to this SDK and the standard library. Moving to gRPC later is a change to
 // this package and a recompile of the catalog, not a change to appplugin.

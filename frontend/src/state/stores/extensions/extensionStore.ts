@@ -22,13 +22,13 @@ export function createExtensionStore() {
     bySlot: new Map(),
     activeProjectId: null,
 
-    setVisibility: (imageId, visibility) => {
-      const current = visibilityByImage.get(imageId);
+    setVisibility: (applicationId, visibility) => {
+      const current = visibilityByImage.get(applicationId);
       if (sameVisibility(current, visibility)) return;
-      visibilityByImage.set(imageId, visibility);
+      visibilityByImage.set(applicationId, visibility);
       set((state) => ({
         bySlot: mapContributions(state.bySlot, (contribution) =>
-          contribution.imageId === imageId
+          contribution.applicationId === applicationId
             ? { ...contribution, visibility }
             : contribution,
         ),
@@ -39,22 +39,22 @@ export function createExtensionStore() {
       state.activeProjectId === activeProjectId ? state : { activeProjectId },
     ),
 
-    register: (imageId, slot, render, options = {}) => {
+    register: (applicationId, slot, render, options = {}) => {
       if (!isExtensionSlot(slot)) {
-        console.warn(`[extensions] ${imageId}: unknown slot "${slot}"`);
+        console.warn(`[extensions] ${applicationId}: unknown slot "${slot}"`);
         return () => {};
       }
 
-      const sequence = (counters.get(imageId) ?? 0) + 1;
-      counters.set(imageId, sequence);
+      const sequence = (counters.get(applicationId) ?? 0) + 1;
+      counters.set(applicationId, sequence);
       const contribution: ExtensionContribution = {
-        id: `${imageId}#${sequence}`,
-        imageId,
+        id: `${applicationId}#${sequence}`,
+        applicationId,
         slot,
         order: options.order ?? 0,
         render,
         when: options.when,
-        visibility: visibilityByImage.get(imageId) ?? DEFAULT_EXTENSION_VISIBILITY,
+        visibility: visibilityByImage.get(applicationId) ?? DEFAULT_EXTENSION_VISIBILITY,
       };
       set((state) => {
         const bySlot = new Map(state.bySlot);
@@ -72,14 +72,14 @@ export function createExtensionStore() {
       };
     },
 
-    removeImage: (imageId) => {
-      visibilityByImage.delete(imageId);
+    removeApplication: (applicationId) => {
+      visibilityByImage.delete(applicationId);
       set((state) => {
         const bySlot = new Map<ExtensionSlotName, ExtensionContribution[]>();
         let changed = false;
         for (const [slot, contributions] of state.bySlot) {
           const remaining = contributions.filter(
-            (contribution) => contribution.imageId !== imageId,
+            (contribution) => contribution.applicationId !== applicationId,
           );
           changed ||= remaining.length !== contributions.length;
           if (remaining.length) bySlot.set(slot, remaining);
@@ -133,5 +133,5 @@ export const extensionStore = createExtensionStore();
 export const extensionRegistry: ExtensionRegistry = {
   register: (...args) => extensionStore.getState().register(...args),
   setVisibility: (...args) => extensionStore.getState().setVisibility(...args),
-  removeImage: (...args) => extensionStore.getState().removeImage(...args),
+  removeApplication: (...args) => extensionStore.getState().removeApplication(...args),
 };

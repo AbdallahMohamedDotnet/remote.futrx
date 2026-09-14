@@ -94,19 +94,19 @@ func TestFingerprintCoversEveryInput(t *testing.T) {
 	}
 }
 
-// Pruning an image's old binaries must not reach into another image's. Image
+// Pruning an application's old binaries must not reach into another application's. Application
 // ids may contain a dash, so "s3" and "s3-disk" both produce names starting
-// "s3-" — and deleting a live binary out from under a running image would take
+// "s3-" — and deleting a live binary out from under a running application would take
 // it down until something rebuilt it.
-func TestPruneStaleLeavesAnotherImageAlone(t *testing.T) {
+func TestPruneStaleLeavesAnotherApplicationAlone(t *testing.T) {
 	builder := NewBuilder(t.TempDir(), "")
 	if err := os.MkdirAll(builder.binaryDir(), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	names := []string{
-		"s3-aaaaaaaaaaaaaaaa",      // this image, current
-		"s3-bbbbbbbbbbbbbbbb",      // this image, stale
-		"s3-disk-cccccccccccccccc", // a different image entirely
+		"s3-aaaaaaaaaaaaaaaa",      // this application, current
+		"s3-bbbbbbbbbbbbbbbb",      // this application, stale
+		"s3-disk-cccccccccccccccc", // a different application entirely
 		"s3-disk-dddddddddddddddd.tmp",
 	}
 	for _, name := range names {

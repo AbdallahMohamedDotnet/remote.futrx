@@ -9,14 +9,14 @@ import (
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
 
-func TestRegistryDiscoversImageUI(t *testing.T) {
+func TestRegistryDiscoversApplicationUI(t *testing.T) {
 	r := testRegistry(t)
 	img, ok := r.Get(fixtureService)
 	if !ok {
-		t.Fatal("expected the fixture service image")
+		t.Fatal("expected the fixture service application")
 	}
 	if img.UI == nil {
-		t.Fatal("the image ships a ui/ directory, want a UI descriptor")
+		t.Fatal("the application ships a ui/ directory, want a UI descriptor")
 	}
 	if img.UI.Entry != "scripts/main.js" {
 		t.Errorf("entry = %q, want scripts/main.js", img.UI.Entry)
@@ -28,26 +28,26 @@ func TestRegistryDiscoversImageUI(t *testing.T) {
 		t.Errorf("want a %q view, got %v", "popup", img.UI.Views)
 	}
 
-	// An image without ui/ must stay nil so the SPA loads nothing for it.
+	// An application without ui/ must stay nil so the SPA loads nothing for it.
 	tool, ok := r.Get(fixtureTool)
 	if !ok {
-		t.Fatal("expected the fixture tool image")
+		t.Fatal("expected the fixture tool application")
 	}
 	if tool.UI != nil {
 		t.Errorf("the tool has no ui/ directory, got %+v", tool.UI)
 	}
 }
 
-// The fixture UI image declares its ui block explicitly rather than relying on
+// The fixture UI application declares its ui block explicitly rather than relying on
 // the layout convention, so the catalog exercises both paths for real.
-func TestRegistryLoadsDeclaredImageUI(t *testing.T) {
+func TestRegistryLoadsDeclaredApplicationUI(t *testing.T) {
 	r := testRegistry(t)
 	img, ok := r.Get(fixtureUI)
 	if !ok {
-		t.Fatal("expected the fixture ui image")
+		t.Fatal("expected the fixture ui application")
 	}
 	if img.UI == nil {
-		t.Fatal("the image declares a ui block, want a UI descriptor")
+		t.Fatal("the application declares a ui block, want a UI descriptor")
 	}
 	if img.UI.Entry != "scripts/main.js" {
 		t.Errorf("entry = %q, want scripts/main.js", img.UI.Entry)
@@ -78,27 +78,27 @@ func TestRegistryUIAsset(t *testing.T) {
 		t.Error("want the entry module to be readable")
 	}
 	for _, tc := range []struct {
-		name  string
-		image string
-		asset string
+		name        string
+		application string
+		asset       string
 	}{
 		{"traversal out of ui", fixtureService, "../install.sh"},
-		{"traversal into another image", fixtureService, "../../" + fixtureTool + "/install.sh"},
+		{"traversal into another application", fixtureService, "../../" + fixtureTool + "/install.sh"},
 		{"absolute path", fixtureService, "/etc/passwd"},
 		{"empty path", fixtureService, ""},
 		{"missing file", fixtureService, "scripts/nope.js"},
-		{"image without ui", fixtureTool, "scripts/main.js"},
-		{"unknown image", "nope", "scripts/main.js"},
+		{"application without ui", fixtureTool, "scripts/main.js"},
+		{"unknown application", "nope", "scripts/main.js"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, ok := r.UIAsset(tc.image, tc.asset); ok {
-				t.Errorf("UIAsset(%q, %q) = ok, want not found", tc.image, tc.asset)
+			if _, ok := r.UIAsset(tc.application, tc.asset); ok {
+				t.Errorf("UIAsset(%q, %q) = ok, want not found", tc.application, tc.asset)
 			}
 		})
 	}
 }
 
-func TestLoadImageUI(t *testing.T) {
+func TestLoadApplicationUI(t *testing.T) {
 	full := fstest.MapFS{
 		"ui/scripts/main.js":  {Data: []byte("export default () => {}")},
 		"ui/style/a.css":      {Data: []byte(".a{}")},
@@ -108,9 +108,9 @@ func TestLoadImageUI(t *testing.T) {
 	}
 
 	t.Run("convention fills every field", func(t *testing.T) {
-		ui, err := loadImageUI(full, "ui", nil)
+		ui, err := loadApplicationUI(full, "ui", nil)
 		if err != nil {
-			t.Fatalf("loadImageUI: %v", err)
+			t.Fatalf("loadApplicationUI: %v", err)
 		}
 		if ui.Entry != "scripts/main.js" {
 			t.Errorf("entry = %q", ui.Entry)
@@ -130,13 +130,13 @@ func TestLoadImageUI(t *testing.T) {
 	})
 
 	t.Run("declared block wins over convention", func(t *testing.T) {
-		ui, err := loadImageUI(full, "ui", &svc.ImageUI{
+		ui, err := loadApplicationUI(full, "ui", &svc.ApplicationUI{
 			Entry:  "scripts/main.js",
 			Styles: []string{"style/b.css"},
 			Views:  map[string]string{"dialog": "views/popup.html"},
 		})
 		if err != nil {
-			t.Fatalf("loadImageUI: %v", err)
+			t.Fatalf("loadApplicationUI: %v", err)
 		}
 		if !reflect.DeepEqual(ui.Styles, []string{"style/b.css"}) {
 			t.Errorf("styles = %v, want only style/b.css", ui.Styles)
@@ -146,11 +146,11 @@ func TestLoadImageUI(t *testing.T) {
 		}
 	})
 
-	// An image may ship a ui/ holding nothing but an icon, with no code to load.
+	// An application may ship a ui/ holding nothing but an icon, with no code to load.
 	t.Run("assets-only ui directory is valid", func(t *testing.T) {
-		ui, err := loadImageUI(fstest.MapFS{"ui/assets/logo.svg": {Data: []byte("<svg/>")}}, "ui", nil)
+		ui, err := loadApplicationUI(fstest.MapFS{"ui/assets/logo.svg": {Data: []byte("<svg/>")}}, "ui", nil)
 		if err != nil {
-			t.Fatalf("loadImageUI: %v", err)
+			t.Fatalf("loadApplicationUI: %v", err)
 		}
 		if ui == nil {
 			t.Fatal("want a UI descriptor")
@@ -161,9 +161,9 @@ func TestLoadImageUI(t *testing.T) {
 	})
 
 	t.Run("no ui directory", func(t *testing.T) {
-		ui, err := loadImageUI(fstest.MapFS{"install.sh": {Data: []byte("#!/bin/sh")}}, "ui", nil)
+		ui, err := loadApplicationUI(fstest.MapFS{"install.sh": {Data: []byte("#!/bin/sh")}}, "ui", nil)
 		if err != nil {
-			t.Fatalf("loadImageUI: %v", err)
+			t.Fatalf("loadApplicationUI: %v", err)
 		}
 		if ui != nil {
 			t.Errorf("want nil UI, got %+v", ui)
@@ -173,27 +173,27 @@ func TestLoadImageUI(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		fsys     fs.FS
-		declared *svc.ImageUI
+		declared *svc.ApplicationUI
 	}{
 		{
 			name:     "declared ui without a directory",
 			fsys:     fstest.MapFS{"install.sh": {Data: []byte("#!/bin/sh")}},
-			declared: &svc.ImageUI{Entry: "scripts/main.js"},
+			declared: &svc.ApplicationUI{Entry: "scripts/main.js"},
 		},
 		{
 			name:     "declared entry missing",
 			fsys:     full,
-			declared: &svc.ImageUI{Entry: "scripts/other.js"},
+			declared: &svc.ApplicationUI{Entry: "scripts/other.js"},
 		},
 		{
 			name:     "declared style missing",
 			fsys:     full,
-			declared: &svc.ImageUI{Styles: []string{"style/missing.css"}},
+			declared: &svc.ApplicationUI{Styles: []string{"style/missing.css"}},
 		},
 		{
 			name:     "declared view escapes ui/",
 			fsys:     full,
-			declared: &svc.ImageUI{Views: map[string]string{"x": "../install.sh"}},
+			declared: &svc.ApplicationUI{Views: map[string]string{"x": "../install.sh"}},
 		},
 		{
 			name: "entirely empty ui directory",
@@ -201,7 +201,7 @@ func TestLoadImageUI(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := loadImageUI(tc.fsys, "ui", tc.declared); err == nil {
+			if _, err := loadApplicationUI(tc.fsys, "ui", tc.declared); err == nil {
 				t.Error("want a load error, got nil")
 			}
 		})

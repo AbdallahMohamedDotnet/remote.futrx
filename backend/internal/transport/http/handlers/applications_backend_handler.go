@@ -36,7 +36,7 @@ func isBackendPath(action string) (string, bool) {
 // Authorization has already established that the caller may reach this
 // instance — project membership for a project install, being signed in for a
 // global one. What the plugin will do for them is the plugin's decision, made
-// against the caller the service stamps onto the request; the image's `access`
+// against the caller the service stamps onto the request; the application's `access`
 // level is the only part of that the platform enforces itself.
 func (h *ApplicationsHandler) serveBackend(w http.ResponseWriter, r *http.Request, id, path string) {
 	if h.apps == nil {

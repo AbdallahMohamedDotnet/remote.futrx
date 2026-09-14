@@ -1,16 +1,16 @@
-// The mark shown for a catalog image, in the grid and on installed rows.
+// The mark shown for a catalog application, in the grid and on installed rows.
 //
-// An image chooses it with `icon` in image.json, in one of two forms:
+// An application chooses it with `icon` in application.json, in one of two forms:
 //
 //   "database"           a built-in key from the table below
-//   "ui/assets/logo.svg" a file the image ships in its own ui/ directory
+//   "ui/assets/logo.svg" a file the application ships in its own ui/ directory
 //
-// The second form is what lets an image bring its own artwork without adding
+// The second form is what lets an application bring its own artwork without adding
 // anything to the SPA's icon set; it is served through the same authenticated
 // asset route as the rest of the extension.
 
 import { API_ROUTES } from "../../config/routes";
-import type { AppImage } from "../../models/application";
+import type { AppApplication } from "../../models/application";
 import {
   Activity,
   Archive,
@@ -35,7 +35,7 @@ import {
 
 type IconComponent = typeof Server;
 
-/** Built-in marks an image may name. Anything unknown falls back to Server. */
+/** Built-in marks an application may name. Anything unknown falls back to Server. */
 const BUILT_IN: Record<string, IconComponent> = {
   activity: Activity,
   archive: Archive,
@@ -61,26 +61,26 @@ const BUILT_IN: Record<string, IconComponent> = {
   users: Users,
 };
 
-/** An icon value pointing at a file the image ships, rather than a key. */
+/** An icon value pointing at a file the application ships, rather than a key. */
 function assetPath(icon: string): string | null {
   const trimmed = icon.trim();
   return trimmed.startsWith("ui/") ? trimmed.slice("ui/".length) : null;
 }
 
 export function AppIcon({
-  image,
+  application,
   class: className = "w-4 h-4",
 }: {
-  image: Pick<AppImage, "id" | "icon" | "name">;
+  application: Pick<AppApplication, "id" | "icon" | "name">;
   class?: string;
 }) {
-  const icon = image.icon?.trim() ?? "";
+  const icon = application.icon?.trim() ?? "";
   const asset = icon ? assetPath(icon) : null;
 
   if (asset) {
     return (
       <img
-        src={API_ROUTES.applications.uiAsset(image.id, asset)}
+        src={API_ROUTES.applications.uiAsset(application.id, asset)}
         alt=""
         aria-hidden="true"
         class={`${className} object-contain`}

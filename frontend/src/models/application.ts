@@ -5,10 +5,10 @@
 export type AppScope = "global" | "project";
 
 /**
- * What installing an image actually does. `service` runs software in a
+ * What installing an application actually does. `service` runs software in a
  * container (a dedicated one for global scope); `ui` installs nothing anywhere
- * and only turns on the image's browser extension; `backend` installs nothing
- * either, and runs the Go plugin the image ships as a server-side process.
+ * and only turns on the application's browser extension; `backend` installs nothing
+ * either, and runs the Go plugin the application ships as a server-side process.
  */
 export type AppKind = "service" | "ui" | "backend" | "tool";
 
@@ -35,11 +35,11 @@ export interface AppPort {
 }
 
 /**
- * Browser-side extension an image ships in its `ui/` directory. Present only
- * when the image has one; paths are relative to `ui/` and already validated by
+ * Browser-side extension an application ships in its `ui/` directory. Present only
+ * when the application has one; paths are relative to `ui/` and already validated by
  * the backend, so the SPA can load them without existence checks.
  */
-export interface AppImageUI {
+export interface AppApplicationUI {
   /** ES module whose default export is called with the extension API. */
   entry?: string;
   /** Stylesheets injected into the document, in order. */
@@ -48,15 +48,15 @@ export interface AppImageUI {
   views?: Record<string, string>;
 }
 
-/** Who the server lets reach an image's plugin. */
+/** Who the server lets reach an application's plugin. */
 export type AppBackendAccess = "registered" | "admin";
 
 /**
- * Go plugin an image ships in its `plugin/` directory. Present only when the
- * image has one; the SPA never sees the source, only that it exists and how it
+ * Go plugin an application ships in its `backend/` directory. Present only when the
+ * application has one; the SPA never sees the source, only that it exists and how it
  * may be called.
  */
-export interface AppImageBackend {
+export interface AppApplicationBackend {
   access?: AppBackendAccess;
   timeoutMs?: number;
 }
@@ -71,7 +71,7 @@ export interface AppBackendRoute {
 /** What a running plugin reports about itself. */
 export interface AppBackendDescriptor {
   instanceId: string;
-  imageId: string;
+  applicationId: string;
   descriptor: {
     name: string;
     version?: string;
@@ -83,9 +83,9 @@ export interface AppBackendDescriptor {
 }
 
 /**
- * One running plugin an extension may call. An image installed both globally
+ * One running plugin an extension may call. An application installed both globally
  * and in a project runs one process per install, so an extension addresses an
- * instance rather than an image.
+ * instance rather than an application.
  */
 export interface AppBackendInstance {
   instanceId: string;
@@ -98,10 +98,10 @@ export interface AppBackendInstance {
  * `uploaded` ones came from a package an administrator uploaded and can be
  * removed again.
  */
-export type AppImageSource = "builtin" | "uploaded";
+export type AppApplicationSource = "builtin" | "uploaded";
 
-/** One catalog entry loaded from images/<id>/image.json. */
-export interface AppImage {
+/** One catalog entry loaded from applications/<id>/application.json. */
+export interface AppApplication {
   id: string;
   name: string;
   description?: string;
@@ -112,8 +112,8 @@ export interface AppImage {
    * catalog entry ships in its own `ui/` (`"ui/assets/logo.svg"`).
    */
   icon?: string;
-  /** Decided by the server, never by the package: see {@link AppImageSource}. */
-  source?: AppImageSource;
+  /** Decided by the server, never by the package: see {@link AppApplicationSource}. */
+  source?: AppApplicationSource;
   type: AppKind;
   /**
    * What this entry's kind means for the UI, decided by the server. `service`
@@ -127,31 +127,31 @@ export interface AppImage {
   port: AppPort;
   env?: AppEnvVar[];
   service?: string;
-  /** Set when the image ships a `ui/` extension. */
-  ui?: AppImageUI;
-  /** Set when the image ships a `plugin/` Go backend. */
-  backend?: AppImageBackend;
+  /** Set when the application ships a `ui/` extension. */
+  ui?: AppApplicationUI;
+  /** Set when the application ships a `backend/` Go backend. */
+  backend?: AppApplicationBackend;
 }
 
 /**
  * One extension the signed-in user should load, with where it was installed.
- * A globally installed image applies everywhere; a project-installed one only
+ * A globally installed application applies everywhere; a project-installed one only
  * inside those projects.
  */
 export interface AppUIExtension {
-  image: AppImage;
+  application: AppApplication;
   global: boolean;
   projectIds?: string[];
-  /** Running instances of this image whose plugin the extension may call. */
+  /** Running instances of this application whose plugin the extension may call. */
   backends?: AppBackendInstance[];
 }
 
 /** API-safe view of one installed instance (secret env values redacted). */
 export interface AppInstance {
   id: string;
-  imageId: string;
-  /** The image.json version this copy was last installed from. */
-  imageVersion?: string;
+  applicationId: string;
+  /** The application.json version this copy was last installed from. */
+  applicationVersion?: string;
   name: string;
   scope: AppScope;
   projectId?: string;
@@ -184,7 +184,7 @@ export interface AppCredentials {
 
 /** Payload for installing an app. */
 export interface AppInstallRequest {
-  imageId: string;
+  applicationId: string;
   name?: string;
   env?: Record<string, string>;
   externalPort?: number;

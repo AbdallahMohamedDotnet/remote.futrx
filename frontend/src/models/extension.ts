@@ -1,7 +1,7 @@
 import type {
   AppBackendDescriptor,
   AppBackendInstance,
-  AppImage,
+  AppApplication,
   AppInstance,
   AppScope,
 } from "./application";
@@ -91,7 +91,7 @@ export interface ExtensionVisibility {
 
 export interface ExtensionContribution {
   id: string;
-  imageId: string;
+  applicationId: string;
   slot: ExtensionSlotName;
   order: number;
   render: ExtensionRender;
@@ -106,13 +106,13 @@ export interface ExtensionRegisterOptions {
 
 export interface ExtensionRegistry {
   register: (
-    imageId: string,
+    applicationId: string,
     slot: string,
     render: ExtensionRender,
     options?: ExtensionRegisterOptions,
   ) => () => void;
-  setVisibility: (imageId: string, visibility: ExtensionVisibility) => void;
-  removeImage: (imageId: string) => void;
+  setVisibility: (applicationId: string, visibility: ExtensionVisibility) => void;
+  removeApplication: (applicationId: string) => void;
 }
 
 export interface ExtensionStoreState {
@@ -158,7 +158,7 @@ export interface ExtensionPopupHandle {
 }
 
 /**
- * Which running plugin a call should reach. An image installed in more than
+ * Which running plugin a call should reach. An application installed in more than
  * one place runs a process per install, so a call that does not say resolves
  * to the global one.
  */
@@ -184,8 +184,8 @@ export interface ExtensionBackendCallOptions extends ExtensionBackendTarget {
 }
 
 /**
- * The image's own Go plugin. Present on every extension; `available` is false
- * when the image ships no `plugin/` directory or none of its installs are
+ * The application's own Go plugin. Present on every extension; `available` is false
+ * when the application ships no `backend/` directory or none of its installs are
  * running, which is the case an extension should degrade around rather than
  * throw on.
  */
@@ -211,7 +211,7 @@ export interface ExtensionBackendApi {
 
 export interface ExtensionApi {
   apiVersion: number;
-  image: Pick<AppImage, "id" | "name" | "version" | "icon">;
+  application: Pick<AppApplication, "id" | "name" | "version" | "icon">;
   install: ExtensionVisibility;
   slots: ExtensionSlotCatalog;
   ui: {
@@ -226,7 +226,7 @@ export interface ExtensionApi {
   };
   /**
    * Subscribe to something the SPA finished doing. `on` returns an
-   * unsubscribe; every subscription is also dropped when the image is
+   * unsubscribe; every subscription is also dropped when the application is
    * uninstalled, so an extension that never unsubscribes still leaves nothing
    * behind. A handler's return value is ignored and a handler that throws is
    * logged, never propagated — the SPA does not wait for extensions.

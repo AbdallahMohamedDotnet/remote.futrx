@@ -17,15 +17,15 @@ import (
 	"github.com/futrx-com/remote.futrx.com/pkg/appplugin"
 )
 
-// Catalog supplies the Go source of an image's plugin. It is the registry,
+// Catalog supplies the Go source of an application's plugin. It is the registry,
 // narrowed to the one thing the host needs from it.
 type Catalog interface {
-	PluginSource(imageID string) (fs.FS, bool)
+	BackendSource(applicationID string) (fs.FS, bool)
 }
 
 // Host runs one plugin process per installed instance.
 //
-// The unit is the instance, not the image: an image installed globally and in
+// The unit is the instance, not the application: an application installed globally and in
 // two projects is three processes, because each serves a different install
 // with its own environment, its own data directory, and its own crash
 // behaviour. They share one compiled binary.
@@ -69,7 +69,7 @@ var _ svc.BackendHost = (*Host)(nil)
 // go-plugin's handshake by then is not going to.
 const handshakeTimeout = 30 * time.Second
 
-// Ensure compiles the image's plugin if needed, starts a process for the
+// Ensure compiles the application's plugin if needed, starts a process for the
 // instance, and returns what the plugin reported about itself.
 func (h *Host) Ensure(ctx context.Context, spec svc.BackendSpec) (appplugin.Descriptor, error) {
 	current, err := h.ensure(ctx, spec)
@@ -143,23 +143,23 @@ func (h *Host) ensure(ctx context.Context, spec svc.BackendSpec) (*pluginProcess
 	instanceID := spec.Instance.ID
 
 	// A live process needs nothing else, and this is the path every request
-	// takes. An image's source changes only when an administrator uploads a
+	// takes. An application's source changes only when an administrator uploads a
 	// new version of its package, and the applications service stops this
 	// instance's process when that happens — so a running process is by
 	// construction current, and re-reading and re-hashing the whole plugin on
 	// every request would discover nothing while funnelling concurrent calls
-	// through the builder's per-image lock.
+	// through the builder's per-application lock.
 	if current := h.lookup(instanceID); current != nil && current.running() {
 		return current, nil
 	}
 
-	source, ok := h.catalog.PluginSource(spec.ImageID)
+	source, ok := h.catalog.BackendSource(spec.ApplicationID)
 	if !ok {
-		return nil, fmt.Errorf("%w: %s ships no plugin source", svc.ErrNoBackend, spec.ImageID)
+		return nil, fmt.Errorf("%w: %s ships no plugin source", svc.ErrNoBackend, spec.ApplicationID)
 	}
 	// Building stays outside the launch lock so two instances of the same
-	// image share one build instead of queueing behind each other's launches.
-	binary, err := h.builder.Build(ctx, spec.ImageID, source)
+	// application share one build instead of queueing behind each other's launches.
+	binary, err := h.builder.Build(ctx, spec.ApplicationID, source)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func (h *Host) launch(ctx context.Context, spec svc.BackendSpec, binary string) 
 		HandshakeConfig: pluginHandshake,
 		Plugins:         goplugin.PluginSet{backendPluginName: &backendPlugin{}},
 		Cmd:             exec.Command(binary),
-		Logger:          h.logger.Named(spec.ImageID),
+		Logger:          h.logger.Named(spec.ApplicationID),
 		StartTimeout:    handshakeTimeout,
 	})
 
@@ -215,34 +215,34 @@ func (h *Host) launch(ctx context.Context, spec svc.BackendSpec, binary string) 
 func (h *Host) connect(client *goplugin.Client, spec svc.BackendSpec, dataDir string) (*pluginProcess, error) {
 	protocol, err := client.Client()
 	if err != nil {
-		return nil, fmt.Errorf("start plugin %s: %w", spec.ImageID, err)
+		return nil, fmt.Errorf("start plugin %s: %w", spec.ApplicationID, err)
 	}
 	raw, err := protocol.Dispense(backendPluginName)
 	if err != nil {
-		return nil, fmt.Errorf("connect to plugin %s: %w", spec.ImageID, err)
+		return nil, fmt.Errorf("connect to plugin %s: %w", spec.ApplicationID, err)
 	}
 	backend, ok := raw.(appplugin.Backend)
 	if !ok {
-		return nil, fmt.Errorf("plugin %s served an unexpected type %T", spec.ImageID, raw)
+		return nil, fmt.Errorf("plugin %s served an unexpected type %T", spec.ApplicationID, raw)
 	}
 	descriptor, err := backend.Describe()
 	if err != nil {
-		return nil, fmt.Errorf("describe plugin %s: %w", spec.ImageID, err)
+		return nil, fmt.Errorf("describe plugin %s: %w", spec.ApplicationID, err)
 	}
 	if descriptor.APIVersion != appplugin.APIVersion {
 		return nil, fmt.Errorf(
 			"plugin %s reports contract version %d, this server speaks %d",
-			spec.ImageID, descriptor.APIVersion, appplugin.APIVersion)
+			spec.ApplicationID, descriptor.APIVersion, appplugin.APIVersion)
 	}
 	if err := backend.Init(instanceOf(spec, dataDir)); err != nil {
-		return nil, fmt.Errorf("initialize plugin %s: %w", spec.ImageID, err)
+		return nil, fmt.Errorf("initialize plugin %s: %w", spec.ApplicationID, err)
 	}
 	return &pluginProcess{client: client, backend: backend, descriptor: descriptor}, nil
 }
 
 // instanceOf projects an installed instance into the view a plugin gets. It
 // carries the resolved environment, secrets included: a plugin runs on the
-// host on the image's behalf, and an image's plugin needs the password its own
+// host on the application's behalf, and an application's plugin needs the password its own
 // install script generated.
 func instanceOf(spec svc.BackendSpec, dataDir string) appplugin.Instance {
 	instance := spec.Instance

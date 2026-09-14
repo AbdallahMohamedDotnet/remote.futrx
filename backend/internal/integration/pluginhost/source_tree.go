@@ -63,14 +63,14 @@ func writeFile(name string, data []byte) error {
 // version. Anything left out here would be a stale binary someone has to
 // diagnose, so the inputs are hashed whole rather than by modification time.
 //
-// It is split in two because the second half is identical for every image: the
+// It is split in two because the second half is identical for every application: the
 // builder precomputes it once and pays only for the plugin's own source on each
 // build.
 func fingerprintOf(files, sdk []sourceFile, pluginModule, sdkModule, goVersion string) string {
 	return fingerprintWith(files, sharedFingerprintOf(sdk, pluginModule, sdkModule, goVersion))
 }
 
-// sharedFingerprintOf hashes the inputs every image builds against.
+// sharedFingerprintOf hashes the inputs every application builds against.
 func sharedFingerprintOf(sdk []sourceFile, pluginModule, sdkModule, goVersion string) string {
 	digest := sha256.New()
 	writeSection(digest, "sdk", sdk)
@@ -80,7 +80,7 @@ func sharedFingerprintOf(sdk []sourceFile, pluginModule, sdkModule, goVersion st
 	return hex.EncodeToString(digest.Sum(nil))
 }
 
-// fingerprintWith hashes one image's plugin source against the shared half.
+// fingerprintWith hashes one application's plugin source against the shared half.
 func fingerprintWith(files []sourceFile, shared string) string {
 	digest := sha256.New()
 	writeSection(digest, "plugin", files)

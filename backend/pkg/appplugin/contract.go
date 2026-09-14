@@ -1,7 +1,7 @@
-// Package appplugin is the contract an installable image's Go backend is
+// Package appplugin is the contract an installable application's Go backend is
 // written against.
 //
-// An image ships a plugin/ directory of Go source. The server compiles it and
+// An application ships a backend/ directory of Go source. The server compiles it and
 // runs it as a separate process, talking to it over hashicorp/go-plugin. The
 // plugin implements Backend; the SPA reaches it through
 // /api/applications/<instance>/backend/<path>, so a plugin author writes Go
@@ -49,22 +49,22 @@ type Caller struct {
 	IsAdmin bool   `json:"isAdmin"`
 }
 
-// Instance is the installed copy of the image this plugin process belongs to.
+// Instance is the installed copy of the application this plugin process belongs to.
 // One process serves one instance, so these values are fixed for its lifetime
 // and are handed over once through Backend.Init.
 type Instance struct {
-	ID      string `json:"id"`
-	ImageID string `json:"imageId"`
+	ID            string `json:"id"`
+	ApplicationID string `json:"applicationId"`
 	// Scope is "global" or "project".
 	Scope string `json:"scope"`
 	// ProjectID is set only for project-scoped instances.
 	ProjectID string `json:"projectId,omitempty"`
-	// ContainerName is the LXD container the image's service side runs in,
-	// empty for an image that installs nothing in a container.
+	// ContainerName is the LXD container the application's service side runs in,
+	// empty for an application that installs nothing in a container.
 	ContainerName string `json:"containerName,omitempty"`
 	InternalPort  int    `json:"internalPort,omitempty"`
 	ExternalPort  int    `json:"externalPort,omitempty"`
-	// Env holds the image's resolved install inputs, including generated
+	// Env holds the application's resolved install inputs, including generated
 	// secrets: a database plugin needs the password its install script used.
 	Env map[string]string `json:"env,omitempty"`
 	// DataDir is a per-instance directory on the host the plugin owns and may
@@ -94,7 +94,7 @@ type Response struct {
 	Body    []byte              `json:"body,omitempty"`
 }
 
-// Backend is what an image's plugin implements. The host calls Describe once
+// Backend is what an application's plugin implements. The host calls Describe once
 // on connect, Init once before the first request, and Handle per request.
 //
 // Handle may be called concurrently. The process is killed when the app is

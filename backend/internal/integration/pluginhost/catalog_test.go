@@ -13,9 +13,9 @@ import (
 	"github.com/futrx-com/remote.futrx.com/pkg/appplugin"
 )
 
-// catalogPluginMain is a whole installable image's backend, written against the
+// catalogPluginMain is a whole installable application's backend, written against the
 // public appplugin contract exactly as a distributed plugin package is. It is
-// deliberately not one of the images this repository ships: installable images
+// deliberately not one of the applications this repository ships: installable applications
 // are separately distributed packages, so the seam that has to keep working is
 // "a catalog entry, whatever it is, compiles and serves" — not "this particular
 // plugin still exists".
@@ -78,7 +78,7 @@ func (b *backend) echo(r appplugin.Request) appplugin.Response {
 }
 `
 
-// This is the end-to-end proof: an image read through the real catalog loader,
+// This is the end-to-end proof: an application read through the real catalog loader,
 // compiled and run by the host the server uses, answering on the routes it
 // advertises. The synthetic catalogs elsewhere in this package hand the host a
 // plugin source directly; this one makes it go through the registry first.
@@ -91,31 +91,31 @@ func TestPluginFromTheImageCatalogCompilesAndServes(t *testing.T) {
 	}
 	file := func(data string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(data)} }
 	registry, err := containerapplications.NewRegistryFromFS(fstest.MapFS{
-		"images/catalog-fixture/image.json": file(`{
+		"applications/catalog-fixture/application.json": file(`{
 			"name": "Catalog Fixture",
 			"version": "1.0.0",
 			"type": "backend",
 			"scopes": ["global", "project"],
 			"backend": {"access": "registered", "timeoutMs": 10000}
 		}`),
-		"images/catalog-fixture/plugin/main.go": file(catalogPluginMain),
+		"applications/catalog-fixture/backend/main.go": file(catalogPluginMain),
 	})
 	if err != nil {
 		t.Fatalf("load catalog: %v", err)
 	}
-	image, ok := registry.Get("catalog-fixture")
-	if !ok || image.Backend == nil {
-		t.Fatal("the fixture image did not load with a backend")
+	application, ok := registry.Get("catalog-fixture")
+	if !ok || application.Backend == nil {
+		t.Fatal("the fixture application did not load with a backend")
 	}
 
 	host := New(sharedRoot(t), registry, Options{GoTool: testGoToolOverride()})
 	t.Cleanup(host.Shutdown)
 	spec := svc.BackendSpec{
-		ImageID: image.ID,
+		ApplicationID: application.ID,
 		Instance: appplugin.Instance{
-			ID:      "catalog-e2e",
-			ImageID: image.ID,
-			Scope:   string(svc.ScopeGlobal),
+			ID:            "catalog-e2e",
+			ApplicationID: application.ID,
+			Scope:         string(svc.ScopeGlobal),
 		},
 	}
 
