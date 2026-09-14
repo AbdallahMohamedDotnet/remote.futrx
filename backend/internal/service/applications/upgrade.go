@@ -1,9 +1,9 @@
 package applications
 
-// Upgrading an installed app to a new version of its image.
+// Upgrading an installed app to a new version of its application.
 //
-// An instance records the `version` from the image.json it was installed from.
-// When the catalog's version for that image no longer matches, the container
+// An instance records the `version` from the application.json it was installed from.
+// When the catalog's version for that application no longer matches, the container
 // side is stale: the install script that provisioned it belonged to a
 // different release. Re-running that script is what makes it current, and the
 // recorded version is what tells us it has to happen.
@@ -14,11 +14,11 @@ package applications
 // author who changes nothing keeps the version and nothing is re-run.
 
 // needsUpgrade reports whether an instance's container side was provisioned by
-// a different version of the image than the catalog now holds.
+// a different version of the application than the catalog now holds.
 //
 // Only kinds that reach a container can be stale, which is every kind there is
 // today; the check is kept explicit because the answer stops being "always"
 // as soon as a kind installs nothing.
-func needsUpgrade(inst Instance, img Image) bool {
-	return img.Type.NeedsContainer() && inst.ImageVersion != img.Version
+func needsUpgrade(inst Instance, img Application) bool {
+	return img.Type.NeedsContainer() && inst.ApplicationVersion != img.Version
 }

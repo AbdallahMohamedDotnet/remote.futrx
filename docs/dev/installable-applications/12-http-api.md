@@ -13,7 +13,7 @@ membership has been verified.
 
 ### `GET /api/applications/catalog`
 
-Every image in the catalog. Readable by **any registered user**, because the
+Every application in the catalog. Readable by **any registered user**, because the
 project UI uses the same catalog.
 
 ```json
@@ -45,9 +45,9 @@ project UI uses the same catalog.
 This lists what *can* be installed. It grants nothing — see
 `/api/applications/ui` below.
 
-Each entry also carries `"source"`: `"builtin"` for an image compiled into the
+Each entry also carries `"source"`: `"builtin"` for an application compiled into the
 server, `"uploaded"` for one that came from an uploaded package. It is stamped
-by the registry, never read from `image.json`.
+by the registry, never read from `application.json`.
 
 ### Packages
 
@@ -55,9 +55,9 @@ by the registry, never read from `image.json`.
 uploaded application packages. All admin-only; documented in full in
 [16 — Uploaded packages](16-uploaded-packages.md#http).
 
-### `GET /api/applications/catalog/{imageID}/ui/{path}`
+### `GET /api/applications/catalog/{applicationID}/ui/{path}`
 
-One file from an image's `ui/` directory. Any registered user; `GET` and `HEAD`.
+One file from an application's `ui/` directory. Any registered user; `GET` and `HEAD`.
 
 ```
 GET /api/applications/catalog/mysql/ui/scripts/main.js
@@ -79,11 +79,11 @@ to tell them why. Revalidating makes a rebuild visible on the next reload.
 
 Types are pinned from the extension, never sniffed: `.js`/`.mjs` →
 `text/javascript`, `.css` → `text/css`, `.html` → `text/html`, `.json` →
-`application/json`, `.svg` → `image/svg+xml`, `.png`, `.webp`, `.woff2`, and
+`application/json`, `.svg` → `application/svg+xml`, `.png`, `.webp`, `.woff2`, and
 anything else → `application/octet-stream`.
 
-Paths that escape the image's own `ui/` return **404**, as do files that do not
-exist and images with no `ui/`. The registry cleans and rejects the path before
+Paths that escape the application's own `ui/` return **404**, as do files that do not
+exist and applications with no `ui/`. The registry cleans and rejects the path before
 any read; see [13 — Security model](13-security-model.md).
 
 The five-minute cache is why a hard reload helps while iterating on extension
@@ -99,16 +99,16 @@ registered user.
 ```json
 [
   {
-    "image": { "id": "ui-playground", "name": "UI Playground", "type": "ui", … },
+    "application": { "id": "ui-playground", "name": "UI Playground", "type": "ui", … },
     "global": true
   },
   {
-    "image": { "id": "ui-sandbox", "name": "UI Sandbox", "type": "ui", … },
+    "application": { "id": "ui-sandbox", "name": "UI Sandbox", "type": "ui", … },
     "global": false,
     "projectIds": ["20336ed6ab63"]
   },
   {
-    "image": { "id": "backend-playground", "type": "backend",
+    "application": { "id": "backend-playground", "type": "backend",
                "backend": { "access": "registered", "timeoutMs": 10000 }, … },
     "global": true,
     "projectIds": ["20336ed6ab63"],
@@ -120,17 +120,17 @@ registered user.
 ]
 ```
 
-`backends` lists the running plugin processes the extension may call. An image
+`backends` lists the running plugin processes the extension may call. An application
 installed in several places runs one process per install, so this is what lets
-`remote.backend` address the right one; it is absent for images that ship no
-`plugin/`.
+`remote.backend` address the right one; it is absent for applications that ship no
+`backend/`.
 
-Included only when the image has a `ui/` **and** has a **running** instance
+Included only when the application has a `ui/` **and** has a **running** instance
 that is either global or in a project the caller can see. Visible projects come
 from the project service's own `ListVisible(email, isAdmin)`, so this inherits
 project membership exactly.
 
-An image installed in several places appears once, with the union of its
+An application installed in several places appears once, with the union of its
 scopes. Returns `[]` when the applications service is unavailable, so the SPA
 degrades to no extensions rather than erroring.
 
@@ -175,7 +175,7 @@ one project cannot control another's app by guessing its id.
 
 ## Backend plugin routes
 
-An instance whose image ships a `plugin/` directory is reachable at a `backend`
+An instance whose application ships a `backend/` directory is reachable at a `backend`
 sub-path. The bare prefix describes the plugin; anything deeper is forwarded to
 it verbatim.
 
@@ -189,7 +189,7 @@ it verbatim.
 Calling a plugin on a **global** instance is the one action there that is not
 admin-only. The plugin is the server side of an extension that renders for
 every signed-in user, so managing the app stays admin-only while calling it
-requires only a session — narrowed to administrators when the image declares
+requires only a session — narrowed to administrators when the application declares
 `"backend": { "access": "admin" }`. Project routes require membership, checked
 before delegation as everywhere else.
 
@@ -198,7 +198,7 @@ before delegation as everywhere else.
 ```json
 {
   "instanceId": "9f1c2ab40e77",
-  "imageId": "backend-playground",
+  "applicationId": "backend-playground",
   "descriptor": {
     "name": "Backend Playground",
     "version": "1",
@@ -246,7 +246,7 @@ The full contract is [15 — Backend plugins](15-backend-plugins.md).
 ```json
 POST /api/applications
 {
-  "imageId": "mysql",
+  "applicationId": "mysql",
   "name": "Primary database",
   "env": { "MYSQL_DATABASE": "app" },
   "externalPort": 3307,
@@ -254,11 +254,11 @@ POST /api/applications
 }
 ```
 
-Every field except `imageId` is optional. A blank `env` value takes the image's
+Every field except `applicationId` is optional. A blank `env` value takes the application's
 `generate` or `default`; a blank `externalPort` is allocated automatically.
 Responds `201` with the instance view.
 
-For a `ui` image, `externalPort` and `bindAddress` are ignored — there is no
+For a `ui` application, `externalPort` and `bindAddress` are ignored — there is no
 port.
 
 ### Change port
@@ -268,7 +268,7 @@ PUT /api/applications/{id}/port
 { "port": 3307 }
 ```
 
-Rejected for `ui` images: they have no port.
+Rejected for `ui` applications: they have no port.
 
 ## Response shapes
 
@@ -277,7 +277,7 @@ non-secret ones:
 
 ```json
 {
-  "id": "abc123", "imageId": "mysql", "name": "MySQL",
+  "id": "abc123", "applicationId": "mysql", "name": "MySQL",
   "scope": "global", "projectId": "",
   "containerName": "futrx-app-abc123", "deviceName": "app-abc123",
   "internalPort": 3306, "externalPort": 3307,
@@ -288,7 +288,7 @@ non-secret ones:
 }
 ```
 
-`status` is one of `installing`, `running`, `stopped`, `error`. A `ui` image's
+`status` is one of `installing`, `running`, `stopped`, `error`. A `ui` application's
 instance has `internalPort: 0`, `externalPort: 0`, and an empty
 `containerName`.
 
@@ -309,13 +309,13 @@ has authorized:
 
 | Status | When |
 |---|---|
-| `400` | unknown image, unsupported scope, missing project id, missing required env, port out of range |
+| `400` | unknown application, unsupported scope, missing project id, missing required env, port out of range |
 | `401` | no valid session |
 | `403` | admin-only route, non-admin caller |
 | `403` | an `access: admin` plugin and a non-admin caller |
-| `404` | unknown instance, wrong scope for the route, asset not found or out of bounds, the image ships no plugin |
+| `404` | unknown instance, wrong scope for the route, asset not found or out of bounds, the application ships no plugin |
 | `405` | wrong method |
-| `409` | this image is already installed in this scope; a plugin call while the app is stopped |
+| `409` | this application is already installed in this scope; a plugin call while the app is stopped |
 | `500` | anything else, including install-script failure, a plugin that failed to compile, and a call that timed out |
 | `503` | applications unavailable (no container runtime configured), or no plugin host |
 

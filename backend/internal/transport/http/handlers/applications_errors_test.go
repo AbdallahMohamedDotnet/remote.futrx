@@ -25,8 +25,8 @@ func TestSendAppErrorMapsServiceErrorsToStatuses(t *testing.T) {
 	}
 	for err, want := range cases {
 		// Wrapped, because that is how the service returns them: the sentinel
-		// carries the class and the wrapping carries which image it was about.
-		wrapped := fmt.Errorf("%w: some-image", err)
+		// carries the class and the wrapping carries which application it was about.
+		wrapped := fmt.Errorf("%w: some-application", err)
 		recorder := httptest.NewRecorder()
 		sendAppError(recorder, wrapped)
 		if recorder.Code != want {

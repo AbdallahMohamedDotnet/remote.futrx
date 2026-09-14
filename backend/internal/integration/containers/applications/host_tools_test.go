@@ -22,16 +22,16 @@ func (f *fakeHostTools) Ensure(_ context.Context, tools []svc.HostTool) error {
 }
 
 // toolSpecWithHostTool is the fixture tool as the registry loads it, so the
-// declaration under test is the one an image actually ships.
+// declaration under test is the one an application actually ships.
 func toolSpecWithHostTool(t *testing.T, in *Installer, env map[string]string) svc.InstallSpec {
 	t.Helper()
 	img, ok := in.registry.Get(fixtureTool)
 	if !ok {
-		t.Fatal("missing the fixture tool image")
+		t.Fatal("missing the fixture tool application")
 	}
 	return svc.InstallSpec{
-		Image:    img,
-		Instance: svc.Instance{ImageID: img.ID, Scope: svc.ScopeProject, ContainerName: "project", Env: env},
+		Application: img,
+		Instance:    svc.Instance{ApplicationID: img.ID, Scope: svc.ScopeProject, ContainerName: "project", Env: env},
 	}
 }
 
@@ -59,8 +59,8 @@ func TestInstallAndStartPrepareDeclaredHostTools(t *testing.T) {
 	if tools.calls != 2 {
 		t.Fatalf("host tool ensured %d times, want start to repair it too", tools.calls)
 	}
-	if want := spec.Image.HostTools; !reflect.DeepEqual(tools.got, want) {
-		t.Errorf("ensured %+v, want the image's own declaration %+v", tools.got, want)
+	if want := spec.Application.HostTools; !reflect.DeepEqual(tools.got, want) {
+		t.Errorf("ensured %+v, want the application's own declaration %+v", tools.got, want)
 	}
 	// The host tool is the server's dependency, not the container's: nothing
 	// about it may be installed through lxc.
@@ -69,8 +69,8 @@ func TestInstallAndStartPrepareDeclaredHostTools(t *testing.T) {
 	}
 }
 
-// An image with no host tools must not reach the tool installer at all, so a
-// Remote host that installs only ordinary images downloads nothing.
+// An application with no host tools must not reach the tool installer at all, so a
+// Remote host that installs only ordinary applications downloads nothing.
 func TestInstallSkipsHostToolsWhenNoneAreDeclared(t *testing.T) {
 	runner := newFakeRunner("my-project")
 	in := testInstaller(t, runner)
@@ -81,24 +81,24 @@ func TestInstallSkipsHostToolsWhenNoneAreDeclared(t *testing.T) {
 		t.Fatal(err)
 	}
 	if tools.calls != 0 {
-		t.Errorf("ensured host tools %d times for an image that declares none", tools.calls)
+		t.Errorf("ensured host tools %d times for an application that declares none", tools.calls)
 	}
 }
 
-// The host learns the backup destination through the mapping the image
-// declares, under the image's own variable names — the installer resolves it,
+// The host learns the backup destination through the mapping the application
+// declares, under the application's own variable names — the installer resolves it,
 // so nothing in Remote has to know what those names are.
 
 // A half-declared mapping produces a destination the store cannot use, so it is
 // rejected when the catalog loads rather than on someone's host.
 func TestRegistryRejectsIncompleteImageDeclarations(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		image svc.Image
+		name        string
+		application svc.Application
 	}{
 		{
 			name: "a host tool without a checksum",
-			image: svc.Image{Name: "Test", Type: svc.KindTool, Scopes: []svc.Scope{svc.ScopeProject}, HostTools: []svc.HostTool{{
+			application: svc.Application{Name: "Test", Type: svc.KindTool, Scopes: []svc.Scope{svc.ScopeProject}, HostTools: []svc.HostTool{{
 				Name:      "tool",
 				Version:   "1",
 				Downloads: map[string]svc.HostToolDownload{"amd64": {URL: "https://example.invalid/tool"}},
@@ -106,7 +106,7 @@ func TestRegistryRejectsIncompleteImageDeclarations(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := validate(tc.image); err == nil {
+			if err := validate(tc.application); err == nil {
 				t.Error("want a validation error, got nil")
 			}
 		})

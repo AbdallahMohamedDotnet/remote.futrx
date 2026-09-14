@@ -83,7 +83,7 @@ type Dependencies struct {
 	ScheduleLimits    ScheduleLimits
 	PromptStartGate   prompt.StartGate
 
-	// Application (installable image) capabilities. When AppStore and
+	// Installable-application capabilities. When AppStore and
 	// AppRegistry are set the Applications service is enabled.
 	AppStore     serviceapplications.Store
 	AppRegistry  serviceapplications.Registry

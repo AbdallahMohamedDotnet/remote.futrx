@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	// skillsDir is where an image ships agent skills. Its presence opts the
-	// image in; nothing in image.json declares it, the same way ui/ works.
+	// skillsDir is where an application ships agent skills. Its presence opts the
+	// application in; nothing in application.json declares it, the same way ui/ works.
 	skillsDir = "skills"
 	// skillFileName is what makes a directory a skill rather than a folder of
 	// loose files.
@@ -25,9 +25,9 @@ const (
 // directories inside a project's workspace, so nothing else is accepted.
 var skillNamePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// loadImageSkills lists the skills an image ships, in a stable order. A missing
-// skills/ directory is not an error: most images ship none.
-func loadImageSkills(fsys fs.FS, root string) ([]string, error) {
+// loadApplicationSkills lists the skills an application ships, in a stable order. A missing
+// skills/ directory is not an error: most applications ship none.
+func loadApplicationSkills(fsys fs.FS, root string) ([]string, error) {
 	entries, err := fs.ReadDir(fsys, root)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -55,11 +55,11 @@ func loadImageSkills(fsys fs.FS, root string) ([]string, error) {
 	return names, nil
 }
 
-// Skill returns the SKILL.md an image ships under the given name. Only names
+// Skill returns the SKILL.md an application ships under the given name. Only names
 // the registry already validated are readable, so a caller cannot reach
-// outside the image's own skills directory.
+// outside the application's own skills directory.
 func (r *Registry) Skill(id, name string) ([]byte, bool) {
-	img, source, ok := r.imageSource(id)
+	img, source, ok := r.applicationSource(id)
 	if !ok || source == nil {
 		return nil, false
 	}

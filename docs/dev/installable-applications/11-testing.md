@@ -2,8 +2,8 @@
 
 ## The catalog validates itself at build time
 
-`NewRegistry()` loads and validates every image at server startup, and the tests
-call it directly. So the fastest check that a new or edited image is well formed
+`NewRegistry()` loads and validates every application at server startup, and the tests
+call it directly. So the fastest check that a new or edited application is well formed
 is:
 
 ```bash
@@ -11,13 +11,13 @@ cd backend && go test ./internal/integration/containers/applications/
 ```
 
 This catches: a mismatched `id`, a missing `name`, an invalid `type` or
-`scopes`, a `service` image with no port or no install script, a `ui` or
-`backend` image declaring a port, a `ui` block naming a file that does not
-exist, an empty `ui/` directory, and a `plugin/` that is not a `package main`
+`scopes`, a `service` application with no port or no install script, a `ui` or
+`backend` application declaring a port, a `ui` block naming a file that does not
+exist, an empty `ui/` directory, and a `backend/` that is not a `package main`
 program or that carries its own `go.mod`.
 
 Plugin source is also compiled by the repository's own build, because a
-`plugin/` directory is an ordinary package inside the catalog module at the
+`backend/` directory is an ordinary package inside the catalog module at the
 repository root:
 
 ```bash
@@ -26,7 +26,7 @@ go build ./... && go vet ./...
 
 A plugin that does not compile fails there, not on someone's server.
 
-A malformed image fails the build — it never reaches a browser as a 404.
+A malformed application fails the build — it never reaches a browser as a 404.
 
 ## Backend tests
 
@@ -41,8 +41,8 @@ go build ./... && go vet ./...
 
 | File | Covers |
 |---|---|
-| `registry_test.go` | catalog loading, image kinds, `ui/` discovery, the declared `ui` manifest, asset path traversal, reserved directories |
-| `registry_plugin_test.go` | `plugin/` discovery and every layout the registry refuses |
+| `registry_test.go` | catalog loading, application kinds, `ui/` discovery, the declared `ui` manifest, asset path traversal, reserved directories |
+| `registry_backend_test.go` | `backend/` discovery and every layout the registry refuses |
 | `installer_test.go` | which `lxc` commands each scope issues — and, crucially, which it must **not** |
 | `service/applications/ui_extensions_test.go` | which extensions a caller may load, and their install scope |
 | `service/applications/backend_test.go` | who may call a plugin, when, and what lifecycle does to its process |
@@ -122,9 +122,9 @@ cd frontend && npm run dev
 
 Then work through the fixture matrix in [10 — Fixtures](10-fixtures.md).
 
-Remember: **editing anything under `ui/` or `plugin/` requires a backend
+Remember: **editing anything under `ui/` or `backend/` requires a backend
 rebuild**, because both are embedded in the binary. `npm run dev` will not pick
-them up. A `plugin/` edit is then recompiled by the server on the next install
+them up. A `backend/` edit is then recompiled by the server on the next install
 or start, because the build fingerprint changed.
 
 ### What is worth checking by hand
@@ -157,8 +157,8 @@ Be aware of the gaps rather than assuming coverage:
 
 - **Install scripts are never executed** by any test.
 - **A plugin's own behaviour is only as tested as the plugin.** The platform
-  tests the contract and the host; what an image's `plugin/` actually does is
-  covered by whatever tests that image ships.
+  tests the contract and the host; what an application's `backend/` actually does is
+  covered by whatever tests that application ships.
 - **The HTTP handlers have no request-level tests** for the applications
   routes; only `uiAssetContentType` is unit-tested. The endpoints are exercised
   by hand.
@@ -175,5 +175,5 @@ cd frontend && npm run build && npm test
 ```
 
 Then, if you touched the extension surface or the plugin contract, install
-[`hello-remote`](../../../images/hello-remote/README.md) at both scopes and confirm its
+[`hello-remote`](../../../applications/hello-remote/README.md) at both scopes and confirm its
 panel still greets you and still counts across a server restart.

@@ -6,8 +6,8 @@ import (
 )
 
 // The catalog these tests load is written here rather than borrowed from the
-// images the server happens to ship. Every kind has a fixture — so the catalog loader stays covered no matter which installable
-// images exist, and removing an image from the shipped catalog (or moving one
+// applications the server happens to ship. Every kind has a fixture — so the catalog loader stays covered no matter which installable
+// applications exist, and removing an application from the shipped catalog (or moving one
 // out into a separately distributed package) cannot quietly delete a test.
 const (
 	fixtureService = "fixture-service"
@@ -17,7 +17,7 @@ const (
 func fixtureCatalog() fstest.MapFS {
 	file := func(data string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(data)} }
 	return fstest.MapFS{
-		"images/" + fixtureService + "/image.json": file(`{
+		"applications/" + fixtureService + "/application.json": file(`{
 			"name": "Fixture Service",
 			"version": "1.0.0",
 			"scopes": ["global", "project"],
@@ -25,11 +25,11 @@ func fixtureCatalog() fstest.MapFS {
 			"service": "fixture",
 			"connection": {"user": "root", "passwordEnv": "FIXTURE_PASSWORD"}
 		}`),
-		"images/" + fixtureService + "/install.sh": file("#!/usr/bin/env bash\necho service\n"),
+		"applications/" + fixtureService + "/install.sh": file("#!/usr/bin/env bash\necho service\n"),
 
 		// A tool reaches a container without exposing anything, needs a host
 		// binary it supplies itself.
-		"images/" + fixtureTool + "/image.json": file(`{
+		"applications/" + fixtureTool + "/application.json": file(`{
 			"name": "Fixture Tool",
 			"version": "2.1.0",
 			"type": "tool",
@@ -50,7 +50,7 @@ func fixtureCatalog() fstest.MapFS {
 				}
 			}]
 		}`),
-		"images/" + fixtureTool + "/install.sh": file("#!/usr/bin/env bash\necho tool\n"),
+		"applications/" + fixtureTool + "/install.sh": file("#!/usr/bin/env bash\necho tool\n"),
 	}
 }
 

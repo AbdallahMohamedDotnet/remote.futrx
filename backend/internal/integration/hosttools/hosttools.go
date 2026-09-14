@@ -1,11 +1,11 @@
-// Package hosttools installs the host-side executables an installable image
+// Package hosttools installs the host-side executables an installable application
 // asks for, and tells the rest of the server where they ended up.
 //
 // Remote itself needs none of them. Nothing here carries a package name, a
-// version or a download URL: an image declares its own tool, and this package
+// version or a download URL: an application declares its own tool, and this package
 // fetches exactly what that declaration says over HTTPS and refuses anything
-// whose SHA-256 does not match. A host that installs no such image keeps
-// precisely the software it was provisioned with, which is what makes an image
+// whose SHA-256 does not match. A host that installs no such application keeps
+// precisely the software it was provisioned with, which is what makes an application
 // that needs a host binary a genuinely optional addition rather than a
 // dependency every Remote operator inherits.
 //
@@ -43,7 +43,7 @@ const maxDownload = 256 << 20
 func Dir(dataDir string) string { return filepath.Join(dataDir, "host-tools") }
 
 // Lookup resolves an installed tool's executable path. Tools installed from an
-// image win over anything on PATH: the image pinned a checksum, an operator's
+// application win over anything on PATH: the application pinned a checksum, an operator's
 // distribution package did not, and silently preferring the unpinned one would
 // make the pin decorative. A tool the host already provides is still accepted,
 // so an operator who installed it themselves is not forced into a download.
@@ -62,11 +62,11 @@ func Lookup(dataDir, name string) (string, error) {
 	return path, nil
 }
 
-// Installer installs image-declared tools. The zero value is not usable; call
+// Installer installs application-declared tools. The zero value is not usable; call
 // New.
 type Installer struct {
 	dataDir string
-	// installs serializes work per tool. Two projects installing the same image
+	// installs serializes work per tool. Two projects installing the same application
 	// at once would otherwise race on the same target path — but a tool is a
 	// download that can take minutes, and two unrelated tools write to two
 	// unrelated paths, so a lock per tool is what keeps one slow download from
@@ -244,7 +244,7 @@ func publish(link, target string) error {
 }
 
 // Validate reports whether a declaration is installable at all. The registry
-// calls it at catalog load, so a malformed tool fails when the image is loaded
+// calls it at catalog load, so a malformed tool fails when the application is loaded
 // rather than on the host of the first person who installs it.
 func Validate(tool svc.HostTool) error {
 	if err := validName(tool.Name); err != nil {
