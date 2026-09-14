@@ -1,15 +1,15 @@
-# 02 — `image.json` reference
+# 02 — `application.json` reference
 
-Every image directory contains exactly one `image.json`. It is loaded and
+Every application directory contains exactly one `application.json`. It is loaded and
 validated at server startup by `registry.go:loadImage`; a malformed file fails
 the build and the tests rather than producing a broken catalog entry.
 
-The Go type behind it is `Image` in
+The Go type behind it is `Application` in
 [`service/applications/model.go`](../../../backend/internal/service/applications/model.go).
 
 ## Complete example
 
-A service image using every relevant field:
+A service application using every relevant field:
 
 ```json
 {
@@ -61,7 +61,7 @@ A service image using every relevant field:
 }
 ```
 
-A backend image, which needs almost nothing beyond its `plugin/` directory:
+A backend application, which needs almost nothing beyond its `backend/` directory:
 
 ```json
 {
@@ -85,7 +85,7 @@ A backend image, which needs almost nothing beyond its `plugin/` directory:
 }
 ```
 
-A tool image, which provisions into the project's container but exposes
+A tool application, which provisions into the project's container but exposes
 nothing — no port, no healthcheck, project scope only:
 
 ```json
@@ -109,7 +109,7 @@ nothing — no port, no healthcheck, project scope only:
 }
 ```
 
-A UI image, which needs far less:
+A UI application, which needs far less:
 
 ```json
 {
@@ -138,10 +138,10 @@ A UI image, which needs far less:
 | `description` | string | no | One line; the card truncates to two lines. |
 | `category` | string | no | Free text, e.g. `database`, `cache`, `development`. |
 | `version` | string | **yes** | A string, not a number — `"8.0"`, `"16"`, `"1.2.3-rc1"`. Shown next to the name, and the signal that re-runs `install.sh` on an installed copy when it changes. See [17 — Versions and upgrades](17-versions-and-upgrades.md). |
-| `icon` | string | no | Built-in key or a path into this image's `ui/`. See [09 — Styling and icons](09-styling-and-icons.md). |
-| `type` | string | no | `service` (default), `tool`, `ui`, or `backend`. See [03 — Image types](03-image-types.md). |
+| `icon` | string | no | Built-in key or a path into this application's `ui/`. See [09 — Styling and icons](09-styling-and-icons.md). |
+| `type` | string | no | `service` (default), `tool`, `ui`, or `backend`. See [03 — Application types](03-application-types.md). |
 | `scopes` | string[] | yes | Any of `global`, `project`. At least one. |
-| `base` | string | no | LXD image for a dedicated global container. Default `ubuntu:24.04`. `service` only. |
+| `base` | string | no | LXD application for a dedicated global container. Default `ubuntu:24.04`. `service` only. |
 | `port` | object | for `service` | See below. Forbidden on `tool`, `ui` and `backend`, none of which is reachable on a port. |
 | `env` | object[] | no | Install-time inputs. See below. |
 | `service` | string | no | systemd unit name inside the container. Meaningful for `service` and `tool` — it is what stop and uninstall act on. Forbidden on `ui` and `backend`, which have no container. |
@@ -149,12 +149,12 @@ A UI image, which needs far less:
 | `install` | string | no | Install-script filename. Default `install.sh`. Required for `service` and `tool`; ignored for `ui` and `backend`. |
 | `healthcheck` | object | no | `{ "command": "…" }` run inside the container. It probes a port, so it is forbidden on `tool`, `ui` and `backend`. |
 | `ui` | object | no | Overrides what is loaded from `ui/`. See below. |
-| `backend` | object | no | Overrides the defaults for the Go plugin in `plugin/`. See below. |
-| `source` | string | — | **Server-set, not accepted from `image.json`.** `builtin` or `uploaded`; anything declared here is overwritten. |
+| `backend` | object | no | Overrides the defaults for the Go plugin in `backend/`. See below. |
+| `source` | string | — | **Server-set, not accepted from `application.json`.** `builtin` or `uploaded`; anything declared here is overwritten. |
 
 ### `port`
 
-Describes how a `service` image exposes itself. Required when `type` is
+Describes how a `service` application exposes itself. Required when `type` is
 `service` (or omitted); rejected when `type` is `ui`.
 
 | Field | Type | Default | Notes |
@@ -189,7 +189,7 @@ Resolution order for a blank field: `generate`, then `default`, then reject if
 ### `connection`
 
 Lets the UI show a uniform user/password/database panel for every server,
-regardless of how the image names its variables.
+regardless of how the application names its variables.
 
 | Field | Notes |
 |---|---|
@@ -200,7 +200,7 @@ regardless of how the image names its variables.
 
 ### `ui`
 
-Optional. Overrides what the SPA loads from the image's `ui/` directory. Every
+Optional. Overrides what the SPA loads from the application's `ui/` directory. Every
 path is relative to `ui/`.
 
 | Field | Type | Default |
@@ -219,9 +219,9 @@ Every declared path must exist and must stay inside `ui/`. A typo fails
 
 ### `backend`
 
-Optional, and only meaningful when the image ships a `plugin/` directory —
-which, exactly like `ui/`, is what opts the image in. There is nothing to name
-here because the layout is fixed: the plugin is `plugin/`, and it is
+Optional, and only meaningful when the application ships a `backend/` directory —
+which, exactly like `ui/`, is what opts the application in. There is nothing to name
+here because the layout is fixed: the plugin is `backend/`, and it is
 `package main`.
 
 | Field | Type | Default | Notes |
@@ -233,12 +233,12 @@ here because the layout is fixed: the plugin is `plugin/`, and it is
 behalf. Anything finer is the plugin's own job, using `Request.Caller` — see
 [15 — Backend plugins](15-backend-plugins.md).
 
-Declaring `backend` without a `plugin/` directory fails `NewRegistry()`, as
+Declaring `backend` without a `backend/` directory fails `NewRegistry()`, as
 does an unknown `access` value or a negative `timeoutMs`.
 
 ## Validation rules
 
-Every image must declare a non-empty `version`. Loading fails without one —
+Every application must declare a non-empty `version`. Loading fails without one —
 including for an uploaded package, which is refused at upload rather than
 half-added.
 
@@ -257,23 +257,23 @@ Enforced in `registry.go:validate` and `registry.go:loadImage`:
 - For `ui`: `port`, `service`, and `healthcheck` must all be absent, and a
   `ui/` directory must exist.
 - For `backend`: `port`, `service`, and `healthcheck` must all be absent, and a
-  `plugin/` directory must exist.
+  `backend/` directory must exist.
 - Every path in the `ui` block must exist inside `ui/`.
 - A `ui/` directory that exists must contain at least one file.
-- A `plugin/` directory that exists must contain at least one `package main`
+- A `backend/` directory that exists must contain at least one `package main`
   Go file, and must not contain its own `go.mod` or `go.sum` — the server
   generates those.
 
 ## Reserved directory names
 
-`docs/` inside the catalog is this documentation, not an image. The registry
+`docs/` inside the catalog is this documentation, not an application. The registry
 skips it (`registry.go:isCatalogMetadataDirectory`). Every other directory is loaded as an
-image, so do not put anything else beside them.
+application, so do not put anything else beside them.
 
 ## Skills
 
-An image directory may carry a `skills/` directory. Like `ui/`, it opts the
-image in by existing — nothing in `image.json` declares it. Each subdirectory
+An application directory may carry a `skills/` directory. Like `ui/`, it opts the
+application in by existing — nothing in `application.json` declares it. Each subdirectory
 holding a `SKILL.md` is one skill:
 
 ```
@@ -286,23 +286,23 @@ Names must be lowercase words joined by hyphens, because they become
 directories in a project workspace. A subdirectory without a `SKILL.md` fails
 the catalog load rather than shipping something the agent cannot read.
 
-Installing a project-scoped image publishes each skill to
+Installing a project-scoped application publishes each skill to
 `/workspace/.agents/skills/<name>/SKILL.md` in that project's container, where
 the agent picks it up alongside the platform's own skills; uninstalling removes
 it again. Publishing is idempotent — a `.skill.sha256` marker beside the file
 means an unchanged skill is not re-pushed. Global-scope apps have no project
 workspace and publish nothing.
 
-Ship a skill when using the image well requires knowledge the agent cannot
+Ship a skill when using the application well requires knowledge the agent cannot
 infer from the container, and keep it to what an agent needs to act. It is not
-a place for user-facing documentation; that belongs in the image's README or
+a place for user-facing documentation; that belongs in the application's README or
 its UI.
 
 ## Host tools
 
-Some images need an executable on the **Remote host**, beside the server
+Some applications need an executable on the **Remote host**, beside the server
 process, rather than inside a container. Remote ships none of them and keeps no
-package list: the image declares its own, and Remote downloads exactly that.
+package list: the application declares its own, and Remote downloads exactly that.
 
 ```json
 "hostTools": [
@@ -323,12 +323,12 @@ package list: the image declares its own, and Remote downloads exactly that.
 ```
 
 * `downloads` is keyed by host architecture as Go names it (`amd64`, `arm64`).
-  A host whose architecture is missing cannot install the image.
+  A host whose architecture is missing cannot install the application.
 * `sha256` is the digest of the bytes at `url`, **before** decompression, and
   is mandatory. A download that hashes to anything else is discarded and the
   install fails; nothing is written to the host.
 * `compression` is `""`, `"gzip"` or `"bzip2"` — one compressed executable, not
-  an archive of several files. One image, one binary, one checksum to read.
+  an archive of several files. One application, one binary, one checksum to read.
 * `versionArgs` (default `["version"]`) runs the installed binary to prove it
   works before the install is reported as successful.
 
@@ -337,9 +337,9 @@ published as `host-tools/bin/<name>`), never into `/usr` and never through the
 host package manager. Nothing outside Remote's own state is modified. Remote
 prepares them before the guest install script runs, on both Install and Start,
 and reuses an existing copy instead of downloading again. Only provisioned
-images may declare them; uninstall leaves them in place.
+applications may declare them; uninstall leaves them in place.
 
-A host that installs no image declaring host tools downloads nothing, which is
-what keeps such an image a genuinely optional addition rather than a dependency
+A host that installs no application declaring host tools downloads nothing, which is
+what keeps such an application a genuinely optional addition rather than a dependency
 every operator inherits.
 

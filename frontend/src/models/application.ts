@@ -5,7 +5,7 @@
 export type AppScope = "global" | "project";
 
 /**
- * What installing an image actually does. `service` runs software on a port in
+ * What installing an application actually does. `service` runs software on a port in
  * a container (a dedicated one for global scope); `tool` provisions software
  * into the project's container and exposes nothing.
  */
@@ -38,10 +38,10 @@ export interface AppPort {
  * `uploaded` ones came from a package an administrator uploaded and can be
  * removed again.
  */
-export type AppImageSource = "builtin" | "uploaded";
+export type AppApplicationSource = "builtin" | "uploaded";
 
-/** One catalog entry loaded from images/<id>/image.json. */
-export interface AppImage {
+/** One catalog entry loaded from applications/<id>/application.json. */
+export interface AppApplication {
   id: string;
   name: string;
   description?: string;
@@ -52,8 +52,8 @@ export interface AppImage {
    * catalog entry ships in its own `ui/` (`"ui/assets/logo.svg"`).
    */
   icon?: string;
-  /** Decided by the server, never by the package: see {@link AppImageSource}. */
-  source?: AppImageSource;
+  /** Decided by the server, never by the package: see {@link AppApplicationSource}. */
+  source?: AppApplicationSource;
   type: AppKind;
   /**
    * What this entry's kind means for the UI, decided by the server. `service`
@@ -72,9 +72,9 @@ export interface AppImage {
 /** API-safe view of one installed instance (secret env values redacted). */
 export interface AppInstance {
   id: string;
-  imageId: string;
-  /** The image.json version this copy was last installed from. */
-  imageVersion?: string;
+  applicationId: string;
+  /** The application.json version this copy was last installed from. */
+  applicationVersion?: string;
   name: string;
   scope: AppScope;
   projectId?: string;
@@ -107,7 +107,7 @@ export interface AppCredentials {
 
 /** Payload for installing an app. */
 export interface AppInstallRequest {
-  imageId: string;
+  applicationId: string;
   name?: string;
   env?: Record<string, string>;
   externalPort?: number;

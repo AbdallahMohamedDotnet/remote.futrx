@@ -10,10 +10,10 @@ This document is about 2 and 3.
 
 ## Installation is the gate
 
-Shipping an image in the catalog puts nothing on anyone's screen. An extension
+Shipping an application in the catalog puts nothing on anyone's screen. An extension
 loads for a user only when:
 
-- the image is installed **globally**, or installed in a **project that user
+- the application is installed **globally**, or installed in a **project that user
   belongs to**, **and**
 - that instance's status is **`running`**.
 
@@ -34,7 +34,7 @@ happens.
 
 ## Install scope is render scope
 
-Where an image is installed decides where its contributions may draw:
+Where an application is installed decides where its contributions may draw:
 
 | Installed | Renders |
 |---|---|
@@ -112,13 +112,13 @@ The sandbox is not merely absent from beta's chat header — it is absent from
 alpha's own sidebar row too, for as long as the user is reading beta. Leaving a
 project puts its plugins away entirely.
 
-## Multiple installs of one image
+## Multiple installs of one application
 
-The same image can be installed globally and in several projects at once. The
+The same application can be installed globally and in several projects at once. The
 backend unions them into one entry:
 
 ```json
-{ "image": { "id": "my-plugin", … }, "global": true, "projectIds": ["p1", "p2"] }
+{ "application": { "id": "my-plugin", … }, "global": true, "projectIds": ["p1", "p2"] }
 ```
 
 The extension is loaded **once** and its contributions are scoped to that
@@ -144,7 +144,7 @@ never even sees them.
 
 ## Changing scope mid-session
 
-If an image goes from global to project-only (or the reverse) while the user is
+If an application goes from global to project-only (or the reverse) while the user is
 signed in, the next sync re-records its visibility and **re-stamps
 contributions already registered**. The extension is not reloaded; its existing
 buttons simply narrow or widen. This is covered by
@@ -161,7 +161,7 @@ The behaviour is pinned by:
   and two extensions ordering in one slot.
 - `service/applications/ui_extensions_test.go` — the backend's aggregation:
   install scope reporting, the union of several installs, the membership
-  boundary, and skipping stopped or UI-less images.
+  boundary, and skipping stopped or UI-less applications.
 
 To check it by hand, install the two fixtures at different scopes — see
 [10 — Fixtures](10-fixtures.md).

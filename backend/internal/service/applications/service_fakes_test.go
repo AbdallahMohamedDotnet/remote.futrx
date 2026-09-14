@@ -2,17 +2,17 @@ package applications
 
 import "context"
 
-// singleImageRegistry answers with one image, so a test can shape exactly the
-// image under test rather than the whole catalog.
-type singleImageRegistry struct{ image Image }
+// singleImageRegistry answers with one application, so a test can shape exactly the
+// application under test rather than the whole catalog.
+type singleImageRegistry struct{ application Application }
 
-func (r *singleImageRegistry) List() []Image { return []Image{r.image} }
+func (r *singleImageRegistry) List() []Application { return []Application{r.application} }
 
-func (r *singleImageRegistry) Get(id string) (Image, bool) {
-	if id != r.image.ID {
-		return Image{}, false
+func (r *singleImageRegistry) Get(id string) (Application, bool) {
+	if id != r.application.ID {
+		return Application{}, false
 	}
-	return r.image, true
+	return r.application, true
 }
 
 // fakeStore is the shared in-memory store for application service tests. It
@@ -32,7 +32,7 @@ func (f *fakeStore) ListProject(_ context.Context, projectID string) ([]Instance
 }
 
 // ListAll spans both scopes, as the real store does. A caller asking "is this
-// image installed anywhere" gets the wrong answer from a fake that only knows
+// application installed anywhere" gets the wrong answer from a fake that only knows
 // about global instances.
 func (f *fakeStore) ListAll(context.Context) ([]Instance, error) {
 	all := append([]Instance(nil), f.global...)

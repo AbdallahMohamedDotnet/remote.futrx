@@ -1,13 +1,13 @@
 # 10 — Fixtures
 
-> **These fixture images are not in this repository.** What ships here is one
-> worked example, [`hello-remote`](../../../images/hello-remote/README.md), which covers the
+> **These fixture applications are not in this repository.** What ships here is one
+> worked example, [`hello-remote`](../../../applications/hello-remote/README.md), which covers the
 > same ground more briefly: a slot contribution, a view, a plugin process, and
 > per-instance storage. The fixtures below are described as the fuller surface
 > a developer working on the extension API itself would want, and the document
 > stands as the specification for them.
 
-Three images exist purely to exercise the extension surface. None of them
+Three applications exist purely to exercise the extension surface. None of them
 needs LXD or creates a container, so you can run the whole extension system on
 a laptop.
 
@@ -27,7 +27,7 @@ Contributes to **every** slot using **every** mechanism:
 | Contribution | Mechanism | What it demonstrates |
 |---|---|---|
 | A flask in all five chrome slots | `addIconButton` | The slot renders, and sizes the icon to its surface |
-| "Self-test" on its own cards | `addButton` + `when` | Labelled buttons, and the predicate that keeps a contribution off other images' cards |
+| "Self-test" on its own cards | `addButton` + `when` | Labelled buttons, and the predicate that keeps a contribution off other applications' cards |
 | A panel under the applications list | `register` | Custom markup, asset URLs, and cleanup on unmount |
 
 ### Inspecting a slot's context
@@ -56,7 +56,7 @@ and reports pass/fail per check:
 | Check | What it proves |
 |---|---|
 | `apiVersion` is a positive integer | the version contract exists |
-| image identity is this image | `remote.image` is correct |
+| application identity is this application | `remote.application` is correct |
 | every advertised slot has a name | `remote.slots` is populated |
 | `views.url` resolves declared views only | declared names work, unknown ones return `null` |
 | `views.load` fetches a declared view | the asset route serves views |
@@ -76,7 +76,7 @@ broke the contract.
 ## Backend Playground
 
 The counterpart to UI Playground on the other side of the wire. It ships a Go
-plugin in `plugin/main.go` and a `ui/`
+plugin in `backend/main.go` and a `ui/`
 that calls it, and every route exists to demonstrate one property of the
 contract:
 
@@ -88,9 +88,9 @@ contract:
 | `kv` | state in the process, written by one request and read by the next |
 | `notes` | state on disk, in the `DataDir` that survives stop and start |
 | `compute` | real Go work on the server, which is the reason to have a backend at all |
-| `slow` | the image's `timeoutMs`, from the caller's side |
+| `slow` | the application's `timeoutMs`, from the caller's side |
 | `boom` | a panic: one failed call, and the same pid afterwards |
-| `admin` | a plugin authorizing its own callers, beyond the image's `access` level |
+| `admin` | a plugin authorizing its own callers, beyond the application's `access` level |
 
 ### Where it appears
 
@@ -113,7 +113,7 @@ a red result from an unmarked button reads as a broken plugin:
 | Button | Expected |
 |---|---|
 | `panic` | fails with the panic message; `health` afterwards shows the same pid |
-| `timeout (11s)` | fails after the image's 10s `timeoutMs`; the next call still works |
+| `timeout (11s)` | fails after the application's 10s `timeoutMs`; the next call still works |
 | `unknown route` | `404` from the plugin's mux |
 
 They are dashed, grouped under "Meant to fail", and their results are logged in
@@ -142,7 +142,7 @@ process, over the real route.
 | in-memory state survives between calls | the process is not per-request |
 | the data directory is writable | `DataDir` works and is the plugin's own |
 | real Go work runs on the server | `fib(30)` and a prime sieve, computed host-side |
-| the instance is this image | `Init` handed over the right install |
+| the instance is this application | `Init` handed over the right install |
 | an unknown route is refused | the mux, and `404` rather than a hang |
 | a wrong method is refused | `405` rather than a silent `GET` |
 | a panic costs one request, not the process | the pid is unchanged afterwards |
@@ -207,13 +207,13 @@ cd backend
 go test ./internal/integration/pluginhost/ -run TestBackendPlayground -v
 ```
 
-That compiles the shipped image from the embedded catalog, runs it, and asserts
+That compiles the shipped application from the embedded catalog, runs it, and asserts
 the same properties the in-app self-test does. Add `-short` to skip every test
 in the package that needs the Go toolchain.
 
 ## Should fixtures ship in production?
 
-They are in the catalog like any other image, so they appear in the Applications
+They are in the catalog like any other application, so they appear in the Applications
 tab of every server built from this tree — described as developer fixtures, and
 inert until someone installs them.
 
@@ -223,7 +223,7 @@ id except their own tests:
 - `registry_test.go:TestRegistryLoadsDeclaredImageUI` uses `ui-playground` to
   cover the explicit `ui` manifest path.
 - `registry_test.go:TestRegistryImageKinds` asserts both playgrounds' `type`.
-- `registry_plugin_test.go:TestRegistryPluginSource` and
+- `registry_backend_test.go:TestRegistryBackendSource` and
   `pluginhost/catalog_test.go` use `backend-playground`.
 
 Update those if you remove it.

@@ -1,4 +1,4 @@
-import type { AppImage, AppInstance } from "../../models/application";
+import type { AppApplication, AppInstance } from "../../models/application";
 
 export interface CatalogInstallationState {
   installedImageIds: Set<string>;
@@ -18,35 +18,35 @@ export function catalogInstallationState(
     const target = instance.status === "error"
       ? failedImageIds
       : installedImageIds;
-    target.add(instance.imageId);
+    target.add(instance.applicationId);
   }
   return { installedImageIds, failedImageIds };
 }
 
-// Whether installing this image put anything in a container. This drives the
+// Whether installing this application put anything in a container. This drives the
 // uninstall wording, which has to say what is actually removed.
 //
 // The answer comes from the server, which owns the list of kinds: a kind added
 // there would otherwise land here as whatever a local rule happened to say
-// about a value it had never heard of. An image not in the catalog yet keeps
+// about a value it had never heard of. An application not in the catalog yet keeps
 // the historical service presentation until the catalog finishes loading.
-export function hasContainer(image: AppImage | undefined): boolean {
-  return image?.needsContainer ?? true;
+export function hasContainer(application: AppApplication | undefined): boolean {
+  return application?.needsContainer ?? true;
 }
 
-// Whether this image binds a host port, which is what the port row and the
+// Whether this application binds a host port, which is what the port row and the
 // credentials panel are about. A tool runs in a container but exposes nothing,
 // so showing it a port row would be showing it zeros.
-export function hasPortBinding(image: AppImage | undefined): boolean {
-  return image?.needsPort ?? true;
+export function hasPortBinding(application: AppApplication | undefined): boolean {
+  return application?.needsPort ?? true;
 }
 
-// The line shown in place of the port row for an image that has no port.
+// The line shown in place of the port row for an application that has no port.
 export function instanceSummary(
-  image: AppImage | undefined,
+  application: AppApplication | undefined,
   running: boolean,
 ): string {
-  if (image?.type === "tool") {
+  if (application?.type === "tool") {
     return running
       ? "Workspace tool — installed in this project's container. Nothing is exposed."
       : "Workspace tool — stopped. Start it to run it in the project's container.";
@@ -66,20 +66,20 @@ export function instanceSummary(
  */
 export function pendingUpgradeVersion(
   instance: AppInstance,
-  image: AppImage | undefined,
+  application: AppApplication | undefined,
 ): string | null {
-  if (!image || !hasContainer(image) || instance.status !== "stopped") return null;
-  if (!image.version || image.version === instance.imageVersion) return null;
-  return image.version;
+  if (!application || !hasContainer(application) || instance.status !== "stopped") return null;
+  if (!application.version || application.version === instance.applicationVersion) return null;
+  return application.version;
 }
 
 export function uninstallConsequence(
   instance: AppInstance,
-  image: AppImage | undefined,
+  application: AppApplication | undefined,
 ): string {
   // A tool holds no host port, so there is none to release; saying otherwise
   // would promise the user something the uninstall does not do.
-  if (image?.type === "tool") {
+  if (application?.type === "tool") {
     return `“${instance.name}” is stopped and disabled in the project container. Installed packages and any data it wrote stay there.`;
   }
   if (instance.scope === "global") {

@@ -40,10 +40,10 @@ func testPayload(t *testing.T, name string, kind byte) []byte {
 	return out.Bytes()
 }
 
-func TestContainerPayloadStagesSourceAndCleansUp(t *testing.T) {
-	files := fstest.MapFS{"image/container.tar.gz": {Data: testPayload(t, "container/go.mod", tar.TypeReg)}}
-	script := []byte("printf '%s\\n' \"$APP_PACKAGE_DIR\"\ncat \"$APP_PACKAGE_DIR/container/go.mod\"\nexit 7\n")
-	wrapped, err := withContainerPayload(files, "image", script)
+func TestInfraPayloadStagesSourceAndCleansUp(t *testing.T) {
+	files := fstest.MapFS{"application/infra.tar.gz": {Data: testPayload(t, "infra/go.mod", tar.TypeReg)}}
+	script := []byte("printf '%s\\n' \"$APP_PACKAGE_DIR\"\ncat \"$APP_PACKAGE_DIR/infra/go.mod\"\nexit 7\n")
+	wrapped, err := withInfraPayload(files, "application", script)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,27 +62,27 @@ func TestContainerPayloadStagesSourceAndCleansUp(t *testing.T) {
 	}
 }
 
-func TestContainerPayloadRejectsUnsafeArchives(t *testing.T) {
-	for _, name := range []string{"../escape", "container/../../escape", "/container/file", "plugin/main.go", "container\\escape"} {
-		if err := validateContainerPayload(testPayload(t, name, tar.TypeReg)); err == nil {
+func TestInfraPayloadRejectsUnsafeArchives(t *testing.T) {
+	for _, name := range []string{"../escape", "infra/../../escape", "/infra/file", "backend/main.go", "infra\\escape"} {
+		if err := validateInfraPayload(testPayload(t, name, tar.TypeReg)); err == nil {
 			t.Errorf("accepted %q", name)
 		}
 	}
 	for _, kind := range []byte{tar.TypeSymlink, tar.TypeLink} {
-		if err := validateContainerPayload(testPayload(t, "container/link", kind)); err == nil {
+		if err := validateInfraPayload(testPayload(t, "infra/link", kind)); err == nil {
 			t.Errorf("accepted link kind %d", kind)
 		}
 	}
-	payload := testPayload(t, "container/go.mod", tar.TypeReg)
+	payload := testPayload(t, "infra/go.mod", tar.TypeReg)
 	payload[len(payload)-8] ^= 0xff
-	if err := validateContainerPayload(payload); err == nil {
+	if err := validateInfraPayload(payload); err == nil {
 		t.Error("accepted corrupt gzip checksum")
 	}
 }
 
-func TestContainerPayloadLeavesLegacyScriptsUnchanged(t *testing.T) {
+func TestInfraPayloadLeavesLegacyScriptsUnchanged(t *testing.T) {
 	original := []byte("echo original\n")
-	got, err := withContainerPayload(fstest.MapFS{}, "image", original)
+	got, err := withInfraPayload(fstest.MapFS{}, "application", original)
 	if err != nil || !bytes.Equal(got, original) {
 		t.Fatalf("legacy script changed: %s, %v", got, err)
 	}

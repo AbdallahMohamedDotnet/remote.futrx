@@ -39,7 +39,7 @@ func (s *Service) SetPort(ctx context.Context, id string, port int) (View, error
 		inst.ExternalPort = port
 	}
 	inst.UpdatedAt = s.now()
-	spec := InstallSpec{Image: img, Instance: inst}
+	spec := InstallSpec{Application: img, Instance: inst}
 	if err := s.installer.Expose(ctx, spec); err != nil {
 		return View{}, err
 	}
@@ -64,14 +64,14 @@ func (s *Service) Uninstall(ctx context.Context, id string) error {
 // teardown removes an instance's container footprint. Uninstalling and
 // retrying a failed install share it, so both leave exactly the same state
 // behind.
-func (s *Service) teardown(ctx context.Context, img Image, inst Instance) error {
+func (s *Service) teardown(ctx context.Context, img Application, inst Instance) error {
 	if !img.Type.NeedsContainer() {
 		return nil
 	}
 	if s.installer == nil {
 		return ErrUnavailable
 	}
-	return s.installer.Uninstall(ctx, InstallSpec{Image: img, Instance: inst})
+	return s.installer.Uninstall(ctx, InstallSpec{Application: img, Instance: inst})
 }
 
 // transition runs a lifecycle action and records the resulting status.
@@ -89,7 +89,7 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 		}
 	}
 	upgrading := target == StatusRunning && needsUpgrade(inst, img)
-	if err := s.moveContainer(ctx, InstallSpec{Image: img, Instance: inst}, target); err != nil {
+	if err := s.moveContainer(ctx, InstallSpec{Application: img, Instance: inst}, target); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		return View{}, err
 	}
@@ -97,7 +97,7 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 	// actually run, so a failed start leaves the instance asking for the
 	// upgrade again rather than claiming to have it.
 	if upgrading {
-		inst.ImageVersion = img.Version
+		inst.ApplicationVersion = img.Version
 	}
 	if err := s.saveStatus(ctx, &inst, target, ""); err != nil {
 		return View{}, err
@@ -106,20 +106,20 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 }
 
 // moveContainer applies the requested lifecycle state to the container half
-// of an image. The transition workflow deliberately runs this before recording
+// of an application. The transition workflow deliberately runs this before recording
 // the final status.
 //
-// Starting an instance whose image has moved on installs rather than starts.
+// Starting an instance whose application has moved on installs rather than starts.
 // An upload upgrades the copies that are running and leaves stopped ones
 // alone — bringing an app back up is not something an upload should decide —
 // so this is where a stopped copy catches up, at the moment its owner asks for
-// it. It is also how a built-in image upgraded by a Remote release reaches an
+// it. It is also how a built-in application upgraded by a Remote release reaches an
 // app that was down when the release landed.
 func (s *Service) moveContainer(ctx context.Context, spec InstallSpec, target InstanceStatus) error {
 	if target != StatusRunning {
 		return s.installer.Stop(ctx, spec)
 	}
-	if needsUpgrade(spec.Instance, spec.Image) {
+	if needsUpgrade(spec.Instance, spec.Application) {
 		return s.installer.Install(ctx, spec)
 	}
 	return s.installer.Start(ctx, spec)

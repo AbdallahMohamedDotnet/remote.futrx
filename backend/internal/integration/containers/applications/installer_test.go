@@ -82,11 +82,11 @@ func testInstaller(t *testing.T, runner *fakeRunner) *Installer {
 	return NewInstaller(runner, testRegistry(t), t.TempDir())
 }
 
-// The fixture service image is used throughout: it has an install script the
+// The fixture service application is used throughout: it has an install script the
 // registry can hand the installer, and a port to proxy.
 func serviceSpec(scope svc.Scope, container string) svc.InstallSpec {
 	return svc.InstallSpec{
-		Image: svc.Image{
+		Application: svc.Application{
 			ID:      fixtureService,
 			Name:    "Fixture Service",
 			Type:    svc.KindService,
@@ -95,7 +95,7 @@ func serviceSpec(scope svc.Scope, container string) svc.InstallSpec {
 		},
 		Instance: svc.Instance{
 			ID:            "abc123",
-			ImageID:       fixtureService,
+			ApplicationID: fixtureService,
 			Scope:         scope,
 			ContainerName: container,
 			DeviceName:    "app-abc123",
@@ -142,7 +142,7 @@ func TestInstallProjectScopeUsesTheProjectContainer(t *testing.T) {
 // device name, no ports, and therefore nothing to proxy.
 func toolSpec(container string) svc.InstallSpec {
 	return svc.InstallSpec{
-		Image: svc.Image{
+		Application: svc.Application{
 			ID:      fixtureTool,
 			Name:    "Fixture Tool",
 			Type:    svc.KindTool,
@@ -150,7 +150,7 @@ func toolSpec(container string) svc.InstallSpec {
 		},
 		Instance: svc.Instance{
 			ID:            "abc123",
-			ImageID:       fixtureTool,
+			ApplicationID: fixtureTool,
 			Scope:         svc.ScopeProject,
 			ContainerName: container,
 		},
@@ -228,13 +228,13 @@ func TestInstallGlobalScopeHonoursTheImageBase(t *testing.T) {
 	runner := newFakeRunner()
 	installer := testInstaller(t, runner)
 	spec := serviceSpec(svc.ScopeGlobal, "futrx-app-abc123")
-	spec.Image.Base = "images:debian/12"
+	spec.Application.Base = "applications:debian/12"
 
 	if err := installer.Install(context.Background(), spec); err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	if !runner.hasPrefix("launch images:debian/12 futrx-app-abc123") {
-		t.Errorf("want the image's own base used, got:\n%s", strings.Join(runner.commands(), "\n"))
+	if !runner.hasPrefix("launch applications:debian/12 futrx-app-abc123") {
+		t.Errorf("want the application's own base used, got:\n%s", strings.Join(runner.commands(), "\n"))
 	}
 }
 
@@ -332,7 +332,7 @@ func TestStartStartsTheServiceWithoutReRunningTheInstallScript(t *testing.T) {
 		t.Errorf("start re-ran the install script:\n%s", strings.Join(runner.commands(), "\n"))
 	}
 	if !runner.contains("systemctl start fixture") {
-		t.Errorf("start did not start the image's service:\n%s", strings.Join(runner.commands(), "\n"))
+		t.Errorf("start did not start the application's service:\n%s", strings.Join(runner.commands(), "\n"))
 	}
 	// The proxy is still re-added: the host port is what the user reaches, and
 	// stopping released it.
@@ -343,13 +343,13 @@ func TestStartStartsTheServiceWithoutReRunningTheInstallScript(t *testing.T) {
 
 // A declared healthcheck is a promise the platform keeps: the app is reported
 // running only once its own probe says it is ready. The internal port is
-// substituted, so an image writes the probe without knowing which port its
+// substituted, so an application writes the probe without knowing which port its
 // instance was given.
 func TestInstallRunsTheDeclaredHealthcheck(t *testing.T) {
 	runner := newFakeRunner("my-project")
 	installer := testInstaller(t, runner)
 	spec := serviceSpec(svc.ScopeProject, "my-project")
-	spec.Image.Healthcheck.Command = "fixture-ping -P {{internalPort}}"
+	spec.Application.Healthcheck.Command = "fixture-ping -P {{internalPort}}"
 
 	if err := installer.Install(context.Background(), spec); err != nil {
 		t.Fatalf("install: %v", err)
@@ -361,7 +361,7 @@ func TestInstallRunsTheDeclaredHealthcheck(t *testing.T) {
 	}
 }
 
-// An image that declares no probe must not be probed: "ready" for it is the
+// An application that declares no probe must not be probed: "ready" for it is the
 // install script returning, and inventing a check would be inventing a way for
 // a healthy install to fail.
 func TestInstallSkipsTheHealthcheckWhenNoneIsDeclared(t *testing.T) {
@@ -373,7 +373,7 @@ func TestInstallSkipsTheHealthcheckWhenNoneIsDeclared(t *testing.T) {
 	}
 
 	if runner.contains("sh -c") {
-		t.Errorf("probed an image that declares no healthcheck:\n%s",
+		t.Errorf("probed an application that declares no healthcheck:\n%s",
 			strings.Join(runner.commands(), "\n"))
 	}
 }

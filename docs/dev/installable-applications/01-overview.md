@@ -3,16 +3,16 @@
 ## What the catalog is
 
 The catalog is a directory of subdirectories. Each subdirectory is one
-installable image:
+installable application:
 
 ```
-images/
-  docs/              ← this documentation (reserved name, not an image)
+applications/
+  docs/              ← this documentation (reserved name, not an application)
   mysql/
-    image.json       metadata
+    application.json       metadata
     install.sh       provisioner, run inside a container
     ui/              browser extension (optional)
-    plugin/          Go backend, compiled and run on the host (optional)
+    backend/          Go backend, compiled and run on the host (optional)
   postgresql/
   redis/
   ui-playground/       fixture: extension only, no container
@@ -20,44 +20,44 @@ images/
   backend-playground/  fixture: Go plugin plus the UI that calls it
 ```
 
-That directory is `images/` at the repository root. The whole tree is compiled
-into the server binary with `//go:embed images` in
+That directory is `applications/` at the repository root. The whole tree is compiled
+into the server binary with `//go:embed applications` in
 [`catalog.go`](../../../catalog.go) — a small module of its own, because
 `go:embed` reaches only downwards, so a catalog at the root needs the directive
 at the root — and
 [`registry.go`](../../../backend/internal/integration/containers/applications/registry.go)
-validates and serves what it embedded. There is no runtime plugin directory, no
-upload endpoint, and no way to add an image to a running server: adding one
+validates and serves what it embedded. There is no runtime backend directory, no
+upload endpoint, and no way to add an application to a running server: adding one
 means adding a directory and rebuilding. That single fact drives most of the
 design, and the whole of the [security model](13-security-model.md).
 
-Adding an image requires **no code changes**. `NewRegistry()` walks the
+Adding an application requires **no code changes**. `NewRegistry()` walks the
 directory at startup, validates every entry, and the new app appears in the
 Applications tab.
 
-## The three halves of an image
+## The three halves of an application
 
 ```
-                         image.json
+                         application.json
                     /         |         \
-          install.sh        plugin/        ui/
+          install.sh        backend/        ui/
                |               |             |
      runs in a container   runs on the   runs in the browser
      (a service on a port)  host as a    (buttons, panels, popups)
                             process
 ```
 
-An image may have any of them, or all three:
+An application may have any of them, or all three:
 
-| Image | `install.sh` | `plugin/` | `ui/` | What it is |
+| Application | `install.sh` | `backend/` | `ui/` | What it is |
 |---|---|---|---|---|
 | `postgresql` | yes | no | no | a database |
 | `mysql` | yes | no | yes | a database that also adds a "Connect" action |
 | `ui-playground` | no | no | yes | a pure UI plugin |
 | `backend-playground` | no | yes | yes | a Go backend and the UI that calls it |
 
-The `type` field in `image.json` says which shape it is — see
-[03 — Image types](03-image-types.md). `plugin/` is covered in full by
+The `type` field in `application.json` says which shape it is — see
+[03 — Application types](03-application-types.md). `backend/` is covered in full by
 [15 — Backend plugins](15-backend-plugins.md).
 
 ## The moving parts
@@ -90,22 +90,22 @@ flowchart TB
     end
 
     subgraph Integration["integration/containers/applications — the catalog and lxc"]
-        I_Registry["registry.go<br/>validates the catalog, serves ui/ assets and plugin/ source"]
-        I_RegParts["registry_ui.go / registry_plugin.go<br/>registry_packages.go / registry_skills.go"]
-        I_Payload["container_payload.go<br/>stages container.tar.gz into the install script"]
+        I_Registry["registry.go<br/>validates the catalog, serves ui/ assets and backend/ source"]
+        I_RegParts["registry_ui.go / registry_backend.go<br/>registry_packages.go / registry_skills.go"]
+        I_Payload["infra_payload.go<br/>stages infra.tar.gz into the install script"]
         I_Installer["installer.go<br/>lxc launch, install.sh, systemd, proxy device"]
         I_Allocator["allocator.go — a free host port"]
         I_Packages["packages.go — uploaded .zip packages"]
     end
 
     subgraph Support["Supporting packages"]
-        P_PluginHost["integration/pluginhost<br/>compiles plugin/, runs it over go-plugin"]
+        P_PluginHost["integration/pluginhost<br/>compiles backend/, runs it over go-plugin"]
         P_FileApps["stores/fileapplications<br/>global.json, projects/{id}.json"]
         P_HostTools["integration/hosttools<br/>checksum-pinned host binaries"]
     end
 
-    subgraph Catalog["images/ — embedded by go:embed"]
-        C_Hello["hello-remote/<br/>the worked example: plugin/ + ui/"]
+    subgraph Catalog["applications/ — embedded by go:embed"]
+        C_Hello["hello-remote/<br/>the worked example: backend/ + ui/"]
     end
 
     FE_Section --> FE_Catalog
@@ -139,7 +139,7 @@ flowchart TB
     I_Registry -. go:embed .-> C_Hello
     I_Installer --> P_HostTools
     I_Packages -. uploaded packages join the catalog .-> I_Registry
-    P_PluginHost -. reads plugin/ source from .-> I_Registry
+    P_PluginHost -. reads backend/ source from .-> I_Registry
 ```
 
 Every arrow out of the service layer crosses an interface it declares itself:
@@ -151,9 +151,9 @@ is what keeps the domain testable without LXD, a Go toolchain, or a disk.
 
 | Layer | File | Responsibility |
 |---|---|---|
-| integration | `containers/applications/registry.go` | loads and validates the embedded catalog; serves `ui/` asset bytes and `plugin/` source |
+| integration | `containers/applications/registry.go` | loads and validates the embedded catalog; serves `ui/` asset bytes and `backend/` source |
 | integration | `containers/applications/installer.go` | everything `lxc`-facing: containers, install scripts, proxy devices |
-| integration | `pluginhost/` | everything toolchain- and process-facing: compiling `plugin/`, running it, forwarding calls |
+| integration | `pluginhost/` | everything toolchain- and process-facing: compiling `backend/`, running it, forwarding calls |
 | contract | `pkg/appplugin` | the types and interface a plugin is written against |
 | service | `service/applications/service.go` | policy: install, lifecycle, which extensions a caller may load |
 | service | `service/applications/backend.go` | policy: who may call a plugin, and when |
@@ -181,8 +181,8 @@ contract, so it depends on nothing but the standard library.
 ## What installing does
 
 An install crosses every layer above, and what it actually provisions depends
-entirely on the image's type — which is the single most surprising thing about
-this subsystem, and the reason a `ui` or `backend` image works on a host with
+entirely on the application's type — which is the single most surprising thing about
+this subsystem, and the reason a `ui` or `backend` application works on a host with
 no container runtime at all.
 
 ```mermaid
@@ -201,15 +201,15 @@ sequenceDiagram
     User->>UI: Install
     UI->>API: POST /api/applications<br/>or /api/projects/{id}/applications
     API->>Svc: Install(request)
-    Svc->>Reg: the image, and its install script
-    Reg-->>Svc: Image + script bytes (payload already staged)
+    Svc->>Reg: the application, and its install script
+    Reg-->>Svc: Application + script bytes (payload already staged)
     Svc->>Svc: resolve env — defaults, generated secrets, required fields
 
-    alt ui or backend image
+    alt ui or backend application
         Note over Svc,LXD: no container, no port, no proxy device
         Svc->>Store: persist as running
-        Svc->>Host: Ensure — compile plugin/ if stale, start the process
-    else service or tool image
+        Svc->>Host: Ensure — compile backend/ if stale, start the process
+    else service or tool application
         alt project scope
             Svc->>Proj: container name, and ready it
         else global scope
@@ -224,7 +224,7 @@ sequenceDiagram
         opt type == service
             Inst->>LXD: add the proxy device that maps the host port
         end
-        Svc->>Host: Ensure, when the image ships a plugin/ too
+        Svc->>Host: Ensure, when the application ships a backend/ too
         Svc->>Store: persist as running
     end
 
@@ -235,11 +235,11 @@ sequenceDiagram
 ## How an extension reaches the screen
 
 ```
-1. User installs an image        POST /api/applications
+1. User installs an application        POST /api/applications
                                  (or /api/projects/{id}/applications)
                                           |
 2. SPA re-syncs                  GET /api/applications/ui
-                                 → [{ image, global, projectIds }]
+                                 → [{ application, global, projectIds }]
                                           |
 3. Host injects stylesheets      <link href="/api/applications/catalog/
                                           <id>/ui/style/*.css">
@@ -255,7 +255,7 @@ sequenceDiagram
                                           |
 7. It calls its own backend      remote.backend.call("health")
                                  → /api/applications/<instance>/backend/health
-                                 → the image's compiled Go plugin
+                                 → the application's compiled Go plugin
 ```
 
 Steps 2–6 repeat whenever the installed set changes — install, uninstall,
@@ -267,7 +267,7 @@ reload.
 An extension has to pass all three before anything of it appears:
 
 1. **It must be in the build.** The catalog is embedded; there is no runtime
-   installation of new images.
+   installation of new applications.
 2. **The user must have installed it**, and the instance must be *running*.
    Being in the catalog puts nothing on anyone's screen. See
    [12 — HTTP API](12-http-api.md) for `GET /api/applications/ui`.
@@ -294,7 +294,7 @@ break the render of the surface around it.
 throwing click handler, a missing view — each is caught and logged, and costs
 that one extension its own UI. Everything else keeps working.
 
-**The catalog fails loudly.** A malformed `image.json`, a `ui` block naming a
+**The catalog fails loudly.** A malformed `application.json`, a `ui` block naming a
 file that does not exist, a `type` that declares a port it cannot have — all of
 these fail `NewRegistry()`, which means the build and the tests fail. A broken
-image never reaches a browser as a 404.
+application never reaches a browser as a 404.

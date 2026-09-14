@@ -1,8 +1,8 @@
 # 04 — Install scripts
 
-`service` and `tool` images have one. A `ui` or `backend` image installs
+`service` and `tool` applications have one. A `ui` or `backend` application installs
 nothing in a container and needs no script — see
-[03 — Image types](03-image-types.md).
+[03 — Application types](03-application-types.md).
 
 ## The contract
 
@@ -15,7 +15,7 @@ lxc exec <container> --env APP_INTERNAL_PORT=3306 --env … -- bash -s
 It receives:
 
 - `APP_INTERNAL_PORT` — the port the app must bind **inside** the container.
-  Always `port.internal` from `image.json`. A `tool` has no port, so it is `0`
+  Always `port.internal` from `application.json`. A `tool` has no port, so it is `0`
   and means nothing.
 - One variable per `env[]` entry, already resolved: defaults applied, secrets
   generated, required values checked.
@@ -40,32 +40,32 @@ attached to the error message when the script fails.
 There is an 8-minute timeout (`execTimeout` in `installer.go`), which is
 generous enough for an `apt-get install` on a cold container.
 
-## Bundled container files
+## Bundled infra files
 
-An image may include `container.tar.gz` beside `image.json`. The archive holds
-regular files and directories under `container/`. The catalog validates the
+An application may include `infra.tar.gz` beside `application.json`. The archive holds
+regular files and directories under `infra/`. The catalog validates the
 archive and wraps the install script to extract it into a temporary directory
 inside the target container. The script receives that directory as
 `APP_PACKAGE_DIR`; cleanup runs when the script exits, including on failure.
-Images without an archive retain the plain `bash -s` behavior.
+Applications without an archive retain the plain `bash -s` behavior.
 
-For example, an image whose container-side program is a Go module builds it
-from `$APP_PACKAGE_DIR/container/`. That module, the image's host `plugin/` and
-its browser `ui/` all belong to the same image folder, and a packaging script
-in the image refreshes the archive from that source. The archive is what allows
+For example, an application whose container-side program is a Go module builds it
+from `$APP_PACKAGE_DIR/infra/`. That module, the application's host `backend/` and
+its browser `ui/` all belong to the same application folder, and a packaging script
+in the application refreshes the archive from that source. The archive is what allows
 a catalog to carry nested Go modules, which `go:embed` does not traverse.
 
-The s3disk image is the worked example, and it lives in its own repository
-rather than here. Its `container/` is a Go module with its own `go.mod`, its
-`package.sh` rebuilds `container.tar.gz` reproducibly, and `install.sh`
-compiles the staged source inside the container. Copy that shape if your image
+The s3disk application is the worked example, and it lives in its own repository
+rather than here. Its `infra/` is a Go module with its own `go.mod`, its
+`package.sh` rebuilds `infra.tar.gz` reproducibly, and `install.sh`
+compiles the staged source inside the container. Copy that shape if your application
 needs one — including the part that is easy to miss: because
 `go:embed` skips a nested module in silence rather than failing, a stale or
 missing archive produces a green build and a broken install, so the freshness
 of the archive needs a test of its own.
 
 Payloads are limited to 8 MiB compressed and 32 MiB expanded. Paths outside
-`container/`, links, duplicate entries and special files are rejected. An
+`infra/`, links, duplicate entries and special files are rejected. An
 uploaded package carries its payload the same way; see
 [16 — Uploaded packages](16-uploaded-packages.md).
 
@@ -131,7 +131,7 @@ These are the patterns that make a re-run safe:
 | `systemctl restart` | `systemctl start` (a no-op if config changed) |
 | `useradd -r app 2>/dev/null || true` | `useradd -r app` |
 
-The MySQL image is a worked example of the harder case: on a fresh install root
+The MySQL application is a worked example of the harder case: on a fresh install root
 authenticates over a unix socket, but once a password is set it authenticates
 with that password. A `run_sql` helper that tries both is what makes the re-run
 succeed either way.
@@ -152,7 +152,7 @@ The same applies to non-secret user input. `ui-playground` used to escape
 
 ## Tools, which have no port to wait for
 
-A `tool` image's script is the same contract minus the port. A mount tool is
+A `tool` application's script is the same contract minus the port. A mount tool is
 the worked example: it installs `fuse3`, puts the binary in place, writes its
 credentials to a root-only environment file, generates a systemd unit, and then
 **waits for `mountpoint -q` to succeed** before exiting. That wait is the whole
@@ -170,7 +170,7 @@ printf '%s\n' "$UNIT" >"/etc/remote/workspace-idle.d/${UNIT}"
 The probe treats any unrecognised process as someone working in the project, so
 without this an always-running daemon pins every workspace it is installed in
 and an idle project is never archived. Remote reads names from that directory
-and ships no list of its own — an image that leaves nothing running needs
+and ships no list of its own — an application that leaves nothing running needs
 nothing here.
 
 Note what it does *not* do: it never echoes a secret, and it writes credentials
@@ -178,7 +178,7 @@ to a `0600` file rather than into the unit, which is world-readable.
 
 ## Healthcheck
 
-`healthcheck.command` in `image.json` is a readiness probe run inside the
+`healthcheck.command` in `application.json` is a readiness probe run inside the
 container. `{{internalPort}}` is substituted:
 
 ```json
@@ -202,7 +202,7 @@ exists and is readable.
 
 The fastest loop:
 
-1. Install the image at project scope from the UI, against a project whose
+1. Install the application at project scope from the UI, against a project whose
    container is running.
 2. On failure, the error and the tail of the script output appear on the
    installed row.

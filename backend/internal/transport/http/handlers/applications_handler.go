@@ -37,11 +37,11 @@ func (h *ApplicationsHandler) RegisterRoutes(mux *http.ServeMux) {
 
 // installBody is the shared request shape for installing an app.
 type installBody struct {
-	ImageID      string            `json:"imageId"`
-	Name         string            `json:"name"`
-	Env          map[string]string `json:"env"`
-	ExternalPort int               `json:"externalPort"`
-	BindAddress  string            `json:"bindAddress"`
+	ApplicationID string            `json:"applicationId"`
+	Name          string            `json:"name"`
+	Env           map[string]string `json:"env"`
+	ExternalPort  int               `json:"externalPort"`
+	BindAddress   string            `json:"bindAddress"`
 }
 
 type portBody struct {
@@ -168,13 +168,13 @@ func (h *ApplicationsHandler) install(w http.ResponseWriter, r *http.Request, sc
 		return
 	}
 	view, err := h.apps.Install(r.Context(), serviceapplications.InstallRequest{
-		ImageID:      strings.TrimSpace(body.ImageID),
-		Scope:        scope,
-		ProjectID:    projectID,
-		Name:         body.Name,
-		Env:          body.Env,
-		ExternalPort: body.ExternalPort,
-		BindAddress:  body.BindAddress,
+		ApplicationID: strings.TrimSpace(body.ApplicationID),
+		Scope:         scope,
+		ProjectID:     projectID,
+		Name:          body.Name,
+		Env:           body.Env,
+		ExternalPort:  body.ExternalPort,
+		BindAddress:   body.BindAddress,
 	})
 	if err != nil {
 		sendAppError(w, err)
@@ -344,11 +344,11 @@ func sendAppError(w http.ResponseWriter, err error) {
 		httptransport.SendErr(w, http.StatusConflict, err.Error())
 	case errors.Is(err, serviceapplications.ErrNotSupported):
 		// The request is well formed and the caller is allowed to make it; the
-		// image simply has nothing to apply it to — setting a port on an app
+		// application simply has nothing to apply it to — setting a port on an app
 		// that binds none, say. That is the caller's mistake to see, not a
 		// server fault.
 		httptransport.SendErr(w, http.StatusUnprocessableEntity, err.Error())
-	case errors.Is(err, serviceapplications.ErrUnknownImage),
+	case errors.Is(err, serviceapplications.ErrUnknownApplication),
 		errors.Is(err, serviceapplications.ErrScope),
 		errors.Is(err, serviceapplications.ErrProjectneeded),
 		errors.Is(err, serviceapplications.ErrRequiredEnv),
