@@ -28,7 +28,7 @@ func (h *recordingHost) Ensure(_ context.Context, spec BackendSpec) (appplugin.D
 	if h.ensureErr != nil {
 		return appplugin.Descriptor{}, h.ensureErr
 	}
-	return appplugin.Descriptor{Name: spec.ImageID, APIVersion: appplugin.APIVersion}, nil
+	return appplugin.Descriptor{Name: spec.ApplicationID, APIVersion: appplugin.APIVersion}, nil
 }
 
 func (h *recordingHost) Call(
@@ -52,38 +52,38 @@ func (h *recordingHost) Remove(_ context.Context, instanceID string) error {
 	return nil
 }
 
-func backendImage(mutate func(*Image)) Image {
-	image := Image{
+func backendImage(mutate func(*Application)) Application {
+	application := Application{
 		ID:      "demo",
 		Name:    "Demo",
 		Type:    KindBackend,
 		Scopes:  []Scope{ScopeGlobal},
-		Backend: &ImageBackend{},
+		Backend: &ApplicationBackend{},
 	}
 	if mutate != nil {
-		mutate(&image)
+		mutate(&application)
 	}
-	return image
+	return application
 }
 
 // backendService builds a service with no container runtime at all, which is
-// the point: a backend image installs and runs on a host with no LXD.
-func backendService(image Image, instances []Instance, host BackendHost) (*Service, *fakeStore) {
+// the point: a backend application installs and runs on a host with no LXD.
+func backendService(application Application, instances []Instance, host BackendHost) (*Service, *fakeStore) {
 	store := &fakeStore{global: instances}
 	return New(
-		&singleImageRegistry{image: image},
+		&singleImageRegistry{application: application},
 		store,
 		nil, nil, nil,
 		WithBackendHost(host),
 	), store
 }
 
-func withInstance(image Image, instance Instance, host BackendHost) (*Service, *fakeStore) {
-	return backendService(image, []Instance{instance}, host)
+func withInstance(application Application, instance Instance, host BackendHost) (*Service, *fakeStore) {
+	return backendService(application, []Instance{instance}, host)
 }
 
 func runningInstance() Instance {
-	return Instance{ID: "abc123", ImageID: "demo", Scope: ScopeGlobal, Status: StatusRunning}
+	return Instance{ID: "abc123", ApplicationID: "demo", Scope: ScopeGlobal, Status: StatusRunning}
 }
 
 func anyCaller() appplugin.Caller {
@@ -127,34 +127,34 @@ func TestCallBackendStampsTheResolvedCaller(t *testing.T) {
 
 func TestCallBackendRefusals(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		image    Image
-		instance Instance
-		caller   appplugin.Caller
-		host     BackendHost
-		want     error
+		name        string
+		application Application
+		instance    Instance
+		caller      appplugin.Caller
+		host        BackendHost
+		want        error
 	}{
 		{
-			name:     "no plugin host configured",
-			image:    backendImage(nil),
-			instance: runningInstance(),
-			caller:   anyCaller(),
-			host:     nil,
-			want:     ErrUnavailable,
+			name:        "no plugin host configured",
+			application: backendImage(nil),
+			instance:    runningInstance(),
+			caller:      anyCaller(),
+			host:        nil,
+			want:        ErrUnavailable,
 		},
 		{
-			name:     "the image ships no plugin",
-			image:    backendImage(func(i *Image) { i.Type = KindService; i.Backend = nil }),
-			instance: runningInstance(),
-			caller:   anyCaller(),
-			host:     &recordingHost{},
-			want:     ErrNoBackend,
+			name:        "the application ships no plugin",
+			application: backendImage(func(i *Application) { i.Type = KindService; i.Backend = nil }),
+			instance:    runningInstance(),
+			caller:      anyCaller(),
+			host:        &recordingHost{},
+			want:        ErrNoBackend,
 		},
 		{
-			name:  "the app is stopped",
-			image: backendImage(nil),
+			name:        "the app is stopped",
+			application: backendImage(nil),
 			instance: Instance{
-				ID: "abc123", ImageID: "demo", Scope: ScopeGlobal, Status: StatusStopped,
+				ID: "abc123", ApplicationID: "demo", Scope: ScopeGlobal, Status: StatusStopped,
 			},
 			caller: anyCaller(),
 			host:   &recordingHost{},
@@ -162,8 +162,8 @@ func TestCallBackendRefusals(t *testing.T) {
 		},
 		{
 			name: "an admin-only plugin and an ordinary caller",
-			image: backendImage(func(i *Image) {
-				i.Backend = &ImageBackend{Access: BackendAccessAdmin}
+			application: backendImage(func(i *Application) {
+				i.Backend = &ApplicationBackend{Access: BackendAccessAdmin}
 			}),
 			instance: runningInstance(),
 			caller:   anyCaller(),
@@ -171,16 +171,16 @@ func TestCallBackendRefusals(t *testing.T) {
 			want:     ErrBackendAccess,
 		},
 		{
-			name:     "an unknown instance",
-			image:    backendImage(nil),
-			instance: Instance{ID: "other", ImageID: "demo", Status: StatusRunning},
-			caller:   anyCaller(),
-			host:     &recordingHost{},
-			want:     ErrNotFound,
+			name:        "an unknown instance",
+			application: backendImage(nil),
+			instance:    Instance{ID: "other", ApplicationID: "demo", Status: StatusRunning},
+			caller:      anyCaller(),
+			host:        &recordingHost{},
+			want:        ErrNotFound,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			service, _ := withInstance(tc.image, tc.instance, tc.host)
+			service, _ := withInstance(tc.application, tc.instance, tc.host)
 			_, err := service.CallBackend(
 				context.Background(), "abc123", appplugin.Request{Path: "health"}, tc.caller)
 			if !errors.Is(err, tc.want) {
@@ -194,10 +194,10 @@ func TestCallBackendRefusals(t *testing.T) {
 // gate, not a ban.
 func TestCallBackendAllowsAnAdministratorThroughAnAdminGate(t *testing.T) {
 	host := &recordingHost{}
-	image := backendImage(func(i *Image) {
-		i.Backend = &ImageBackend{Access: BackendAccessAdmin}
+	application := backendImage(func(i *Application) {
+		i.Backend = &ApplicationBackend{Access: BackendAccessAdmin}
 	})
-	service, _ := withInstance(image, runningInstance(), host)
+	service, _ := withInstance(application, runningInstance(), host)
 
 	if _, err := service.CallBackend(
 		context.Background(),
@@ -214,18 +214,18 @@ func TestCallBackendAllowsAnAdministratorThroughAnAdminGate(t *testing.T) {
 
 func TestDescribeBackendReportsTheImagePolicy(t *testing.T) {
 	host := &recordingHost{}
-	image := backendImage(func(i *Image) { i.Backend = &ImageBackend{TimeoutMS: 2500} })
-	service, _ := withInstance(image, runningInstance(), host)
+	application := backendImage(func(i *Application) { i.Backend = &ApplicationBackend{TimeoutMS: 2500} })
+	service, _ := withInstance(application, runningInstance(), host)
 
 	described, err := service.DescribeBackend(context.Background(), "abc123", anyCaller())
 	if err != nil {
 		t.Fatalf("describe: %v", err)
 	}
-	if described.InstanceID != "abc123" || described.ImageID != "demo" {
+	if described.InstanceID != "abc123" || described.ApplicationID != "demo" {
 		t.Errorf("identity = %+v", described)
 	}
 	if described.TimeoutMS != 2500 || described.Access != BackendAccessRegistered {
-		t.Errorf("policy = %+v, want the image's timeout and the default access", described)
+		t.Errorf("policy = %+v, want the application's timeout and the default access", described)
 	}
 	if described.Descriptor.APIVersion != appplugin.APIVersion {
 		t.Errorf("descriptor = %+v", described.Descriptor)
@@ -239,7 +239,7 @@ func TestLifecycleMovesThePluginProcess(t *testing.T) {
 	service, _ := backendService(backendImage(nil), nil, host)
 	ctx := context.Background()
 
-	installed, err := service.Install(ctx, InstallRequest{ImageID: "demo", Scope: ScopeGlobal})
+	installed, err := service.Install(ctx, InstallRequest{ApplicationID: "demo", Scope: ScopeGlobal})
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestInstallRecordsAFailingPlugin(t *testing.T) {
 	service, store := backendService(backendImage(nil), nil, host)
 
 	if _, err := service.Install(
-		context.Background(), InstallRequest{ImageID: "demo", Scope: ScopeGlobal},
+		context.Background(), InstallRequest{ApplicationID: "demo", Scope: ScopeGlobal},
 	); err == nil {
 		t.Fatal("a plugin that failed to start reported a successful install")
 	}
@@ -302,7 +302,7 @@ func TestInstallingOverAFailedAttemptRetriesIt(t *testing.T) {
 	host := &recordingHost{ensureErr: errors.New("compile plugin: syntax error")}
 	service, store := backendService(backendImage(nil), nil, host)
 	ctx := context.Background()
-	request := InstallRequest{ImageID: "demo", Scope: ScopeGlobal}
+	request := InstallRequest{ApplicationID: "demo", Scope: ScopeGlobal}
 
 	if _, err := service.Install(ctx, request); err == nil {
 		t.Fatal("the first install was expected to fail")
@@ -321,7 +321,7 @@ func TestInstallingOverAFailedAttemptRetriesIt(t *testing.T) {
 		t.Errorf("retry status = %q, want running", retried.Status)
 	}
 	// The failed attempt is torn down, not left beside the working one: one
-	// instance per image per scope is the invariant the rest of the system
+	// instance per application per scope is the invariant the rest of the system
 	// reads.
 	if len(host.removed) != 1 || host.removed[0] != failed.ID {
 		t.Errorf("removed = %v, want the failed attempt %s", host.removed, failed.ID)
@@ -342,7 +342,7 @@ func TestInstallingOverAWorkingInstanceIsStillRefused(t *testing.T) {
 	service, _ := withInstance(backendImage(nil), runningInstance(), host)
 
 	_, err := service.Install(
-		context.Background(), InstallRequest{ImageID: "demo", Scope: ScopeGlobal})
+		context.Background(), InstallRequest{ApplicationID: "demo", Scope: ScopeGlobal})
 	if !errors.Is(err, ErrAlreadyInstalled) {
 		t.Fatalf("error = %v, want ErrAlreadyInstalled", err)
 	}

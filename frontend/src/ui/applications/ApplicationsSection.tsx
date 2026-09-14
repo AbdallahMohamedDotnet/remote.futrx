@@ -12,15 +12,15 @@ export function ApplicationsSection({
 }) {
   const { scope, catalog, instances } = controller;
 
-  // Only images that support this scope are installable here.
+  // Only applications that support this scope are installable here.
   const installable = useMemo(
-    () => catalog.filter((image) => image.scopes.includes(scope)),
+    () => catalog.filter((application) => application.scopes.includes(scope)),
     [catalog, scope],
   );
 
-  // One instance per image per scope. A failed install is not an installation:
+  // One instance per application per scope. A failed install is not an installation:
   // it is an attempt that left an error to read, so its card offers a retry
-  // rather than claiming the image is installed.
+  // rather than claiming the application is installed.
   const { installedImageIds, failedImageIds } = useMemo(
     () => catalogInstallationState(instances),
     [instances],
@@ -40,7 +40,7 @@ export function ApplicationsSection({
       <div class="space-y-2.5">
         <h3 class="text-[13px] font-medium text-ink-100">Available applications</h3>
         <CatalogGrid
-          images={installable}
+          applications={installable}
           installedIds={installedImageIds}
           failedIds={failedImageIds}
           controller={controller}

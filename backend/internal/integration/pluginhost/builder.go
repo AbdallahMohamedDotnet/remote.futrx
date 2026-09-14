@@ -16,19 +16,19 @@ import (
 	"github.com/futrx-com/remote.futrx.com/pkg/appplugin"
 )
 
-// Builder turns an image's plugin/ source into an executable, caching the
+// Builder turns an application's backend/ source into an executable, caching the
 // result by a fingerprint of everything that went into it.
 //
 // The catalog ships source rather than binaries because it is embedded in the
 // server and has to stay portable across the architectures a server runs on.
-// Compiling once per image build and caching by fingerprint keeps the cost off
+// Compiling once per application build and caching by fingerprint keeps the cost off
 // every install: a cold build takes seconds, a warm one is a stat.
 type Builder struct {
 	root   string
 	goTool string
 	pins   modulePins
 	locks  keyedLocks
-	// shared holds the half of every fingerprint that no image can change.
+	// shared holds the half of every fingerprint that no application can change.
 	// It is read and hashed once per process rather than once per build.
 	sharedOnce sync.Once
 	shared     sharedInputs
@@ -42,7 +42,7 @@ type Builder struct {
 // buildTimeout bounds one compile, including any module download it makes.
 const buildTimeout = 10 * time.Minute
 
-// sharedInputs are the build inputs that are the same for every image: the SDK
+// sharedInputs are the build inputs that are the same for every application: the SDK
 // source, the two generated go.mod files, and the Go version pinning them. None
 // of them can change while the server runs — the SDK is compiled into the
 // binary and the pins are read at startup — so they are collected once and
@@ -89,35 +89,35 @@ func NewBuilder(root, goTool string) *Builder {
 func (b *Builder) binaryDir() string { return filepath.Join(b.root, "bin") }
 func (b *Builder) buildDir() string  { return filepath.Join(b.root, "build") }
 
-// Build returns the path to a current binary for an image, compiling it if the
-// cache does not already hold one. Concurrent calls for the same image build
-// once; calls for different images build in parallel.
-func (b *Builder) Build(ctx context.Context, imageID string, source fs.FS) (string, error) {
+// Build returns the path to a current binary for an application, compiling it if the
+// cache does not already hold one. Concurrent calls for the same application build
+// once; calls for different applications build in parallel.
+func (b *Builder) Build(ctx context.Context, applicationID string, source fs.FS) (string, error) {
 	b.calls.Add(1)
 	shared, err := b.sharedInputs()
 	if err != nil {
 		return "", err
 	}
-	// Only the image's own plugin/ directory is read here; the SDK behind it is
-	// the same tree for every image and was hashed once.
+	// Only the application's own backend/ directory is read here; the SDK behind it is
+	// the same tree for every application and was hashed once.
 	files, err := collect(source)
 	if err != nil {
 		return "", fmt.Errorf("read plugin source: %w", err)
 	}
 
 	fingerprint := fingerprintWith(files, shared.fingerprint)
-	binary := filepath.Join(b.binaryDir(), fmt.Sprintf("%s-%s", imageID, fingerprint))
+	binary := filepath.Join(b.binaryDir(), fmt.Sprintf("%s-%s", applicationID, fingerprint))
 	plan := buildPlan{
-		imageID:      imageID,
-		fingerprint:  fingerprint,
-		binary:       binary,
-		pluginFiles:  files,
-		sdkFiles:     shared.sdkFiles,
-		pluginModule: shared.pluginModule,
-		sdkModule:    shared.sdkModule,
+		applicationID: applicationID,
+		fingerprint:   fingerprint,
+		binary:        binary,
+		pluginFiles:   files,
+		sdkFiles:      shared.sdkFiles,
+		pluginModule:  shared.pluginModule,
+		sdkModule:     shared.sdkModule,
 	}
 
-	unlock := b.locks.lock(imageID)
+	unlock := b.locks.lock(applicationID)
 	defer unlock()
 
 	// Re-check inside the lock: the plugin that waited here may have been
@@ -128,7 +128,7 @@ func (b *Builder) Build(ctx context.Context, imageID string, source fs.FS) (stri
 	if err := b.compile(ctx, plan); err != nil {
 		return "", err
 	}
-	b.pruneStale(imageID, filepath.Base(binary))
+	b.pruneStale(applicationID, filepath.Base(binary))
 	return binary, nil
 }
 
@@ -136,13 +136,13 @@ func (b *Builder) Build(ctx context.Context, imageID string, source fs.FS) (stri
 // keeps the cache identity and the source/module bytes together while the
 // builder moves them through the filesystem and toolchain boundary.
 type buildPlan struct {
-	imageID      string
-	fingerprint  string
-	binary       string
-	pluginFiles  []sourceFile
-	sdkFiles     []sourceFile
-	pluginModule string
-	sdkModule    string
+	applicationID string
+	fingerprint   string
+	binary        string
+	pluginFiles   []sourceFile
+	sdkFiles      []sourceFile
+	pluginModule  string
+	sdkModule     string
 }
 
 // compile materializes a self-contained module and runs the Go toolchain over
@@ -153,14 +153,14 @@ func (b *Builder) compile(ctx context.Context, plan buildPlan) error {
 	if err != nil {
 		return err
 	}
-	// The image's lock is held for the whole compile, so an invocation that
+	// The application's lock is held for the whole compile, so an invocation that
 	// never returns — a module fetch against a proxy that accepts the
 	// connection and then goes quiet, say — would not just hang this launch but
-	// every later launch of the same image behind it. Bounding the toolchain
+	// every later launch of the same application behind it. Bounding the toolchain
 	// bounds the lock.
 	ctx, cancel := context.WithTimeout(ctx, buildTimeout)
 	defer cancel()
-	work := filepath.Join(b.buildDir(), fmt.Sprintf("%s-%s", plan.imageID, plan.fingerprint))
+	work := filepath.Join(b.buildDir(), fmt.Sprintf("%s-%s", plan.applicationID, plan.fingerprint))
 	if err := os.RemoveAll(work); err != nil {
 		return fmt.Errorf("clear build directory: %w", err)
 	}
@@ -202,11 +202,11 @@ func (b *Builder) compile(ctx context.Context, plan buildPlan) error {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				return fmt.Errorf(
 					"compile plugin %q: gave up after %s\n%s",
-					plan.imageID, buildTimeout, strings.TrimSpace(output))
+					plan.applicationID, buildTimeout, strings.TrimSpace(output))
 			}
 			return fmt.Errorf(
 				"compile plugin %q:\n%s\n(offline attempt: %s)",
-				plan.imageID, strings.TrimSpace(output), strings.TrimSpace(offlineOutput))
+				plan.applicationID, strings.TrimSpace(output), strings.TrimSpace(offlineOutput))
 		}
 	}
 	if err := os.Rename(plan.binary+".tmp", plan.binary); err != nil {
@@ -227,21 +227,21 @@ func runGo(ctx context.Context, goTool, dir string, env, arguments []string) (st
 	return string(output), err
 }
 
-// pruneStale removes binaries this image left behind under other
+// pruneStale removes binaries this application left behind under other
 // fingerprints, so editing a plugin does not accumulate copies of it.
 //
-// A binary is named "<imageID>-<fingerprint>", and an image id may itself
-// contain a dash: matching on the "<imageID>-" prefix alone would let image
+// A binary is named "<applicationID>-<fingerprint>", and an application id may itself
+// contain a dash: matching on the "<applicationID>-" prefix alone would let application
 // "s3" delete "s3-disk"'s current binary. Only the last segment is the
 // fingerprint, so the name is split there and the head compared whole.
-func (b *Builder) pruneStale(imageID, keep string) {
+func (b *Builder) pruneStale(applicationID, keep string) {
 	entries, err := os.ReadDir(b.binaryDir())
 	if err != nil {
 		return
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == keep || !isBinaryOf(name, imageID) {
+		if name == keep || !isBinaryOf(name, applicationID) {
 			continue
 		}
 		_ = os.Remove(filepath.Join(b.binaryDir(), name))
@@ -249,13 +249,13 @@ func (b *Builder) pruneStale(imageID, keep string) {
 }
 
 // isBinaryOf reports whether a file in the binary directory is a compiled copy
-// of imageID, under any fingerprint. It also matches the ".tmp" a failed
-// compile can leave behind, which belongs to the same image and is equally
+// of applicationID, under any fingerprint. It also matches the ".tmp" a failed
+// compile can leave behind, which belongs to the same application and is equally
 // stale.
-func isBinaryOf(name, imageID string) bool {
+func isBinaryOf(name, applicationID string) bool {
 	dash := strings.LastIndex(strings.TrimSuffix(name, ".tmp"), "-")
 	if dash < 0 {
 		return false
 	}
-	return name[:dash] == imageID
+	return name[:dash] == applicationID
 }

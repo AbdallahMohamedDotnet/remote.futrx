@@ -58,10 +58,10 @@ type ContainerStack struct {
 type ContainerStackOptions struct {
 	AgentInstructions  []byte
 	ImageBuildProgress serviceimage.ProgressReporter
-	// AppRegistry is the installable-image catalog. When non-nil the stack
+	// AppRegistry is the installable-application catalog. When non-nil the stack
 	// builds the application installer/port-allocator over the same lxc runner.
 	AppRegistry *containerapplications.Registry
-	// DataDir is the server's state directory. An image that needs a host-side
+	// DataDir is the server's state directory. An application that needs a host-side
 	// executable has it installed beneath this directory, never into the host's
 	// own package set.
 	DataDir string

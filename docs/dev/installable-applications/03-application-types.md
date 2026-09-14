@@ -1,29 +1,29 @@
-# 03 — Image types
+# 03 — Application types
 
-`type` in `image.json` decides what installing an image actually *does*, and in
+`type` in `application.json` decides what installing an application actually *does*, and in
 particular whether it touches a container at all.
 
 | type | Installing it | Requires |
 |---|---|---|
 | `service` (default) | Runs software on a port under systemd | `port.internal`, an install script |
 | `tool` | Provisions software into the project's container and exposes nothing | an install script, project scope only |
-| `ui` | Nothing in any container — turns on the image's browser extension | a `ui/` directory |
-| `backend` | Nothing in any container — compiles and runs the image's Go plugin on the host | a `plugin/` directory |
+| `ui` | Nothing in any container — turns on the application's browser extension | a `ui/` directory |
+| `backend` | Nothing in any container — compiles and runs the application's Go plugin on the host | a `backend/` directory |
 
 The Go type is `Kind` in
 [`service/applications/model.go`](../../../backend/internal/service/applications/model.go).
-Omitting `type` means `service`, so every image written before this field
+Omitting `type` means `service`, so every application written before this field
 existed keeps working unchanged.
 
-`type` says what the image's *payload* is, not what it may carry. A `ui/`
-directory works on any type, and so does `plugin/` — a `service` image can
+`type` says what the application's *payload* is, not what it may carry. A `ui/`
+directory works on any type, and so does `backend/` — a `service` application can
 provision MySQL, add a "Connect" button, and run a Go plugin that answers the
 button's queries. `type` only decides whether installing it has to reach a
 container.
 
 ## `service`
 
-A service image provisions real software. Where it runs depends on the
+A service application provisions real software. Where it runs depends on the
 **scope** the user installs it at.
 
 ### Global scope — its own LXD container
@@ -74,7 +74,7 @@ Start is not an install. It repairs what the app needs outside its container's
 filesystem — its host tools, its skills, its proxy device — and starts its
 service, but it does not re-run the install script: provisioning an app is
 minutes of `apt-get` that switching it on has no reason to pay for. The one
-exception is a copy whose image has moved on, which the service routes to
+exception is a copy whose application has moved on, which the service routes to
 Install instead; see
 [17 — Versions and upgrades](17-versions-and-upgrades.md).
 
@@ -93,7 +93,7 @@ on the LXD bridge at `<slug>.lxd:<internalPort>`.
 
 ## `tool`
 
-A tool image provisions software into a container exactly as a service does —
+A tool application provisions software into a container exactly as a service does —
 same install script, same systemd unit, same idempotency rules — but exposes
 nothing. No port is allocated, no proxy device is created, and nothing outside
 the container can reach it.
@@ -153,7 +153,7 @@ port, because none was held.
 
 ## `ui`
 
-A UI image installs nothing, anywhere. Its whole payload is the `ui/`
+A UI application installs nothing, anywhere. Its whole payload is the `ui/`
 directory; installing it only records that the user switched it on, which is
 what makes the SPA load it.
 
@@ -189,7 +189,7 @@ Stop is the useful one: it is how a user turns a plugin off without losing it.
 
 ### What the Applications tab shows
 
-A UI image's installed row has no port row and no credentials panel — showing
+A UI application's installed row has no port row and no credentials panel — showing
 them would be showing zeros. It says instead:
 
 > Interface extension — nothing runs in a container. Its UI is loaded.
@@ -199,8 +199,8 @@ released.
 
 ## `backend`
 
-A backend image installs nothing in a container either. Its payload is the Go
-source under `plugin/`, which the server compiles and runs as a child process,
+A backend application installs nothing in a container either. Its payload is the Go
+source under `backend/`, which the server compiles and runs as a child process,
 one per installed instance.
 
 Installing one:
@@ -208,15 +208,15 @@ Installing one:
 - creates **no container**, at either scope;
 - allocates **no host port** and creates **no proxy device**;
 - runs **no install script**;
-- compiles the image's `plugin/` (cached by fingerprint) and starts it;
+- compiles the application's `backend/` (cached by fingerprint) and starts it;
 - works on a host with no container runtime, but needs a **Go toolchain**.
 
 The instance is stored with `internalPort: 0`, `externalPort: 0`, and an empty
-`containerName`, exactly as a `ui` image is.
+`containerName`, exactly as a `ui` application is.
 
 ### What start / stop / uninstall mean
 
-Unlike a UI image, there is a real process here, so these move it:
+Unlike a UI application, there is a real process here, so these move it:
 
 | Action | Effect |
 |---|---|
@@ -229,7 +229,7 @@ A server restart needs no sweep: the next call to a plugin starts it.
 
 ### What the Applications tab shows
 
-Like a UI image, a backend image's installed row has no port row and no
+Like a UI application, a backend application's installed row has no port row and no
 credentials panel. It says instead:
 
 > Backend extension — a Go plugin runs on the server, not in a container.
@@ -246,11 +246,11 @@ Does installing it need to run software in a container?
 │   │   ├── yes → "service"   (declare port.internal and an install script)
 │   │   └── no  → "tool"      (install script, project scope, no port)
 └── no
-    ├── does it need server-side code?  → "backend"   (ship a plugin/ directory)
+    ├── does it need server-side code?  → "backend"   (ship a backend/ directory)
     └── is it only browser code?        → "ui"        (ship a ui/ directory)
 ```
 
-Then add `ui/` or `plugin/` to it as needed — neither is restricted to the type
+Then add `ui/` or `backend/` to it as needed — neither is restricted to the type
 named after it.
 
 ## Two axes, not one
@@ -268,4 +268,4 @@ ones the rest of the code branches on:
 `NeedsContainer` decides whether an install has to reach `lxc` at all.
 `NeedsPort` decides whether it allocates a host port and gets a proxy device.
 They were the same predicate until `tool` existed; anything that still treats
-them as one is a bug waiting for a tool image.
+them as one is a bug waiting for a tool application.

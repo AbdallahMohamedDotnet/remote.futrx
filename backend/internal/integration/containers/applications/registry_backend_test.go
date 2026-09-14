@@ -14,7 +14,7 @@ const validPluginMain = `package main
 func main() {}
 `
 
-func pluginTree(files map[string]string) fs.FS {
+func backendTree(files map[string]string) fs.FS {
 	tree := fstest.MapFS{}
 	for name, contents := range files {
 		tree[name] = &fstest.MapFile{Data: []byte(contents)}
@@ -22,10 +22,10 @@ func pluginTree(files map[string]string) fs.FS {
 	return tree
 }
 
-// The plugin/ directory opts an image in, exactly as ui/ does, so an image
+// The backend/ directory opts an application in, exactly as ui/ does, so an application
 // with no directory and no declaration simply has no backend.
-func TestLoadImagePluginIsOptional(t *testing.T) {
-	backend, err := loadImagePlugin(pluginTree(nil), "plugin", nil)
+func TestLoadApplicationBackendIsOptional(t *testing.T) {
+	backend, err := loadApplicationBackend(backendTree(nil), "backend", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -34,9 +34,9 @@ func TestLoadImagePluginIsOptional(t *testing.T) {
 	}
 }
 
-func TestLoadImagePluginDefaultsAreApplied(t *testing.T) {
-	backend, err := loadImagePlugin(
-		pluginTree(map[string]string{"plugin/main.go": validPluginMain}), "plugin", nil)
+func TestLoadApplicationBackendDefaultsAreApplied(t *testing.T) {
+	backend, err := loadApplicationBackend(
+		backendTree(map[string]string{"backend/main.go": validPluginMain}), "backend", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -51,10 +51,10 @@ func TestLoadImagePluginDefaultsAreApplied(t *testing.T) {
 	}
 }
 
-func TestLoadImagePluginKeepsDeclaredOverrides(t *testing.T) {
-	declared := &svc.ImageBackend{Access: svc.BackendAccessAdmin, TimeoutMS: 500}
-	backend, err := loadImagePlugin(
-		pluginTree(map[string]string{"plugin/main.go": validPluginMain}), "plugin", declared)
+func TestLoadApplicationBackendKeepsDeclaredOverrides(t *testing.T) {
+	declared := &svc.ApplicationBackend{Access: svc.BackendAccessAdmin, TimeoutMS: 500}
+	backend, err := loadApplicationBackend(
+		backendTree(map[string]string{"backend/main.go": validPluginMain}), "backend", declared)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,57 +65,57 @@ func TestLoadImagePluginKeepsDeclaredOverrides(t *testing.T) {
 
 // Every rejection here is a compiler error the server would otherwise hit at
 // install time, on a machine where nobody is watching.
-func TestLoadImagePluginRejectsBrokenLayouts(t *testing.T) {
+func TestLoadApplicationBackendRejectsBrokenLayouts(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		files    map[string]string
-		declared *svc.ImageBackend
+		declared *svc.ApplicationBackend
 		contains string
 	}{
 		{
 			name:     "declared but absent",
 			files:    nil,
-			declared: &svc.ImageBackend{},
+			declared: &svc.ApplicationBackend{},
 			contains: "does not exist",
 		},
 		{
 			name:     "no Go source",
-			files:    map[string]string{"plugin/README.md": "notes"},
+			files:    map[string]string{"backend/README.md": "notes"},
 			contains: "no package main",
 		},
 		{
 			name:     "a library rather than a program",
-			files:    map[string]string{"plugin/helper.go": "package helper\n"},
+			files:    map[string]string{"backend/helper.go": "package helper\n"},
 			contains: "want main",
 		},
 		{
 			name: "its own module file",
 			files: map[string]string{
-				"plugin/main.go": validPluginMain,
-				"plugin/go.mod":  "module example.com/plugin\n",
+				"backend/main.go": validPluginMain,
+				"backend/go.mod":  "module example.com/backend\n",
 			},
 			contains: "generates the plugin module",
 		},
 		{
 			name:     "unparseable source",
-			files:    map[string]string{"plugin/main.go": "package \n"},
+			files:    map[string]string{"backend/main.go": "package \n"},
 			contains: "parse",
 		},
 		{
 			name:     "an unknown access level",
-			files:    map[string]string{"plugin/main.go": validPluginMain},
-			declared: &svc.ImageBackend{Access: "everyone"},
+			files:    map[string]string{"backend/main.go": validPluginMain},
+			declared: &svc.ApplicationBackend{Access: "everyone"},
 			contains: "invalid access",
 		},
 		{
 			name:     "a negative timeout",
-			files:    map[string]string{"plugin/main.go": validPluginMain},
-			declared: &svc.ImageBackend{TimeoutMS: -1},
+			files:    map[string]string{"backend/main.go": validPluginMain},
+			declared: &svc.ApplicationBackend{TimeoutMS: -1},
 			contains: "negative",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := loadImagePlugin(pluginTree(tc.files), "plugin", tc.declared)
+			_, err := loadApplicationBackend(backendTree(tc.files), "backend", tc.declared)
 			if err == nil {
 				t.Fatal("want a validation error, got nil")
 			}
@@ -129,31 +129,31 @@ func TestLoadImagePluginRejectsBrokenLayouts(t *testing.T) {
 // Test files are the one kind of Go source a plugin may ship that is not
 // package main: they never reach the generated build's package clause check
 // through the compiler's eyes, and rejecting them would ban plugin tests.
-func TestLoadImagePluginAllowsTestFilesAndAssets(t *testing.T) {
-	_, err := loadImagePlugin(pluginTree(map[string]string{
-		"plugin/main.go":           validPluginMain,
-		"plugin/main_test.go":      "package main\n",
-		"plugin/assets/schema.sql": "select 1;",
-	}), "plugin", nil)
+func TestLoadApplicationBackendAllowsTestFilesAndAssets(t *testing.T) {
+	_, err := loadApplicationBackend(backendTree(map[string]string{
+		"backend/main.go":           validPluginMain,
+		"backend/main_test.go":      "package main\n",
+		"backend/assets/schema.sql": "select 1;",
+	}), "backend", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 // Plugin source is compiled, never served. The registry hands out the whole
-// subtree or nothing, and only for images that actually declare a backend.
-func TestRegistryPluginSource(t *testing.T) {
+// subtree or nothing, and only for applications that actually declare a backend.
+func TestRegistryBackendSource(t *testing.T) {
 	r := testRegistry(t)
-	source, ok := r.PluginSource(fixtureBackend)
+	source, ok := r.BackendSource(fixtureBackend)
 	if !ok {
-		t.Fatal("the fixture backend image exposes no plugin source")
+		t.Fatal("the fixture backend application exposes no backend source")
 	}
 	if _, err := fs.Stat(source, "main.go"); err != nil {
-		t.Errorf("plugin source is not rooted at plugin/: %v", err)
+		t.Errorf("backend source is not rooted at backend/: %v", err)
 	}
-	for _, id := range []string{fixtureService, fixtureTool, "no-such-image"} {
-		if _, ok := r.PluginSource(id); ok {
-			t.Errorf("%s reports plugin source it does not have", id)
+	for _, id := range []string{fixtureService, fixtureTool, "no-such-application"} {
+		if _, ok := r.BackendSource(id); ok {
+			t.Errorf("%s reports backend source it does not have", id)
 		}
 	}
 }

@@ -11,25 +11,25 @@ import (
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
 
-// pluginDir is the fixed directory an image ships its Go backend in. Like
-// ui/, the directory is the opt-in: image.json's backend block only overrides
+// backendDir is the fixed directory an application ships its Go backend in. Like
+// ui/, the directory is the opt-in: application.json's backend block only overrides
 // defaults, so a plugin cannot be declared without shipping one.
-const pluginDir = "plugin"
+const backendDir = "backend"
 
-// loadImagePlugin resolves an image's plugin/ directory into a validated
+// loadApplicationBackend resolves an application's backend/ directory into a validated
 // descriptor. It checks the shape the build depends on — that there is Go
 // source, that it is a program rather than a library, and that it does not
 // carry its own module — because every one of those failures would otherwise
 // surface as a compiler error on a production server at install time.
-func loadImagePlugin(fsys fs.FS, root string, declared *svc.ImageBackend) (*svc.ImageBackend, error) {
+func loadApplicationBackend(fsys fs.FS, root string, declared *svc.ApplicationBackend) (*svc.ApplicationBackend, error) {
 	if _, err := fs.Stat(fsys, root); err != nil {
 		if declared != nil {
-			return nil, fmt.Errorf("image.json declares backend but %s does not exist", root)
+			return nil, fmt.Errorf("application.json declares backend but %s does not exist", root)
 		}
 		return nil, nil
 	}
 
-	backend := svc.ImageBackend{}
+	backend := svc.ApplicationBackend{}
 	if declared != nil {
 		backend = *declared
 	}
@@ -39,16 +39,16 @@ func loadImagePlugin(fsys fs.FS, root string, declared *svc.ImageBackend) (*svc.
 	if backend.TimeoutMS < 0 {
 		return nil, fmt.Errorf("timeoutMs must not be negative")
 	}
-	if err := validatePluginSource(fsys, root); err != nil {
+	if err := validateBackendSource(fsys, root); err != nil {
 		return nil, err
 	}
 	return &backend, nil
 }
 
-// validatePluginSource enforces what the build directory the server generates
-// can actually compile: package main at the root of plugin/, and no module
+// validateBackendSource enforces what the build directory the server generates
+// can actually compile: package main at the root of backend/, and no module
 // file of its own, since the server writes one that pins the SDK.
-func validatePluginSource(fsys fs.FS, root string) error {
+func validateBackendSource(fsys fs.FS, root string) error {
 	entries, err := fs.ReadDir(fsys, root)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", root, err)
@@ -93,16 +93,16 @@ func packageName(fsys fs.FS, name string) (string, error) {
 	return file.Name.Name, nil
 }
 
-// PluginSource returns the Go source under an image's plugin/ directory,
+// BackendSource returns the Go source under an application's backend/ directory,
 // rooted at that directory. These bytes are compiled by the plugin host; unlike
 // ui/ assets they are never served, so there is no path-traversal surface here
 // — a caller gets the whole subtree or nothing.
-func (r *Registry) PluginSource(imageID string) (fs.FS, bool) {
-	img, catalog, ok := r.imageSource(imageID)
+func (r *Registry) BackendSource(applicationID string) (fs.FS, bool) {
+	img, catalog, ok := r.applicationSource(applicationID)
 	if !ok || img.Backend == nil {
 		return nil, false
 	}
-	sub, err := fs.Sub(catalog, path.Join(catalogRoot, imageID, pluginDir))
+	sub, err := fs.Sub(catalog, path.Join(catalogRoot, applicationID, backendDir))
 	if err != nil {
 		return nil, false
 	}

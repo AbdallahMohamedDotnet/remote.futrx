@@ -1,20 +1,20 @@
 # 15 — Backend plugins
 
-An image can ship a `plugin/` directory of Go source. The server compiles it,
-runs it as a separate process, and forwards HTTP calls to it — so an image can
+An application can ship a `backend/` directory of Go source. The server compiles it,
+runs it as a separate process, and forwards HTTP calls to it — so an application can
 add a **server-side feature**, and its `ui/` can call that feature, without any
 change to the Remote codebase.
 
 ```
-images/my-plugin/
-  image.json
-  plugin/            ← Go source, compiled and run on the host
+applications/my-backend/
+  application.json
+  backend/            ← Go source, compiled and run on the host
     main.go
   ui/                ← runs in the browser, calls the plugin
     scripts/main.js
 ```
 
-`ui/` is what an image can add to the interface. `plugin/` is what it can add
+`ui/` is what an application can add to the interface. `backend/` is what it can add
 to the server. Together they are the whole shape of a feature that could
 otherwise only be added by editing this repository.
 
@@ -64,7 +64,7 @@ func (b *backend) Handle(request appplugin.Request) (appplugin.Response, error) 
 }
 ```
 
-and in `image.json`:
+and in `application.json`:
 
 ```json
 {
@@ -101,13 +101,13 @@ What `Init` receives, fixed for the process's lifetime:
 
 | Field | Notes |
 |---|---|
-| `ID`, `ImageID` | the installed copy, and the image it came from |
+| `ID`, `ApplicationID` | the installed copy, and the application it came from |
 | `Scope`, `ProjectID` | `"global"`, or `"project"` with the project |
-| `ContainerName`, `InternalPort`, `ExternalPort` | the container half, when the image has one |
+| `ContainerName`, `InternalPort`, `ExternalPort` | the container half, when the application has one |
 | `Env` | the install's resolved inputs, **including generated secrets** |
 | `DataDir` | a directory on the host this instance owns and may write to |
 
-`Env` carries real passwords: a database image's plugin needs the one its own
+`Env` carries real passwords: a database application's plugin needs the one its own
 `install.sh` generated. That is deliberate, and it is why what a plugin does
 with them is a review question — see [13 — Security model](13-security-model.md).
 
@@ -174,7 +174,7 @@ remote.backend.describe(target)     // → the plugin's route table
 remote.backend.url(path, target)    // → the URL a call would use
 ```
 
-An image installed globally *and* in two projects runs **three processes**, so
+An application installed globally *and* in two projects runs **three processes**, so
 a call has to resolve to one. Pass the surface's project and it does the
 obvious thing:
 
@@ -200,7 +200,7 @@ ANY    /api/projects/{projectID}/applications/{instanceID}/backend/{path...}
 Calling a plugin is the one action on a **global** instance that is not
 admin-only: the plugin is the server side of an extension that renders for
 every signed-in user, so managing the app stays admin-only while calling it
-does not. An image can narrow that itself:
+does not. An application can narrow that itself:
 
 ```json
 "backend": { "access": "admin" }
@@ -208,14 +208,14 @@ does not. An image can narrow that itself:
 
 ## What the server does with your source
 
-Nothing is compiled until an image with a `plugin/` directory is installed.
+Nothing is compiled until an application with a `backend/` directory is installed.
 Then, on install — and on start, and on the first call after a restart:
 
 ```
 1. fingerprint   sha256(plugin source + SDK source + generated go.mod + Go version)
-2. cache hit?    <dataDir>/plugins/bin/<image>-<fingerprint>   → skip to 5
-3. materialize   <dataDir>/plugins/build/<image>-<fingerprint>/
-                   src/   your plugin/ + a generated go.mod
+2. cache hit?    <dataDir>/plugins/bin/<application>-<fingerprint>   → skip to 5
+3. materialize   <dataDir>/plugins/build/<application>-<fingerprint>/
+                   src/   your backend/ + a generated go.mod
                    sdk/   pkg/appplugin, as a module named after this repo
 4. compile       go build -trimpath, offline first, network only as a fallback
 5. launch        one process per instance, over hashicorp/go-plugin
@@ -241,16 +241,16 @@ A plugin may import the **standard library** and **this SDK**. The generated
 `go.mod` pins every module to the version the server itself was built with,
 which is what lets a plugin compile with no network at all.
 
-A `go.mod` inside `plugin/` is rejected at catalog load: the server writes that
+A `go.mod` inside `backend/` is rejected at catalog load: the server writes that
 file. If you need a third-party module, the honest answer today is to vendor
-the code you need into `plugin/` or add the dependency to the server.
+the code you need into `backend/` or add the dependency to the server.
 
 ### Where things live
 
 ```
 <dataDir>/plugins/
-  bin/<image>-<fingerprint>     compiled plugin, shared by every instance
-  build/<image>-<fingerprint>/  generated module, kept only after a failure
+  bin/<application>-<fingerprint>     compiled plugin, shared by every instance
+  build/<application>-<fingerprint>/  generated module, kept only after a failure
   build-cache/                  GOCACHE for plugin builds
   home/                         fallback HOME, and therefore module cache,
                                 when the service runs without one
@@ -266,7 +266,7 @@ finding them in the cache the server's own build left behind. Give the service a
 ### No toolchain, no plugin
 
 A server with no Go toolchain installs and runs everything else normally; an
-image with a `plugin/` reports the missing toolchain on its installed row. Set
+application with a `backend/` reports the missing toolchain on its installed row. Set
 `REMOTE_PLUGIN_GO` to point at a specific `go` binary if it is somewhere
 unusual.
 
@@ -292,7 +292,7 @@ meant to be. Anything that must survive belongs in `DataDir`.
 | What happens | What the caller sees | What happens to the process |
 |---|---|---|
 | A route panics | the call fails, with the panic message | it keeps running |
-| A route never returns | the call fails on the image's `timeoutMs` | it keeps running |
+| A route never returns | the call fails on the application's `timeoutMs` | it keeps running |
 | The process dies | the call fails | it is replaced on the next call |
 | The source does not compile | install or start fails, with the compiler's output | there is no process |
 | The contract version mismatches | start fails, saying both versions | the process is killed |
@@ -305,14 +305,14 @@ its work unobserved and answers the next request normally.
 
 ```
 Does installing it run software in a container?
-├── yes → "service"    (and it may still ship plugin/ and ui/)
+├── yes → "service"    (and it may still ship backend/ and ui/)
 └── no
     ├── does it need server-side code?  → "backend"
     └── is it only browser code?        → "ui"
 ```
 
 `backend` and `ui` both install nothing in a container and work on a host with
-no container runtime at all. A `service` image may ship a `plugin/` too — the
+no container runtime at all. A `service` application may ship a `backend/` too — the
 container half provisions the software, the plugin half is what its UI talks
 to.
 
@@ -338,8 +338,8 @@ contract. See [10 — Fixtures](10-fixtures.md).
 
 ## Related
 
-- [02 — image.json reference](02-image-json.md#backend) — the `backend` block.
-- [03 — Image types](03-image-types.md) — where `backend` sits beside the others.
+- [02 — application.json reference](02-application-json.md#backend) — the `backend` block.
+- [03 — Application types](03-application-types.md) — where `backend` sits beside the others.
 - [06 — Extension API](06-extension-api.md#remotebackend) — `remote.backend` in full.
 - [12 — HTTP API](12-http-api.md#backend-plugin-routes) — the routes and their authorization.
 - [13 — Security model](13-security-model.md#backend-plugins) — what a plugin can do, and what stops it.

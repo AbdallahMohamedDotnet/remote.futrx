@@ -1,9 +1,9 @@
-// Package applications is the policy layer for installable "apps" (images):
+// Package applications is the policy layer for installable "apps" (applications):
 // databases and other services a user installs with one click, either
 // globally (its own dedicated container, shared by the whole server) or
 // scoped to a single project (installed inside that project's container).
 //
-// The catalog of installable images lives in the repository's images/
+// The catalog of installable applications lives in the repository's applications/
 // directory, embedded into the binary, and is loaded through the Registry
 // port. Each installed copy is an Instance, persisted through Store
 // and realized in a container through Installer.
@@ -25,7 +25,7 @@ const (
 // Valid reports whether s is a known scope.
 func (s Scope) Valid() bool { return s == ScopeGlobal || s == ScopeProject }
 
-// Kind separates images by what installing them actually does. It decides
+// Kind separates applications by what installing them actually does. It decides
 // whether an install touches a container at all, so it is the difference
 // between "provision MySQL" and "add a button to the UI".
 type Kind string
@@ -34,11 +34,11 @@ const (
 	// KindService installs software that listens on a port and is managed by
 	// systemd. A global-scope install gets its own dedicated LXD container; a
 	// project-scope one installs into that project's container. This is the
-	// default when an image does not say.
+	// default when an application does not say.
 	KindService Kind = "service"
-	// KindBackend installs nothing in any container: the image's payload is
-	// the Go source under its plugin/ directory, which the server compiles and
-	// runs as a child process. It is what lets an image add a server-side
+	// KindBackend installs nothing in any container: the application's payload is
+	// the Go source under its backend/ directory, which the server compiles and
+	// runs as a child process. It is what lets an application add a server-side
 	// feature — an endpoint a caller reaches over HTTP — instead of only
 	// provisioning software.
 	KindBackend Kind = "backend"
@@ -74,7 +74,7 @@ const (
 	ProtocolUDP Protocol = "udp"
 )
 
-// Port describes how an image exposes itself.
+// Port describes how an application exposes itself.
 type Port struct {
 	// Internal is the port the software listens on inside the container.
 	Internal int `json:"internal"`
@@ -87,7 +87,7 @@ type Port struct {
 	BindAddress string `json:"bindAddress,omitempty"`
 }
 
-// EnvVar is a configurable input an image accepts at install time.
+// EnvVar is a configurable input an application accepts at install time.
 type EnvVar struct {
 	Key      string `json:"key"`
 	Label    string `json:"label,omitempty"`
@@ -105,11 +105,11 @@ type Healthcheck struct {
 	Command string `json:"command,omitempty"`
 }
 
-// Connection maps an image's env vars to the canonical fields a client needs
+// Connection maps an application's env vars to the canonical fields a client needs
 // (user, password, database), so every server surfaces a uniform connection
 // panel regardless of how it names its variables.
 type Connection struct {
-	// User is a static username when the image has no configurable one
+	// User is a static username when the application has no configurable one
 	// (e.g. MySQL's "root"). UserEnv takes precedence when set.
 	User string `json:"user,omitempty"`
 	// UserEnv is the env var holding the username (e.g. POSTGRES_USER).
@@ -120,25 +120,25 @@ type Connection struct {
 	DatabaseEnv string `json:"databaseEnv,omitempty"`
 }
 
-// HostTool is an executable an image needs on the Remote host itself, next to
+// HostTool is an executable an application needs on the Remote host itself, next to
 // the server process, rather than inside a container. Remote ships no tool of
-// its own and keeps no package list: the image supplies the download and the
+// its own and keeps no package list: the application supplies the download and the
 // checksum it must have, so installing Remote never pulls in a dependency only
-// one optional image cares about, and a host that installs nothing keeps
+// one optional application cares about, and a host that installs nothing keeps
 // exactly the software it started with.
 //
 // The download is fetched over HTTPS and rejected unless it hashes to the
-// declared SHA-256, so the image — not the network, and not a package mirror —
+// declared SHA-256, so the application — not the network, and not a package mirror —
 // decides what ends up on the host.
 type HostTool struct {
 	// Name is the executable's filename once installed. It is also how a
 	// consumer looks the tool up, so it must be a plain name: no slashes.
 	Name string `json:"name"`
-	// Version is recorded in the install path, so upgrading an image installs
+	// Version is recorded in the install path, so upgrading an application installs
 	// beside the old copy instead of overwriting a binary in use.
 	Version string `json:"version"`
 	// Downloads is keyed by host architecture as Go names it ("amd64",
-	// "arm64"). A host whose architecture is absent cannot install the image.
+	// "arm64"). A host whose architecture is absent cannot install the application.
 	Downloads map[string]HostToolDownload `json:"downloads"`
 	// VersionArgs runs the installed binary to prove it works before the
 	// install is reported as successful. Defaults to ["version"].
@@ -153,27 +153,27 @@ type HostToolDownload struct {
 	SHA256 string `json:"sha256"`
 	// Compression is "", "gzip" or "bzip2" — how the artifact wraps the single
 	// executable. Archives holding more than one file are deliberately not
-	// supported: one image, one binary, one checksum to read.
+	// supported: one application, one binary, one checksum to read.
 	Compression string `json:"compression,omitempty"`
 }
 
-// ImageSource says where a catalog entry came from. It is decided by the
-// registry that loaded the entry and overwrites anything image.json declares,
+// ApplicationSource says where a catalog entry came from. It is decided by the
+// registry that loaded the entry and overwrites anything application.json declares,
 // so a package cannot describe itself as built in.
-type ImageSource string
+type ApplicationSource string
 
 const (
-	// SourceBuiltin marks an image compiled into the server binary.
-	SourceBuiltin ImageSource = "builtin"
-	// SourceUploaded marks an image that came from a package an administrator
+	// SourceBuiltin marks an application compiled into the server binary.
+	SourceBuiltin ApplicationSource = "builtin"
+	// SourceUploaded marks an application that came from a package an administrator
 	// uploaded, and that can therefore be removed again.
-	SourceUploaded ImageSource = "uploaded"
+	SourceUploaded ApplicationSource = "uploaded"
 )
 
-// Image is one catalog entry loaded from images/<id>/image.json.
-type Image struct {
-	// HostTools are executables this image needs on the Remote host, each one
-	// downloaded and checksum-verified from the image's own declaration.
+// Application is one catalog entry loaded from applications/<id>/application.json.
+type Application struct {
+	// HostTools are executables this application needs on the Remote host, each one
+	// downloaded and checksum-verified from the application's own declaration.
 	HostTools   []HostTool `json:"hostTools,omitempty"`
 	ID          string     `json:"id"`
 	Name        string     `json:"name"`
@@ -181,14 +181,14 @@ type Image struct {
 	Category    string     `json:"category,omitempty"`
 	Version     string     `json:"version,omitempty"`
 	// Icon is either a built-in icon key the frontend knows ("database",
-	// "cache", …) or a path to an image inside the image's own ui/ directory
-	// ("ui/assets/logo.svg"), which lets an image ship its own mark.
+	// "cache", …) or a path to an image inside the application's own ui/ directory
+	// ("ui/assets/logo.svg"), which lets an application ship its own mark.
 	Icon string `json:"icon,omitempty"`
-	// Source is filled in by the registry, not by image.json: it says whether
+	// Source is filled in by the registry, not by application.json: it says whether
 	// this entry is built into the server or came from an uploaded package,
 	// which is what tells the UI whether it can be removed.
-	Source ImageSource `json:"source,omitempty"`
-	// Type decides whether installing this image provisions a container.
+	Source ApplicationSource `json:"source,omitempty"`
+	// Type decides whether installing this application provisions a container.
 	// Empty means KindService.
 	Type   Kind     `json:"type,omitempty"`
 	Scopes []Scope  `json:"scopes"`
@@ -197,10 +197,10 @@ type Image struct {
 	// Service is the systemd unit name inside the container used for
 	// start/stop/status.
 	Service string `json:"service,omitempty"`
-	// Backend is set when the image ships a plugin/ directory. Nil means the
-	// image has no Go plugin and nothing is compiled or run for it.
-	Backend *ImageBackend `json:"backend,omitempty"`
-	// Install is the install-script filename relative to the image directory.
+	// Backend is set when the application ships a backend/ directory. Nil means the
+	// application has no Go backend and nothing is compiled or run for it.
+	Backend *ApplicationBackend `json:"backend,omitempty"`
+	// Install is the install-script filename relative to the application directory.
 	Install     string      `json:"install"`
 	Healthcheck Healthcheck `json:"healthcheck,omitempty"`
 	// Connection maps env vars to canonical user/password/database fields.
@@ -208,22 +208,22 @@ type Image struct {
 	// Base is the LXD image alias used when this app runs as a dedicated
 	// (global) container. Empty defaults to the platform default.
 	Base string `json:"base,omitempty"`
-	// Skills names the agent skills this image ships. It is filled in by the
-	// registry from the image's own skills/ directory rather than being
-	// declared in image.json: each subdirectory holding a SKILL.md is one
-	// skill, published into the project workspace when the image is installed
+	// Skills names the agent skills this application ships. It is filled in by the
+	// registry from the application's own skills/ directory rather than being
+	// declared in application.json: each subdirectory holding a SKILL.md is one
+	// skill, published into the project workspace when the application is installed
 	// and taken back when it is uninstalled.
 	Skills []string `json:"skills,omitempty"`
 }
 
-// MarshalJSON writes an image with the two consequences of its kind spelled
+// MarshalJSON writes an application with the two consequences of its kind spelled
 // out. Whether an install reaches a container and whether it binds a host port
 // decide what the UI may show for an app — a port row, a connection panel, what
 // uninstalling it will remove — and those are answers this package already has.
 // Sending them means the browser reads the rule instead of keeping a second
 // copy of it that a new kind would silently fall through.
-func (im Image) MarshalJSON() ([]byte, error) {
-	type wire Image // sheds this method, so encoding does not recurse
+func (im Application) MarshalJSON() ([]byte, error) {
+	type wire Application // sheds this method, so encoding does not recurse
 	return json.Marshal(struct {
 		wire
 		NeedsContainer bool `json:"needsContainer"`
@@ -235,8 +235,8 @@ func (im Image) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// SupportsScope reports whether the image may be installed at the given scope.
-func (im Image) SupportsScope(s Scope) bool {
+// SupportsScope reports whether the application may be installed at the given scope.
+func (im Application) SupportsScope(s Scope) bool {
 	for _, sc := range im.Scopes {
 		if sc == s {
 			return true
@@ -255,19 +255,19 @@ const (
 	StatusError      InstanceStatus = "error"
 )
 
-// Instance is one installed copy of an image.
+// Instance is one installed copy of an application.
 type Instance struct {
-	ID      string `json:"id"`
-	ImageID string `json:"imageId"`
-	// ImageVersion is the image.json version this copy was last installed
+	ID            string `json:"id"`
+	ApplicationID string `json:"applicationId"`
+	// ApplicationVersion is the application.json version this copy was last installed
 	// from. It is what makes an upgrade detectable: when the catalog's version
-	// for the image no longer matches, the install script has to run again.
+	// for the application no longer matches, the install script has to run again.
 	// Empty means the instance predates version tracking, which is treated as
 	// "unknown, so re-install" — install scripts are idempotent, and assuming
 	// the container already holds the new version would be a guess.
-	ImageVersion string `json:"imageVersion,omitempty"`
-	Name         string `json:"name"`
-	Scope        Scope  `json:"scope"`
+	ApplicationVersion string `json:"applicationVersion,omitempty"`
+	Name               string `json:"name"`
+	Scope              Scope  `json:"scope"`
 	// ProjectID is set only for ScopeProject instances.
 	ProjectID string `json:"projectId,omitempty"`
 	// ContainerName is the LXD container the app runs in: a dedicated
@@ -306,7 +306,7 @@ type Credentials struct {
 	InternalPort int    `json:"internalPort"`
 	ExternalPort int    `json:"externalPort"`
 	BindAddress  string `json:"bindAddress"`
-	// Canonical fields resolved from the image's Connection descriptor, so the
+	// Canonical fields resolved from the application's Connection descriptor, so the
 	// UI can show a uniform user/password/database for every server.
 	Username string            `json:"username,omitempty"`
 	Password string            `json:"password,omitempty"`

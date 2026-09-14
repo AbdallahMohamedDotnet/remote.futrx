@@ -11,12 +11,12 @@ There is no sandbox, and none is implied. A `ui/` directory can:
 
 What it cannot do is get there without a build. Assets are compiled into the
 server binary by `//go:embed`, next to the SPA itself. There is no runtime
-plugin directory, no upload endpoint, and no way to add an image to a running
+backend directory, no upload endpoint, and no way to add an application to a running
 server. Someone who can add a `ui/` directory can already ship arbitrary
 frontend code by editing `frontend/src`.
 
 **Therefore: treat a new or edited `ui/` in a pull request exactly as you treat
-any other frontend change.** That is the control. Reviewing an image's
+any other frontend change.** That is the control. Reviewing an application's
 `install.sh` carefully while skimming its `ui/` gets the risk backwards — the
 script runs in a disposable container, the extension runs in the user's
 session.
@@ -25,9 +25,9 @@ session.
 
 | Property | Enforced by | Notes |
 |---|---|---|
-| Only catalog images exist | `//go:embed` | No runtime installation |
-| A malformed image cannot ship | `registry.go:validate`, `registry_ui.go:loadImageUI` | Fails the build and the tests |
-| Assets stay inside one image's `ui/` | `registry.go:cleanUIPath` | The only path out of the package |
+| Only catalog applications exist | `//go:embed` | No runtime installation |
+| A malformed application cannot ship | `registry.go:validate`, `registry_ui.go:loadApplicationUI` | Fails the build and the tests |
+| Assets stay inside one application's `ui/` | `registry.go:cleanUIPath` | The only path out of the package |
 | Only signed-in users fetch assets | `applications_handler.go` | Same gate as the catalog |
 | Responses are not sniffable | `Content-Type` from extension + `nosniff` | Types are pinned, never guessed |
 | Uninstalled extensions do not load | `Service.UIExtensions` | Installation is the gate |
@@ -36,11 +36,11 @@ session.
 | Global app management is admin-only | `requireAdmin` | Server-wide infrastructure |
 | A project member cannot touch another project's app | `ensureProject` | Ownership re-checked per request |
 | Secrets are not echoed to the UI | `View` / `envPublic` | Secret env values are redacted outside the credentials route |
-| Only catalog source becomes a plugin | `//go:embed` + `registry_plugin.go` | No runtime plugin upload; `plugin/` must be `package main` and carry no module file |
+| Only catalog source becomes a plugin | `//go:embed` + `registry_backend.go` | No runtime plugin upload; `backend/` must be `package main` and carry no module file |
 | A plugin cannot act as its caller | `applications_backend_handler.go:forwardableHeaders` | `Cookie` and `Authorization` are withheld; the caller is supplied separately |
 | A plugin's caller cannot be forged | `service/applications/backend.go:CallBackend` | `Request.Caller` is overwritten with the session's identity |
 | A stopped app's plugin is unreachable | `Service.backendSpec` | `409` rather than a silent start |
-| An admin-only plugin stays admin-only | `ImageBackend.Audience` + the service | Enforced before the process is reached |
+| An admin-only plugin stays admin-only | `ApplicationBackend.Audience` + the service | Enforced before the process is reached |
 | A plugin cannot write the session | `writeBackendResponse` | `Set-Cookie` is dropped; every response is `nosniff` |
 
 ## Backend plugins
@@ -66,12 +66,12 @@ plugin costs one call — not for containment.
 
 The same thing that stops a malicious `ui/`: **the build**. Plugin source is
 embedded with `//go:embed`, so it arrives only through a commit. There is no
-upload endpoint and no runtime plugin directory.
+upload endpoint and no runtime backend directory.
 
-**Therefore: review a new or edited `plugin/` exactly as you would review
+**Therefore: review a new or edited `backend/` exactly as you would review
 `internal/`.** It is not "an app's config", it is server code that will run
-with the server's privileges. Reviewing an image's `install.sh` carefully while
-skimming its `plugin/` gets the risk backwards twice over: the script runs in a
+with the server's privileges. Reviewing an application's `install.sh` carefully while
+skimming its `backend/` gets the risk backwards twice over: the script runs in a
 disposable container, the extension runs in the user's session, and the plugin
 runs on the host.
 
@@ -83,7 +83,7 @@ Between a browser and a plugin, the platform guarantees three things:
 |---|---|
 | `Request.Caller` is the session's identity, overwritten server-side | A plugin can authorize callers, because the browser cannot lie about who it is |
 | `Cookie` and `Authorization` are never forwarded | A plugin is told who is asking without being handed the means to become them |
-| `access: "admin"` is checked before the process is reached | An image can keep its plugin off non-admin sessions without writing the check itself |
+| `access: "admin"` is checked before the process is reached | An application can keep its plugin off non-admin sessions without writing the check itself |
 
 Everything finer — which caller may do which thing — is the plugin's own job.
 A plugin that ignores `Request.Caller` is as open as its `access` level, which
@@ -114,7 +114,7 @@ for the default `registered` means every signed-in user.
   deliberate limitation rather than a solved problem: adding third-party
   modules to plugin builds would need an answer to provenance first.
 
-If images ever become runtime-installable, none of this is adequate — see
+If applications ever become runtime-installable, none of this is adequate — see
 below, and note that a runtime-installable *plugin* is a strictly harder
 problem than a runtime-installable `ui/`.
 
@@ -124,11 +124,11 @@ problem than a runtime-installable `ui/`.
 and it is where traversal stops:
 
 ```go
-func (r *Registry) UIAsset(imageID, assetPath string) ([]byte, bool)
+func (r *Registry) UIAsset(applicationID, assetPath string) ([]byte, bool)
 ```
 
-It rejects an unknown image, an image with no `ui/`, an empty or absolute path,
-anything containing a backslash, and any path that resolves outside the image's
+It rejects an unknown application, an application with no `ui/`, an empty or absolute path,
+anything containing a backslash, and any path that resolves outside the application's
 own `ui/` after cleaning. Both `..` and percent-encoded `%2e%2e` are covered,
 because the check runs on the decoded, cleaned path.
 
@@ -150,7 +150,7 @@ re-checked at runtime by the `ui-playground` self-test.
 Views are served as `text/html` on the application's own origin, so a view is
 in principle a same-origin page. This is safe **only because of the build
 boundary**: those bytes were compiled into the binary by whoever built the
-server. It is not safe reasoning if images ever become runtime-installable —
+server. It is not safe reasoning if applications ever become runtime-installable —
 see below.
 
 ## Two flavours of "safe"
@@ -162,9 +162,9 @@ That is not a security boundary. A malicious extension does not need to throw �
 it can simply do the harmful thing correctly. Robustness protects against bugs;
 the build boundary protects against malice.
 
-## Runtime-installable images: uploaded packages
+## Runtime-installable applications: uploaded packages
 
-Images are also installable at runtime, as uploaded `.zip` packages — see
+Applications are also installable at runtime, as uploaded `.zip` packages — see
 [16 — Uploaded packages](16-uploaded-packages.md). That does not weaken the
 model above, because it does not widen who may add code. It moves the boundary
 from *the build* to *the administrator*, and nowhere further:
@@ -173,22 +173,22 @@ from *the build* to *the administrator*, and nowhere further:
   account can already install a global application, change the base image, and
   run an install script as root in a container. Uploading a package is inside
   that authority, not beyond it.
-- **Same validator.** An uploaded package loads through the same `loadImage`
+- **Same validator.** An uploaded package loads through the same `loadApplication`
   the embedded catalog does. There is no path a package can take that a
-  built-in image cannot.
+  built-in application cannot.
 - **Same privileges, and no more.** The `ui/` runs on the main origin, the
-  `plugin/` runs as a child of the server, the `install.sh` runs as root in a
-  container. Exactly as they do for a built-in image.
+  `backend/` runs as a child of the server, the `install.sh` runs as root in a
+  container. Exactly as they do for a built-in application.
 - **No reserved id may be taken.** A package cannot claim the id of a built-in
-  image, so it cannot redefine what an application the operator already trusts
+  application, so it cannot redefine what an application the operator already trusts
   installs.
 - **The extractor is the one new attack surface.** It refuses escaping paths,
   symlinks, special files, oversized members and compression bombs, and writes
-  nothing executable. Everything lands under `$DATA_DIR/app-packages/images/<id>/`.
+  nothing executable. Everything lands under `$DATA_DIR/app-packages/applications/<id>/`.
 
 **Uploading a package is an act of trust identical to merging a directory into
-`images/`.** Review one the same way — the checklist below applies unchanged,
-and `plugin/` gets the [Backend plugins](#backend-plugins) checklist too.
+`applications/`.** Review one the same way — the checklist below applies unchanged,
+and `backend/` gets the [Backend plugins](#backend-plugins) checklist too.
 
 What is still *not* there, and what it would take to let non-administrators
 install extensions or to accept packages from an untrusted registry:
@@ -222,7 +222,7 @@ A checklist for reviewing a `ui/` directory:
   break, and may be doing something it should not.
 - **Does the install scope match the intent?** A plugin meant for one project
   should not be documented as a global install.
-- **Does it ship a `plugin/`?** Then review that too, against the checklist in
+- **Does it ship a `backend/`?** Then review that too, against the checklist in
   [Backend plugins](#backend-plugins) above — it is server code, not frontend
   code.
 

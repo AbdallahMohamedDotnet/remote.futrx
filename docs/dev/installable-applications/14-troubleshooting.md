@@ -1,30 +1,30 @@
 # 14 — Troubleshooting
 
-## The server will not start after I added an image
+## The server will not start after I added an application
 
 `NewRegistry()` validates the whole catalog at startup and fails loudly. The
-log line names the image and the reason:
+log line names the application and the reason:
 
 ```
-load application catalog: load image "my-plugin": ui: entry: scripts/main.js not found
+load application catalog: load application "my-plugin": ui: entry: scripts/main.js not found
 ```
 
 Common causes:
 
 | Message | Cause |
 |---|---|
-| `image id "x" does not match directory "y"` | `id` in `image.json` differs from the directory name |
+| `application id "x" does not match directory "y"` | `id` in `application.json` differs from the directory name |
 | `invalid type "daemon"` | `type` must be `service`, `ui`, `backend`, or absent |
-| `missing port.internal` | a `service` image needs a port |
+| `missing port.internal` | a `service` application needs a port |
 | `type "ui" must not declare port, service, or healthcheck` | remove them, or change the type |
-| `type "ui" requires a ui/ directory` | a UI image with no `ui/` does nothing |
-| `read install script "install.sh"` | a `service` image needs one |
+| `type "ui" requires a ui/ directory` | a UI application with no `ui/` does nothing |
+| `read install script "install.sh"` | a `service` application needs one |
 | `ui: entry: … not found` | the `ui` block names a file that does not exist |
 | `ui: … exists but is empty` | `ui/` has no files at all |
-| `type "backend" requires a plugin/ directory` | a backend image with no `plugin/` does nothing |
-| `backend: … contains no package main source` | `plugin/` needs a Go program, not a library |
-| `backend: … declares package "helper", want main` | every non-test `.go` file directly in `plugin/` must be `package main` |
-| `backend: plugin/go.mod is not supported` | the server generates the plugin module; delete yours |
+| `type "backend" requires a backend/ directory` | a backend application with no `backend/` does nothing |
+| `backend: … contains no package main source` | `backend/` needs a Go program, not a library |
+| `backend: … declares package "helper", want main` | every non-test `.go` file directly in `backend/` must be `package main` |
+| `backend: backend/go.mod is not supported` | the server generates the plugin module; delete yours |
 | `backend: invalid access "everyone"` | `access` is `registered` or `admin` |
 
 Reproduce without running the server:
@@ -33,23 +33,23 @@ Reproduce without running the server:
 cd backend && go test ./internal/integration/containers/applications/
 ```
 
-## My image does not appear in the catalog
+## My application does not appear in the catalog
 
 - **Did you rebuild the backend?** The catalog is embedded; `npm run dev` does
-  not pick up image changes.
-- **Is the directory directly under `images/`?** Nested directories are not
+  not pick up application changes.
+- **Is the directory directly under `applications/`?** Nested directories are not
   scanned.
-- **Does the image support this scope?** The grid only lists images whose
+- **Does the application support this scope?** The grid only lists applications whose
   `scopes` include the scope you are looking at. A `"scopes": ["project"]`
-  image never appears in the global Applications page.
-- **Is it already installed?** Installed images show "Installed" instead of an
+  application never appears in the global Applications page.
+- **Is it already installed?** Installed applications show "Installed" instead of an
   Install button.
 
 ## I installed it but nothing appears in the UI
 
 Work down the three gates:
 
-1. **Does the image have a `ui/`?** Check the catalog response:
+1. **Does the application have a `ui/`?** Check the catalog response:
 
    ```bash
    curl -s -b cookies.txt localhost:7682/api/applications/catalog \
@@ -86,7 +86,7 @@ Then check the browser console. The host logs every failure:
   *throws* also hides the contribution — that is logged too.
 - **The surface is not mounted.** `chatHeaderActions` needs an open chat;
   `projectRowActions` only appears on hover; `applicationCardActions` needs an
-  installed instance of some image.
+  installed instance of some application.
 - **Scope.** See above.
 
 Fastest diagnosis: install `ui-playground` and see whether *its* flask appears
@@ -154,10 +154,10 @@ They should be removed on the next sync. If they are not:
 - Note that the **stylesheet stays** in the document by design; only the
   contributions are removed. Namespace your CSS so this is harmless.
 
-## `PUT /port` returns an error for my image
+## `PUT /port` returns an error for my application
 
-`ui` images have no port. The error is
-`applications: not supported for this image type`.
+`ui` applications have no port. The error is
+`applications: not supported for this application type`.
 
 ## A project install created a container
 
@@ -176,10 +176,10 @@ cases:
 | `Installing LXD snap, please be patient` | LXD is not ready yet |
 | script output ends mid-`apt-get` | no network in the container, or the 8-minute timeout was hit |
 
-A `ui` or `backend` image never touches LXD, which is why the fixtures install
-anywhere. A `backend` image does need a Go toolchain.
+A `ui` or `backend` application never touches LXD, which is why the fixtures install
+anywhere. A `backend` application does need a Go toolchain.
 
-## My backend image installs but its plugin will not start
+## My backend application installs but its plugin will not start
 
 The installed row carries the reason, because a plugin that fails to start
 fails the install.
@@ -187,17 +187,17 @@ fails the install.
 | Message | Cause |
 |---|---|
 | `no Go toolchain found` | the server has no `go`. Install one, or set `REMOTE_PLUGIN_GO` to its path. |
-| `compile plugin "x": …` | your source does not compile. The compiler's output is in the message; the generated build directory is kept at `<dataDir>/plugins/build/<image>-<fingerprint>/` so you can look at exactly what it tried to build. |
+| `compile plugin "x": …` | your source does not compile. The compiler's output is in the message; the generated build directory is kept at `<dataDir>/plugins/build/<application>-<fingerprint>/` so you can look at exactly what it tried to build. |
 | `module lookup disabled by GOPROXY=off` in the offline attempt only | normal — the host retries with the network. If the *second* attempt also failed, the message shows both. |
 | `plugin x reports contract version 2, this server speaks 1` | the plugin was written against a different `appplugin.APIVersion`. Rebuild the catalog. |
 | `start plugin x: … handshake` | the plugin exited before completing the handshake. It is almost always a `panic` in `main` before `pluginrpc.Serve`, or a `Serve` call that was never reached. |
 | `initialize plugin x: …` | your `Init` returned an error. |
 
-Compile once locally before installing — a `plugin/` is an ordinary package in
+Compile once locally before installing — a `backend/` is an ordinary package in
 the catalog module at the repository root:
 
 ```bash
-go build ./images/<id>/plugin/
+go build ./applications/<id>/backend/
 ```
 
 ## My plugin runs but calls fail
@@ -205,17 +205,17 @@ go build ./images/<id>/plugin/
 | Symptom | Cause |
 |---|---|
 | `409 … is not running` | the app is stopped. A stopped backend's plugin is off, exactly as a stopped UI extension is unloaded. |
-| `404 … image has no backend plugin` | the image ships no `plugin/`, or you are calling the wrong instance |
-| `403 … restricted to administrators` | the image declares `"access": "admin"` |
+| `404 … application has no backend plugin` | the application ships no `backend/`, or you are calling the wrong instance |
+| `403 … restricted to administrators` | the application declares `"access": "admin"` |
 | `403` from the plugin itself | the plugin's own `Request.Caller` check refused you |
-| `plugin call timed out` | the route took longer than the image's `timeoutMs`. The plugin is still running; the call was abandoned. |
+| `plugin call timed out` | the route took longer than the application's `timeoutMs`. The plugin is still running; the call was abandoned. |
 | `plugin panicked: …` | a route panicked. The process survived — check `health` and you will see the same pid. |
-| `remote.backend.available is false` | the image ships no `plugin/`, or no install of it is running for this caller |
+| `remote.backend.available is false` | the application ships no `backend/`, or no install of it is running for this caller |
 | `no running backend with id …` | you passed an `instanceId` that is not in `remote.backend.instances` |
 
 ## My plugin does not see my edit
 
-The catalog is embedded, so a `plugin/` edit needs a backend rebuild — and then
+The catalog is embedded, so a `backend/` edit needs a backend rebuild — and then
 the fingerprint changes, so the next install or start recompiles it. Stop and
 start the app to force it without reinstalling.
 
@@ -241,7 +241,7 @@ failures.
 
 | Symptom | File |
 |---|---|
-| Catalog will not load | `registry.go`, `registry_plugin.go` |
+| Catalog will not load | `registry.go`, `registry_backend.go` |
 | Wrong container behaviour | `installer.go` |
 | Wrong instances or scopes returned | `service/applications/service.go` |
 | Wrong status code or authorization | `transport/http/handlers/applications_handler.go` |

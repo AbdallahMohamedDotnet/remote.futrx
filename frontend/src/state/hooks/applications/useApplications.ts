@@ -3,7 +3,7 @@ import { applicationsApi } from "../../../api/applicationsApi";
 import { projectApi } from "../../../api/projectApi";
 import type {
   AppCredentials,
-  AppImage,
+  AppApplication,
   AppInstallRequest,
   AppInstance,
   AppScope,
@@ -15,7 +15,7 @@ export interface ApplicationsController {
   scope: AppScope;
   /** Set for project scope; the project these instances belong to. */
   projectId?: string;
-  catalog: AppImage[];
+  catalog: AppApplication[];
   catalogLoading: boolean;
   instances: AppInstance[];
   loading: boolean;
@@ -53,7 +53,7 @@ function useApplicationsCore({
   bindings,
   projectId,
 }: CoreOptions): ApplicationsController {
-  const [catalog, setCatalog] = useState<AppImage[]>([]);
+  const [catalog, setCatalog] = useState<AppApplication[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [instances, setInstances] = useState<AppInstance[]>([]);
   const [loading, setLoading] = useState(false);

@@ -83,13 +83,13 @@ type Dependencies struct {
 	ScheduleLimits    ScheduleLimits
 	PromptStartGate   prompt.StartGate
 
-	// Application (installable image) capabilities. When AppStore and
+	// Installable-application capabilities. When AppStore and
 	// AppRegistry are set the Applications service is enabled.
 	AppStore     serviceapplications.Store
 	AppRegistry  serviceapplications.Registry
 	AppInstaller serviceapplications.Installer
 	AppPorts     serviceapplications.PortAllocator
-	// AppBackends runs the Go plugins images ship in their plugin/ directory.
+	// AppBackends runs the Go plugins applications ship in their backend/ directory.
 	// Leaving it nil keeps every other application capability working and
 	// reports backend calls as unavailable.
 	AppBackends serviceapplications.BackendHost

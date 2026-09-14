@@ -6,25 +6,25 @@ import (
 	"github.com/futrx-com/remote.futrx.com/pkg/appplugin"
 )
 
-// Registry provides the installable catalog loaded from embedded image
+// Registry provides the installable catalog loaded from embedded application
 // definitions.
 type Registry interface {
-	List() []Image
-	Get(id string) (Image, bool)
+	List() []Application
+	Get(id string) (Application, bool)
 }
 
 // InstallSpec is everything Installer needs to realize an instance in a
-// container. It is derived from an Image plus the user's resolved inputs.
+// container. It is derived from an Application plus the user's resolved inputs.
 type InstallSpec struct {
-	Image    Image
-	Instance Instance
+	Application Application
+	Instance    Instance
 }
 
 // Installer realizes and controls app instances inside containers. It owns the
 // lxc-facing side: running the install script, systemd start/stop, and the
 // host proxy device that exposes the port.
 type Installer interface {
-	// Install (re)runs the image's install script and (re)creates the proxy
+	// Install (re)runs the application's install script and (re)creates the proxy
 	// device so the app is reachable on the host.
 	Install(ctx context.Context, spec InstallSpec) error
 	// Start starts the app's service and ensures its proxy device exists.
@@ -45,15 +45,15 @@ type Installer interface {
 // the host receives only the source identity and the plugin's initialization
 // contract.
 type BackendSpec struct {
-	ImageID  string
-	Instance appplugin.Instance
+	ApplicationID string
+	Instance      appplugin.Instance
 }
 
-// BackendHost compiles an image's plugin/ source and runs it as a child
+// BackendHost compiles an application's backend/ source and runs it as a child
 // process, one per instance, forwarding calls to it. It owns everything
 // go-plugin-facing, so the service layer never launches a process itself.
 //
-// Every method is safe on an instance whose image ships no plugin: the service
+// Every method is safe on an instance whose application ships no backend: the service
 // checks that before calling, but a host that is asked anyway must not create
 // one.
 type BackendHost interface {
