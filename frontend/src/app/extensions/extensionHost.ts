@@ -1,6 +1,6 @@
 import { applicationsApi } from "../../api/applicationsApi.ts";
 import { API_ROUTES } from "../../config/routes.ts";
-import type { AppImage, AppUIExtension } from "../../models/application";
+import type { AppApplication, AppUIExtension } from "../../models/application";
 import type {
   ExtensionApi,
   ExtensionRegistry,
@@ -16,7 +16,7 @@ type EntryModule = {
 };
 
 /**
- * Loads an image's entry module from the catalog endpoint. It is the one place
+ * Loads an application's entry module from the catalog endpoint. It is the one place
  * the host reaches the network for code rather than data, so it is taken as a
  * dependency instead of being hard-wired into the loader below.
  */
@@ -84,71 +84,71 @@ export class ExtensionHost {
     this.removeInactive(extensions);
     for (const extension of extensions) {
       this.registry.setVisibility(
-        extension.image.id,
+        extension.application.id,
         this.visibilityOf(extension),
       );
     }
     await Promise.all(
       extensions
-        .filter((extension) => extension.image.ui)
+        .filter((extension) => extension.application.ui)
         .map((extension) => this.loadImage(extension)),
     );
   }
 
   private removeInactive(extensions: AppUIExtension[]): void {
     const installed = new Set(
-      extensions.map((extension) => extension.image.id),
+      extensions.map((extension) => extension.application.id),
     );
-    for (const imageId of this.loaded) {
-      if (installed.has(imageId)) continue;
-      this.forget(imageId);
+    for (const applicationId of this.loaded) {
+      if (installed.has(applicationId)) continue;
+      this.forget(applicationId);
     }
   }
 
   private async loadImage(extension: AppUIExtension): Promise<void> {
-    const { image } = extension;
-    if (this.loaded.has(image.id)) return;
-    this.loaded.add(image.id);
+    const { application } = extension;
+    if (this.loaded.has(application.id)) return;
+    this.loaded.add(application.id);
     try {
-      for (const style of image.ui?.styles ?? []) {
-        this.injectStylesheet(image.id, style);
+      for (const style of application.ui?.styles ?? []) {
+        this.injectStylesheet(application.id, style);
       }
-      const entry = image.ui?.entry;
+      const entry = application.ui?.entry;
       if (!entry) return;
       const module = await this.loadEntryModule(
-        API_ROUTES.applications.uiAsset(image.id, entry),
+        API_ROUTES.applications.uiAsset(application.id, entry),
       );
       const activate = module.default ?? module.activate;
       if (typeof activate !== "function") {
         console.warn(
-          `[extensions] ${image.id}: ${entry} exports no default function`,
+          `[extensions] ${application.id}: ${entry} exports no default function`,
         );
         return;
       }
       await activate(
         createExtensionApi(
-          image,
+          application,
           this.visibilityOf(extension),
           extension.backends ?? [],
           this.registry,
         ),
       );
     } catch (error) {
-      console.error(`[extensions] ${image.id} failed to load`, error);
-      this.forget(image.id);
+      console.error(`[extensions] ${application.id} failed to load`, error);
+      this.forget(application.id);
     }
   }
 
   /**
-   * Drops everything an image contributed. Its entry module stays in the
+   * Drops everything an application contributed. Its entry module stays in the
    * page's module cache — nothing can evict that — so removing its slot
    * renders without its event subscriptions would leave handlers firing for
    * an app that is no longer installed.
    */
-  private forget(imageId: string): void {
-    this.registry.removeImage(imageId);
-    extensionEventService.removeImage(imageId);
-    this.loaded.delete(imageId);
+  private forget(applicationId: string): void {
+    this.registry.removeApplication(applicationId);
+    extensionEventService.removeApplication(applicationId);
+    this.loaded.delete(applicationId);
   }
 
   private visibilityOf(extension: AppUIExtension): ExtensionVisibility {
@@ -158,8 +158,8 @@ export class ExtensionHost {
     };
   }
 
-  private injectStylesheet(imageId: string, assetPath: string): void {
-    const href = API_ROUTES.applications.uiAsset(imageId, assetPath);
+  private injectStylesheet(applicationId: string, assetPath: string): void {
+    const href = API_ROUTES.applications.uiAsset(applicationId, assetPath);
     if (document.querySelector(`link[data-extension-style="${href}"]`)) return;
     const link = document.createElement("link");
     link.rel = "stylesheet";

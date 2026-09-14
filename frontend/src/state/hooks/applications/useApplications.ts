@@ -3,7 +3,7 @@ import { applicationsApi } from "../../../api/applicationsApi";
 import { projectApi } from "../../../api/projectApi";
 import type {
   AppCredentials,
-  AppImage,
+  AppApplication,
   AppInstallRequest,
   AppInstance,
   AppPackage,
@@ -16,7 +16,7 @@ export interface ApplicationsController {
   scope: AppScope;
   /** Set for project scope; the project these instances belong to. */
   projectId?: string;
-  catalog: AppImage[];
+  catalog: AppApplication[];
   catalogLoading: boolean;
   instances: AppInstance[];
   loading: boolean;
@@ -88,7 +88,7 @@ function useApplicationsCore({
   onApplicationsSettled,
   projectId,
 }: CoreOptions): ApplicationsController {
-  const [catalog, setCatalog] = useState<AppImage[]>([]);
+  const [catalog, setCatalog] = useState<AppApplication[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [instances, setInstances] = useState<AppInstance[]>([]);
   const [loading, setLoading] = useState(false);
@@ -148,7 +148,7 @@ function useApplicationsCore({
       if (cancelled) return;
       // Opening a surface reconciles the extension host, not just changing
       // something on it. A change made anywhere else — another tab, another
-      // administrator, a server that restarted without the image — reaches
+      // administrator, a server that restarted without the application — reaches
       // this tab through no other path, and without this the surface can list
       // no installed apps while still rendering an uninstalled one's panel.
       notifySettled();

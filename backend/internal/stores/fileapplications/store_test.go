@@ -24,11 +24,11 @@ func put(t *testing.T, store *Store, inst svc.Instance) {
 }
 
 func globalInstance(id string) svc.Instance {
-	return svc.Instance{ID: id, ImageID: "db", Scope: svc.ScopeGlobal}
+	return svc.Instance{ID: id, ApplicationID: "db", Scope: svc.ScopeGlobal}
 }
 
 func projectInstance(id, projectID string) svc.Instance {
-	return svc.Instance{ID: id, ImageID: "db", Scope: svc.ScopeProject, ProjectID: projectID}
+	return svc.Instance{ID: id, ApplicationID: "db", Scope: svc.ScopeProject, ProjectID: projectID}
 }
 
 // An instance is addressed by id alone — start, stop and uninstall all begin

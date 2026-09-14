@@ -21,20 +21,20 @@ const MOVED = "/workspace/s3/uploads/shot-a8ho.png";
 /** Installs an extension for one test; the service is the app-wide instance. */
 function extension(
   t: TestContext,
-  imageId: string,
+  applicationId: string,
   handler: (event: UploadCompletedEvent) => void,
 ): void {
-  extensionEventService.on(imageId, "upload.completed", handler);
-  t.after(() => extensionEventService.removeImage(imageId));
+  extensionEventService.on(applicationId, "upload.completed", handler);
+  t.after(() => extensionEventService.removeApplication(applicationId));
 }
 
 /** Installs one that takes the attachment over with `work`. */
 function claimant(
   t: TestContext,
-  imageId: string,
+  applicationId: string,
   work: Promise<string | void>,
 ): void {
-  extension(t, imageId, (event) => {
+  extension(t, applicationId, (event) => {
     event.claim(work);
   });
 }

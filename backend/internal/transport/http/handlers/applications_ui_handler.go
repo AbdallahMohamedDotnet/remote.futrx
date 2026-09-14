@@ -19,7 +19,7 @@ type visibleProjects interface {
 	ListVisible(ctx context.Context, email string, isAdmin bool) ([]serviceproject.Meta, error)
 }
 
-func (h *ApplicationsHandler) serveUIImages(w http.ResponseWriter, r *http.Request) {
+func (h *ApplicationsHandler) serveUIExtensions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -79,12 +79,12 @@ func (h *ApplicationsHandler) serveUIAsset(w http.ResponseWriter, r *http.Reques
 		httptransport.SendErr(w, http.StatusServiceUnavailable, "applications unavailable")
 		return
 	}
-	imageID, assetPath, ok := strings.Cut(rest, "/ui/")
-	if !ok || strings.TrimSpace(imageID) == "" {
+	applicationID, assetPath, ok := strings.Cut(rest, "/ui/")
+	if !ok || strings.TrimSpace(applicationID) == "" {
 		httptransport.SendErr(w, http.StatusNotFound, "asset not found")
 		return
 	}
-	data, ok := h.apps.UIAsset(imageID, assetPath)
+	data, ok := h.apps.UIAsset(applicationID, assetPath)
 	if !ok {
 		httptransport.SendErr(w, http.StatusNotFound, "asset not found")
 		return

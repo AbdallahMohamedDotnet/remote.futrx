@@ -8,15 +8,15 @@ import (
 
 // Errors returned by the service. Handlers map these to HTTP status codes.
 var (
-	ErrUnavailable      = errors.New("applications: container runtime unavailable")
-	ErrUnknownImage     = errors.New("applications: unknown image")
-	ErrScope            = errors.New("applications: image does not support this scope")
-	ErrProjectneeded    = errors.New("applications: project id required")
-	ErrRequiredEnv      = errors.New("applications: missing required value")
-	ErrNotFound         = errors.New("applications: instance not found")
-	ErrPortRange        = errors.New("applications: external port out of range")
-	ErrAlreadyInstalled = errors.New("applications: this image is already installed in this scope")
-	ErrNotSupported     = errors.New("applications: not supported for this image type")
+	ErrUnavailable        = errors.New("applications: container runtime unavailable")
+	ErrUnknownApplication = errors.New("applications: unknown application")
+	ErrScope              = errors.New("applications: application does not support this scope")
+	ErrProjectneeded      = errors.New("applications: project id required")
+	ErrRequiredEnv        = errors.New("applications: missing required value")
+	ErrNotFound           = errors.New("applications: instance not found")
+	ErrPortRange          = errors.New("applications: external port out of range")
+	ErrAlreadyInstalled   = errors.New("applications: this application is already installed in this scope")
+	ErrNotSupported       = errors.New("applications: not supported for this application type")
 
 	// Uploaded-package errors.
 	ErrPackagesUnavailable = errors.New("applications: uploaded packages are not available on this server")
@@ -49,10 +49,10 @@ type Service struct {
 
 // Option configures optional service dependencies. Backend plugin hosting is
 // optional because a server without a Go toolchain, or a build that ships no
-// plugin images, must still install and run everything else.
+// plugin applications, must still install and run everything else.
 type Option func(*Service)
 
-// WithBackendHost enables images that ship a plugin/ directory. Without it,
+// WithBackendHost enables applications that ship a backend/ directory. Without it,
 // their catalog entries still load and every backend call reports the feature
 // unavailable.
 func WithBackendHost(host BackendHost) Option {
@@ -99,8 +99,8 @@ func New(
 	return service
 }
 
-// Catalog returns the installable image catalog.
-func (s *Service) Catalog() []Image { return s.registry.List() }
+// Catalog returns the installable application catalog.
+func (s *Service) Catalog() []Application { return s.registry.List() }
 
 // ListGlobal returns installed global apps as API-safe views.
 func (s *Service) ListGlobal(ctx context.Context) ([]View, error) {
@@ -131,7 +131,7 @@ func (s *Service) Get(ctx context.Context, id string) (View, bool, error) {
 
 // Credentials returns full connection details for an instance, including secret
 // env values and the canonical user/password/database resolved from the
-// image's Connection descriptor. The transport layer authorizes the caller.
+// application's Connection descriptor. The transport layer authorizes the caller.
 func (s *Service) Credentials(ctx context.Context, id string) (Credentials, error) {
 	inst, img, err := s.load(ctx, id)
 	if err != nil {
@@ -163,24 +163,24 @@ func (s *Service) saveStatus(ctx context.Context, inst *Instance, status Instanc
 	return s.store.Put(ctx, *inst)
 }
 
-func (s *Service) load(ctx context.Context, id string) (Instance, Image, error) {
+func (s *Service) load(ctx context.Context, id string) (Instance, Application, error) {
 	inst, ok, err := s.store.Get(ctx, id)
 	if err != nil {
-		return Instance{}, Image{}, err
+		return Instance{}, Application{}, err
 	}
 	if !ok {
-		return Instance{}, Image{}, ErrNotFound
+		return Instance{}, Application{}, ErrNotFound
 	}
-	img, ok := s.registry.Get(inst.ImageID)
+	img, ok := s.registry.Get(inst.ApplicationID)
 	if !ok {
-		return Instance{}, Image{}, ErrUnknownImage
+		return Instance{}, Application{}, ErrUnknownApplication
 	}
 	return inst, img, nil
 }
 
 // view / views project Instances to API-safe Views (secret env redacted).
 func (s *Service) view(inst Instance) View {
-	img, _ := s.registry.Get(inst.ImageID)
+	img, _ := s.registry.Get(inst.ApplicationID)
 	pub := map[string]string{}
 	secret := secretKeys(img)
 	for k, v := range inst.Env {

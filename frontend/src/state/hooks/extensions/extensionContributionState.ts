@@ -15,7 +15,7 @@ export function visibleExtensionContributions(
       return contribution.when(context);
     } catch (error) {
       console.error(
-        `[extensions] ${contribution.imageId}: predicate failed`,
+        `[extensions] ${contribution.applicationId}: predicate failed`,
         error,
       );
       return false;

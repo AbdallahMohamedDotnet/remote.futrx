@@ -48,8 +48,8 @@ func (p *staticProjects) ContainerName(context.Context, string) (string, error) 
 }
 func (p *staticProjects) EnsureRunning(context.Context, string) error { return nil }
 
-func toolImage() Image {
-	return Image{
+func toolImage() Application {
+	return Application{
 		ID:      "mount-tool",
 		Name:    "Mount Tool",
 		Type:    KindTool,
@@ -58,12 +58,12 @@ func toolImage() Image {
 	}
 }
 
-func toolService(image Image) (*Service, *recordingInstaller, *countingAllocator, *fakeStore) {
+func toolService(application Application) (*Service, *recordingInstaller, *countingAllocator, *fakeStore) {
 	installer := &recordingInstaller{}
 	allocator := &countingAllocator{}
 	store := &fakeStore{}
 	service := New(
-		&singleImageRegistry{image: image},
+		&singleImageRegistry{application: application},
 		store,
 		installer,
 		&staticProjects{container: "my-project"},
@@ -78,10 +78,10 @@ func TestInstallToolProvisionsWithoutAPort(t *testing.T) {
 	service, installer, allocator, _ := toolService(toolImage())
 
 	view, err := service.Install(context.Background(), InstallRequest{
-		ImageID:   "mount-tool",
-		Scope:     ScopeProject,
-		ProjectID: "proj-1",
-		Env:       map[string]string{"MOUNT_TOOL_BUCKET": "s3://bucket"},
+		ApplicationID: "mount-tool",
+		Scope:         ScopeProject,
+		ProjectID:     "proj-1",
+		Env:           map[string]string{"MOUNT_TOOL_BUCKET": "s3://bucket"},
 	})
 	if err != nil {
 		t.Fatalf("install: %v", err)
@@ -113,7 +113,7 @@ func TestInstallToolProvisionsWithoutAPort(t *testing.T) {
 func TestSetPortOnAToolIsRefused(t *testing.T) {
 	service, _, _, store := toolService(toolImage())
 	store.global = []Instance{{
-		ID: "abc123", ImageID: "mount-tool", Scope: ScopeProject,
+		ID: "abc123", ApplicationID: "mount-tool", Scope: ScopeProject,
 		ProjectID: "proj-1", Status: StatusRunning,
 	}}
 
@@ -127,8 +127,8 @@ func TestInstallToolRejectsGlobalScope(t *testing.T) {
 	service, _, _, _ := toolService(toolImage())
 
 	if _, err := service.Install(context.Background(), InstallRequest{
-		ImageID: "mount-tool",
-		Scope:   ScopeGlobal,
+		ApplicationID: "mount-tool",
+		Scope:         ScopeGlobal,
 	}); !errors.Is(err, ErrScope) {
 		t.Errorf("global install of a tool = %v, want ErrScope", err)
 	}

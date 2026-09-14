@@ -21,7 +21,7 @@ import {
  * Uploading an application to this server's catalog.
  *
  * An application package is a .zip of exactly what a built-in application's
- * directory holds — `image.json`, an optional `install.sh`, an optional `ui/`,
+ * directory holds — `application.json`, an optional `install.sh`, an optional `ui/`,
  * an optional `plugin/`. Once uploaded it is an ordinary catalog entry: it
  * appears under "Available applications", installs the same way, and runs the
  * same way.
@@ -183,7 +183,7 @@ export function ApplicationPackages({
         </button>
         <p class="mt-2 text-[11.5px] text-ink-400 leading-relaxed">
           Drop a .zip here, or choose one. The archive holds the app's{" "}
-          <span class="font-mono">image.json</span> at its root — or inside a
+          <span class="font-mono">application.json</span> at its root — or inside a
           single folder — alongside its{" "}
           <span class="font-mono">install.sh</span>,{" "}
           <span class="font-mono">ui/</span> and{" "}

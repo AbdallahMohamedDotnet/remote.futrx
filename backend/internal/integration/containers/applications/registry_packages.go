@@ -24,7 +24,7 @@ func errPackageReserved(id string) error {
 
 // errPackageSuperseded is what a stored package is told when the id it was
 // uploaded under has since been built into the binary. Nothing was rejected —
-// the built-in image is being served and these files are not — so the reason
+// the built-in application is being served and these files are not — so the reason
 // shown beside it in the package list says that, and says they can go.
 func errPackageSuperseded(id string) error {
 	return fmt.Errorf("%w: %q", svc.ErrPackageSuperseded, id)
@@ -90,7 +90,7 @@ func (r *Registry) InstallPackage(upload svc.PackageUpload) (svc.Package, error)
 // mean an upload could redefine what a built-in application installs, which is
 // a much larger claim than "add an application".
 func (r *Registry) acceptPackageID(id string) error {
-	if r.imageIsBuiltin(id) {
+	if r.applicationIsBuiltin(id) {
 		return errPackageReserved(id)
 	}
 	return nil
@@ -108,7 +108,7 @@ func (r *Registry) RemovePackage(id string) error {
 		return svc.ErrPackagesUnavailable
 	}
 	if err := r.packages.RemovePackage(id); err != nil {
-		if errors.Is(err, svc.ErrPackageNotFound) && r.imageIsBuiltin(id) {
+		if errors.Is(err, svc.ErrPackageNotFound) && r.applicationIsBuiltin(id) {
 			return errPackageReserved(id)
 		}
 		return err
@@ -116,9 +116,9 @@ func (r *Registry) RemovePackage(id string) error {
 	return r.Reload()
 }
 
-// imageIsBuiltin reports whether the catalog entry with this id came from the
+// applicationIsBuiltin reports whether the catalog entry with this id came from the
 // binary rather than from an upload.
-func (r *Registry) imageIsBuiltin(id string) bool {
+func (r *Registry) applicationIsBuiltin(id string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	img, ok := r.view.byID[id]

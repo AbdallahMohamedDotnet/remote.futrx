@@ -91,7 +91,7 @@ function createRegistry() {
   const registry: ExtensionRegistry = {
     register: (...args) => store.getState().register(...args),
     setVisibility: (...args) => store.getState().setVisibility(...args),
-    removeImage: (...args) => store.getState().removeImage(...args),
+    removeApplication: (...args) => store.getState().removeApplication(...args),
   };
   return {
     registry,
@@ -102,7 +102,7 @@ function createRegistry() {
 
 function helloExtension(global = true): AppUIExtension {
   return {
-    image: {
+    application: {
       id: "hello-remote",
       name: "Hello Remote",
       type: "backend",
@@ -116,7 +116,7 @@ function helloExtension(global = true): AppUIExtension {
 }
 
 /**
- * Stands in for an image's `ui/scripts/main.js`: it contributes one panel and
+ * Stands in for an application's `ui/scripts/main.js`: it contributes one panel and
  * one event handler, which is what "the extension is loaded" means from the
  * outside.
  */
@@ -133,7 +133,7 @@ function entryModuleLoader(): {
       default: (remote: ExtensionApi) => {
         remote.ui.register(remote.slots.applicationsPanel, () => {});
         remote.events.on("upload.completed", () => {
-          events.push(remote.image.id);
+          events.push(remote.application.id);
         });
       },
     };

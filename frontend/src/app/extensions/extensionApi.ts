@@ -4,7 +4,7 @@ import {
   SLOT_ICON_APPEARANCE,
 } from "../../config/extensions.ts";
 import { API_ROUTES } from "../../config/routes.ts";
-import type { AppBackendInstance, AppImage } from "../../models/application";
+import type { AppBackendInstance, AppApplication } from "../../models/application";
 import type {
   ExtensionApi,
   ExtensionButton,
@@ -30,14 +30,14 @@ const ICON_BUTTON_BASE =
   "active:scale-[0.97]";
 
 export function createExtensionApi(
-  image: AppImage,
+  application: AppApplication,
   visibility: ExtensionVisibility,
   backends: AppBackendInstance[],
   registry: ExtensionRegistry,
 ): ExtensionApi {
-  const views = image.ui?.views ?? {};
+  const views = application.ui?.views ?? {};
   const assetUrl = (assetPath: string) =>
-    API_ROUTES.applications.uiAsset(image.id, assetPath);
+    API_ROUTES.applications.uiAsset(application.id, assetPath);
   const viewUrl = (name: string) => {
     const relativePath = views[name];
     return relativePath ? assetUrl(relativePath) : null;
@@ -45,11 +45,11 @@ export function createExtensionApi(
 
   return {
     apiVersion: EXTENSION_API_VERSION,
-    image: {
-      id: image.id,
-      name: image.name,
-      version: image.version,
-      icon: image.icon,
+    application: {
+      id: application.id,
+      name: application.name,
+      version: application.version,
+      icon: application.icon,
     },
     install: {
       global: visibility.global,
@@ -58,10 +58,10 @@ export function createExtensionApi(
     slots: EXTENSION_SLOTS,
     ui: {
       register: (slot, render, options) =>
-        registry.register(image.id, slot, render, options),
+        registry.register(application.id, slot, render, options),
       addButton: (slot, button) =>
         registry.register(
-          image.id,
+          application.id,
           slot,
           (host, context) => {
             host.appendChild(renderButton(button, context));
@@ -70,7 +70,7 @@ export function createExtensionApi(
         ),
       addIconButton: (slot, button) =>
         registry.register(
-          image.id,
+          application.id,
           slot,
           (host, context) => {
             host.appendChild(renderIconButton(button, context));
@@ -80,7 +80,7 @@ export function createExtensionApi(
       openPopup: openExtensionPopup,
     },
     events: {
-      on: (name, handler) => extensionEventService.on(image.id, name, handler),
+      on: (name, handler) => extensionEventService.on(application.id, name, handler),
     },
     views: {
       url: viewUrl,
@@ -95,8 +95,8 @@ export function createExtensionApi(
       },
     },
     assets: { url: assetUrl },
-    backend: createBackendApi(image, backends),
-    log: (...args) => console.info(`[extension:${image.id}]`, ...args),
+    backend: createBackendApi(application, backends),
+    log: (...args) => console.info(`[extension:${application.id}]`, ...args),
   };
 }
 

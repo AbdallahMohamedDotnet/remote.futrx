@@ -39,11 +39,11 @@ func (h *ApplicationsHandler) RegisterRoutes(mux *http.ServeMux) {
 
 // installBody is the shared request shape for installing an app.
 type installBody struct {
-	ImageID      string            `json:"imageId"`
-	Name         string            `json:"name"`
-	Env          map[string]string `json:"env"`
-	ExternalPort int               `json:"externalPort"`
-	BindAddress  string            `json:"bindAddress"`
+	ApplicationID string            `json:"applicationId"`
+	Name          string            `json:"name"`
+	Env           map[string]string `json:"env"`
+	ExternalPort  int               `json:"externalPort"`
+	BindAddress   string            `json:"bindAddress"`
 }
 
 type portBody struct {
@@ -82,7 +82,7 @@ func (h *ApplicationsHandler) handleResource(w http.ResponseWriter, r *http.Requ
 	// readable by any registered user because every user renders the UI of the
 	// apps installed around them.
 	if rest == "ui" {
-		h.serveUIImages(w, r)
+		h.serveUIExtensions(w, r)
 		return
 	}
 
@@ -94,8 +94,8 @@ func (h *ApplicationsHandler) handleResource(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// /api/applications/catalog/<imageID>/ui/<path> serves the browser-side
-	// extension an image ships. Same audience as the catalog it belongs to.
+	// /api/applications/catalog/<applicationID>/ui/<path> serves the browser-side
+	// extension an application ships. Same audience as the catalog it belongs to.
 	if strings.HasPrefix(rest, "catalog/") {
 		h.serveUIAsset(w, r, strings.TrimPrefix(rest, "catalog/"))
 		return
@@ -128,7 +128,7 @@ func (h *ApplicationsHandler) handleResource(w http.ResponseWriter, r *http.Requ
 	// Calling a global instance's plugin is the one thing on a global app that
 	// is not administration: the plugin is the server-side half of an
 	// extension that renders for every signed-in user, so it is gated by the
-	// image's own access level instead. Managing the app stays admin-only.
+	// application's own access level instead. Managing the app stays admin-only.
 	if path, ok := isBackendPath(action); ok {
 		if !h.requireRegistered(w, r) {
 			return
@@ -216,13 +216,13 @@ func (h *ApplicationsHandler) install(w http.ResponseWriter, r *http.Request, sc
 		return
 	}
 	view, err := h.apps.Install(r.Context(), serviceapplications.InstallRequest{
-		ImageID:      strings.TrimSpace(body.ImageID),
-		Scope:        scope,
-		ProjectID:    projectID,
-		Name:         body.Name,
-		Env:          body.Env,
-		ExternalPort: body.ExternalPort,
-		BindAddress:  body.BindAddress,
+		ApplicationID: strings.TrimSpace(body.ApplicationID),
+		Scope:         scope,
+		ProjectID:     projectID,
+		Name:          body.Name,
+		Env:           body.Env,
+		ExternalPort:  body.ExternalPort,
+		BindAddress:   body.BindAddress,
 	})
 	if err != nil {
 		sendAppError(w, err)
@@ -402,13 +402,13 @@ func sendAppError(w http.ResponseWriter, err error) {
 	case errors.Is(err, serviceapplications.ErrNotSupported),
 		errors.Is(err, serviceapplications.ErrPackageInvalid):
 		// The request is well formed and the caller is allowed to make it; the
-		// image simply has nothing to apply it to — setting a port on an app
+		// application simply has nothing to apply it to — setting a port on an app
 		// that binds none, say. That is the caller's mistake to see, not a
 		// server fault.
 		httptransport.SendErr(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, serviceapplications.ErrPackagesUnavailable):
 		httptransport.SendErr(w, http.StatusServiceUnavailable, err.Error())
-	case errors.Is(err, serviceapplications.ErrUnknownImage),
+	case errors.Is(err, serviceapplications.ErrUnknownApplication),
 		errors.Is(err, serviceapplications.ErrScope),
 		errors.Is(err, serviceapplications.ErrProjectneeded),
 		errors.Is(err, serviceapplications.ErrRequiredEnv),

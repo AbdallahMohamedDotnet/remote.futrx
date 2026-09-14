@@ -6,17 +6,17 @@ import (
 	"testing"
 )
 
-// versionedRegistry answers with one image, so a test can move its version and
+// versionedRegistry answers with one application, so a test can move its version and
 // nothing else.
-type versionedRegistry struct{ image Image }
+type versionedRegistry struct{ application Application }
 
-func (r *versionedRegistry) List() []Image { return []Image{r.image} }
+func (r *versionedRegistry) List() []Application { return []Application{r.application} }
 
-func (r *versionedRegistry) Get(id string) (Image, bool) {
-	if id != r.image.ID {
-		return Image{}, false
+func (r *versionedRegistry) Get(id string) (Application, bool) {
+	if id != r.application.ID {
+		return Application{}, false
 	}
-	return r.image, true
+	return r.application, true
 }
 
 func (r *versionedRegistry) UIAsset(string, string) ([]byte, bool) { return nil, false }
@@ -43,8 +43,8 @@ func (i *failingInstaller) Install(ctx context.Context, spec InstallSpec) error 
 	return i.recordingInstaller.Install(ctx, spec)
 }
 
-func serviceImageAt(version string) Image {
-	return Image{
+func serviceImageAt(version string) Application {
+	return Application{
 		ID:      "db",
 		Name:    "Database",
 		Version: version,
@@ -64,16 +64,16 @@ func installedAt(id, projectID, version string, status InstanceStatus) Instance 
 		container = "project-" + projectID
 	}
 	return Instance{
-		ID:            id,
-		ImageID:       "db",
-		ImageVersion:  version,
-		Name:          "Database",
-		Scope:         scope,
-		ProjectID:     projectID,
-		ContainerName: container,
-		InternalPort:  5432,
-		ExternalPort:  5433,
-		Status:        status,
+		ID:                 id,
+		ApplicationID:      "db",
+		ApplicationVersion: version,
+		Name:               "Database",
+		Scope:              scope,
+		ProjectID:          projectID,
+		ContainerName:      container,
+		InternalPort:       5432,
+		ExternalPort:       5433,
+		Status:             status,
 	}
 }
 
@@ -105,7 +105,7 @@ func TestUploadReinstallsInstancesWhenTheVersionChanges(t *testing.T) {
 		},
 	}
 	installer := &failingInstaller{}
-	registry := &versionedRegistry{image: serviceImageAt("2.0.0")}
+	registry := &versionedRegistry{application: serviceImageAt("2.0.0")}
 	catalog := &recordingCatalog{pkg: Package{ID: "db", Name: "Database", Version: "2.0.0"}}
 	service := upgradeService(store, registry, installer, catalog, &recordingHost{})
 
@@ -122,8 +122,8 @@ func TestUploadReinstallsInstancesWhenTheVersionChanges(t *testing.T) {
 		if spec.Instance.ContainerName == "" || spec.Instance.ExternalPort != 5433 {
 			t.Fatalf("upgrade moved the instance: %+v", spec.Instance)
 		}
-		if spec.Image.Version != "2.0.0" {
-			t.Fatalf("re-installed with version %q, want 2.0.0", spec.Image.Version)
+		if spec.Application.Version != "2.0.0" {
+			t.Fatalf("re-installed with version %q, want 2.0.0", spec.Application.Version)
 		}
 	}
 	if len(pkg.Upgraded) != 2 {
@@ -137,8 +137,8 @@ func TestUploadReinstallsInstancesWhenTheVersionChanges(t *testing.T) {
 	// The new version is recorded, so a second upload of the same version is
 	// not a second re-install.
 	for _, inst := range store.puts {
-		if inst.ImageVersion != "2.0.0" {
-			t.Fatalf("%s recorded version %q, want 2.0.0", inst.ID, inst.ImageVersion)
+		if inst.ApplicationVersion != "2.0.0" {
+			t.Fatalf("%s recorded version %q, want 2.0.0", inst.ID, inst.ApplicationVersion)
 		}
 	}
 }
@@ -148,7 +148,7 @@ func TestUploadReinstallsInstancesWhenTheVersionChanges(t *testing.T) {
 func TestUploadDoesNotReinstallWhenTheVersionIsUnchanged(t *testing.T) {
 	store := &fakeStore{global: []Instance{installedAt("g1", "", "1.0.0", StatusRunning)}}
 	installer := &failingInstaller{}
-	registry := &versionedRegistry{image: serviceImageAt("1.0.0")}
+	registry := &versionedRegistry{application: serviceImageAt("1.0.0")}
 	catalog := &recordingCatalog{pkg: Package{ID: "db", Version: "1.0.0"}}
 	host := &recordingHost{}
 	service := upgradeService(store, registry, installer, catalog, host)
@@ -176,7 +176,7 @@ func TestUploadDoesNotReinstallWhenTheVersionIsUnchanged(t *testing.T) {
 func TestUploadReinstallsAnInstanceWithNoRecordedVersion(t *testing.T) {
 	store := &fakeStore{global: []Instance{installedAt("g1", "", "", StatusRunning)}}
 	installer := &failingInstaller{}
-	registry := &versionedRegistry{image: serviceImageAt("1.0.0")}
+	registry := &versionedRegistry{application: serviceImageAt("1.0.0")}
 	service := upgradeService(
 		store, registry, installer, &recordingCatalog{pkg: Package{ID: "db"}}, nil)
 
@@ -192,20 +192,20 @@ func TestUploadReinstallsAnInstanceWithNoRecordedVersion(t *testing.T) {
 	}
 }
 
-// A ui or backend image provisions nothing into a container, so there is no
+// A ui or backend application provisions nothing into a container, so there is no
 // install script for a version bump to re-run.
 func TestUploadDoesNotReinstallImagesWithNoContainerSide(t *testing.T) {
 	for _, kind := range []Kind{KindUI, KindBackend} {
 		t.Run(string(kind), func(t *testing.T) {
-			image := serviceImageAt("2.0.0")
-			image.Type = kind
-			image.Port = Port{}
-			image.Service = ""
+			application := serviceImageAt("2.0.0")
+			application.Type = kind
+			application.Port = Port{}
+			application.Service = ""
 			store := &fakeStore{global: []Instance{installedAt("g1", "", "1.0.0", StatusRunning)}}
 			installer := &failingInstaller{}
 			service := upgradeService(
 				store,
-				&versionedRegistry{image: image},
+				&versionedRegistry{application: application},
 				installer,
 				&recordingCatalog{pkg: Package{ID: "db", Version: "2.0.0"}},
 				&recordingHost{},
@@ -216,7 +216,7 @@ func TestUploadDoesNotReinstallImagesWithNoContainerSide(t *testing.T) {
 				t.Fatalf("upload: %v", err)
 			}
 			if len(installer.installed) != 0 {
-				t.Fatalf("%s image ran an install script", kind)
+				t.Fatalf("%s application ran an install script", kind)
 			}
 			if len(pkg.Upgraded) != 0 {
 				t.Fatalf("outcomes = %+v, want none", pkg.Upgraded)
@@ -232,7 +232,7 @@ func TestUploadLeavesStoppedInstancesAlone(t *testing.T) {
 	installer := &failingInstaller{}
 	service := upgradeService(
 		store,
-		&versionedRegistry{image: serviceImageAt("2.0.0")},
+		&versionedRegistry{application: serviceImageAt("2.0.0")},
 		installer,
 		&recordingCatalog{pkg: Package{ID: "db", Version: "2.0.0"}},
 		nil,
@@ -255,7 +255,7 @@ func TestStartingAStaleInstanceReinstallsIt(t *testing.T) {
 	store := &fakeStore{global: []Instance{installedAt("g1", "", "1.0.0", StatusStopped)}}
 	installer := &failingInstaller{}
 	service := upgradeService(
-		store, &versionedRegistry{image: serviceImageAt("2.0.0")}, installer, nil, nil)
+		store, &versionedRegistry{application: serviceImageAt("2.0.0")}, installer, nil, nil)
 
 	view, err := service.Start(context.Background(), "g1")
 	if err != nil {
@@ -264,8 +264,8 @@ func TestStartingAStaleInstanceReinstallsIt(t *testing.T) {
 	if len(installer.installed) != 1 {
 		t.Fatalf("starting a stale instance ran %d installs, want 1", len(installer.installed))
 	}
-	if view.ImageVersion != "2.0.0" {
-		t.Fatalf("recorded version = %q, want 2.0.0", view.ImageVersion)
+	if view.ApplicationVersion != "2.0.0" {
+		t.Fatalf("recorded version = %q, want 2.0.0", view.ApplicationVersion)
 	}
 
 	// Starting a current instance is an ordinary start, not a re-install.
@@ -285,7 +285,7 @@ func TestFailedUpgradeIsReportedAndKeepsTheOldVersion(t *testing.T) {
 	installer := &failingInstaller{installErr: errors.New("apt-get failed")}
 	service := upgradeService(
 		store,
-		&versionedRegistry{image: serviceImageAt("2.0.0")},
+		&versionedRegistry{application: serviceImageAt("2.0.0")},
 		installer,
 		&recordingCatalog{pkg: Package{ID: "db", Version: "2.0.0"}},
 		nil,
@@ -304,8 +304,8 @@ func TestFailedUpgradeIsReportedAndKeepsTheOldVersion(t *testing.T) {
 	if last.Status != StatusError {
 		t.Fatalf("status = %q, want %q", last.Status, StatusError)
 	}
-	if last.ImageVersion != "1.0.0" {
-		t.Fatalf("a failed upgrade recorded version %q; it must keep 1.0.0", last.ImageVersion)
+	if last.ApplicationVersion != "1.0.0" {
+		t.Fatalf("a failed upgrade recorded version %q; it must keep 1.0.0", last.ApplicationVersion)
 	}
 }
 
@@ -313,21 +313,21 @@ func TestFailedUpgradeIsReportedAndKeepsTheOldVersion(t *testing.T) {
 // upgrade decision later reads.
 func TestInstallRecordsTheImageVersion(t *testing.T) {
 	service := upgradeService(
-		&fakeStore{}, &versionedRegistry{image: serviceImageAt("3.1.4")}, &failingInstaller{}, nil, nil)
+		&fakeStore{}, &versionedRegistry{application: serviceImageAt("3.1.4")}, &failingInstaller{}, nil, nil)
 
 	view, err := service.Install(context.Background(), InstallRequest{
-		ImageID: "db",
-		Scope:   ScopeGlobal,
+		ApplicationID: "db",
+		Scope:         ScopeGlobal,
 	})
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	if view.ImageVersion != "3.1.4" {
-		t.Fatalf("recorded version = %q, want 3.1.4", view.ImageVersion)
+	if view.ApplicationVersion != "3.1.4" {
+		t.Fatalf("recorded version = %q, want 3.1.4", view.ApplicationVersion)
 	}
 }
 
-// An image installs only where it says it does. The catalog grid hides a card
+// An application installs only where it says it does. The catalog grid hides a card
 // it cannot install and the API refuses the request anyway, because a UI that
 // filters is a convenience and the service is the rule.
 func TestInstallRefusesAScopeTheImageDoesNotDeclare(t *testing.T) {
@@ -341,44 +341,44 @@ func TestInstallRefusesAScopeTheImageDoesNotDeclare(t *testing.T) {
 			name:    "project-only service installed globally",
 			scopes:  []Scope{ScopeProject},
 			kind:    KindService,
-			request: InstallRequest{ImageID: "db", Scope: ScopeGlobal},
+			request: InstallRequest{ApplicationID: "db", Scope: ScopeGlobal},
 		},
 		{
 			name:    "project-only ui installed globally",
 			scopes:  []Scope{ScopeProject},
 			kind:    KindUI,
-			request: InstallRequest{ImageID: "db", Scope: ScopeGlobal},
+			request: InstallRequest{ApplicationID: "db", Scope: ScopeGlobal},
 		},
 		{
 			name:    "project-only backend installed globally",
 			scopes:  []Scope{ScopeProject},
 			kind:    KindBackend,
-			request: InstallRequest{ImageID: "db", Scope: ScopeGlobal},
+			request: InstallRequest{ApplicationID: "db", Scope: ScopeGlobal},
 		},
 		{
 			name:    "global-only service installed into a project",
 			scopes:  []Scope{ScopeGlobal},
 			kind:    KindService,
-			request: InstallRequest{ImageID: "db", Scope: ScopeProject, ProjectID: "p1"},
+			request: InstallRequest{ApplicationID: "db", Scope: ScopeProject, ProjectID: "p1"},
 		},
 		{
 			name:    "unknown scope",
 			scopes:  []Scope{ScopeGlobal, ScopeProject},
 			kind:    KindService,
-			request: InstallRequest{ImageID: "db", Scope: "host"},
+			request: InstallRequest{ApplicationID: "db", Scope: "host"},
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			image := serviceImageAt("1.0.0")
-			image.Scopes = testCase.scopes
-			image.Type = testCase.kind
+			application := serviceImageAt("1.0.0")
+			application.Scopes = testCase.scopes
+			application.Type = testCase.kind
 			if !testCase.kind.NeedsPort() {
-				image.Port = Port{}
-				image.Service = ""
+				application.Port = Port{}
+				application.Service = ""
 			}
 			store := &fakeStore{}
 			installer := &failingInstaller{}
-			service := upgradeService(store, &versionedRegistry{image: image}, installer, nil, nil)
+			service := upgradeService(store, &versionedRegistry{application: application}, installer, nil, nil)
 
 			if _, err := service.Install(context.Background(), testCase.request); !errors.Is(
 				err, ErrScope,
@@ -400,16 +400,16 @@ func TestInstallRefusesAScopeTheImageDoesNotDeclare(t *testing.T) {
 // The scopes an uploaded package declares are what the catalog reports, so the
 // management list can say where it installs rather than implying "everywhere".
 func TestInstallAcceptsEveryScopeTheImageDeclares(t *testing.T) {
-	image := serviceImageAt("1.0.0")
-	image.Scopes = []Scope{ScopeProject}
+	application := serviceImageAt("1.0.0")
+	application.Scopes = []Scope{ScopeProject}
 	service := upgradeService(
-		&fakeStore{}, &versionedRegistry{image: image}, &failingInstaller{}, nil, nil)
+		&fakeStore{}, &versionedRegistry{application: application}, &failingInstaller{}, nil, nil)
 
 	if _, err := service.Install(context.Background(), InstallRequest{
-		ImageID:   "db",
-		Scope:     ScopeProject,
-		ProjectID: "p1",
+		ApplicationID: "db",
+		Scope:         ScopeProject,
+		ProjectID:     "p1",
 	}); err != nil {
-		t.Fatalf("project install of a project-scoped image: %v", err)
+		t.Fatalf("project install of a project-scoped application: %v", err)
 	}
 }

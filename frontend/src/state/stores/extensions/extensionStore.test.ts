@@ -11,18 +11,18 @@ import { createExtensionStore } from "./extensionStore.ts";
 
 const noop = () => {};
 
-function cardContext(imageId: string): ExtensionSlotContext {
+function cardContext(applicationId: string): ExtensionSlotContext {
   return {
     slot: EXTENSION_SLOTS.applicationCardActions,
     scope: "project",
     instance: {
-      id: `${imageId}-instance`,
-      imageId,
-      name: imageId,
+      id: `${applicationId}-instance`,
+      applicationId,
+      name: applicationId,
       scope: "project",
       projectId: "p1",
       containerName: "p1",
-      deviceName: `app-${imageId}`,
+      deviceName: `app-${applicationId}`,
       internalPort: 1,
       externalPort: 1,
       bindAddress: "127.0.0.1",
@@ -39,7 +39,7 @@ function createRegistry() {
     register: store.getState().register,
     setVisibility: store.getState().setVisibility,
     setActiveProject: store.getState().setActiveProject,
-    removeImage: store.getState().removeImage,
+    removeApplication: store.getState().removeApplication,
     subscribe: store.subscribe,
     contributions(
       slot: ExtensionSlotName,
@@ -68,7 +68,7 @@ test("contributions render in order, ties keeping registration order", () => {
   assert.deepEqual(
     registry
       .contributions(EXTENSION_SLOTS.sidebarHeaderActions)
-      .map((c) => c.imageId),
+      .map((c) => c.applicationId),
     ["early", "first-zero", "second-zero", "late"]
   );
 });
@@ -85,10 +85,10 @@ test("an unknown slot is dropped instead of throwing", () => {
   );
 });
 
-test("a `when` predicate scopes a contribution to its own image's cards", () => {
+test("a `when` predicate scopes a contribution to its own application's cards", () => {
   const registry = createRegistry();
   registry.register("mysql", EXTENSION_SLOTS.applicationCardActions, noop, {
-    when: (context) => context.instance?.imageId === "mysql",
+    when: (context) => context.instance?.applicationId === "mysql",
   });
 
   assert.equal(registry.contributions(EXTENSION_SLOTS.applicationCardActions, cardContext("mysql")).length, 1);
@@ -112,7 +112,7 @@ test("a throwing predicate hides only its own contribution", () => {
   assert.deepEqual(
     registry
       .contributions(EXTENSION_SLOTS.applicationCardActions, cardContext("mysql"))
-      .map((c) => c.imageId),
+      .map((c) => c.applicationId),
     ["healthy"]
   );
 });
@@ -135,22 +135,22 @@ test("disposing removes a contribution once and notifies subscribers", () => {
   assert.equal(changes, 2, "a second dispose is a no-op");
 });
 
-test("removeImage drops every contribution from one image and leaves others", () => {
+test("removeApplication drops every contribution from one application and leaves others", () => {
   const registry = createRegistry();
   registry.register("mysql", EXTENSION_SLOTS.sidebarHeaderActions, noop);
   registry.register("mysql", EXTENSION_SLOTS.applicationsPanel, noop);
   registry.register("redis", EXTENSION_SLOTS.applicationsPanel, noop);
 
-  registry.removeImage("mysql");
+  registry.removeApplication("mysql");
 
   assert.equal(registry.contributions(EXTENSION_SLOTS.sidebarHeaderActions).length, 0);
   assert.deepEqual(
-    registry.contributions(EXTENSION_SLOTS.applicationsPanel).map((c) => c.imageId),
+    registry.contributions(EXTENSION_SLOTS.applicationsPanel).map((c) => c.applicationId),
     ["redis"]
   );
 });
 
-test("contribution ids are unique per image so slots can key on them", () => {
+test("contribution ids are unique per application so slots can key on them", () => {
   const registry = createRegistry();
   registry.register("mysql", EXTENSION_SLOTS.applicationsPanel, noop);
   registry.register("mysql", EXTENSION_SLOTS.applicationsPanel, noop);
@@ -172,13 +172,13 @@ const sidebarContext: ExtensionSlotContext = {
 };
 
 function registryWith(
-  imageId: string,
+  applicationId: string,
   visibility: { global: boolean; projectIds: string[] }
 ) {
   const registry = createRegistry();
-  registry.setVisibility(imageId, visibility);
-  registry.register(imageId, EXTENSION_SLOTS.chatHeaderActions, noop);
-  registry.register(imageId, EXTENSION_SLOTS.sidebarHeaderActions, noop);
+  registry.setVisibility(applicationId, visibility);
+  registry.register(applicationId, EXTENSION_SLOTS.chatHeaderActions, noop);
+  registry.register(applicationId, EXTENSION_SLOTS.sidebarHeaderActions, noop);
   return registry;
 }
 
@@ -300,7 +300,7 @@ test("two extensions in one slot render in order regardless of load order", () =
   assert.deepEqual(
     registry
       .contributions(EXTENSION_SLOTS.chatHeaderActions, chatContext("p1"))
-      .map((c) => c.imageId),
+      .map((c) => c.applicationId),
     ["playground", "sandbox"]
   );
 });
@@ -313,6 +313,6 @@ test("project settings contributions follow installation scope and disappear on 
   const slot = EXTENSION_SLOTS.projectSettingsPanel;
   assert.equal(registry.contributions(slot, { slot, scope: "project", projectId: "p1" }).length, 1);
   assert.equal(registry.contributions(slot, { slot, scope: "project", projectId: "p2" }).length, 0);
-  registry.removeImage("addon");
+  registry.removeApplication("addon");
   assert.equal(registry.contributions(slot, { slot, scope: "project", projectId: "p1" }).length, 0);
 });

@@ -12,32 +12,32 @@ import (
 
 const defaultUIEntry = "scripts/main.js"
 
-// loadImageUI resolves an image's ui/ directory into a validated descriptor.
-// The directory opts the image in; layout conventions fill fields omitted from
-// image.json, while explicitly declared paths always win.
-func loadImageUI(fsys fs.FS, root string, declared *svc.ImageUI) (*svc.ImageUI, error) {
+// loadApplicationUI resolves an application's ui/ directory into a validated descriptor.
+// The directory opts the application in; layout conventions fill fields omitted from
+// application.json, while explicitly declared paths always win.
+func loadApplicationUI(fsys fs.FS, root string, declared *svc.ApplicationUI) (*svc.ApplicationUI, error) {
 	if _, err := fs.Stat(fsys, root); err != nil {
 		if declared != nil {
-			return nil, fmt.Errorf("image.json declares ui but %s does not exist", root)
+			return nil, fmt.Errorf("application.json declares ui but %s does not exist", root)
 		}
 		return nil, nil
 	}
 
-	ui := svc.ImageUI{}
+	ui := svc.ApplicationUI{}
 	if declared != nil {
 		ui = *declared
 	}
-	discoverImageUI(fsys, root, &ui)
+	discoverApplicationUI(fsys, root, &ui)
 	if ui.Entry == "" && len(ui.Styles) == 0 && len(ui.Views) == 0 && !hasAnyFile(fsys, root) {
 		return nil, fmt.Errorf("%s exists but is empty", root)
 	}
-	if err := validateImageUI(fsys, root, ui); err != nil {
+	if err := validateApplicationUI(fsys, root, ui); err != nil {
 		return nil, err
 	}
 	return &ui, nil
 }
 
-func discoverImageUI(fsys fs.FS, root string, ui *svc.ImageUI) {
+func discoverApplicationUI(fsys fs.FS, root string, ui *svc.ApplicationUI) {
 	if ui.Entry == "" && pathExists(fsys, path.Join(root, defaultUIEntry)) {
 		ui.Entry = defaultUIEntry
 	}
@@ -53,7 +53,7 @@ func discoverImageUI(fsys fs.FS, root string, ui *svc.ImageUI) {
 	}
 }
 
-func validateImageUI(fsys fs.FS, root string, ui svc.ImageUI) error {
+func validateApplicationUI(fsys fs.FS, root string, ui svc.ApplicationUI) error {
 	check := func(field, rel string) error {
 		clean, ok := cleanUIPath(rel)
 		if !ok {
@@ -117,7 +117,7 @@ func discoverUIAssets(fsys fs.FS, root, directory, extension string) []string {
 	return assets
 }
 
-// cleanUIPath normalizes a path and rejects anything outside an image's ui/.
+// cleanUIPath normalizes a path and rejects anything outside an application's ui/.
 func cleanUIPath(relativePath string) (string, bool) {
 	relativePath = strings.TrimSpace(relativePath)
 	if relativePath == "" || strings.HasPrefix(relativePath, "/") || strings.Contains(relativePath, "\\") {
@@ -130,10 +130,10 @@ func cleanUIPath(relativePath string) (string, bool) {
 	return clean, true
 }
 
-// UIAsset returns a file from an image's ui/ directory without permitting
+// UIAsset returns a file from an application's ui/ directory without permitting
 // traversal into the rest of the embedded catalog.
-func (r *Registry) UIAsset(imageID, assetPath string) ([]byte, bool) {
-	img, catalog, ok := r.imageSource(imageID)
+func (r *Registry) UIAsset(applicationID, assetPath string) ([]byte, bool) {
+	img, catalog, ok := r.applicationSource(applicationID)
 	if !ok || img.UI == nil {
 		return nil, false
 	}
@@ -141,7 +141,7 @@ func (r *Registry) UIAsset(imageID, assetPath string) ([]byte, bool) {
 	if !ok {
 		return nil, false
 	}
-	data, err := fs.ReadFile(catalog, path.Join(catalogRoot, imageID, "ui", clean))
+	data, err := fs.ReadFile(catalog, path.Join(catalogRoot, applicationID, "ui", clean))
 	if err != nil {
 		return nil, false
 	}

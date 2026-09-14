@@ -22,10 +22,10 @@ import (
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
 
-// An uploaded application package is a ZIP of exactly what an images/<id>/
-// directory holds. Unpacked, it is indistinguishable from an image the binary
-// was built with: the same image.json, the same install.sh, the same ui/ and
-// plugin/ conventions, and the same loader validating all of it.
+// An uploaded application package is a ZIP of exactly what an applications/<id>/
+// directory holds. Unpacked, it is indistinguishable from an application the binary
+// was built with: the same application.json, the same install.sh, the same ui/ and
+// backend/ conventions, and the same loader validating all of it.
 //
 // It lives in the server's state directory rather than in the binary, which is
 // the whole point: updating Remote replaces the program and its built-in
@@ -34,16 +34,16 @@ import (
 //
 // The on-disk layout is chosen so the store *is* a catalog filesystem:
 //
-//	<root>/images/<id>/…    the extracted package, exactly as loadImage wants it
+//	<root>/applications/<id>/…    the extracted package, exactly as loadApplication wants it
 //	<root>/meta/<id>.json   who uploaded it, when, and from which archive
 //	<root>/staging/…        half-written uploads, never visible to a reader
 //
 // os.DirFS(<root>) therefore loads through the same code path as the embedded
 // catalog, with no second implementation to keep in step.
 const (
-	packageImagesDir  = catalogRoot
-	packageMetaDir    = "meta"
-	packageStagingDir = "staging"
+	packageApplicationsDir = catalogRoot
+	packageMetaDir         = "meta"
+	packageStagingDir      = "staging"
 )
 
 // Limits on an uploaded archive. They bound what a single admin request can
@@ -61,7 +61,7 @@ const (
 	maxPackageEntries = 8192
 )
 
-// packageIDPattern is what an image id may look like. It is deliberately
+// packageIDPattern is what an application id may look like. It is deliberately
 // narrower than a filename: the id becomes a directory name, a URL path
 // segment, a Go build directory and a container-facing identifier, so anything
 // needing escaping anywhere is refused once, here.
@@ -81,7 +81,7 @@ type PackageStore struct {
 // NewPackageStore prepares the store rooted at dir, creating it if needed.
 func NewPackageStore(dir string) (*PackageStore, error) {
 	store := &PackageStore{root: dir, now: time.Now}
-	for _, sub := range []string{packageImagesDir, packageMetaDir, packageStagingDir} {
+	for _, sub := range []string{packageApplicationsDir, packageMetaDir, packageStagingDir} {
 		if err := os.MkdirAll(filepath.Join(dir, sub), 0o700); err != nil {
 			return nil, fmt.Errorf("prepare package store: %w", err)
 		}
@@ -93,7 +93,7 @@ func NewPackageStore(dir string) (*PackageStore, error) {
 }
 
 // FS exposes the committed packages as a catalog filesystem, with the same
-// images/<id>/ shape the embedded catalog has.
+// applications/<id>/ shape the embedded catalog has.
 func (s *PackageStore) FS() fs.FS { return os.DirFS(s.root) }
 
 // install validates an uploaded archive and publishes it, replacing any earlier
@@ -135,14 +135,14 @@ func (s *PackageStore) install(upload svc.PackageUpload, accept func(string) err
 	}
 	defer os.RemoveAll(staged)
 
-	stagedImage := filepath.Join(staged, packageImagesDir, id)
+	stagedImage := filepath.Join(staged, packageApplicationsDir, id)
 	if err := writePackageFiles(stagedImage, files); err != nil {
 		return svc.Package{}, err
 	}
 	// The staged tree is laid out as a catalog of one, so the package is
-	// validated by loadImage itself — not by a parallel set of checks that
+	// validated by loadApplication itself — not by a parallel set of checks that
 	// could drift from what the server will actually accept at install time.
-	img, _, err := loadImage(os.DirFS(staged), id)
+	img, _, err := loadApplication(os.DirFS(staged), id)
 	if err != nil {
 		return svc.Package{}, fmt.Errorf("%w: %s", svc.ErrPackageInvalid, err)
 	}
@@ -170,12 +170,12 @@ func (s *PackageStore) install(upload svc.PackageUpload, accept func(string) err
 	return pkg, nil
 }
 
-// publish swaps a staged image directory into the committed catalog. The
+// publish swaps a staged application directory into the committed catalog. The
 // previous copy is moved aside first and only deleted once the new one is in
 // place, so a failure mid-swap restores what was there rather than leaving the
 // id with no directory at all.
 func (s *PackageStore) publish(id, stagedImage string) error {
-	live := filepath.Join(s.root, packageImagesDir, id)
+	live := filepath.Join(s.root, packageApplicationsDir, id)
 	previous := live + ".replaced"
 	_ = os.RemoveAll(previous)
 
@@ -206,7 +206,7 @@ func (s *PackageStore) RemovePackage(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	live := filepath.Join(s.root, packageImagesDir, id)
+	live := filepath.Join(s.root, packageApplicationsDir, id)
 	if _, err := os.Stat(live); errors.Is(err, fs.ErrNotExist) {
 		return svc.ErrPackageNotFound
 	}
@@ -221,7 +221,7 @@ func (s *PackageStore) RemovePackage(id string) error {
 // directory exists but whose metadata does not is still listed: the catalog
 // entry it produces is real, and hiding it would make it unremovable.
 func (s *PackageStore) Packages() []svc.Package {
-	entries, err := os.ReadDir(filepath.Join(s.root, packageImagesDir))
+	entries, err := os.ReadDir(filepath.Join(s.root, packageApplicationsDir))
 	if err != nil {
 		return nil
 	}
@@ -287,10 +287,10 @@ func (s *PackageStore) clearStaging() {
 // ---- archive reading -------------------------------------------------------
 
 // readPackageArchive decodes a ZIP into the files it carries, keyed by their
-// path inside the image directory.
+// path inside the application directory.
 //
 // It accepts both shapes people actually produce: an archive whose root *is*
-// the image directory, and one holding a single folder that is the image
+// the application directory, and one holding a single folder that is the application
 // directory — which is what every desktop "compress this folder" produces.
 func readPackageArchive(data []byte) (map[string][]byte, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
@@ -351,7 +351,7 @@ func readPackageArchive(data []byte) (map[string][]byte, error) {
 // packageEntryName normalizes one archive member's path and decides whether it
 // is part of the package at all. Directory entries and archiver bookkeeping
 // carry nothing, so they are dropped rather than rejected; anything that could
-// escape the image directory, or that is not a plain file, is rejected.
+// escape the application directory, or that is not a plain file, is rejected.
 func packageEntryName(entry *zip.File) (name string, keep bool, err error) {
 	raw := strings.ReplaceAll(entry.Name, `\`, "/")
 	if strings.HasSuffix(raw, "/") {
@@ -381,8 +381,8 @@ func packageEntryName(entry *zip.File) (name string, keep bool, err error) {
 }
 
 // isArchiveNoise matches the bookkeeping desktop archivers add. Keeping it
-// would fail the "one top-level directory" check and litter the image
-// directory with files no image ever declares.
+// would fail the "one top-level directory" check and litter the application
+// directory with files no application ever declares.
 func isArchiveNoise(name string) bool {
 	if name == "__MACOSX" || strings.HasPrefix(name, "__MACOSX/") {
 		return true
@@ -391,15 +391,15 @@ func isArchiveNoise(name string) bool {
 	return base == ".DS_Store" || base == "Thumbs.db" || strings.HasPrefix(base, "._")
 }
 
-// packageRootPrefix finds the prefix to strip so image.json lands at the root.
+// packageRootPrefix finds the prefix to strip so application.json lands at the root.
 func packageRootPrefix(names []string) (string, error) {
 	for _, name := range names {
-		if name == "image.json" {
+		if name == "application.json" {
 			return "", nil
 		}
 	}
-	// No image.json at the root: accept a single wrapping directory, which is
-	// what compressing the image folder itself produces.
+	// No application.json at the root: accept a single wrapping directory, which is
+	// what compressing the application folder itself produces.
 	root := ""
 	for _, name := range names {
 		top, _, nested := strings.Cut(name, "/")
@@ -418,7 +418,7 @@ func packageRootPrefix(names []string) (string, error) {
 		return "", missingManifest()
 	}
 	for _, name := range names {
-		if name == root+"/image.json" {
+		if name == root+"/application.json" {
 			return root + "/", nil
 		}
 	}
@@ -427,7 +427,7 @@ func packageRootPrefix(names []string) (string, error) {
 
 func missingManifest() error {
 	return fmt.Errorf(
-		"%w: no image.json found — the archive must hold the application's files at its root, "+
+		"%w: no application.json found — the archive must hold the application's files at its root, "+
 			"or inside a single folder", svc.ErrPackageInvalid)
 }
 
@@ -451,11 +451,11 @@ func readPackageEntry(entry *zip.File, name string) ([]byte, error) {
 	return content, nil
 }
 
-// packageID reads the id the package claims. It comes from image.json and
+// packageID reads the id the package claims. It comes from application.json and
 // nowhere else: deriving it from the uploaded filename would let the same
 // package install under two ids depending on what the browser called the file.
 func packageID(files map[string][]byte) (string, error) {
-	raw, ok := files["image.json"]
+	raw, ok := files["application.json"]
 	if !ok {
 		return "", missingManifest()
 	}
@@ -463,12 +463,12 @@ func packageID(files map[string][]byte) (string, error) {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(raw, &manifest); err != nil {
-		return "", fmt.Errorf("%w: image.json is not valid JSON (%s)", svc.ErrPackageInvalid, err)
+		return "", fmt.Errorf("%w: application.json is not valid JSON (%s)", svc.ErrPackageInvalid, err)
 	}
 	id := strings.TrimSpace(manifest.ID)
 	if id == "" {
 		return "", fmt.Errorf(
-			`%w: image.json must set "id" — it is the application's permanent identity`,
+			`%w: application.json must set "id" — it is the application's permanent identity`,
 			svc.ErrPackageInvalid)
 	}
 	if !packageIDPattern.MatchString(id) {

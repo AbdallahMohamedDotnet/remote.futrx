@@ -6,9 +6,9 @@ import (
 )
 
 // The catalog these tests load is written here rather than borrowed from the
-// images the server happens to ship. Every kind, and every optional block,
+// applications the server happens to ship. Every kind, and every optional block,
 // has a fixture — so the catalog loader stays covered no matter which installable
-// images exist, and removing an image from the shipped catalog (or moving one
+// applications exist, and removing an application from the shipped catalog (or moving one
 // out into a separately distributed package) cannot quietly delete a test.
 const (
 	fixtureService = "fixture-service"
@@ -20,7 +20,7 @@ const (
 func fixtureCatalog() fstest.MapFS {
 	file := func(data string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(data)} }
 	return fstest.MapFS{
-		"images/" + fixtureService + "/image.json": file(`{
+		"applications/" + fixtureService + "/application.json": file(`{
 			"name": "Fixture Service",
 			"version": "1.0.0",
 			"scopes": ["global", "project"],
@@ -28,14 +28,14 @@ func fixtureCatalog() fstest.MapFS {
 			"service": "fixture",
 			"connection": {"user": "root", "passwordEnv": "FIXTURE_PASSWORD"}
 		}`),
-		"images/" + fixtureService + "/install.sh":          file("#!/usr/bin/env bash\necho service\n"),
-		"images/" + fixtureService + "/ui/scripts/main.js":  file("export default () => {}\n"),
-		"images/" + fixtureService + "/ui/style/panel.css":  file(".panel{}\n"),
-		"images/" + fixtureService + "/ui/views/popup.html": file("<p></p>\n"),
+		"applications/" + fixtureService + "/install.sh":          file("#!/usr/bin/env bash\necho service\n"),
+		"applications/" + fixtureService + "/ui/scripts/main.js":  file("export default () => {}\n"),
+		"applications/" + fixtureService + "/ui/style/panel.css":  file(".panel{}\n"),
+		"applications/" + fixtureService + "/ui/views/popup.html": file("<p></p>\n"),
 
 		// A tool reaches a container without exposing anything, needs a host
 		// binary it supplies itself.
-		"images/" + fixtureTool + "/image.json": file(`{
+		"applications/" + fixtureTool + "/application.json": file(`{
 			"name": "Fixture Tool",
 			"version": "2.1.0",
 			"type": "tool",
@@ -56,11 +56,11 @@ func fixtureCatalog() fstest.MapFS {
 				}
 			}]
 		}`),
-		"images/" + fixtureTool + "/install.sh": file("#!/usr/bin/env bash\necho tool\n"),
+		"applications/" + fixtureTool + "/install.sh": file("#!/usr/bin/env bash\necho tool\n"),
 
-		// A UI image declares its block explicitly rather than relying on the
+		// A UI application declares its block explicitly rather than relying on the
 		// layout convention, so both paths are exercised for real.
-		"images/" + fixtureUI + "/image.json": file(`{
+		"applications/" + fixtureUI + "/application.json": file(`{
 			"name": "Fixture UI",
 			"version": "0.4.0",
 			"type": "ui",
@@ -71,21 +71,21 @@ func fixtureCatalog() fstest.MapFS {
 				"views": {"panel": "views/panel.html", "context": "views/context.html"}
 			}
 		}`),
-		"images/" + fixtureUI + "/ui/scripts/main.js":     file("import './selftest.js'\nexport default () => {}\n"),
-		"images/" + fixtureUI + "/ui/scripts/selftest.js": file("export const ok = true\n"),
-		"images/" + fixtureUI + "/ui/style/panel.css":     file(".panel{}\n"),
-		"images/" + fixtureUI + "/ui/views/panel.html":    file("<p></p>\n"),
-		"images/" + fixtureUI + "/ui/views/context.html":  file("<p></p>\n"),
-		"images/" + fixtureUI + "/ui/assets/logo.svg":     file("<svg/>\n"),
+		"applications/" + fixtureUI + "/ui/scripts/main.js":     file("import './selftest.js'\nexport default () => {}\n"),
+		"applications/" + fixtureUI + "/ui/scripts/selftest.js": file("export const ok = true\n"),
+		"applications/" + fixtureUI + "/ui/style/panel.css":     file(".panel{}\n"),
+		"applications/" + fixtureUI + "/ui/views/panel.html":    file("<p></p>\n"),
+		"applications/" + fixtureUI + "/ui/views/context.html":  file("<p></p>\n"),
+		"applications/" + fixtureUI + "/ui/assets/logo.svg":     file("<svg/>\n"),
 
-		"images/" + fixtureBackend + "/image.json": file(`{
+		"applications/" + fixtureBackend + "/application.json": file(`{
 			"name": "Fixture Backend",
 			"version": "3.0.0",
 			"type": "backend",
 			"scopes": ["project"],
 			"backend": {"access": "registered", "timeoutMs": 10000}
 		}`),
-		"images/" + fixtureBackend + "/plugin/main.go": file("package main\n\nfunc main() {}\n"),
+		"applications/" + fixtureBackend + "/backend/main.go": file("package main\n\nfunc main() {}\n"),
 	}
 }
 

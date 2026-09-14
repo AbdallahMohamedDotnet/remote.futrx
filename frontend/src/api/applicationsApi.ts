@@ -2,7 +2,7 @@ import { requestJson } from "./apiRequest.ts";
 import { API_ROUTES } from "../config/routes.ts";
 import type {
   AppCredentials,
-  AppImage,
+  AppApplication,
   AppInstance,
   AppInstallRequest,
   AppPackage,
@@ -14,7 +14,7 @@ import type {
 // project-scoped UI too.
 export const applicationsApi = {
   catalog: () =>
-    requestJson<AppImage[]>("GET", API_ROUTES.applications.catalog),
+    requestJson<AppApplication[]>("GET", API_ROUTES.applications.catalog),
 
   /** Extensions this user should load — installed, running, with their scope. */
   uiExtensions: () =>

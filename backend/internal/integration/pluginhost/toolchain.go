@@ -1,5 +1,5 @@
-// Package pluginhost compiles the Go source an installable image ships in its
-// plugin/ directory and runs the result as a child process, forwarding calls
+// Package pluginhost compiles the Go source an installable application ships in its
+// backend/ directory and runs the result as a child process, forwarding calls
 // to it over hashicorp/go-plugin.
 //
 // It is the integration half of the backend-plugin feature: everything that

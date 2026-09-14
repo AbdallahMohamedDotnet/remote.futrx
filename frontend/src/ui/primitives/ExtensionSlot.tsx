@@ -1,4 +1,4 @@
-// Renders the contributions an image's `ui/` extension registered for one
+// Renders the contributions an application's `ui/` extension registered for one
 // slot. Each contribution owns a plain <div> and draws into it with DOM APIs,
 // so extension code never touches the SPA's component tree.
 

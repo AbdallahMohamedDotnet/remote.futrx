@@ -5,22 +5,22 @@ import (
 	"slices"
 )
 
-// UIExtension pairs an installed image UI with the scopes where it applies.
+// UIExtension pairs an installed application UI with the scopes where it applies.
 type UIExtension struct {
-	Image      Image    `json:"image"`
-	Global     bool     `json:"global"`
-	ProjectIDs []string `json:"projectIds,omitempty"`
-	// Backends are the running instances of this image whose plugin the
-	// extension may call. An image installed both globally and in a project
+	Application Application `json:"application"`
+	Global      bool        `json:"global"`
+	ProjectIDs  []string    `json:"projectIds,omitempty"`
+	// Backends are the running instances of this application whose plugin the
+	// extension may call. An application installed both globally and in a project
 	// has one plugin process per install, so an extension addresses an
-	// instance, not an image.
+	// instance, not an application.
 	Backends []BackendInstance `json:"backends,omitempty"`
 }
 
-// UIAsset returns one embedded image UI asset. Authentication and response
+// UIAsset returns one embedded application UI asset. Authentication and response
 // delivery remain transport responsibilities.
-func (s *Service) UIAsset(imageID, assetPath string) ([]byte, bool) {
-	return s.registry.UIAsset(imageID, assetPath)
+func (s *Service) UIAsset(applicationID, assetPath string) ([]byte, bool) {
+	return s.registry.UIAsset(applicationID, assetPath)
 }
 
 // UIExtensions returns running extensions installed globally or in one of the
@@ -47,15 +47,15 @@ func (s *Service) UIExtensions(ctx context.Context, projectIDs []string) ([]UIEx
 // uiExtensionAccumulator owns the union and stable-order invariants while the
 // service remains responsible for loading instances from their scopes.
 type uiExtensionAccumulator struct {
-	registry Registry
-	byImage  map[string]*UIExtension
-	order    []string
+	registry      Registry
+	byApplication map[string]*UIExtension
+	order         []string
 }
 
 func newUIExtensionAccumulator(registry Registry) *uiExtensionAccumulator {
 	return &uiExtensionAccumulator{
-		registry: registry,
-		byImage:  make(map[string]*UIExtension),
+		registry:      registry,
+		byApplication: make(map[string]*UIExtension),
 	}
 }
 
@@ -69,17 +69,17 @@ func (a *uiExtensionAccumulator) add(instance Instance, projectID string) {
 	if instance.Status != StatusRunning {
 		return
 	}
-	image, ok := a.registry.Get(instance.ImageID)
-	if !ok || image.UI == nil {
+	application, ok := a.registry.Get(instance.ApplicationID)
+	if !ok || application.UI == nil {
 		return
 	}
-	extension, exists := a.byImage[instance.ImageID]
+	extension, exists := a.byApplication[instance.ApplicationID]
 	if !exists {
-		extension = &UIExtension{Image: image}
-		a.byImage[instance.ImageID] = extension
-		a.order = append(a.order, instance.ImageID)
+		extension = &UIExtension{Application: application}
+		a.byApplication[instance.ApplicationID] = extension
+		a.order = append(a.order, instance.ApplicationID)
 	}
-	a.addBackend(extension, image, instance)
+	a.addBackend(extension, application, instance)
 	if projectID == "" {
 		extension.Global = true
 		return
@@ -92,8 +92,8 @@ func (a *uiExtensionAccumulator) add(instance Instance, projectID string) {
 // addBackend records the instance an extension should address for a plugin
 // call. The same instance can be reached through both the global list and a
 // project list, so the entry is deduplicated by instance id.
-func (a *uiExtensionAccumulator) addBackend(extension *UIExtension, image Image, instance Instance) {
-	if image.Backend == nil {
+func (a *uiExtensionAccumulator) addBackend(extension *UIExtension, application Application, instance Instance) {
+	if application.Backend == nil {
 		return
 	}
 	for _, existing := range extension.Backends {
@@ -110,8 +110,8 @@ func (a *uiExtensionAccumulator) addBackend(extension *UIExtension, image Image,
 
 func (a *uiExtensionAccumulator) extensions() []UIExtension {
 	extensions := make([]UIExtension, 0, len(a.order))
-	for _, imageID := range a.order {
-		extensions = append(extensions, *a.byImage[imageID])
+	for _, applicationID := range a.order {
+		extensions = append(extensions, *a.byApplication[applicationID])
 	}
 	return extensions
 }

@@ -110,7 +110,7 @@ func TestUploadPackageRestartsPluginsOfTheReplacedImage(t *testing.T) {
 		stopped[id] = true
 	}
 	if !stopped["uploaded-app-"] || !stopped["uploaded-app-p1"] {
-		t.Fatalf("instances of the replaced image were not restarted: %v", host.stopped)
+		t.Fatalf("instances of the replaced application were not restarted: %v", host.stopped)
 	}
 	if stopped["other-app-p2"] {
 		t.Fatalf("an unrelated application was restarted: %v", host.stopped)
@@ -268,7 +268,7 @@ func TestRemovePackageDropsCopiesOfAnUnloadableImage(t *testing.T) {
 	catalog := &recordingCatalog{}
 	host := &recordingHost{}
 	// fakeRegistry knows nothing about "broken-app", so Uninstall reports the
-	// image as unknown — the shape of a package whose files stopped loading.
+	// application as unknown — the shape of a package whose files stopped loading.
 	service := New(
 		&fakeRegistry{}, store, nil, nil, nil,
 		WithPackageCatalog(catalog), WithBackendHost(host),
@@ -288,7 +288,7 @@ func TestRemovePackageDropsCopiesOfAnUnloadableImage(t *testing.T) {
 		t.Fatalf("the stranded record survived: %v", store.deleted)
 	}
 	// A plugin is addressed by instance id, so it can be cleaned up without the
-	// image. Leaving it would keep a process running as a child of the server
+	// application. Leaving it would keep a process running as a child of the server
 	// that no record points at any more.
 	if len(host.removed) != 1 || host.removed[0] != "broken-app-" {
 		t.Fatalf("the orphaned plugin was left running: %v", host.removed)
@@ -307,7 +307,7 @@ func TestRemovePackageReportsACopyItCouldNotUninstall(t *testing.T) {
 	installer := &failingInstaller{}
 	installer.uninstallErr = errors.New("lxd unavailable")
 	service := New(
-		&versionedRegistry{image: serviceImageAt("1.0.0")},
+		&versionedRegistry{application: serviceImageAt("1.0.0")},
 		store,
 		installer,
 		nil,
@@ -373,8 +373,8 @@ func TestPackagesReportWhereTheyAreInstalled(t *testing.T) {
 }
 
 // A release that builds in an application people had been uploading leaves
-// their package on disk, shadowed by the image that replaced it. What is
-// installed under that id belongs to the built-in image from then on, so the
+// their package on disk, shadowed by the application that replaced it. What is
+// installed under that id belongs to the built-in application from then on, so the
 // stored files are inert — and deleting inert files must not offer, let alone
 // agree, to take down the applications still running under that name.
 func TestRemovingASupersededPackageLeavesItsInstallsAlone(t *testing.T) {
@@ -393,7 +393,7 @@ func TestRemovingASupersededPackageLeavesItsInstallsAlone(t *testing.T) {
 		t.Fatalf("packages: %v", err)
 	}
 	if len(list) != 1 || len(list[0].Installs) != 0 {
-		t.Fatalf("superseded package claimed the built-in image's copies: %+v", list)
+		t.Fatalf("superseded package claimed the built-in application's copies: %+v", list)
 	}
 
 	// Removing it is not refused, though a copy is installed under its id.

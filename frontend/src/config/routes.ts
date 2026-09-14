@@ -110,8 +110,8 @@ export const API_ROUTES = {
   applications: {
     catalog: "/api/applications/catalog",
     ui: "/api/applications/ui",
-    uiAsset: (imageId: string, assetPath: string) =>
-      `/api/applications/catalog/${encodeURIComponent(imageId)}/ui/${assetPath
+    uiAsset: (applicationId: string, assetPath: string) =>
+      `/api/applications/catalog/${encodeURIComponent(applicationId)}/ui/${assetPath
         .split("/")
         .map(encodeURIComponent)
         .join("/")}`,

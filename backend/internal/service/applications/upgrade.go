@@ -2,10 +2,10 @@ package applications
 
 import "context"
 
-// Upgrading an installed app to a new version of its image.
+// Upgrading an installed app to a new version of its application.
 //
-// An instance records the `version` from the image.json it was installed from.
-// When the catalog's version for that image no longer matches, the container
+// An instance records the `version` from the application.json it was installed from.
+// When the catalog's version for that application no longer matches, the container
 // side is stale: the install script that provisioned it belonged to a
 // different release. Re-running that script is what makes it current, and the
 // recorded version is what tells us it has to happen.
@@ -16,11 +16,11 @@ import "context"
 // author who changes nothing keeps the version and nothing is re-run.
 //
 // What is deliberately not re-run: nothing at all for a `ui` or `backend`
-// image, because neither provisions anything into a container. Their new code
+// application, because neither provisions anything into a container. Their new code
 // is picked up by reloading the catalog and restarting the plugin, which
 // happens on every package replacement regardless of version.
 
-// UpgradeOutcome is what happened to one instance when its image's version
+// UpgradeOutcome is what happened to one instance when its application's version
 // moved. It is reported rather than logged: an upgrade re-runs an install
 // script inside a container someone is using, so its result is something the
 // administrator who triggered it has to be able to read.
@@ -39,7 +39,7 @@ type UpgradeOutcome struct {
 	Error string `json:"error,omitempty"`
 }
 
-// upgradeInstances re-runs the install script for every instance of an image
+// upgradeInstances re-runs the install script for every instance of an application
 // whose recorded version differs from the catalog's.
 //
 // Stopped instances are left alone: re-running an install script also brings
@@ -51,8 +51,8 @@ type UpgradeOutcome struct {
 // attempted, and each carries its own result. The upload that triggered this
 // already succeeded, and reporting a per-instance failure is more useful than
 // pretending the package was never stored.
-func (s *Service) upgradeInstances(ctx context.Context, imageID string) []UpgradeOutcome {
-	img, ok := s.registry.Get(imageID)
+func (s *Service) upgradeInstances(ctx context.Context, applicationID string) []UpgradeOutcome {
+	img, ok := s.registry.Get(applicationID)
 	if !ok {
 		return nil
 	}
@@ -62,7 +62,7 @@ func (s *Service) upgradeInstances(ctx context.Context, imageID string) []Upgrad
 	}
 	var outcomes []UpgradeOutcome
 	for _, inst := range instances {
-		if inst.ImageID != imageID || inst.Status == StatusStopped {
+		if inst.ApplicationID != applicationID || inst.Status == StatusStopped {
 			continue
 		}
 		if !needsUpgrade(inst, img) {
@@ -73,7 +73,7 @@ func (s *Service) upgradeInstances(ctx context.Context, imageID string) []Upgrad
 			Name:       inst.Name,
 			Scope:      inst.Scope,
 			ProjectID:  inst.ProjectID,
-			From:       inst.ImageVersion,
+			From:       inst.ApplicationVersion,
 			To:         img.Version,
 		}
 		if err := s.reinstall(ctx, img, &inst); err != nil {
@@ -86,20 +86,20 @@ func (s *Service) upgradeInstances(ctx context.Context, imageID string) []Upgrad
 }
 
 // needsUpgrade reports whether an instance's container side was provisioned by
-// a different version of the image than the catalog now holds.
+// a different version of the application than the catalog now holds.
 //
-// Only kinds that reach a container can be stale. A ui or backend image
+// Only kinds that reach a container can be stale. A ui or backend application
 // installs nothing to re-install, so bumping its version is a catalog change
-// and nothing more.
-func needsUpgrade(inst Instance, img Image) bool {
-	return img.Type.NeedsContainer() && inst.ImageVersion != img.Version
+// and nothing more: its new code is picked up by restarting the backend.
+func needsUpgrade(inst Instance, img Application) bool {
+	return img.Type.NeedsContainer() && inst.ApplicationVersion != img.Version
 }
 
-// reinstall re-runs an instance's install script against the current image and
+// reinstall re-runs an instance's install script against the current application and
 // records the version it now holds. It reuses the instance's existing
 // container, port and resolved env, so an upgrade changes the software without
 // changing where the app lives or what clients already connect to.
-func (s *Service) reinstall(ctx context.Context, img Image, inst *Instance) error {
+func (s *Service) reinstall(ctx context.Context, img Application, inst *Instance) error {
 	if s.installer == nil {
 		return ErrUnavailable
 	}
@@ -114,9 +114,9 @@ func (s *Service) reinstall(ctx context.Context, img Image, inst *Instance) erro
 	if err := s.stopBackend(ctx, img, *inst); err != nil {
 		return err
 	}
-	if err := s.installer.Install(ctx, InstallSpec{Image: img, Instance: *inst}); err != nil {
+	if err := s.installer.Install(ctx, InstallSpec{Application: img, Instance: *inst}); err != nil {
 		return err
 	}
-	inst.ImageVersion = img.Version
+	inst.ApplicationVersion = img.Version
 	return s.saveStatus(ctx, inst, StatusRunning, "")
 }

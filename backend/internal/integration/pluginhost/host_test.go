@@ -109,8 +109,8 @@ func main() { pluginrpc.Serve(backend{}) }
 
 type fakeCatalog map[string]fs.FS
 
-func (c fakeCatalog) PluginSource(imageID string) (fs.FS, bool) {
-	source, ok := c[imageID]
+func (c fakeCatalog) BackendSource(applicationID string) (fs.FS, bool) {
+	source, ok := c[applicationID]
 	return source, ok
 }
 
@@ -125,15 +125,15 @@ func testGoToolOverride() string {
 	return os.Getenv("REMOTE_PLUGIN_GO")
 }
 
-func testSpec(imageID, instanceID string) svc.BackendSpec {
+func testSpec(applicationID, instanceID string) svc.BackendSpec {
 	return svc.BackendSpec{
-		ImageID: imageID,
+		ApplicationID: applicationID,
 		Instance: appplugin.Instance{
-			ID:        instanceID,
-			ImageID:   imageID,
-			Scope:     string(svc.ScopeProject),
-			ProjectID: "project-1",
-			Env:       map[string]string{"TOKEN": "secret-value"},
+			ID:            instanceID,
+			ApplicationID: applicationID,
+			Scope:         string(svc.ScopeProject),
+			ProjectID:     "project-1",
+			Env:           map[string]string{"TOKEN": "secret-value"},
 		},
 	}
 }
@@ -190,8 +190,8 @@ func call(t *testing.T, host *Host, spec svc.BackendSpec, request appplugin.Requ
 }
 
 func TestHostCompilesAndServesAPlugin(t *testing.T) {
-	host := newTestHost(t, fakeCatalog{"test-image": sourceFS(testPluginSource)})
-	spec := testSpec("test-image", "instance-1")
+	host := newTestHost(t, fakeCatalog{"test-application": sourceFS(testPluginSource)})
+	spec := testSpec("test-application", "instance-1")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -237,8 +237,8 @@ func TestHostCompilesAndServesAPlugin(t *testing.T) {
 // One process per instance is the contract the whole feature rests on: state a
 // plugin keeps between requests is only meaningful if the process is the same.
 func TestHostReusesOneProcessPerInstance(t *testing.T) {
-	host := newTestHost(t, fakeCatalog{"test-image": sourceFS(testPluginSource)})
-	spec := testSpec("test-image", "instance-reuse")
+	host := newTestHost(t, fakeCatalog{"test-application": sourceFS(testPluginSource)})
+	spec := testSpec("test-application", "instance-reuse")
 
 	first := string(call(t, host, spec, appplugin.Request{Method: "GET", Path: "pid"}).Body)
 	second := string(call(t, host, spec, appplugin.Request{Method: "GET", Path: "pid"}).Body)
@@ -246,7 +246,7 @@ func TestHostReusesOneProcessPerInstance(t *testing.T) {
 		t.Errorf("two calls hit different processes:\n%s\n%s", first, second)
 	}
 
-	other := testSpec("test-image", "instance-other")
+	other := testSpec("test-application", "instance-other")
 	third := string(call(t, host, other, appplugin.Request{Method: "GET", Path: "pid"}).Body)
 	if third == first {
 		t.Error("two instances share one process; they must not")
@@ -254,8 +254,8 @@ func TestHostReusesOneProcessPerInstance(t *testing.T) {
 }
 
 func TestHostStopEndsTheProcessAndCallRestartsIt(t *testing.T) {
-	host := newTestHost(t, fakeCatalog{"test-image": sourceFS(testPluginSource)})
-	spec := testSpec("test-image", "instance-restart")
+	host := newTestHost(t, fakeCatalog{"test-application": sourceFS(testPluginSource)})
+	spec := testSpec("test-application", "instance-restart")
 
 	before := string(call(t, host, spec, appplugin.Request{Method: "GET", Path: "pid"}).Body)
 	if err := host.Stop(context.Background(), spec.Instance.ID); err != nil {
@@ -272,8 +272,8 @@ func TestHostStopEndsTheProcessAndCallRestartsIt(t *testing.T) {
 // Stop keeps a plugin's data; only Remove discards it. That split is what
 // makes stop and start safe to use freely on an app someone relies on.
 func TestStopKeepsPluginDataAndRemoveDiscardsIt(t *testing.T) {
-	host := newTestHost(t, fakeCatalog{"test-image": sourceFS(testPluginSource)})
-	spec := testSpec("test-image", "instance-data")
+	host := newTestHost(t, fakeCatalog{"test-application": sourceFS(testPluginSource)})
+	spec := testSpec("test-application", "instance-data")
 
 	written := call(t, host, spec, appplugin.Request{
 		Method: "POST", Path: "write", Body: []byte("durable"),
@@ -305,8 +305,8 @@ func TestStopKeepsPluginDataAndRemoveDiscardsIt(t *testing.T) {
 // A panicking route must cost one request, not the process. Every other
 // request in flight on that plugin depends on it.
 func TestPanickingRouteFailsOneCallAndKeepsTheProcess(t *testing.T) {
-	host := newTestHost(t, fakeCatalog{"test-image": sourceFS(testPluginSource)})
-	spec := testSpec("test-image", "instance-panic")
+	host := newTestHost(t, fakeCatalog{"test-application": sourceFS(testPluginSource)})
+	spec := testSpec("test-application", "instance-panic")
 
 	before := string(call(t, host, spec, appplugin.Request{Method: "GET", Path: "pid"}).Body)
 
@@ -327,8 +327,8 @@ func TestPanickingRouteFailsOneCallAndKeepsTheProcess(t *testing.T) {
 // A plugin that never answers must not hold the caller's connection: the
 // deadline belongs to the host, since the transport has no notion of one.
 func TestCallRespectsTheCallerDeadline(t *testing.T) {
-	host := newTestHost(t, fakeCatalog{"test-image": sourceFS(testPluginSource)})
-	spec := testSpec("test-image", "instance-timeout")
+	host := newTestHost(t, fakeCatalog{"test-application": sourceFS(testPluginSource)})
+	spec := testSpec("test-application", "instance-timeout")
 
 	// Start the plugin first so the deadline covers only the call.
 	call(t, host, spec, appplugin.Request{Method: "GET", Path: "pid"})
@@ -349,8 +349,8 @@ func TestCallRespectsTheCallerDeadline(t *testing.T) {
 // A plugin built against a different contract is refused at connect time, so
 // the mismatch is one clear error instead of an unreadable failure later.
 func TestPluginWithAWrongContractVersionIsRefused(t *testing.T) {
-	host := newTestHost(t, fakeCatalog{"old-image": sourceFS(wrongVersionSource)})
-	spec := testSpec("old-image", "instance-old")
+	host := newTestHost(t, fakeCatalog{"old-application": sourceFS(wrongVersionSource)})
+	spec := testSpec("old-application", "instance-old")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -367,7 +367,7 @@ func TestEnsureRejectsAnImageWithNoPluginSource(t *testing.T) {
 	host := newTestHost(t, fakeCatalog{})
 	_, err := host.Ensure(context.Background(), testSpec("missing", "instance-missing"))
 	if err == nil {
-		t.Fatal("an image with no plugin source was accepted")
+		t.Fatal("an application with no plugin source was accepted")
 	}
 }
 
@@ -433,8 +433,8 @@ func TestBuildReportsCompilerErrors(t *testing.T) {
 // can reach it, so a crossed response would be one user's data handed to
 // another — the one failure here that would be worse than an outage.
 func TestConcurrentCallsDoNotCrossResponses(t *testing.T) {
-	host := newTestHost(t, fakeCatalog{"test-image": sourceFS(testPluginSource)})
-	spec := testSpec("test-image", "instance-concurrent")
+	host := newTestHost(t, fakeCatalog{"test-application": sourceFS(testPluginSource)})
+	spec := testSpec("test-application", "instance-concurrent")
 
 	// Start the plugin once so every goroutine below races on calling, not on
 	// launching.
@@ -496,12 +496,12 @@ func TestConcurrentCallsDoNotCrossResponses(t *testing.T) {
 }
 
 // Serving a request must not touch the builder. The catalog is embedded, so
-// nothing about an image can change while the server runs — re-reading and
+// nothing about an application can change while the server runs — re-reading and
 // re-hashing the plugin per call would be pure overhead, and it would funnel
-// concurrent calls to one image through the builder's lock.
+// concurrent calls to one application through the builder's lock.
 func TestServingARequestDoesNotRebuild(t *testing.T) {
-	host := newTestHost(t, fakeCatalog{"test-image": sourceFS(testPluginSource)})
-	spec := testSpec("test-image", "instance-nobuild")
+	host := newTestHost(t, fakeCatalog{"test-application": sourceFS(testPluginSource)})
+	spec := testSpec("test-application", "instance-nobuild")
 
 	call(t, host, spec, appplugin.Request{Method: "GET", Path: "pid"})
 	afterLaunch := host.builder.calls.Load()

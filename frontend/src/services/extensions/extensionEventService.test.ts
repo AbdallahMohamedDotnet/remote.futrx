@@ -18,16 +18,16 @@ const upload: UploadCompletedEvent = {
 };
 
 /**
- * Subscribes through the app-wide instance and drops the image when the test
- * ends, the way the host does when an image is uninstalled.
+ * Subscribes through the app-wide instance and drops the application when the test
+ * ends, the way the host does when an application is uninstalled.
  */
 function subscribe(
   t: TestContext,
-  imageId: string,
+  applicationId: string,
   handler: ExtensionEventHandler<"upload.completed">,
 ): () => void {
-  t.after(() => extensionEventService.removeImage(imageId));
-  return extensionEventService.on(imageId, "upload.completed", handler);
+  t.after(() => extensionEventService.removeApplication(applicationId));
+  return extensionEventService.on(applicationId, "upload.completed", handler);
 }
 
 test("a handler receives the events it subscribed to", (t) => {
@@ -86,8 +86,8 @@ test("a handler may unsubscribe itself mid-emit", (t) => {
   assert.equal(second, 1);
 });
 
-test("removing an image drops its subscriptions and only its own", (t) => {
-  // An uninstalled image keeps its entry module in the page, so its handlers
+test("removing an application drops its subscriptions and only its own", (t) => {
+  // An uninstalled application keeps its entry module in the page, so its handlers
   // would otherwise keep firing for an app that is no longer installed.
   let removed = 0;
   let kept = 0;
@@ -98,7 +98,7 @@ test("removing an image drops its subscriptions and only its own", (t) => {
     kept += 1;
   });
 
-  extensionEventService.removeImage("s3disk");
+  extensionEventService.removeApplication("s3disk");
   extensionEventService.emit("upload.completed", upload);
 
   assert.equal(removed, 0);

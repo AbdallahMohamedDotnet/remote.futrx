@@ -6,54 +6,54 @@ import (
 	"testing"
 )
 
-// fakeRegistry answers with UI-bearing images for the ids it was given.
+// fakeRegistry answers with UI-bearing applications for the ids it was given.
 type fakeRegistry struct{ withUI, withBackend, withoutUI, builtin []string }
 
-func (f *fakeRegistry) List() []Image { return nil }
+func (f *fakeRegistry) List() []Application { return nil }
 
-func (f *fakeRegistry) Get(id string) (Image, bool) {
+func (f *fakeRegistry) Get(id string) (Application, bool) {
 	for _, candidate := range f.withUI {
 		if candidate == id {
-			return Image{ID: id, Name: id, Type: KindUI, UI: &ImageUI{Entry: "scripts/main.js"}}, true
+			return Application{ID: id, Name: id, Type: KindUI, UI: &ApplicationUI{Entry: "scripts/main.js"}}, true
 		}
 	}
 	for _, candidate := range f.withBackend {
 		if candidate == id {
-			return Image{
+			return Application{
 				ID: id, Name: id, Type: KindBackend,
-				UI:      &ImageUI{Entry: "scripts/main.js"},
-				Backend: &ImageBackend{},
+				UI:      &ApplicationUI{Entry: "scripts/main.js"},
+				Backend: &ApplicationBackend{},
 			}, true
 		}
 	}
 	for _, candidate := range f.withoutUI {
 		if candidate == id {
-			return Image{ID: id, Name: id, Type: KindService}, true
+			return Application{ID: id, Name: id, Type: KindService}, true
 		}
 	}
-	// An image the binary was built with, which is what a package uploaded
+	// An application the binary was built with, which is what a package uploaded
 	// under the same id is up against.
 	for _, candidate := range f.builtin {
 		if candidate == id {
-			return Image{ID: id, Name: id, Type: KindTool, Source: SourceBuiltin}, true
+			return Application{ID: id, Name: id, Type: KindTool, Source: SourceBuiltin}, true
 		}
 	}
-	return Image{}, false
+	return Application{}, false
 }
 
 func (f *fakeRegistry) UIAsset(string, string) ([]byte, bool) { return nil, false }
 
-func instance(imageID, projectID string, status InstanceStatus) Instance {
+func instance(applicationID, projectID string, status InstanceStatus) Instance {
 	scope := ScopeGlobal
 	if projectID != "" {
 		scope = ScopeProject
 	}
 	return Instance{
-		ID:        imageID + "-" + projectID,
-		ImageID:   imageID,
-		Scope:     scope,
-		ProjectID: projectID,
-		Status:    status,
+		ID:            applicationID + "-" + projectID,
+		ApplicationID: applicationID,
+		Scope:         scope,
+		ProjectID:     projectID,
+		Status:        status,
 	}
 }
 
@@ -85,23 +85,23 @@ func TestUIExtensionsReportsInstallScope(t *testing.T) {
 		t.Fatalf("got %d extensions, want %d: %+v", len(got), len(want), got)
 	}
 	for _, ext := range got {
-		expected, ok := want[ext.Image.ID]
+		expected, ok := want[ext.Application.ID]
 		if !ok {
-			t.Errorf("unexpected extension %s", ext.Image.ID)
+			t.Errorf("unexpected extension %s", ext.Application.ID)
 			continue
 		}
 		if ext.Global != expected.Global {
-			t.Errorf("%s global = %v, want %v", ext.Image.ID, ext.Global, expected.Global)
+			t.Errorf("%s global = %v, want %v", ext.Application.ID, ext.Global, expected.Global)
 		}
 		if !reflect.DeepEqual(ext.ProjectIDs, expected.ProjectIDs) {
-			t.Errorf("%s projects = %v, want %v", ext.Image.ID, ext.ProjectIDs, expected.ProjectIDs)
+			t.Errorf("%s projects = %v, want %v", ext.Application.ID, ext.ProjectIDs, expected.ProjectIDs)
 		}
 	}
 }
 
-// One image can be installed in several places at once; the union of those
+// One application can be installed in several places at once; the union of those
 // installs is what decides where it applies.
-func TestUIExtensionsUnionsEveryInstallOfOneImage(t *testing.T) {
+func TestUIExtensionsUnionsEveryInstallOfOneApplication(t *testing.T) {
 	store := &fakeStore{
 		global: []Instance{instance("app", "", StatusRunning)},
 		byProject: map[string][]Instance{
@@ -116,7 +116,7 @@ func TestUIExtensionsUnionsEveryInstallOfOneImage(t *testing.T) {
 		t.Fatalf("UIExtensions: %v", err)
 	}
 	if len(got) != 1 {
-		t.Fatalf("want one entry per image, got %+v", got)
+		t.Fatalf("want one entry per application, got %+v", got)
 	}
 	if !got[0].Global {
 		t.Error("want global = true")
@@ -141,12 +141,12 @@ func TestUIExtensionsIgnoresProjectsNotAskedFor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UIExtensions: %v", err)
 	}
-	if len(got) != 1 || got[0].Image.ID != "app" {
+	if len(got) != 1 || got[0].Application.ID != "app" {
 		t.Fatalf("want only the caller's own project extension, got %+v", got)
 	}
 }
 
-func TestUIExtensionsSkipsStoppedAndUIlessImages(t *testing.T) {
+func TestUIExtensionsSkipsStoppedAndUIlessApplications(t *testing.T) {
 	store := &fakeStore{
 		global: []Instance{
 			instance("stopped-app", "", StatusStopped),
@@ -164,7 +164,7 @@ func TestUIExtensionsSkipsStoppedAndUIlessImages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UIExtensions: %v", err)
 	}
-	if len(got) != 1 || got[0].Image.ID != "running-app" {
-		t.Fatalf("want only the running UI image, got %+v", got)
+	if len(got) != 1 || got[0].Application.ID != "running-app" {
+		t.Fatalf("want only the running UI application, got %+v", got)
 	}
 }

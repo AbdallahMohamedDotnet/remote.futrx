@@ -8,8 +8,8 @@ import (
 )
 
 // Package is one uploaded application package: a ZIP holding exactly what an
-// images/<id>/ directory holds — image.json, an optional install.sh, an
-// optional ui/, an optional plugin/. Uploading one adds a catalog entry that
+// applications/<id>/ directory holds — application.json, an optional install.sh, an
+// optional ui/, an optional backend/. Uploading one adds a catalog entry that
 // installs, runs and renders like any entry the server was built with.
 //
 // A package is stored outside the binary, in the server's state directory, so
@@ -20,7 +20,7 @@ type Package struct {
 	Name    string `json:"name"`
 	Version string `json:"version,omitempty"`
 	Type    Kind   `json:"type,omitempty"`
-	// Scopes are the scopes the packaged image declares. Uploading a package
+	// Scopes are the scopes the packaged application declares. Uploading a package
 	// adds it to a server-wide catalog, which is not the same as making it
 	// installable everywhere: a project-only app is listed for every admin and
 	// installable only inside a project. Carrying the scopes here is what lets
@@ -41,7 +41,7 @@ type Package struct {
 	Installs []PackageInstall `json:"installs,omitempty"`
 	// Upgraded reports the installed copies this upload re-provisioned because
 	// its version differed from theirs. Empty when the version was unchanged,
-	// when nothing is installed, or when the image reaches no container.
+	// when nothing is installed, or when the application reaches no container.
 	Upgraded []UpgradeOutcome `json:"upgraded,omitempty"`
 	// Error is set when a package that is still on disk no longer loads into
 	// the catalog — an upload made against a different server version, say.
@@ -66,7 +66,7 @@ type PackageInstall struct {
 // PackageUpload is one archive submitted for installation into the catalog.
 type PackageUpload struct {
 	// Filename is the client's name for the archive. It is recorded, never
-	// used to derive the image id: the id comes from image.json.
+	// used to derive the application id: the id comes from application.json.
 	Filename string
 	Data     []byte
 	// Actor is the email of the administrator who uploaded it.
@@ -74,7 +74,7 @@ type PackageUpload struct {
 }
 
 // PackageCatalog is the writable half of the catalog: the part backed by
-// uploaded packages on disk rather than by images compiled into the binary.
+// uploaded packages on disk rather than by applications compiled into the binary.
 // A server without it still serves its built-in catalog and reports uploads
 // unavailable, which is what keeps the feature optional rather than required.
 type PackageCatalog interface {
@@ -82,7 +82,7 @@ type PackageCatalog interface {
 	Packages() []Package
 	// InstallPackage validates an archive and adds or replaces the catalog
 	// entry it carries. It returns ErrPackageInvalid for a malformed archive
-	// and ErrPackageReserved for one whose id belongs to a built-in image.
+	// and ErrPackageReserved for one whose id belongs to a built-in application.
 	InstallPackage(upload PackageUpload) (Package, error)
 	// RemovePackage deletes a stored package and its catalog entry.
 	RemovePackage(id string) error
@@ -103,7 +103,7 @@ func (s *Service) Packages(ctx context.Context) ([]Package, error) {
 	}
 	for i := range list {
 		// A superseded package has no copies of its own: the instances under
-		// its id are running the built-in image that replaced it. Listing them
+		// its id are running the built-in application that replaced it. Listing them
 		// here would offer to tear down working applications as the price of
 		// deleting files nothing reads.
 		if s.supersededByBuiltin(list[i].ID) {
@@ -114,17 +114,17 @@ func (s *Service) Packages(ctx context.Context) ([]Package, error) {
 	return list, nil
 }
 
-// supersededByBuiltin reports whether this package's id is served by an image
+// supersededByBuiltin reports whether this package's id is served by an application
 // compiled into the binary. That can only be true of a package the catalog
 // refused to load, because an upload is checked against the built-in ids
 // before it is written — so it means the stored files are shadowed, and
-// whatever is installed under the id belongs to the built-in image now.
+// whatever is installed under the id belongs to the built-in application now.
 func (s *Service) supersededByBuiltin(id string) bool {
 	img, ok := s.registry.Get(id)
 	return ok && img.Source == SourceBuiltin
 }
 
-// installsByImage groups every installed instance by the image it came from.
+// installsByImage groups every installed instance by the application it came from.
 func (s *Service) installsByImage(ctx context.Context) (map[string][]PackageInstall, error) {
 	instances, err := s.store.ListAll(ctx)
 	if err != nil {
@@ -132,7 +132,7 @@ func (s *Service) installsByImage(ctx context.Context) (map[string][]PackageInst
 	}
 	byImage := map[string][]PackageInstall{}
 	for _, inst := range instances {
-		byImage[inst.ImageID] = append(byImage[inst.ImageID], PackageInstall{
+		byImage[inst.ApplicationID] = append(byImage[inst.ApplicationID], PackageInstall{
 			InstanceID: inst.ID,
 			Name:       inst.Name,
 			Scope:      inst.Scope,
@@ -172,7 +172,7 @@ func (s *Service) UploadPackage(ctx context.Context, upload PackageUpload) (Pack
 	// new source by itself.
 	pkg.Upgraded = s.upgradeInstances(ctx, pkg.ID)
 
-	// Every other instance of the image still holds a plugin process running
+	// Every other instance of the application still holds a plugin process running
 	// the binary compiled from the previous upload. Stopping it is what makes
 	// the new code take effect: the next call rebuilds and starts fresh.
 	s.stopBackendsForImage(ctx, pkg.ID, upgradedIDs(pkg.Upgraded))
@@ -216,7 +216,7 @@ func (s *Service) RemovePackage(ctx context.Context, req RemovePackageRequest) (
 		return nil, err
 	}
 	// Deleting a superseded package strands nothing: the copies under its id
-	// are already being served by the built-in image that shadowed it, and
+	// are already being served by the built-in application that shadowed it, and
 	// they go on being served after its files are gone. Uninstalling them —
 	// even when asked — would destroy applications to tidy a directory.
 	if s.supersededByBuiltin(req.ID) {
@@ -246,23 +246,23 @@ func (s *Service) RemovePackage(ctx context.Context, req RemovePackageRequest) (
 // uninstallForPackageRemoval removes one copy on the way to deleting its
 // package.
 //
-// An image the catalog can no longer load — a package broken by a server
+// An application the catalog can no longer load — a package broken by a server
 // update, say — cannot be torn down the ordinary way, because the description
 // of what to tear down is exactly what is missing. Dropping the record is then
 // the only move that does not strand the operator with a package they can
 // neither repair nor remove.
 //
-// The half that does not need the image is still cleaned up: a plugin process
+// The half that does not need the application is still cleaned up: a plugin process
 // is addressed by instance id alone, so it is stopped and its data deleted
 // rather than left running as a child of the server that nothing points at any
-// more. Only the container side — which needs the image to describe it — is
+// more. Only the container side — which needs the application to describe it — is
 // left, and is the operator's to clean up in LXD.
 func (s *Service) uninstallForPackageRemoval(ctx context.Context, install PackageInstall) error {
 	err := s.Uninstall(ctx, install.InstanceID)
 	switch {
 	case err == nil, errors.Is(err, ErrNotFound):
 		return nil
-	case errors.Is(err, ErrUnknownImage):
+	case errors.Is(err, ErrUnknownApplication):
 		if s.backends != nil {
 			if err := s.backends.Remove(ctx, install.InstanceID); err != nil {
 				return err
@@ -274,13 +274,13 @@ func (s *Service) uninstallForPackageRemoval(ctx context.Context, install Packag
 	}
 }
 
-// installsOf lists the installed copies of one image.
-func (s *Service) installsOf(ctx context.Context, imageID string) ([]PackageInstall, error) {
+// installsOf lists the installed copies of one application.
+func (s *Service) installsOf(ctx context.Context, applicationID string) ([]PackageInstall, error) {
 	byImage, err := s.installsByImage(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return byImage[imageID], nil
+	return byImage[applicationID], nil
 }
 
 func describeInstalls(installs []PackageInstall) string {
@@ -299,10 +299,10 @@ func describeInstall(install PackageInstall) string {
 }
 
 // stopBackendsForImage terminates the plugin process of every instance created
-// from the image. Each one restarts on its next call, so this is a refresh
+// from the application. Each one restarts on its next call, so this is a refresh
 // rather than a shutdown; a failure to stop one is not worth failing an upload
 // that already succeeded, so it is left to the caller's next request to retry.
-func (s *Service) stopBackendsForImage(ctx context.Context, imageID string, skip map[string]bool) {
+func (s *Service) stopBackendsForImage(ctx context.Context, applicationID string, skip map[string]bool) {
 	if s.backends == nil {
 		return
 	}
@@ -311,7 +311,7 @@ func (s *Service) stopBackendsForImage(ctx context.Context, imageID string, skip
 		return
 	}
 	for _, inst := range instances {
-		if inst.ImageID == imageID && !skip[inst.ID] {
+		if inst.ApplicationID == applicationID && !skip[inst.ID] {
 			_ = s.backends.Stop(ctx, inst.ID)
 		}
 	}

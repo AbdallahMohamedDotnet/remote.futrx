@@ -9,13 +9,13 @@ import type { ExtensionBackendTarget } from "../../models/extension.ts";
  */
 export class ExtensionBackendTargets {
   readonly instances: AppBackendInstance[];
-  private readonly imageId: string;
+  private readonly applicationId: string;
 
   constructor(
-    imageId: string,
+    applicationId: string,
     backends: AppBackendInstance[],
   ) {
-    this.imageId = imageId;
+    this.applicationId = applicationId;
     this.instances = [...backends];
   }
 
@@ -32,7 +32,7 @@ export class ExtensionBackendTargets {
 
   private resolve(target?: ExtensionBackendTarget): AppBackendInstance {
     if (!this.instances.length) {
-      throw new Error(`${this.imageId} has no running backend to call`);
+      throw new Error(`${this.applicationId} has no running backend to call`);
     }
     if (target?.instanceId) {
       const chosen = this.instances.find(
@@ -40,7 +40,7 @@ export class ExtensionBackendTargets {
       );
       if (!chosen) {
         throw new Error(
-          `${this.imageId} has no running backend with id ${target.instanceId}`,
+          `${this.applicationId} has no running backend with id ${target.instanceId}`,
         );
       }
       return chosen;
