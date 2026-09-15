@@ -9,8 +9,10 @@ installable application:
 applications/
   docs/              ← this documentation (reserved name, not an application)
   mysql/
+    README.md                application documentation
     application.json       metadata
-    install.sh       provisioner, run inside a container
+    infra/
+      install.sh            provisioner, run inside a container
     ui/              browser extension (optional)
     backend/          Go backend, compiled and run on the host (optional)
   postgresql/
@@ -19,6 +21,10 @@ applications/
   ui-sandbox/          fixture: extension only, no container
   backend-playground/  fixture: Go plugin plus the UI that calls it
 ```
+
+The only regular files at an application root are `README.md` and
+`application.json`. Provisioning belongs in `infra/`, server code in
+`backend/`, and browser code and assets in `ui/`.
 
 That directory is `applications/` at the repository root. The whole tree is compiled
 into the server binary with `//go:embed applications` in
@@ -40,7 +46,7 @@ Applications tab.
 ```
                          application.json
                     /         |         \
-          install.sh        backend/        ui/
+      infra/install.sh      backend/        ui/
                |               |             |
      runs in a container   runs on the   runs in the browser
      (a service on a port)  host as a    (buttons, panels, popups)
@@ -49,7 +55,7 @@ Applications tab.
 
 An application may have any of them, or all three:
 
-| Application | `install.sh` | `backend/` | `ui/` | What it is |
+| Application | `infra/install.sh` | `backend/` | `ui/` | What it is |
 |---|---|---|---|---|
 | `postgresql` | yes | no | no | a database |
 | `mysql` | yes | no | yes | a database that also adds a "Connect" action |
@@ -92,8 +98,8 @@ flowchart TB
     subgraph Integration["integration/containers/applications — the catalog and lxc"]
         I_Registry["registry.go<br/>validates the catalog, serves ui/ assets and backend/ source"]
         I_RegParts["registry_ui.go / registry_backend.go<br/>registry_packages.go / registry_skills.go"]
-        I_Payload["infra_payload.go<br/>stages infra.tar.gz into the install script"]
-        I_Installer["installer.go<br/>lxc launch, install.sh, systemd, proxy device"]
+        I_Payload["infra_payload.go<br/>stages infra/payload.tar.gz into the install script"]
+        I_Installer["installer.go<br/>lxc launch, infra/install.sh, systemd, proxy device"]
         I_Allocator["allocator.go — a free host port"]
         I_Packages["packages.go — uploaded .zip packages"]
     end
@@ -220,7 +226,7 @@ sequenceDiagram
         end
         Svc->>Store: persist as installing — a crash here stays recoverable
         Inst->>LXD: launch the dedicated container (global scope only)
-        Inst->>LXD: run install.sh as root, then start the systemd unit
+        Inst->>LXD: run infra/install.sh as root, then start the systemd unit
         opt type == service
             Inst->>LXD: add the proxy device that maps the host port
         end

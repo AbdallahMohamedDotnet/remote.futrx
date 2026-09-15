@@ -28,7 +28,7 @@ func fixtureCatalog() fstest.MapFS {
 			"service": "fixture",
 			"connection": {"user": "root", "passwordEnv": "FIXTURE_PASSWORD"}
 		}`),
-		"applications/" + fixtureService + "/install.sh":          file("#!/usr/bin/env bash\necho service\n"),
+		"applications/" + fixtureService + "/infra/install.sh":    file("#!/usr/bin/env bash\necho service\n"),
 		"applications/" + fixtureService + "/ui/scripts/main.js":  file("export default () => {}\n"),
 		"applications/" + fixtureService + "/ui/style/panel.css":  file(".panel{}\n"),
 		"applications/" + fixtureService + "/ui/views/popup.html": file("<p></p>\n"),
@@ -56,7 +56,7 @@ func fixtureCatalog() fstest.MapFS {
 				}
 			}]
 		}`),
-		"applications/" + fixtureTool + "/install.sh": file("#!/usr/bin/env bash\necho tool\n"),
+		"applications/" + fixtureTool + "/infra/install.sh": file("#!/usr/bin/env bash\necho tool\n"),
 
 		// A UI application declares its block explicitly rather than relying on the
 		// layout convention, so both paths are exercised for real.
