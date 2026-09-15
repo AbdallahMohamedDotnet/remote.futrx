@@ -25,7 +25,7 @@ func fixtureCatalog() fstest.MapFS {
 			"service": "fixture",
 			"connection": {"user": "root", "passwordEnv": "FIXTURE_PASSWORD"}
 		}`),
-		"applications/" + fixtureService + "/install.sh": file("#!/usr/bin/env bash\necho service\n"),
+		"applications/" + fixtureService + "/infra/install.sh": file("#!/usr/bin/env bash\necho service\n"),
 
 		// A tool reaches a container without exposing anything, needs a host
 		// binary it supplies itself.
@@ -50,7 +50,7 @@ func fixtureCatalog() fstest.MapFS {
 				}
 			}]
 		}`),
-		"applications/" + fixtureTool + "/install.sh": file("#!/usr/bin/env bash\necho tool\n"),
+		"applications/" + fixtureTool + "/infra/install.sh": file("#!/usr/bin/env bash\necho tool\n"),
 	}
 }
 

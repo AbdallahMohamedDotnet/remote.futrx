@@ -30,12 +30,12 @@ const (
 // install script did not expect.
 const infraPayloadRoot = "infra"
 
-// infra.tar.gz carries an application's infra-side files. In particular,
+// infra/payload.tar.gz carries an application's infra-side files. In particular,
 // Go embed does not traverse nested Go modules, so their source is packed as
 // a reproducible asset. This accepts an fs.FS so uploaded catalogs can use the
 // same staging contract later. Applications without a payload keep their raw script.
 func withInfraPayload(fsys fs.FS, root string, script []byte) ([]byte, error) {
-	name := path.Join(root, "infra.tar.gz")
+	name := path.Join(root, "infra", "payload.tar.gz")
 	info, err := fs.Stat(fsys, name)
 	if errors.Is(err, fs.ErrNotExist) {
 		return script, nil

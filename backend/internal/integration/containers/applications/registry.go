@@ -181,7 +181,7 @@ func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) 
 	img.Skills = skills
 
 	if img.Install == "" {
-		img.Install = "install.sh"
+		img.Install = "infra/install.sh"
 	}
 	script, err := fs.ReadFile(catalog, path.Join(catalogRoot, id, img.Install))
 	if err != nil {

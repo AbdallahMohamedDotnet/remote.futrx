@@ -15,7 +15,7 @@ func skillCatalog(extra map[string]string) (*Registry, error) {
 			"scopes": ["project"],
 			"service": "kit"
 		}`)},
-		"applications/kit/install.sh": &fstest.MapFile{Data: []byte("#!/usr/bin/env bash\n")},
+		"applications/kit/infra/install.sh": &fstest.MapFile{Data: []byte("#!/usr/bin/env bash\n")},
 	}
 	for name, body := range extra {
 		fsys[name] = &fstest.MapFile{Data: []byte(body)}
