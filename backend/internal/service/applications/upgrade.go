@@ -20,5 +20,5 @@ package applications
 // today; the check is kept explicit because the answer stops being "always"
 // as soon as a kind installs nothing.
 func needsUpgrade(inst Instance, img Application) bool {
-	return img.Type.NeedsContainer() && inst.ApplicationVersion != img.Version
+	return img.NeedsContainer() && inst.ApplicationVersion != img.Version
 }

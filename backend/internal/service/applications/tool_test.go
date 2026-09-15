@@ -52,7 +52,7 @@ func toolImage() Application {
 	return Application{
 		ID:      "mount-tool",
 		Name:    "Mount Tool",
-		Type:    KindTool,
+		Install: "infra/install.sh",
 		Scopes:  []Scope{ScopeProject},
 		Service: "mount-tool",
 	}

@@ -7,6 +7,7 @@ package applications
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -168,11 +169,8 @@ func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) 
 	if img.ID != id {
 		return svc.Application{}, nil, fmt.Errorf("application id %q does not match directory %q", img.ID, id)
 	}
-	if img.Type == "" {
-		img.Type = svc.KindService
-	}
-	if err := validate(img); err != nil {
-		return svc.Application{}, nil, err
+	if img.Install != "" && (!fs.ValidPath(img.Install) || !strings.HasPrefix(img.Install, "infra/")) {
+		return svc.Application{}, nil, fmt.Errorf("install script must be inside infra/")
 	}
 	skills, err := loadApplicationSkills(catalog, path.Join(catalogRoot, id, skillsDir))
 	if err != nil {
@@ -180,22 +178,35 @@ func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) 
 	}
 	img.Skills = skills
 
-	if img.Install == "" {
-		img.Install = "infra/install.sh"
+	// Infrastructure is a capability inferred from infra/install.sh. A manifest
+	// may name another path explicitly; an omitted default simply means this
+	// application has no container-side work.
+	installPath := img.Install
+	if installPath == "" {
+		installPath = "infra/install.sh"
 	}
-	script, err := fs.ReadFile(catalog, path.Join(catalogRoot, id, img.Install))
-	if err != nil {
-		return svc.Application{}, nil, fmt.Errorf("read install script %q: %w", img.Install, err)
+	var script []byte
+	script, err = fs.ReadFile(catalog, path.Join(catalogRoot, id, installPath))
+	if errors.Is(err, fs.ErrNotExist) && img.Install == "" {
+		err = nil
+		script = nil
+	} else if err != nil {
+		return svc.Application{}, nil, fmt.Errorf("read install script %q: %w", installPath, err)
+	} else {
+		img.Install = installPath
+		script, err = withInfraPayload(catalog, path.Join(catalogRoot, id), script)
+		if err != nil {
+			return svc.Application{}, nil, fmt.Errorf("infra payload: %w", err)
+		}
 	}
-	script, err = withInfraPayload(catalog, path.Join(catalogRoot, id), script)
-	if err != nil {
-		return svc.Application{}, nil, fmt.Errorf("infra payload: %w", err)
+	if err := validate(img); err != nil {
+		return svc.Application{}, nil, err
 	}
 	return img, script, nil
 }
 
 func validate(img svc.Application) error {
-	if len(img.HostTools) > 0 && !img.Type.NeedsContainer() {
+	if len(img.HostTools) > 0 && !img.NeedsContainer() {
 		return fmt.Errorf("host tools require a provisioned application")
 	}
 	for _, tool := range img.HostTools {
@@ -215,9 +226,6 @@ func validate(img svc.Application) error {
 	if strings.TrimSpace(img.Version) == "" {
 		return fmt.Errorf("missing version")
 	}
-	if !img.Type.Valid() {
-		return fmt.Errorf("invalid type %q", img.Type)
-	}
 	if len(img.Scopes) == 0 {
 		return fmt.Errorf("missing scopes")
 	}
@@ -226,27 +234,15 @@ func validate(img svc.Application) error {
 			return fmt.Errorf("invalid scope %q", s)
 		}
 	}
-	// Ports and health probes describe something reachable on a port. Accepting
-	// them from a kind that exposes nothing would be a lie, since nothing would
-	// ever read them.
-	if !img.Type.NeedsPort() {
-		if img.Port.Internal != 0 || img.Healthcheck.Command != "" {
-			return fmt.Errorf("type %q must not declare port or healthcheck", img.Type)
+	if !img.NeedsContainer() {
+		if img.Port.Internal != 0 || img.Port.DefaultExternal != 0 || img.Healthcheck.Command != "" || img.Service != "" {
+			return fmt.Errorf("port, healthcheck, and service require infra/install.sh")
 		}
-		if img.Type == svc.KindTool {
-			for _, sc := range img.Scopes {
-				if sc == svc.ScopeGlobal {
-					return fmt.Errorf("type %q supports project scope only", img.Type)
-				}
-			}
-		}
-		return nil
+	} else if img.Port.Internal == 0 && (img.Port.DefaultExternal != 0 || img.Healthcheck.Command != "") {
+		return fmt.Errorf("port.defaultExternal and healthcheck require port.internal")
 	}
-	if img.Port.Internal <= 0 {
-		return fmt.Errorf("missing port.internal")
-	}
-	if img.Port.DefaultExternal <= 0 {
-		img.Port.DefaultExternal = img.Port.Internal
+	if !img.NeedsContainer() && len(img.Skills) == 0 {
+		return fmt.Errorf("application has no infra or skills")
 	}
 	return nil
 }

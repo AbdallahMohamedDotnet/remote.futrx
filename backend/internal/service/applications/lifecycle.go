@@ -24,7 +24,7 @@ func (s *Service) SetPort(ctx context.Context, id string, port int) (View, error
 	if err != nil {
 		return View{}, err
 	}
-	if !img.Type.NeedsPort() {
+	if !img.NeedsPort() {
 		return View{}, fmt.Errorf("%w: %s has no port", ErrNotSupported, img.ID)
 	}
 	if port != inst.ExternalPort {
@@ -65,7 +65,7 @@ func (s *Service) Uninstall(ctx context.Context, id string) error {
 // retrying a failed install share it, so both leave exactly the same state
 // behind.
 func (s *Service) teardown(ctx context.Context, img Application, inst Instance) error {
-	if !img.Type.NeedsContainer() {
+	if !img.NeedsContainer() {
 		return nil
 	}
 	if s.installer == nil {
@@ -79,6 +79,12 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 	inst, img, err := s.load(ctx, id)
 	if err != nil {
 		return View{}, err
+	}
+	if !img.NeedsContainer() {
+		if err := s.saveStatus(ctx, &inst, target, ""); err != nil {
+			return View{}, err
+		}
+		return s.view(inst), nil
 	}
 	if s.installer == nil {
 		return View{}, ErrUnavailable
