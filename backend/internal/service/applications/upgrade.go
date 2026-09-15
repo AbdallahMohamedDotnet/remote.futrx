@@ -16,9 +16,7 @@ package applications
 // needsUpgrade reports whether an instance's container side was provisioned by
 // a different version of the application than the catalog now holds.
 //
-// Only kinds that reach a container can be stale, which is every kind there is
-// today; the check is kept explicit because the answer stops being "always"
-// as soon as a kind installs nothing.
-func needsUpgrade(inst Instance, img Application) bool {
-	return img.NeedsContainer() && inst.ApplicationVersion != img.Version
+// Only an application with infrastructure can have stale container state.
+func needsUpgrade(inst Instance, application Application) bool {
+	return application.NeedsContainer() && inst.ApplicationVersion != application.Version
 }

@@ -7,7 +7,7 @@ import (
 )
 
 // recordingInstaller captures the spec the service hands to the container
-// layer. What a tool must *not* carry — a device name, a port — is the point.
+// layer. Portless infrastructure must not carry a device name or port.
 type recordingInstaller struct {
 	installed []InstallSpec
 	stopped   []InstallSpec
@@ -32,8 +32,8 @@ func (i *recordingInstaller) Expose(_ context.Context, spec InstallSpec) error {
 	return nil
 }
 
-// countingAllocator fails the test by being used at all: a tool has no port to
-// allocate, and taking one would reserve a host port for nothing.
+// countingAllocator records whether portless infrastructure incorrectly
+// reserves a host port for something that exposes nothing.
 type countingAllocator struct{ calls int }
 
 func (a *countingAllocator) Allocate(context.Context, string, int, map[int]bool) (int, error) {
@@ -48,7 +48,7 @@ func (p *staticProjects) ContainerName(context.Context, string) (string, error) 
 }
 func (p *staticProjects) EnsureRunning(context.Context, string) error { return nil }
 
-func toolImage() Application {
+func portlessInfrastructureApplication() Application {
 	return Application{
 		ID:      "mount-tool",
 		Name:    "Mount Tool",
@@ -58,12 +58,12 @@ func toolImage() Application {
 	}
 }
 
-func toolService(application Application) (*Service, *recordingInstaller, *countingAllocator, *fakeStore) {
+func portlessInfrastructureService(application Application) (*Service, *recordingInstaller, *countingAllocator, *fakeStore) {
 	installer := &recordingInstaller{}
 	allocator := &countingAllocator{}
 	store := &fakeStore{}
 	service := New(
-		&singleImageRegistry{application: application},
+		&singleApplicationRegistry{application: application},
 		store,
 		installer,
 		&staticProjects{container: "my-project"},
@@ -72,10 +72,10 @@ func toolService(application Application) (*Service, *recordingInstaller, *count
 	return service, installer, allocator, store
 }
 
-// Installing a tool reaches the project's container and runs its script, but
-// claims no host port and names no proxy device.
-func TestInstallToolProvisionsWithoutAPort(t *testing.T) {
-	service, installer, allocator, _ := toolService(toolImage())
+// Installing portless infrastructure reaches the project's container and runs
+// its script, but claims no host port and names no proxy device.
+func TestInstallPortlessInfrastructureProvisionsWithoutAPort(t *testing.T) {
+	service, installer, allocator, _ := portlessInfrastructureService(portlessInfrastructureApplication())
 
 	view, err := service.Install(context.Background(), InstallRequest{
 		ApplicationID: "mount-tool",
@@ -87,7 +87,7 @@ func TestInstallToolProvisionsWithoutAPort(t *testing.T) {
 		t.Fatalf("install: %v", err)
 	}
 	if allocator.calls != 0 {
-		t.Errorf("allocated %d host ports for a tool; want none", allocator.calls)
+		t.Errorf("allocated %d host ports for portless infrastructure; want none", allocator.calls)
 	}
 	if len(installer.installed) != 1 {
 		t.Fatalf("installer calls = %d, want 1", len(installer.installed))
@@ -97,7 +97,7 @@ func TestInstallToolProvisionsWithoutAPort(t *testing.T) {
 		t.Errorf("container = %q, want the project's own", spec.Instance.ContainerName)
 	}
 	if spec.Instance.DeviceName != "" {
-		t.Errorf("device = %q, want none: a tool exposes nothing", spec.Instance.DeviceName)
+		t.Errorf("device = %q, want none: the application exposes nothing", spec.Instance.DeviceName)
 	}
 	if spec.Instance.InternalPort != 0 || spec.Instance.ExternalPort != 0 {
 		t.Errorf("ports = %d/%d, want 0/0",
@@ -108,28 +108,28 @@ func TestInstallToolProvisionsWithoutAPort(t *testing.T) {
 	}
 }
 
-// A tool has no port, so asking to change one is a category error rather than
-// a silently accepted no-op.
-func TestSetPortOnAToolIsRefused(t *testing.T) {
-	service, _, _, store := toolService(toolImage())
+// An application without a port rejects a port change rather than silently
+// accepting a no-op.
+func TestSetPortOnPortlessInfrastructureIsRefused(t *testing.T) {
+	service, _, _, store := portlessInfrastructureService(portlessInfrastructureApplication())
 	store.global = []Instance{{
 		ID: "abc123", ApplicationID: "mount-tool", Scope: ScopeProject,
 		ProjectID: "proj-1", Status: StatusRunning,
 	}}
 
 	if _, err := service.SetPort(context.Background(), "abc123", 8080); !errors.Is(err, ErrNotSupported) {
-		t.Errorf("SetPort on a tool = %v, want ErrNotSupported", err)
+		t.Errorf("SetPort on portless infrastructure = %v, want ErrNotSupported", err)
 	}
 }
 
-// A tool is only meaningful inside the container someone works in.
-func TestInstallToolRejectsGlobalScope(t *testing.T) {
-	service, _, _, _ := toolService(toolImage())
+// Capability inference does not override the scopes declared by an application.
+func TestInstallPortlessInfrastructureRespectsDeclaredScopes(t *testing.T) {
+	service, _, _, _ := portlessInfrastructureService(portlessInfrastructureApplication())
 
 	if _, err := service.Install(context.Background(), InstallRequest{
 		ApplicationID: "mount-tool",
 		Scope:         ScopeGlobal,
 	}); !errors.Is(err, ErrScope) {
-		t.Errorf("global install of a tool = %v, want ErrScope", err)
+		t.Errorf("global install outside the declared scopes = %v, want ErrScope", err)
 	}
 }

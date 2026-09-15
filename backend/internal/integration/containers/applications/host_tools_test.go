@@ -21,17 +21,17 @@ func (f *fakeHostTools) Ensure(_ context.Context, tools []svc.HostTool) error {
 	return f.err
 }
 
-// toolSpecWithHostTool is the fixture tool as the registry loads it, so the
+// hostToolSpec is the portless fixture as the registry loads it, so the
 // declaration under test is the one an application actually ships.
-func toolSpecWithHostTool(t *testing.T, in *Installer, env map[string]string) svc.InstallSpec {
+func hostToolSpec(t *testing.T, in *Installer, env map[string]string) svc.InstallSpec {
 	t.Helper()
-	img, ok := in.registry.Get(fixtureTool)
+	application, ok := in.registry.Get(fixturePortless)
 	if !ok {
-		t.Fatal("missing the fixture tool application")
+		t.Fatal("missing the portless fixture application")
 	}
 	return svc.InstallSpec{
-		Application: img,
-		Instance:    svc.Instance{ApplicationID: img.ID, Scope: svc.ScopeProject, ContainerName: "project", Env: env},
+		Application: application,
+		Instance:    svc.Instance{ApplicationID: application.ID, Scope: svc.ScopeProject, ContainerName: "project", Env: env},
 	}
 }
 
@@ -42,7 +42,7 @@ func TestInstallAndStartPrepareDeclaredHostTools(t *testing.T) {
 	in := testInstaller(t, runner)
 	tools := &fakeHostTools{}
 	in.hostTools = tools
-	spec := toolSpecWithHostTool(t, in, nil)
+	spec := hostToolSpec(t, in, nil)
 
 	tools.err = errors.New("host install failed")
 	if err := in.Install(context.Background(), spec); err == nil {
@@ -91,7 +91,7 @@ func TestInstallSkipsHostToolsWhenNoneAreDeclared(t *testing.T) {
 
 // A half-declared mapping produces a destination the store cannot use, so it is
 // rejected when the catalog loads rather than on someone's host.
-func TestRegistryRejectsIncompleteImageDeclarations(t *testing.T) {
+func TestRegistryRejectsIncompleteApplicationDeclarations(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		application svc.Application
