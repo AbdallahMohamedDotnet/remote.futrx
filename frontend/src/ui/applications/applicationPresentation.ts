@@ -23,20 +23,16 @@ export function catalogInstallationState(
   return { installedImageIds, failedImageIds };
 }
 
-// Whether installing this application put anything in a container. This drives the
-// uninstall wording, which has to say what is actually removed.
+// Whether installing this application put anything in a container.
 //
-// The answer comes from the server, which owns the list of kinds: a kind added
-// there would otherwise land here as whatever a local rule happened to say
-// about a value it had never heard of. An application not in the catalog yet keeps
+// The answer comes from the server's package-layout detection. An application not in the catalog yet keeps
 // the historical service presentation until the catalog finishes loading.
 export function hasContainer(application: AppApplication | undefined): boolean {
   return application?.needsContainer ?? true;
 }
 
 // Whether this application binds a host port, which is what the port row and the
-// credentials panel are about. A tool runs in a container but exposes nothing,
-// so showing it a port row would be showing it zeros.
+// credentials panel are about.
 export function hasPortBinding(application: AppApplication | undefined): boolean {
   return application?.needsPort ?? true;
 }
@@ -46,10 +42,13 @@ export function instanceSummary(
   application: AppApplication | undefined,
   running: boolean,
 ): string {
-  if (application?.type === "tool") {
+  if (application && hasContainer(application) && !hasPortBinding(application)) {
     return running
-      ? "Workspace tool — installed in this project's container. Nothing is exposed."
-      : "Workspace tool — stopped. Start it to run it in the project's container.";
+      ? "Infrastructure installed in its target container. Nothing is exposed."
+      : "Infrastructure stopped. Start it to run it in its target container.";
+  }
+  if (application && !hasContainer(application)) {
+    return running ? "Application enabled without infrastructure." : "Application stopped.";
   }
   return running
     ? "Running in a container."
@@ -77,9 +76,12 @@ export function uninstallConsequence(
   instance: AppInstance,
   application: AppApplication | undefined,
 ): string {
-  // A tool holds no host port, so there is none to release; saying otherwise
+  if (!hasContainer(application)) {
+    return `“${instance.name}” is disabled. Nothing is removed from any container.`;
+  }
+  // Portless infrastructure holds no host port, so there is none to release; saying otherwise
   // would promise the user something the uninstall does not do.
-  if (application?.type === "tool") {
+  if (application && !hasPortBinding(application)) {
     return `“${instance.name}” is stopped and disabled in the project container. Installed packages and any data it wrote stay there.`;
   }
   if (instance.scope === "global") {

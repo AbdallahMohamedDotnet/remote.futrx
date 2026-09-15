@@ -9,7 +9,7 @@ The Go type behind it is `Application` in
 
 ## Complete example
 
-A service application using every relevant field:
+An application using every infrastructure and presentation field:
 
 ```json
 {
@@ -19,7 +19,6 @@ A service application using every relevant field:
   "category": "database",
   "version": "8.0",
   "icon": "database",
-  "type": "service",
   "scopes": ["global", "project"],
   "base": "ubuntu:24.04",
   "port": {
@@ -61,7 +60,7 @@ A service application using every relevant field:
 }
 ```
 
-A backend application, which needs almost nothing beyond its `backend/` directory:
+An application with backend and UI capabilities:
 
 ```json
 {
@@ -71,7 +70,6 @@ A backend application, which needs almost nothing beyond its `backend/` director
   "category": "development",
   "version": "1",
   "icon": "ui/assets/logo.svg",
-  "type": "backend",
   "scopes": ["global", "project"],
   "backend": {
     "access": "registered",
@@ -85,8 +83,7 @@ A backend application, which needs almost nothing beyond its `backend/` director
 }
 ```
 
-A tool application, which provisions into the project's container but exposes
-nothing — no port, no healthcheck, project scope only:
+An application that provisions into a project's container without exposing a port:
 
 ```json
 {
@@ -96,7 +93,6 @@ nothing — no port, no healthcheck, project scope only:
   "category": "storage",
   "version": "0.1.0",
   "icon": "disk",
-  "type": "tool",
   "scopes": ["project"],
   "env": [
     { "key": "MOUNT_BUCKET", "label": "Bucket", "required": true },
@@ -109,7 +105,7 @@ nothing — no port, no healthcheck, project scope only:
 }
 ```
 
-A UI application, which needs far less:
+An application with only a UI capability:
 
 ```json
 {
@@ -119,7 +115,6 @@ A UI application, which needs far less:
   "category": "development",
   "version": "1",
   "icon": "ui/assets/logo.svg",
-  "type": "ui",
   "scopes": ["global", "project"],
   "ui": {
     "entry": "scripts/main.js",
@@ -139,23 +134,22 @@ A UI application, which needs far less:
 | `category` | string | no | Free text, e.g. `database`, `cache`, `development`. |
 | `version` | string | **yes** | A string, not a number — `"8.0"`, `"16"`, `"1.2.3-rc1"`. Shown next to the name, and the signal that re-runs `infra/install.sh` on an installed copy when it changes. See [17 — Versions and upgrades](17-versions-and-upgrades.md). |
 | `icon` | string | no | Built-in key or a path into this application's `ui/`. See [09 — Styling and icons](09-styling-and-icons.md). |
-| `type` | string | no | `service` (default), `tool`, `ui`, or `backend`. See [03 — Application types](03-application-types.md). |
 | `scopes` | string[] | yes | Any of `global`, `project`. At least one. |
-| `base` | string | no | LXD application for a dedicated global container. Default `ubuntu:24.04`. `service` only. |
-| `port` | object | for `service` | See below. Forbidden on `tool`, `ui` and `backend`, none of which is reachable on a port. |
+| `base` | string | no | LXD image for a dedicated global infrastructure container. Default `ubuntu:24.04`. |
+| `port` | object | no | See below. Requires infrastructure; omit it when nothing is exposed. |
 | `env` | object[] | no | Install-time inputs. See below. |
-| `service` | string | no | systemd unit name inside the container. Meaningful for `service` and `tool` — it is what stop and uninstall act on. Forbidden on `ui` and `backend`, which have no container. |
+| `service` | string | no | systemd unit name inside the container. Requires infrastructure; it is what stop and uninstall act on. |
 | `connection` | object | no | Maps env vars to user/password/database. See below. |
-| `install` | string | no | Install-script path. Default `infra/install.sh`. Required for `service` and `tool`; ignored for `ui` and `backend`. |
-| `healthcheck` | object | no | `{ "command": "…" }` run inside the container. It probes a port, so it is forbidden on `tool`, `ui` and `backend`. |
+| `install` | string | no | Override for the install-script path inside `infra/`. When omitted, `infra/install.sh` is detected automatically. |
+| `healthcheck` | object | no | `{ "command": "…" }` run inside the container. Requires `port.internal`. |
 | `ui` | object | no | Overrides what is loaded from `ui/`. See below. |
 | `backend` | object | no | Overrides the defaults for the Go plugin in `backend/`. See below. |
 | `source` | string | — | **Server-set, not accepted from `application.json`.** `builtin` or `uploaded`; anything declared here is overwritten. |
 
 ### `port`
 
-Describes how a `service` application exposes itself. Required when `type` is
-`service` (or omitted); rejected when `type` is `ui`.
+Describes how an application's infrastructure exposes itself. Omit the entire
+object when the infrastructure does not listen on a network port.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
@@ -233,8 +227,7 @@ here because the layout is fixed: the plugin is `backend/`, and it is
 behalf. Anything finer is the plugin's own job, using `Request.Caller` — see
 [15 — Backend plugins](15-backend-plugins.md).
 
-Declaring `backend` without a `backend/` directory fails `NewRegistry()`, as
-does an unknown `access` value or a negative `timeoutMs`.
+An unknown backend `access` value or a negative `timeoutMs` fails `NewRegistry()`.
 
 ## Validation rules
 
@@ -247,15 +240,11 @@ Enforced in `registry.go:validate` and `registry.go:loadApplication`:
 - `id` must equal the directory name.
 - `name` must not be empty.
 - `version` must not be empty or whitespace.
-- `type` must be `service`, `tool`, `ui`, `backend`, or absent (which means
-  `service`).
 - `scopes` must be non-empty and contain only `global` / `project`.
-- For `service`: `port.internal` must be > 0, and the install script named by
-  `install` must exist.
-- For `tool`: `port` and `healthcheck` must be absent, `scopes` must not
-  contain `global`, and the install script named by `install` must exist.
-- For `ui`: `port`, `service`, and `healthcheck` must all be absent, and a
-  `ui/` directory must exist.
+- An explicitly named `install` script must stay inside `infra/` and exist.
+- `port`, `service`, host tools, and `healthcheck` require infrastructure.
+- `defaultExternal` and `healthcheck` require `port.internal`.
+- At least one of `infra/`, `backend/`, `ui/`, or `skills/` must contribute a capability.
 - For `backend`: `port`, `service`, and `healthcheck` must all be absent, and a
   `backend/` directory must exist.
 - Every path in the `ui` block must exist inside `ui/`.

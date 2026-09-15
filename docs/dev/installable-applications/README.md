@@ -27,8 +27,7 @@ behind it; an application that only adds a button ships no container side at all
 | If you want to… | Read |
 |---|---|
 | Understand how the whole thing fits together | [01 — Overview](01-overview.md) |
-| Add a database or service to the catalog | [03 — Application types](03-application-types.md), [04 — Install scripts](04-install-scripts.md) |
-| Add a tool to the project workspace | [03 — Application types](03-application-types.md#tool), [04 — Install scripts](04-install-scripts.md) |
+| Add infrastructure to the catalog | [03 — Application capabilities](03-application-capabilities.md), [04 — Install scripts](04-install-scripts.md) |
 | Add a button, panel, or popup to the Remote UI | [07 — Tutorial](07-tutorial-build-a-plugin.md) |
 | Add a server-side feature in Go | [15 — Backend plugins](15-backend-plugins.md) |
 | Look up a field in `application.json` | [02 — application.json reference](02-application-json.md) |
@@ -48,7 +47,7 @@ behind it; an application that only adds a button ships no container side at all
 
 1. [Overview](01-overview.md) — the moving parts, and how a request flows through them.
 2. [application.json reference](02-application-json.md) — every field, with types and defaults.
-3. [Application types](03-application-types.md) — `service`, `ui`, `backend`, and which one creates a container.
+3. [Application capabilities](03-application-capabilities.md) — how `infra/`, `backend/`, `ui/`, and `skills/` compose.
 4. [Install scripts](04-install-scripts.md) — the contract, the environment, idempotency.
 5. [Slots](05-slots.md) — every place an extension may render, and the context each provides.
 6. [Extension API reference](06-extension-api.md) — the complete `remote` object.

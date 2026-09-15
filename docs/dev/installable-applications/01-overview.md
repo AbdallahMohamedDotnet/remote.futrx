@@ -62,8 +62,8 @@ An application may have any of them, or all three:
 | `ui-playground` | no | no | yes | a pure UI plugin |
 | `backend-playground` | no | yes | yes | a Go backend and the UI that calls it |
 
-The `type` field in `application.json` says which shape it is — see
-[03 — Application types](03-application-types.md). `backend/` is covered in full by
+The layout supplies these capabilities directly — see
+[03 — Application capabilities](03-application-capabilities.md). `backend/` is covered in full by
 [15 — Backend plugins](15-backend-plugins.md).
 
 ## The moving parts
@@ -186,10 +186,9 @@ contract, so it depends on nothing but the standard library.
 
 ## What installing does
 
-An install crosses every layer above, and what it actually provisions depends
-entirely on the application's type — which is the single most surprising thing about
-this subsystem, and the reason a `ui` or `backend` application works on a host with
-no container runtime at all.
+An install crosses every layer above and provisions only the capabilities the
+application carries. An application without `infra/install.sh` works on a host
+with no container runtime at all.
 
 ```mermaid
 sequenceDiagram
@@ -215,19 +214,19 @@ sequenceDiagram
         Note over Svc,LXD: no container, no port, no proxy device
         Svc->>Store: persist as running
         Svc->>Host: Ensure — compile backend/ if stale, start the process
-    else service or tool application
+    else application with infrastructure
         alt project scope
             Svc->>Proj: container name, and ready it
         else global scope
             Svc->>Svc: name a dedicated container
         end
-        opt type == service
+        opt port.internal is declared
             Svc->>Svc: allocate a free host port, from defaultExternal up
         end
         Svc->>Store: persist as installing — a crash here stays recoverable
         Inst->>LXD: launch the dedicated container (global scope only)
         Inst->>LXD: run infra/install.sh as root, then start the systemd unit
-        opt type == service
+        opt port.internal is declared
             Inst->>LXD: add the proxy device that maps the host port
         end
         Svc->>Host: Ensure, when the application ships a backend/ too
@@ -301,6 +300,6 @@ throwing click handler, a missing view — each is caught and logged, and costs
 that one extension its own UI. Everything else keeps working.
 
 **The catalog fails loudly.** A malformed `application.json`, a `ui` block naming a
-file that does not exist, a `type` that declares a port it cannot have — all of
+file that does not exist, or a port without infrastructure — all of
 these fail `NewRegistry()`, which means the build and the tests fail. A broken
 application never reaches a browser as a 404.

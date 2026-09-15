@@ -98,10 +98,18 @@ func TestRegistryRejectsIncompleteImageDeclarations(t *testing.T) {
 	}{
 		{
 			name: "a host tool without a checksum",
-			application: svc.Application{Name: "Test", Type: svc.KindTool, Scopes: []svc.Scope{svc.ScopeProject}, HostTools: []svc.HostTool{{
+			application: svc.Application{Name: "Test", Install: "infra/install.sh", Scopes: []svc.Scope{svc.ScopeProject}, HostTools: []svc.HostTool{{
 				Name:      "tool",
 				Version:   "1",
 				Downloads: map[string]svc.HostToolDownload{"amd64": {URL: "https://example.invalid/tool"}},
+			}}},
+		},
+		{
+			name: "a host tool on an application that provisions nothing",
+			application: svc.Application{Name: "Test", Scopes: []svc.Scope{svc.ScopeProject}, Backend: &svc.ApplicationBackend{}, HostTools: []svc.HostTool{{
+				Name:      "tool",
+				Version:   "1",
+				Downloads: map[string]svc.HostToolDownload{"amd64": {URL: "https://example.invalid/tool", SHA256: "00"}},
 			}}},
 		},
 	} {

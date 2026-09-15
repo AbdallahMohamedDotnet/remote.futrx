@@ -25,47 +25,6 @@ const (
 // Valid reports whether s is a known scope.
 func (s Scope) Valid() bool { return s == ScopeGlobal || s == ScopeProject }
 
-// Kind separates applications by what installing them actually does. It decides
-// whether an install touches a container at all, so it is the difference
-// between "provision MySQL" and "add a button to the UI".
-type Kind string
-
-const (
-	// KindService installs software that listens on a port and is managed by
-	// systemd. A global-scope install gets its own dedicated LXD container; a
-	// project-scope one installs into that project's container. This is the
-	// default when an application does not say.
-	KindService Kind = "service"
-	// KindBackend installs nothing in any container: the application's payload is
-	// the Go source under its backend/ directory, which the server compiles and
-	// runs as a child process. It is what lets an application add a server-side
-	// feature — an endpoint a caller reaches over HTTP — instead of only
-	// provisioning software.
-	KindBackend Kind = "backend"
-	// KindTool installs software into a container exactly as a service does,
-	// but exposes nothing: no port, no proxy device, nothing to connect to. It
-	// is how a workspace tool is provisioned into the project someone is
-	// working in — a CLI, a mount, an agent — where the value is that the tool
-	// is present in that container, not that it is reachable from outside.
-	//
-	// Project scope only. A dedicated global container running a tool nobody
-	// works in would have nothing to offer.
-	KindTool Kind = "tool"
-)
-
-// Valid reports whether k is a known kind.
-func (k Kind) Valid() bool {
-	return k == KindService || k == KindBackend || k == KindTool
-}
-
-// NeedsContainer reports whether installing this kind has to reach a container.
-func (k Kind) NeedsContainer() bool { return k == KindService || k == KindTool }
-
-// NeedsPort reports whether this kind is reachable on a host port, which is
-// what makes it need an allocated port and a proxy device forwarding to it.
-// A tool runs in a container but exposes nothing, so it needs neither.
-func (k Kind) NeedsPort() bool { return k == KindService }
-
 // Protocol is the transport a proxy device forwards.
 type Protocol string
 
@@ -188,12 +147,9 @@ type Application struct {
 	// this entry is built into the server or came from an uploaded package,
 	// which is what tells the UI whether it can be removed.
 	Source ApplicationSource `json:"source,omitempty"`
-	// Type decides whether installing this application provisions a container.
-	// Empty means KindService.
-	Type   Kind     `json:"type,omitempty"`
-	Scopes []Scope  `json:"scopes"`
-	Port   Port     `json:"port"`
-	Env    []EnvVar `json:"env,omitempty"`
+	Scopes []Scope           `json:"scopes"`
+	Port   Port              `json:"port"`
+	Env    []EnvVar          `json:"env,omitempty"`
 	// Service is the systemd unit name inside the container used for
 	// start/stop/status.
 	Service string `json:"service,omitempty"`
@@ -216,12 +172,14 @@ type Application struct {
 	Skills []string `json:"skills,omitempty"`
 }
 
-// MarshalJSON writes an application with the two consequences of its kind spelled
-// out. Whether an install reaches a container and whether it binds a host port
-// decide what the UI may show for an app — a port row, a connection panel, what
-// uninstalling it will remove — and those are answers this package already has.
-// Sending them means the browser reads the rule instead of keeping a second
-// copy of it that a new kind would silently fall through.
+// NeedsContainer reports whether this application has infrastructure to provision.
+func (im Application) NeedsContainer() bool { return im.Install != "" }
+
+// NeedsPort reports whether this application exposes its provisioned component.
+func (im Application) NeedsPort() bool { return im.NeedsContainer() && im.Port.Internal > 0 }
+
+// MarshalJSON writes the capabilities inferred from the application layout so
+// clients do not have to duplicate the inference rules.
 func (im Application) MarshalJSON() ([]byte, error) {
 	type wire Application // sheds this method, so encoding does not recurse
 	return json.Marshal(struct {
@@ -230,8 +188,8 @@ func (im Application) MarshalJSON() ([]byte, error) {
 		NeedsPort      bool `json:"needsPort"`
 	}{
 		wire:           wire(im),
-		NeedsContainer: im.Type.NeedsContainer(),
-		NeedsPort:      im.Type.NeedsPort(),
+		NeedsContainer: im.NeedsContainer(),
+		NeedsPort:      im.NeedsPort(),
 	})
 }
 
