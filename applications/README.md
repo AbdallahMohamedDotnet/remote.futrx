@@ -23,23 +23,32 @@ server, or any combination:
 ```
 applications/
   postgresql/
+    README.md        application documentation
     application.json metadata: name, description, port, env, systemd service
-    install.sh       idempotent installer, run as root inside the container
+    infra/
+      install.sh     idempotent installer, run as root inside the container
   object-mount/
+    README.md
     application.json a "tool": installs into the project container, no port
-    install.sh
+    infra/install.sh
   ui-playground/
+    README.md
     application.json
     ui/              browser extension: buttons, panels, popups
       views/*.html
       style/*.css
       scripts/main.js
   backend-playground/
+    README.md
     application.json
     backend/         Go source, compiled by the server and run as a process
       main.go
     ui/              the extension that calls it
 ```
+
+Keep regular files at the application root limited to `README.md` and
+`application.json`. Put provisioning files in `infra/`, server code in
+`backend/`, and browser code and assets in `ui/`.
 
 ## 📚 Full documentation: [`docs/dev/installable-applications/`](../docs/dev/installable-applications/)
 
@@ -69,15 +78,15 @@ and nothing else. Start with
 ## Adding an app, in short
 
 1. Create `applications/<id>/application.json`. `id` must equal the directory name, and
-   `version` is required — changing it is what re-runs `install.sh` on copies
+   `version` is required — changing it is what re-runs `infra/install.sh` on copies
    people already installed. See
    [Versions and upgrades](../docs/dev/installable-applications/17-versions-and-upgrades.md).
 2. Pick a `type`:
-   - `service` — runs software on a port. Add an `install.sh` and a
+   - `service` — runs software on a port. Add an `infra/install.sh` and a
      `port.internal`. A **global** install gets its own LXD container; a
      **project** install goes into that project's existing container.
    - `tool` — provisions software into the project's container and exposes
-     nothing. Add an `install.sh`, declare no port, and offer project scope
+     nothing. Add an `infra/install.sh`, declare no port, and offer project scope
      only. This is the shape for a CLI, a mount, or an agent that is useful
      because it is *in* the workspace.
    - `ui` — installs nothing anywhere. Add a `ui/` directory; declare no port.
