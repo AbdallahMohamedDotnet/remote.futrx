@@ -82,8 +82,8 @@ func TestRegistryUIAsset(t *testing.T) {
 		application string
 		asset       string
 	}{
-		{"traversal out of ui", fixtureService, "../install.sh"},
-		{"traversal into another application", fixtureService, "../../" + fixtureTool + "/install.sh"},
+		{"traversal out of ui", fixtureService, "../infra/install.sh"},
+		{"traversal into another application", fixtureService, "../../" + fixtureTool + "/infra/install.sh"},
 		{"absolute path", fixtureService, "/etc/passwd"},
 		{"empty path", fixtureService, ""},
 		{"missing file", fixtureService, "scripts/nope.js"},

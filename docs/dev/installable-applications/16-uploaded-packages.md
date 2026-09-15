@@ -43,22 +43,23 @@ built-in application would not.
 A `.zip` of exactly what an `applications/<id>/` directory holds:
 
 ```
-application.json    required — and it must set "id" and "version"
-install.sh           for a service or tool
-infra.tar.gz         optional infra payload (see 04 — Install scripts)
-ui/…                 optional browser extension
-backend/…            optional Go backend
+README.md            application documentation
+application.json     required — and it must set "id" and "version"
+infra/install.sh     for a service or tool
+infra/payload.tar.gz optional infra payload (see 04 — Install scripts)
+ui/…                  optional browser extension
+backend/…             optional Go backend
 ```
 
 Both shapes are accepted: the files at the archive root, or inside a single
 folder — which is what "compress this folder" produces on a desktop. macOS
 bookkeeping (`__MACOSX/`, `.DS_Store`, `._*`) is ignored.
 
-So any zip tool will do — unless the application carries an `infra.tar.gz`, which
+So any zip tool will do — unless the application carries an `infra/payload.tar.gz`, which
 nothing here builds for you: the archive is extracted as it arrives, and an
 application whose container source is a nested Go module has to ship the payload
-already packed. The convention is a `package.sh` in the application directory that
-builds `infra.tar.gz` and, with `--zip`, writes the whole archive.
+already packed. The convention is `infra/package.sh`, which builds
+`infra/payload.tar.gz` and, with `--zip`, writes the whole archive.
 
 `application.json` must set both `"id"` and `"version"`.
 

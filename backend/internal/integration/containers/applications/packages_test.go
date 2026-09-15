@@ -165,7 +165,7 @@ func TestUploadedServiceCarriesItsInstallScript(t *testing.T) {
 			"port": {"internal": 6000},
 			"service": "uploaded"
 		}`,
-		"install.sh": "#!/usr/bin/env bash\necho uploaded\n",
+		"infra/install.sh": "#!/usr/bin/env bash\necho uploaded\n",
 	})
 
 	script, ok := registry.Script("uploaded-service")
@@ -437,9 +437,9 @@ func TestPackageFilesAreNotWrittenExecutable(t *testing.T) {
 			"port": {"internal": 6000},
 			"service": "uploaded"
 		}`,
-		"install.sh": "#!/usr/bin/env bash\n",
+		"infra/install.sh": "#!/usr/bin/env bash\n",
 	})
-	info, err := os.Stat(filepath.Join(root, packageApplicationsDir, "uploaded-service", "install.sh"))
+	info, err := os.Stat(filepath.Join(root, packageApplicationsDir, "uploaded-service", "infra", "install.sh"))
 	if err != nil {
 		t.Fatalf("stat: %v", err)
 	}
