@@ -10,11 +10,20 @@ applications/
   docs/              ← this documentation (reserved name, not an application)
   mysql/
     README.md                application documentation
-    application.json       metadata
+    application.json         metadata and capability configuration
     infra/
-      install.sh            provisioner, run inside a container
-    ui/              browser extension (optional)
-    backend/          Go backend, compiled and run on the host (optional)
+      install.sh              provisioner, run inside a container
+      package.sh              builds the optional infrastructure payload
+      payload.tar.gz          files staged for install.sh
+    backend/                  Go backend, compiled and run on the host
+      main.go
+    ui/                       browser extension
+      scripts/main.js
+      style/
+      views/
+      assets/
+    skills/                   skills published to target projects
+      example/SKILL.md
   postgresql/
   redis/
   ui-playground/       fixture: extension only, no container
@@ -23,8 +32,11 @@ applications/
 ```
 
 The only regular files at an application root are `README.md` and
-`application.json`. Provisioning belongs in `infra/`, server code in
-`backend/`, and browser code and assets in `ui/`.
+`application.json`. Everything executable or distributable is grouped by
+capability: provisioning in `infra/`, server code in `backend/`, browser code
+and assets in `ui/`, and project skills in `skills/`. These capability folders
+are optional; the tree above shows the complete layout rather than a list of
+required folders.
 
 That directory is `applications/` at the repository root. The whole tree is compiled
 into the server binary with `//go:embed applications` in
@@ -41,26 +53,40 @@ Adding an application requires **no code changes**. `NewRegistry()` walks the
 directory at startup, validates every entry, and the new app appears in the
 Applications tab.
 
-## The three halves of an application
+## One application, composable capabilities
 
 ```
                          application.json
-                    /         |         \
-      infra/install.sh      backend/        ui/
-               |               |             |
-     runs in a container   runs on the   runs in the browser
-     (a service on a port)  host as a    (buttons, panels, popups)
-                            process
+            /                 |              |             \
+ infra/install.sh         backend/          ui/           skills/
+         |                    |              |               |
+ provisions a container   runs on the    runs in the     is published to
+ (optionally with a port)  host as a      browser         target projects
+                           process
 ```
 
-An application may have any of them, or all three:
+There are no application types and `application.json` has no `type` field.
+Remote discovers capabilities from the package itself, and each capability is
+optional and independent:
 
-| Application | `infra/install.sh` | `backend/` | `ui/` | What it is |
-|---|---|---|---|---|
-| `postgresql` | yes | no | no | a database |
-| `mysql` | yes | no | yes | a database that also adds a "Connect" action |
-| `ui-playground` | no | no | yes | a pure UI plugin |
-| `backend-playground` | no | yes | yes | a Go backend and the UI that calls it |
+| Capability | Declared by | What Remote does |
+|---|---|---|
+| Infrastructure | `infra/install.sh`, or an `install` path inside `infra/` | Provisions software in a container |
+| Network exposure | infrastructure plus `port.internal` | Allocates a host port and adds an LXD proxy device |
+| Backend | `backend/` | Compiles and runs the Go backend on the host |
+| UI | `ui/` | Loads the browser extension |
+| Skills | `skills/*/SKILL.md` | Publishes skills to the target project |
+
+An application may provide one capability or combine all of them. Adding or
+removing a capability means adding or removing its folder; there is no manifest
+discriminator to keep synchronized with the package layout.
+
+| Application | Infrastructure | Backend | UI | Skills | Result |
+|---|---|---|---|---|---|
+| `postgresql` | yes | no | no | no | provisions a database |
+| `mysql` | yes | no | yes | no | provisions a database and adds a Connect action |
+| `ui-playground` | no | no | yes | no | extends only the browser UI |
+| `backend-playground` | no | yes | yes | no | runs a host backend and exposes its actions in the UI |
 
 The layout supplies these capabilities directly — see
 [03 — Application capabilities](03-application-capabilities.md). `backend/` is covered in full by
@@ -210,11 +236,7 @@ sequenceDiagram
     Reg-->>Svc: Application + script bytes (payload already staged)
     Svc->>Svc: resolve env — defaults, generated secrets, required fields
 
-    alt ui or backend application
-        Note over Svc,LXD: no container, no port, no proxy device
-        Svc->>Store: persist as running
-        Svc->>Host: Ensure — compile backend/ if stale, start the process
-    else application with infrastructure
+    alt application has infrastructure
         alt project scope
             Svc->>Proj: container name, and ready it
         else global scope
@@ -229,9 +251,15 @@ sequenceDiagram
         opt port.internal is declared
             Inst->>LXD: add the proxy device that maps the host port
         end
-        Svc->>Host: Ensure, when the application ships a backend/ too
-        Svc->>Store: persist as running
+    else no infrastructure
+        Note over Svc,LXD: no container, no port, no proxy device
     end
+
+    opt application has backend/
+        Svc->>Host: Ensure — compile if stale, then start the process
+    end
+    Note over Svc,Host: UI and skills need no provisioning;<br/>they become available from the running instance
+    Svc->>Store: persist as running
 
     Svc-->>API: the instance
     API-->>UI: 200 — it appears under Installed
@@ -271,8 +299,8 @@ reload.
 
 An extension has to pass all three before anything of it appears:
 
-1. **It must be in the build.** The catalog is embedded; there is no runtime
-   installation of new applications.
+1. **It must be in the catalog.** Built-in applications are embedded in the
+   server binary; uploaded applications join the same registry from disk.
 2. **The user must have installed it**, and the instance must be *running*.
    Being in the catalog puts nothing on anyone's screen. See
    [12 — HTTP API](12-http-api.md) for `GET /api/applications/ui`.

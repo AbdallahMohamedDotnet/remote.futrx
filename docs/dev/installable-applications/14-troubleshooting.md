@@ -154,7 +154,7 @@ They should be removed on the next sync. If they are not:
 
 ## `PUT /port` returns an error for my application
 
-`ui` applications have no port. The error is
+Applications without infrastructure and `port.internal` have no port. The error is
 `applications: capability not supported`.
 
 ## A project install created a container
@@ -174,10 +174,11 @@ cases:
 | `Installing LXD snap, please be patient` | LXD is not ready yet |
 | script output ends mid-`apt-get` | no network in the container, or the 8-minute timeout was hit |
 
-A `ui` or `backend` application never touches LXD, which is why the fixtures install
-anywhere. A `backend` application does need a Go toolchain.
+An application without infrastructure never touches LXD, which is why the UI
+and backend-only fixtures install anywhere. An application with `backend/` does
+need a Go toolchain.
 
-## My backend application installs but its plugin will not start
+## My application's backend will not start
 
 The installed row carries the reason, because a plugin that fails to start
 fails the install.
