@@ -17,7 +17,7 @@ frontend code by editing `frontend/src`.
 
 **Therefore: treat a new or edited `ui/` in a pull request exactly as you treat
 any other frontend change.** That is the control. Reviewing an application's
-`install.sh` carefully while skimming its `ui/` gets the risk backwards — the
+`infra/install.sh` carefully while skimming its `ui/` gets the risk backwards — the
 script runs in a disposable container, the extension runs in the user's
 session.
 
@@ -70,7 +70,7 @@ upload endpoint and no runtime backend directory.
 
 **Therefore: review a new or edited `backend/` exactly as you would review
 `internal/`.** It is not "an app's config", it is server code that will run
-with the server's privileges. Reviewing an application's `install.sh` carefully while
+with the server's privileges. Reviewing an application's `infra/install.sh` carefully while
 skimming its `backend/` gets the risk backwards twice over: the script runs in a
 disposable container, the extension runs in the user's session, and the plugin
 runs on the host.
@@ -135,10 +135,10 @@ because the check runs on the decoded, cleaned path.
 Verified requests, all `404`:
 
 ```
-/api/applications/catalog/mysql/ui/../install.sh
-/api/applications/catalog/mysql/ui/../../redis/install.sh
-/api/applications/catalog/mysql/ui/%2e%2e/install.sh
-/api/applications/catalog/mysql/ui/..%2finstall.sh
+/api/applications/catalog/mysql/ui/../infra/install.sh
+/api/applications/catalog/mysql/ui/../../redis/infra/install.sh
+/api/applications/catalog/mysql/ui/%2e%2e/infra/install.sh
+/api/applications/catalog/mysql/ui/..%2finfra/install.sh
 /api/applications/catalog/redis/ui/scripts/main.js      (redis ships no ui/)
 ```
 
@@ -177,7 +177,7 @@ from *the build* to *the administrator*, and nowhere further:
   the embedded catalog does. There is no path a package can take that a
   built-in application cannot.
 - **Same privileges, and no more.** The `ui/` runs on the main origin, the
-  `backend/` runs as a child of the server, the `install.sh` runs as root in a
+  `backend/` runs as a child of the server, `infra/install.sh` runs as root in a
   container. Exactly as they do for a built-in application.
 - **No reserved id may be taken.** A package cannot claim the id of a built-in
   application, so it cannot redefine what an application the operator already trusts

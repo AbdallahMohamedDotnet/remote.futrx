@@ -41,7 +41,7 @@ func testPayload(t *testing.T, name string, kind byte) []byte {
 }
 
 func TestInfraPayloadStagesSourceAndCleansUp(t *testing.T) {
-	files := fstest.MapFS{"application/infra.tar.gz": {Data: testPayload(t, "infra/go.mod", tar.TypeReg)}}
+	files := fstest.MapFS{"application/infra/payload.tar.gz": {Data: testPayload(t, "infra/go.mod", tar.TypeReg)}}
 	script := []byte("printf '%s\\n' \"$APP_PACKAGE_DIR\"\ncat \"$APP_PACKAGE_DIR/infra/go.mod\"\nexit 7\n")
 	wrapped, err := withInfraPayload(files, "application", script)
 	if err != nil {

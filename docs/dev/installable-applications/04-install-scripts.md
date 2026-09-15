@@ -42,7 +42,7 @@ generous enough for an `apt-get install` on a cold container.
 
 ## Bundled infra files
 
-An application may include `infra.tar.gz` beside `application.json`. The archive holds
+An application may include `infra/payload.tar.gz`. The archive holds
 regular files and directories under `infra/`. The catalog validates the
 archive and wraps the install script to extract it into a temporary directory
 inside the target container. The script receives that directory as
@@ -57,7 +57,7 @@ a catalog to carry nested Go modules, which `go:embed` does not traverse.
 
 The s3disk application is the worked example, and it lives in its own repository
 rather than here. Its `infra/` is a Go module with its own `go.mod`, its
-`package.sh` rebuilds `infra.tar.gz` reproducibly, and `install.sh`
+`infra/package.sh` rebuilds `infra/payload.tar.gz` reproducibly, and `infra/install.sh`
 compiles the staged source inside the container. Copy that shape if your application
 needs one — including the part that is easy to miss: because
 `go:embed` skips a nested module in silence rather than failing, a stale or

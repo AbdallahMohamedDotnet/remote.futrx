@@ -18,7 +18,7 @@ Common causes:
 | `missing port.internal` | a `service` application needs a port |
 | `type "ui" must not declare port, service, or healthcheck` | remove them, or change the type |
 | `type "ui" requires a ui/ directory` | a UI application with no `ui/` does nothing |
-| `read install script "install.sh"` | a `service` application needs one |
+| `read install script "infra/install.sh"` | a `service` application needs one |
 | `ui: entry: … not found` | the `ui` block names a file that does not exist |
 | `ui: … exists but is empty` | `ui/` has no files at all |
 | `type "backend" requires a backend/ directory` | a backend application with no `backend/` does nothing |

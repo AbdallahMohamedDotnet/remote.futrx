@@ -49,7 +49,7 @@ A service application using every relevant field:
     "passwordEnv": "MYSQL_ROOT_PASSWORD",
     "databaseEnv": "MYSQL_DATABASE"
   },
-  "install": "install.sh",
+  "install": "infra/install.sh",
   "healthcheck": {
     "command": "mysqladmin ping -h 127.0.0.1 -P {{internalPort}} --silent"
   },
@@ -105,7 +105,7 @@ nothing — no port, no healthcheck, project scope only:
     { "key": "AWS_SECRET_ACCESS_KEY", "label": "Secret access key", "required": true, "secret": true }
   ],
   "service": "object-mount",
-  "install": "install.sh"
+  "install": "infra/install.sh"
 }
 ```
 
@@ -137,7 +137,7 @@ A UI application, which needs far less:
 | `name` | string | yes | Display name in the catalog and on installed rows. |
 | `description` | string | no | One line; the card truncates to two lines. |
 | `category` | string | no | Free text, e.g. `database`, `cache`, `development`. |
-| `version` | string | **yes** | A string, not a number — `"8.0"`, `"16"`, `"1.2.3-rc1"`. Shown next to the name, and the signal that re-runs `install.sh` on an installed copy when it changes. See [17 — Versions and upgrades](17-versions-and-upgrades.md). |
+| `version` | string | **yes** | A string, not a number — `"8.0"`, `"16"`, `"1.2.3-rc1"`. Shown next to the name, and the signal that re-runs `infra/install.sh` on an installed copy when it changes. See [17 — Versions and upgrades](17-versions-and-upgrades.md). |
 | `icon` | string | no | Built-in key or a path into this application's `ui/`. See [09 — Styling and icons](09-styling-and-icons.md). |
 | `type` | string | no | `service` (default), `tool`, `ui`, or `backend`. See [03 — Application types](03-application-types.md). |
 | `scopes` | string[] | yes | Any of `global`, `project`. At least one. |
@@ -146,7 +146,7 @@ A UI application, which needs far less:
 | `env` | object[] | no | Install-time inputs. See below. |
 | `service` | string | no | systemd unit name inside the container. Meaningful for `service` and `tool` — it is what stop and uninstall act on. Forbidden on `ui` and `backend`, which have no container. |
 | `connection` | object | no | Maps env vars to user/password/database. See below. |
-| `install` | string | no | Install-script filename. Default `install.sh`. Required for `service` and `tool`; ignored for `ui` and `backend`. |
+| `install` | string | no | Install-script path. Default `infra/install.sh`. Required for `service` and `tool`; ignored for `ui` and `backend`. |
 | `healthcheck` | object | no | `{ "command": "…" }` run inside the container. It probes a port, so it is forbidden on `tool`, `ui` and `backend`. |
 | `ui` | object | no | Overrides what is loaded from `ui/`. See below. |
 | `backend` | object | no | Overrides the defaults for the Go plugin in `backend/`. See below. |
@@ -342,4 +342,3 @@ applications may declare them; uninstall leaves them in place.
 A host that installs no application declaring host tools downloads nothing, which is
 what keeps such an application a genuinely optional addition rather than a dependency
 every operator inherits.
-

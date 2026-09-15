@@ -32,7 +32,7 @@ project UI uses the same catalog.
     "env": [ … ],
     "service": "mysql",
     "connection": { "user": "root", "passwordEnv": "MYSQL_ROOT_PASSWORD" },
-    "install": "install.sh",
+    "install": "infra/install.sh",
     "ui": {
       "entry": "scripts/main.js",
       "styles": ["style/popup.css", "style/style.css"],
