@@ -19,7 +19,6 @@ type Package struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Version string `json:"version,omitempty"`
-	Type    Kind   `json:"type,omitempty"`
 	// Scopes are the scopes the packaged application declares. Uploading a package
 	// adds it to a server-wide catalog, which is not the same as making it
 	// installable everywhere: a project-only app is listed for every admin and

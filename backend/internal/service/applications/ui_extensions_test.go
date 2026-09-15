@@ -14,13 +14,13 @@ func (f *fakeRegistry) List() []Application { return nil }
 func (f *fakeRegistry) Get(id string) (Application, bool) {
 	for _, candidate := range f.withUI {
 		if candidate == id {
-			return Application{ID: id, Name: id, Type: KindUI, UI: &ApplicationUI{Entry: "scripts/main.js"}}, true
+			return Application{ID: id, Name: id, UI: &ApplicationUI{Entry: "scripts/main.js"}}, true
 		}
 	}
 	for _, candidate := range f.withBackend {
 		if candidate == id {
 			return Application{
-				ID: id, Name: id, Type: KindBackend,
+				ID: id, Name: id,
 				UI:      &ApplicationUI{Entry: "scripts/main.js"},
 				Backend: &ApplicationBackend{},
 			}, true
@@ -28,14 +28,14 @@ func (f *fakeRegistry) Get(id string) (Application, bool) {
 	}
 	for _, candidate := range f.withoutUI {
 		if candidate == id {
-			return Application{ID: id, Name: id, Type: KindService}, true
+			return Application{ID: id, Name: id, Install: "infra/install.sh"}, true
 		}
 	}
 	// An application the binary was built with, which is what a package uploaded
 	// under the same id is up against.
 	for _, candidate := range f.builtin {
 		if candidate == id {
-			return Application{ID: id, Name: id, Type: KindTool, Source: SourceBuiltin}, true
+			return Application{ID: id, Name: id, Install: "infra/install.sh", Source: SourceBuiltin}, true
 		}
 	}
 	return Application{}, false

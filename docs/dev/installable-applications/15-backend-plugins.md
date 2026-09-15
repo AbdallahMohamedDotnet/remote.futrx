@@ -70,7 +70,6 @@ and in `application.json`:
 {
   "id": "my-plugin",
   "name": "My Plugin",
-  "type": "backend",
   "scopes": ["global", "project"]
 }
 ```
@@ -301,19 +300,12 @@ meant to be. Anything that must survive belongs in `DataDir`.
 rather than interrupted — net/rpc has no cancellation — so the plugin finishes
 its work unobserved and answers the next request normally.
 
-## Choosing a type
+## Combining capabilities
 
-```
-Does installing it run software in a container?
-├── yes → "service"    (and it may still ship backend/ and ui/)
-└── no
-    ├── does it need server-side code?  → "backend"
-    └── is it only browser code?        → "ui"
-```
-
-`backend` and `ui` both install nothing in a container and work on a host with
-no container runtime at all. A `service` application may ship a `backend/` too — the
-container half provisions the software, the plugin half is what its UI talks
+`backend/` and `ui/` install nothing in a container and work on a host with no
+container runtime. Add `infra/install.sh` when the same application must also
+provision software; the backend can then coordinate that software and its UI can
+expose it to the user.
 to.
 
 ## Why net/rpc rather than gRPC
@@ -339,7 +331,7 @@ contract. See [10 — Fixtures](10-fixtures.md).
 ## Related
 
 - [02 — application.json reference](02-application-json.md#backend) — the `backend` block.
-- [03 — Application types](03-application-types.md) — where `backend` sits beside the others.
+- [03 — Application capabilities](03-application-capabilities.md) — how `backend/` composes with the others.
 - [06 — Extension API](06-extension-api.md#remotebackend) — `remote.backend` in full.
 - [12 — HTTP API](12-http-api.md#backend-plugin-routes) — the routes and their authorization.
 - [13 — Security model](13-security-model.md#backend-plugins) — what a plugin can do, and what stops it.

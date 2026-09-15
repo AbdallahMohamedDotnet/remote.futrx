@@ -16,7 +16,7 @@ var (
 	ErrNotFound           = errors.New("applications: instance not found")
 	ErrPortRange          = errors.New("applications: external port out of range")
 	ErrAlreadyInstalled   = errors.New("applications: this application is already installed in this scope")
-	ErrNotSupported       = errors.New("applications: not supported for this application type")
+	ErrNotSupported       = errors.New("applications: capability not supported")
 
 	// Uploaded-package errors.
 	ErrPackagesUnavailable = errors.New("applications: uploaded packages are not available on this server")

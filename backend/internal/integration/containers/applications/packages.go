@@ -156,7 +156,6 @@ func (s *PackageStore) install(upload svc.PackageUpload, accept func(string) err
 		ID:         id,
 		Name:       img.Name,
 		Version:    img.Version,
-		Type:       img.Type,
 		Scopes:     img.Scopes,
 		Filename:   filepath.Base(filepath.Clean(upload.Filename)),
 		Size:       int64(len(upload.Data)),

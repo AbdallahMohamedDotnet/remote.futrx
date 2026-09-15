@@ -48,7 +48,7 @@ func serviceImageAt(version string) Application {
 		ID:      "db",
 		Name:    "Database",
 		Version: version,
-		Type:    KindService,
+		Install: "infra/install.sh",
 		Scopes:  []Scope{ScopeGlobal, ScopeProject},
 		Port:    Port{Internal: 5432},
 		Service: "db",
@@ -194,13 +194,18 @@ func TestUploadReinstallsAnInstanceWithNoRecordedVersion(t *testing.T) {
 
 // A ui or backend application provisions nothing into a container, so there is no
 // install script for a version bump to re-run.
-func TestUploadDoesNotReinstallImagesWithNoContainerSide(t *testing.T) {
-	for _, kind := range []Kind{KindUI, KindBackend} {
-		t.Run(string(kind), func(t *testing.T) {
+func TestUploadDoesNotReinstallApplicationsWithNoContainerSide(t *testing.T) {
+	for _, capability := range []string{"ui", "backend"} {
+		t.Run(capability, func(t *testing.T) {
 			application := serviceImageAt("2.0.0")
-			application.Type = kind
+			application.Install = ""
 			application.Port = Port{}
 			application.Service = ""
+			if capability == "ui" {
+				application.UI = &ApplicationUI{}
+			} else {
+				application.Backend = &ApplicationBackend{}
+			}
 			store := &fakeStore{global: []Instance{installedAt("g1", "", "1.0.0", StatusRunning)}}
 			installer := &failingInstaller{}
 			service := upgradeService(
@@ -216,7 +221,7 @@ func TestUploadDoesNotReinstallImagesWithNoContainerSide(t *testing.T) {
 				t.Fatalf("upload: %v", err)
 			}
 			if len(installer.installed) != 0 {
-				t.Fatalf("%s application ran an install script", kind)
+				t.Fatalf("%s application ran an install script", capability)
 			}
 			if len(pkg.Upgraded) != 0 {
 				t.Fatalf("outcomes = %+v, want none", pkg.Upgraded)
@@ -334,48 +339,37 @@ func TestInstallRefusesAScopeTheImageDoesNotDeclare(t *testing.T) {
 	for _, testCase := range []struct {
 		name    string
 		scopes  []Scope
-		kind    Kind
 		request InstallRequest
 	}{
 		{
 			name:    "project-only service installed globally",
 			scopes:  []Scope{ScopeProject},
-			kind:    KindService,
 			request: InstallRequest{ApplicationID: "db", Scope: ScopeGlobal},
 		},
 		{
 			name:    "project-only ui installed globally",
 			scopes:  []Scope{ScopeProject},
-			kind:    KindUI,
 			request: InstallRequest{ApplicationID: "db", Scope: ScopeGlobal},
 		},
 		{
 			name:    "project-only backend installed globally",
 			scopes:  []Scope{ScopeProject},
-			kind:    KindBackend,
 			request: InstallRequest{ApplicationID: "db", Scope: ScopeGlobal},
 		},
 		{
 			name:    "global-only service installed into a project",
 			scopes:  []Scope{ScopeGlobal},
-			kind:    KindService,
 			request: InstallRequest{ApplicationID: "db", Scope: ScopeProject, ProjectID: "p1"},
 		},
 		{
 			name:    "unknown scope",
 			scopes:  []Scope{ScopeGlobal, ScopeProject},
-			kind:    KindService,
 			request: InstallRequest{ApplicationID: "db", Scope: "host"},
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			application := serviceImageAt("1.0.0")
 			application.Scopes = testCase.scopes
-			application.Type = testCase.kind
-			if !testCase.kind.NeedsPort() {
-				application.Port = Port{}
-				application.Service = ""
-			}
 			store := &fakeStore{}
 			installer := &failingInstaller{}
 			service := upgradeService(store, &versionedRegistry{application: application}, installer, nil, nil)

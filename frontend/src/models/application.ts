@@ -4,14 +4,6 @@
 
 export type AppScope = "global" | "project";
 
-/**
- * What installing an application actually does. `service` runs software in a
- * container (a dedicated one for global scope); `ui` installs nothing anywhere
- * and only turns on the application's browser extension; `backend` installs nothing
- * either, and runs the Go plugin the application ships as a server-side process.
- */
-export type AppKind = "service" | "ui" | "backend" | "tool";
-
 export type AppInstanceStatus =
   | "installing"
   | "running"
@@ -114,12 +106,8 @@ export interface AppApplication {
   icon?: string;
   /** Decided by the server, never by the package: see {@link AppApplicationSource}. */
   source?: AppApplicationSource;
-  type: AppKind;
   /**
-   * What this entry's kind means for the UI, decided by the server. `service`
-   * needs both, `tool` a container but no port, `ui` and `backend` neither —
-   * but that mapping belongs to the server that owns the kinds, so the SPA
-   * reads these instead of restating it.
+   * Capabilities inferred by the server from infra/, backend/, and ui/.
    */
   needsContainer?: boolean;
   needsPort?: boolean;
@@ -227,7 +215,6 @@ export interface AppPackage {
   id: string;
   name: string;
   version?: string;
-  type?: AppKind;
   /**
    * Scopes the packaged app declares. Uploading adds it to a server-wide
    * catalog, which is not the same as making it installable everywhere — a

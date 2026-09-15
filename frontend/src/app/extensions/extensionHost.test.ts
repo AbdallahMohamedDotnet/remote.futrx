@@ -105,7 +105,6 @@ function helloExtension(global = true): AppUIExtension {
     application: {
       id: "hello-remote",
       name: "Hello Remote",
-      type: "backend",
       scopes: ["global"],
       port: { internal: 0, defaultExternal: 0, protocol: "" },
       ui: { entry: "scripts/main.js" },

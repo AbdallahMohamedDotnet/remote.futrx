@@ -38,7 +38,6 @@ const uploadedManifest = `{
 	"id": "uploaded-app",
 	"name": "Uploaded App",
 	"version": "1.0.0",
-	"type": "ui",
 	"scopes": ["global", "project"]
 }`
 
@@ -138,7 +137,6 @@ func TestUploadedBackendSourceComesFromThePackage(t *testing.T) {
 			"id": "uploaded-backend",
 			"name": "Uploaded Backend",
 			"version": "1.0.0",
-			"type": "backend",
 			"scopes": ["global"]
 		}`,
 		"backend/main.go": "package main\n\nfunc main() {}\n",
@@ -232,9 +230,9 @@ func TestPackageIsRejectedWhenItCannotBecomeAnImage(t *testing.T) {
 			want: svc.ErrPackageInvalid,
 		},
 		{
-			name: "ui type ships no ui directory",
+			name: "package has no capability directory",
 			files: map[string]string{
-				"application.json": `{"id": "hollow", "name": "Hollow", "type": "ui", "scopes": ["global"]}`,
+				"application.json": `{"id": "hollow", "name": "Hollow", "scopes": ["global"]}`,
 			},
 			want: svc.ErrPackageInvalid,
 		},
@@ -261,7 +259,6 @@ func TestPackageCannotShadowABuiltInImage(t *testing.T) {
 		"application.json": `{
 			"id": "` + fixtureUI + `",
 			"name": "Impostor",
-			"type": "ui",
 			"scopes": ["global"]
 		}`,
 		"ui/scripts/main.js": "export default () => {}\n",
@@ -305,7 +302,7 @@ func TestFailedReplacementLeavesThePreviousPackageInstalled(t *testing.T) {
 	upload(t, registry, uploadedPackage())
 
 	_, err := registry.InstallPackage(svc.PackageUpload{Data: zipOf(t, map[string]string{
-		"application.json": `{"id": "uploaded-app", "name": "Broken", "type": "ui", "scopes": ["global"]}`,
+		"application.json": `{"id": "uploaded-app", "name": "Broken", "scopes": ["global"]}`,
 	})})
 	if !errors.Is(err, svc.ErrPackageInvalid) {
 		t.Fatalf("err = %v, want %v", err, svc.ErrPackageInvalid)
@@ -470,7 +467,6 @@ func TestPackageSupersededByABuiltInImageCanStillBeRemoved(t *testing.T) {
 	catalog["applications/uploaded-app/application.json"] = &fstest.MapFile{Data: []byte(`{
 		"name": "Uploaded App",
 		"version": "2.0.0",
-		"type": "ui",
 		"scopes": ["global", "project"]
 	}`)}
 	catalog["applications/uploaded-app/ui/scripts/main.js"] = &fstest.MapFile{

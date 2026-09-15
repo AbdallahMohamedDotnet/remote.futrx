@@ -94,7 +94,6 @@ func TestPluginFromTheImageCatalogCompilesAndServes(t *testing.T) {
 		"applications/catalog-fixture/application.json": file(`{
 			"name": "Catalog Fixture",
 			"version": "1.0.0",
-			"type": "backend",
 			"scopes": ["global", "project"],
 			"backend": {"access": "registered", "timeoutMs": 10000}
 		}`),

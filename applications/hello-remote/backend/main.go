@@ -2,7 +2,7 @@
 // exercises both halves of the feature. It ships a backend/ the server compiles
 // and runs as a child process, and a ui/ that calls it from the browser.
 //
-// It deliberately installs nothing. A backend application gets no container, no port
+// It deliberately installs nothing. Without infra/ it gets no container or port
 // and no proxy device, so this app installs on a laptop with no LXD at all —
 // which is what makes it usable as the thing you install first to see whether
 // the plumbing works end to end.

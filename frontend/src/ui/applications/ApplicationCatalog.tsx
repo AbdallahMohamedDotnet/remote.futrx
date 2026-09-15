@@ -133,9 +133,7 @@ function InstallDialog({
   const [name, setName] = useState(application.name);
   const [env, setEnv] = useState<Record<string, string>>({});
   const [externalPort, setExternalPort] = useState<string>("");
-  // A tool, a UI extension and a backend plugin bind no host port. Asking for
-  // one would offer to configure something that does not exist — and would
-  // read application.port.internal, which is 0 for all three.
+  // An application without port-bearing infrastructure has no host port to configure.
   const asksForPort = hasPortBinding(application);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);

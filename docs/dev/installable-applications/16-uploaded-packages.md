@@ -45,7 +45,7 @@ A `.zip` of exactly what an `applications/<id>/` directory holds:
 ```
 README.md            application documentation
 application.json     required — and it must set "id" and "version"
-infra/install.sh     for a service or tool
+infra/install.sh     optional container provisioning
 infra/payload.tar.gz optional infra payload (see 04 — Install scripts)
 ui/…                  optional browser extension
 backend/…             optional Go backend
@@ -184,7 +184,6 @@ currently installed, which is what a caller needs before deciding to remove it.
     "id": "s3disk",
     "name": "s3disk",
     "version": "0.1.0",
-    "type": "tool",
     "filename": "s3disk.zip",
     "size": 150691,
     "sha256": "ad43ba10…",
@@ -211,7 +210,7 @@ curl -X POST https://remote.example.com/api/applications/packages \
 
 ```json
 {
-  "id": "s3disk", "name": "s3disk", "version": "0.2.0", "type": "tool",
+  "id": "s3disk", "name": "s3disk", "version": "0.2.0",
   "upgraded": [
     { "instanceId": "a1b2", "name": "s3disk", "scope": "project",
       "projectId": "proj-7", "fromVersion": "0.1.0", "toVersion": "0.2.0" }

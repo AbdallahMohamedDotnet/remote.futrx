@@ -50,7 +50,7 @@ func (r *Registry) Packages() []svc.Package {
 			stored[i].Error = reason
 			continue
 		}
-		// What the app *is* — its name, version, kind and the scopes it may be
+		// What the app *is* — its name, version and the scopes it may be
 		// installed at — is whatever the catalog loaded from the files on disk,
 		// not whatever was recorded when it was uploaded. Reading it back from
 		// the catalog is what keeps the management list from describing a
@@ -58,7 +58,6 @@ func (r *Registry) Packages() []svc.Package {
 		if img, ok := r.Get(stored[i].ID); ok {
 			stored[i].Name = img.Name
 			stored[i].Version = img.Version
-			stored[i].Type = img.Type
 			stored[i].Scopes = img.Scopes
 		}
 	}

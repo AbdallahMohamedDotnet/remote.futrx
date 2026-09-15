@@ -30,7 +30,7 @@ Two things follow from "differs" rather than "is newer":
 
 | Part of an application | When it refreshes |
 |---|---|
-| `install.sh` (a `service` or `tool`) | Only when the version differs |
+| `infra/install.sh` | Only when the version differs |
 | `ui/` assets | Every upload — they are served from the catalog, not a container |
 | `backend/` Go source | Every upload — the plugin process is stopped and rebuilt on its next call |
 | Catalog metadata (name, description, env fields, scopes) | Every upload |
