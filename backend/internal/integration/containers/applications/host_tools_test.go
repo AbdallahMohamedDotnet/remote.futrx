@@ -114,7 +114,7 @@ func TestRegistryRejectsIncompleteImageDeclarations(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := validate(tc.application); err == nil {
+			if err := validateApplication(tc.application); err == nil {
 				t.Error("want a validation error, got nil")
 			}
 		})

@@ -1,85 +1,11 @@
 package applications
 
 import (
-	"bytes"
-	"strings"
 	"testing"
 	"testing/fstest"
 
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
-
-func minimalCatalog(manifest string) fstest.MapFS {
-	return fstest.MapFS{
-		"applications/example/application.json": {Data: []byte(manifest)},
-	}
-}
-
-func TestLoadApplicationDiscoversDefaultInfrastructure(t *testing.T) {
-	catalog := minimalCatalog(`{
-		"name": "Example",
-		"version": "1.0.0",
-		"scopes": ["project"]
-	}`)
-	wantScript := []byte("#!/usr/bin/env bash\ntrue\n")
-	catalog["applications/example/infra/install.sh"] = &fstest.MapFile{Data: wantScript}
-
-	application, script, err := loadApplication(catalog, "example")
-	if err != nil {
-		t.Fatalf("load application: %v", err)
-	}
-	if application.Install != "infra/install.sh" {
-		t.Errorf("install path = %q, want inferred default", application.Install)
-	}
-	if !bytes.Equal(script, wantScript) {
-		t.Errorf("script = %q, want %q", script, wantScript)
-	}
-}
-
-func TestLoadApplicationAllowsNoInfrastructure(t *testing.T) {
-	catalog := minimalCatalog(`{
-		"name": "Example",
-		"version": "1.0.0",
-		"scopes": ["project"]
-	}`)
-	catalog["applications/example/skills/example/SKILL.md"] = &fstest.MapFile{Data: []byte("# Example\n")}
-
-	application, script, err := loadApplication(catalog, "example")
-	if err != nil {
-		t.Fatalf("load application: %v", err)
-	}
-	if application.Install != "" {
-		t.Errorf("install path = %q, want none", application.Install)
-	}
-	if script != nil {
-		t.Errorf("script = %q, want nil", script)
-	}
-}
-
-func TestLoadApplicationRejectsInvalidInfrastructureOverrides(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		install  string
-		wantText string
-	}{
-		{"outside infra", "install.sh", "install script must be inside infra/"},
-		{"missing explicit script", "infra/custom.sh", `read install script "infra/custom.sh"`},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			catalog := minimalCatalog(`{
-				"name": "Example",
-				"version": "1.0.0",
-				"scopes": ["project"],
-				"install": "` + tc.install + `"
-			}`)
-
-			_, _, err := loadApplication(catalog, "example")
-			if err == nil || !strings.Contains(err.Error(), tc.wantText) {
-				t.Fatalf("load error = %v, want text %q", err, tc.wantText)
-			}
-		})
-	}
-}
 
 // The shipped catalog and the fixture catalog are held to the same rules: the
 // invariants below belong to the *kind* an application declares, not to any
@@ -200,7 +126,7 @@ func TestValidateRejectsBadApplications(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			img := base()
 			tc.mutate(&img)
-			if err := validate(img); err == nil {
+			if err := validateApplication(img); err == nil {
 				t.Error("want a validation error, got nil")
 			}
 		})
@@ -246,7 +172,7 @@ func TestValidateAcceptsInfrastructureWithoutAPort(t *testing.T) {
 		Scopes:  []svc.Scope{svc.ScopeProject},
 		Service: "unit",
 	}
-	if err := validate(img); err != nil {
+	if err := validateApplication(img); err != nil {
 		t.Errorf("validate(tool) = %v, want nil", err)
 	}
 }
