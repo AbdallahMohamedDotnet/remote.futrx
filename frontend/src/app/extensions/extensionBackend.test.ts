@@ -6,7 +6,6 @@ import type { AppBackendInstance, AppApplication } from "../../models/applicatio
 const application = {
   id: "demo",
   name: "Demo",
-  type: "backend",
   scopes: ["global", "project"],
   port: { internal: 0, defaultExternal: 0 },
   backend: {},
@@ -88,7 +87,7 @@ test("an application with no running install reports itself unavailable", () => 
 });
 
 test("an application that ships no plugin is unavailable even when installed", () => {
-  const uiOnly = { ...application, type: "ui", backend: undefined } as AppApplication;
+  const uiOnly = { ...application, backend: undefined } as AppApplication;
   assert.equal(createBackendApi(uiOnly, [globalInstance]).available, false);
 });
 

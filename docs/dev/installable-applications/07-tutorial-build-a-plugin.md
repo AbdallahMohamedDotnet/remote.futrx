@@ -2,7 +2,7 @@
 
 We will build a plugin end to end: an application that adds an "Open in Cursor"
 button to the chat header, opening the current workspace in the Cursor editor.
-It installs nothing in a container, so it is a `type: "ui"` application.
+It installs nothing in a container because it has no `infra/install.sh`.
 
 By the end you will have touched every part of the system: the manifest, the
 entry module, a view, styling, an icon, and the install-and-test loop.
@@ -28,7 +28,6 @@ cat > applications/open-in-cursor/application.json <<'JSON'
   "category": "development",
   "version": "1",
   "icon": "ui/assets/logo.svg",
-  "type": "ui",
   "scopes": ["global", "project"]
 }
 JSON
@@ -37,7 +36,7 @@ JSON
 Notes:
 
 - `id` **must** equal the directory name.
-- `type: "ui"` means no container, no port, no install script.
+- With no `infra/install.sh`, no container, port, or install script is involved.
 - We omit the `ui` block entirely: the layout convention finds
   `scripts/main.js`, every `.css` under `style/`, and every `.html` under
   `views/`. See [02 — application.json reference](02-application-json.md).
@@ -235,8 +234,7 @@ change here. See [13 — Security model](13-security-model.md).
 - Compare against a fixture that exercises everything —
   [10 — Fixtures](10-fixtures.md).
 - Add an install script so the plugin also provisions something —
-  [04 — Install scripts](04-install-scripts.md), and switch `type` to
-  `service`.
+  [04 — Install scripts](04-install-scripts.md). No manifest discriminator changes.
 - Add a `backend/` directory so it can do work on the *server* and not only in
   the browser — [15 — Backend plugins](15-backend-plugins.md). That is the step
   from "a button that calls an existing endpoint" to "a button that calls an

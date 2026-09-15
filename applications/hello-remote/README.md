@@ -8,8 +8,8 @@ both halves of the feature:
 - **`ui/`** — assets the SPA loads for users who installed the application, which
   call that plugin through `remote.backend.call(...)`.
 
-It is `type: "backend"`, so it installs **nothing** into a container: no LXD
-container, no port, no proxy device. That is what makes it the first thing to
+It has no `infra/install.sh`, so it installs **nothing** into a container: no
+LXD container, no port, no proxy device. That is what makes it the first thing to
 install on a new server — if this app works, the catalog, the extension host
 and the plugin host all work.
 
@@ -28,7 +28,7 @@ takes.
 Install it at both scopes to see multiple instances of one application: each is a
 separate process with its own `DataDir` and its own counter.
 
-**A server that runs a `backend` application needs a Go toolchain**, because plugin
+**A server that runs an application backend needs a Go toolchain**, because plugin
 source is compiled on the host. Without one, the install reports that on the
 instance instead of failing the server. See
 [14 — Troubleshooting](../../docs/dev/installable-applications/14-troubleshooting.md).
@@ -56,7 +56,7 @@ server, open the panel, and the number is still there.
 
 | File | Shows |
 |---|---|
-| `application.json` | The manifest: type, scopes, `env[]`, the `backend` block. The `ui` block is omitted, so the layout convention finds the entry, styles and views. |
+| `application.json` | The manifest: scopes, `env[]`, and backend options. The `ui` block is omitted, so the layout convention finds the entry, styles and views. |
 | `backend/main.go` | `Describe` / `Init` / `Handle`, a `Mux`, and the one piece of storage a plugin owns. |
 | `backend/main_test.go` | A plugin is ordinary Go in the catalog module, so `go test ./...` from the repository root covers it with no server involved. |
 | `ui/scripts/main.js` | The entry module: one card button, one panel, and a render function that cleans up after itself. |

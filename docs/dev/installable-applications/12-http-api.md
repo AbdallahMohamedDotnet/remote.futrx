@@ -25,7 +25,6 @@ project UI uses the same catalog.
     "category": "database",
     "version": "8.0",
     "icon": "database",
-    "type": "service",
     "scopes": ["global", "project"],
     "port": { "internal": 3306, "defaultExternal": 3306, "protocol": "tcp",
               "bindAddress": "127.0.0.1" },
@@ -99,16 +98,16 @@ registered user.
 ```json
 [
   {
-    "application": { "id": "ui-playground", "name": "UI Playground", "type": "ui", … },
+    "application": { "id": "ui-playground", "name": "UI Playground", "ui": { … }, … },
     "global": true
   },
   {
-    "application": { "id": "ui-sandbox", "name": "UI Sandbox", "type": "ui", … },
+    "application": { "id": "ui-sandbox", "name": "UI Sandbox", "ui": { … }, … },
     "global": false,
     "projectIds": ["20336ed6ab63"]
   },
   {
-    "application": { "id": "backend-playground", "type": "backend",
+    "application": { "id": "backend-playground", "backend": { … },
                "backend": { "access": "registered", "timeoutMs": 10000 }, … },
     "global": true,
     "projectIds": ["20336ed6ab63"],

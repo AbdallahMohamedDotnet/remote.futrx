@@ -89,7 +89,7 @@ func serviceSpec(scope svc.Scope, container string) svc.InstallSpec {
 		Application: svc.Application{
 			ID:      fixtureService,
 			Name:    "Fixture Service",
-			Type:    svc.KindService,
+			Install: "infra/install.sh",
 			Service: "fixture",
 			Port:    svc.Port{Internal: 3306, DefaultExternal: 3306},
 		},
@@ -145,7 +145,7 @@ func toolSpec(container string) svc.InstallSpec {
 		Application: svc.Application{
 			ID:      fixtureTool,
 			Name:    "Fixture Tool",
-			Type:    svc.KindTool,
+			Install: "infra/install.sh",
 			Service: "fixture-tool",
 		},
 		Instance: svc.Instance{

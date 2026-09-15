@@ -38,7 +38,6 @@ func fixtureCatalog() fstest.MapFS {
 		"applications/" + fixtureTool + "/application.json": file(`{
 			"name": "Fixture Tool",
 			"version": "2.1.0",
-			"type": "tool",
 			"scopes": ["project"],
 			"service": "fixture-tool",
 			"hostTools": [{
@@ -63,7 +62,6 @@ func fixtureCatalog() fstest.MapFS {
 		"applications/" + fixtureUI + "/application.json": file(`{
 			"name": "Fixture UI",
 			"version": "0.4.0",
-			"type": "ui",
 			"scopes": ["project"],
 			"ui": {
 				"entry": "scripts/main.js",
@@ -81,7 +79,6 @@ func fixtureCatalog() fstest.MapFS {
 		"applications/" + fixtureBackend + "/application.json": file(`{
 			"name": "Fixture Backend",
 			"version": "3.0.0",
-			"type": "backend",
 			"scopes": ["project"],
 			"backend": {"access": "registered", "timeoutMs": 10000}
 		}`),

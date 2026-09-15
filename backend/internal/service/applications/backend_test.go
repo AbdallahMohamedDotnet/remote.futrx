@@ -56,7 +56,6 @@ func backendImage(mutate func(*Application)) Application {
 	application := Application{
 		ID:      "demo",
 		Name:    "Demo",
-		Type:    KindBackend,
 		Scopes:  []Scope{ScopeGlobal},
 		Backend: &ApplicationBackend{},
 	}
@@ -144,7 +143,7 @@ func TestCallBackendRefusals(t *testing.T) {
 		},
 		{
 			name:        "the application ships no plugin",
-			application: backendImage(func(i *Application) { i.Type = KindService; i.Backend = nil }),
+			application: backendImage(func(i *Application) { i.Backend = nil }),
 			instance:    runningInstance(),
 			caller:      anyCaller(),
 			host:        &recordingHost{},

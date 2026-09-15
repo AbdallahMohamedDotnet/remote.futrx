@@ -10,7 +10,7 @@ is:
 cd backend && go test ./internal/integration/containers/applications/
 ```
 
-This catches: a mismatched `id`, a missing `name`, an invalid `type` or
+This catches: a mismatched `id`, a missing `name`, an invalid capability layout or
 `scopes`, a `service` application with no port or no install script, a `ui` or
 `backend` application declaring a port, a `ui` block naming a file that does not
 exist, an empty `ui/` directory, and a `backend/` that is not a `package main`
@@ -41,7 +41,7 @@ go build ./... && go vet ./...
 
 | File | Covers |
 |---|---|
-| `registry_test.go` | catalog loading, application kinds, `ui/` discovery, the declared `ui` manifest, asset path traversal, reserved directories |
+| `registry_test.go` | catalog loading, capability inference, `ui/` discovery, the declared `ui` manifest, asset path traversal, reserved directories |
 | `registry_backend_test.go` | `backend/` discovery and every layout the registry refuses |
 | `installer_test.go` | which `lxc` commands each scope issues — and, crucially, which it must **not** |
 | `service/applications/ui_extensions_test.go` | which extensions a caller may load, and their install scope |

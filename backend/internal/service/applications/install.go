@@ -53,11 +53,11 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	}
 	inst.Env = env
 
-	// A UI or backend application has no container side at all: installing one only
+	// An application with no infrastructure has no container side: installing it only
 	// records that the user turned it on, which is what makes its ui/ load and
 	// its plugin run. Everything below this branch — container, port, proxy
 	// device, install script — exists only for applications that provision software.
-	if !img.Type.NeedsContainer() {
+	if !img.NeedsContainer() {
 		inst.Status = StatusRunning
 		if err := s.store.Put(ctx, inst); err != nil {
 			return View{}, err
@@ -71,14 +71,14 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 
 	// Only the container half needs a container runtime, which is why the
 	// check is here rather than at the top: a server with no LXD can still
-	// install a UI or backend application.
+	// install an application that only contributes UI or backend behavior.
 	if s.installer == nil {
 		return View{}, ErrUnavailable
 	}
-	// A tool is provisioned into a container but exposes nothing, so it gets no
+	// Portless infrastructure is provisioned into a container but exposes nothing, so it gets no
 	// device name, no internal port, and no host port: there is nothing for a
 	// proxy to forward.
-	if img.Type.NeedsPort() {
+	if img.NeedsPort() {
 		inst.DeviceName = "app-" + id
 		inst.InternalPort = img.Port.Internal
 		inst.Protocol = protoOr(img.Port.Protocol, ProtocolTCP)
@@ -88,7 +88,7 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	if err := s.resolveContainerTarget(ctx, req, &inst); err != nil {
 		return View{}, err
 	}
-	if img.Type.NeedsPort() {
+	if img.NeedsPort() {
 		if err := s.allocateHostPort(ctx, req, img, &inst); err != nil {
 			return View{}, err
 		}
@@ -103,7 +103,7 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		return View{}, err
 	}
-	// A service application may ship a plugin too — the container half provisions
+	// An application may ship a backend too — the container half provisions
 	// the software, the plugin half is what its UI talks to.
 	if err := s.startBackend(ctx, img, inst); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())

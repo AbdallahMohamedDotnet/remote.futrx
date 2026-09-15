@@ -11,7 +11,6 @@ func skillCatalog(extra map[string]string) (*Registry, error) {
 		"applications/kit/application.json": &fstest.MapFile{Data: []byte(`{
 			"name": "Kit",
 			"version": "1.0.0",
-			"type": "tool",
 			"scopes": ["project"],
 			"service": "kit"
 		}`)},

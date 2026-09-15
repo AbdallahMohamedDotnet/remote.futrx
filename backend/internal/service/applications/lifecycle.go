@@ -24,7 +24,7 @@ func (s *Service) SetPort(ctx context.Context, id string, port int) (View, error
 	if err != nil {
 		return View{}, err
 	}
-	if !img.Type.NeedsPort() {
+	if !img.NeedsPort() {
 		return View{}, fmt.Errorf("%w: %s has no port", ErrNotSupported, img.ID)
 	}
 	if port != inst.ExternalPort {
@@ -65,7 +65,7 @@ func (s *Service) Uninstall(ctx context.Context, id string) error {
 // process and data. Uninstalling and retrying a failed install share it, so
 // both leave exactly the same state behind.
 func (s *Service) teardown(ctx context.Context, img Application, inst Instance) error {
-	if img.Type.NeedsContainer() {
+	if img.NeedsContainer() {
 		if s.installer == nil {
 			return ErrUnavailable
 		}
@@ -82,11 +82,11 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 	if err != nil {
 		return View{}, err
 	}
-	// Start/stop on a UI application is purely a record: "stopped" means the SPA
+	// Start/stop without infrastructure may be purely a record: "stopped" means the SPA
 	// stops loading its extension, which is the whole effect it can have. A
-	// backend application has one real effect — its backend process — so the record
+	// An application with a backend has one real effect — its backend process — so the record
 	// and the process move together.
-	if !img.Type.NeedsContainer() {
+	if !img.NeedsContainer() {
 		if err := s.moveBackend(ctx, img, inst, target); err != nil {
 			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 			return View{}, err
