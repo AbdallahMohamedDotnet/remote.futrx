@@ -1,8 +1,8 @@
 # 04 — Install scripts
 
-`service` and `tool` applications have one. A `ui` or `backend` application installs
-nothing in a container and needs no script — see
-[03 — Application types](03-application-types.md).
+Applications that provision a container have one. UI-only or backend-only
+applications need no script — see
+[03 — Application capabilities](03-application-capabilities.md).
 
 ## The contract
 
@@ -15,8 +15,8 @@ lxc exec <container> --env APP_INTERNAL_PORT=3306 --env … -- bash -s
 It receives:
 
 - `APP_INTERNAL_PORT` — the port the app must bind **inside** the container.
-  Always `port.internal` from `application.json`. A `tool` has no port, so it is `0`
-  and means nothing.
+  Always `port.internal` from `application.json`. When no port is declared it
+  is `0` and means nothing.
 - One variable per `env[]` entry, already resolved: defaults applied, secrets
   generated, required values checked.
 
@@ -26,10 +26,10 @@ It must:
    run must be a no-op, not a reinstall or a reset.
 2. **Bind `APP_INTERNAL_PORT` on all interfaces** (`0.0.0.0`), so the LXD proxy
    device can forward the host port to it. Binding only to `127.0.0.1` inside
-   the container makes the app unreachable from the host. *A `tool` skips this
-   entirely: nothing listens, and there is no proxy device.*
+   the container makes the app unreachable from the host. Portless
+   infrastructure skips this entirely: nothing listens, and there is no proxy device.
 3. **Exit non-zero on failure.** A non-zero exit marks the instance `error` and
-   surfaces the tail of the output in the UI. This matters more for a tool,
+   surfaces the tail of the output in the UI. This matters more without a port,
    which has no `healthcheck` to fall back on: the script is the only thing
    that can decide the install worked. A mount tool waits for its mountpoint to
    appear and fails if it never does.
@@ -150,15 +150,15 @@ variables. Two rules:
 The same applies to non-secret user input. `ui-playground` used to escape
 `PLAYGROUND_TITLE` before writing it into HTML for exactly this reason.
 
-## Tools, which have no port to wait for
+## Infrastructure with no port to wait for
 
-A `tool` application's script is the same contract minus the port. A mount tool is
+A portless infrastructure script uses the same contract minus the port. A mount application is
 the worked example: it installs `fuse3`, puts the binary in place, writes its
 credentials to a root-only environment file, generates a systemd unit, and then
 **waits for `mountpoint -q` to succeed** before exiting. That wait is the whole
 readiness check.
 
-A tool whose daemon runs for the life of the container should also declare
+An application whose daemon runs for the life of the container should also declare
 itself to the idle-workspace probe, by writing its process name into
 `/etc/remote/workspace-idle.d/<name>`:
 

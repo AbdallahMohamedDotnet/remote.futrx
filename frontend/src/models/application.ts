@@ -4,13 +4,6 @@
 
 export type AppScope = "global" | "project";
 
-/**
- * What installing an application actually does. `service` runs software on a port in
- * a container (a dedicated one for global scope); `tool` provisions software
- * into the project's container and exposes nothing.
- */
-export type AppKind = "service" | "tool";
-
 export type AppInstanceStatus =
   | "installing"
   | "running"
@@ -54,12 +47,8 @@ export interface AppApplication {
   icon?: string;
   /** Decided by the server, never by the package: see {@link AppApplicationSource}. */
   source?: AppApplicationSource;
-  type: AppKind;
   /**
-   * What this entry's kind means for the UI, decided by the server. `service`
-   * needs both, `tool` a container but no port — but that mapping belongs to
-   * the server that owns the kinds, so the SPA reads these instead of
-   * restating it.
+   * Capabilities inferred by the server from the package layout.
    */
   needsContainer?: boolean;
   needsPort?: boolean;

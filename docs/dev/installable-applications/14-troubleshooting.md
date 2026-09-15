@@ -14,14 +14,12 @@ Common causes:
 | Message | Cause |
 |---|---|
 | `application id "x" does not match directory "y"` | `id` in `application.json` differs from the directory name |
-| `invalid type "daemon"` | `type` must be `service`, `ui`, `backend`, or absent |
-| `missing port.internal` | a `service` application needs a port |
-| `type "ui" must not declare port, service, or healthcheck` | remove them, or change the type |
-| `type "ui" requires a ui/ directory` | a UI application with no `ui/` does nothing |
-| `read install script "infra/install.sh"` | a `service` application needs one |
+| `port, healthcheck, and service require infra/install.sh` | add infrastructure or remove container-only fields |
+| `port.defaultExternal and healthcheck require port.internal` | declare the internal listener port |
+| `read install script "…"` | the explicitly configured install script does not exist |
+| `application has no infra, backend, ui, or skills` | add at least one capability directory |
 | `ui: entry: … not found` | the `ui` block names a file that does not exist |
 | `ui: … exists but is empty` | `ui/` has no files at all |
-| `type "backend" requires a backend/ directory` | a backend application with no `backend/` does nothing |
 | `backend: … contains no package main source` | `backend/` needs a Go program, not a library |
 | `backend: … declares package "helper", want main` | every non-test `.go` file directly in `backend/` must be `package main` |
 | `backend: backend/go.mod is not supported` | the server generates the plugin module; delete yours |
@@ -157,7 +155,7 @@ They should be removed on the next sync. If they are not:
 ## `PUT /port` returns an error for my application
 
 `ui` applications have no port. The error is
-`applications: not supported for this application type`.
+`applications: capability not supported`.
 
 ## A project install created a container
 

@@ -52,6 +52,13 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 		return View{}, err
 	}
 	inst.Env = env
+	if !img.NeedsContainer() {
+		inst.Status = StatusRunning
+		if err := s.store.Put(ctx, inst); err != nil {
+			return View{}, err
+		}
+		return s.view(inst), nil
+	}
 
 	if s.installer == nil {
 		return View{}, ErrUnavailable
@@ -59,7 +66,7 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	// A tool is provisioned into a container but exposes nothing, so it gets no
 	// device name, no internal port, and no host port: there is nothing for a
 	// proxy to forward.
-	if img.Type.NeedsPort() {
+	if img.NeedsPort() {
 		inst.DeviceName = "app-" + id
 		inst.InternalPort = img.Port.Internal
 		inst.Protocol = protoOr(img.Port.Protocol, ProtocolTCP)
@@ -69,7 +76,7 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	if err := s.resolveContainerTarget(ctx, req, &inst); err != nil {
 		return View{}, err
 	}
-	if img.Type.NeedsPort() {
+	if img.NeedsPort() {
 		if err := s.allocateHostPort(ctx, req, img, &inst); err != nil {
 			return View{}, err
 		}

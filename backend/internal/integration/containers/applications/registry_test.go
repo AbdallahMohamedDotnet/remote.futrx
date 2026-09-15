@@ -48,32 +48,14 @@ func assertCatalogInvariants(t *testing.T, r *Registry, wantImages bool) {
 		if len(img.Scopes) == 0 {
 			t.Errorf("application %s has no scopes", img.ID)
 		}
-		if !img.Type.Valid() {
-			t.Errorf("application %s has invalid type %q", img.ID, img.Type)
-		}
-		// Install scripts belong to applications that provision something into a
-		// container.
-		if img.Type.NeedsContainer() {
+		if img.NeedsContainer() {
 			if _, ok := r.Script(img.ID); !ok {
 				t.Errorf("application %s missing install script", img.ID)
 			}
 		}
-		// A port belongs only to a kind that is reachable on one. A tool runs
-		// in a container but exposes nothing.
-		if img.Type.NeedsPort() {
+		if img.NeedsPort() {
 			if img.Port.Internal <= 0 {
 				t.Errorf("application %s has invalid internal port %d", img.ID, img.Port.Internal)
-			}
-			continue
-		}
-		if img.Port.Internal != 0 {
-			t.Errorf("%s application %s declares port %d", img.Type, img.ID, img.Port.Internal)
-		}
-		if img.Type == svc.KindTool {
-			for _, sc := range img.Scopes {
-				if sc == svc.ScopeGlobal {
-					t.Errorf("tool application %s claims global scope", img.ID)
-				}
 			}
 		}
 	}
@@ -105,31 +87,29 @@ func TestRegistrySkipsReservedDirectories(t *testing.T) {
 	}
 }
 
-func TestRegistryImageKinds(t *testing.T) {
+func TestRegistryInfersApplicationCapabilities(t *testing.T) {
 	r := testRegistry(t)
-	for id, want := range map[string]svc.Kind{
-		fixtureService: svc.KindService,
-		fixtureTool:    svc.KindTool,
+	for id, want := range map[string]struct{ container, port bool }{
+		fixtureService: {true, true},
+		fixtureTool:    {true, false},
 	} {
 		img, ok := r.Get(id)
 		if !ok {
 			t.Errorf("missing application %s", id)
 			continue
 		}
-		if img.Type != want {
-			t.Errorf("%s type = %q, want %q", id, img.Type, want)
+		got := struct{ container, port bool }{img.NeedsContainer(), img.NeedsPort()}
+		if got != want {
+			t.Errorf("%s capabilities = %+v, want %+v", id, got, want)
 		}
 	}
 }
 
-func TestValidateRejectsBadImages(t *testing.T) {
+func TestValidateRejectsBadApplications(t *testing.T) {
 	base := func() svc.Application {
 		return svc.Application{
-			Name:    "Test",
-			Version: "1.0.0",
-			Type:    svc.KindService,
-			Scopes:  []svc.Scope{svc.ScopeGlobal},
-			Port:    svc.Port{Internal: 1234},
+			Name: "Test", Version: "1.0.0", Install: "infra/install.sh",
+			Scopes: []svc.Scope{svc.ScopeGlobal}, Port: svc.Port{Internal: 1234},
 		}
 	}
 	for _, tc := range []struct {
@@ -138,23 +118,10 @@ func TestValidateRejectsBadImages(t *testing.T) {
 	}{
 		{"no version", func(i *svc.Application) { i.Version = "" }},
 		{"blank version", func(i *svc.Application) { i.Version = "   " }},
-		{"unknown type", func(i *svc.Application) { i.Type = "daemon" }},
-		{"service without a port", func(i *svc.Application) { i.Port.Internal = 0 }},
-		{"tool application declaring a port", func(i *svc.Application) {
-			i.Type = svc.KindTool
-			i.Scopes = []svc.Scope{svc.ScopeProject}
-		}},
-		{"tool application declaring a healthcheck", func(i *svc.Application) {
-			i.Type = svc.KindTool
-			i.Scopes = []svc.Scope{svc.ScopeProject}
-			i.Port.Internal = 0
-			i.Healthcheck.Command = "true"
-		}},
-		{"tool application claiming global scope", func(i *svc.Application) {
-			i.Type = svc.KindTool
-			i.Port.Internal = 0
-			i.Scopes = []svc.Scope{svc.ScopeGlobal}
-		}},
+		{"missing scopes", func(i *svc.Application) { i.Scopes = nil }},
+		{"port without infra", func(i *svc.Application) { i.Install = "" }},
+		{"healthcheck without internal port", func(i *svc.Application) { i.Port.Internal = 0; i.Healthcheck.Command = "true" }},
+		{"service without infra", func(i *svc.Application) { i.Install = ""; i.Port = svc.Port{}; i.Service = "unit" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			img := base()
@@ -166,20 +133,17 @@ func TestValidateRejectsBadImages(t *testing.T) {
 	}
 }
 
-// A tool is the one kind that reaches a container without exposing anything:
-// it needs an install script like a service, and no port like an extension.
-// Getting either half wrong is what the kind exists to prevent.
-func TestToolImageInstallsWithoutExposingAPort(t *testing.T) {
+func TestInfrastructureApplicationCanInstallWithoutExposingAPort(t *testing.T) {
 	r := testRegistry(t)
 	img, ok := r.Get(fixtureTool)
 	if !ok {
 		t.Fatal("expected the fixture tool application")
 	}
-	if !img.Type.NeedsContainer() {
-		t.Error("a tool must reach a container")
+	if !img.NeedsContainer() {
+		t.Error("infrastructure must reach a container")
 	}
-	if img.Type.NeedsPort() {
-		t.Error("a tool must not need a host port")
+	if img.NeedsPort() {
+		t.Error("portless infrastructure must not need a host port")
 	}
 	if img.Port.Internal != 0 {
 		t.Errorf("internal port = %d, want none", img.Port.Internal)
@@ -200,12 +164,11 @@ func TestToolImageInstallsWithoutExposingAPort(t *testing.T) {
 	}
 }
 
-// A validated tool application accepts the shape the kind is for.
-func TestValidateAcceptsAToolImage(t *testing.T) {
+func TestValidateAcceptsInfrastructureWithoutAPort(t *testing.T) {
 	img := svc.Application{
 		Name:    "Tool",
 		Version: "1.0.0",
-		Type:    svc.KindTool,
+		Install: "infra/install.sh",
 		Scopes:  []svc.Scope{svc.ScopeProject},
 		Service: "unit",
 	}

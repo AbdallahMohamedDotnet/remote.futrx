@@ -91,10 +91,8 @@ function InstalledRow({
     });
 
   const running = instance.status === "running";
-  // Two different questions. A UI or backend application put nothing in a container,
-  // which is what the uninstall wording turns on. A port row is narrower: only
-  // an application that binds a host port has one, so a tool — provisioned into the
-  // container but exposing nothing — shows a summary instead of zeros.
+  // Two different questions: infrastructure may exist without binding a host
+  // port, in which case the row shows a summary instead of zeros.
   const applicationHasContainer = hasContainer(application);
   const applicationHasPort = hasPortBinding(application);
   const pendingUpgrade = pendingUpgradeVersion(instance, application);

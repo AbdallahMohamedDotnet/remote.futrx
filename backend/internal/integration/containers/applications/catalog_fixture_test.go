@@ -32,7 +32,6 @@ func fixtureCatalog() fstest.MapFS {
 		"applications/" + fixtureTool + "/application.json": file(`{
 			"name": "Fixture Tool",
 			"version": "2.1.0",
-			"type": "tool",
 			"scopes": ["project"],
 			"service": "fixture-tool",
 			"hostTools": [{

@@ -222,7 +222,7 @@ id except their own tests:
 
 - `registry_test.go:TestRegistryLoadsDeclaredImageUI` uses `ui-playground` to
   cover the explicit `ui` manifest path.
-- `registry_test.go:TestRegistryImageKinds` asserts both playgrounds' `type`.
+- `registry_test.go:TestRegistryInfersApplicationCapabilities` asserts the discovered capabilities.
 - `registry_backend_test.go:TestRegistryBackendSource` and
   `pluginhost/catalog_test.go` use `backend-playground`.
 

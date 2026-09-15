@@ -29,7 +29,7 @@ applications/
       install.sh     idempotent installer, run as root inside the container
   object-mount/
     README.md
-    application.json a "tool": installs into the project container, no port
+    application.json installs into the project container, no port
     infra/install.sh
   ui-playground/
     README.md
@@ -60,7 +60,7 @@ and nothing else. Start with
 | I want to… | Read |
 |---|---|
 | Understand the system | [Overview](../docs/dev/installable-applications/01-overview.md) |
-| Add a database or service | [Application types](../docs/dev/installable-applications/03-application-types.md), [Install scripts](../docs/dev/installable-applications/04-install-scripts.md) |
+| Add a database or service | [Application capabilities](../docs/dev/installable-applications/03-application-capabilities.md), [Install scripts](../docs/dev/installable-applications/04-install-scripts.md) |
 | Add a button or panel to the UI | [Tutorial](../docs/dev/installable-applications/07-tutorial-build-a-plugin.md) |
 | Look up an `application.json` field | [application.json reference](../docs/dev/installable-applications/02-application-json.md) |
 | Look up an extension API method | [Extension API](../docs/dev/installable-applications/06-extension-api.md) |
@@ -81,17 +81,9 @@ and nothing else. Start with
    `version` is required — changing it is what re-runs `infra/install.sh` on copies
    people already installed. See
    [Versions and upgrades](../docs/dev/installable-applications/17-versions-and-upgrades.md).
-2. Pick a `type`:
-   - `service` — runs software on a port. Add an `infra/install.sh` and a
-     `port.internal`. A **global** install gets its own LXD container; a
-     **project** install goes into that project's existing container.
-   - `tool` — provisions software into the project's container and exposes
-     nothing. Add an `infra/install.sh`, declare no port, and offer project scope
-     only. This is the shape for a CLI, a mount, or an agent that is useful
-     because it is *in* the workspace.
-   - `ui` — installs nothing anywhere. Add a `ui/` directory; declare no port.
-   - `backend` — installs nothing in a container. Add a `backend/` directory of
-     Go source; the server compiles it and runs it as a process.
+2. Add any capabilities the application needs. `infra/install.sh` provisions a
+   container; `port.internal` exposes it; `backend/` adds server behavior; and
+   `ui/` adds browser behavior. These may be used independently or together.
 3. Optionally add `ui/` to contribute to the interface. The layout is the
    manifest: `scripts/main.js` is the entry, `style/*.css` are injected,
    `views/*.html` are loadable by name.
@@ -134,8 +126,8 @@ install's secrets. It deserves the same review as any change under
 ## The example app
 
 [`hello-remote/`](hello-remote/) is the one application this repository ships, and it
-is here to be installed: it is `type: "backend"`, so it needs no LXD, no port
-and no proxy device, and it works on a laptop. Installing it exercises the
+is here to be installed. It has `backend/` and `ui/` capabilities but no
+`infra/install.sh`, so it needs no LXD, port, or proxy device and works on a laptop. Installing it exercises the
 catalog, the install dialog's `env[]` field, both extension slots it draws in,
 and a real backend process — so if it works, the feature works.
 
