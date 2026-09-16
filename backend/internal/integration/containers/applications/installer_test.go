@@ -137,34 +137,32 @@ func TestInstallProjectScopeUsesTheProjectContainer(t *testing.T) {
 	}
 }
 
-// A global service has no project container to live in, so it gets its own.
-// toolSpec is a tool install: a real container and install script, but no
-// device name, no ports, and therefore nothing to proxy.
-func toolSpec(container string) svc.InstallSpec {
+// portlessInfrastructureSpec describes a real container and install script,
+// but no device name, ports, or proxy.
+func portlessInfrastructureSpec(container string) svc.InstallSpec {
 	return svc.InstallSpec{
 		Application: svc.Application{
-			ID:      fixtureTool,
-			Name:    "Fixture Tool",
+			ID:      fixturePortless,
+			Name:    "Fixture Portless",
 			Install: "infra/install.sh",
-			Service: "fixture-tool",
+			Service: "fixture-portless",
 		},
 		Instance: svc.Instance{
 			ID:            "abc123",
-			ApplicationID: fixtureTool,
+			ApplicationID: fixturePortless,
 			Scope:         svc.ScopeProject,
 			ContainerName: container,
 		},
 	}
 }
 
-// A tool provisions software into the project container exactly as a service
-// does, but exposes nothing. Creating a proxy device for it would claim a host
-// port for something that is not listening.
-func TestInstallToolRunsTheScriptButAddsNoProxy(t *testing.T) {
+// Portless infrastructure provisions software into the project container but
+// exposes nothing. Creating a proxy would claim a host port for no listener.
+func TestInstallPortlessInfrastructureRunsTheScriptButAddsNoProxy(t *testing.T) {
 	runner := newFakeRunner("my-project")
 	installer := testInstaller(t, runner)
 
-	if err := installer.Install(context.Background(), toolSpec("my-project")); err != nil {
+	if err := installer.Install(context.Background(), portlessInfrastructureSpec("my-project")); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 
@@ -173,32 +171,32 @@ func TestInstallToolRunsTheScriptButAddsNoProxy(t *testing.T) {
 			strings.Join(runner.commands(), "\n"))
 	}
 	if runner.contains("proxy") {
-		t.Errorf("a tool exposes nothing; it must not add a proxy device:\n%s",
+		t.Errorf("portless infrastructure must not add a proxy device:\n%s",
 			strings.Join(runner.commands(), "\n"))
 	}
 	for _, forbidden := range []string{"launch", "init", "copy", "create"} {
 		if runner.hasPrefix(forbidden + " ") {
-			t.Errorf("tool install ran %q; it must reuse the project container:\n%s",
+			t.Errorf("portless infrastructure ran %q; it must reuse the project container:\n%s",
 				forbidden, strings.Join(runner.commands(), "\n"))
 		}
 	}
 }
 
-// Stopping a tool stops its unit, and must leave the project container — the
-// one someone is working in — running.
-func TestStopToolStopsOnlyTheUnit(t *testing.T) {
+// Stopping project-scoped infrastructure stops its unit and leaves the project
+// container running.
+func TestStopPortlessInfrastructureStopsOnlyTheUnit(t *testing.T) {
 	runner := newFakeRunner("my-project")
 	installer := testInstaller(t, runner)
 
-	if err := installer.Stop(context.Background(), toolSpec("my-project")); err != nil {
+	if err := installer.Stop(context.Background(), portlessInfrastructureSpec("my-project")); err != nil {
 		t.Fatalf("stop: %v", err)
 	}
 
-	if !runner.contains("systemctl stop fixture-tool") {
+	if !runner.contains("systemctl stop fixture-portless") {
 		t.Errorf("want the unit stopped, got:\n%s", strings.Join(runner.commands(), "\n"))
 	}
 	if runner.hasPrefix("stop ") {
-		t.Errorf("stopping a tool must not stop the project container:\n%s",
+		t.Errorf("stopping project infrastructure must not stop the project container:\n%s",
 			strings.Join(runner.commands(), "\n"))
 	}
 }
@@ -224,7 +222,7 @@ func TestInstallGlobalScopeLaunchesADedicatedContainer(t *testing.T) {
 	}
 }
 
-func TestInstallGlobalScopeHonoursTheImageBase(t *testing.T) {
+func TestInstallGlobalScopeHonoursTheApplicationBase(t *testing.T) {
 	runner := newFakeRunner()
 	installer := testInstaller(t, runner)
 	spec := serviceSpec(svc.ScopeGlobal, "futrx-app-abc123")

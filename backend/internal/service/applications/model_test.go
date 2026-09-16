@@ -12,7 +12,6 @@ func TestApplicationJSONReportsCapabilitiesWithoutAType(t *testing.T) {
 		Name:    "Complete",
 		Install: "infra/install.sh",
 		Port:    Port{Internal: 8080},
-		UI:      &ApplicationUI{},
 		Backend: &ApplicationBackend{},
 	}
 

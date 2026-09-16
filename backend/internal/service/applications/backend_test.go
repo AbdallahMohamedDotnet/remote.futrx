@@ -70,7 +70,7 @@ func backendImage(mutate func(*Application)) Application {
 func backendService(application Application, instances []Instance, host BackendHost) (*Service, *fakeStore) {
 	store := &fakeStore{global: instances}
 	return New(
-		&singleImageRegistry{application: application},
+		&singleApplicationRegistry{application: application},
 		store,
 		nil, nil, nil,
 		WithBackendHost(host),

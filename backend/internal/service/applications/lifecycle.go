@@ -20,12 +20,12 @@ func (s *Service) SetPort(ctx context.Context, id string, port int) (View, error
 	if port < 1 || port > 65535 {
 		return View{}, ErrPortRange
 	}
-	inst, img, err := s.load(ctx, id)
+	inst, application, err := s.load(ctx, id)
 	if err != nil {
 		return View{}, err
 	}
-	if !img.NeedsPort() {
-		return View{}, fmt.Errorf("%w: %s has no port", ErrNotSupported, img.ID)
+	if !application.NeedsPort() {
+		return View{}, fmt.Errorf("%w: %s has no port", ErrNotSupported, application.ID)
 	}
 	if port != inst.ExternalPort {
 		taken, err := s.reservedPorts(ctx)
@@ -39,7 +39,7 @@ func (s *Service) SetPort(ctx context.Context, id string, port int) (View, error
 		inst.ExternalPort = port
 	}
 	inst.UpdatedAt = s.now()
-	spec := InstallSpec{Application: img, Instance: inst}
+	spec := InstallSpec{Application: application, Instance: inst}
 	if err := s.installer.Expose(ctx, spec); err != nil {
 		return View{}, err
 	}
@@ -51,11 +51,11 @@ func (s *Service) SetPort(ctx context.Context, id string, port int) (View, error
 
 // Uninstall removes an instance and everything it left behind.
 func (s *Service) Uninstall(ctx context.Context, id string) error {
-	inst, img, err := s.load(ctx, id)
+	inst, application, err := s.load(ctx, id)
 	if err != nil {
 		return err
 	}
-	if err := s.teardown(ctx, img, inst); err != nil {
+	if err := s.teardown(ctx, application, inst); err != nil {
 		return err
 	}
 	return s.store.Delete(ctx, id)
@@ -64,30 +64,29 @@ func (s *Service) Uninstall(ctx context.Context, id string) error {
 // teardown removes an instance's footprint: its container side, and its backend
 // process and data. Uninstalling and retrying a failed install share it, so
 // both leave exactly the same state behind.
-func (s *Service) teardown(ctx context.Context, img Application, inst Instance) error {
-	if img.NeedsContainer() {
+func (s *Service) teardown(ctx context.Context, application Application, inst Instance) error {
+	if application.NeedsContainer() {
 		if s.installer == nil {
 			return ErrUnavailable
 		}
-		if err := s.installer.Uninstall(ctx, InstallSpec{Application: img, Instance: inst}); err != nil {
+		if err := s.installer.Uninstall(ctx, InstallSpec{Application: application, Instance: inst}); err != nil {
 			return err
 		}
 	}
-	return s.removeBackend(ctx, img, inst)
+	return s.removeBackend(ctx, application, inst)
 }
 
 // transition runs a lifecycle action and records the resulting status.
 func (s *Service) transition(ctx context.Context, id string, target InstanceStatus) (View, error) {
-	inst, img, err := s.load(ctx, id)
+	inst, application, err := s.load(ctx, id)
 	if err != nil {
 		return View{}, err
 	}
-	// Start/stop without infrastructure may be purely a record: "stopped" means the SPA
-	// stops loading its extension, which is the whole effect it can have. A
-	// An application with a backend has one real effect — its backend process — so the record
-	// and the process move together.
-	if !img.NeedsContainer() {
-		if err := s.moveBackend(ctx, img, inst, target); err != nil {
+	// An application without infrastructure may be purely a record: stopped
+	// means the SPA no longer loads its extension. If it has a backend, the
+	// backend process and record move together.
+	if !application.NeedsContainer() {
+		if err := s.moveBackend(ctx, application, inst, target); err != nil {
 			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 			return View{}, err
 		}
@@ -104,8 +103,8 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 			return View{}, err
 		}
 	}
-	upgrading := target == StatusRunning && needsUpgrade(inst, img)
-	if err := s.moveContainer(ctx, InstallSpec{Application: img, Instance: inst}, target); err != nil {
+	upgrading := target == StatusRunning && needsUpgrade(inst, application)
+	if err := s.moveContainer(ctx, InstallSpec{Application: application, Instance: inst}, target); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		return View{}, err
 	}
@@ -113,9 +112,9 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 	// actually run, so a failed start leaves the instance asking for the
 	// upgrade again rather than claiming to have it.
 	if upgrading {
-		inst.ApplicationVersion = img.Version
+		inst.ApplicationVersion = application.Version
 	}
-	if err := s.moveBackend(ctx, img, inst, target); err != nil {
+	if err := s.moveBackend(ctx, application, inst, target); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		return View{}, err
 	}

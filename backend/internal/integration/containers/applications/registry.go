@@ -7,17 +7,14 @@ package applications
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"path"
 	"sort"
-	"strings"
 	"sync"
 
 	"futrx.local/catalog"
 
-	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/applications/hosttools"
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
 
@@ -185,7 +182,7 @@ func loadCatalogInto(view *catalogView, catalog fs.FS, source svc.ApplicationSou
 				continue
 			}
 		}
-		img, script, err := loadApplication(catalog, id)
+		application, script, err := loadApplication(catalog, id)
 		if err != nil {
 			err = fmt.Errorf("load application %q: %w", id, err)
 			if reserve == nil {
@@ -194,11 +191,11 @@ func loadCatalogInto(view *catalogView, catalog fs.FS, source svc.ApplicationSou
 			skip(id, err)
 			continue
 		}
-		img.Source = source
-		view.byID[id] = img
+		application.Source = source
+		view.byID[id] = application
 		view.sources[id] = catalog
 		view.scripts[id] = script
-		view.sorted = append(view.sorted, img)
+		view.sorted = append(view.sorted, application)
 	}
 	return skipped, nil
 }
@@ -208,108 +205,51 @@ func sortCatalog(view *catalogView) {
 }
 
 func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) {
-	raw, err := fs.ReadFile(catalog, path.Join(catalogRoot, id, "application.json"))
+	root := path.Join(catalogRoot, id)
+	raw, err := fs.ReadFile(catalog, path.Join(root, "application.json"))
 	if err != nil {
 		return svc.Application{}, nil, fmt.Errorf("read application.json: %w", err)
 	}
-	var img svc.Application
-	if err := json.Unmarshal(raw, &img); err != nil {
+	var application svc.Application
+	if err := json.Unmarshal(raw, &application); err != nil {
 		return svc.Application{}, nil, fmt.Errorf("parse application.json: %w", err)
 	}
-	if img.ID == "" {
-		img.ID = id
+	if application.ID == "" {
+		application.ID = id
 	}
-	if img.ID != id {
-		return svc.Application{}, nil, fmt.Errorf("application id %q does not match directory %q", img.ID, id)
+	if application.ID != id {
+		return svc.Application{}, nil, fmt.Errorf("application id %q does not match directory %q", application.ID, id)
 	}
-	if img.Install != "" && (!fs.ValidPath(img.Install) || !strings.HasPrefix(img.Install, "infra/")) {
-		return svc.Application{}, nil, fmt.Errorf("install script must be inside infra/")
+	if err := validateInstallScriptPath(application.Install); err != nil {
+		return svc.Application{}, nil, err
 	}
-	ui, err := loadApplicationUI(catalog, path.Join(catalogRoot, id, "ui"), img.UI)
+	ui, err := loadApplicationUI(catalog, path.Join(root, "ui"), application.UI)
 	if err != nil {
 		return svc.Application{}, nil, fmt.Errorf("ui: %w", err)
 	}
-	img.UI = ui
+	application.UI = ui
 
-	backend, err := loadApplicationBackend(catalog, path.Join(catalogRoot, id, backendDir), img.Backend)
+	backend, err := loadApplicationBackend(catalog, path.Join(root, backendDir), application.Backend)
 	if err != nil {
 		return svc.Application{}, nil, fmt.Errorf("backend: %w", err)
 	}
-	img.Backend = backend
+	application.Backend = backend
 
-	skills, err := loadApplicationSkills(catalog, path.Join(catalogRoot, id, skillsDir))
+	skills, err := loadApplicationSkills(catalog, path.Join(root, skillsDir))
 	if err != nil {
 		return svc.Application{}, nil, fmt.Errorf("skills: %w", err)
 	}
-	img.Skills = skills
+	application.Skills = skills
 
-	// Infrastructure is a capability inferred from infra/install.sh. A manifest
-	// may name another path explicitly; an omitted default simply means this
-	// application has no container-side work.
-	installPath := img.Install
-	if installPath == "" {
-		installPath = "infra/install.sh"
-	}
 	var script []byte
-	script, err = fs.ReadFile(catalog, path.Join(catalogRoot, id, installPath))
-	if errors.Is(err, fs.ErrNotExist) && img.Install == "" {
-		err = nil
-		script = nil
-	} else if err != nil {
-		return svc.Application{}, nil, fmt.Errorf("read install script %q: %w", installPath, err)
-	} else {
-		img.Install = installPath
-		script, err = withInfraPayload(catalog, path.Join(catalogRoot, id), script)
-		if err != nil {
-			return svc.Application{}, nil, fmt.Errorf("infra payload: %w", err)
-		}
-	}
-	if err := validate(img); err != nil {
+	application.Install, script, err = loadApplicationInfrastructure(catalog, root, application.Install)
+	if err != nil {
 		return svc.Application{}, nil, err
 	}
-	return img, script, nil
-}
-
-func validate(img svc.Application) error {
-	if len(img.HostTools) > 0 && !img.NeedsContainer() {
-		return fmt.Errorf("host tools require a provisioned application")
+	if err := validateApplication(application); err != nil {
+		return svc.Application{}, nil, err
 	}
-	for _, tool := range img.HostTools {
-		if err := hosttools.Validate(tool); err != nil {
-			return fmt.Errorf("host tool %q: %w", tool.Name, err)
-		}
-	}
-
-	if img.Name == "" {
-		return fmt.Errorf("missing name")
-	}
-	// Version is what an installed instance is compared against to decide
-	// whether its install script has to run again, so an application without one
-	// could never be upgraded in place. It is free text — "8.0", "16",
-	// "1.2.3-rc1" — because the only question ever asked of it is whether it
-	// differs from what an instance recorded, never which of two is newer.
-	if strings.TrimSpace(img.Version) == "" {
-		return fmt.Errorf("missing version")
-	}
-	if len(img.Scopes) == 0 {
-		return fmt.Errorf("missing scopes")
-	}
-	for _, s := range img.Scopes {
-		if !s.Valid() {
-			return fmt.Errorf("invalid scope %q", s)
-		}
-	}
-	if !img.NeedsContainer() {
-		if img.Port.Internal != 0 || img.Port.DefaultExternal != 0 || img.Healthcheck.Command != "" || img.Service != "" {
-			return fmt.Errorf("port, healthcheck, and service require infra/install.sh")
-		}
-	} else if img.Port.Internal == 0 && (img.Port.DefaultExternal != 0 || img.Healthcheck.Command != "") {
-		return fmt.Errorf("port.defaultExternal and healthcheck require port.internal")
-	}
-	if img.UI == nil && img.Backend == nil && !img.NeedsContainer() && len(img.Skills) == 0 {
-		return fmt.Errorf("application has no infra, backend, ui, or skills")
-	}
-	return nil
+	return application, script, nil
 }
 
 // List returns the catalog sorted by display name.
@@ -325,8 +265,8 @@ func (r *Registry) List() []svc.Application {
 func (r *Registry) Get(id string) (svc.Application, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	img, ok := r.view.byID[id]
-	return img, ok
+	application, ok := r.view.byID[id]
+	return application, ok
 }
 
 // Script returns the install script bytes for an application ID.
@@ -341,11 +281,11 @@ func (r *Registry) Script(id string) ([]byte, bool) {
 func (r *Registry) applicationSource(id string) (svc.Application, fs.FS, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	img, ok := r.view.byID[id]
+	application, ok := r.view.byID[id]
 	if !ok {
 		return svc.Application{}, nil, false
 	}
-	return img, r.view.sources[id], true
+	return application, r.view.sources[id], true
 }
 
 var _ svc.Registry = (*Registry)(nil)

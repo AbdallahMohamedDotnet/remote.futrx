@@ -235,7 +235,8 @@ Every application must declare a non-empty `version`. Loading fails without one 
 including for an uploaded package, which is refused at upload rather than
 half-added.
 
-Enforced in `registry.go:validate` and `registry.go:loadApplication`:
+Enforced in `registry_validation.go:validateApplication` and
+`registry.go:loadApplication`:
 
 - `id` must equal the directory name.
 - `name` must not be empty.

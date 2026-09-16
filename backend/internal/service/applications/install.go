@@ -22,23 +22,23 @@ type InstallRequest struct {
 // Install validates the request, provisions the app in a container, and
 // persists the resulting instance.
 func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error) {
-	img, ok := s.registry.Get(req.ApplicationID)
+	application, ok := s.registry.Get(req.ApplicationID)
 	if !ok {
 		return View{}, ErrUnknownApplication
 	}
-	if !req.Scope.Valid() || !img.SupportsScope(req.Scope) {
+	if !req.Scope.Valid() || !application.SupportsScope(req.Scope) {
 		return View{}, ErrScope
 	}
-	if err := s.claimInstallSlot(ctx, req.Scope, req.ProjectID, img.ID); err != nil {
+	if err := s.claimInstallSlot(ctx, req.Scope, req.ProjectID, application.ID); err != nil {
 		return View{}, err
 	}
 
 	id := newInstanceID()
 	inst := Instance{
 		ID:                 id,
-		ApplicationID:      img.ID,
-		ApplicationVersion: img.Version,
-		Name:               displayName(req.Name, img.Name),
+		ApplicationID:      application.ID,
+		ApplicationVersion: application.Version,
+		Name:               displayName(req.Name, application.Name),
 		Scope:              req.Scope,
 		ProjectID:          req.ProjectID,
 		Status:             StatusInstalling,
@@ -47,22 +47,21 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	}
 
 	// Resolve env inputs (apply defaults, generate secrets, enforce required).
-	env, err := resolveEnv(img, req.Env)
+	env, err := resolveEnv(application, req.Env)
 	if err != nil {
 		return View{}, err
 	}
 	inst.Env = env
-
 	// An application with no infrastructure has no container side: installing it only
 	// records that the user turned it on, which is what makes its ui/ load and
 	// its plugin run. Everything below this branch — container, port, proxy
 	// device, install script — exists only for applications that provision software.
-	if !img.NeedsContainer() {
+	if !application.NeedsContainer() {
 		inst.Status = StatusRunning
 		if err := s.store.Put(ctx, inst); err != nil {
 			return View{}, err
 		}
-		if err := s.startBackend(ctx, img, inst); err != nil {
+		if err := s.startBackend(ctx, application, inst); err != nil {
 			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 			return View{}, err
 		}
@@ -78,18 +77,18 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	// Portless infrastructure is provisioned into a container but exposes nothing, so it gets no
 	// device name, no internal port, and no host port: there is nothing for a
 	// proxy to forward.
-	if img.NeedsPort() {
+	if application.NeedsPort() {
 		inst.DeviceName = "app-" + id
-		inst.InternalPort = img.Port.Internal
-		inst.Protocol = protoOr(img.Port.Protocol, ProtocolTCP)
-		inst.BindAddress = bindOr(req.BindAddress, img.Port.BindAddress)
+		inst.InternalPort = application.Port.Internal
+		inst.Protocol = protoOr(application.Port.Protocol, ProtocolTCP)
+		inst.BindAddress = bindOr(req.BindAddress, application.Port.BindAddress)
 	}
 
 	if err := s.resolveContainerTarget(ctx, req, &inst); err != nil {
 		return View{}, err
 	}
-	if img.NeedsPort() {
-		if err := s.allocateHostPort(ctx, req, img, &inst); err != nil {
+	if application.NeedsPort() {
+		if err := s.allocateHostPort(ctx, req, application, &inst); err != nil {
 			return View{}, err
 		}
 	}
@@ -99,13 +98,13 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 		return View{}, err
 	}
 
-	if err := s.installer.Install(ctx, InstallSpec{Application: img, Instance: inst}); err != nil {
+	if err := s.installer.Install(ctx, InstallSpec{Application: application, Instance: inst}); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		return View{}, err
 	}
 	// An application may ship a backend too — the container half provisions
-	// the software, the plugin half is what its UI talks to.
-	if err := s.startBackend(ctx, img, inst); err != nil {
+	// the software, and the UI talks to the backend half.
+	if err := s.startBackend(ctx, application, inst); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		return View{}, err
 	}
@@ -142,13 +141,13 @@ func (s *Service) resolveContainerTarget(ctx context.Context, req InstallRequest
 
 // allocateHostPort assigns a free host port, preferring the requested port,
 // then the application default, then the internal port.
-func (s *Service) allocateHostPort(ctx context.Context, req InstallRequest, img Application, inst *Instance) error {
+func (s *Service) allocateHostPort(ctx context.Context, req InstallRequest, application Application, inst *Instance) error {
 	preferred := req.ExternalPort
 	if preferred == 0 {
-		preferred = img.Port.DefaultExternal
+		preferred = application.Port.DefaultExternal
 	}
 	if preferred == 0 {
-		preferred = img.Port.Internal
+		preferred = application.Port.Internal
 	}
 	if req.ExternalPort != 0 && (req.ExternalPort < 1 || req.ExternalPort > 65535) {
 		return ErrPortRange
@@ -186,11 +185,11 @@ func (s *Service) claimInstallSlot(ctx context.Context, scope Scope, projectID, 
 	if existing.Status != StatusError {
 		return ErrAlreadyInstalled
 	}
-	img, ok := s.registry.Get(existing.ApplicationID)
+	application, ok := s.registry.Get(existing.ApplicationID)
 	if !ok {
 		return ErrUnknownApplication
 	}
-	if err := s.teardown(ctx, img, existing); err != nil {
+	if err := s.teardown(ctx, application, existing); err != nil {
 		return err
 	}
 	return s.store.Delete(ctx, existing.ID)
@@ -220,8 +219,8 @@ func (s *Service) instanceOfApplication(ctx context.Context, scope Scope, projec
 }
 
 // reservedPorts is the set of host ports already claimed by other instances.
-// Every instance (global and project) binds a host port, so the conflict domain
-// is the whole server regardless of the new instance's scope.
+// Every exposed instance binds on the host, so the conflict domain is the
+// whole server regardless of the new instance's scope.
 func (s *Service) reservedPorts(ctx context.Context) (map[int]bool, error) {
 	taken := map[int]bool{}
 	all, err := s.store.ListAll(ctx)
@@ -275,9 +274,9 @@ func bindOr(a, b string) string {
 	return "127.0.0.1"
 }
 
-func secretKeys(img Application) map[string]bool {
+func secretKeys(application Application) map[string]bool {
 	m := map[string]bool{}
-	for _, e := range img.Env {
+	for _, e := range application.Env {
 		if e.Secret {
 			m[e.Key] = true
 		}
@@ -286,9 +285,9 @@ func secretKeys(img Application) map[string]bool {
 }
 
 // resolveEnv applies defaults, generates secrets, and enforces required inputs.
-func resolveEnv(img Application, provided map[string]string) (map[string]string, error) {
+func resolveEnv(application Application, provided map[string]string) (map[string]string, error) {
 	out := map[string]string{}
-	for _, e := range img.Env {
+	for _, e := range application.Env {
 		v := strings.TrimSpace(provided[e.Key])
 		if v == "" {
 			v = e.Default
