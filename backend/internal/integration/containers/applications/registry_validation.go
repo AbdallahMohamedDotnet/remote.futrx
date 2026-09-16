@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/futrx-com/remote.futrx.com/internal/integration/hosttools"
+	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/applications/hosttools"
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
 
