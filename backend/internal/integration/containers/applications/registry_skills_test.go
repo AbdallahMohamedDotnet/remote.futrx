@@ -23,7 +23,7 @@ func skillCatalog(extra map[string]string) (*Registry, error) {
 }
 
 // A skills/ directory opts an application in, the same way ui/ does.
-func TestImageShipsTheSkillsInItsSkillsDirectory(t *testing.T) {
+func TestApplicationShipsTheSkillsInItsSkillsDirectory(t *testing.T) {
 	r, err := skillCatalog(map[string]string{
 		"applications/kit/skills/mount-bucket/SKILL.md": "# using the mounted bucket\n",
 		"applications/kit/skills/tune-cache/SKILL.md":   "# cache tuning\n",
@@ -31,12 +31,12 @@ func TestImageShipsTheSkillsInItsSkillsDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	img, ok := r.Get("kit")
+	application, ok := r.Get("kit")
 	if !ok {
 		t.Fatal("application did not load")
 	}
-	if len(img.Skills) != 2 || img.Skills[0] != "mount-bucket" || img.Skills[1] != "tune-cache" {
-		t.Fatalf("skills not discovered in a stable order: %v", img.Skills)
+	if len(application.Skills) != 2 || application.Skills[0] != "mount-bucket" || application.Skills[1] != "tune-cache" {
+		t.Fatalf("skills not discovered in a stable order: %v", application.Skills)
 	}
 	body, ok := r.Skill("kit", "mount-bucket")
 	if !ok || string(body) != "# using the mounted bucket\n" {
@@ -47,14 +47,14 @@ func TestImageShipsTheSkillsInItsSkillsDirectory(t *testing.T) {
 	}
 }
 
-func TestImageWithoutSkillsShipsNone(t *testing.T) {
+func TestApplicationWithoutSkillsShipsNone(t *testing.T) {
 	r, err := skillCatalog(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	img, _ := r.Get("kit")
-	if len(img.Skills) != 0 {
-		t.Fatalf("invented skills: %v", img.Skills)
+	application, _ := r.Get("kit")
+	if len(application.Skills) != 0 {
+		t.Fatalf("invented skills: %v", application.Skills)
 	}
 }
 

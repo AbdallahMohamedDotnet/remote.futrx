@@ -29,7 +29,7 @@ func TestRegistryDiscoversApplicationUI(t *testing.T) {
 	}
 
 	// An application without ui/ must stay nil so the SPA loads nothing for it.
-	tool, ok := r.Get(fixtureTool)
+	tool, ok := r.Get(fixturePortless)
 	if !ok {
 		t.Fatal("expected the fixture tool application")
 	}
@@ -83,11 +83,11 @@ func TestRegistryUIAsset(t *testing.T) {
 		asset       string
 	}{
 		{"traversal out of ui", fixtureService, "../install.sh"},
-		{"traversal into another application", fixtureService, "../../" + fixtureTool + "/install.sh"},
+		{"traversal into another application", fixtureService, "../../" + fixturePortless + "/install.sh"},
 		{"absolute path", fixtureService, "/etc/passwd"},
 		{"empty path", fixtureService, ""},
 		{"missing file", fixtureService, "scripts/nope.js"},
-		{"application without ui", fixtureTool, "scripts/main.js"},
+		{"application without ui", fixturePortless, "scripts/main.js"},
 		{"unknown application", "nope", "scripts/main.js"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

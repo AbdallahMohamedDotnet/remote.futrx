@@ -6,15 +6,13 @@ import (
 )
 
 // The catalog these tests load is written here rather than borrowed from the
-// applications the server happens to ship. Every kind, and every optional block,
-// has a fixture — so the catalog loader stays covered no matter which installable
-// applications exist, and removing an application from the shipped catalog (or moving one
-// out into a separately distributed package) cannot quietly delete a test.
+// applications the server happens to ship. Every capability has a fixture, so
+// the loader stays covered even when the shipped catalog changes.
 const (
-	fixtureService = "fixture-service"
-	fixtureTool    = "fixture-tool"
-	fixtureUI      = "fixture-ui"
-	fixtureBackend = "fixture-backend"
+	fixtureService  = "fixture-service"
+	fixturePortless = "fixture-portless"
+	fixtureUI       = "fixture-ui"
+	fixtureBackend  = "fixture-backend"
 )
 
 func fixtureCatalog() fstest.MapFS {
@@ -33,13 +31,13 @@ func fixtureCatalog() fstest.MapFS {
 		"applications/" + fixtureService + "/ui/style/panel.css":  file(".panel{}\n"),
 		"applications/" + fixtureService + "/ui/views/popup.html": file("<p></p>\n"),
 
-		// A tool reaches a container without exposing anything, needs a host
-		// binary it supplies itself.
-		"applications/" + fixtureTool + "/application.json": file(`{
-			"name": "Fixture Tool",
+		// Portless infrastructure reaches a container without exposing anything
+		// and needs a host binary it supplies itself.
+		"applications/" + fixturePortless + "/application.json": file(`{
+			"name": "Fixture Portless",
 			"version": "2.1.0",
 			"scopes": ["project"],
-			"service": "fixture-tool",
+			"service": "fixture-portless",
 			"hostTools": [{
 				"name": "fixture-backup",
 				"version": "1.2.3",
@@ -55,7 +53,7 @@ func fixtureCatalog() fstest.MapFS {
 				}
 			}]
 		}`),
-		"applications/" + fixtureTool + "/infra/install.sh": file("#!/usr/bin/env bash\necho tool\n"),
+		"applications/" + fixturePortless + "/infra/install.sh": file("#!/usr/bin/env bash\necho portless\n"),
 
 		// A UI application declares its block explicitly rather than relying on the
 		// layout convention, so both paths are exercised for real.
