@@ -170,29 +170,31 @@ type Application struct {
 }
 
 // NeedsContainer reports whether this application has infrastructure to provision.
-func (im Application) NeedsContainer() bool { return im.Install != "" }
+func (application Application) NeedsContainer() bool { return application.Install != "" }
 
 // NeedsPort reports whether this application exposes its provisioned component.
-func (im Application) NeedsPort() bool { return im.NeedsContainer() && im.Port.Internal > 0 }
+func (application Application) NeedsPort() bool {
+	return application.NeedsContainer() && application.Port.Internal > 0
+}
 
 // MarshalJSON writes the capabilities inferred from the application layout so
 // clients do not have to duplicate the inference rules.
-func (im Application) MarshalJSON() ([]byte, error) {
+func (application Application) MarshalJSON() ([]byte, error) {
 	type wire Application // sheds this method, so encoding does not recurse
 	return json.Marshal(struct {
 		wire
 		NeedsContainer bool `json:"needsContainer"`
 		NeedsPort      bool `json:"needsPort"`
 	}{
-		wire:           wire(im),
-		NeedsContainer: im.NeedsContainer(),
-		NeedsPort:      im.NeedsPort(),
+		wire:           wire(application),
+		NeedsContainer: application.NeedsContainer(),
+		NeedsPort:      application.NeedsPort(),
 	})
 }
 
 // SupportsScope reports whether the application may be installed at the given scope.
-func (im Application) SupportsScope(s Scope) bool {
-	for _, sc := range im.Scopes {
+func (application Application) SupportsScope(s Scope) bool {
+	for _, sc := range application.Scopes {
 		if sc == s {
 			return true
 		}

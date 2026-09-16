@@ -2,13 +2,13 @@ package applications
 
 import "context"
 
-// singleImageRegistry answers with one application, so a test can shape exactly the
-// application under test rather than the whole catalog.
-type singleImageRegistry struct{ application Application }
+// singleApplicationRegistry answers with one application, so a test can shape
+// exactly the application under test rather than the whole catalog.
+type singleApplicationRegistry struct{ application Application }
 
-func (r *singleImageRegistry) List() []Application { return []Application{r.application} }
+func (r *singleApplicationRegistry) List() []Application { return []Application{r.application} }
 
-func (r *singleImageRegistry) Get(id string) (Application, bool) {
+func (r *singleApplicationRegistry) Get(id string) (Application, bool) {
 	if id != r.application.ID {
 		return Application{}, false
 	}

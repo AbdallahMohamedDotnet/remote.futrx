@@ -317,8 +317,7 @@ func (in *Installer) scriptEnv(spec svc.InstallSpec) map[string]string {
 // ensureProxy (re)creates the host proxy device for an instance. It removes any
 // existing device of the same name first so a changed port takes effect.
 func (in *Installer) ensureProxy(ctx context.Context, inst svc.Instance) error {
-	// A tool exposes nothing, so it is installed without a device name and
-	// there is no proxy to create.
+	// Portless infrastructure has no device name and therefore no proxy to create.
 	if inst.DeviceName == "" {
 		return nil
 	}

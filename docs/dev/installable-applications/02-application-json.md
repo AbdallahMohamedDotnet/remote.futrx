@@ -1,7 +1,7 @@
 # 02 — `application.json` reference
 
 Every application directory contains exactly one `application.json`. It is loaded and
-validated at server startup by `registry.go:loadImage`; a malformed file fails
+validated at server startup by `registry.go:loadApplication`; a malformed file fails
 the build and the tests rather than producing a broken catalog entry.
 
 The Go type behind it is `Application` in
@@ -235,7 +235,8 @@ Every application must declare a non-empty `version`. Loading fails without one 
 including for an uploaded package, which is refused at upload rather than
 half-added.
 
-Enforced in `registry.go:validate` and `registry.go:loadImage`:
+Enforced in `registry_validation.go:validateApplication` and
+`registry.go:loadApplication`:
 
 - `id` must equal the directory name.
 - `name` must not be empty.

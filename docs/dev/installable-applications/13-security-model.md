@@ -173,7 +173,7 @@ from *the build* to *the administrator*, and nowhere further:
   account can already install a global application, change the base application, and
   run an install script as root in a container. Uploading a package is inside
   that authority, not beyond it.
-- **Same validator.** An uploaded package loads through the same `loadImage`
+- **Same validator.** An uploaded package loads through the same `loadApplication`
   the embedded catalog does. There is no path a package can take that a
   built-in application cannot.
 - **Same privileges, and no more.** The `ui/` runs on the main origin, the

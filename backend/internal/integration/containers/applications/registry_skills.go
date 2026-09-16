@@ -59,11 +59,11 @@ func loadApplicationSkills(fsys fs.FS, root string) ([]string, error) {
 // the registry already validated are readable, so a caller cannot reach
 // outside the application's own skills directory.
 func (r *Registry) Skill(id, name string) ([]byte, bool) {
-	img, source, ok := r.applicationSource(id)
+	application, source, ok := r.applicationSource(id)
 	if !ok || source == nil {
 		return nil, false
 	}
-	for _, shipped := range img.Skills {
+	for _, shipped := range application.Skills {
 		if shipped != name {
 			continue
 		}
