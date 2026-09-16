@@ -16,9 +16,9 @@ package applications
 // needsUpgrade reports whether an instance's container side was provisioned by
 // a different version of the application than the catalog now holds.
 //
-// Only applications that reach a container can be stale. UI-only or backend-only applications
-// installs nothing to re-install, so bumping its version is a catalog change
-// and nothing more: its new code is picked up by restarting the backend.
-func needsUpgrade(inst Instance, img Application) bool {
-	return img.NeedsContainer() && inst.ApplicationVersion != img.Version
+// Only applications that reach a container can be stale. A backend-only
+// application installs nothing to re-install; its new code is picked up by
+// restarting the backend.
+func needsUpgrade(inst Instance, application Application) bool {
+	return application.NeedsContainer() && inst.ApplicationVersion != application.Version
 }

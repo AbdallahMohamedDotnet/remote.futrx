@@ -107,11 +107,11 @@ func (s *Service) Get(ctx context.Context, id string) (View, bool, error) {
 // env values and the canonical user/password/database resolved from the
 // application's Connection descriptor. The transport layer authorizes the caller.
 func (s *Service) Credentials(ctx context.Context, id string) (Credentials, error) {
-	inst, img, err := s.load(ctx, id)
+	inst, application, err := s.load(ctx, id)
 	if err != nil {
 		return Credentials{}, err
 	}
-	conn := img.Connection
+	conn := application.Connection
 	username := conn.User
 	if conn.UserEnv != "" {
 		username = inst.Env[conn.UserEnv]
@@ -145,18 +145,18 @@ func (s *Service) load(ctx context.Context, id string) (Instance, Application, e
 	if !ok {
 		return Instance{}, Application{}, ErrNotFound
 	}
-	img, ok := s.registry.Get(inst.ApplicationID)
+	application, ok := s.registry.Get(inst.ApplicationID)
 	if !ok {
 		return Instance{}, Application{}, ErrUnknownApplication
 	}
-	return inst, img, nil
+	return inst, application, nil
 }
 
 // view / views project Instances to API-safe Views (secret env redacted).
 func (s *Service) view(inst Instance) View {
-	img, _ := s.registry.Get(inst.ApplicationID)
+	application, _ := s.registry.Get(inst.ApplicationID)
 	pub := map[string]string{}
-	secret := secretKeys(img)
+	secret := secretKeys(application)
 	for k, v := range inst.Env {
 		if !secret[k] {
 			pub[k] = v
