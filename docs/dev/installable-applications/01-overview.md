@@ -133,7 +133,7 @@ flowchart TB
     subgraph Support["Supporting packages"]
         P_PluginHost["integration/pluginhost<br/>compiles backend/, runs it over go-plugin"]
         P_FileApps["stores/fileapplications<br/>global.json, projects/{id}.json"]
-        P_HostTools["integration/hosttools<br/>checksum-pinned host binaries"]
+        P_HostTools["integration/containers/applications/hosttools<br/>checksum-pinned host binaries"]
     end
 
     subgraph Catalog["applications/ — embedded by go:embed"]
