@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	servicepermission "github.com/futrx-com/remote.futrx.com/internal/service/permission"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
@@ -43,6 +44,9 @@ type userRemovalCleanup struct {
 }
 
 func (c userRemovalCleanup) CleanupRemovedUser(ctx context.Context, email string) error {
+	// Removing a user revokes their access whatever the removing caller may
+	// manage, so cleanup is trusted internal work.
+	ctx = servicepermission.ContextWithSystemActor(ctx)
 	var cleanupErrors []error
 	if c.projects != nil {
 		projects, err := c.projects.List(ctx)

@@ -212,6 +212,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		deps.ProjectContainers,
 		deps.ProjectSecrets,
 		deps.ProjectAccess,
+		serviceproject.WithAuthorizer(permissionService),
 		serviceproject.WithChatCleanup(projectChatCleanup{
 			chats: chats,
 			cancel: func(ctx context.Context, id servicechat.ID) error {
@@ -386,8 +387,11 @@ func (a projectContainersAdapter) ContainerName(ctx context.Context, projectID s
 	return meta.Slug, nil
 }
 
+// EnsureRunning readies a container on behalf of an installed application
+// that a caller has already been admitted to use, so it is trusted internal
+// work rather than an explicit lifecycle action by that caller.
 func (a projectContainersAdapter) EnsureRunning(ctx context.Context, projectID string) error {
-	_, err := a.projects.Start(ctx, serviceproject.ID(projectID))
+	_, err := a.projects.Start(servicepermission.ContextWithSystemActor(ctx), serviceproject.ID(projectID))
 	return err
 }
 

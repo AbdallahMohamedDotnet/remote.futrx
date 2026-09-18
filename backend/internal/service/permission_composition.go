@@ -13,6 +13,7 @@ import (
 func permissionDefinitions() [][]servicepermission.Definition {
 	return [][]servicepermission.Definition{
 		servicepermission.ManagementDefinitions(),
+		serviceproject.PermissionDefinitions(),
 	}
 }
 
