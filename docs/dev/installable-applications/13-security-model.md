@@ -26,7 +26,7 @@ session.
 | Property | Enforced by | Notes |
 |---|---|---|
 | Only catalog applications exist | `//go:embed` | No runtime installation |
-| A malformed application cannot ship | `registry.go:validate`, `registry_ui.go:loadImageUI` | Fails the build and the tests |
+| A malformed application cannot ship | `registry.go:validate`, `registry_ui.go:loadApplicationUI` | Fails the build and the tests |
 | Assets stay inside one application's `ui/` | `registry.go:cleanUIPath` | The only path out of the package |
 | Only signed-in users fetch assets | `applications_handler.go` | Same gate as the catalog |
 | Responses are not sniffable | `Content-Type` from extension + `nosniff` | Types are pinned, never guessed |
@@ -170,7 +170,7 @@ model above, because it does not widen who may add code. It moves the boundary
 from *the build* to *the administrator*, and nowhere further:
 
 - **Admin-only.** Every package route requires an administrator. The same
-  account can already install a global application, change the base application, and
+  account can already install a global application, change the base image, and
   run an install script as root in a container. Uploading a package is inside
   that authority, not beyond it.
 - **Same validator.** An uploaded package loads through the same `loadApplication`

@@ -81,4 +81,4 @@ repository root, in a small module of its own, because `go:embed` cannot reach
 above the directory it is written in.
 
 Code references name the file and, where useful, the symbol —
-`registry_ui.go:loadImageUI`, `extensionContributionState.ts:visibleExtensionContributions`.
+`registry_ui.go:loadApplicationUI`, `extensionContributionState.ts:visibleExtensionContributions`.

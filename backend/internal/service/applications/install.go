@@ -52,19 +52,31 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 		return View{}, err
 	}
 	inst.Env = env
+	// An application with no infrastructure has no container side: installing it only
+	// records that the user turned it on, which is what makes its backend run.
+	// Everything below this branch — container, port, proxy
+	// device, install script — exists only for applications that provision software.
 	if !application.NeedsContainer() {
 		inst.Status = StatusRunning
 		if err := s.store.Put(ctx, inst); err != nil {
 			return View{}, err
 		}
+		if err := s.startBackend(ctx, application, inst); err != nil {
+			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
+			return View{}, err
+		}
 		return s.view(inst), nil
 	}
 
+	// Only the container half needs a container runtime, which is why the
+	// check is here rather than at the top: a server with no LXD can still
+	// install an application that only contributes backend behavior.
 	if s.installer == nil {
 		return View{}, ErrUnavailable
 	}
-	// Portless infrastructure gets no device name, internal port, or host port:
-	// there is nothing for a proxy to forward.
+	// Portless infrastructure is provisioned into a container but exposes nothing, so it gets no
+	// device name, no internal port, and no host port: there is nothing for a
+	// proxy to forward.
 	if application.NeedsPort() {
 		inst.DeviceName = "app-" + id
 		inst.InternalPort = application.Port.Internal
@@ -87,6 +99,12 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	}
 
 	if err := s.installer.Install(ctx, InstallSpec{Application: application, Instance: inst}); err != nil {
+		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
+		return View{}, err
+	}
+	// An application may ship a backend too — the container half provisions
+	// the software, and callers talk to the backend half.
+	if err := s.startBackend(ctx, application, inst); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		return View{}, err
 	}

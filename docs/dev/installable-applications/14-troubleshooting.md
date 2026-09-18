@@ -170,7 +170,7 @@ cases:
 
 | Symptom | Cause |
 |---|---|
-| `Failed to find application` / `lxc init: exit status 1` | the base application is not present on this host |
+| `Failed to find image` / `lxc init: exit status 1` | the base image is not present on this host |
 | `Installing LXD snap, please be patient` | LXD is not ready yet |
 | script output ends mid-`apt-get` | no network in the container, or the 8-minute timeout was hit |
 

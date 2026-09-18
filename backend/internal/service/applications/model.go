@@ -153,12 +153,15 @@ type Application struct {
 	// Service is the systemd unit name inside the container used for
 	// start/stop/status.
 	Service string `json:"service,omitempty"`
+	// Backend is set when the application ships a backend/ directory. Nil means the
+	// application has no Go backend and nothing is compiled or run for it.
+	Backend *ApplicationBackend `json:"backend,omitempty"`
 	// Install is the install-script filename relative to the application directory.
 	Install     string      `json:"install"`
 	Healthcheck Healthcheck `json:"healthcheck,omitempty"`
 	// Connection maps env vars to canonical user/password/database fields.
 	Connection Connection `json:"connection,omitempty"`
-	// Base is the LXD application alias used when this app runs as a dedicated
+	// Base is the LXD image alias used when this app runs as a dedicated
 	// (global) container. Empty defaults to the platform default.
 	Base string `json:"base,omitempty"`
 	// Skills names the agent skills this application ships. It is filled in by the

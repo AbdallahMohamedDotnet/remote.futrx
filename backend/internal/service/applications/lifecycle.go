@@ -61,17 +61,19 @@ func (s *Service) Uninstall(ctx context.Context, id string) error {
 	return s.store.Delete(ctx, id)
 }
 
-// teardown removes an instance's container footprint. Uninstalling and
-// retrying a failed install share it, so both leave exactly the same state
-// behind.
+// teardown removes an instance's footprint: its container side, and its backend
+// process and data. Uninstalling and retrying a failed install share it, so
+// both leave exactly the same state behind.
 func (s *Service) teardown(ctx context.Context, application Application, inst Instance) error {
-	if !application.NeedsContainer() {
-		return nil
+	if application.NeedsContainer() {
+		if s.installer == nil {
+			return ErrUnavailable
+		}
+		if err := s.installer.Uninstall(ctx, InstallSpec{Application: application, Instance: inst}); err != nil {
+			return err
+		}
 	}
-	if s.installer == nil {
-		return ErrUnavailable
-	}
-	return s.installer.Uninstall(ctx, InstallSpec{Application: application, Instance: inst})
+	return s.removeBackend(ctx, application, inst)
 }
 
 // transition runs a lifecycle action and records the resulting status.
@@ -80,7 +82,12 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 	if err != nil {
 		return View{}, err
 	}
+	// An application without infrastructure moves its backend process and record together.
 	if !application.NeedsContainer() {
+		if err := s.moveBackend(ctx, application, inst, target); err != nil {
+			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
+			return View{}, err
+		}
 		if err := s.saveStatus(ctx, &inst, target, ""); err != nil {
 			return View{}, err
 		}
@@ -105,6 +112,10 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 	if upgrading {
 		inst.ApplicationVersion = application.Version
 	}
+	if err := s.moveBackend(ctx, application, inst, target); err != nil {
+		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
+		return View{}, err
+	}
 	if err := s.saveStatus(ctx, &inst, target, ""); err != nil {
 		return View{}, err
 	}
@@ -112,8 +123,8 @@ func (s *Service) transition(ctx context.Context, id string, target InstanceStat
 }
 
 // moveContainer applies the requested lifecycle state to the container half
-// of an application. The transition workflow deliberately runs this before recording
-// the final status.
+// of an application. The transition workflow deliberately runs this before moving a
+// backend and recording the final status.
 //
 // Starting an instance whose application has moved on installs rather than starts.
 // An upload upgrades the copies that are running and leaves stopped ones

@@ -6,11 +6,12 @@ import (
 )
 
 // The catalog these tests load is written here rather than borrowed from the
-// applications the server happens to ship. Its exposed and portless entries
-// keep both infrastructure shapes covered even when the shipped catalog changes.
+// applications the server happens to ship. Every capability has a fixture, so
+// the loader stays covered even when the shipped catalog changes.
 const (
 	fixtureService  = "fixture-service"
 	fixturePortless = "fixture-portless"
+	fixtureBackend  = "fixture-backend"
 )
 
 func fixtureCatalog() fstest.MapFS {
@@ -49,6 +50,14 @@ func fixtureCatalog() fstest.MapFS {
 			}]
 		}`),
 		"applications/" + fixturePortless + "/infra/install.sh": file("#!/usr/bin/env bash\necho portless\n"),
+
+		"applications/" + fixtureBackend + "/application.json": file(`{
+			"name": "Fixture Backend",
+			"version": "3.0.0",
+			"scopes": ["project"],
+			"backend": {"access": "registered", "timeoutMs": 10000}
+		}`),
+		"applications/" + fixtureBackend + "/backend/main.go": file("package main\n\nfunc main() {}\n"),
 	}
 }
 

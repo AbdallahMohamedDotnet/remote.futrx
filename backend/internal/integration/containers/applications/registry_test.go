@@ -57,6 +57,11 @@ func assertCatalogInvariants(t *testing.T, r *Registry, wantApplications bool) {
 				t.Errorf("application %s has invalid internal port %d", application.ID, application.Port.Internal)
 			}
 		}
+		if application.Backend != nil {
+			if _, ok := r.BackendSource(application.ID); !ok {
+				t.Errorf("application %s exposes no backend source", application.ID)
+			}
+		}
 	}
 }
 
@@ -88,19 +93,38 @@ func TestRegistrySkipsReservedDirectories(t *testing.T) {
 
 func TestRegistryInfersApplicationCapabilities(t *testing.T) {
 	r := testRegistry(t)
-	for id, want := range map[string]struct{ container, port bool }{
-		fixtureService:  {true, true},
-		fixturePortless: {true, false},
+	for id, want := range map[string]struct{ container, port, backend bool }{
+		fixtureService:  {true, true, false},
+		fixturePortless: {true, false, false},
+		fixtureBackend:  {false, false, true},
 	} {
 		application, ok := r.Get(id)
 		if !ok {
 			t.Errorf("missing application %s", id)
 			continue
 		}
-		got := struct{ container, port bool }{application.NeedsContainer(), application.NeedsPort()}
+		got := struct{ container, port, backend bool }{application.NeedsContainer(), application.NeedsPort(), application.Backend != nil}
 		if got != want {
 			t.Errorf("%s capabilities = %+v, want %+v", id, got, want)
 		}
+	}
+}
+
+func TestRegistryCombinesInfrastructureAndBackend(t *testing.T) {
+	catalog := fixtureCatalog()
+	catalog["applications/"+fixtureService+"/backend/main.go"] = &fstest.MapFile{
+		Data: []byte("package main\n\nfunc main() {}\n"),
+	}
+	r, err := NewRegistryFromFS(catalog)
+	if err != nil {
+		t.Fatalf("load combined application: %v", err)
+	}
+	application, ok := r.Get(fixtureService)
+	if !ok {
+		t.Fatal("combined application is missing")
+	}
+	if !application.NeedsContainer() || !application.NeedsPort() || application.Backend == nil {
+		t.Fatalf("capabilities were not combined: %+v", application)
 	}
 }
 
@@ -121,6 +145,7 @@ func TestValidateRejectsBadApplications(t *testing.T) {
 		{"port without infra", func(i *svc.Application) { i.Install = "" }},
 		{"healthcheck without internal port", func(i *svc.Application) { i.Port.Internal = 0; i.Healthcheck.Command = "true" }},
 		{"service without infra", func(i *svc.Application) { i.Install = ""; i.Port = svc.Port{}; i.Service = "unit" }},
+		{"no capabilities", func(i *svc.Application) { i.Install = ""; i.Port = svc.Port{} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			application := base()
