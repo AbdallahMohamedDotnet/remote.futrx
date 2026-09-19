@@ -121,11 +121,15 @@ type PackageUpload struct {
 // A server without it still serves its built-in catalog and reports uploads
 // unavailable, which is what keeps the feature optional rather than required.
 type PackageCatalog interface {
-	// Packages lists every stored package, including ones that failed to load.
-	Packages() []Package
+	// Packages lists every stored package, including ones that failed to load
+	// — which is the only place the reason a package is missing from the
+	// catalog can be reported, so the listing is a view rather than the record.
+	Packages() []PackageView
 	// AddPackage validates an archive and adds or replaces the catalog entry
-	// it carries. It returns ErrPackageInvalid for a malformed archive and
-	// ErrPackageReserved for one whose id belongs to a built-in application.
+	// it carries. It returns the record it stored — what the instances it
+	// touches are judged against is the service's to work out. It returns
+	// ErrPackageInvalid for a malformed archive and ErrPackageReserved for one
+	// whose id belongs to a built-in application.
 	AddPackage(upload PackageUpload) (Package, error)
 	// RemovePackage deletes a stored package and its catalog entry.
 	RemovePackage(id string) error

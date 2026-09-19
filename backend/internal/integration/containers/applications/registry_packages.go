@@ -32,7 +32,7 @@ func errPackageSuperseded(id string) error {
 
 // Packages lists the stored packages, annotating each with the reason it is
 // not in the catalog when it failed to load.
-func (r *Registry) Packages() []svc.Package {
+func (r *Registry) Packages() []svc.PackageView {
 	if r.packages == nil {
 		return nil
 	}
@@ -41,9 +41,12 @@ func (r *Registry) Packages() []svc.Package {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for i := range stored {
-		if reason, failed := r.packageErrors[stored[i].ID]; failed {
-			stored[i].Error = reason
+	listed := make([]svc.PackageView, 0, len(stored))
+	for _, pkg := range stored {
+		view := svc.PackageView{Package: pkg}
+		if reason, failed := r.packageErrors[pkg.ID]; failed {
+			view.Error = reason
+			listed = append(listed, view)
 			continue
 		}
 		// What the app *is* — its name, version and the scopes it may be
@@ -51,13 +54,14 @@ func (r *Registry) Packages() []svc.Package {
 		// not whatever was recorded when it was uploaded. Reading it back from
 		// the catalog is what keeps the management list from describing a
 		// package by a stale copy of its own manifest.
-		if application, ok := r.view.byID[stored[i].ID]; ok {
-			stored[i].Name = application.Name
-			stored[i].Version = application.Version
-			stored[i].Scopes = application.Scopes
+		if application, ok := r.view.byID[pkg.ID]; ok {
+			view.Name = application.Name
+			view.Version = application.Version
+			view.Scopes = application.Scopes
 		}
+		listed = append(listed, view)
 	}
-	return stored
+	return listed
 }
 
 // AddPackage stores an uploaded archive and reloads the catalog.

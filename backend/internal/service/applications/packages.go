@@ -15,6 +15,11 @@ import (
 // A package is stored outside the binary, in the server's state directory, so
 // updating Remote replaces the program and leaves uploaded applications, their
 // installed instances and their settings exactly where they were.
+//
+// Every field below is part of that stored record: this struct is what the
+// metadata file on disk holds, which is why what the API reports is a separate
+// type. Changing a tag here migrates stored metadata, and adding a field to
+// PackageView cannot.
 type Package struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -33,6 +38,16 @@ type Package struct {
 	SHA256     string `json:"sha256"`
 	UploadedAt int64  `json:"uploadedAt"`
 	UploadedBy string `json:"uploadedBy,omitempty"`
+}
+
+// PackageView is a stored package as the API reports it: the record on disk,
+// plus what is only true of this server at this moment. None of the added
+// fields is written to the metadata file, and none survives a restart — they
+// are re-derived from the installed instances and from the catalog's last
+// load. Package is embedded rather than copied field by field, so the JSON
+// stays the single flat object the UI already reads.
+type PackageView struct {
+	Package
 	// Installs are the copies of this package currently installed, in every
 	// scope. Removing a package has to deal with them, so listing them is what
 	// turns "uninstall this everywhere first" from a dead end into a decision
@@ -60,13 +75,13 @@ type PackageInstall struct {
 }
 
 // Packages lists the uploaded application packages this server stores.
-func (s *Service) Packages(ctx context.Context) ([]Package, error) {
+func (s *Service) Packages(ctx context.Context) ([]PackageView, error) {
 	if s.packages == nil {
 		return nil, ErrPackagesUnavailable
 	}
 	list := s.packages.Packages()
 	if list == nil {
-		return []Package{}, nil
+		return []PackageView{}, nil
 	}
 	installs, err := s.installsByApplication(ctx)
 	if err != nil {
@@ -127,17 +142,18 @@ func (s *Service) installsByApplication(ctx context.Context) (map[string][]Packa
 // signal an author controls: bump the version and every installed copy is
 // re-provisioned; keep it and a re-upload changes only what is free to change.
 // The per-instance results come back on the returned package.
-func (s *Service) UploadPackage(ctx context.Context, upload PackageUpload) (Package, error) {
+func (s *Service) UploadPackage(ctx context.Context, upload PackageUpload) (PackageView, error) {
 	if s.packages == nil {
-		return Package{}, ErrPackagesUnavailable
+		return PackageView{}, ErrPackagesUnavailable
 	}
 	if len(upload.Data) == 0 {
-		return Package{}, fmt.Errorf("%w: the archive is empty", ErrPackageInvalid)
+		return PackageView{}, fmt.Errorf("%w: the archive is empty", ErrPackageInvalid)
 	}
-	pkg, err := s.packages.AddPackage(upload)
+	stored, err := s.packages.AddPackage(upload)
 	if err != nil {
-		return Package{}, err
+		return PackageView{}, err
 	}
+	pkg := PackageView{Package: stored}
 	// Re-provision the container side of every instance the new version made
 	// stale. This also stops each plugin it touches, so those come back on the
 	// new source by itself.
