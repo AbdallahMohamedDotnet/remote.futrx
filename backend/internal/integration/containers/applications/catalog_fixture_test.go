@@ -86,7 +86,7 @@ func fixtureCatalog() fstest.MapFS {
 
 func testRegistry(t *testing.T) *Registry {
 	t.Helper()
-	r, err := NewRegistryFromFS(fixtureCatalog())
+	r, err := NewRegistry(fixtureCatalog(), nil)
 	if err != nil {
 		t.Fatalf("load fixture catalog: %v", err)
 	}

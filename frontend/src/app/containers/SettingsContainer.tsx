@@ -29,10 +29,11 @@ export function SettingsContainer({
   const serverInfo = useServerInfo(activeTab === "info");
   const selfUpdate = useSelfUpdate(activeTab === "updates" && auth.isAdmin);
   const security = useSecuritySettings(activeTab === "security");
-  const applications = useGlobalApplications(
-    activeTab === "applications" && auth.isAdmin,
-    extensionHost.sync,
-  );
+  const applications = useGlobalApplications({
+    enabled: activeTab === "applications" && auth.isAdmin,
+    managesPackages: auth.isAdmin,
+    onApplicationsSettled: extensionHost.sync,
+  });
   const usageDashboard = useUsageDashboard(activeTab === "usage");
   const [usageRebuilding, setUsageRebuilding] = useState(false);
   const [usageRebuildMessage, setUsageRebuildMessage] = useState<string | null>(null);

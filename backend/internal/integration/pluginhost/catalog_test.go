@@ -90,7 +90,7 @@ func TestPluginFromTheImageCatalogCompilesAndServes(t *testing.T) {
 		t.Skipf("no Go toolchain available: %v", err)
 	}
 	file := func(data string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(data)} }
-	registry, err := containerapplications.NewRegistryFromFS(fstest.MapFS{
+	registry, err := containerapplications.NewRegistry(fstest.MapFS{
 		"applications/catalog-fixture/application.json": file(`{
 			"name": "Catalog Fixture",
 			"version": "1.0.0",
@@ -98,7 +98,7 @@ func TestPluginFromTheImageCatalogCompilesAndServes(t *testing.T) {
 			"backend": {"access": "registered", "timeoutMs": 10000}
 		}`),
 		"applications/catalog-fixture/backend/main.go": file(catalogPluginMain),
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("load catalog: %v", err)
 	}

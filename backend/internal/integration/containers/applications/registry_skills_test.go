@@ -19,7 +19,7 @@ func skillCatalog(extra map[string]string) (*Registry, error) {
 	for name, body := range extra {
 		fsys[name] = &fstest.MapFile{Data: []byte(body)}
 	}
-	return NewRegistryFromFS(fsys)
+	return NewRegistry(fsys, nil)
 }
 
 // A skills/ directory opts an application in, the same way ui/ does.

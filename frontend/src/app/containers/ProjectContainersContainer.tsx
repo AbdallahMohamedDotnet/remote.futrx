@@ -30,11 +30,12 @@ export function ProjectContainersContainer({
   const [activeTab, setActiveTab] = useState<ProjectSettingsTab>("info");
   const serverInfo = useServerInfo(activeTab === "settings");
   const usage = useProjectUsage(selectedProject?.id);
-  const applications = useProjectApplications(
-    selectedProject,
-    activeTab === "applications",
-    extensionHost.sync,
-  );
+  const applications = useProjectApplications({
+    project: selectedProject,
+    enabled: activeTab === "applications",
+    managesPackages: auth.isAdmin,
+    onApplicationsSettled: extensionHost.sync,
+  });
 
   const deleteSelectedProject = useCallback(async () => {
     if (!selectedProject) return;

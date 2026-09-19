@@ -21,8 +21,8 @@ func TestRegistryLoadsCatalog(t *testing.T) {
 		// one that must be non-empty — it exists to carry the invariants.
 		wantApplications bool
 	}{
-		{"shipped", NewRegistry, false},
-		{"fixture", func() (*Registry, error) { return NewRegistryFromFS(fixtureCatalog()) }, true},
+		{"shipped", func() (*Registry, error) { return NewRegistry(EmbeddedCatalog(), nil) }, false},
+		{"fixture", func() (*Registry, error) { return NewRegistry(fixtureCatalog(), nil) }, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r, err := tc.load()
@@ -75,7 +75,7 @@ func TestRegistrySkipsReservedDirectories(t *testing.T) {
 	for _, name := range []string{"docs"} {
 		catalog["applications/"+name+"/README.md"] = &fstest.MapFile{Data: []byte("# not an application\n")}
 	}
-	r, err := NewRegistryFromFS(catalog)
+	r, err := NewRegistry(catalog, nil)
 	if err != nil {
 		t.Fatalf("load registry: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestRegistryCombinesInfrastructureAndBackend(t *testing.T) {
 	catalog["applications/"+fixtureService+"/backend/main.go"] = &fstest.MapFile{
 		Data: []byte("package main\n\nfunc main() {}\n"),
 	}
-	r, err := NewRegistryFromFS(catalog)
+	r, err := NewRegistry(catalog, nil)
 	if err != nil {
 		t.Fatalf("load combined application: %v", err)
 	}
