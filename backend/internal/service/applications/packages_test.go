@@ -14,7 +14,7 @@ type recordingCatalog struct {
 	stored  []Package
 	uploads []PackageUpload
 	removed []string
-	// pkg is what InstallPackage reports having stored. The zero value stands
+	// pkg is what AddPackage reports having stored. The zero value stands
 	// in for an ordinary UI package, so a test only sets it when the id or the
 	// version is what it is about.
 	pkg        Package
@@ -24,7 +24,7 @@ type recordingCatalog struct {
 
 func (c *recordingCatalog) Packages() []Package { return c.stored }
 
-func (c *recordingCatalog) InstallPackage(upload PackageUpload) (Package, error) {
+func (c *recordingCatalog) AddPackage(upload PackageUpload) (Package, error) {
 	c.uploads = append(c.uploads, upload)
 	if c.installErr != nil {
 		return Package{}, c.installErr

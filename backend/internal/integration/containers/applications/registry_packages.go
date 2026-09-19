@@ -36,7 +36,7 @@ func (r *Registry) Packages() []svc.Package {
 	if r.packages == nil {
 		return nil
 	}
-	stored := r.packages.Packages()
+	stored := r.packages.list()
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -60,12 +60,12 @@ func (r *Registry) Packages() []svc.Package {
 	return stored
 }
 
-// InstallPackage stores an uploaded archive and reloads the catalog.
-func (r *Registry) InstallPackage(upload svc.PackageUpload) (svc.Package, error) {
+// AddPackage stores an uploaded archive and reloads the catalog.
+func (r *Registry) AddPackage(upload svc.PackageUpload) (svc.Package, error) {
 	if r.packages == nil {
 		return svc.Package{}, svc.ErrPackagesUnavailable
 	}
-	pkg, err := r.packages.install(upload, r.reservePackageID)
+	pkg, err := r.packages.add(upload, r.reservePackageID)
 	if err != nil {
 		return svc.Package{}, err
 	}
@@ -103,7 +103,7 @@ func (r *Registry) RemovePackage(id string) error {
 	if r.packages == nil {
 		return svc.ErrPackagesUnavailable
 	}
-	if err := r.packages.RemovePackage(id); err != nil {
+	if err := r.packages.remove(id); err != nil {
 		if errors.Is(err, svc.ErrPackageNotFound) && r.applicationIsBuiltin(id) {
 			return errPackageReserved(id)
 		}

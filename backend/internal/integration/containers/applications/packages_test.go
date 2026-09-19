@@ -59,7 +59,7 @@ func newTestRegistry(t *testing.T) (*Registry, *PackageStore, string) {
 	if err != nil {
 		t.Fatalf("new package store: %v", err)
 	}
-	registry, err := NewRegistryWithPackages(fixtureCatalog(), store)
+	registry, err := NewRegistry(fixtureCatalog(), store)
 	if err != nil {
 		t.Fatalf("new registry: %v", err)
 	}
@@ -68,7 +68,7 @@ func newTestRegistry(t *testing.T) (*Registry, *PackageStore, string) {
 
 func upload(t *testing.T, r *Registry, files map[string]string) svc.Package {
 	t.Helper()
-	pkg, err := r.InstallPackage(svc.PackageUpload{
+	pkg, err := r.AddPackage(svc.PackageUpload{
 		Filename: "app.zip",
 		Data:     zipOf(t, files),
 		Actor:    "admin@example.com",
@@ -79,7 +79,7 @@ func upload(t *testing.T, r *Registry, files map[string]string) svc.Package {
 	return pkg
 }
 
-func TestInstallPackageJoinsTheCatalog(t *testing.T) {
+func TestAddPackageJoinsTheCatalog(t *testing.T) {
 	registry, _, _ := newTestRegistry(t)
 
 	pkg := upload(t, registry, uploadedPackage())
@@ -240,7 +240,7 @@ func TestPackageIsRejectedWhenItCannotBecomeAnApplication(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			registry, _, root := newTestRegistry(t)
-			_, err := registry.InstallPackage(svc.PackageUpload{Data: zipOf(t, testCase.files)})
+			_, err := registry.AddPackage(svc.PackageUpload{Data: zipOf(t, testCase.files)})
 			if !errors.Is(err, testCase.want) {
 				t.Fatalf("err = %v, want %v", err, testCase.want)
 			}
@@ -255,7 +255,7 @@ func TestPackageIsRejectedWhenItCannotBecomeAnApplication(t *testing.T) {
 
 func TestPackageCannotShadowABuiltInApplication(t *testing.T) {
 	registry, _, _ := newTestRegistry(t)
-	_, err := registry.InstallPackage(svc.PackageUpload{Data: zipOf(t, map[string]string{
+	_, err := registry.AddPackage(svc.PackageUpload{Data: zipOf(t, map[string]string{
 		"application.json": `{
 			"id": "` + fixtureUI + `",
 			"name": "Impostor",
@@ -301,7 +301,7 @@ func TestFailedReplacementLeavesThePreviousPackageInstalled(t *testing.T) {
 	registry, _, _ := newTestRegistry(t)
 	upload(t, registry, uploadedPackage())
 
-	_, err := registry.InstallPackage(svc.PackageUpload{Data: zipOf(t, map[string]string{
+	_, err := registry.AddPackage(svc.PackageUpload{Data: zipOf(t, map[string]string{
 		"application.json": `{"id": "uploaded-app", "name": "Broken", "scopes": ["global"]}`,
 	})})
 	if !errors.Is(err, svc.ErrPackageInvalid) {
@@ -348,7 +348,7 @@ func TestUploadedPackagesSurviveARestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen store: %v", err)
 	}
-	restarted, err := NewRegistryWithPackages(fixtureCatalog(), reopened)
+	restarted, err := NewRegistry(fixtureCatalog(), reopened)
 	if err != nil {
 		t.Fatalf("restart registry: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestUnloadablePackageIsReportedRatherThanFatal(t *testing.T) {
 		t.Fatalf("corrupt package: %v", err)
 	}
 
-	restarted, err := NewRegistryWithPackages(fixtureCatalog(), mustStore(t, root))
+	restarted, err := NewRegistry(fixtureCatalog(), mustStore(t, root))
 	if err != nil {
 		t.Fatalf("a broken package must not fail the load: %v", err)
 	}
@@ -404,11 +404,11 @@ func mustStore(t *testing.T, root string) *PackageStore {
 }
 
 func TestRegistryWithoutAPackageStoreRefusesUploads(t *testing.T) {
-	registry, err := NewRegistryFromFS(fixtureCatalog())
+	registry, err := NewRegistry(fixtureCatalog(), nil)
 	if err != nil {
 		t.Fatalf("new registry: %v", err)
 	}
-	if _, err := registry.InstallPackage(svc.PackageUpload{Data: []byte("x")}); !errors.Is(
+	if _, err := registry.AddPackage(svc.PackageUpload{Data: []byte("x")}); !errors.Is(
 		err, svc.ErrPackagesUnavailable,
 	) {
 		t.Fatalf("err = %v, want %v", err, svc.ErrPackagesUnavailable)
@@ -455,7 +455,7 @@ func TestPackageSupersededByABuiltInApplicationCanStillBeRemoved(t *testing.T) {
 	store := mustStore(t, root)
 
 	// Uploaded to a server whose binary defined no such application.
-	before, err := NewRegistryWithPackages(fixtureCatalog(), store)
+	before, err := NewRegistry(fixtureCatalog(), store)
 	if err != nil {
 		t.Fatalf("new registry: %v", err)
 	}
@@ -472,7 +472,7 @@ func TestPackageSupersededByABuiltInApplicationCanStillBeRemoved(t *testing.T) {
 	catalog["applications/uploaded-app/ui/scripts/main.js"] = &fstest.MapFile{
 		Data: []byte("export default () => {}\n"),
 	}
-	after, err := NewRegistryWithPackages(catalog, store)
+	after, err := NewRegistry(catalog, store)
 	if err != nil {
 		t.Fatalf("new registry: %v", err)
 	}

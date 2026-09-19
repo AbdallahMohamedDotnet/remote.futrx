@@ -69,23 +69,14 @@ func newCatalogView() catalogView {
 // where an app author finds it.
 func EmbeddedCatalog() fs.FS { return catalog.FS }
 
-// NewRegistry loads and validates the catalog embedded in the binary.
-func NewRegistry() (*Registry, error) { return NewRegistryFromFS(catalog.FS) }
-
-// NewRegistryFromFS loads and validates every applications/<id>/application.json in the
-// given filesystem. A malformed entry is a build/asset error, so loading fails
-// loudly rather than silently dropping an app.
+// NewRegistry loads and validates every applications/<id>/application.json in the
+// given catalog, plus — when packages is non-nil — every uploaded package
+// stored beside it.
 //
-// Taking the filesystem as an argument is what keeps the catalog a *set of
-// applications* rather than a fixed list: the server loads the embedded one, and
-// anything else — a test fixture, a catalog assembled from uploaded packages —
-// goes through exactly the same validation.
-func NewRegistryFromFS(catalog fs.FS) (*Registry, error) {
-	return NewRegistryWithPackages(catalog, nil)
-}
-
-// NewRegistryWithPackages loads the built-in catalog and, when packages is
-// non-nil, every uploaded package stored beside it.
+// Taking the catalog as an argument is what keeps it a *set of applications*
+// rather than a fixed list: the server loads the embedded one, and anything
+// else — a test fixture, a catalog assembled from uploaded packages — goes
+// through exactly the same validation.
 //
 // The two halves are held to different standards on purpose. A built-in application
 // that does not load is a broken build and fails startup. An uploaded package
@@ -93,7 +84,7 @@ func NewRegistryFromFS(catalog fs.FS) (*Registry, error) {
 // different version of Remote: it is skipped with its reason recorded, because
 // refusing to boot the whole server over it would turn one bad upload into an
 // outage.
-func NewRegistryWithPackages(catalog fs.FS, packages *PackageStore) (*Registry, error) {
+func NewRegistry(catalog fs.FS, packages *PackageStore) (*Registry, error) {
 	r := &Registry{base: catalog, packages: packages}
 	if err := r.Reload(); err != nil {
 		return nil, err

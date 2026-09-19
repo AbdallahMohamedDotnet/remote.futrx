@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 // multipartUpload builds the request a browser form sends.
@@ -85,7 +87,7 @@ func TestReadUploadedPackageRefusesAnOversizedBody(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/api/applications/packages",
-		bytes.NewReader(make([]byte, maxPackageUpload+1)),
+		bytes.NewReader(make([]byte, constants.MaxApplicationPackageUploadBytes+1)),
 	)
 	request.Header.Set("Content-Type", "application/zip")
 

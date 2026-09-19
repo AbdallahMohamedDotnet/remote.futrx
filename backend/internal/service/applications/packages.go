@@ -59,31 +59,6 @@ type PackageInstall struct {
 	Status     InstanceStatus `json:"status"`
 }
 
-// PackageUpload is one archive submitted for installation into the catalog.
-type PackageUpload struct {
-	// Filename is the client's name for the archive. It is recorded, never
-	// used to derive the application id: the id comes from application.json.
-	Filename string
-	Data     []byte
-	// Actor is the email of the administrator who uploaded it.
-	Actor string
-}
-
-// PackageCatalog is the writable half of the catalog: the part backed by
-// uploaded packages on disk rather than by applications compiled into the binary.
-// A server without it still serves its built-in catalog and reports uploads
-// unavailable, which is what keeps the feature optional rather than required.
-type PackageCatalog interface {
-	// Packages lists every stored package, including ones that failed to load.
-	Packages() []Package
-	// InstallPackage validates an archive and adds or replaces the catalog
-	// entry it carries. It returns ErrPackageInvalid for a malformed archive
-	// and ErrPackageReserved for one whose id belongs to a built-in application.
-	InstallPackage(upload PackageUpload) (Package, error)
-	// RemovePackage deletes a stored package and its catalog entry.
-	RemovePackage(id string) error
-}
-
 // Packages lists the uploaded application packages this server stores.
 func (s *Service) Packages(ctx context.Context) ([]Package, error) {
 	if s.packages == nil {
@@ -159,7 +134,7 @@ func (s *Service) UploadPackage(ctx context.Context, upload PackageUpload) (Pack
 	if len(upload.Data) == 0 {
 		return Package{}, fmt.Errorf("%w: the archive is empty", ErrPackageInvalid)
 	}
-	pkg, err := s.packages.InstallPackage(upload)
+	pkg, err := s.packages.AddPackage(upload)
 	if err != nil {
 		return Package{}, err
 	}

@@ -79,7 +79,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("open uploaded application packages: %v", err)
 	}
-	appRegistry, err := containerapplications.NewRegistryWithPackages(
+	appRegistry, err := containerapplications.NewRegistry(
 		containerapplications.EmbeddedCatalog(),
 		appPackages,
 	)
