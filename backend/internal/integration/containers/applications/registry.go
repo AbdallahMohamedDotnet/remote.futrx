@@ -94,7 +94,9 @@ func NewRegistry(catalog fs.FS, packages *PackageStore) (*Registry, error) {
 
 // Reload rebuilds the catalog from the built-in applications and the package store.
 // It returns an error only when the built-in catalog itself is unloadable;
-// per-package failures are recorded and reported through Packages.
+// per-package failures are recorded and reported through Packages. A failure
+// to read the package directory at all is neither: it is swallowed here, and
+// the empty listing it also produces is all the caller sees.
 func (r *Registry) Reload() error {
 	view := newCatalogView()
 	if _, err := loadCatalogInto(&view, r.base, svc.SourceBuiltin, nil); err != nil {

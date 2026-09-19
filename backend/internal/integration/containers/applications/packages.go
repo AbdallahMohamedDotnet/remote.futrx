@@ -44,8 +44,12 @@ const (
 // a catalog filesystem.
 type PackageStore struct {
 	root string
-	// mu serializes writers. Readers go through fs.FS on the committed
-	// directory, which a writer only ever replaces by rename.
+	// mu serializes writers. A catalog reader goes through FS on the
+	// committed application directories, which a writer only ever replaces by
+	// rename, so it never observes a half-written package. list is the
+	// exception: it reads the directory and the metadata files unlocked, and
+	// those are written in place, so a listing taken during an upload can
+	// show a package's previous metadata or none at all.
 	mu sync.Mutex
 	// now is injectable so tests can pin upload timestamps.
 	now func() time.Time
