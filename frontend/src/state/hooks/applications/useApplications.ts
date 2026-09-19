@@ -269,11 +269,15 @@ function useApplicationsCore({
 }
 
 /** Global (server-wide) applications; admin-only. */
-export function useGlobalApplications(
-  enabled: boolean,
-  isAdmin: boolean,
-  onApplicationsSettled?: ApplicationsSettled,
-): ApplicationsController {
+export function useGlobalApplications({
+  enabled,
+  managesPackages,
+  onApplicationsSettled,
+}: {
+  enabled: boolean;
+  managesPackages: boolean;
+  onApplicationsSettled?: ApplicationsSettled;
+}): ApplicationsController {
   const bindings = useMemo<Bindings>(
     () => ({
       list: applicationsApi.listGlobal,
@@ -289,19 +293,24 @@ export function useGlobalApplications(
   return useApplicationsCore({
     scope: "global",
     enabled,
-    managesPackages: isAdmin,
+    managesPackages,
     bindings,
     onApplicationsSettled,
   });
 }
 
 /** Applications scoped to a single project. */
-export function useProjectApplications(
-  project: ProjectMeta | null,
-  enabled: boolean,
-  isAdmin: boolean,
-  onApplicationsSettled?: ApplicationsSettled,
-): ApplicationsController {
+export function useProjectApplications({
+  project,
+  enabled,
+  managesPackages,
+  onApplicationsSettled,
+}: {
+  project: ProjectMeta | null;
+  enabled: boolean;
+  managesPackages: boolean;
+  onApplicationsSettled?: ApplicationsSettled;
+}): ApplicationsController {
   const id = project?.id ?? null;
   const bindings = useMemo<Bindings | null>(
     () =>
@@ -321,7 +330,7 @@ export function useProjectApplications(
   return useApplicationsCore({
     scope: "project",
     enabled: enabled && !!id,
-    managesPackages: isAdmin,
+    managesPackages,
     bindings,
     onApplicationsSettled,
     projectId: id ?? undefined,

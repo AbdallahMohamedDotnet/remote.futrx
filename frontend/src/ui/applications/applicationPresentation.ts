@@ -2,6 +2,7 @@ import type {
   AppApplication,
   AppInstance,
   AppPackage,
+  AppPackageInstall,
   AppScope,
   AppUpgradeOutcome,
 } from "../../models/application";
@@ -157,6 +158,39 @@ export function describeOutcome(outcome: AppUpgradeOutcome): string {
   return outcome.scope === "project"
     ? `${outcome.name} in project ${outcome.projectId}`
     : outcome.name;
+}
+
+/**
+ * What removing a package costs, in one line under the dialog title. Removing
+ * one that is still installed has to uninstall those copies first — otherwise
+ * they would point at a catalog entry that no longer exists — and that is real
+ * destruction, so it is said before the operator agrees rather than after.
+ */
+export function packageRemovalSummary(installs: AppPackageInstall[]): string {
+  if (installs.length === 0) return "The uploaded package is deleted from this server.";
+  return `${installs.length} installed ${
+    installs.length === 1 ? "copy" : "copies"
+  } will be uninstalled first.`;
+}
+
+/** The confirm button, named for everything it does and not just the last bit. */
+export function packageRemovalConfirmLabel(installs: AppPackageInstall[]): string {
+  return installs.length > 0 ? "Uninstall and remove" : "Remove";
+}
+
+/**
+ * How far the removal reaches, said from the page the operator is standing on.
+ * There is one catalog, so removing from a project removes for every project.
+ */
+export function packageRemovalReach(viewing: AppScope): string {
+  return viewing === "project" ? "every project on this server" : "the whole server";
+}
+
+/** One copy the removal will take down, as the dialog lists it. */
+export function describeRemovedInstall(install: AppPackageInstall): string {
+  return install.scope === "project"
+    ? `in project ${install.projectId}`
+    : "installed globally";
 }
 
 /** Enough provenance to tell two uploads of the same app apart. */

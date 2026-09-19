@@ -1,9 +1,13 @@
 import { useRef, useState } from "preact/hooks";
-import type { AppPackage, AppScope } from "../../models/application";
+import type { AppPackage, AppPackageInstall, AppScope } from "../../models/application";
 import { useConfirm } from "../../state/context/ConfirmContext";
 import {
   describeInstalls,
   describeOutcome,
+  describeRemovedInstall,
+  packageRemovalConfirmLabel,
+  packageRemovalReach,
+  packageRemovalSummary,
   packageScopes,
   packageSummary,
   whereToInstall,
@@ -89,39 +93,9 @@ export function ApplicationPackages({
     // take down rather than asking the operator to go and find them.
     await confirm({
       title: `Remove ${pkg.name || pkg.id}?`,
-      description:
-        installs.length > 0
-          ? `${installs.length} installed ${
-              installs.length === 1 ? "copy" : "copies"
-            } will be uninstalled first.`
-          : "The uploaded package is deleted from this server.",
-      message: (
-        <>
-          It disappears from the catalog for{" "}
-          {scope === "project" ? "every project on this server" : "the whole server"}{" "}
-          and can no longer be installed. Upload the .zip again to bring it back.
-          {installs.length > 0 && (
-            <>
-              <span class="mt-2 block">Uninstalling first removes:</span>
-              <ul class="mt-1 space-y-0.5">
-                {installs.map((install) => (
-                  <li key={install.instanceId} class="font-mono text-[11.5px]">
-                    · {install.name}{" "}
-                    {install.scope === "project"
-                      ? `in project ${install.projectId}`
-                      : "installed globally"}
-                  </li>
-                ))}
-              </ul>
-              <span class="mt-2 block">
-                Anything those copies provisioned in a container — a database
-                and its data included — goes with them.
-              </span>
-            </>
-          )}
-        </>
-      ),
-      confirmLabel: installs.length > 0 ? "Uninstall and remove" : "Remove",
+      description: packageRemovalSummary(installs),
+      message: <RemovalConsequences installs={installs} scope={scope} />,
+      confirmLabel: packageRemovalConfirmLabel(installs),
       pendingLabel: "Removing…",
       tone: "danger",
       action: async () => {
@@ -215,6 +189,45 @@ export function ApplicationPackages({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Everything the removal destroys, named rather than counted. The copies are
+ * listed because "uninstall it everywhere first" is useless advice without an
+ * "everywhere", and the container warning is last because it is the part that
+ * cannot be undone by uploading the .zip again.
+ */
+function RemovalConsequences({
+  installs,
+  scope,
+}: {
+  installs: AppPackageInstall[];
+  scope: AppScope;
+}) {
+  return (
+    <>
+      It disappears from the catalog for{" "}
+      {packageRemovalReach(scope)}{" "}
+      and can no longer be installed. Upload the .zip again to bring it back.
+      {installs.length > 0 && (
+        <>
+          <span class="mt-2 block">Uninstalling first removes:</span>
+          <ul class="mt-1 space-y-0.5">
+            {installs.map((install) => (
+              <li key={install.instanceId} class="font-mono text-[11.5px]">
+                · {install.name}{" "}
+                {describeRemovedInstall(install)}
+              </li>
+            ))}
+          </ul>
+          <span class="mt-2 block">
+            Anything those copies provisioned in a container — a database
+            and its data included — goes with them.
+          </span>
+        </>
+      )}
+    </>
   );
 }
 

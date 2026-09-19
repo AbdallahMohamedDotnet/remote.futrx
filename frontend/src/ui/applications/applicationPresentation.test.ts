@@ -126,6 +126,15 @@ describe("uploaded package scope", () => {
     assert.match(packageScopes(pkg(["global"]), "global"), /from this page/);
   });
 
+  // The scope set nearly every real package declares, and the one branch of
+  // packageScopes nothing else reaches. Both viewings are pinned because today
+  // they are the same sentence — see the note on packageScopes.
+  it("says a dual-scope app offers both, from either page", () => {
+    const both = "Installs here, and in every other project — it offers both scopes.";
+    assert.equal(packageScopes(pkg(["global", "project"]), "global"), both);
+    assert.equal(packageScopes(pkg(["global", "project"]), "project"), both);
+  });
+
   it("says an app declaring no scope cannot be installed at all", () => {
     for (const viewing of ["global", "project"] as const) {
       assert.match(packageScopes(pkg([]), viewing), /cannot be installed/);
@@ -165,6 +174,15 @@ describe("uploaded package provenance", () => {
   it("omits provenance it does not have rather than printing empty parts", () => {
     assert.equal(packageSummary(stored()), "");
     assert.equal(packageSummary(stored({ uploadedBy: "me@example.com" })), "by me@example.com");
+  });
+
+  it("leads with the upload time and joins every part it has", () => {
+    // Asserted by shape, not by locale text: toLocaleString renders differently
+    // per machine, and what this line owns is the order and the separator.
+    assert.match(
+      packageSummary(stored({ uploadedAt: 1700000000, uploadedBy: "me@example.com", size: 512 })),
+      /^uploaded .+ · by me@example\.com · 512 B$/,
+    );
   });
 
   it("scales the archive size by unit, and keeps a zero size out of the summary", () => {

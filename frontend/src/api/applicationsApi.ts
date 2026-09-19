@@ -39,7 +39,7 @@ export const applicationsApi = {
    * first; without it a package that is still installed is refused, so a plain
    * delete can never destroy a database's container as a side effect.
    */
-  removePackage: (packageId: string, uninstallInstalled = false) =>
+  removePackage: (packageId: string, uninstallInstalled: boolean) =>
     requestJson<{ ok: boolean; uninstalled: AppPackageInstall[] }>(
       "DELETE",
       API_ROUTES.applications.package(packageId, uninstallInstalled),
