@@ -12,6 +12,7 @@ import {
   hasContainer,
   hasPortBinding,
   instanceSummary,
+  packageCountLabel,
   packageScopes,
   packageSummary,
   uninstallConsequence,
@@ -126,13 +127,26 @@ describe("uploaded package scope", () => {
     assert.match(packageScopes(pkg(["global"]), "global"), /from this page/);
   });
 
-  // The scope set nearly every real package declares, and the one branch of
-  // packageScopes nothing else reaches. Both viewings are pinned because today
-  // they are the same sentence — see the note on packageScopes.
-  it("says a dual-scope app offers both, from either page", () => {
-    const both = "Installs here, and in every other project — it offers both scopes.";
-    assert.equal(packageScopes(pkg(["global", "project"]), "global"), both);
-    assert.equal(packageScopes(pkg(["global", "project"]), "project"), both);
+  // The scope set nearly every real package declares. Each page gets its own
+  // sentence: "here, and in every other project" is true standing in a
+  // project and false standing in Settings, which is not a project at all.
+  it("says a dual-scope app offers both, in the words of the page asking", () => {
+    assert.equal(
+      packageScopes(pkg(["global", "project"]), "project"),
+      "Installs here, and in every other project — it offers both scopes.",
+    );
+    assert.equal(
+      packageScopes(pkg(["global", "project"]), "global"),
+      "Installs globally, or inside a project.",
+    );
+  });
+
+  it("never tells a page outside a project that an app installs in this one", () => {
+    // The symptom the tautology produced: Settings → Applications claiming a
+    // dual-scope package installs "here, and in every other project" on a
+    // page that is not a project.
+    assert.doesNotMatch(packageScopes(pkg(["global", "project"]), "global"), /here/);
+    assert.doesNotMatch(packageScopes(pkg(["global"]), "global"), /every other project/);
   });
 
   it("says an app declaring no scope cannot be installed at all", () => {
@@ -169,6 +183,16 @@ describe("uploaded package provenance", () => {
       describeOutcome({ instanceId: "b", name: "B", scope: "global", toVersion: "2" }),
       "B",
     );
+  });
+
+  it("counts what is listed, and refuses to count a listing that failed", () => {
+    // "none yet" and "the request failed" are different answers, and only one
+    // of them invites the operator to upload a package they already uploaded.
+    assert.equal(packageCountLabel(0, false), "none yet");
+    assert.equal(packageCountLabel(1, false), "1 package");
+    assert.equal(packageCountLabel(4, false), "4 packages");
+    assert.equal(packageCountLabel(0, true), "could not be listed");
+    assert.equal(packageCountLabel(3, true), "could not be listed");
   });
 
   it("omits provenance it does not have rather than printing empty parts", () => {

@@ -5,6 +5,7 @@ import {
   describeInstalls,
   describeOutcome,
   describeRemovedInstall,
+  packageCountLabel,
   packageRemovalConfirmLabel,
   packageRemovalReach,
   packageRemovalSummary,
@@ -53,7 +54,7 @@ export function ApplicationPackages({
   const [uploaded, setUploaded] = useState<AppPackage | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  const { packages, scope } = controller;
+  const { packages, packagesError, scope } = controller;
 
   const send = async (file: File) => {
     setBusy(true);
@@ -101,6 +102,10 @@ export function ApplicationPackages({
       action: async () => {
         setError(null);
         await controller.removePackage(pkg.id, installs.length > 0);
+        // The receipt names a package that is now gone from the catalog it
+        // says it is in, so it goes with it. Another package's receipt is
+        // still true and stays.
+        setUploaded((current) => (current?.id === pkg.id ? null : current));
       },
     });
   };
@@ -111,9 +116,7 @@ export function ApplicationPackages({
         <div class="flex items-center gap-2">
           <h3 class="text-[13px] font-medium text-ink-100">Uploaded apps in the catalog</h3>
           <span class="text-[11.5px] text-ink-400">
-            {packages.length > 0
-              ? `${packages.length} ${packages.length === 1 ? "package" : "packages"}`
-              : "none yet"}
+            {packageCountLabel(packages.length, !!packagesError)}
           </span>
         </div>
         {/* Uploading adds an app to one server-wide catalog. Where it can
@@ -124,6 +127,11 @@ export function ApplicationPackages({
             ? "Uploading adds an app to this server's catalog — every project can then install the ones that offer project scope. Admins only."
             : "These are available across the server. Each one installs only at the scopes it declares."}
         </p>
+        {packagesError && (
+          <p class="text-[11.5px] text-accent-red break-words whitespace-pre-wrap">
+            The uploaded apps could not be listed: {packagesError}
+          </p>
+        )}
       </div>
 
       <div
@@ -131,7 +139,15 @@ export function ApplicationPackages({
           event.preventDefault();
           setDragging(true);
         }}
-        onDragLeave={() => setDragging(false)}
+        onDragLeave={(event) => {
+          // dragleave fires again for every child the pointer crosses — the
+          // button, the paragraph — so the only one that means "left the zone"
+          // is the one whose related target is outside it, or nowhere at all
+          // because the pointer left the window.
+          const entering = event.relatedTarget as Node | null;
+          if (entering && event.currentTarget.contains(entering)) return;
+          setDragging(false);
+        }}
         onDrop={drop}
         class={`rounded-md border border-dashed px-3 py-4 text-center transition-colors ${
           dragging

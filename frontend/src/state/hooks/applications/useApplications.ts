@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { ApiError } from "../../../api/apiError";
 import { applicationsApi } from "../../../api/applicationsApi";
+import { API_RESPONSE_STATUS } from "../../../config/api";
 import { projectApi } from "../../../api/projectApi";
 import type {
   AppCredentials,
@@ -27,6 +29,12 @@ export interface ApplicationsController {
    * to or remove from it.
    */
   packages: AppPackage[];
+  /**
+   * Why the package list is empty, when it is empty because listing it failed.
+   * A server built without a package store is not that: it has no uploaded
+   * applications, and says so, so it leaves this unset.
+   */
+  packagesError?: string;
   managesPackages: boolean;
   /** Adds a .zip to the catalog, or replaces the package with the same id. */
   uploadPackage: (file: File) => Promise<AppPackage>;
@@ -94,6 +102,7 @@ function useApplicationsCore({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [packages, setPackages] = useState<AppPackage[]>([]);
+  const [packagesError, setPackagesError] = useState<string | undefined>();
   // Held in a ref so every operation below keeps one stable identity: the load
   // effect calls this too, and a caller passing a fresh closure per render
   // would otherwise turn that effect into a loop.
@@ -133,10 +142,17 @@ function useApplicationsCore({
     try {
       const data = await applicationsApi.packages();
       setPackages(data ?? []);
-    } catch {
+      setPackagesError(undefined);
+    } catch (err) {
       // A server built without a package store answers 503 here. That is not
       // an error to show: it simply has no uploaded applications to list.
+      //
+      // Anything else — a network failure, a 500 — leaves the catalog's
+      // contents unknown, and an empty list is then a claim rather than an
+      // answer. Reporting the failure is what keeps an operator from
+      // re-uploading a package that is already there.
       setPackages([]);
+      setPackagesError(packageStoreAbsent(err) ? undefined : (err as Error).message);
     }
   }, [enabled, managesPackages]);
 
@@ -164,11 +180,15 @@ function useApplicationsCore({
   const uploadPackage = useCallback(
     async (file: File) => {
       const uploaded = await applicationsApi.uploadPackage(file);
-      await Promise.all([loadCatalog(), loadPackages()]);
+      // Replacing a package at a new version re-runs the install script in
+      // every container that already holds it, and rewrites each copy's
+      // recorded version and status — the upload response lists exactly which.
+      // The installed list is therefore as stale as the catalog afterwards.
+      await Promise.all([loadCatalog(), loadPackages(), reload()]);
       notifySettled();
       return uploaded;
     },
-    [loadCatalog, loadPackages, notifySettled],
+    [loadCatalog, loadPackages, reload, notifySettled],
   );
 
   const removePackage = useCallback(
@@ -255,6 +275,7 @@ function useApplicationsCore({
     loading,
     error,
     packages,
+    packagesError,
     managesPackages,
     uploadPackage,
     removePackage,
@@ -266,6 +287,14 @@ function useApplicationsCore({
     uninstall,
     credentials,
   };
+}
+
+/**
+ * Whether the server simply has no package store, rather than having failed to
+ * answer. It is the one reason an empty list is the truth.
+ */
+function packageStoreAbsent(err: unknown): boolean {
+  return err instanceof ApiError && err.status === API_RESPONSE_STATUS.serviceUnavailable;
 }
 
 /** Global (server-wide) applications; admin-only. */

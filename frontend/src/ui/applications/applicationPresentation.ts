@@ -111,9 +111,12 @@ export function packageScopes(pkg: AppPackage, viewing: AppScope): string {
   const global = scopes.includes("global");
   const project = scopes.includes("project");
   if (!global && !project) return "Declares no scope, so it cannot be installed.";
-  const here = scopes.includes(viewing);
   if (global && project) {
-    return here
+    // "Here, and in every other project" is a sentence only a project page can
+    // say. Settings is not standing in a project, so from there the two scopes
+    // are named rather than pointed at — the reader is told where the app goes,
+    // not that it goes where they already are.
+    return viewing === "project"
       ? "Installs here, and in every other project — it offers both scopes."
       : "Installs globally, or inside a project.";
   }
@@ -191,6 +194,18 @@ export function describeRemovedInstall(install: AppPackageInstall): string {
   return install.scope === "project"
     ? `in project ${install.projectId}`
     : "installed globally";
+}
+
+/**
+ * How many uploaded apps the catalog holds, beside the heading. A listing that
+ * failed is counted as neither: "none yet" would state the one thing the
+ * request never established, and it is the answer an operator is most likely
+ * to act on by uploading a package they already uploaded.
+ */
+export function packageCountLabel(count: number, failed: boolean): string {
+  if (failed) return "could not be listed";
+  if (count === 0) return "none yet";
+  return `${count} ${count === 1 ? "package" : "packages"}`;
 }
 
 /** Enough provenance to tell two uploads of the same app apart. */
