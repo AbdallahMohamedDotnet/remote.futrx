@@ -369,11 +369,11 @@ func (h *ApplicationsHandler) requireRegistered(w http.ResponseWriter, r *http.R
 
 // ---- helpers ---------------------------------------------------------------
 
-func orEmpty(views []serviceapplications.View) []serviceapplications.View {
-	if views == nil {
-		return []serviceapplications.View{}
+func orEmpty[T any](items []T) []T {
+	if items == nil {
+		return []T{}
 	}
-	return views
+	return items
 }
 
 // parseApplicationResource splits the instance id from its optional action.

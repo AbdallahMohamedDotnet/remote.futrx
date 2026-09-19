@@ -90,15 +90,15 @@ func TestInstallPackageJoinsTheCatalog(t *testing.T) {
 		t.Fatalf("upload provenance not recorded: %+v", pkg)
 	}
 
-	img, ok := registry.Get("uploaded-app")
+	application, ok := registry.Get("uploaded-app")
 	if !ok {
 		t.Fatal("uploaded application is not in the catalog")
 	}
-	if img.Source != svc.SourceUploaded {
-		t.Fatalf("source = %q, want %q", img.Source, svc.SourceUploaded)
+	if application.Source != svc.SourceUploaded {
+		t.Fatalf("source = %q, want %q", application.Source, svc.SourceUploaded)
 	}
-	if img.UI == nil || img.UI.Entry != "scripts/main.js" {
-		t.Fatalf("ui not discovered: %+v", img.UI)
+	if application.UI == nil || application.UI.Entry != "scripts/main.js" {
+		t.Fatalf("ui not discovered: %+v", application.UI)
 	}
 	// The catalog stays sorted and still holds everything it shipped with.
 	found := false
@@ -115,7 +115,7 @@ func TestInstallPackageJoinsTheCatalog(t *testing.T) {
 	}
 }
 
-func TestUploadedImageServesItsOwnAssets(t *testing.T) {
+func TestUploadedApplicationServesItsOwnAssets(t *testing.T) {
 	registry, _, _ := newTestRegistry(t)
 	upload(t, registry, uploadedPackage())
 
@@ -188,7 +188,7 @@ func TestPackageArchiveMayWrapItsFilesInOneFolder(t *testing.T) {
 	}
 }
 
-func TestPackageIsRejectedWhenItCannotBecomeAnImage(t *testing.T) {
+func TestPackageIsRejectedWhenItCannotBecomeAnApplication(t *testing.T) {
 	cases := []struct {
 		name  string
 		files map[string]string
@@ -253,7 +253,7 @@ func TestPackageIsRejectedWhenItCannotBecomeAnImage(t *testing.T) {
 	}
 }
 
-func TestPackageCannotShadowABuiltInImage(t *testing.T) {
+func TestPackageCannotShadowABuiltInApplication(t *testing.T) {
 	registry, _, _ := newTestRegistry(t)
 	_, err := registry.InstallPackage(svc.PackageUpload{Data: zipOf(t, map[string]string{
 		"application.json": `{
@@ -266,8 +266,8 @@ func TestPackageCannotShadowABuiltInImage(t *testing.T) {
 	if !errors.Is(err, svc.ErrPackageReserved) {
 		t.Fatalf("err = %v, want %v", err, svc.ErrPackageReserved)
 	}
-	if img, _ := registry.Get(fixtureUI); img.Source != svc.SourceBuiltin {
-		t.Fatalf("built-in application was replaced: %+v", img)
+	if application, _ := registry.Get(fixtureUI); application.Source != svc.SourceBuiltin {
+		t.Fatalf("built-in application was replaced: %+v", application)
 	}
 }
 
@@ -281,11 +281,11 @@ func TestUploadingAgainReplacesTheStoredPackage(t *testing.T) {
 	delete(next, "ui/views/panel.html")
 	upload(t, registry, next)
 
-	img, _ := registry.Get("uploaded-app")
-	if img.Version != "2.0.0" {
-		t.Fatalf("version = %q, want 2.0.0", img.Version)
+	application, _ := registry.Get("uploaded-app")
+	if application.Version != "2.0.0" {
+		t.Fatalf("version = %q, want 2.0.0", application.Version)
 	}
-	if _, ok := img.UI.Views["panel"]; ok {
+	if _, ok := application.UI.Views["panel"]; ok {
 		t.Fatal("a view the new package dropped is still in the catalog")
 	}
 	asset, _ := registry.UIAsset("uploaded-app", "scripts/main.js")
@@ -307,9 +307,9 @@ func TestFailedReplacementLeavesThePreviousPackageInstalled(t *testing.T) {
 	if !errors.Is(err, svc.ErrPackageInvalid) {
 		t.Fatalf("err = %v, want %v", err, svc.ErrPackageInvalid)
 	}
-	img, ok := registry.Get("uploaded-app")
-	if !ok || img.Version != "1.0.0" || img.UI == nil {
-		t.Fatalf("the working package did not survive a failed replacement: %+v", img)
+	application, ok := registry.Get("uploaded-app")
+	if !ok || application.Version != "1.0.0" || application.UI == nil {
+		t.Fatalf("the working package did not survive a failed replacement: %+v", application)
 	}
 }
 
@@ -352,9 +352,9 @@ func TestUploadedPackagesSurviveARestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("restart registry: %v", err)
 	}
-	img, ok := restarted.Get("uploaded-app")
-	if !ok || img.Source != svc.SourceUploaded {
-		t.Fatalf("uploaded application did not survive a restart: %+v", img)
+	application, ok := restarted.Get("uploaded-app")
+	if !ok || application.Source != svc.SourceUploaded {
+		t.Fatalf("uploaded application did not survive a restart: %+v", application)
 	}
 	packages := restarted.Packages()
 	if len(packages) != 1 || packages[0].UploadedBy != "admin@example.com" {
@@ -386,7 +386,7 @@ func TestUnloadablePackageIsReportedRatherThanFatal(t *testing.T) {
 		t.Fatal("a broken package took the built-in catalog down with it")
 	}
 	packages := restarted.Packages()
-	if len(packages) != 1 || packages[0].Installed() {
+	if len(packages) != 1 || packages[0].Error == "" {
 		t.Fatalf("broken package not reported: %+v", packages)
 	}
 	if !strings.Contains(packages[0].Error, "from-the-future") {
@@ -416,9 +416,9 @@ func TestRegistryWithoutAPackageStoreRefusesUploads(t *testing.T) {
 	if registry.Packages() != nil {
 		t.Fatal("a registry with no store must list no packages")
 	}
-	for _, img := range registry.List() {
-		if img.Source != svc.SourceBuiltin {
-			t.Fatalf("%s: source = %q, want builtin", img.ID, img.Source)
+	for _, application := range registry.List() {
+		if application.Source != svc.SourceBuiltin {
+			t.Fatalf("%s: source = %q, want builtin", application.ID, application.Source)
 		}
 	}
 }
@@ -450,7 +450,7 @@ func TestPackageFilesAreNotWrittenExecutable(t *testing.T) {
 // serves the built-in application instead, and deleting them is the only thing left
 // to do with them — so the refusal that stops a DELETE from reaching "mysql"
 // must not also apply to the one package that has to be removable.
-func TestPackageSupersededByABuiltInImageCanStillBeRemoved(t *testing.T) {
+func TestPackageSupersededByABuiltInApplicationCanStillBeRemoved(t *testing.T) {
 	root := t.TempDir()
 	store := mustStore(t, root)
 
@@ -477,9 +477,9 @@ func TestPackageSupersededByABuiltInImageCanStillBeRemoved(t *testing.T) {
 		t.Fatalf("new registry: %v", err)
 	}
 
-	img, ok := after.Get("uploaded-app")
-	if !ok || img.Source != svc.SourceBuiltin || img.Version != "2.0.0" {
-		t.Fatalf("the built-in application is not what the catalog serves: %+v", img)
+	application, ok := after.Get("uploaded-app")
+	if !ok || application.Source != svc.SourceBuiltin || application.Version != "2.0.0" {
+		t.Fatalf("the built-in application is not what the catalog serves: %+v", application)
 	}
 	stored := after.Packages()
 	if len(stored) != 1 || !strings.Contains(stored[0].Error, svc.ErrPackageSuperseded.Error()) {
@@ -492,8 +492,8 @@ func TestPackageSupersededByABuiltInImageCanStillBeRemoved(t *testing.T) {
 	if remaining := after.Packages(); len(remaining) != 0 {
 		t.Fatalf("the files survived the removal: %+v", remaining)
 	}
-	if img, ok := after.Get("uploaded-app"); !ok || img.Source != svc.SourceBuiltin {
-		t.Fatalf("removing the shadowed package took the built-in application with it: %+v", img)
+	if application, ok := after.Get("uploaded-app"); !ok || application.Source != svc.SourceBuiltin {
+		t.Fatalf("removing the shadowed package took the built-in application with it: %+v", application)
 	}
 
 	// An id that is only built in, with nothing stored under it, is still

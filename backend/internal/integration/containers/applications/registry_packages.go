@@ -39,14 +39,10 @@ func (r *Registry) Packages() []svc.Package {
 	stored := r.packages.Packages()
 
 	r.mu.RLock()
-	failures := make(map[string]string, len(r.packageErrors))
-	for id, reason := range r.packageErrors {
-		failures[id] = reason
-	}
-	r.mu.RUnlock()
+	defer r.mu.RUnlock()
 
 	for i := range stored {
-		if reason, failed := failures[stored[i].ID]; failed {
+		if reason, failed := r.packageErrors[stored[i].ID]; failed {
 			stored[i].Error = reason
 			continue
 		}
@@ -55,10 +51,10 @@ func (r *Registry) Packages() []svc.Package {
 		// not whatever was recorded when it was uploaded. Reading it back from
 		// the catalog is what keeps the management list from describing a
 		// package by a stale copy of its own manifest.
-		if img, ok := r.Get(stored[i].ID); ok {
-			stored[i].Name = img.Name
-			stored[i].Version = img.Version
-			stored[i].Scopes = img.Scopes
+		if application, ok := r.view.byID[stored[i].ID]; ok {
+			stored[i].Name = application.Name
+			stored[i].Version = application.Version
+			stored[i].Scopes = application.Scopes
 		}
 	}
 	return stored
@@ -69,7 +65,7 @@ func (r *Registry) InstallPackage(upload svc.PackageUpload) (svc.Package, error)
 	if r.packages == nil {
 		return svc.Package{}, svc.ErrPackagesUnavailable
 	}
-	pkg, err := r.packages.install(upload, r.acceptPackageID)
+	pkg, err := r.packages.install(upload, r.reservePackageID)
 	if err != nil {
 		return svc.Package{}, err
 	}
@@ -85,10 +81,11 @@ func (r *Registry) InstallPackage(upload svc.PackageUpload) (svc.Package, error)
 	return pkg, nil
 }
 
-// acceptPackageID refuses an id the binary already defines. Allowing it would
+// reservePackageID refuses an id the binary already defines. Allowing it would
 // mean an upload could redefine what a built-in application installs, which is
-// a much larger claim than "add an application".
-func (r *Registry) acceptPackageID(id string) error {
+// a much larger claim than "add an application". It is the same role the
+// catalog loader's own reserve callback plays, spelled the same way.
+func (r *Registry) reservePackageID(id string) error {
 	if r.applicationIsBuiltin(id) {
 		return errPackageReserved(id)
 	}
@@ -120,8 +117,8 @@ func (r *Registry) RemovePackage(id string) error {
 func (r *Registry) applicationIsBuiltin(id string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	img, ok := r.view.byID[id]
-	return ok && img.Source == svc.SourceBuiltin
+	application, ok := r.view.byID[id]
+	return ok && application.Source == svc.SourceBuiltin
 }
 
 func (r *Registry) packageError(id string) (string, bool) {

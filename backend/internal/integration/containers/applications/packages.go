@@ -99,7 +99,7 @@ func (s *PackageStore) FS() fs.FS { return os.DirFS(s.root) }
 // install validates an uploaded archive and publishes it, replacing any earlier
 // upload with the same id.
 //
-// accept is consulted as soon as the id is known and before anything is
+// reserve is consulted as soon as the id is known and before anything is
 // written, so an id the catalog refuses cannot displace a package already
 // stored under that name.
 //
@@ -107,7 +107,7 @@ func (s *PackageStore) FS() fs.FS { return os.DirFS(s.root) }
 // staging directory *and* loaded by the same validator the built-in catalog
 // goes through. An upload that would not have produced a working application
 // leaves the previous one exactly as it was.
-func (s *PackageStore) install(upload svc.PackageUpload, accept func(string) error) (svc.Package, error) {
+func (s *PackageStore) install(upload svc.PackageUpload, reserve func(string) error) (svc.Package, error) {
 	if len(upload.Data) > maxPackageArchive {
 		return svc.Package{}, fmt.Errorf(
 			"%w: the archive is larger than %d MiB", svc.ErrPackageInvalid, maxPackageArchive>>20)
@@ -120,10 +120,8 @@ func (s *PackageStore) install(upload svc.PackageUpload, accept func(string) err
 	if err != nil {
 		return svc.Package{}, err
 	}
-	if accept != nil {
-		if err := accept(id); err != nil {
-			return svc.Package{}, err
-		}
+	if err := reserve(id); err != nil {
+		return svc.Package{}, err
 	}
 
 	s.mu.Lock()
@@ -135,28 +133,28 @@ func (s *PackageStore) install(upload svc.PackageUpload, accept func(string) err
 	}
 	defer os.RemoveAll(staged)
 
-	stagedImage := filepath.Join(staged, packageApplicationsDir, id)
-	if err := writePackageFiles(stagedImage, files); err != nil {
+	stagedDir := filepath.Join(staged, packageApplicationsDir, id)
+	if err := writePackageFiles(stagedDir, files); err != nil {
 		return svc.Package{}, err
 	}
 	// The staged tree is laid out as a catalog of one, so the package is
 	// validated by loadApplication itself — not by a parallel set of checks that
 	// could drift from what the server will actually accept at install time.
-	img, _, err := loadApplication(os.DirFS(staged), id)
+	application, _, err := loadApplication(os.DirFS(staged), id)
 	if err != nil {
 		return svc.Package{}, fmt.Errorf("%w: %s", svc.ErrPackageInvalid, err)
 	}
 
-	if err := s.publish(id, stagedImage); err != nil {
+	if err := s.publish(id, stagedDir); err != nil {
 		return svc.Package{}, err
 	}
 
 	digest := sha256.Sum256(upload.Data)
 	pkg := svc.Package{
 		ID:         id,
-		Name:       img.Name,
-		Version:    img.Version,
-		Scopes:     img.Scopes,
+		Name:       application.Name,
+		Version:    application.Version,
+		Scopes:     application.Scopes,
 		Filename:   filepath.Base(filepath.Clean(upload.Filename)),
 		Size:       int64(len(upload.Data)),
 		SHA256:     hex.EncodeToString(digest[:]),
@@ -173,7 +171,7 @@ func (s *PackageStore) install(upload svc.PackageUpload, accept func(string) err
 // previous copy is moved aside first and only deleted once the new one is in
 // place, so a failure mid-swap restores what was there rather than leaving the
 // id with no directory at all.
-func (s *PackageStore) publish(id, stagedImage string) error {
+func (s *PackageStore) publish(id, stagedDir string) error {
 	live := filepath.Join(s.root, packageApplicationsDir, id)
 	previous := live + ".replaced"
 	_ = os.RemoveAll(previous)
@@ -185,7 +183,7 @@ func (s *PackageStore) publish(id, stagedImage string) error {
 		}
 		hadPrevious = true
 	}
-	if err := os.Rename(stagedImage, live); err != nil {
+	if err := os.Rename(stagedDir, live); err != nil {
 		if hadPrevious {
 			_ = os.Rename(previous, live)
 		}

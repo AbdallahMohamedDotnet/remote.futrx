@@ -129,16 +129,12 @@ func (r *Registry) Reload() error {
 			}
 			return nil
 		}
-		skipped, err := loadCatalogInto(&view, r.packages.FS(), svc.SourceUploaded, reserve)
-		if err != nil {
-			// loadCatalogInto only returns an error here if the packages
-			// directory itself is unreadable, which is a store problem rather
-			// than a package problem.
-			failures[""] = err.Error()
-		} else {
-			for id, reason := range skipped {
-				failures[id] = reason
-			}
+		// loadCatalogInto only returns an error here if the packages directory
+		// itself is unreadable, which is a store problem rather than a package
+		// problem; skipped is nil then and the loop below does nothing.
+		skipped, _ := loadCatalogInto(&view, r.packages.FS(), svc.SourceUploaded, reserve)
+		for id, reason := range skipped {
+			failures[id] = reason
 		}
 	}
 	sortCatalog(&view)

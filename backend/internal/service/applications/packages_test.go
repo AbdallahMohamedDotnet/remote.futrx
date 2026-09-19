@@ -89,7 +89,7 @@ func TestUploadPackageRejectsAnEmptyArchive(t *testing.T) {
 // Replacing a package leaves plugin processes running against the binary
 // compiled from the previous version. Stopping them is what makes the upgrade
 // take effect on the next call.
-func TestUploadPackageRestartsPluginsOfTheReplacedImage(t *testing.T) {
+func TestUploadPackageRestartsPluginsOfTheReplacedApplication(t *testing.T) {
 	store := &fakeStore{
 		global: []Instance{instance("uploaded-app", "", StatusRunning)},
 		byProject: map[string][]Instance{
@@ -206,11 +206,11 @@ func TestPackagesListsWhatTheStoreHolds(t *testing.T) {
 	if len(list) != 2 {
 		t.Fatalf("list = %+v", list)
 	}
-	if !list[0].Installed() {
-		t.Fatal("a package with no error must report itself installed")
+	if list[0].Error != "" {
+		t.Fatalf("a package that loaded must carry no error: %q", list[0].Error)
 	}
-	if list[1].Installed() {
-		t.Fatal("a package with an error must not report itself installed")
+	if list[1].Error == "" {
+		t.Fatal("a package that failed to load must carry its reason")
 	}
 }
 
@@ -263,7 +263,7 @@ func TestRemovePackageUninstallsEveryCopyWhenAsked(t *testing.T) {
 // A package that no longer loads cannot describe how to tear its copies down —
 // which is exactly when an operator most needs to be rid of it. Refusing here
 // would leave them with a package they can neither repair nor remove.
-func TestRemovePackageDropsCopiesOfAnUnloadableImage(t *testing.T) {
+func TestRemovePackageDropsCopiesOfAnUnloadableApplication(t *testing.T) {
 	store := &fakeStore{global: []Instance{instance("broken-app", "", StatusError)}}
 	catalog := &recordingCatalog{}
 	host := &recordingHost{}
@@ -307,7 +307,7 @@ func TestRemovePackageReportsACopyItCouldNotUninstall(t *testing.T) {
 	installer := &failingInstaller{}
 	installer.uninstallErr = errors.New("lxd unavailable")
 	service := New(
-		&versionedRegistry{application: serviceImageAt("1.0.0")},
+		&versionedRegistry{application: serviceApplicationAt("1.0.0")},
 		store,
 		installer,
 		nil,

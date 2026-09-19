@@ -1,6 +1,8 @@
 package httphandlers
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -71,15 +73,8 @@ func (h *ApplicationsHandler) removePackage(w http.ResponseWriter, r *http.Reque
 	}
 	httptransport.SendJSON(w, http.StatusOK, map[string]any{
 		"ok":          true,
-		"uninstalled": orEmptyInstalls(removed),
+		"uninstalled": orEmpty(removed),
 	})
-}
-
-func orEmptyInstalls(installs []serviceapplications.PackageInstall) []serviceapplications.PackageInstall {
-	if installs == nil {
-		return []serviceapplications.PackageInstall{}
-	}
-	return installs
 }
 
 func (h *ApplicationsHandler) uploadPackage(w http.ResponseWriter, r *http.Request) {
@@ -134,13 +129,9 @@ func readUploadedPackage(w http.ResponseWriter, r *http.Request) (string, []byte
 	return header.Filename, archive, nil
 }
 
-type uploadError string
-
-func (e uploadError) Error() string { return string(e) }
-
-const errNoPackageField = uploadError(
+var errNoPackageField = errors.New(
 	"no package in request: attach the .zip as the \"" + packageFormField + "\" field")
 
 func errUploadTooLarge(err error) error {
-	return uploadError("upload too large or malformed: " + err.Error())
+	return fmt.Errorf("upload too large or malformed: %s", err)
 }

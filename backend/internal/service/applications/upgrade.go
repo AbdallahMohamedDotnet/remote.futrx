@@ -51,13 +51,9 @@ type UpgradeOutcome struct {
 // attempted, and each carries its own result. The upload that triggered this
 // already succeeded, and reporting a per-instance failure is more useful than
 // pretending the package was never stored.
-func (s *Service) upgradeInstances(ctx context.Context, applicationID string) []UpgradeOutcome {
-	img, ok := s.registry.Get(applicationID)
+func (s *Service) upgradeInstances(ctx context.Context, applicationID string, instances []Instance) []UpgradeOutcome {
+	application, ok := s.registry.Get(applicationID)
 	if !ok {
-		return nil
-	}
-	instances, err := s.store.ListAll(ctx)
-	if err != nil {
 		return nil
 	}
 	var outcomes []UpgradeOutcome
@@ -65,7 +61,7 @@ func (s *Service) upgradeInstances(ctx context.Context, applicationID string) []
 		if inst.ApplicationID != applicationID || inst.Status == StatusStopped {
 			continue
 		}
-		if !needsUpgrade(inst, img) {
+		if !needsUpgrade(inst, application) {
 			continue
 		}
 		outcome := UpgradeOutcome{
@@ -74,9 +70,9 @@ func (s *Service) upgradeInstances(ctx context.Context, applicationID string) []
 			Scope:      inst.Scope,
 			ProjectID:  inst.ProjectID,
 			From:       inst.ApplicationVersion,
-			To:         img.Version,
+			To:         application.Version,
 		}
-		if err := s.reinstall(ctx, img, &inst); err != nil {
+		if err := s.reinstall(ctx, application, &inst); err != nil {
 			outcome.Error = err.Error()
 			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		}
@@ -99,7 +95,7 @@ func needsUpgrade(inst Instance, application Application) bool {
 // records the version it now holds. It reuses the instance's existing
 // container, port and resolved env, so an upgrade changes the software without
 // changing where the app lives or what clients already connect to.
-func (s *Service) reinstall(ctx context.Context, img Application, inst *Instance) error {
+func (s *Service) reinstall(ctx context.Context, application Application, inst *Instance) error {
 	if s.installer == nil {
 		return ErrUnavailable
 	}
@@ -111,12 +107,12 @@ func (s *Service) reinstall(ctx context.Context, img Application, inst *Instance
 	// The plugin is stopped first so the install script is not running
 	// alongside a process holding the software it is replacing. It comes back
 	// on the next call to it, compiled from the source the new package shipped.
-	if err := s.stopBackend(ctx, img, *inst); err != nil {
+	if err := s.stopBackend(ctx, application, *inst); err != nil {
 		return err
 	}
-	if err := s.installer.Install(ctx, InstallSpec{Application: img, Instance: *inst}); err != nil {
+	if err := s.installer.Install(ctx, InstallSpec{Application: application, Instance: *inst}); err != nil {
 		return err
 	}
-	inst.ApplicationVersion = img.Version
+	inst.ApplicationVersion = application.Version
 	return s.saveStatus(ctx, inst, StatusRunning, "")
 }

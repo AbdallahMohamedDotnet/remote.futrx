@@ -49,9 +49,6 @@ type Package struct {
 	Error string `json:"error,omitempty"`
 }
 
-// Installed reports whether the package produced a usable catalog entry.
-func (p Package) Installed() bool { return p.Error == "" }
-
 // PackageInstall is one installed copy of a package, named well enough for a
 // caller to recognise it before agreeing to remove it.
 type PackageInstall struct {
@@ -96,7 +93,7 @@ func (s *Service) Packages(ctx context.Context) ([]Package, error) {
 	if list == nil {
 		return []Package{}, nil
 	}
-	installs, err := s.installsByImage(ctx)
+	installs, err := s.installsByApplication(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -119,19 +116,19 @@ func (s *Service) Packages(ctx context.Context) ([]Package, error) {
 // before it is written — so it means the stored files are shadowed, and
 // whatever is installed under the id belongs to the built-in application now.
 func (s *Service) supersededByBuiltin(id string) bool {
-	img, ok := s.registry.Get(id)
-	return ok && img.Source == SourceBuiltin
+	application, ok := s.registry.Get(id)
+	return ok && application.Source == SourceBuiltin
 }
 
-// installsByImage groups every installed instance by the application it came from.
-func (s *Service) installsByImage(ctx context.Context) (map[string][]PackageInstall, error) {
+// installsByApplication groups every installed instance by the application it came from.
+func (s *Service) installsByApplication(ctx context.Context) (map[string][]PackageInstall, error) {
 	instances, err := s.store.ListAll(ctx)
 	if err != nil {
 		return nil, err
 	}
-	byImage := map[string][]PackageInstall{}
+	byApplication := map[string][]PackageInstall{}
 	for _, inst := range instances {
-		byImage[inst.ApplicationID] = append(byImage[inst.ApplicationID], PackageInstall{
+		byApplication[inst.ApplicationID] = append(byApplication[inst.ApplicationID], PackageInstall{
 			InstanceID: inst.ID,
 			Name:       inst.Name,
 			Scope:      inst.Scope,
@@ -139,7 +136,7 @@ func (s *Service) installsByImage(ctx context.Context) (map[string][]PackageInst
 			Status:     inst.Status,
 		})
 	}
-	return byImage, nil
+	return byApplication, nil
 }
 
 // UploadPackage installs an uploaded archive into the catalog, replacing an
@@ -169,12 +166,16 @@ func (s *Service) UploadPackage(ctx context.Context, upload PackageUpload) (Pack
 	// Re-provision the container side of every instance the new version made
 	// stale. This also stops each plugin it touches, so those come back on the
 	// new source by itself.
-	pkg.Upgraded = s.upgradeInstances(ctx, pkg.ID)
+	instances, err := s.store.ListAll(ctx)
+	if err != nil {
+		return pkg, nil
+	}
+	pkg.Upgraded = s.upgradeInstances(ctx, pkg.ID, instances)
 
 	// Every other instance of the application still holds a plugin process running
 	// the binary compiled from the previous upload. Stopping it is what makes
 	// the new code take effect: the next call rebuilds and starts fresh.
-	s.stopBackendsForImage(ctx, pkg.ID, upgradedIDs(pkg.Upgraded))
+	s.stopBackendsForApplication(ctx, pkg.ID, instances, upgradedIDs(pkg.Upgraded))
 	return pkg, nil
 }
 
@@ -275,11 +276,11 @@ func (s *Service) uninstallForPackageRemoval(ctx context.Context, install Packag
 
 // installsOf lists the installed copies of one application.
 func (s *Service) installsOf(ctx context.Context, applicationID string) ([]PackageInstall, error) {
-	byImage, err := s.installsByImage(ctx)
+	byApplication, err := s.installsByApplication(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return byImage[applicationID], nil
+	return byApplication[applicationID], nil
 }
 
 func describeInstalls(installs []PackageInstall) string {
@@ -297,16 +298,14 @@ func describeInstall(install PackageInstall) string {
 	return "globally"
 }
 
-// stopBackendsForImage terminates the plugin process of every instance created
+// stopBackendsForApplication terminates the plugin process of every instance created
 // from the application. Each one restarts on its next call, so this is a refresh
 // rather than a shutdown; a failure to stop one is not worth failing an upload
 // that already succeeded, so it is left to the caller's next request to retry.
-func (s *Service) stopBackendsForImage(ctx context.Context, applicationID string, skip map[string]bool) {
+func (s *Service) stopBackendsForApplication(
+	ctx context.Context, applicationID string, instances []Instance, skip map[string]bool,
+) {
 	if s.backends == nil {
-		return
-	}
-	instances, err := s.store.ListAll(ctx)
-	if err != nil {
 		return
 	}
 	for _, inst := range instances {
