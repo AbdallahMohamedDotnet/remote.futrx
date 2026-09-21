@@ -168,6 +168,7 @@ Project metadata and workspaces are separate:
 | `local-admin.json` | Local administrator email and password hash |
 | `oauth.json` | Google OAuth client ID and secret |
 | `agent-api-keys.json` | Host-managed provider API keys, including MiniMax's Token Plan subscription key; mode `0600` |
+| `agent-accounts.json` | Saved provider account credentials and the active account ID; mode `0600`; credentials are never returned by the API |
 | `session.key` | Random key used to sign platform sessions |
 | `users.json` | Registered emails, roles, inviter, and timestamps |
 | `user-settings/sha256-*.json` | Theme and default chat provider/model/mode/reasoning/tier |

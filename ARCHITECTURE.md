@@ -97,8 +97,9 @@ Three **separate** concerns, deliberately not conflated ([deep dive](docs/02-wor
 
 1. **Platform identity.** Exactly one local-admin account (email + password, argon2id, min 12 chars, in `local-admin.json`); every other user signs in through **Google OAuth only** and must be invited first. There is no self-signup. The first claim is gated on a one-time token generated at startup and printed only to the server terminal (`setup-token.json` holds its SHA-256, never the token), so an unclaimed server cannot be taken over by whoever loads the page first; once an administrator exists, that administrator authorises any further claim instead.
 2. **Agent-provider credentials.** Host-wide OAuth tokens for
-   Claude/Codex/Kimi, connected once by an admin and **shared by all projects
-   and users** on the box. MiniMax instead reads `MINIMAX_API_KEY` from each
+   Claude/Codex/Kimi, managed by an admin and **shared by all projects and
+   users** on the box. Codex can retain multiple named ChatGPT credentials but
+   exposes one validated active host identity at a time. MiniMax instead reads `MINIMAX_API_KEY` from each
    project's secret store, while Antigravity authenticates through `agy`
    inside one project and stores that state in its project-specific durable
    provider mount.
