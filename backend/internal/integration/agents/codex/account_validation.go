@@ -35,14 +35,11 @@ func validateAccountCredential(ctx context.Context, credential []byte) (validate
 		return validatedAccount{}, errors.New("saved Codex account is not a ChatGPT subscription login")
 	}
 
-	home, err := os.MkdirTemp("", "remote-codex-validate-*")
+	root, home, err := prepareIsolatedCodexHome("remote-codex-validate-*")
 	if err != nil {
 		return validatedAccount{}, fmt.Errorf("prepare Codex validation: %w", err)
 	}
-	defer os.RemoveAll(home)
-	if err := os.Chmod(home, 0o700); err != nil {
-		return validatedAccount{}, err
-	}
+	defer os.RemoveAll(root)
 	if err := os.WriteFile(filepath.Join(home, "auth.json"), credential, 0o600); err != nil {
 		return validatedAccount{}, err
 	}
@@ -76,7 +73,7 @@ func codexAuthModeFromRaw(raw map[string]any) (string, bool) {
 
 func readCodexAccount(ctx context.Context, home string) (accountReadResponse, error) {
 	cmd := exec.CommandContext(ctx, "codex", "app-server")
-	cmd.Env = codexAuthEnvFor(os.Environ(), home)
+	cmd.Env = isolatedCodexAuthEnvFor(os.Environ(), home)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return accountReadResponse{}, err

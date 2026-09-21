@@ -178,6 +178,22 @@ func codexAuthEnvFor(base []string, home string) []string {
 	return append(out, "CODEX_HOME="+home)
 }
 
+// isolatedCodexAuthEnvFor keeps both credential path conventions inside the
+// same temporary root. Some Codex versions honor CODEX_HOME while others
+// resolve the login file through $HOME/.codex.
+func isolatedCodexAuthEnvFor(base []string, home string) []string {
+	out := make([]string, 0, len(base)+2)
+	for _, env := range base {
+		if strings.HasPrefix(env, "OPENAI_API_KEY=") ||
+			strings.HasPrefix(env, "CODEX_HOME=") ||
+			strings.HasPrefix(env, "HOME=") {
+			continue
+		}
+		out = append(out, env)
+	}
+	return append(out, "HOME="+filepath.Dir(home), "CODEX_HOME="+home)
+}
+
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

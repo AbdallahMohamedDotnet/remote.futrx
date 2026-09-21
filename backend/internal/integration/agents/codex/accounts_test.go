@@ -33,6 +33,56 @@ func TestReadCodexAccountRefreshesAndReturnsPlanMetadata(t *testing.T) {
 	}
 }
 
+func TestAccountLoginCapturesCredentialWrittenThroughHome(t *testing.T) {
+	binDir := t.TempDir()
+	script := filepath.Join(binDir, "codex")
+	if err := os.WriteFile(script, []byte(`#!/bin/sh
+mkdir -p "$HOME/.codex"
+printf '%s' '{"auth_mode":"chatgpt","token":"new"}' > "$HOME/.codex/auth.json"
+printf '%s\n' 'https://auth.openai.com/codex/device'
+printf '%s\n' 'ABCD-12345'
+`), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HOME", filepath.Join(t.TempDir(), "host-home"))
+	canonicalHome := filepath.Join(t.TempDir(), ".codex")
+	t.Setenv("CODEX_HOME", canonicalHome)
+
+	store := &memoryAccountStore{}
+	auth, err := NewAuth(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.validate = func(_ context.Context, credential []byte) (validatedAccount, error) {
+		return validatedAccount{
+			Email: "new@example.test", PlanType: "plus",
+			Credential: append(json.RawMessage(nil), credential...),
+		}, nil
+	}
+	if _, err := auth.StartAccountLogin(context.Background(), "Company", ""); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for auth.LoginState().Active && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	state := auth.LoginState()
+	if !state.Completed || state.Error != "" {
+		t.Fatalf("login state = %#v", state)
+	}
+	if len(store.accounts.Accounts) != 1 || store.accounts.ActiveAccountID == "" {
+		t.Fatalf("saved accounts = %#v", store.accounts)
+	}
+	written, err := os.ReadFile(filepath.Join(canonicalHome, "auth.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(written) != string(store.accounts.Accounts[0].Credential) {
+		t.Fatalf("active credential = %s, saved credential = %s", written, store.accounts.Accounts[0].Credential)
+	}
+}
+
 type memoryAccountStore struct{ accounts agentauth.AccountSet }
 
 func (s *memoryAccountStore) AgentAccounts(context.Context, agent.ProviderID) (agentauth.AccountSet, error) {

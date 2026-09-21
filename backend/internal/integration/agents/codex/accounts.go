@@ -22,6 +22,7 @@ const accountValidationTimeout = 30 * time.Second
 type accountLoginAttempt struct {
 	accountID string
 	label     string
+	root      string
 	home      string
 }
 
@@ -129,19 +130,13 @@ func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (
 		a.mutationMu.Unlock()
 		return agentauth.LoginSnapshot{}, err
 	}
-	home, err := os.MkdirTemp("", "remote-codex-login-*")
+	root, home, err := prepareIsolatedCodexHome("remote-codex-login-*")
 	if err != nil {
 		a.mu.Unlock()
 		a.mutationMu.Unlock()
 		return agentauth.LoginSnapshot{}, fmt.Errorf("prepare Codex login: %w", err)
 	}
-	if err := os.Chmod(home, 0o700); err != nil {
-		_ = os.RemoveAll(home)
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return agentauth.LoginSnapshot{}, err
-	}
-	a.attempt = &accountLoginAttempt{accountID: accountID, label: label, home: home}
+	a.attempt = &accountLoginAttempt{accountID: accountID, label: label, root: root, home: home}
 	a.mu.Unlock()
 	a.mutationMu.Unlock()
 
@@ -282,7 +277,7 @@ func (a *Auth) deviceAuthEnv(base []string) []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.attempt != nil {
-		return codexAuthEnvFor(base, a.attempt.home)
+		return isolatedCodexAuthEnvFor(base, a.attempt.home)
 	}
 	return codexAuthEnv(base)
 }
@@ -303,7 +298,7 @@ func (a *Auth) completeAccountLogin(commandErr error) agentauth.DeviceCompletion
 	if attempt == nil {
 		return agentauth.DeviceCompletion{Error: "Codex account login state was lost"}
 	}
-	defer os.RemoveAll(attempt.home)
+	defer os.RemoveAll(attempt.root)
 	if commandErr != nil {
 		return agentauth.DeviceCompletion{Error: fmt.Sprintf("codex login failed: %s", truncate(commandErr.Error(), 300))}
 	}
@@ -365,8 +360,25 @@ func (a *Auth) clearAccountAttempt() {
 	a.attempt = nil
 	a.mu.Unlock()
 	if attempt != nil {
-		_ = os.RemoveAll(attempt.home)
+		_ = os.RemoveAll(attempt.root)
 	}
+}
+
+func prepareIsolatedCodexHome(pattern string) (string, string, error) {
+	root, err := os.MkdirTemp("", pattern)
+	if err != nil {
+		return "", "", err
+	}
+	if err := os.Chmod(root, 0o700); err != nil {
+		_ = os.RemoveAll(root)
+		return "", "", err
+	}
+	home := filepath.Join(root, ".codex")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		_ = os.RemoveAll(root)
+		return "", "", err
+	}
+	return root, home, nil
 }
 
 type validatedAccount struct {
