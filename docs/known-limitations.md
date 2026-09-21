@@ -61,13 +61,16 @@ These are the constraints worth understanding before you deploy or rely on remot
   Remote does not load third-party provider modules from configuration or
   shared objects.
 
-- **Claude and Kimi identity, and Codex's active identity, are host-wide.**
-  Codex can retain several named ChatGPT logins, validate one, and select it as
-  the active host credential. The selected account is still seeded into every
-  container, so all users and projects share its subscription quota. There is
-  no per-user or per-project provider identity, and account selection cannot
-  change while a Codex run is active. Claude and Kimi still retain only one
-  host login each.
+- **Kimi identity, and Claude's and Codex's active identities, are host-wide.**
+  Claude and Codex can each retain several named subscription logins, validate
+  one, and select it as the active host credential. The selected account is
+  still seeded into every container, so all users and projects share its
+  subscription quota. There is no per-user or per-project provider identity,
+  and account selection cannot change while a run of that provider is active.
+  Codex validation asks the Codex app server to refresh the account; Claude's
+  `claude auth status` reads only local files, so a Claude account whose
+  tokens were revoked upstream is detected on its next run rather than when it
+  is selected. Kimi still retains only one host login.
 - **MiniMax identity is an installation-wide Token Plan subscription key.** The key is stored in a
   mode-`0600` control-plane file without application-level encryption and is
   injected into every MiniMax run. MiniMax uses a separate `/root/.minimax`
