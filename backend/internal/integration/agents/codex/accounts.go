@@ -3,14 +3,11 @@ package codex
 import (
 	"bytes"
 	"context"
-	crand "crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -33,31 +30,11 @@ type accountLoginAttempt struct {
 func (a *Auth) AccountsSnapshot() agentauth.AccountsSnapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return accountSnapshot(a.accounts)
-}
-
-func accountSnapshot(accounts agentauth.AccountSet) agentauth.AccountsSnapshot {
-	snapshot := agentauth.AccountsSnapshot{
-		ActiveAccountID: accounts.ActiveAccountID,
-		Items:           make([]agentauth.Account, 0, len(accounts.Accounts)),
-	}
-	for _, record := range accounts.Accounts {
-		var validatedAt *time.Time
-		if !record.ValidatedAt.IsZero() {
-			value := record.ValidatedAt
-			validatedAt = &value
-		}
-		snapshot.Items = append(snapshot.Items, agentauth.Account{
-			ID: record.ID, Label: record.Label, Email: record.Email,
-			PlanType: record.PlanType, ValidatedAt: validatedAt,
-			Active: record.ID == accounts.ActiveAccountID,
-		})
-	}
-	return snapshot
+	return a.accounts.Snapshot()
 }
 
 func (a *Auth) ImportCurrent(ctx context.Context, label string) error {
-	label, err := normalizeAccountLabel(label)
+	label, err := agentauth.NormalizeAccountLabel(label)
 	if err != nil {
 		return err
 	}
@@ -82,16 +59,16 @@ func (a *Auth) ImportCurrent(ctx context.Context, label string) error {
 	}
 
 	a.mu.Lock()
-	if err := uniqueAccountLabel(a.accounts, label, ""); err != nil {
+	if err := a.accounts.EnsureUniqueLabel(label, ""); err != nil {
 		a.mu.Unlock()
 		return err
 	}
-	id, err := newAccountID()
+	id, err := agentauth.NewAccountID()
 	if err != nil {
 		a.mu.Unlock()
 		return err
 	}
-	next := cloneAccounts(a.accounts)
+	next := a.accounts.Clone()
 	next.Accounts = append(next.Accounts, accountRecord(id, label, validated))
 	activeCredential := json.RawMessage(nil)
 	if a.activeRuns == 0 {
@@ -109,7 +86,7 @@ func (a *Auth) ImportCurrent(ctx context.Context, label string) error {
 }
 
 func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (agentauth.LoginSnapshot, error) {
-	label, err := normalizeAccountLabel(label)
+	label, err := agentauth.NormalizeAccountLabel(label)
 	if err != nil {
 		return agentauth.LoginSnapshot{}, err
 	}
@@ -130,7 +107,7 @@ func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (
 		return agentauth.LoginSnapshot{}, errors.New("a Codex account login is already in progress")
 	}
 	if accountID != "" {
-		record, ok := findAccount(a.accounts, accountID)
+		record, ok := a.accounts.Find(accountID)
 		if !ok {
 			a.mu.Unlock()
 			a.mutationMu.Unlock()
@@ -140,7 +117,7 @@ func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (
 			label = record.Label
 		}
 	}
-	if err := uniqueAccountLabel(a.accounts, label, accountID); err != nil {
+	if err := a.accounts.EnsureUniqueLabel(label, accountID); err != nil {
 		a.mu.Unlock()
 		a.mutationMu.Unlock()
 		return agentauth.LoginSnapshot{}, err
@@ -191,7 +168,7 @@ func (a *Auth) ActivateAccount(ctx context.Context, accountID string) error {
 		a.mu.Unlock()
 		return agentauth.ErrAccountInUse
 	}
-	record, ok := findAccount(a.accounts, accountID)
+	record, ok := a.accounts.Find(accountID)
 	a.mu.Unlock()
 	if !ok {
 		return agentauth.ErrAccountNotFound
@@ -206,7 +183,7 @@ func (a *Auth) ActivateAccount(ctx context.Context, accountID string) error {
 		a.mu.Unlock()
 		return agentauth.ErrAccountInUse
 	}
-	next := cloneAccounts(a.accounts)
+	next := a.accounts.Clone()
 	for index := range next.Accounts {
 		if next.Accounts[index].ID == accountID {
 			next.Accounts[index] = accountRecord(accountID, next.Accounts[index].Label, validated)
@@ -232,7 +209,7 @@ func (a *Auth) DeleteAccount(ctx context.Context, accountID string) error {
 		a.mu.Unlock()
 		return agentauth.ErrActiveAccountDelete
 	}
-	next := cloneAccounts(a.accounts)
+	next := a.accounts.Clone()
 	found := false
 	filtered := next.Accounts[:0]
 	for _, record := range next.Accounts {
@@ -297,7 +274,7 @@ func (a *Auth) CaptureActiveCredential(ctx context.Context) error {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	next := cloneAccounts(a.accounts)
+	next := a.accounts.Clone()
 	for index := range next.Accounts {
 		if next.Accounts[index].ID == next.ActiveAccountID {
 			next.Accounts[index].Credential = append(json.RawMessage(nil), credential...)
@@ -356,10 +333,10 @@ func (a *Auth) completeAccountLogin(commandErr error) agentauth.DeviceCompletion
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	next := cloneAccounts(a.accounts)
+	next := a.accounts.Clone()
 	id := attempt.accountID
 	if id == "" {
-		id, err = newAccountID()
+		id, err = agentauth.NewAccountID()
 		if err != nil {
 			return agentauth.DeviceCompletion{Error: "could not create an account identifier"}
 		}
@@ -400,7 +377,7 @@ func (a *Auth) failedAccountLogin(attempt *accountLoginAttempt, message string) 
 	}
 	var err error
 	if attempt.hadPrevious {
-		err = writeCredentialFile(attempt.credentialPath, attempt.previousCredential)
+		err = agentauth.WriteCredentialFile(attempt.credentialPath, attempt.previousCredential)
 	} else {
 		err = os.Remove(attempt.credentialPath)
 		if errors.Is(err, os.ErrNotExist) {
@@ -460,7 +437,7 @@ func (a *Auth) persistLocked(ctx context.Context, next agentauth.AccountSet, act
 	if a.store == nil {
 		return errors.New("agent account store is unavailable")
 	}
-	previous := cloneAccounts(a.accounts)
+	previous := a.accounts.Clone()
 	if err := a.store.SaveAgentAccounts(ctx, agent.ProviderCodex, next); err != nil {
 		return err
 	}
@@ -475,81 +452,5 @@ func (a *Auth) persistLocked(ctx context.Context, next agentauth.AccountSet, act
 }
 
 func writeActiveCredential(credential []byte) error {
-	return writeCredentialFile(codexCredentialPath(), credential)
-}
-
-func writeCredentialFile(path string, credential []byte) error {
-	home := filepath.Dir(path)
-	if err := os.MkdirAll(home, 0o700); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(home, ".auth-*.json.tmp")
-	if err != nil {
-		return err
-	}
-	name := tmp.Name()
-	defer os.Remove(name)
-	if err := tmp.Chmod(0o600); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(credential); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(name, path)
-}
-
-func normalizeAccountLabel(label string) (string, error) {
-	label = strings.TrimSpace(label)
-	if label == "" {
-		return "", agentauth.ErrAccountLabelRequired
-	}
-	if len([]rune(label)) > 64 {
-		return "", fmt.Errorf("%w: account label must be 64 characters or fewer", agentauth.ErrAccountLabelInvalid)
-	}
-	return label, nil
-}
-
-func uniqueAccountLabel(accounts agentauth.AccountSet, label, exceptID string) error {
-	for _, record := range accounts.Accounts {
-		if record.ID != exceptID && strings.EqualFold(record.Label, label) {
-			return fmt.Errorf("%w: an account named %q already exists", agentauth.ErrAccountLabelConflict, label)
-		}
-	}
-	return nil
-}
-
-func findAccount(accounts agentauth.AccountSet, id string) (agentauth.AccountRecord, bool) {
-	for _, record := range accounts.Accounts {
-		if record.ID == id {
-			return record, true
-		}
-	}
-	return agentauth.AccountRecord{}, false
-}
-
-func cloneAccounts(accounts agentauth.AccountSet) agentauth.AccountSet {
-	clone := agentauth.AccountSet{ActiveAccountID: accounts.ActiveAccountID}
-	clone.Accounts = make([]agentauth.AccountRecord, len(accounts.Accounts))
-	copy(clone.Accounts, accounts.Accounts)
-	for index := range clone.Accounts {
-		clone.Accounts[index].Credential = append(json.RawMessage(nil), accounts.Accounts[index].Credential...)
-	}
-	return clone
-}
-
-func newAccountID() (string, error) {
-	value := make([]byte, 16)
-	if _, err := crand.Read(value); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(value), nil
+	return agentauth.WriteCredentialFile(codexCredentialPath(), credential)
 }

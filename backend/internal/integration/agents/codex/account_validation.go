@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
 type accountReadResponse struct {
@@ -56,13 +58,13 @@ func validateAccountCredentialAtPath(ctx context.Context, credential []byte, cre
 	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
 		return validatedAccount{}, fmt.Errorf("read current Codex credential: %w", readErr)
 	}
-	if err := writeCredentialFile(credentialPath, credential); err != nil {
+	if err := agentauth.WriteCredentialFile(credentialPath, credential); err != nil {
 		return validatedAccount{}, fmt.Errorf("stage Codex credential for validation: %w", err)
 	}
 	validated, validationErr := inspectAccountCredential(ctx, filepath.Dir(credentialPath), credentialPath)
 	var restoreErr error
 	if hadPrevious {
-		restoreErr = writeCredentialFile(credentialPath, previous)
+		restoreErr = agentauth.WriteCredentialFile(credentialPath, previous)
 	} else {
 		restoreErr = os.Remove(credentialPath)
 		if errors.Is(restoreErr, os.ErrNotExist) {

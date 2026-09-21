@@ -98,7 +98,7 @@ func TestCompleteAccountLoginCapturesExternalCredentialPath(t *testing.T) {
 	t.Setenv("CODEX_HOME", canonicalHome)
 	externalPath := filepath.Join(t.TempDir(), "snap", "codex", "current", "auth.json")
 	newCredential := json.RawMessage(`{"auth_mode":"chatgpt","token":"new"}`)
-	if err := writeCredentialFile(externalPath, newCredential); err != nil {
+	if err := agentauth.WriteCredentialFile(externalPath, newCredential); err != nil {
 		t.Fatal(err)
 	}
 	store := &memoryAccountStore{}
@@ -136,7 +136,7 @@ func TestFailedExternalAccountLoginRestoresPreviousCredential(t *testing.T) {
 	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), ".codex"))
 	externalPath := filepath.Join(t.TempDir(), "snap", "codex", "current", "auth.json")
 	previous := json.RawMessage(`{"auth_mode":"chatgpt","token":"old"}`)
-	if err := writeCredentialFile(externalPath, []byte(`{"auth_mode":"chatgpt","token":"new"}`)); err != nil {
+	if err := agentauth.WriteCredentialFile(externalPath, []byte(`{"auth_mode":"chatgpt","token":"new"}`)); err != nil {
 		t.Fatal(err)
 	}
 	auth, err := NewAuth(&memoryAccountStore{})
@@ -170,11 +170,11 @@ func TestFailedExternalAccountLoginRestoresPreviousCredential(t *testing.T) {
 type memoryAccountStore struct{ accounts agentauth.AccountSet }
 
 func (s *memoryAccountStore) AgentAccounts(context.Context, agent.ProviderID) (agentauth.AccountSet, error) {
-	return cloneAccounts(s.accounts), nil
+	return s.accounts.Clone(), nil
 }
 
 func (s *memoryAccountStore) SaveAgentAccounts(_ context.Context, _ agent.ProviderID, accounts agentauth.AccountSet) error {
-	s.accounts = cloneAccounts(accounts)
+	s.accounts = accounts.Clone()
 	return nil
 }
 
@@ -267,15 +267,15 @@ func TestActivateAccountFailureAndRunLeasePreserveCurrentCredential(t *testing.T
 
 func TestAccountLabelsAreBoundedAndUnique(t *testing.T) {
 	accounts := agentauth.AccountSet{Accounts: []agentauth.AccountRecord{{ID: "one", Label: "Personal"}}}
-	if err := uniqueAccountLabel(accounts, "personal", ""); !errors.Is(err, agentauth.ErrAccountLabelConflict) {
+	if err := accounts.EnsureUniqueLabel("personal", ""); !errors.Is(err, agentauth.ErrAccountLabelConflict) {
 		t.Fatalf("duplicate error = %v", err)
 	}
-	if _, err := normalizeAccountLabel(strings.Repeat("x", 65)); !errors.Is(err, agentauth.ErrAccountLabelInvalid) {
+	if _, err := agentauth.NormalizeAccountLabel(strings.Repeat("x", 65)); !errors.Is(err, agentauth.ErrAccountLabelInvalid) {
 		t.Fatalf("long label error = %v", err)
 	}
-	if snapshot := accountSnapshot(agentauth.AccountSet{Accounts: []agentauth.AccountRecord{{
+	if snapshot := (agentauth.AccountSet{Accounts: []agentauth.AccountRecord{{
 		ID: "one", Label: "Personal", ValidatedAt: time.Now(), Credential: json.RawMessage(`{"secret":true}`),
-	}}}); len(snapshot.Items) != 1 {
+	}}}).Snapshot(); len(snapshot.Items) != 1 {
 		t.Fatalf("snapshot = %#v", snapshot)
 	}
 }

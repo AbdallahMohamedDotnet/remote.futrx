@@ -178,7 +178,7 @@ func (s *Store) AgentAccounts(ctx context.Context, provider agent.ProviderID) (a
 	if err != nil {
 		return agentauth.AccountSet{}, err
 	}
-	return cloneAccountSet(document.Providers[string(provider)]), nil
+	return document.Providers[string(provider)].Clone(), nil
 }
 
 func (s *Store) SaveAgentAccounts(ctx context.Context, provider agent.ProviderID, accounts agentauth.AccountSet) error {
@@ -196,7 +196,7 @@ func (s *Store) SaveAgentAccounts(ctx context.Context, provider agent.ProviderID
 	if err != nil {
 		return err
 	}
-	document.Providers[string(provider)] = cloneAccountSet(accounts)
+	document.Providers[string(provider)] = accounts.Clone()
 	return s.writeJSONLocked(agentAccountsFile, document)
 }
 
@@ -219,16 +219,6 @@ func (s *Store) agentAccountsLocked() (agentAccountsDocument, error) {
 		document.Providers = make(map[string]agentauth.AccountSet)
 	}
 	return document, nil
-}
-
-func cloneAccountSet(accounts agentauth.AccountSet) agentauth.AccountSet {
-	clone := agentauth.AccountSet{ActiveAccountID: accounts.ActiveAccountID}
-	clone.Accounts = make([]agentauth.AccountRecord, len(accounts.Accounts))
-	copy(clone.Accounts, accounts.Accounts)
-	for index := range clone.Accounts {
-		clone.Accounts[index].Credential = append(json.RawMessage(nil), accounts.Accounts[index].Credential...)
-	}
-	return clone
 }
 
 func (s *Store) LocalAdmin(ctx context.Context) (*serviceauth.LocalAdminCredential, error) {
