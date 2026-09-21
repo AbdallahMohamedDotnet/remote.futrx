@@ -77,6 +77,38 @@ export const agentAuthApi = {
       API_ROUTES.agentAuth.apiKey(provider),
     ),
 
+  importAccount: (provider: string, label: string) =>
+    requestJson<AgentAuthSnapshot>(
+      "POST",
+      API_ROUTES.agentAuth.importAccount(provider),
+      { label },
+    ),
+
+  startAccountLogin: (
+    provider: string,
+    label: string,
+    accountId?: string,
+  ) =>
+    requestJson<AgentAuthLoginSnapshot>(
+      "POST",
+      API_ROUTES.agentAuth.startAccountLogin(provider),
+      { label, accountId },
+    ),
+
+  activateAccount: (provider: string, accountId: string) =>
+    requestJson<AgentAuthSnapshot>(
+      "POST",
+      API_ROUTES.agentAuth.activateAccount(provider),
+      { accountId },
+    ),
+
+  deleteAccount: (provider: string, accountId: string) =>
+    requestJson<AgentAuthSnapshot>(
+      "DELETE",
+      API_ROUTES.agentAuth.accounts(provider),
+      { accountId },
+    ),
+
   subscribe: (
     provider: string,
     onStatus: (status: AgentAuthSnapshot) => void,

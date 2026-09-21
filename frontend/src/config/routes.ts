@@ -67,6 +67,14 @@ export const API_ROUTES = {
       `/api/${encodeURIComponent(provider)}/login/device`,
     apiKey: (provider: string) =>
       `/api/${encodeURIComponent(provider)}/login/api-key`,
+    importAccount: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/accounts/import`,
+    startAccountLogin: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/accounts/login`,
+    activateAccount: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/accounts/activate`,
+    accounts: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/accounts`,
   },
   projects: {
     collection: "/api/projects",

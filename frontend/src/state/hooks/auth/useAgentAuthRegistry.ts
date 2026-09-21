@@ -20,6 +20,10 @@ export interface AgentAuthRegistryState {
   startDeviceLogin: (provider: string) => Promise<void>;
   saveAPIKey: (provider: string, apiKey: string) => Promise<boolean>;
   deleteAPIKey: (provider: string) => Promise<boolean>;
+  importAccount: (provider: string, label: string) => Promise<boolean>;
+  startAccountLogin: (provider: string, label: string, accountId?: string) => Promise<boolean>;
+  activateAccount: (provider: string, accountId: string) => Promise<boolean>;
+  deleteAccount: (provider: string, accountId: string) => Promise<boolean>;
 }
 
 export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
@@ -117,6 +121,37 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
       setProviders((current) => agentAuthRegistryService.updateProvider(current, provider, status));
     }), [runAction]);
 
+  const applyStatus = useCallback((provider: string, status: AgentAuthProvider["status"]) => {
+    setProviders((current) => agentAuthRegistryService.updateProvider(current, provider, status));
+  }, []);
+
+  const importAccount = useCallback(async (provider: string, label: string) =>
+    runAction(provider, async () => {
+      applyStatus(provider, await agentAuthApi.importAccount(provider, label));
+    }), [runAction, applyStatus]);
+
+  const startAccountLogin = useCallback(async (
+    provider: string,
+    label: string,
+    accountId?: string,
+  ) => runAction(provider, async () => {
+    updateLogin(
+      provider,
+      await agentAuthApi.startAccountLogin(provider, label, accountId),
+      true,
+    );
+  }), [runAction, updateLogin]);
+
+  const activateAccount = useCallback(async (provider: string, accountId: string) =>
+    runAction(provider, async () => {
+      applyStatus(provider, await agentAuthApi.activateAccount(provider, accountId));
+    }), [runAction, applyStatus]);
+
+  const deleteAccount = useCallback(async (provider: string, accountId: string) =>
+    runAction(provider, async () => {
+      applyStatus(provider, await agentAuthApi.deleteAccount(provider, accountId));
+    }), [runAction, applyStatus]);
+
   ////////////////
   // Effects
   ////////////////
@@ -181,6 +216,10 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     startDeviceLogin,
     saveAPIKey,
     deleteAPIKey,
+    importAccount,
+    startAccountLogin,
+    activateAccount,
+    deleteAccount,
   }), [
     providers,
     loading,
@@ -194,5 +233,9 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     startDeviceLogin,
     saveAPIKey,
     deleteAPIKey,
+    importAccount,
+    startAccountLogin,
+    activateAccount,
+    deleteAccount,
   ]);
 }
