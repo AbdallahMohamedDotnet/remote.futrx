@@ -34,16 +34,48 @@ func validateAccountCredential(ctx context.Context, credential []byte) (validate
 	if usesAPIKey || mode != "chatgpt" {
 		return validatedAccount{}, errors.New("saved Codex account is not a ChatGPT subscription login")
 	}
+	if credentialPath, ok := snapCodexCredentialPath(); ok {
+		return validateAccountCredentialAtPath(ctx, credential, credentialPath)
+	}
 
 	root, home, err := prepareIsolatedCodexHome("remote-codex-validate-*")
 	if err != nil {
 		return validatedAccount{}, fmt.Errorf("prepare Codex validation: %w", err)
 	}
 	defer os.RemoveAll(root)
-	if err := os.WriteFile(filepath.Join(home, "auth.json"), credential, 0o600); err != nil {
+	credentialPath := filepath.Join(home, "auth.json")
+	if err := os.WriteFile(credentialPath, credential, 0o600); err != nil {
 		return validatedAccount{}, err
 	}
+	return inspectAccountCredential(ctx, home, credentialPath)
+}
 
+func validateAccountCredentialAtPath(ctx context.Context, credential []byte, credentialPath string) (validatedAccount, error) {
+	previous, readErr := os.ReadFile(credentialPath)
+	hadPrevious := readErr == nil
+	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+		return validatedAccount{}, fmt.Errorf("read current Codex credential: %w", readErr)
+	}
+	if err := writeCredentialFile(credentialPath, credential); err != nil {
+		return validatedAccount{}, fmt.Errorf("stage Codex credential for validation: %w", err)
+	}
+	validated, validationErr := inspectAccountCredential(ctx, filepath.Dir(credentialPath), credentialPath)
+	var restoreErr error
+	if hadPrevious {
+		restoreErr = writeCredentialFile(credentialPath, previous)
+	} else {
+		restoreErr = os.Remove(credentialPath)
+		if errors.Is(restoreErr, os.ErrNotExist) {
+			restoreErr = nil
+		}
+	}
+	if restoreErr != nil {
+		return validatedAccount{}, fmt.Errorf("restore current Codex credential after validation: %w", restoreErr)
+	}
+	return validated, validationErr
+}
+
+func inspectAccountCredential(ctx context.Context, home, credentialPath string) (validatedAccount, error) {
 	account, err := readCodexAccount(ctx, home)
 	if err != nil {
 		return validatedAccount{}, fmt.Errorf("validate Codex account: %w", err)
@@ -51,7 +83,7 @@ func validateAccountCredential(ctx context.Context, credential []byte) (validate
 	if account.Account == nil || account.Account.Type != "chatgpt" {
 		return validatedAccount{}, errors.New("Codex did not recognize a ChatGPT account")
 	}
-	refreshed, err := os.ReadFile(filepath.Join(home, "auth.json"))
+	refreshed, err := os.ReadFile(credentialPath)
 	if err != nil {
 		return validatedAccount{}, fmt.Errorf("read refreshed Codex credential: %w", err)
 	}

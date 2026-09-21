@@ -1,6 +1,8 @@
 package codex
 
 import (
+	"path/filepath"
+
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
@@ -12,6 +14,9 @@ import (
 // warning observes the same auth instance as the binding.
 func NewFactory() (agentmodule.Factory, error) {
 	profile := Profile()
+	credentialPath := codexCredentialPath()
+	profile.Credentials.HostDir = filepath.Dir(credentialPath)
+	profile.Credentials.Files[0].HostPath = credentialPath
 	return agentmodule.NewFactory(agentmodule.Descriptor{
 		ID:                  agent.ProviderCodex,
 		Label:               "Codex",

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -66,8 +65,7 @@ func (p *Provider) buildCmd(
 }
 
 func ensureHostSubscriptionAuth() error {
-	path := filepath.Join(hostCodexHome(), "auth.json")
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(codexCredentialPath())
 	if err != nil {
 		return nil
 	}
@@ -107,14 +105,4 @@ func codexEnv(base []string) []string {
 		return append(out, "CODEX_HOME="+home+"/.codex")
 	}
 	return out
-}
-
-func hostCodexHome() string {
-	if v := os.Getenv("CODEX_HOME"); v != "" {
-		return v
-	}
-	if home := os.Getenv("HOME"); home != "" {
-		return filepath.Join(home, ".codex")
-	}
-	return "/root/.codex"
 }

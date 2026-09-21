@@ -33,6 +33,16 @@ func TestReadCodexAccountRefreshesAndReturnsPlanMetadata(t *testing.T) {
 	}
 }
 
+func TestSnapCredentialPathUsesSnapManagedCodexHome(t *testing.T) {
+	got, ok := snapCredentialPathFor("/snap/bin/codex", "/home/person")
+	if !ok || got != "/home/person/snap/codex/current/auth.json" {
+		t.Fatalf("snap credential path = %q, %v", got, ok)
+	}
+	if _, ok := snapCredentialPathFor("/usr/local/bin/codex", "/home/person"); ok {
+		t.Fatal("non-Snap Codex was detected as a Snap command")
+	}
+}
+
 func TestAccountLoginCapturesCredentialWrittenThroughHome(t *testing.T) {
 	binDir := t.TempDir()
 	script := filepath.Join(binDir, "codex")
@@ -80,6 +90,80 @@ printf '%s\n' 'ABCD-12345'
 	}
 	if string(written) != string(store.accounts.Accounts[0].Credential) {
 		t.Fatalf("active credential = %s, saved credential = %s", written, store.accounts.Accounts[0].Credential)
+	}
+}
+
+func TestCompleteAccountLoginCapturesExternalCredentialPath(t *testing.T) {
+	canonicalHome := filepath.Join(t.TempDir(), ".codex")
+	t.Setenv("CODEX_HOME", canonicalHome)
+	externalPath := filepath.Join(t.TempDir(), "snap", "codex", "current", "auth.json")
+	newCredential := json.RawMessage(`{"auth_mode":"chatgpt","token":"new"}`)
+	if err := writeCredentialFile(externalPath, newCredential); err != nil {
+		t.Fatal(err)
+	}
+	store := &memoryAccountStore{}
+	auth, err := NewAuth(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.validate = func(_ context.Context, credential []byte) (validatedAccount, error) {
+		return validatedAccount{Email: "company@example.test", PlanType: "plus", Credential: credential}, nil
+	}
+	root, home, err := prepareIsolatedCodexHome("remote-codex-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.attempt = &accountLoginAttempt{
+		label: "Company", root: root, home: home, credentialPath: externalPath,
+	}
+	completion := auth.completeAccountLogin(nil)
+	if !completion.Completed || completion.Error != "" {
+		t.Fatalf("completion = %#v", completion)
+	}
+	if len(store.accounts.Accounts) != 1 || string(store.accounts.Accounts[0].Credential) != string(newCredential) {
+		t.Fatalf("saved accounts = %#v", store.accounts)
+	}
+	active, err := os.ReadFile(filepath.Join(canonicalHome, "auth.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(active) != string(newCredential) {
+		t.Fatalf("active credential = %s", active)
+	}
+}
+
+func TestFailedExternalAccountLoginRestoresPreviousCredential(t *testing.T) {
+	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), ".codex"))
+	externalPath := filepath.Join(t.TempDir(), "snap", "codex", "current", "auth.json")
+	previous := json.RawMessage(`{"auth_mode":"chatgpt","token":"old"}`)
+	if err := writeCredentialFile(externalPath, []byte(`{"auth_mode":"chatgpt","token":"new"}`)); err != nil {
+		t.Fatal(err)
+	}
+	auth, err := NewAuth(&memoryAccountStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.validate = func(context.Context, []byte) (validatedAccount, error) {
+		return validatedAccount{}, errors.New("invalid account")
+	}
+	root, home, err := prepareIsolatedCodexHome("remote-codex-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.attempt = &accountLoginAttempt{
+		label: "Company", root: root, home: home, credentialPath: externalPath,
+		previousCredential: previous, hadPrevious: true,
+	}
+	completion := auth.completeAccountLogin(nil)
+	if completion.Error != "invalid account" {
+		t.Fatalf("completion = %#v", completion)
+	}
+	restored, err := os.ReadFile(externalPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(restored) != string(previous) {
+		t.Fatalf("restored credential = %s", restored)
 	}
 }
 

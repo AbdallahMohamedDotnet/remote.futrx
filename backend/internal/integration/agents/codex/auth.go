@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -119,8 +120,7 @@ func (a *Auth) StartDeviceLogin(ctx context.Context) (agentauth.DeviceState, err
 func (a *Auth) Broadcast() { a.device.Broadcast() }
 
 func authenticated() (bool, string, bool) {
-	authPath := filepath.Join(codexHomeDir(), "auth.json")
-	authMode, usesAPIKey := codexAuthMode(authPath)
+	authMode, usesAPIKey := codexAuthMode(codexCredentialPath())
 	if usesAPIKey {
 		return false, authMode, true
 	}
@@ -128,6 +128,31 @@ func authenticated() (bool, string, bool) {
 		return false, "", false
 	}
 	return true, authMode, false
+}
+
+func codexCredentialPath() string {
+	if configured := os.Getenv("CODEX_HOME"); configured != "" {
+		return filepath.Join(configured, "auth.json")
+	}
+	if snapPath, ok := snapCodexCredentialPath(); ok {
+		return snapPath
+	}
+	return filepath.Join(codexHomeDir(), "auth.json")
+}
+
+func snapCodexCredentialPath() (string, bool) {
+	binary, err := exec.LookPath("codex")
+	if err != nil {
+		return "", false
+	}
+	return snapCredentialPathFor(binary, os.Getenv("HOME"))
+}
+
+func snapCredentialPathFor(binary, home string) (string, bool) {
+	if filepath.Clean(filepath.Dir(binary)) != "/snap/bin" || home == "" {
+		return "", false
+	}
+	return filepath.Join(home, "snap", filepath.Base(binary), "current", "auth.json"), true
 }
 
 func codexAuthMode(authPath string) (string, bool) {
