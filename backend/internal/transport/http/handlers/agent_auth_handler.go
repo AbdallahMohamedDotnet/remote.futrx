@@ -168,6 +168,10 @@ func (h *AgentAuthHandler) handleCodeStart(binding agentauth.Binding, w http.Res
 	if !h.requireMutationAccess(w, r) {
 		return
 	}
+	if binding.AccountsAvailable() {
+		httptransport.SendErr(w, http.StatusBadRequest, "account label is required; use the saved-account login flow")
+		return
+	}
 
 	result, err := binding.StartCode(r.Context())
 	if err != nil {

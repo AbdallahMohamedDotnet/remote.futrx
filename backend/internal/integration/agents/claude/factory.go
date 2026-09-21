@@ -12,6 +12,9 @@ import (
 // each time the catalog builds an application runtime.
 func NewFactory() (agentmodule.Factory, error) {
 	profile := Profile()
+	profile.Credentials.HostDir = claudeHomeDir()
+	profile.Credentials.Files[0].HostPath = claudeGlobalConfigPath()
+	profile.Credentials.Files[1].HostPath = claudeCredentialPath()
 	return agentmodule.NewFactory(agentmodule.Descriptor{
 		ID:                  agent.ProviderClaude,
 		Label:               "Claude",
@@ -29,13 +32,18 @@ func NewFactory() (agentmodule.Factory, error) {
 			ScheduledTools: true,
 		},
 	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
-		binding := agentauth.NewCodeBinding(agent.ProviderClaude, NewAuth())
+		auth, err := NewAuth(deps.Accounts)
+		if err != nil {
+			return agentmodule.Components{}, err
+		}
+		binding := agentauth.NewCodeBinding(agent.ProviderClaude, auth.code).WithAccounts(auth)
 		return agentmodule.Components{
 			Provider: newProvider(
 				deps.ProjectPreparer,
 				deps.CredentialCollector,
 				*validatedProfile,
 				deps.CredentialSyncTimeout,
+				auth,
 			),
 			Auth: &binding,
 		}, nil

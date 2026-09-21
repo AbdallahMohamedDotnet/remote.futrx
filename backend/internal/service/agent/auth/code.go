@@ -80,6 +80,11 @@ type CodeConfig struct {
 	CodeRequired  error
 	NoSession     error
 	Errors        CodeErrorFormatters
+
+	// ResolveCompletion optionally takes over the outcome once the login
+	// command exits after a submitted code. Returning handled=false keeps the
+	// default exit-status and credential checks.
+	ResolveCompletion func(exitErr error) (handled bool, err error)
 }
 
 // CodeService owns one provider's interactive authorization-code process and
@@ -330,6 +335,16 @@ func (s *CodeService) SubmitCode(ctx context.Context, code string) error {
 	exitErr := sess.ExitErr()
 	s.clear(sess)
 
+	if s.config.ResolveCompletion != nil {
+		if handled, err := s.config.ResolveCompletion(exitErr); handled {
+			if err != nil {
+				s.setState(CodeLoginState{Error: err.Error()})
+				return err
+			}
+			s.setState(CodeLoginState{Completed: true})
+			return nil
+		}
+	}
 	if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
 		err := s.formatExitError(exitErr, output)
 		s.setState(CodeLoginState{Error: err.Error()})

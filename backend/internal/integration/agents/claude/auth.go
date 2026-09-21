@@ -1,13 +1,17 @@
 package claude
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
@@ -25,24 +29,53 @@ var (
 	claudeAuthURLRE = regexp.MustCompile(`https://claude\.com/cai/oauth/authorize\?[^\s]+`)
 )
 
-type Auth = agentauth.CodeService
 type AuthStatus = agentauth.CodeStatus
 type LoginState = agentauth.CodeLoginState
 type StartResult = agentauth.CodeStartResult
 
-// NewAuth configures the shared authorization-code service for the Claude CLI.
-func NewAuth() *Auth {
-	return agentauth.NewCodeService(agentauth.CodeConfig{
-		Command:        "claude",
-		Args:           []string{"auth", "login", "--claudeai"},
-		URLPattern:     claudeAuthURLRE,
-		LoginTimeout:   claudeLoginTimeout,
-		URLReadTimeout: claudeURLReadWait,
-		ExitTimeout:    claudeExitWait,
-		Authenticated:  authenticated,
-		NotFound:       ErrClaudeNotFound,
-		CodeRequired:   ErrCodeRequired,
-		NoSession:      ErrNoSession,
+// Auth combines Claude's authorization-code login with its optional
+// saved-account vault. CodeService continues to own the login process and
+// subscriptions; Auth owns only Claude credential placement and account
+// selection.
+type Auth struct {
+	code  *agentauth.CodeService
+	store agentauth.AccountStore
+
+	mutationMu sync.Mutex
+	mu         sync.Mutex
+	accounts   agentauth.AccountSet
+	attempt    *accountLoginAttempt
+	activeRuns int
+	validate   func(context.Context, []byte) (validatedAccount, error)
+}
+
+// NewAuth configures the shared authorization-code service for the Claude CLI
+// and restores the saved active account, when one exists.
+func NewAuth(store agentauth.AccountStore) (*Auth, error) {
+	auth := &Auth{store: store, validate: validateAccountCredential}
+	if store != nil {
+		accounts, err := store.AgentAccounts(context.Background(), agent.ProviderClaude)
+		if err != nil {
+			return nil, err
+		}
+		auth.accounts = accounts
+		if err := auth.restoreActiveAccount(); err != nil {
+			return nil, fmt.Errorf("restore active Claude account: %w", err)
+		}
+	}
+	auth.code = agentauth.NewCodeService(agentauth.CodeConfig{
+		Command:           "claude",
+		Args:              []string{"auth", "login", "--claudeai"},
+		Env:               auth.codeAuthEnv,
+		ResolveCompletion: auth.resolveCompletion,
+		URLPattern:        claudeAuthURLRE,
+		LoginTimeout:      claudeLoginTimeout,
+		URLReadTimeout:    claudeURLReadWait,
+		ExitTimeout:       claudeExitWait,
+		Authenticated:     authenticated,
+		NotFound:          ErrClaudeNotFound,
+		CodeRequired:      ErrCodeRequired,
+		NoSession:         ErrNoSession,
 		Errors: agentauth.CodeErrorFormatters{
 			PTYStart: func(err error) error {
 				return fmt.Errorf("pty start: %w", err)
@@ -82,7 +115,20 @@ func NewAuth() *Auth {
 			},
 		},
 	})
+	return auth, nil
 }
+
+func (a *Auth) Authenticated() bool                    { return a.code.Authenticated() }
+func (a *Auth) Status() AuthStatus                     { return a.code.Status() }
+func (a *Auth) Subscribe() (<-chan AuthStatus, func()) { return a.code.Subscribe() }
+func (a *Auth) Broadcast()                             { a.code.Broadcast() }
+func (a *Auth) Start(ctx context.Context) (StartResult, error) {
+	return a.code.Start(ctx)
+}
+func (a *Auth) SubmitCode(ctx context.Context, code string) error {
+	return a.code.SubmitCode(ctx, code)
+}
+func (a *Auth) Cancel(ctx context.Context) error { return a.code.Cancel(ctx) }
 
 func authenticated() bool {
 	for _, name := range []string{".credentials.json", "credentials.json"} {
@@ -101,4 +147,44 @@ func claudeHomeDir() string {
 		return filepath.Join(home, ".claude")
 	}
 	return "/root/.claude"
+}
+
+func claudeCredentialPath() string {
+	return filepath.Join(claudeHomeDir(), ".credentials.json")
+}
+
+// claudeGlobalConfigPath is where the CLI keeps oauthAccount. It lives inside
+// CLAUDE_CONFIG_DIR when that is set and beside the home directory otherwise.
+func claudeGlobalConfigPath() string {
+	if value := os.Getenv("CLAUDE_CONFIG_DIR"); value != "" {
+		return filepath.Join(value, ".claude.json")
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		return filepath.Join(home, ".claude.json")
+	}
+	return "/root/.claude.json"
+}
+
+// isolatedClaudeAuthEnvFor points the CLI at a private config directory and
+// removes inherited credentials that would take precedence over the
+// subscription login being created or inspected.
+func isolatedClaudeAuthEnvFor(base []string, configDir string) []string {
+	out := make([]string, 0, len(base)+1)
+	for _, env := range base {
+		if strings.HasPrefix(env, "CLAUDE_CONFIG_DIR=") ||
+			strings.HasPrefix(env, "ANTHROPIC_API_KEY=") ||
+			strings.HasPrefix(env, "ANTHROPIC_AUTH_TOKEN=") ||
+			strings.HasPrefix(env, "CLAUDE_CODE_OAUTH_TOKEN=") {
+			continue
+		}
+		out = append(out, env)
+	}
+	return append(out, "CLAUDE_CONFIG_DIR="+configDir)
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
