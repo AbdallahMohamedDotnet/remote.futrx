@@ -68,13 +68,19 @@ func (a *Auth) ImportCurrent(ctx context.Context, label string) error {
 		}
 		return fmt.Errorf("read current Codex credential: %w", err)
 	}
+	a.mutationMu.Lock()
+	defer a.mutationMu.Unlock()
+	a.mu.Lock()
+	if a.activeRuns > 0 {
+		a.mu.Unlock()
+		return agentauth.ErrAccountInUse
+	}
+	a.mu.Unlock()
 	validated, err := a.validate(ctx, credential)
 	if err != nil {
 		return err
 	}
 
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
 	a.mu.Lock()
 	if err := uniqueAccountLabel(a.accounts, label, ""); err != nil {
 		a.mu.Unlock()
@@ -113,6 +119,11 @@ func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (
 
 	a.mutationMu.Lock()
 	a.mu.Lock()
+	if a.activeRuns > 0 {
+		a.mu.Unlock()
+		a.mutationMu.Unlock()
+		return agentauth.LoginSnapshot{}, agentauth.ErrAccountInUse
+	}
 	if a.attempt != nil {
 		a.mu.Unlock()
 		a.mutationMu.Unlock()
@@ -250,10 +261,17 @@ func (a *Auth) DeleteAccount(ctx context.Context, accountID string) error {
 	return nil
 }
 
-func (a *Auth) BeginRun() func() {
+func (a *Auth) BeginRun() (func(), error) {
+	a.mutationMu.Lock()
 	a.mu.Lock()
+	if a.attempt != nil {
+		a.mu.Unlock()
+		a.mutationMu.Unlock()
+		return nil, errors.New("Codex account login is in progress")
+	}
 	a.activeRuns++
 	a.mu.Unlock()
+	a.mutationMu.Unlock()
 	var once sync.Once
 	return func() {
 		once.Do(func() {
@@ -261,7 +279,7 @@ func (a *Auth) BeginRun() func() {
 			a.activeRuns--
 			a.mu.Unlock()
 		})
-	}
+	}, nil
 }
 
 func (a *Auth) CaptureActiveCredential(ctx context.Context) error {

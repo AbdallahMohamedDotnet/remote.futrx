@@ -242,7 +242,10 @@ func TestActivateAccountFailureAndRunLeasePreserveCurrentCredential(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	release := auth.BeginRun()
+	release, err := auth.BeginRun()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := auth.ActivateAccount(context.Background(), "new"); !errors.Is(err, agentauth.ErrAccountInUse) {
 		t.Fatalf("activate during run error = %v", err)
 	}
