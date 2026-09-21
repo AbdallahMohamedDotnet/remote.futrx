@@ -76,6 +76,7 @@ type Dependencies struct {
 	AgentContainers   provisioning.ContainerDependencies
 	AgentModules      *agentmodule.Catalog
 	AgentAPIKeys      agentauth.APIKeyStore
+	AgentAccounts     agentauth.AccountStore
 	AgentOptions      AgentOptions
 	AuthOptions       AuthOptions
 	TmuxClient        TmuxClient
@@ -203,6 +204,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Projects:              agentProjectResolver{projects: projectService},
 		Containers:            deps.AgentContainers,
 		APIKeys:               deps.AgentAPIKeys,
+		Accounts:              deps.AgentAccounts,
 		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,
 	})
 	if err != nil {

@@ -31,19 +31,23 @@ func NewFactory() (agentmodule.Factory, error) {
 			ExecutionPolicies: true,
 		},
 	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
-		auth := NewAuth()
-		binding := agentauth.NewDeviceBinding(agent.ProviderCodex, auth).WithWarning(func() string {
+		auth, err := NewAuth(deps.Accounts)
+		if err != nil {
+			return agentmodule.Components{}, err
+		}
+		binding := agentauth.NewDeviceBinding(agent.ProviderCodex, auth.device).WithWarning(func() string {
 			if auth.Status().UsesAPIKey {
 				return "Codex is logged in with an API key. Sign in with ChatGPT to use subscription limits."
 			}
 			return ""
-		})
+		}).WithAccounts(auth)
 		return agentmodule.Components{
 			Provider: newProvider(
 				deps.ProjectPreparer,
 				deps.CredentialCollector,
 				*validatedProfile,
 				deps.CredentialSyncTimeout,
+				auth,
 			),
 			Auth: &binding,
 		}, nil

@@ -15,6 +15,7 @@ type Provider struct {
 	credentialCollector   provisioning.CredentialCollector
 	profile               provisioning.Profile
 	credentialSyncTimeout time.Duration
+	accounts              *Auth
 }
 
 func newProvider(
@@ -22,12 +23,14 @@ func newProvider(
 	credentialCollector provisioning.CredentialCollector,
 	profile provisioning.Profile,
 	credentialSyncTimeout time.Duration,
+	accounts *Auth,
 ) *Provider {
 	return &Provider{
 		projectPreparer:       projectPreparer,
 		credentialCollector:   credentialCollector,
 		profile:               profile.Clone(),
 		credentialSyncTimeout: credentialSyncTimeout,
+		accounts:              accounts,
 	}
 }
 
@@ -40,6 +43,11 @@ func (p *Provider) Parser(req agent.RunRequest) agent.LineParser {
 }
 
 func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agent.Event)) error {
+	var releaseAccount func()
+	if p.accounts != nil {
+		releaseAccount = p.accounts.BeginRun()
+		defer releaseAccount()
+	}
 	if emit == nil {
 		emit = func(agent.Event) {}
 	}
@@ -52,11 +60,21 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 		return err
 	}
 	err = codexharness.Run(ctx, cmd, req, "Codex", emit)
+	credentialReady := err == nil && containerName == ""
 	if err == nil && containerName != "" && p.credentialCollector != nil {
 		syncCtx, cancel := context.WithTimeout(context.Background(), p.credentialSyncTimeout)
 		defer cancel()
 		if syncErr := p.syncCredentialsFromContainer(syncCtx, containerName); syncErr != nil {
 			log.Printf("codex[%s] sync auth from %s: %v", req.ConversationID, containerName, syncErr)
+		} else {
+			credentialReady = true
+		}
+	}
+	if credentialReady && p.accounts != nil {
+		captureCtx, cancel := context.WithTimeout(context.Background(), p.credentialSyncTimeout)
+		defer cancel()
+		if captureErr := p.accounts.CaptureActiveCredential(captureCtx); captureErr != nil {
+			log.Printf("codex[%s] retain refreshed account: %v", req.ConversationID, captureErr)
 		}
 	}
 	return err

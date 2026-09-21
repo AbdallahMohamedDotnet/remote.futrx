@@ -58,6 +58,9 @@ type CredentialFile struct {
 	Mode          string
 	PushRequired  bool
 	PullRequired  bool
+	// HostAuthoritative forces the selected host credential into a container
+	// before each run even when the container copy has a newer timestamp.
+	HostAuthoritative bool
 }
 
 // CredentialDirectory describes a dynamic directory of credential files.

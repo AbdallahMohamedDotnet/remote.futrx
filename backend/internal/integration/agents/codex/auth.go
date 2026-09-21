@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,8 +9,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
@@ -34,13 +37,35 @@ type AuthStatus struct {
 }
 
 type DeviceLoginState = agentauth.DeviceState
-type Auth = agentauth.DeviceService[AuthStatus]
 
-func NewAuth() *Auth {
-	return agentauth.NewDeviceService(agentauth.DeviceConfig[AuthStatus]{
+// Auth combines Codex's device login with its optional saved-account vault.
+// DeviceService continues to own process lifecycle and subscriptions; Auth
+// owns only Codex credential placement and account selection.
+type Auth struct {
+	device *agentauth.DeviceService[AuthStatus]
+	store  agentauth.AccountStore
+
+	mutationMu sync.Mutex
+	mu         sync.Mutex
+	accounts   agentauth.AccountSet
+	attempt    *accountLoginAttempt
+	activeRuns int
+	validate   func(context.Context, []byte) (validatedAccount, error)
+}
+
+func NewAuth(store agentauth.AccountStore) (*Auth, error) {
+	auth := &Auth{store: store, validate: validateAccountCredential}
+	if store != nil {
+		accounts, err := store.AgentAccounts(context.Background(), agent.ProviderCodex)
+		if err != nil {
+			return nil, err
+		}
+		auth.accounts = accounts
+	}
+	auth.device = agentauth.NewDeviceService(agentauth.DeviceConfig[AuthStatus]{
 		Command:         "codex",
 		Args:            []string{"login", "--device-auth"},
-		Env:             codexAuthEnv,
+		Env:             auth.deviceAuthEnv,
 		NotFound:        ErrCodexNotFound,
 		StartErrorLabel: "codex login",
 		ReadyTimeout:    deviceLoginReadyTimeout,
@@ -64,6 +89,9 @@ func NewAuth() *Auth {
 			}
 		},
 		ResolveCompletion: func(err error) agentauth.DeviceCompletion {
+			if auth.hasAccountAttempt() {
+				return auth.completeAccountLogin(err)
+			}
 			authenticated, _, usesAPIKey := authenticated()
 			switch {
 			case authenticated:
@@ -77,7 +105,18 @@ func NewAuth() *Auth {
 			}
 		},
 	})
+	return auth, nil
 }
+
+func (a *Auth) Authenticated() bool                    { return a.device.Authenticated() }
+func (a *Auth) Status() AuthStatus                     { return a.device.Status() }
+func (a *Auth) LoginState() agentauth.DeviceState      { return a.device.LoginState() }
+func (a *Auth) Subscribe() (<-chan AuthStatus, func()) { return a.device.Subscribe() }
+func (a *Auth) StartDeviceLogin(ctx context.Context) (agentauth.DeviceState, error) {
+	return a.device.StartDeviceLogin(ctx)
+}
+
+func (a *Auth) Broadcast() { a.device.Broadcast() }
 
 func authenticated() (bool, string, bool) {
 	authPath := filepath.Join(codexHomeDir(), "auth.json")
@@ -122,21 +161,21 @@ func codexHomeDir() string {
 }
 
 func codexAuthEnv(base []string) []string {
+	return codexAuthEnvFor(base, codexHomeDir())
+}
+
+func codexAuthEnvFor(base []string, home string) []string {
 	out := make([]string, 0, len(base)+1)
-	hasCodexHome := false
 	for _, env := range base {
 		if strings.HasPrefix(env, "OPENAI_API_KEY=") {
 			continue
 		}
 		if strings.HasPrefix(env, "CODEX_HOME=") {
-			hasCodexHome = true
+			continue
 		}
 		out = append(out, env)
 	}
-	if hasCodexHome {
-		return out
-	}
-	return append(out, "CODEX_HOME="+codexHomeDir())
+	return append(out, "CODEX_HOME="+home)
 }
 
 func truncate(s string, n int) string {

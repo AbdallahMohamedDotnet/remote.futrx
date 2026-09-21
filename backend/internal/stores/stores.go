@@ -72,6 +72,7 @@ type Stores struct {
 	Push            PushStore
 	Usage           serviceusage.Repository
 	AgentAPIKeys    agentauth.APIKeyStore
+	AgentAccounts   agentauth.AccountStore
 	ProjectShares   serviceshare.Repository
 }
 
@@ -166,6 +167,7 @@ func New(dataDir string) (Stores, error) {
 		Push:            push,
 		Usage:           usage,
 		AgentAPIKeys:    authStore,
+		AgentAccounts:   authStore,
 		ProjectShares:   projectShares,
 	}, nil
 }

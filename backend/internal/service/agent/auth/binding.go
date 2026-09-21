@@ -36,9 +36,10 @@ type LoginSnapshot struct {
 // Snapshot is the stable auth shape consumed by provider-neutral clients.
 // Raw provider status remains available on the legacy routes.
 type Snapshot struct {
-	Authenticated bool          `json:"authenticated"`
-	Warning       string        `json:"warning,omitempty"`
-	Login         LoginSnapshot `json:"login"`
+	Authenticated bool              `json:"authenticated"`
+	Warning       string            `json:"warning,omitempty"`
+	Login         LoginSnapshot     `json:"login"`
+	Accounts      *AccountsSnapshot `json:"accounts,omitempty"`
 }
 
 // Binding is the transport-neutral view of one configured agent auth caller.
@@ -53,6 +54,7 @@ type Binding struct {
 	snapshot      func() Snapshot
 	snapshotSub   func() Subscription
 	warning       func() string
+	accounts      AccountController
 
 	startCode        func(context.Context) (CodeStartResult, error)
 	submitCode       func(context.Context, string) error
@@ -158,6 +160,12 @@ func (b Binding) WithWarning(warning func() string) Binding {
 	return b
 }
 
+// WithAccounts attaches the provider's optional multi-account capability.
+func (b Binding) WithAccounts(accounts AccountController) Binding {
+	b.accounts = accounts
+	return b
+}
+
 func (b Binding) ID() agent.ProviderID { return b.id }
 
 func (b Binding) Flow() Flow { return b.flow }
@@ -183,7 +191,41 @@ func (b Binding) Snapshot() Snapshot {
 	if b.warning != nil {
 		snapshot.Warning = b.warning()
 	}
+	if b.accounts != nil {
+		accounts := b.accounts.AccountsSnapshot()
+		snapshot.Accounts = &accounts
+	}
 	return snapshot
+}
+
+func (b Binding) AccountsAvailable() bool { return b.accounts != nil }
+
+func (b Binding) ImportCurrentAccount(ctx context.Context, label string) error {
+	if b.accounts == nil {
+		return ErrUnsupportedFlow
+	}
+	return b.accounts.ImportCurrent(ctx, label)
+}
+
+func (b Binding) StartAccountLogin(ctx context.Context, label, accountID string) (LoginSnapshot, error) {
+	if b.accounts == nil {
+		return LoginSnapshot{}, ErrUnsupportedFlow
+	}
+	return b.accounts.StartAccountLogin(ctx, label, accountID)
+}
+
+func (b Binding) ActivateAccount(ctx context.Context, accountID string) error {
+	if b.accounts == nil {
+		return ErrUnsupportedFlow
+	}
+	return b.accounts.ActivateAccount(ctx, accountID)
+}
+
+func (b Binding) DeleteAccount(ctx context.Context, accountID string) error {
+	if b.accounts == nil {
+		return ErrUnsupportedFlow
+	}
+	return b.accounts.DeleteAccount(ctx, accountID)
 }
 
 // Subscribe returns a type-erased view over the caller's original status

@@ -75,6 +75,22 @@ func TestCodexEnvStripsOpenAIAPIKey(t *testing.T) {
 	}
 }
 
+func TestCodexAuthEnvForOverridesInheritedCredentialHome(t *testing.T) {
+	env := codexAuthEnvFor([]string{
+		"HOME=/root",
+		"CODEX_HOME=/root/.codex",
+		"OPENAI_API_KEY=sk-test",
+	}, "/tmp/isolated-codex")
+	if slices.Contains(env, "CODEX_HOME=/root/.codex") || !slices.Contains(env, "CODEX_HOME=/tmp/isolated-codex") {
+		t.Fatalf("isolated auth env = %#v", env)
+	}
+	for _, item := range env {
+		if strings.HasPrefix(item, "OPENAI_API_KEY=") {
+			t.Fatalf("OPENAI_API_KEY leaked into isolated auth env: %#v", env)
+		}
+	}
+}
+
 func TestArgsIncludeBrowserMCPConfig(t *testing.T) {
 	provider := newTestProvider(nil, provisioning.ContainerDependencies{})
 	args := provider.args(agent.RunRequest{EnableBrowser: true})
