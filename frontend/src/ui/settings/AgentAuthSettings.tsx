@@ -165,6 +165,7 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
       {entry.status.accounts && (
         <AgentAccounts
           provider={entry.provider}
+          providerLabel={entry.label}
           accounts={entry.status.accounts}
           authenticated={entry.status.authenticated}
           busy={busy}
@@ -325,12 +326,14 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
 
 function AgentAccounts({
   provider,
+  providerLabel,
   accounts,
   authenticated,
   busy,
   loginActive,
 }: {
   provider: string;
+  providerLabel: string;
   accounts: AgentAuthAccountsSnapshot;
   authenticated: boolean;
   busy: boolean;
@@ -368,7 +371,7 @@ function AgentAccounts({
   function removeAccount(accountId: string, accountLabel: string) {
     void confirm({
       title: `Remove ${accountLabel}?`,
-      description: "The saved Codex tokens for this account will be deleted from Remote.",
+      description: `The saved ${providerLabel} tokens for this account will be deleted from Remote.`,
       message: <>You will need to authenticate this account again before it can be selected.</>,
       confirmLabel: "Remove account",
       pendingLabel: "Removing...",
@@ -388,7 +391,7 @@ function AgentAccounts({
             <Users class="h-4 w-4" /> Saved accounts
           </div>
           <div class="mt-0.5 text-[11px] text-ink-400">
-            The active account is shared by all new Codex runs on this server.
+            The active account is shared by all new {providerLabel} runs on this server.
           </div>
         </div>
         <button
@@ -403,7 +406,7 @@ function AgentAccounts({
 
       {accounts.items.length === 0 && !formOpen && (
         <div class="rounded border border-dashed border-line px-3 py-4 text-center text-[12px] text-ink-400">
-          No Codex accounts have been saved yet.
+          No {providerLabel} accounts have been saved yet.
         </div>
       )}
 
@@ -419,7 +422,7 @@ function AgentAccounts({
               )}
             </div>
             <div class="mt-0.5 truncate text-[11px] text-ink-400">
-              {[account.email, account.planType].filter(Boolean).join(" · ") || "Validated ChatGPT account"}
+              {[account.email, account.planType].filter(Boolean).join(" · ") || "Validated subscription account"}
             </div>
           </div>
           {!account.active && (
