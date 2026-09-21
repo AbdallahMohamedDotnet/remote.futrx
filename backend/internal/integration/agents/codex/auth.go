@@ -62,6 +62,11 @@ func NewAuth(store agentauth.AccountStore) (*Auth, error) {
 			return nil, err
 		}
 		auth.accounts = accounts
+		if active, ok := findAccount(accounts, accounts.ActiveAccountID); ok {
+			if err := writeActiveCredential(active.Credential); err != nil {
+				return nil, fmt.Errorf("restore active Codex account: %w", err)
+			}
+		}
 	}
 	auth.device = agentauth.NewDeviceService(agentauth.DeviceConfig[AuthStatus]{
 		Command:         "codex",
