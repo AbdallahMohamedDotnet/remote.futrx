@@ -103,7 +103,8 @@ func (a *Auth) ImportCurrent(ctx context.Context, label string) error {
 // directory. The pasted code is submitted through the regular code route;
 // resolveCompletion then validates and saves what the CLI wrote there.
 func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (agentauth.LoginSnapshot, error) {
-	label, err := agentauth.NormalizeAccountLabel(label)
+	// Reconnecting a saved account may omit the label to keep its own.
+	label, err := agentauth.NormalizeLoginLabel(label, accountID)
 	if err != nil {
 		return agentauth.LoginSnapshot{}, err
 	}
@@ -324,7 +325,7 @@ func (a *Auth) codeAuthEnv(base []string) []string {
 
 // resolveCompletion claims the result of a code login that was started for a
 // saved account. Plain logins keep CodeService's default credential check.
-func (a *Auth) resolveCompletion(exitErr error) (bool, error) {
+func (a *Auth) resolveCompletion(exitErr error, output string) (bool, error) {
 	a.mutationMu.Lock()
 	defer a.mutationMu.Unlock()
 	a.mu.Lock()
@@ -336,14 +337,15 @@ func (a *Auth) resolveCompletion(exitErr error) (bool, error) {
 	}
 	defer os.RemoveAll(attempt.root)
 	if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
-		return true, fmt.Errorf("claude login failed: %s", truncate(exitErr.Error(), 300))
+		return true, accountLoginFailure(fmt.Sprintf("claude login failed: %s", truncate(exitErr.Error(), 300)), output)
 	}
-	credential, err := readAccountCredential(
-		filepath.Join(attempt.home, ".credentials.json"),
-		filepath.Join(attempt.home, ".claude.json"),
-	)
+	credentialPath := filepath.Join(attempt.home, ".credentials.json")
+	credential, err := readAccountCredential(credentialPath, filepath.Join(attempt.home, ".claude.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return true, accountLoginFailure("Claude login completed without writing credentials to "+credentialPath, output)
+	}
 	if err != nil {
-		return true, errors.New("Claude login completed without writing credentials")
+		return true, accountLoginFailure("read Claude login credential: "+truncate(err.Error(), 300), output)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), accountValidationTimeout)
 	defer cancel()
@@ -385,6 +387,15 @@ func (a *Auth) resolveCompletion(exitErr error) (bool, error) {
 	}
 	a.accounts = next
 	return true, nil
+}
+
+// accountLoginFailure keeps the CLI's own last words, which usually say why
+// no credential was written.
+func accountLoginFailure(message, output string) error {
+	if output != "" {
+		message += "; claude output: " + output
+	}
+	return errors.New(message)
 }
 
 func (a *Auth) clearAccountAttempt() {

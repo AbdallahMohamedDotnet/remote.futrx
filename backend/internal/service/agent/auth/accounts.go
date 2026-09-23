@@ -139,6 +139,16 @@ func NormalizeAccountLabel(label string) (string, error) {
 	return label, nil
 }
 
+// NormalizeLoginLabel normalizes the label of an account login. Reconnecting
+// a saved account (accountID set) may leave the label blank to keep the saved
+// one, which the caller then fills in.
+func NormalizeLoginLabel(label, accountID string) (string, error) {
+	if accountID != "" && strings.TrimSpace(label) == "" {
+		return "", nil
+	}
+	return NormalizeAccountLabel(label)
+}
+
 // NewAccountID returns a random opaque account identifier.
 func NewAccountID() (string, error) {
 	value := make([]byte, 16)

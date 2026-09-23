@@ -132,11 +132,26 @@ func (a *Auth) Cancel(ctx context.Context) error { return a.code.Cancel(ctx) }
 
 func authenticated() bool {
 	for _, name := range []string{".credentials.json", "credentials.json"} {
-		if _, err := os.Stat(filepath.Join(claudeHomeDir(), name)); err == nil {
+		if credentialUsable(filepath.Join(claudeHomeDir(), name)) {
 			return true
 		}
 	}
 	return false
+}
+
+// credentialUsable reports whether path holds a Claude subscription login the
+// CLI can still use, rather than merely existing: a stale or expired
+// credentials file with no refresh token must not read as signed in.
+func credentialUsable(path string) bool {
+	credentials, err := readJSONObject(path)
+	if err != nil {
+		return false
+	}
+	oauth, ok := credentials["claudeAiOauth"]
+	if !ok || len(oauth) == 0 {
+		return false
+	}
+	return checkOAuthUsable(oauth, time.Now()) == nil
 }
 
 func claudeHomeDir() string {
@@ -167,11 +182,14 @@ func claudeGlobalConfigPath() string {
 
 // isolatedClaudeAuthEnvFor points the CLI at a private config directory and
 // removes inherited credentials that would take precedence over the
-// subscription login being created or inspected.
+// subscription login being created or inspected. The CLI stores OAuth tokens
+// under CLAUDE_SECURESTORAGE_CONFIG_DIR when that is set, so it is removed
+// too; otherwise a login would land outside the private directory.
 func isolatedClaudeAuthEnvFor(base []string, configDir string) []string {
 	out := make([]string, 0, len(base)+1)
 	for _, env := range base {
 		if strings.HasPrefix(env, "CLAUDE_CONFIG_DIR=") ||
+			strings.HasPrefix(env, "CLAUDE_SECURESTORAGE_CONFIG_DIR=") ||
 			strings.HasPrefix(env, "ANTHROPIC_API_KEY=") ||
 			strings.HasPrefix(env, "ANTHROPIC_AUTH_TOKEN=") ||
 			strings.HasPrefix(env, "CLAUDE_CODE_OAUTH_TOKEN=") {

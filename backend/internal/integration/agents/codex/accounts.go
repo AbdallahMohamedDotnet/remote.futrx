@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,13 +19,50 @@ import (
 const accountValidationTimeout = 30 * time.Second
 
 type accountLoginAttempt struct {
-	accountID          string
-	label              string
-	root               string
-	home               string
-	credentialPath     string
-	previousCredential json.RawMessage
-	hadPrevious        bool
+	accountID string
+	label     string
+	root      string
+	home      string
+	// external holds host credential files a Codex build that ignores the
+	// isolated CODEX_HOME writes instead, such as a Snap package that pins
+	// CODEX_HOME to its own data directory.
+	external []watchedCredential
+}
+
+// watchedCredential remembers a host credential file as it was before an
+// account login so the login's write can be detected and undone.
+type watchedCredential struct {
+	path     string
+	previous []byte
+	existed  bool
+}
+
+func watchCredential(path string) (watchedCredential, error) {
+	previous, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return watchedCredential{}, err
+	}
+	return watchedCredential{path: path, previous: previous, existed: err == nil}, nil
+}
+
+// changed returns the file's current content when the login wrote to it.
+func (w watchedCredential) changed() ([]byte, bool) {
+	current, err := os.ReadFile(w.path)
+	if err != nil {
+		return nil, false
+	}
+	return current, !w.existed || !bytes.Equal(current, w.previous)
+}
+
+func (w watchedCredential) restore() error {
+	if w.existed {
+		return agentauth.WriteCredentialFile(w.path, w.previous)
+	}
+	err := os.Remove(w.path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
 }
 
 func (a *Auth) AccountsSnapshot() agentauth.AccountsSnapshot {
@@ -86,7 +124,8 @@ func (a *Auth) ImportCurrent(ctx context.Context, label string) error {
 }
 
 func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (agentauth.LoginSnapshot, error) {
-	label, err := agentauth.NormalizeAccountLabel(label)
+	// Reconnecting a saved account may omit the label to keep its own.
+	label, err := agentauth.NormalizeLoginLabel(label, accountID)
 	if err != nil {
 		return agentauth.LoginSnapshot{}, err
 	}
@@ -128,22 +167,20 @@ func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (
 		a.mutationMu.Unlock()
 		return agentauth.LoginSnapshot{}, fmt.Errorf("prepare Codex login: %w", err)
 	}
-	credentialPath := filepath.Join(home, "auth.json")
-	if snapPath, ok := snapCodexCredentialPath(); ok {
-		credentialPath = snapPath
-	}
-	previousCredential, readErr := os.ReadFile(credentialPath)
-	hadPrevious := readErr == nil
-	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
-		_ = os.RemoveAll(root)
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return agentauth.LoginSnapshot{}, fmt.Errorf("read current Codex credential: %w", readErr)
+	external := make([]watchedCredential, 0, 2)
+	for _, path := range externalCredentialPaths() {
+		watched, err := watchCredential(path)
+		if err != nil {
+			_ = os.RemoveAll(root)
+			a.mu.Unlock()
+			a.mutationMu.Unlock()
+			return agentauth.LoginSnapshot{}, fmt.Errorf("read current Codex credential: %w", err)
+		}
+		external = append(external, watched)
 	}
 	a.attempt = &accountLoginAttempt{
 		accountID: accountID, label: label, root: root, home: home,
-		credentialPath: credentialPath, previousCredential: previousCredential,
-		hadPrevious: hadPrevious,
+		external: external,
 	}
 	a.mu.Unlock()
 	a.mutationMu.Unlock()
@@ -303,7 +340,7 @@ func (a *Auth) hasAccountAttempt() bool {
 	return a.attempt != nil
 }
 
-func (a *Auth) completeAccountLogin(commandErr error) agentauth.DeviceCompletion {
+func (a *Auth) completeAccountLogin(commandErr error, output string) agentauth.DeviceCompletion {
 	a.mutationMu.Lock()
 	defer a.mutationMu.Unlock()
 	a.mu.Lock()
@@ -314,21 +351,24 @@ func (a *Auth) completeAccountLogin(commandErr error) agentauth.DeviceCompletion
 		return agentauth.DeviceCompletion{Error: "Codex account login state was lost"}
 	}
 	defer os.RemoveAll(attempt.root)
+
+	// Take the login's credential, then put every host file the CLI touched
+	// back as it was. Saving the account below decides what becomes active.
+	credential, readErr := attempt.loginCredential()
+	if err := attempt.restoreExternal(); err != nil {
+		return agentauth.DeviceCompletion{Error: "restore previous Codex credential: " + truncate(err.Error(), 160)}
+	}
 	if commandErr != nil {
-		return a.failedAccountLogin(attempt, fmt.Sprintf("codex login failed: %s", truncate(commandErr.Error(), 300)))
+		return accountLoginFailure(fmt.Sprintf("codex login failed: %s", truncate(commandErr.Error(), 300)), output)
 	}
-	credential, err := os.ReadFile(attempt.credentialPath)
-	if err != nil {
-		return a.failedAccountLogin(attempt, "Codex login completed without writing credentials")
-	}
-	if attempt.hadPrevious && bytes.Equal(credential, attempt.previousCredential) {
-		return a.failedAccountLogin(attempt, "Codex login completed without updating credentials")
+	if readErr != nil {
+		return accountLoginFailure(truncate(readErr.Error(), 400), output)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), accountValidationTimeout)
 	defer cancel()
 	validated, err := a.validate(ctx, credential)
 	if err != nil {
-		return a.failedAccountLogin(attempt, truncate(err.Error(), 300))
+		return agentauth.DeviceCompletion{Error: truncate(err.Error(), 300)}
 	}
 
 	a.mu.Lock()
@@ -364,28 +404,51 @@ func (a *Auth) completeAccountLogin(commandErr error) agentauth.DeviceCompletion
 		}
 		return nil
 	}()); err != nil {
-		return a.failedAccountLogin(attempt, truncate(err.Error(), 300))
+		return agentauth.DeviceCompletion{Error: truncate(err.Error(), 300)}
 	}
 	a.accounts = next
 	return agentauth.DeviceCompletion{Completed: true}
 }
 
-func (a *Auth) failedAccountLogin(attempt *accountLoginAttempt, message string) agentauth.DeviceCompletion {
+// loginCredential returns what the login wrote: the isolated CODEX_HOME
+// file when the CLI honored it, otherwise a host file it changed instead.
+func (attempt *accountLoginAttempt) loginCredential() ([]byte, error) {
 	isolatedPath := filepath.Join(attempt.home, "auth.json")
-	if attempt.credentialPath == isolatedPath {
-		return agentauth.DeviceCompletion{Error: message}
+	credential, err := os.ReadFile(isolatedPath)
+	if err == nil {
+		return credential, nil
 	}
-	var err error
-	if attempt.hadPrevious {
-		err = agentauth.WriteCredentialFile(attempt.credentialPath, attempt.previousCredential)
-	} else {
-		err = os.Remove(attempt.credentialPath)
-		if errors.Is(err, os.ErrNotExist) {
-			err = nil
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read Codex login credential: %w", err)
+	}
+	checked := []string{isolatedPath}
+	for _, watched := range attempt.external {
+		if current, changed := watched.changed(); changed {
+			return current, nil
+		}
+		checked = append(checked, watched.path)
+	}
+	return nil, fmt.Errorf("Codex login completed without writing credentials (checked %s)", strings.Join(checked, ", "))
+}
+
+func (attempt *accountLoginAttempt) restoreExternal() error {
+	var failures []error
+	for _, watched := range attempt.external {
+		if _, changed := watched.changed(); !changed {
+			continue
+		}
+		if err := watched.restore(); err != nil {
+			failures = append(failures, err)
 		}
 	}
-	if err != nil {
-		message += "; restore previous credential: " + truncate(err.Error(), 160)
+	return errors.Join(failures...)
+}
+
+// accountLoginFailure keeps the CLI's own last words, which usually say why
+// no credential was written.
+func accountLoginFailure(message, output string) agentauth.DeviceCompletion {
+	if output != "" {
+		message += "; codex output: " + output
 	}
 	return agentauth.DeviceCompletion{Error: message}
 }

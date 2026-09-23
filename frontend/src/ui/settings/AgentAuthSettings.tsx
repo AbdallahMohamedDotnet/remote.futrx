@@ -50,9 +50,13 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
   const managedAPIKey = entry.authentication.mode === "managed-api-key";
   const managed = managedCode || managedDevice || managedAPIKey;
   const accountSwitching = !!entry.status.accounts;
+  const accounts = entry.status.accounts?.items;
+  const activeAccountCount = accounts?.filter((account) => account.active).length;
   const apiKeyCredentialLabel = entry.authentication.apiKey?.credentialLabel || `${entry.label} API key`;
   const loginInteractionActive = loginActive || (managedAPIKey && apiKeyFormOpen);
-  const statusKind = agentAuthRegistryService.statusKind(entry);
+  const statusKind = accounts?.length === 0
+    ? "unconfigured"
+    : agentAuthRegistryService.statusKind(entry);
   const error = agentAuth.actionErrors[entry.provider]
     || entry.status.login.error
     || entry.status.warning
@@ -120,18 +124,19 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
           <Key class="h-4 w-4" />
         </div>
         <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <div class="text-[14px] font-semibold text-ink-100">{entry.label} authentication</div>
+          <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <div class="text-[14px] font-semibold leading-5 text-ink-100">{entry.label} authentication</div>
             {statusKind === "no-auth" ? (
-              <span class="text-[11px] text-accent-green">No sign-in required</span>
+              <span class="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-accent-green/10 px-2 py-0.5 text-[11px] font-medium leading-4 text-accent-green">No sign-in required</span>
             ) : statusKind === "authenticated" ? (
-              <span class="inline-flex items-center gap-1 text-[11px] text-accent-green">
+              <span class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-accent-green/10 px-2 py-0.5 text-[11px] font-medium leading-4 text-accent-green">
                 <Check class="h-3.5 w-3.5" /> Signed in
+                {activeAccountCount !== undefined && ` · ${activeAccountCount} active`}
               </span>
             ) : statusKind === "external" ? (
-              <span class="text-[11px] text-ink-400">Provider-managed</span>
+              <span class="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-tint-strong px-2 py-0.5 text-[11px] font-medium leading-4 text-ink-300">Provider-managed</span>
             ) : (
-              <span class="text-[11px] text-ink-400">not configured</span>
+              <span class="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-tint-strong px-2 py-0.5 text-[11px] font-medium leading-4 text-ink-300">Not configured</span>
             )}
           </div>
           {entry.authentication.instructions && (

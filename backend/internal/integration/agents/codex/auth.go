@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -94,9 +95,9 @@ func NewAuth(store agentauth.AccountStore) (*Auth, error) {
 				}
 			}
 		},
-		ResolveCompletion: func(err error) agentauth.DeviceCompletion {
+		ResolveCompletion: func(err error, output string) agentauth.DeviceCompletion {
 			if auth.hasAccountAttempt() {
-				return auth.completeAccountLogin(err)
+				return auth.completeAccountLogin(err, output)
 			}
 			authenticated, _, usesAPIKey := authenticated()
 			switch {
@@ -145,19 +146,67 @@ func codexCredentialPath() string {
 	return filepath.Join(codexHomeDir(), "auth.json")
 }
 
+// snapBinDir is where snapd exposes application commands.
+var snapBinDir = "/snap/bin"
+
 func snapCodexCredentialPath() (string, bool) {
 	binary, err := exec.LookPath("codex")
 	if err != nil {
 		return "", false
 	}
-	return snapCredentialPathFor(binary, os.Getenv("HOME"))
+	return snapCredentialPathFor(binary, snapUserHome())
 }
 
+// snapCredentialPathFor returns the auth.json a Snap-packaged Codex uses. The
+// Snap pins CODEX_HOME to its per-user data directory, so it ignores any
+// CODEX_HOME Remote sets. binary may reach /snap/bin through symlinks, such
+// as a /usr/local/bin link or an alias.
 func snapCredentialPathFor(binary, home string) (string, bool) {
-	if filepath.Clean(filepath.Dir(binary)) != "/snap/bin" || home == "" {
+	name, ok := snapCommandName(binary)
+	if !ok || home == "" {
 		return "", false
 	}
-	return filepath.Join(home, "snap", filepath.Base(binary), "current", "auth.json"), true
+	snapName, _, _ := strings.Cut(name, ".")
+	return filepath.Join(home, "snap", snapName, "current", "auth.json"), true
+}
+
+// snapCommandName follows binary's symlink chain and returns the command name
+// under snapBinDir, if the chain passes through it.
+func snapCommandName(binary string) (string, bool) {
+	path := filepath.Clean(binary)
+	for range 16 {
+		if filepath.Dir(path) == filepath.Clean(snapBinDir) {
+			return filepath.Base(path), true
+		}
+		target, err := os.Readlink(path)
+		if err != nil {
+			return "", false
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(path), target)
+		}
+		path = filepath.Clean(target)
+	}
+	return "", false
+}
+
+// snapUserHome is the home directory snapd derives SNAP_USER_DATA from: the
+// account's home directory, not the process's HOME.
+func snapUserHome() string {
+	if account, err := user.Current(); err == nil && account.HomeDir != "" {
+		return account.HomeDir
+	}
+	return os.Getenv("HOME")
+}
+
+// externalCredentialPaths lists the host files a Codex login may write when
+// the CLI does not honor the isolated CODEX_HOME.
+func externalCredentialPaths() []string {
+	paths := []string{codexCredentialPath()}
+	if snapPath, ok := snapCodexCredentialPath(); ok && snapPath != paths[0] {
+		paths = append(paths, snapPath)
+	}
+	return paths
 }
 
 func codexAuthMode(authPath string) (string, bool) {
@@ -167,7 +216,7 @@ func codexAuthMode(authPath string) (string, bool) {
 	}
 	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return "unknown", false
+		return "", false
 	}
 	mode, _ := raw["auth_mode"].(string)
 	mode = strings.TrimSpace(strings.ToLower(mode))
@@ -175,7 +224,7 @@ func codexAuthMode(authPath string) (string, bool) {
 		if _, hasAPIKey := raw["OPENAI_API_KEY"]; hasAPIKey {
 			return "apikey", true
 		}
-		return "unknown", false
+		return "", false
 	}
 	return mode, mode == "apikey"
 }

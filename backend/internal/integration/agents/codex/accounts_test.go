@@ -97,10 +97,6 @@ func TestCompleteAccountLoginCapturesExternalCredentialPath(t *testing.T) {
 	canonicalHome := filepath.Join(t.TempDir(), ".codex")
 	t.Setenv("CODEX_HOME", canonicalHome)
 	externalPath := filepath.Join(t.TempDir(), "snap", "codex", "current", "auth.json")
-	newCredential := json.RawMessage(`{"auth_mode":"chatgpt","token":"new"}`)
-	if err := agentauth.WriteCredentialFile(externalPath, newCredential); err != nil {
-		t.Fatal(err)
-	}
 	store := &memoryAccountStore{}
 	auth, err := NewAuth(store)
 	if err != nil {
@@ -113,10 +109,19 @@ func TestCompleteAccountLoginCapturesExternalCredentialPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.attempt = &accountLoginAttempt{
-		label: "Company", root: root, home: home, credentialPath: externalPath,
+	watched, err := watchCredential(externalPath)
+	if err != nil {
+		t.Fatal(err)
 	}
-	completion := auth.completeAccountLogin(nil)
+	auth.attempt = &accountLoginAttempt{
+		label: "Company", root: root, home: home, external: []watchedCredential{watched},
+	}
+	// The CLI ignored the isolated CODEX_HOME and wrote the Snap location.
+	newCredential := json.RawMessage(`{"auth_mode":"chatgpt","token":"new"}`)
+	if err := agentauth.WriteCredentialFile(externalPath, newCredential); err != nil {
+		t.Fatal(err)
+	}
+	completion := auth.completeAccountLogin(nil, "")
 	if !completion.Completed || completion.Error != "" {
 		t.Fatalf("completion = %#v", completion)
 	}
@@ -130,13 +135,16 @@ func TestCompleteAccountLoginCapturesExternalCredentialPath(t *testing.T) {
 	if string(active) != string(newCredential) {
 		t.Fatalf("active credential = %s", active)
 	}
+	if _, err := os.Stat(externalPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("external credential that did not exist before the login was kept: %v", err)
+	}
 }
 
 func TestFailedExternalAccountLoginRestoresPreviousCredential(t *testing.T) {
 	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), ".codex"))
 	externalPath := filepath.Join(t.TempDir(), "snap", "codex", "current", "auth.json")
 	previous := json.RawMessage(`{"auth_mode":"chatgpt","token":"old"}`)
-	if err := agentauth.WriteCredentialFile(externalPath, []byte(`{"auth_mode":"chatgpt","token":"new"}`)); err != nil {
+	if err := agentauth.WriteCredentialFile(externalPath, previous); err != nil {
 		t.Fatal(err)
 	}
 	auth, err := NewAuth(&memoryAccountStore{})
@@ -150,11 +158,17 @@ func TestFailedExternalAccountLoginRestoresPreviousCredential(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.attempt = &accountLoginAttempt{
-		label: "Company", root: root, home: home, credentialPath: externalPath,
-		previousCredential: previous, hadPrevious: true,
+	watched, err := watchCredential(externalPath)
+	if err != nil {
+		t.Fatal(err)
 	}
-	completion := auth.completeAccountLogin(nil)
+	auth.attempt = &accountLoginAttempt{
+		label: "Company", root: root, home: home, external: []watchedCredential{watched},
+	}
+	if err := agentauth.WriteCredentialFile(externalPath, []byte(`{"auth_mode":"chatgpt","token":"new"}`)); err != nil {
+		t.Fatal(err)
+	}
+	completion := auth.completeAccountLogin(nil, "")
 	if completion.Error != "invalid account" {
 		t.Fatalf("completion = %#v", completion)
 	}
