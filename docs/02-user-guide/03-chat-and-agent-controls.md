@@ -32,7 +32,10 @@ dependency order: select the provider first, then one of that provider's saved
 accounts when available, then the provider's model. The three values are
 applied together, and the account is pinned to the chat. Changing between two
 pinned accounts keeps the visible transcript but starts a fresh provider
-session. A running chat does not block another chat that selects a
+session. The last provider, account, and model selection becomes that user's
+starting preference for new chats in the same host or project scope. If the
+remembered account has since been removed, a new chat falls back to the
+provider's current default account. A running chat does not block another chat that selects a
 different saved Codex, Claude, or MiniMax account; their credential and session
 state is isolated per chat. Account, provider, model, thinking, and speed
 cannot be changed while that chat is streaming. See the Kimi exception under

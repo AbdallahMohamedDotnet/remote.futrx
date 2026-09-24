@@ -14,6 +14,7 @@ test("preserves normalized skill identity and chat defaults", () => {
       null,
       {
         provider: "codex",
+        accountId: "",
         model: "gpt-5",
         mode: "default",
         reasoningEffort: "high",
@@ -85,6 +86,7 @@ test("prefers live workspace selections from another client", () => {
     },
     {
       provider: "codex",
+      accountId: "",
       model: "",
       mode: "default",
       reasoningEffort: "",
@@ -126,6 +128,7 @@ test("does not restore stale detail skills after a live workspace removal", () =
     },
     {
       provider: "codex",
+      accountId: "",
       model: "",
       mode: "default",
       reasoningEffort: "",
@@ -154,6 +157,7 @@ test("preserves an explicit per-chat Auto selection", () => {
     null,
     {
       provider: "codex",
+      accountId: "",
       model: "gpt-global-default",
       mode: "plan",
       reasoningEffort: "high",

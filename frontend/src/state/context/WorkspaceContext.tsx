@@ -53,7 +53,7 @@ export function WorkspaceProvider({
   // Local State
   ////////////////
   const data = useWorkspaceData(enabled);
-  const { auth } = useAuthContext();
+  const { auth, agentAuth } = useAuthContext();
   const { settings } = useUserSettingsContext();
   const [ui, dispatch] = useReducer(
     workspaceUiState.reduce,
@@ -84,9 +84,9 @@ export function WorkspaceProvider({
   }, []);
 
   const createChat = useCallback(async (projectId?: string): Promise<ChatMeta> => {
-    const chat = await chatApi.create(createChatInput(settings, projectId));
+    const chat = await chatApi.create(createChatInput(settings, projectId, agentAuth.providers));
     return activateNewChat(chat);
-  }, [settings, activateNewChat]);
+  }, [settings, agentAuth.providers, activateNewChat]);
 
   const deleteChat = useCallback(async (chatId: string) => {
     await chatApi.delete(chatId);

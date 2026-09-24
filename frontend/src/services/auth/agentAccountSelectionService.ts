@@ -1,8 +1,8 @@
 import type {
   AgentAuthAccountsSnapshot,
   AgentAuthProvider,
-} from "../../../models/auth";
-import type { ChatProvider } from "../../../models/chat";
+} from "../../models/auth";
+import type { ChatProvider } from "../../models/chat";
 
 export function accountsForProvider(
   authProviders: readonly AgentAuthProvider[],
@@ -24,4 +24,17 @@ export function resolveProviderAccountId(
     return accounts.activeAccountId;
   }
   return accounts?.items[0]?.id || "";
+}
+
+// Preserve a remembered account while provider status is still loading. Once
+// the provider is known, reject an account from another provider (or one that
+// was deleted) and use that provider's current default instead.
+export function resolveRememberedAccountId(
+  authProviders: readonly AgentAuthProvider[],
+  provider: ChatProvider,
+  rememberedAccountId: string,
+): string {
+  const authProvider = authProviders.find((entry) => entry.provider === provider);
+  if (!authProvider) return rememberedAccountId.trim();
+  return resolveProviderAccountId(authProvider.status.accounts, rememberedAccountId);
 }

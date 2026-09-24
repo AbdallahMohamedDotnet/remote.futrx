@@ -200,7 +200,7 @@ flowchart TD
 
 | State | Lifetime |
 | --- | --- |
-| Authentication and user settings | Preact context; reloaded from HTTP after page reload |
+| Authentication and user settings | Preact context; reloaded from HTTP after page reload. Host-chat and project-chat preferences each retain the last provider/account/model selection. |
 | Agent auth registry | Ordered `GET /api/agent-auth` snapshot in `AuthContext`, updated by one normalized WebSocket per managed provider |
 | Projects and chat summaries | Workspace WebSocket; server is authoritative. A chat created or forked from this client is seeded into the list on the create response so the new selection holds until its `chat.upsert` arrives |
 | Active view, selected chat, sidebar open state | In-memory reducer |

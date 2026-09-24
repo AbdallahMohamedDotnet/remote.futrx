@@ -13,7 +13,7 @@ import { useDismissShortcut } from "../../../state/hooks/shared/useDismissShortc
 import {
   accountsForProvider,
   resolveProviderAccountId,
-} from "./composerAgentSelection.ts";
+} from "../../../services/auth/agentAccountSelectionService.ts";
 import {
   Bot,
   Check,

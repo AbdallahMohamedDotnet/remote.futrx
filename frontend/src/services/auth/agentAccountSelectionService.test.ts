@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentAuthProvider } from "../../../models/auth.ts";
+import type { AgentAuthProvider } from "../../models/auth.ts";
 import {
   accountsForProvider,
   resolveProviderAccountId,
-} from "./composerAgentSelection.ts";
+  resolveRememberedAccountId,
+} from "./agentAccountSelectionService.ts";
 
 const providers: AgentAuthProvider[] = [
   provider("codex", "codex-work", ["codex-home", "codex-work"]),
@@ -25,6 +26,12 @@ test("falls back to the first account when the advertised default is stale", () 
 
   assert.equal(resolveProviderAccountId(accounts, ""), "personal");
   assert.equal(resolveProviderAccountId(undefined, "personal"), "");
+});
+
+test("new-chat preferences preserve unknown status and repair known stale accounts", () => {
+  assert.equal(resolveRememberedAccountId([], "codex", " remembered "), "remembered");
+  assert.equal(resolveRememberedAccountId(providers, "claude", "codex-work"), "claude-home");
+  assert.equal(resolveRememberedAccountId(providers, "claude", "claude-work"), "claude-work");
 });
 
 function provider(

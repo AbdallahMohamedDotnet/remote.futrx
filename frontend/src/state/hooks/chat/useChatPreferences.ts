@@ -47,14 +47,12 @@ export function useChatPreferences({
       ...(agentChanged ? { reasoningEffort: "", serviceTier: "" } : {}),
       ...(providerChanged ? { selectedSkills: [] } : {}),
     });
-    if (agentChanged) {
-      void setChatSettings(preferenceScope, {
-        provider,
-        model,
-        reasoningEffort: "",
-        serviceTier: "",
-      });
-    }
+    void setChatSettings(preferenceScope, {
+      provider,
+      accountId,
+      model,
+      ...(agentChanged ? { reasoningEffort: "", serviceTier: "" } : {}),
+    });
   }
 
   function selectSkill(skill: RegisteredSkill) {
