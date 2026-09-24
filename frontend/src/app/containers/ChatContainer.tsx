@@ -165,7 +165,6 @@ export function ChatContainer({
     },
     preferenceActions: {
       changeAgent: preferences.changeAgent,
-      changeAccount: preferences.changeAccount,
       changeMode: preferences.changeMode,
       changeReasoningEffort: preferences.changeReasoningEffort,
       changeServiceTier: preferences.changeServiceTier,

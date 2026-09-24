@@ -19,8 +19,7 @@ export interface ComposerPreferences {
 }
 
 export interface ComposerPreferenceActions {
-  changeAgent: (provider: ChatProvider, model: string) => void;
-  changeAccount: (accountId: string) => void;
+  changeAgent: (provider: ChatProvider, accountId: string, model: string) => void;
   changeMode: (mode: ChatMode, modelPreset?: string, reasoningPreset?: string) => void;
   changeReasoningEffort: (reasoningEffort: ReasoningEffort) => void;
   changeServiceTier: (serviceTier: ServiceTier) => void;

@@ -32,28 +32,29 @@ export function useChatPreferences({
   const selectedSkills = displayMeta.selectedSkills || [];
   const metaActions = useChatMetaActions({ chatId: chat.id, refreshMeta });
 
-  function changeAgent(provider: ChatProvider, model: string) {
-    if (provider === displayProvider && model === displayModel) return;
+  function changeAgent(provider: ChatProvider, accountId: string, model: string) {
+    if (
+      provider === displayProvider
+      && accountId === displayMeta.accountId
+      && model === displayModel
+    ) return;
     const providerChanged = provider !== displayProvider;
+    const agentChanged = providerChanged || model !== displayModel;
     metaActions.applyMeta({
       provider,
+      accountId,
       model,
-      reasoningEffort: "",
-      serviceTier: "",
-      ...(providerChanged ? { accountId: "" } : {}),
+      ...(agentChanged ? { reasoningEffort: "", serviceTier: "" } : {}),
       ...(providerChanged ? { selectedSkills: [] } : {}),
     });
-    void setChatSettings(preferenceScope, {
-      provider,
-      model,
-      reasoningEffort: "",
-      serviceTier: "",
-    });
-  }
-
-  function changeAccount(accountId: string) {
-    if (accountId === displayMeta.accountId) return;
-    metaActions.applyMeta({ accountId });
+    if (agentChanged) {
+      void setChatSettings(preferenceScope, {
+        provider,
+        model,
+        reasoningEffort: "",
+        serviceTier: "",
+      });
+    }
   }
 
   function selectSkill(skill: RegisteredSkill) {
@@ -107,7 +108,6 @@ export function useChatPreferences({
     displayMode,
     selectedSkills,
     changeAgent,
-    changeAccount,
     changeMode,
     changeReasoningEffort,
     changeServiceTier,

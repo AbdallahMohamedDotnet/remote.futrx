@@ -113,7 +113,7 @@ export function ChatComposer({
   const accountLabel = providerAccounts?.items.find(
     (account) => account.id === effectiveAccountId,
   )?.label;
-  const settingsSummary = [accountLabel, providerLabel, modelLabel].filter(Boolean).join(" · ");
+  const settingsSummary = [providerLabel, accountLabel, modelLabel].filter(Boolean).join(" · ");
   const skillsEnabled = capabilityState.providerCapabilities?.features?.skills !== "none";
 	const selectedModelCapability = capabilityState.providerCapabilities?.models.find(
 		(item) => item.id === preferences.model,
@@ -209,7 +209,7 @@ export function ChatComposer({
                 model={preferences.model}
                 provider={preferences.provider}
                 accountId={preferences.accountId}
-                accounts={providerAccounts}
+                authProviders={agentAuth.providers}
                 streaming={streaming}
                 providerOptions={providerOptions}
                 modelOptions={modelOptions}
@@ -221,7 +221,6 @@ export function ChatComposer({
                 skillsEnabled={skillsEnabled}
                 onSelectSkill={onSelectSkill}
                 onAgentChange={preferenceActions.changeAgent}
-                onAccountChange={preferenceActions.changeAccount}
                 onRefreshModels={refreshCapabilities}
               />
               {hasExecutionControls && (
@@ -274,14 +273,14 @@ export function ChatComposer({
             aria-label="Composer settings"
           >
             <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-400">
-              Agent and model
+              Provider, account, and model
             </div>
             <ComposerAgentControls
               projectId={projectId}
               model={preferences.model}
               provider={preferences.provider}
               accountId={preferences.accountId}
-              accounts={providerAccounts}
+              authProviders={agentAuth.providers}
               streaming={streaming}
               providerOptions={providerOptions}
               modelOptions={modelOptions}
@@ -293,7 +292,6 @@ export function ChatComposer({
               skillsEnabled={skillsEnabled}
               onSelectSkill={onSelectSkill}
               onAgentChange={preferenceActions.changeAgent}
-              onAccountChange={preferenceActions.changeAccount}
               onRefreshModels={refreshCapabilities}
             />
 
