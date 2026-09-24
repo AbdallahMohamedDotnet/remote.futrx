@@ -66,22 +66,31 @@ These are the constraints worth understanding before you deploy or rely on remot
   one, and select it as the active host credential. The selected account is
   still seeded into every container, so all users and projects share its
   subscription quota. There is no per-user or per-project provider identity,
-  and account selection cannot change while a run of that provider is active.
+  and account selection cannot change while a run of that provider is active;
+  Codex also refuses runs, imports, and activations while one of its account
+  logins is pending, and a reconnect must sign in to the same account.
+  If the selected credential cannot be written to the host, the selection
+  still stands and the request reports the failure; Remote writes it again
+  before the next run and refuses runs while that keeps failing.
   Codex validation asks the Codex app server to refresh the account; Claude's
   `claude auth status` reads only local files, so a Claude account whose
   tokens were revoked upstream is detected on its next run rather than when it
-  is selected. Kimi still retains only one host login.
+  is selected. Claude's account identity also comes from the locally stored
+  profile, so Remote cannot tell when a project container keeps that profile
+  but swaps the tokens it syncs back (see
+  [threat model](threat-model.md) finding 8). Kimi still retains only one host
+  login.
 - **MiniMax identity is an installation-wide Token Plan subscription key.** The key is stored in a
   mode-`0600` control-plane file without application-level encryption and is
   injected into every MiniMax run. MiniMax uses a separate `/root/.minimax`
   runtime home, but container root can also read the other mounted provider
   homes; that separation is not a security boundary.
-- **Codex's API-key guard does not inspect newer project-local auth before a
-  run.** Remote rejects a host `auth.json` explicitly marked `apikey` and clears
-  `OPENAI_API_KEY`, but credential seeding does not overwrite a newer
-  project-local record. That record can therefore drive a project run. A
-  successful pull detects the API-key mode only afterward, and the sync error
-  is logged without failing the completed run.
+- **Codex's API-key guard inspects only the host record.** Remote rejects a
+  host `auth.json` explicitly marked `apikey`, clears `OPENAI_API_KEY`, and
+  pushes the host record over the project copy before every project run. An
+  agent can still switch its project copy to API-key mode during a run; a
+  successful pull detects that only afterward, and the sync error is logged
+  without failing the completed run.
 - **The supported Antigravity authentication flow is project-local.** Users
   run `agy` in the project Terminal. Its credential and conversation state
   under `/root/.gemini/antigravity-cli` is a durable provider mount and survives

@@ -100,7 +100,10 @@ Three **separate** concerns, deliberately not conflated ([deep dive](docs/02-wor
    Claude/Codex/Kimi, managed by an admin and **shared by all projects and
    users** on the box. Claude and Codex can each retain multiple named
    subscription credentials but expose one validated active host identity at
-   a time. MiniMax instead reads `MINIMAX_API_KEY` from each
+   a time. The saved-account vault (`agent-accounts.json`) and its activation
+   rules belong to [`service/agent/auth`](backend/internal/service/agent/auth);
+   provider adapters supply only credential placement, validation, identity,
+   and isolated login. MiniMax instead reads `MINIMAX_API_KEY` from each
    project's secret store, while Antigravity authenticates through `agy`
    inside one project and stores that state in its project-specific durable
    provider mount.
