@@ -1256,6 +1256,42 @@ func TestAccountServiceBeginRunForRejectsAnUnknownAccount(t *testing.T) {
 	h.requireHost(t, testCredential("w", "t1"))
 }
 
+func TestAccountServiceRunCredentialsDoNotSwitchTheSharedHost(t *testing.T) {
+	h := newAccountHarness(t, twoAccounts(), testCredential("w", "t1"))
+	legacyRelease := h.beginRun(t)
+	defer legacyRelease()
+
+	work, ok, err := h.service.CredentialForRun("work")
+	if err != nil || !ok {
+		t.Fatalf("CredentialForRun(work) = (%#v, %t, %v)", work, ok, err)
+	}
+	home, ok, err := h.service.CredentialForRun("home")
+	if err != nil || !ok {
+		t.Fatalf("CredentialForRun(home) during another run = (%#v, %t, %v)", home, ok, err)
+	}
+	if work.AccountID != "work" || home.AccountID != "home" || bytes.Equal(work.Credential, home.Credential) {
+		t.Fatalf("run credentials = work %#v, home %#v", work, home)
+	}
+	h.requireActive(t, "work")
+	h.requireHost(t, testCredential("w", "t1"))
+	h.requireNoSaves(t)
+}
+
+func TestAccountServiceCapturesAnIsolatedRunIntoItsOwnAccount(t *testing.T) {
+	h := newAccountHarness(t, twoAccounts(), testCredential("w", "t1"))
+	run, ok, err := h.service.CredentialForRun("home")
+	if err != nil || !ok {
+		t.Fatalf("CredentialForRun(home) = (%#v, %t, %v)", run, ok, err)
+	}
+	if err := h.service.CaptureRunCredential(context.Background(), run, testCredential("h", "t2")); err != nil {
+		t.Fatal(err)
+	}
+	h.requireSavedCredential(t, "home", testCredential("h", "t2"))
+	h.requireSavedCredential(t, "work", testCredential("w", "t1"))
+	h.requireActive(t, "work")
+	h.requireHost(t, testCredential("w", "t1"))
+}
+
 func TestAccountServiceDeleteInactiveAccountDuringRun(t *testing.T) {
 	h := newAccountHarness(t, twoAccounts(), testCredential("w", "t1"))
 	release := h.beginRun(t)

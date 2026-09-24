@@ -36,6 +36,11 @@ The application does not use an external database service. Durable metadata is s
 ```
 
 The host-wide credential sources use provider-owned paths in the host user's home. Credential synchronizers seed or update project-specific credential locations, primarily the mounted provider homes. Claude also requires `/root/.claude.json` outside its mounted home; that file survives replacement through host synchronization rather than the project mount.
+When a chat selects a saved Claude or Codex account, its run uses a stable
+`run-accounts/<scope>` subdirectory inside that provider home. The scope is a
+hash of account, project, and chat identifiers, so concurrent chats do not
+share credential or session files. Shared instructions, settings, and skills
+remain linked from the canonical provider home.
 
 ## Entity relationships
 

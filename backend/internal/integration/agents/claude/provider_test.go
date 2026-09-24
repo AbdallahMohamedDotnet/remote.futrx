@@ -63,9 +63,9 @@ func TestFactoryOffersSavedAccountsOnlyWithAVault(t *testing.T) {
 	}
 }
 
-// A run may leave any Claude login on the host, including one copied back
-// from a project container. Only a login for the active account is validated
-// and saved; any other is replaced with the saved login and never saved.
+// A run may leave any Claude login in its isolated account home. Only a login
+// for the selected account is validated and saved; another account never
+// changes either the vault or the canonical host login.
 func TestRunSavesOnlyTheActiveAccountsRefreshedLogin(t *testing.T) {
 	installFakeClaude(t, `
 case "$1" in
@@ -111,8 +111,37 @@ esac
 	}
 	credentials := readFile(t, filepath.Join(host, ".credentials.json"))
 	config := readFile(t, filepath.Join(host, ".claude.json"))
-	if !strings.Contains(credentials, `"refreshed"`) || !strings.Contains(credentials, "kept") || !strings.Contains(config, "uuid-one") {
-		t.Fatalf("saved login was not restored: credentials = %s, config = %s", credentials, config)
+	if !strings.Contains(credentials, `"saved"`) || strings.Contains(credentials, "refreshed") ||
+		strings.Contains(credentials, "intruder") || !strings.Contains(config, "uuid-one") {
+		t.Fatalf("canonical host login changed: credentials = %s, config = %s", credentials, config)
+	}
+}
+
+func TestAccountRunHomesSeparateChats(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	saved := agentauth.RunCredential{
+		AccountID:  "one",
+		Credential: testClaudeCredential("saved", "uuid-one", "one@example.test"),
+	}
+	first, err := newAccountRun(agent.RunRequest{ConversationID: "chat-one", ProjectID: "project"}, saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := newAccountRun(agent.RunRequest{ConversationID: "chat-two", ProjectID: "project"}, saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.hostHome == second.hostHome || first.containerHome == second.containerHome {
+		t.Fatalf("chat account homes overlap: first %#v, second %#v", first, second)
+	}
+	for _, run := range []*accountRun{first, second} {
+		credential, err := run.hostCredential()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if accountIdentity(credential)["account"] != "uuid-one" {
+			t.Fatalf("isolated credential = %s", credential)
+		}
 	}
 }
 

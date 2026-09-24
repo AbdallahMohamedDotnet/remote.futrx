@@ -332,9 +332,9 @@ func TestBuildCmdReconcilesContainerEvenWhenCachedStatusIsRunning(t *testing.T) 
 	}
 }
 
-// A project container can write any login into its copy of auth.json, and a
-// run copies that file back over the host login. Only a refreshed login for
-// the active account may reach the vault.
+// A project container can write any login into its isolated auth.json. Only a
+// refreshed login for the selected account may reach the vault, and the
+// canonical host login is never changed by the run.
 func TestContainerRunKeepsOnlyTheActiveAccountsLogin(t *testing.T) {
 	codexHome := t.TempDir()
 	t.Setenv("CODEX_HOME", codexHome)
@@ -398,7 +398,51 @@ func TestContainerRunKeepsOnlyTheActiveAccountsLogin(t *testing.T) {
 		t.Fatalf("validated logins = %q, want the rotated login", validated)
 	}
 	requireSaved(want)
-	requireCodexHostCredential(t, hostPath, want)
+	requireCodexHostCredential(t, hostPath, saved)
+}
+
+func TestAccountRunHomesSeparateChats(t *testing.T) {
+	t.Setenv("CODEX_HOME", t.TempDir())
+	saved := agentauth.RunCredential{AccountID: "personal", Credential: codexTestCredential("personal", "token")}
+	first, err := newAccountRun(agent.RunRequest{ConversationID: "chat-one", ProjectID: "project"}, saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := newAccountRun(agent.RunRequest{ConversationID: "chat-two", ProjectID: "project"}, saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.hostHome == second.hostHome || first.containerHome == second.containerHome {
+		t.Fatalf("chat account homes overlap: first %#v, second %#v", first, second)
+	}
+	requireCodexHostCredential(t, filepath.Join(first.hostHome, "auth.json"), saved.Credential)
+	requireCodexHostCredential(t, filepath.Join(second.hostHome, "auth.json"), saved.Credential)
+}
+
+func TestBuildCmdUsesTheSelectedChatsPrivateAccountHome(t *testing.T) {
+	t.Setenv("CODEX_HOME", t.TempDir())
+	project := agent.Project{ID: "project", ContainerName: "account-project", Status: agent.ProjectStatusRunning}
+	credentials := &fakeCodexCredentials{}
+	provider := newTestProvider(fakeCodexProjects{project: project}, codexContainerDependencies(credentials, &fakeCodexBrowser{}))
+	req := agent.RunRequest{ProjectID: string(project.ID), ConversationID: "chat-one"}
+	run, err := newAccountRun(req, agentauth.RunCredential{
+		AccountID: "personal", Credential: codexTestCredential("personal", "token"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd, _, err := provider.buildCmdForAccount(context.Background(), req, provider.args(req), nil, run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if credentials.ensured.ContainerDir != run.containerHome ||
+		credentials.ensured.Files[0].ContainerPath != filepath.Join(run.containerHome, "auth.json") {
+		t.Fatalf("prepared credential spec = %#v, run = %#v", credentials.ensured, run)
+	}
+	requireCodexArgPair(t, cmd.Args, "--env", "CODEX_HOME="+run.containerHome)
+	if !slices.Contains(cmd.Args, codexAccountCommand) {
+		t.Fatalf("container command does not initialize the private account home: %#v", cmd.Args)
+	}
 }
 
 // installFakeContainerAppServer puts an lxc command first on PATH that ignores
@@ -452,13 +496,15 @@ func (fakeCodexCLI) Ensure(context.Context, string, provisioning.CLISpec) error 
 
 type fakeCodexCredentials struct {
 	ensureCalls int
+	ensured     provisioning.CredentialSpec
 	// synced, when set, is the login a run copies back from the container
 	// over the host credential.
 	synced json.RawMessage
 }
 
-func (f *fakeCodexCredentials) Ensure(context.Context, string, provisioning.CredentialSpec) error {
+func (f *fakeCodexCredentials) Ensure(_ context.Context, _ string, spec provisioning.CredentialSpec) error {
 	f.ensureCalls++
+	f.ensured = spec.Clone()
 	return nil
 }
 

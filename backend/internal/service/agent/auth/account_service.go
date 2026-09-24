@@ -120,8 +120,8 @@ func (v *AccountVault) Open(ctx context.Context, config AccountConfig) (*Account
 }
 
 // AccountService owns one provider's saved accounts: the committed account
-// set, label and activation rules, account logins, run leases, and capture of
-// credentials the CLI refreshed.
+// set, label and activation rules, account logins, isolated run snapshots and
+// capture, and legacy run leases.
 //
 // The account store is the single authority for which account is active.
 // Nothing changes when saving it fails; once it succeeds, memory follows it
@@ -132,8 +132,9 @@ type AccountService struct {
 	config AccountConfig
 	store  AccountStore
 
-	// mutationMu serializes account changes, run leases, captures, and login
-	// completion. Provider validation, which may take seconds, runs under it.
+	// mutationMu serializes account changes, legacy run leases, isolated-run
+	// captures, and login completion. Provider validation, which may take
+	// seconds, runs under it.
 	mutationMu sync.Mutex
 	// mu guards the fields below. It is held only briefly so snapshots stay
 	// responsive during validation.
@@ -150,12 +151,93 @@ type pendingAccountLogin struct {
 	login     AccountLogin
 }
 
+// RunCredential is an immutable snapshot of one saved account handed to a
+// provider adapter for an isolated run. Credential is never exposed through a
+// transport; the adapter materializes it only in that run's private home.
+type RunCredential struct {
+	AccountID  string
+	Credential json.RawMessage
+}
+
 var _ AccountController = (*AccountService)(nil)
 
 func (s *AccountService) AccountsSnapshot() AccountsSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.accounts.Snapshot()
+}
+
+// CredentialForRun resolves accountID without changing the active account or
+// canonical host login. Empty accountID selects the configured default. The
+// bool is false only when no saved default exists, allowing legacy host login
+// behavior to continue until an account is imported.
+func (s *AccountService) CredentialForRun(accountID string) (RunCredential, bool, error) {
+	accountID = strings.TrimSpace(accountID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if accountID == "" {
+		accountID = s.accounts.ActiveAccountID
+		if accountID == "" {
+			return RunCredential{}, false, nil
+		}
+	}
+	record, ok := s.accounts.Find(accountID)
+	if !ok {
+		return RunCredential{}, false, ErrAccountNotFound
+	}
+	return RunCredential{
+		AccountID:  record.ID,
+		Credential: append(json.RawMessage(nil), record.Credential...),
+	}, true, nil
+}
+
+// CaptureRunCredential validates a credential refreshed in an isolated run
+// and saves it back to the account that started the run. If that account was
+// reconnected while the run was active, its newer saved credential wins and
+// the stale run result is ignored.
+func (s *AccountService) CaptureRunCredential(ctx context.Context, run RunCredential, credential json.RawMessage) error {
+	credential = append(json.RawMessage(nil), credential...)
+	if run.AccountID == "" || len(credential) == 0 || bytes.Equal(run.Credential, credential) {
+		return nil
+	}
+	s.mutationMu.Lock()
+	changed, err := s.captureRunCredentialLocked(ctx, run, credential)
+	s.mutationMu.Unlock()
+	if changed {
+		s.changed()
+	}
+	return err
+}
+
+func (s *AccountService) captureRunCredentialLocked(ctx context.Context, run RunCredential, credential json.RawMessage) (bool, error) {
+	s.mu.Lock()
+	current, ok := s.accounts.Find(run.AccountID)
+	s.mu.Unlock()
+	if !ok {
+		return false, ErrAccountNotFound
+	}
+	if !bytes.Equal(current.Credential, run.Credential) {
+		return false, nil
+	}
+	if !s.sameAccount(run.Credential, credential) {
+		return false, fmt.Errorf("%w: the refreshed %s login no longer belongs to saved account %q", ErrAccountIdentityMismatch, s.config.Label, current.Label)
+	}
+	validated, err := s.validate(ctx, credential)
+	if err != nil {
+		return false, fmt.Errorf("validate refreshed %s login: %w", s.config.Label, err)
+	}
+	if !s.sameAccount(run.Credential, validated.Credential) {
+		return false, fmt.Errorf("%w: the validated %s login no longer belongs to saved account %q", ErrAccountIdentityMismatch, s.config.Label, current.Label)
+	}
+
+	s.mu.Lock()
+	next := s.accounts.Clone()
+	s.mu.Unlock()
+	next.replace(newAccountRecord(run.AccountID, current.Label, validated))
+	if err := s.commit(ctx, next, false); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ImportCurrent validates the current host login and saves it as a new

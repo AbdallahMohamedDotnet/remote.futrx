@@ -61,17 +61,18 @@ These are the constraints worth understanding before you deploy or rely on remot
   Remote does not load third-party provider modules from configuration or
   shared objects.
 
-- **Kimi identity, and Claude's and Codex's active identities, are host-wide.**
-  Claude and Codex can each retain several named subscription logins, validate
-  one, and select it as the active host credential. The selected account is
-  still seeded into every container, so all users and projects share its
-  subscription quota. There is no per-user or per-project provider identity,
-  and account selection cannot change while a run of that provider is active;
-  Codex also refuses runs, imports, and activations while one of its account
-  logins is pending, and a reconnect must sign in to the same account.
+- **Kimi identity and the Claude/Codex saved-account vault are host-wide.**
+  Claude and Codex can each retain several named subscription logins. A chat
+  selects one account, and Remote materializes it in a stable private provider
+  home keyed by account, project, and chat; concurrent chats may therefore use
+  different accounts without switching one shared credential file. The vault
+  is still installation-wide rather than per-user or per-project: anyone who
+  can use a provider can consume any saved account exposed by the installation.
+  A reconnect must sign in to the same account.
   If the selected credential cannot be written to the host, the selection
   still stands and the request reports the failure; Remote writes it again
-  before the next run and refuses runs while that keeps failing.
+  before legacy runs that have no saved account and refuses those runs while
+  that keeps failing.
   Codex validation asks the Codex app server to refresh the account; Claude's
   `claude auth status` reads only local files, so a Claude account whose
   tokens were revoked upstream is detected on its next run rather than when it
