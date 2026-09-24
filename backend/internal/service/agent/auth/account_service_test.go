@@ -1228,6 +1228,34 @@ func TestAccountServiceRunLeases(t *testing.T) {
 	}
 }
 
+func TestAccountServiceBeginRunForSelectsTheRequestedAccountAtomically(t *testing.T) {
+	h := newAccountHarness(t, twoAccounts(), testCredential("w", "t1"))
+
+	release, err := h.service.BeginRunFor(context.Background(), "home")
+	if err != nil {
+		t.Fatalf("BeginRunFor: %v", err)
+	}
+	defer release()
+	h.requireActive(t, "home")
+	h.requireHost(t, testCredential("h", "t1"))
+	if got := h.changes.Load(); got != 1 {
+		t.Fatalf("account change notifications = %d, want 1", got)
+	}
+
+	if second, err := h.service.BeginRunFor(context.Background(), "work"); !errors.Is(err, ErrAccountInUse) || second != nil {
+		t.Fatalf("BeginRunFor another account during the lease = (%t, %v), want ErrAccountInUse", second != nil, err)
+	}
+}
+
+func TestAccountServiceBeginRunForRejectsAnUnknownAccount(t *testing.T) {
+	h := newAccountHarness(t, twoAccounts(), testCredential("w", "t1"))
+	if release, err := h.service.BeginRunFor(context.Background(), "missing"); !errors.Is(err, ErrAccountNotFound) || release != nil {
+		t.Fatalf("BeginRunFor missing account = (%t, %v), want ErrAccountNotFound", release != nil, err)
+	}
+	h.requireActive(t, "work")
+	h.requireHost(t, testCredential("w", "t1"))
+}
+
 func TestAccountServiceDeleteInactiveAccountDuringRun(t *testing.T) {
 	h := newAccountHarness(t, twoAccounts(), testCredential("w", "t1"))
 	release := h.beginRun(t)

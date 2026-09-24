@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -404,16 +405,84 @@ func (s *AccountService) DeleteAccount(ctx context.Context, accountID string) er
 // host, or a login for another account is replaced. The run is refused while
 // that write keeps failing.
 func (s *AccountService) BeginRun() (func(), error) {
+	return s.BeginRunFor(context.Background(), "")
+}
+
+// BeginRunFor leases accountID for one provider run. Selecting a different
+// saved account is atomic with taking the lease, so another run cannot start
+// between applying that account to the host and the caller launching its CLI.
+// The selected account becomes the provider's active account (the most recent
+// run selection) and is published to auth subscribers. Empty accountID keeps
+// the current active account.
+func (s *AccountService) BeginRunFor(ctx context.Context, accountID string) (func(), error) {
+	accountID = strings.TrimSpace(accountID)
 	s.mutationMu.Lock()
-	defer s.mutationMu.Unlock()
+	release, changed, err := s.beginRunLocked(ctx, accountID)
+	s.mutationMu.Unlock()
+	if changed {
+		s.changed()
+	}
+	return release, err
+}
+
+func (s *AccountService) beginRunLocked(ctx context.Context, accountID string) (func(), bool, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.config.LoginMayWriteHost && s.login != nil {
-		return nil, fmt.Errorf("%s %w", s.config.Label, ErrAccountLoginInProgress)
+		s.mu.Unlock()
+		return nil, false, fmt.Errorf("%s %w", s.config.Label, ErrAccountLoginInProgress)
 	}
-	if err := s.reconcileHostLocked(); err != nil {
-		return nil, err
+	activeAccountID := s.accounts.ActiveAccountID
+	if accountID == "" || accountID == activeAccountID {
+		if err := s.reconcileHostLocked(); err != nil {
+			s.mu.Unlock()
+			return nil, false, err
+		}
+		release := s.leaseRunLocked()
+		s.mu.Unlock()
+		return release, false, nil
 	}
+	if s.activeRuns > 0 {
+		s.mu.Unlock()
+		return nil, false, ErrAccountInUse
+	}
+	record, ok := s.accounts.Find(accountID)
+	s.mu.Unlock()
+	if !ok {
+		return nil, false, ErrAccountNotFound
+	}
+
+	// Preserve a refresh made by the outgoing account before replacing the
+	// canonical host credential. As with explicit activation, a transient
+	// capture failure does not make a valid saved target unusable.
+	if err := s.captureLocked(ctx); err != nil {
+		log.Printf("%s accounts: keep the active account's login before run: %v", s.config.Provider, err)
+	}
+	validated, err := s.validate(ctx, record.Credential)
+	if err != nil {
+		return nil, false, err
+	}
+	if !s.sameAccount(record.Credential, validated.Credential) {
+		return nil, false, fmt.Errorf("%w: the saved %s login %q now signs in as another account; reconnect it", ErrAccountIdentityMismatch, s.config.Label, record.Label)
+	}
+
+	s.mu.Lock()
+	next := s.accounts.Clone()
+	s.mu.Unlock()
+	next.replace(newAccountRecord(accountID, record.Label, validated))
+	next.ActiveAccountID = accountID
+	if err := s.commit(ctx, next, true); err != nil {
+		return nil, false, err
+	}
+
+	s.mu.Lock()
+	release := s.leaseRunLocked()
+	s.mu.Unlock()
+	return release, true, nil
+}
+
+// leaseRunLocked increments the lease count and returns an idempotent release.
+// s.mu must be held by the caller.
+func (s *AccountService) leaseRunLocked() func() {
 	s.activeRuns++
 	var once sync.Once
 	return func() {
@@ -422,7 +491,7 @@ func (s *AccountService) BeginRun() (func(), error) {
 			s.activeRuns--
 			s.mu.Unlock()
 		})
-	}, nil
+	}
 }
 
 // CaptureAfterRun keeps a login the provider CLI refreshed during a run.

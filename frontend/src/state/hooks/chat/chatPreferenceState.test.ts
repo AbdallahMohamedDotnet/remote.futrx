@@ -28,6 +28,7 @@ test("preserves normalized skill identity and chat defaults", () => {
       createdAt: 1,
       lastMessageAt: 1,
       provider: "codex",
+      accountId: "",
       model: "gpt-5",
       mode: "default",
       reasoningEffort: "high",
@@ -65,6 +66,7 @@ test("prefers live workspace selections from another client", () => {
       createdAt: 1,
       lastMessageAt: 1,
       provider: "claude",
+      accountId: "work",
       model: "claude-opus-current",
       mode: "plan",
       reasoningEffort: "high",
@@ -93,6 +95,7 @@ test("prefers live workspace selections from another client", () => {
   );
 
   assert.equal(resolved.provider, "claude");
+  assert.equal(resolved.accountId, "work");
   assert.equal(resolved.model, "claude-opus-current");
   assert.equal(resolved.mode, "plan");
   assert.equal(resolved.reasoningEffort, "high");

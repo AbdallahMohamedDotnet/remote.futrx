@@ -64,11 +64,11 @@ export const agentAuthApi = {
     };
   },
 
-  saveAPIKey: (provider: string, apiKey: string) =>
+  saveAPIKey: (provider: string, apiKey: string, label?: string, accountId?: string) =>
     requestJson<AgentAuthSnapshot>(
       "POST",
       API_ROUTES.agentAuth.apiKey(provider),
-      { apiKey },
+      { apiKey, label, accountId },
     ),
 
   deleteAPIKey: (provider: string) =>

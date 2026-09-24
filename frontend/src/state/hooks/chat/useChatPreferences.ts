@@ -40,6 +40,7 @@ export function useChatPreferences({
       model,
       reasoningEffort: "",
       serviceTier: "",
+      ...(providerChanged ? { accountId: "" } : {}),
       ...(providerChanged ? { selectedSkills: [] } : {}),
     });
     void setChatSettings(preferenceScope, {
@@ -48,6 +49,11 @@ export function useChatPreferences({
       reasoningEffort: "",
       serviceTier: "",
     });
+  }
+
+  function changeAccount(accountId: string) {
+    if (accountId === displayMeta.accountId) return;
+    metaActions.applyMeta({ accountId });
   }
 
   function selectSkill(skill: RegisteredSkill) {
@@ -101,6 +107,7 @@ export function useChatPreferences({
     displayMode,
     selectedSkills,
     changeAgent,
+    changeAccount,
     changeMode,
     changeReasoningEffort,
     changeServiceTier,

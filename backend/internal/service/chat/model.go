@@ -25,6 +25,7 @@ type Meta struct {
 	ID                   ID         `json:"id"`
 	Title                string     `json:"title"`
 	Provider             Provider   `json:"provider,omitempty"`
+	AccountID            string     `json:"accountId,omitempty"`
 	Sessions             SessionIDs `json:"sessions,omitempty"`
 	ClaudeSessionID      string     `json:"claudeSessionId,omitempty"`
 	CodexSessionID       string     `json:"codexSessionId,omitempty"`
@@ -270,6 +271,7 @@ type CreateInput struct {
 	TmuxSession     string     `json:"tmuxSession,omitempty"`
 	Cwd             string     `json:"cwd,omitempty"`
 	Provider        Provider   `json:"provider,omitempty"`
+	AccountID       string     `json:"accountId,omitempty"`
 	Model           string     `json:"model,omitempty"`
 	Mode            string     `json:"mode,omitempty"`
 	ReasoningEffort string     `json:"reasoningEffort,omitempty"`
@@ -284,6 +286,7 @@ type UpdateInput struct {
 	Title           *string     `json:"title,omitempty"`
 	Cwd             *string     `json:"cwd,omitempty"`
 	Provider        *Provider   `json:"provider,omitempty"`
+	AccountID       *string     `json:"accountId,omitempty"`
 	Model           *string     `json:"model,omitempty"`
 	Mode            *string     `json:"mode,omitempty"`
 	ReasoningEffort *string     `json:"reasoningEffort,omitempty"`

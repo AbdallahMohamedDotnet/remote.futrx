@@ -46,7 +46,7 @@ func (p *Provider) Parser(req agent.RunRequest) agent.LineParser {
 
 func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agent.Event)) error {
 	if p.accounts != nil {
-		releaseAccount, err := p.accounts.BeginRun()
+		releaseAccount, err := p.accounts.BeginRunFor(ctx, req.AccountID)
 		if err != nil {
 			return err
 		}

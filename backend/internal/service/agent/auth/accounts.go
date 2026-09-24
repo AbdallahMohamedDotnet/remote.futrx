@@ -49,9 +49,9 @@ type AccountSet struct {
 	Accounts        []AccountRecord `json:"accounts"`
 }
 
-// AccountStore persists opaque provider credentials. Only AccountService
-// writes through it; provider integrations interpret and validate Credential
-// through AccountCredentials.
+// AccountStore persists opaque provider credentials. Saved-account services
+// write through it; provider integrations interpret and validate Credential
+// through their provider-specific adapters.
 type AccountStore interface {
 	AgentAccounts(context.Context, agent.ProviderID) (AccountSet, error)
 	SaveAgentAccounts(context.Context, agent.ProviderID, AccountSet) error

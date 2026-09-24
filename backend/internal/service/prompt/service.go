@@ -406,6 +406,7 @@ func (rnr *Service) runPromptAs(
 	run := func(runPrompt, runResumeID string) error {
 		return provider.Run(ctx, agent.RunRequest{
 			Provider:       providerID,
+			AccountID:      meta.AccountID,
 			ConversationID: string(id),
 			Prompt:         runPrompt,
 			Cwd:            cwd,

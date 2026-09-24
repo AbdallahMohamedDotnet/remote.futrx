@@ -80,9 +80,9 @@ These are the constraints worth understanding before you deploy or rely on remot
   but swaps the tokens it syncs back (see
   [threat model](threat-model.md) finding 8). Kimi still retains only one host
   login.
-- **MiniMax identity is an installation-wide Token Plan subscription key.** The key is stored in a
-  mode-`0600` control-plane file without application-level encryption and is
-  injected into every MiniMax run. MiniMax uses a separate `/root/.minimax`
+- **MiniMax identities are installation-wide named Token Plan subscription keys.** Each key is stored in a
+  mode-`0600` control-plane file without application-level encryption, and only
+  the chat's selected key is injected into that MiniMax run. MiniMax uses a separate `/root/.minimax`
   runtime home, but container root can also read the other mounted provider
   homes; that separation is not a security boundary.
 - **Codex's API-key guard inspects only the host record.** Remote rejects a

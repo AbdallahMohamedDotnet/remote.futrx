@@ -25,7 +25,10 @@ Before sending a prompt:
 7. Write and send the prompt.
 
 **Outcome:** Remote saves the selections to the chat and uses supported values
-to construct the next provider CLI run. Provider, model, thinking, and speed
+to construct the next provider CLI run. When the provider has saved accounts,
+the account control appears first and pins that account to the chat. Changing
+between two pinned accounts keeps the visible transcript but starts a fresh
+provider session. Account, provider, model, thinking, and speed
 cannot be changed while that chat is streaming. See the Kimi exception under
 [Thinking and speed](#thinking-and-speed).
 

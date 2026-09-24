@@ -18,7 +18,7 @@ export interface AgentAuthRegistryState {
   submitCode: (provider: string, code: string) => Promise<void>;
   cancelCodeLogin: (provider: string) => Promise<void>;
   startDeviceLogin: (provider: string) => Promise<void>;
-  saveAPIKey: (provider: string, apiKey: string) => Promise<boolean>;
+  saveAPIKey: (provider: string, apiKey: string, label?: string, accountId?: string) => Promise<boolean>;
   deleteAPIKey: (provider: string) => Promise<boolean>;
   importAccount: (provider: string, label: string) => Promise<boolean>;
   startAccountLogin: (provider: string, label: string, accountId?: string) => Promise<boolean>;
@@ -109,9 +109,14 @@ export function useAgentAuthRegistry(enabled: boolean): AgentAuthRegistryState {
     });
   }, [runAction, updateLogin]);
 
-  const saveAPIKey = useCallback(async (provider: string, apiKey: string) =>
+  const saveAPIKey = useCallback(async (
+    provider: string,
+    apiKey: string,
+    label?: string,
+    accountId?: string,
+  ) =>
     runAction(provider, async () => {
-      const status = await agentAuthApi.saveAPIKey(provider, apiKey);
+      const status = await agentAuthApi.saveAPIKey(provider, apiKey, label, accountId);
       setProviders((current) => agentAuthRegistryService.updateProvider(current, provider, status));
     }), [runAction]);
 

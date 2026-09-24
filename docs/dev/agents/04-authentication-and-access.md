@@ -102,11 +102,12 @@ POST /api/<provider>/login/cancel   # managed-code
 POST /api/<provider>/login/device   # managed-device
 ```
 
-Providers with saved accounts (Claude and Codex) also register the account
+Providers with saved accounts (Claude, Codex, and MiniMax) also register the account
 routes in [Saved accounts](#saved-accounts). For them, `login/start` and
 `login/device` return `400` because every login must name the account it
 creates or reconnects; Claude's pasted code and cancellation still use
-`login/code` and `login/cancel`. Their normalized `Snapshot` carries a
+`login/code` and `login/cancel`. MiniMax creates and reconnects named accounts
+through its API-key route instead of an interactive login. Their normalized `Snapshot` carries a
 redacted `accounts` list (ID, label, email, plan, validation time, active
 flag). Credentials are never returned.
 
@@ -127,22 +128,25 @@ WebSocket implementation, frontend card, or route constant.
 | --- | --- | --- | --- |
 | Claude | `managed-code` | Runs `claude auth login --claudeai` in a PTY, reads the Anthropic URL, and accepts the pasted authorization code. Each login is a [saved-account](#saved-accounts) login in a private `CLAUDE_CONFIG_DIR`. A credential file under `~/.claude` holding a subscription login with a refresh token or an unexpired access token marks it authenticated. | Host credentials are seeded to the project on launch/run when the host copy is newer than the project's, and successful project runs sync updated files back. The active saved account keeps what comes back only after validation and an identity match. |
 | Codex | `managed-device` | Runs `codex login --device-auth` with `OPENAI_API_KEY` removed. Each login is a [saved-account](#saved-accounts) login in an isolated `CODEX_HOME`. A non-empty auth mode other than `apikey` is considered authenticated; a missing, malformed, or mode-less `auth.json` is not. API-key auth produces a warning and is not considered authenticated. | The host `auth.json` is host-authoritative: it is pushed over the project copy before every project run. An explicitly API-key host record blocks launch and `OPENAI_API_KEY` is cleared. After a successful run the file is pulled back; an API-key record is detected only then and its error is logged. The active saved account keeps a pulled login only after validation and an identity match, and replaces one that records another account, or none. |
-| MiniMax | `managed-api-key` | An admin submits or removes a write-only Token Plan subscription key in Settings. Remote rejects keys without the documented `sk-cp-…` prefix, then verifies the key with the non-generation `GET /v1/token_plan/remains` endpoint before saving it; status exposes only whether a validated supported key exists. Standard pay-as-you-go API keys are unsupported. | Project-only. The host-managed key is injected as an environment variable into the isolated Codex process and is not written into its generated model catalog. |
+| MiniMax | `managed-api-key` | An admin saves one or more named, write-only Token Plan subscription keys in Settings. Remote rejects keys without the documented `sk-cp-…` prefix, then verifies each key with the non-generation `GET /v1/token_plan/remains` endpoint before saving it. Standard pay-as-you-go API keys are unsupported. | Project-only. The account selected on the chat resolves to one key, which is injected as an environment variable into that run's isolated Codex process and is not written into its generated model catalog. |
 | Kimi | `managed-device` | Runs `kimi login`; any regular file under `~/.kimi-code/credentials` marks it authenticated. | The persistent project home can retain project-only credentials. Host credentials are synchronized according to the profile's directory policy. |
 | Antigravity | `external` | Remote has no managed host login/status UI. An operator-prepared host login may support loose chats, but is outside the normal product flow. | Run `agy` in the project terminal and complete its URL/code flow. State survives replacement in the project's persistent Antigravity directory; refresh models afterward. |
 
-Claude, Codex, Kimi, and MiniMax host identities are installation-wide singletons. They
-are not per Remote user, and their credentials are shared with projects through
-the provisioning policy. Claude and Codex can keep several saved accounts, but
-at most one of them is the active host login at a time, and it is shared the
-same way. The other saved accounts stay on the host in `agent-accounts.json`
-and never reach project containers. Antigravity's supported login is
+Claude, Codex, Kimi, and MiniMax host identities are not per Remote user.
+Claude, Codex, and MiniMax can keep several saved accounts and a chat can pin
+one account ID. Claude and Codex materialize that selection as the active host
+login before project preparation; a concurrent run may share that account but
+cannot switch to another one until the lease ends. MiniMax keys do not need a
+host credential file, so concurrent runs can resolve different saved keys
+directly. Inactive credentials stay in `agent-accounts.json` and are never
+returned by the API. Kimi still has one managed host login. Antigravity's supported login is
 project-local and shared with everyone who can access that project.
 
 ## Saved accounts
 
-Claude and Codex keep named subscription logins in a saved-account vault and
-let an administrator choose which one is the host login. The account lifecycle
+Claude, Codex, and MiniMax keep named credentials in a saved-account vault.
+The composer stores an optional `accountId` on the chat, and the provider
+adapter resolves it at run time. The account lifecycle
 belongs to the service layer; the provider packages supply only the
 credential mechanics:
 
@@ -156,15 +160,16 @@ credential mechanics:
 `module.Dependencies.Accounts` is the `*AccountVault`, not the store, and is
 nil when no account store is configured. A provider opens its service with an
 `AccountConfig`, attaches it to its binding with `WithAccounts`, calls
-`BeginRun` before each run and `CaptureAfterRun` after a successful one, takes
+`BeginRunFor` before each run and `CaptureAfterRun` after a successful one, takes
 its login environment from `LoginEnv`, and hands a finished login to
-`FinishLogin`. The service treats credentials as opaque bytes and never lets
-a provider choose the active account.
+`FinishLogin`. API-key providers use the same redacted account contract but
+resolve the selected opaque key directly instead of materializing a file.
 
 | Provider | Saved credential and identity | Validation | Login policy |
 | --- | --- | --- | --- |
 | Claude | The subscription entries of `.credentials.json` and the `oauthAccount` profile from the CLI's global config; other entries, such as MCP server tokens, stay on the host. Identity is the profile's `accountUuid`; its email, which can change, stands in only for a profile without one. | `claude auth status` in a private `CLAUDE_CONFIG_DIR`, plus an expiry check. Local only; Anthropic is not asked. | A new account login replaces a pending one, because an abandoned code login never finishes on its own. |
 | Codex | `auth.json`. Identity is the ChatGPT account (`tokens.account_id`, else the ID token's `chatgpt_account_id` claim) and user (`chatgpt_user_id`, else `user_id`); the email claim stands in only for a token without a user ID. | The Codex app server refreshes and reads the account through OpenAI. | While an account login is pending, Codex runs, imports, and activations are refused, because some builds, such as the Snap package, ignore the isolated `CODEX_HOME` and write the host `auth.json`, which the login then restores (`LoginMayWriteHost`). |
+| MiniMax | One opaque Token Plan key per record; only its label and validation timestamp are exposed. | The non-generation Token Plan quota endpoint. | The API-key form creates a named account or reconnects an existing one. No credential file or provider login subprocess is involved. |
 
 Two identities name the same account when they share at least one identifier
 and agree on every identifier both record. A validated login that records no
@@ -229,17 +234,24 @@ pending.
 
 ### Run leases
 
-Every Claude or Codex run takes a lease on the active account with
-`BeginRun`. While any lease is held, importing, activating, and starting an
+Every Claude or Codex run takes a lease on its requested account with
+`BeginRunFor`. If the chat requests another account while idle, selection,
+validation, host materialization, and lease acquisition happen atomically.
+While any lease is held, importing, activating, and starting an
 account login are refused with `409`; removing an inactive account is still
 allowed. Codex also refuses to start a run while a Codex account login is
 pending.
 
-Before taking the lease, `BeginRun` brings the host in line with the active
+Before taking the lease, `BeginRunFor` brings the host in line with the selected
 account: a stale, missing, or foreign host login, such as one from a manual
 terminal login or a partial sync-back, is replaced with the saved active
 credential, and the run is refused while that write fails. A refreshed login
 for the active account is left for capture.
+
+MiniMax does not need this lease: its account ID resolves to one validated key
+that is copied into the run's environment. Changing a chat from one explicit
+account ID to another clears that provider's resumable session while keeping
+the visible Remote transcript.
 
 ### Capture after runs
 

@@ -249,17 +249,21 @@ func (h *AgentAuthHandler) handleAPIKey(binding agentauth.Binding, w http.Respon
 		err = binding.DeleteAPIKey(r.Context())
 	} else {
 		var body struct {
-			APIKey string `json:"apiKey"`
+			APIKey    string `json:"apiKey"`
+			Label     string `json:"label"`
+			AccountID string `json:"accountId"`
 		}
 		if decodeErr := readJSONBody(r, &body); decodeErr != nil {
 			httptransport.SendErr(w, http.StatusBadRequest, decodeErr.Error())
 			return
 		}
-		err = binding.SetAPIKey(r.Context(), body.APIKey)
+		err = binding.SetAPIKeyAccount(r.Context(), body.Label, body.AccountID, body.APIKey)
 	}
 	if err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, agentauth.ErrAPIKeyRequired) || errors.Is(err, agentauth.ErrAPIKeyRejected) {
+		if errors.Is(err, agentauth.ErrAPIKeyRequired) || errors.Is(err, agentauth.ErrAPIKeyRejected) ||
+			errors.Is(err, agentauth.ErrAccountLabelRequired) || errors.Is(err, agentauth.ErrAccountLabelInvalid) ||
+			errors.Is(err, agentauth.ErrAccountLabelConflict) || errors.Is(err, agentauth.ErrAccountNotFound) {
 			status = http.StatusBadRequest
 		}
 		httptransport.SendErr(w, status, err.Error())

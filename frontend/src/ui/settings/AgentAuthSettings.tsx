@@ -175,6 +175,10 @@ function AgentAuthSettings({ entry }: { entry: AgentAuthProvider }) {
           authenticated={entry.status.authenticated}
           busy={busy}
           loginActive={loginActive}
+          managedAPIKey={managedAPIKey}
+          apiKeyCredentialLabel={apiKeyCredentialLabel}
+          apiKeyCreateURL={entry.authentication.apiKey?.createUrl}
+          apiKeyCreateLabel={entry.authentication.apiKey?.createLabel}
         />
       )}
 
@@ -336,6 +340,10 @@ function AgentAccounts({
   authenticated,
   busy,
   loginActive,
+  managedAPIKey,
+  apiKeyCredentialLabel,
+  apiKeyCreateURL,
+  apiKeyCreateLabel,
 }: {
   provider: string;
   providerLabel: string;
@@ -343,17 +351,25 @@ function AgentAccounts({
   authenticated: boolean;
   busy: boolean;
   loginActive: boolean;
+  managedAPIKey: boolean;
+  apiKeyCredentialLabel: string;
+  apiKeyCreateURL?: string;
+  apiKeyCreateLabel?: string;
 }) {
   const { agentAuth } = useAuthContext();
   const confirm = useConfirm();
   const [formOpen, setFormOpen] = useState(false);
   const [label, setLabel] = useState("");
+  const [apiKey, setAPIKey] = useState("");
+  const [editingAccountId, setEditingAccountId] = useState("");
   const previousCount = useRef(accounts.items.length);
 
   useEffect(() => {
     if (accounts.items.length > previousCount.current) {
       setFormOpen(false);
       setLabel("");
+      setAPIKey("");
+      setEditingAccountId("");
     }
     previousCount.current = accounts.items.length;
   }, [accounts.items.length]);
@@ -361,6 +377,16 @@ function AgentAccounts({
   async function addAccount() {
     const value = label.trim();
     if (!value || busy) return;
+    if (managedAPIKey) {
+      if (!apiKey.trim()) return;
+      if (await agentAuth.saveAPIKey(provider, apiKey.trim(), value, editingAccountId || undefined)) {
+        setFormOpen(false);
+        setLabel("");
+        setAPIKey("");
+        setEditingAccountId("");
+      }
+      return;
+    }
     await agentAuth.startAccountLogin(provider, value);
   }
 
@@ -396,12 +422,17 @@ function AgentAccounts({
             <Users class="h-4 w-4" /> Saved accounts
           </div>
           <div class="mt-0.5 text-[11px] text-ink-400">
-            The active account is shared by all new {providerLabel} runs on this server.
+            Choose an account in each chat. Active is the default for chats without a pinned account.
           </div>
         </div>
         <button
           type="button"
-          onClick={() => setFormOpen((open) => !open)}
+          onClick={() => {
+            setFormOpen((open) => !open);
+            setLabel("");
+            setAPIKey("");
+            setEditingAccountId("");
+          }}
           disabled={busy || loginActive}
           class="inline-flex h-8 items-center gap-1 rounded px-2 text-[12px] font-medium text-accent-blue hover:bg-tint-strong disabled:opacity-50"
         >
@@ -427,7 +458,7 @@ function AgentAccounts({
               )}
             </div>
             <div class="mt-0.5 truncate text-[11px] text-ink-400">
-              {[account.email, account.planType].filter(Boolean).join(" · ") || "Validated subscription account"}
+              {[account.email, account.planType].filter(Boolean).join(" · ") || (managedAPIKey ? "Saved API key" : "Validated subscription account")}
             </div>
           </div>
           {!account.active && (
@@ -442,7 +473,16 @@ function AgentAccounts({
           )}
           <button
             type="button"
-            onClick={() => void agentAuth.startAccountLogin(provider, account.label, account.id)}
+            onClick={() => {
+              if (!managedAPIKey) {
+                void agentAuth.startAccountLogin(provider, account.label, account.id);
+                return;
+              }
+              setLabel(account.label);
+              setAPIKey("");
+              setEditingAccountId(account.id);
+              setFormOpen(true);
+            }}
             disabled={busy || loginActive}
             class="h-8 rounded px-2 text-[12px] text-ink-300 hover:bg-tint-strong hover:text-ink-100 disabled:opacity-50"
           >
@@ -476,19 +516,48 @@ function AgentAccounts({
             disabled={busy || loginActive}
             class="w-full rounded-md border border-line bg-inset px-3 py-2 text-[13px] text-ink-100 placeholder:text-ink-400 focus:border-accent-blue focus:outline-none"
           />
+          {managedAPIKey && (
+            <>
+              {apiKeyCreateURL && (
+                <a
+                  href={apiKeyCreateURL}
+                  target="_blank"
+                  rel="noreferrer"
+                  class="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent-blue hover:underline"
+                >
+                  <ExternalLink class="h-3.5 w-3.5" /> {apiKeyCreateLabel || "Create API key"}
+                </a>
+              )}
+              <input
+                type="password"
+                value={apiKey}
+                onInput={(event) => setAPIKey(event.currentTarget.value)}
+                placeholder={apiKeyCredentialLabel}
+                aria-label={apiKeyCredentialLabel}
+                autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck={false}
+                disabled={busy}
+                class="w-full rounded-md border border-line bg-inset px-3 py-2.5 font-mono text-[13px] text-ink-100 placeholder:text-ink-300 focus:border-accent-blue focus:outline-none"
+              />
+            </>
+          )}
           <div class="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {
                 setFormOpen(false);
                 setLabel("");
+                setAPIKey("");
+                setEditingAccountId("");
               }}
               disabled={busy || loginActive}
               class="h-9 rounded px-3 text-[12px] text-ink-300 hover:bg-tint-strong disabled:opacity-50"
             >
               Cancel
             </button>
-            {authenticated && !accounts.activeAccountId && (
+            {!managedAPIKey && authenticated && !accounts.activeAccountId && (
               <button
                 type="button"
                 onClick={() => void importCurrent()}
@@ -501,10 +570,14 @@ function AgentAccounts({
             <button
               type="button"
               onClick={() => void addAccount()}
-              disabled={!label.trim() || busy || loginActive}
+              disabled={!label.trim() || (managedAPIKey && !apiKey.trim()) || busy || loginActive}
               class="btn btn-primary ml-auto disabled:opacity-50"
             >
-              {busy ? "Starting..." : "Authenticate new account"}
+              {busy
+                ? managedAPIKey ? "Saving..." : "Starting..."
+                : managedAPIKey
+                  ? editingAccountId ? "Replace API key" : "Save API key"
+                  : "Authenticate new account"}
             </button>
           </div>
         </div>

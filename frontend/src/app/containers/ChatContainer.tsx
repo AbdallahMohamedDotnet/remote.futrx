@@ -155,6 +155,7 @@ export function ChatContainer({
     canSendPrompt,
     preferences: {
       provider: displayMeta.provider || "codex",
+      accountId: displayMeta.accountId,
       model: displayMeta.model || "",
       mode: displayMode,
       reasoningEffort: displayMeta.reasoningEffort || "",
@@ -164,6 +165,7 @@ export function ChatContainer({
     },
     preferenceActions: {
       changeAgent: preferences.changeAgent,
+      changeAccount: preferences.changeAccount,
       changeMode: preferences.changeMode,
       changeReasoningEffort: preferences.changeReasoningEffort,
       changeServiceTier: preferences.changeServiceTier,

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -62,6 +63,7 @@ type Binding struct {
 	isCodeInputError func(error) bool
 	startDevice      func(context.Context) (DeviceState, error)
 	setAPIKey        func(context.Context, string) error
+	setAPIKeyAccount func(context.Context, string, string, string) error
 	deleteAPIKey     func(context.Context) error
 }
 
@@ -149,7 +151,11 @@ func NewAPIKeyBinding(id agent.ProviderID, service *APIKeyService) Binding {
 	}
 	binding.snapshotSub = binding.subscribe
 	binding.setAPIKey = service.Set
+	binding.setAPIKeyAccount = service.SetAccount
 	binding.deleteAPIKey = service.Delete
+	if service.AccountsEnabled() {
+		binding.accounts = service
+	}
 	return binding
 }
 
@@ -294,6 +300,14 @@ func (b Binding) SetAPIKey(ctx context.Context, key string) error {
 		return ErrUnsupportedFlow
 	}
 	return b.setAPIKey(ctx, key)
+}
+
+func (b Binding) SetAPIKeyAccount(ctx context.Context, label, accountID, key string) error {
+	if b.setAPIKeyAccount == nil || !b.AccountsAvailable() ||
+		(strings.TrimSpace(label) == "" && strings.TrimSpace(accountID) == "") {
+		return b.SetAPIKey(ctx, key)
+	}
+	return b.setAPIKeyAccount(ctx, label, accountID, key)
 }
 
 func (b Binding) DeleteAPIKey(ctx context.Context) error {
