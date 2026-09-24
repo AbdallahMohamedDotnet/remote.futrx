@@ -16,7 +16,8 @@ import (
 // fakeClaudeLogin behaves like `claude auth login --claudeai`: it prints the
 // authorization URL, reads the pasted code, and stores the login where the
 // real CLI does, preferring CLAUDE_SECURESTORAGE_CONFIG_DIR for tokens. The
-// pasted code doubles as the account name.
+// pasted code doubles as the account name unless FAKE_CLAUDE_ACCOUNT names
+// the account.
 const fakeClaudeLogin = `
 if [ "$1 $2" = "auth login" ]; then
   printf 'Opening browser to sign in...\n'
@@ -32,7 +33,8 @@ if [ "$1 $2" = "auth login" ]; then
   if [ "$FAKE_CLAUDE_WRITE" != "none" ]; then
     tokens="${CLAUDE_SECURESTORAGE_CONFIG_DIR:-$CLAUDE_CONFIG_DIR}"
     printf '{"claudeAiOauth":{"refreshToken":"%s"}}' "$code" > "$tokens/.credentials.json"
-    printf '{"oauthAccount":{"accountUuid":"uuid-%s","emailAddress":"%s@example.test"}}' "$code" "$code" > "$CLAUDE_CONFIG_DIR/.claude.json"
+    account="${FAKE_CLAUDE_ACCOUNT:-$code}"
+    printf '{"oauthAccount":{"accountUuid":"uuid-%s","emailAddress":"%s@example.test"}}' "$account" "$account" > "$CLAUDE_CONFIG_DIR/.claude.json"
   fi
   if [ -n "$FAKE_CLAUDE_MESSAGE" ]; then
     printf '\033[31m%s\033[0m\n' "$FAKE_CLAUDE_MESSAGE"
@@ -46,15 +48,20 @@ type claudeLoginHarness struct {
 	auth  *Auth
 	store *memoryAccountStore
 	host  string
+	// tmp is TMPDIR, where account logins create their isolated
+	// directories.
+	tmp string
 }
 
 func newClaudeLoginHarness(t *testing.T) *claudeLoginHarness {
 	t.Helper()
 	installFakeClaude(t, fakeClaudeLogin)
-	for _, name := range []string{"FAKE_CLAUDE_WRITE", "FAKE_CLAUDE_MESSAGE", "FAKE_CLAUDE_EXIT", "FAKE_CLAUDE_BROWSER_LOGIN", "CLAUDE_SECURESTORAGE_CONFIG_DIR"} {
+	for _, name := range []string{"FAKE_CLAUDE_WRITE", "FAKE_CLAUDE_MESSAGE", "FAKE_CLAUDE_EXIT", "FAKE_CLAUDE_BROWSER_LOGIN", "FAKE_CLAUDE_ACCOUNT", "CLAUDE_SECURESTORAGE_CONFIG_DIR"} {
 		t.Setenv(name, "")
 		os.Unsetenv(name)
 	}
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
 	host := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", host)
 	writeHostFiles(t, host,
@@ -62,48 +69,59 @@ func newClaudeLoginHarness(t *testing.T) *claudeLoginHarness {
 		`{"projects":{"/workspace":{}}}`,
 	)
 	store := &memoryAccountStore{}
-	auth, err := NewAuth(store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	auth.validate = func(_ context.Context, credential []byte) (validatedAccount, error) {
-		var stored accountCredential
-		if err := json.Unmarshal(credential, &stored); err != nil {
-			return validatedAccount{}, err
+	auth := newTestAuth(t, store)
+	auth.credentials.validate = func(ctx context.Context, credential json.RawMessage) (agentauth.ValidatedAccount, error) {
+		if strings.Contains(string(credential), `"rejected"`) {
+			return agentauth.ValidatedAccount{}, errors.New("Claude did not recognize a Claude subscription login")
 		}
-		if strings.Contains(string(stored.Credentials["claudeAiOauth"]), `"rejected"`) {
-			return validatedAccount{}, errors.New("Claude did not recognize a Claude subscription login")
-		}
-		return validatedAccount{
-			Email: oauthAccountEmail(stored.OAuthAccount), PlanType: "pro",
-			Credential: append(json.RawMessage(nil), credential...),
-		}, nil
+		return acceptCredential(ctx, credential)
 	}
-	return &claudeLoginHarness{auth: auth, store: store, host: host}
+	return &claudeLoginHarness{auth: auth, store: store, host: host, tmp: tmp}
 }
 
 // login starts an account login, pastes code, and returns the submit error
-// and the isolated directory the attempt used.
+// and the isolated directory the login used.
 func (h *claudeLoginHarness) login(t *testing.T, code, label, accountID string) (error, string) {
 	t.Helper()
-	snapshot, err := h.auth.StartAccountLogin(context.Background(), label, accountID)
+	snapshot, err := h.auth.accounts.StartAccountLogin(context.Background(), label, accountID)
 	if err != nil {
 		t.Fatalf("start account login: %v", err)
 	}
 	if !snapshot.Active || !snapshot.AwaitingCode || !strings.HasPrefix(snapshot.URL, "https://claude.com/cai/oauth/authorize") {
 		t.Fatalf("login snapshot = %#v", snapshot)
 	}
-	root := h.attemptRoot()
+	root := h.pendingLoginRoot(t)
 	return h.auth.SubmitCode(context.Background(), code), root
 }
 
-func (h *claudeLoginHarness) attemptRoot() string {
-	h.auth.mu.Lock()
-	defer h.auth.mu.Unlock()
-	if h.auth.attempt == nil {
-		return ""
+// loginRoots lists the isolated account-login directories still on disk.
+func (h *claudeLoginHarness) loginRoots(t *testing.T) []string {
+	t.Helper()
+	roots, err := filepath.Glob(filepath.Join(h.tmp, "remote-claude-login-*"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	return h.auth.attempt.root
+	return roots
+}
+
+// pendingLoginRoot returns the isolated directory of the one pending account
+// login.
+func (h *claudeLoginHarness) pendingLoginRoot(t *testing.T) string {
+	t.Helper()
+	roots := h.loginRoots(t)
+	if len(roots) != 1 {
+		t.Fatalf("isolated login directories = %v, want exactly one", roots)
+	}
+	return roots[0]
+}
+
+// requireLoginRootsRemoved fails when a finished or replaced account login
+// left its isolated directory behind.
+func (h *claudeLoginHarness) requireLoginRootsRemoved(t *testing.T) {
+	t.Helper()
+	if roots := h.loginRoots(t); len(roots) != 0 {
+		t.Fatalf("isolated login directories were left behind: %v", roots)
+	}
 }
 
 func (h *claudeLoginHarness) account(t *testing.T, label string) agentauth.AccountRecord {
@@ -147,13 +165,12 @@ func TestClaudeAccountLoginWorkflowAddsAndSwitchesAccounts(t *testing.T) {
 	if !strings.Contains(config, "uuid-company") || !strings.Contains(config, "/workspace") {
 		t.Fatalf("host config = %s", config)
 	}
-	for _, root := range []string{personalRoot, companyRoot} {
-		if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("isolated login directory %s was left behind: %v", root, err)
-		}
+	if personalRoot == companyRoot {
+		t.Fatalf("logins shared the isolated directory %s", personalRoot)
 	}
+	h.requireLoginRootsRemoved(t)
 
-	if err := h.auth.ActivateAccount(context.Background(), personal.ID); err != nil {
+	if err := h.auth.accounts.ActivateAccount(context.Background(), personal.ID); err != nil {
 		t.Fatal(err)
 	}
 	credentials = readFile(t, filepath.Join(h.host, ".credentials.json"))
@@ -195,6 +212,7 @@ func TestClaudeAccountLoginWithoutCredentialExplainsWhy(t *testing.T) {
 	if after := readFile(t, filepath.Join(h.host, ".credentials.json")); after != hostBefore {
 		t.Fatalf("failed login changed host credentials: %s", after)
 	}
+	h.requireLoginRootsRemoved(t)
 
 	t.Setenv("FAKE_CLAUDE_WRITE", "")
 	if err, _ := h.login(t, "company", "Company", ""); err != nil {
@@ -232,6 +250,7 @@ func TestClaudeAccountLoginRejectedByValidationSavesNothing(t *testing.T) {
 	if after := readFile(t, filepath.Join(h.host, ".credentials.json")); after != hostBefore {
 		t.Fatalf("rejected login changed host credentials: %s", after)
 	}
+	h.requireLoginRootsRemoved(t)
 }
 
 // The CLI stores tokens under CLAUDE_SECURESTORAGE_CONFIG_DIR when set. An
@@ -259,6 +278,8 @@ func TestClaudeAccountLoginReconnectKeepsLabel(t *testing.T) {
 	}
 	original := h.account(t, "Personal")
 
+	// The same account signs in again with new tokens.
+	t.Setenv("FAKE_CLAUDE_ACCOUNT", "first")
 	if err, _ := h.login(t, "second", "", original.ID); err != nil {
 		t.Fatalf("reconnect: %v", err)
 	}
@@ -269,29 +290,54 @@ func TestClaudeAccountLoginReconnectKeepsLabel(t *testing.T) {
 	}
 }
 
+// Reconnecting a saved account must not quietly point its label at another
+// Claude account.
+func TestClaudeAccountLoginReconnectRejectsAnotherAccount(t *testing.T) {
+	h := newClaudeLoginHarness(t)
+	if err, _ := h.login(t, "first", "Personal", ""); err != nil {
+		t.Fatal(err)
+	}
+	original := h.account(t, "Personal")
+
+	err, _ := h.login(t, "other", "", original.ID)
+	if err == nil || !strings.Contains(err.Error(), "add it as a new account instead") {
+		t.Fatalf("reconnect as another account: %v", err)
+	}
+	if state := h.auth.Status().Login; state.Completed || !strings.Contains(state.Error, "not saved Claude account") {
+		t.Fatalf("login state = %#v", state)
+	}
+	if updated := h.account(t, "Personal"); len(h.store.accounts.Accounts) != 1 || string(updated.Credential) != string(original.Credential) {
+		t.Fatalf("saved accounts = %#v", h.store.accounts)
+	}
+	if credentials := readFile(t, filepath.Join(h.host, ".credentials.json")); !strings.Contains(credentials, `"first"`) {
+		t.Fatalf("host credentials = %s", credentials)
+	}
+}
+
 func TestClaudeAccountLoginDuringRunSavesWithoutActivating(t *testing.T) {
 	h := newClaudeLoginHarness(t)
 	if err, _ := h.login(t, "personal", "Personal", ""); err != nil {
 		t.Fatal(err)
 	}
 	personal := h.account(t, "Personal")
-	done, err := h.auth.BeginRun()
+	done, err := h.auth.accounts.BeginRun()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer done()
 
-	if _, err := h.auth.StartAccountLogin(context.Background(), "Company", ""); !errors.Is(err, agentauth.ErrAccountInUse) {
+	if _, err := h.auth.accounts.StartAccountLogin(context.Background(), "Company", ""); !errors.Is(err, agentauth.ErrAccountInUse) {
 		t.Fatalf("login during a run: %v", err)
 	}
+	h.requireLoginRootsRemoved(t)
 	done()
 
 	// A run that starts after the login began must not have its account
 	// switched underneath it when the login completes.
-	if _, err := h.auth.StartAccountLogin(context.Background(), "Company", ""); err != nil {
+	if _, err := h.auth.accounts.StartAccountLogin(context.Background(), "Company", ""); err != nil {
 		t.Fatal(err)
 	}
-	release, err := h.auth.BeginRun()
+	release, err := h.auth.accounts.BeginRun()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,18 +356,21 @@ func TestClaudeAccountLoginDuringRunSavesWithoutActivating(t *testing.T) {
 
 func TestClaudeStartAccountLoginReplacesAbandonedLogin(t *testing.T) {
 	h := newClaudeLoginHarness(t)
-	if _, err := h.auth.StartAccountLogin(context.Background(), "Abandoned", ""); err != nil {
+	if _, err := h.auth.accounts.StartAccountLogin(context.Background(), "Abandoned", ""); err != nil {
 		t.Fatal(err)
 	}
-	abandonedRoot := h.attemptRoot()
+	abandonedRoot := h.pendingLoginRoot(t)
 
-	err, _ := h.login(t, "company", "Company", "")
+	// login requires exactly one isolated directory, so the abandoned one
+	// must already be gone when the replacement starts.
+	err, root := h.login(t, "company", "Company", "")
 	if err != nil {
 		t.Fatalf("replacement login: %v", err)
 	}
-	if _, err := os.Stat(abandonedRoot); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("abandoned login directory was left behind: %v", err)
+	if root == abandonedRoot {
+		t.Fatalf("replacement login reused the abandoned directory %s", root)
 	}
+	h.requireLoginRootsRemoved(t)
 	if len(h.store.accounts.Accounts) != 1 || h.store.accounts.Accounts[0].Label != "Company" {
 		t.Fatalf("saved accounts = %#v", h.store.accounts)
 	}
@@ -348,10 +397,10 @@ func TestClaudeAccountLoginCompletedInBrowserIsSavedWithoutCode(t *testing.T) {
 	t.Setenv("FAKE_CLAUDE_BROWSER_LOGIN", "company")
 	t.Setenv("FAKE_CLAUDE_MESSAGE", "Login successful.")
 
-	if _, err := h.auth.StartAccountLogin(context.Background(), "Company", ""); err != nil {
+	if _, err := h.auth.accounts.StartAccountLogin(context.Background(), "Company", ""); err != nil {
 		t.Fatal(err)
 	}
-	root := h.attemptRoot()
+	h.pendingLoginRoot(t)
 	deadline := time.Now().Add(5 * time.Second)
 	for h.auth.Status().Login.Active {
 		if time.Now().After(deadline) {
@@ -369,9 +418,7 @@ func TestClaudeAccountLoginCompletedInBrowserIsSavedWithoutCode(t *testing.T) {
 	if credentials := readFile(t, filepath.Join(h.host, ".credentials.json")); !strings.Contains(credentials, `"company"`) {
 		t.Fatalf("host credentials = %s", credentials)
 	}
-	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("isolated login directory was left behind: %v", err)
-	}
+	h.requireLoginRootsRemoved(t)
 	if err := h.auth.SubmitCode(context.Background(), "pasted-too-late"); err != nil {
 		t.Fatalf("code pasted after the browser login: %v", err)
 	}

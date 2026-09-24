@@ -7,19 +7,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
+	"strings"
 
-	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
-
-const accountValidationTimeout = 30 * time.Second
 
 // accountCredentialKeys are the .credentials.json entries that belong to one
 // Claude subscription login. Other entries, such as MCP server OAuth tokens,
 // stay with the host and survive an account switch.
 var accountCredentialKeys = []string{"claudeAiOauth", "organizationUuid"}
+
+// writeCredentialFile replaces one CLI file atomically. Tests replace it to
+// provoke write failures that file permissions cannot, since they may run as
+// root.
+var writeCredentialFile = agentauth.WriteCredentialFile
 
 // accountCredential is the opaque value saved per account: the account's
 // token entries plus the oauthAccount profile the CLI keeps in .claude.json.
@@ -28,365 +29,123 @@ type accountCredential struct {
 	OAuthAccount json.RawMessage            `json:"oauthAccount,omitempty"`
 }
 
-type accountLoginAttempt struct {
-	accountID string
-	label     string
-	root      string
-	home      string
+// accountCredentials is Claude's half of saved accounts: the host login lives
+// in two CLI files, the CLI validates it, and oauthAccount identifies it.
+type accountCredentials struct {
+	// validate is validateAccountCredential; tests replace it.
+	validate func(context.Context, json.RawMessage) (agentauth.ValidatedAccount, error)
 }
 
-type validatedAccount struct {
-	Email      string
-	PlanType   string
-	Credential json.RawMessage
+var _ agentauth.AccountCredentials = (*accountCredentials)(nil)
+
+func (c *accountCredentials) ReadHost() (json.RawMessage, error) {
+	return readAccountCredential(claudeCredentialPath(), claudeGlobalConfigPath())
 }
 
-func (a *Auth) AccountsSnapshot() agentauth.AccountsSnapshot {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.accounts.Snapshot()
+func (c *accountCredentials) WriteHost(credential json.RawMessage) error {
+	return writeAccountCredential(claudeCredentialPath(), claudeGlobalConfigPath(), credential)
 }
 
-func (a *Auth) ImportCurrent(ctx context.Context, label string) error {
-	label, err := agentauth.NormalizeAccountLabel(label)
-	if err != nil {
-		return err
-	}
-	credential, err := readAccountCredential(claudeCredentialPath(), claudeGlobalConfigPath())
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return errors.New("Claude is not signed in")
-		}
-		return fmt.Errorf("read current Claude credential: %w", err)
-	}
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	if a.activeRuns > 0 {
-		a.mu.Unlock()
-		return agentauth.ErrAccountInUse
-	}
-	a.mu.Unlock()
-	validated, err := a.validate(ctx, credential)
-	if err != nil {
-		return err
-	}
-
-	a.mu.Lock()
-	if err := a.accounts.EnsureUniqueLabel(label, ""); err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	id, err := agentauth.NewAccountID()
-	if err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	next := a.accounts.Clone()
-	next.Accounts = append(next.Accounts, accountRecord(id, label, validated))
-	activeCredential := json.RawMessage(nil)
-	if a.activeRuns == 0 {
-		next.ActiveAccountID = id
-		activeCredential = validated.Credential
-	}
-	if err := a.persistLocked(ctx, next, activeCredential); err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	a.accounts = next
-	a.mu.Unlock()
-	a.Broadcast()
-	return nil
+func (c *accountCredentials) Validate(ctx context.Context, credential json.RawMessage) (agentauth.ValidatedAccount, error) {
+	return c.validate(ctx, credential)
 }
 
-// StartAccountLogin runs `claude auth login` against a private config
-// directory. The pasted code is submitted through the regular code route;
-// resolveCompletion then validates and saves what the CLI wrote there.
-func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (agentauth.LoginSnapshot, error) {
-	// Reconnecting a saved account may omit the label to keep its own.
-	label, err := agentauth.NormalizeLoginLabel(label, accountID)
-	if err != nil {
-		return agentauth.LoginSnapshot{}, err
-	}
-	// A code login that was abandoned or timed out never resolves on its
-	// own, so a new account login replaces it instead of waiting for it.
-	if err := a.code.Cancel(ctx); err != nil {
-		return agentauth.LoginSnapshot{}, err
-	}
+func (c *accountCredentials) Identity(credential json.RawMessage) agentauth.AccountIdentity {
+	return accountIdentity(credential)
+}
 
-	a.mutationMu.Lock()
-	a.mu.Lock()
-	if a.activeRuns > 0 {
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return agentauth.LoginSnapshot{}, agentauth.ErrAccountInUse
+// accountIdentity reads the account a saved credential signs in as from its
+// oauthAccount profile: the stable account UUID and the email address.
+func accountIdentity(credential []byte) agentauth.AccountIdentity {
+	identity := agentauth.AccountIdentity{}
+	var stored accountCredential
+	if json.Unmarshal(credential, &stored) != nil || len(stored.OAuthAccount) == 0 {
+		return identity
 	}
-	stale := a.attempt
-	a.attempt = nil
-	if stale != nil {
-		_ = os.RemoveAll(stale.root)
+	var profile struct {
+		AccountUUID  string `json:"accountUuid"`
+		EmailAddress string `json:"emailAddress"`
 	}
-	if accountID != "" {
-		record, ok := a.accounts.Find(accountID)
-		if !ok {
-			a.mu.Unlock()
-			a.mutationMu.Unlock()
-			return agentauth.LoginSnapshot{}, agentauth.ErrAccountNotFound
-		}
-		if label == "" {
-			label = record.Label
-		}
+	if json.Unmarshal(stored.OAuthAccount, &profile) != nil {
+		return identity
 	}
-	if err := a.accounts.EnsureUniqueLabel(label, accountID); err != nil {
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return agentauth.LoginSnapshot{}, err
+	// The account UUID is stable; the email can change, so it stands in only
+	// for a profile without a UUID.
+	if account := strings.TrimSpace(profile.AccountUUID); account != "" {
+		identity["account"] = account
+	} else if email := strings.ToLower(strings.TrimSpace(profile.EmailAddress)); email != "" {
+		identity["email"] = email
 	}
+	return identity
+}
+
+// accountLoginFlow runs `claude auth login` for a saved account through the
+// shared code service. The pasted code arrives through the regular code
+// route, and the code service's completion hands the result to
+// AccountService.FinishLogin.
+type accountLoginFlow struct{ auth *Auth }
+
+var _ agentauth.AccountLoginFlow = accountLoginFlow{}
+
+// Reset stops a code login that was abandoned or timed out, which never
+// resolves on its own, so a new account login replaces it instead of waiting
+// for it.
+func (f accountLoginFlow) Reset(ctx context.Context) error {
+	return f.auth.code.Cancel(ctx)
+}
+
+func (f accountLoginFlow) Prepare() (agentauth.AccountLogin, error) {
 	root, home, err := prepareIsolatedClaudeHome("remote-claude-login-*")
 	if err != nil {
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return agentauth.LoginSnapshot{}, fmt.Errorf("prepare Claude login: %w", err)
+		return nil, err
 	}
-	a.attempt = &accountLoginAttempt{accountID: accountID, label: label, root: root, home: home}
-	a.mu.Unlock()
-	a.mutationMu.Unlock()
+	return &accountLogin{root: root, home: home}, nil
+}
 
-	if _, err := a.code.Start(ctx); err != nil {
-		a.clearAccountAttempt()
+func (f accountLoginFlow) Start(ctx context.Context) (agentauth.LoginSnapshot, error) {
+	if _, err := f.auth.code.Start(ctx); err != nil {
 		return agentauth.LoginSnapshot{}, err
 	}
-	state := a.code.Status().Login
+	state := f.auth.code.Status().Login
 	return agentauth.LoginSnapshot{
 		Active: state.Active, URL: state.AuthURL, AwaitingCode: state.AwaitingCode,
 		StartedAt: state.StartedAt, Completed: state.Completed, Error: state.Error,
 	}, nil
 }
 
-func (a *Auth) ActivateAccount(ctx context.Context, accountID string) error {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-
-	a.mu.Lock()
-	if a.activeRuns > 0 {
-		a.mu.Unlock()
-		return agentauth.ErrAccountInUse
-	}
-	record, ok := a.accounts.Find(accountID)
-	a.mu.Unlock()
-	if !ok {
-		return agentauth.ErrAccountNotFound
-	}
-	validated, err := a.validate(ctx, record.Credential)
-	if err != nil {
-		return err
-	}
-
-	a.mu.Lock()
-	if a.activeRuns > 0 {
-		a.mu.Unlock()
-		return agentauth.ErrAccountInUse
-	}
-	next := a.accounts.Clone()
-	for index := range next.Accounts {
-		if next.Accounts[index].ID == accountID {
-			next.Accounts[index] = accountRecord(accountID, next.Accounts[index].Label, validated)
-			break
-		}
-	}
-	next.ActiveAccountID = accountID
-	if err := a.persistLocked(ctx, next, validated.Credential); err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	a.accounts = next
-	a.mu.Unlock()
-	a.Broadcast()
-	return nil
+// accountLogin is one `claude auth login` writing to a private
+// CLAUDE_CONFIG_DIR, so the host login is untouched until AccountService has
+// validated and saved the result.
+type accountLogin struct {
+	root string
+	home string
 }
 
-func (a *Auth) DeleteAccount(ctx context.Context, accountID string) error {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	if accountID == a.accounts.ActiveAccountID {
-		a.mu.Unlock()
-		return agentauth.ErrActiveAccountDelete
-	}
-	next := a.accounts.Clone()
-	found := false
-	filtered := next.Accounts[:0]
-	for _, record := range next.Accounts {
-		if record.ID == accountID {
-			found = true
-			continue
-		}
-		filtered = append(filtered, record)
-	}
-	if !found {
-		a.mu.Unlock()
-		return agentauth.ErrAccountNotFound
-	}
-	next.Accounts = filtered
-	if a.store == nil {
-		a.mu.Unlock()
-		return errors.New("agent account store is unavailable")
-	}
-	if err := a.store.SaveAgentAccounts(ctx, agent.ProviderClaude, next); err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	a.accounts = next
-	a.mu.Unlock()
-	a.Broadcast()
-	return nil
+var _ agentauth.AccountLogin = (*accountLogin)(nil)
+
+func (l *accountLogin) Env(base []string) []string {
+	return isolatedClaudeAuthEnvFor(base, l.home)
 }
 
-// BeginRun leases the active account for one Claude run so it cannot be
-// switched underneath the CLI. Unlike Codex, a pending account login does not
-// block runs: Claude logins always write to a private CLAUDE_CONFIG_DIR, and
-// completion activates the new account only when no run holds a lease.
-func (a *Auth) BeginRun() (func(), error) {
-	a.mutationMu.Lock()
-	a.mu.Lock()
-	a.activeRuns++
-	a.mu.Unlock()
-	a.mutationMu.Unlock()
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			a.mu.Lock()
-			a.activeRuns--
-			a.mu.Unlock()
-		})
-	}, nil
-}
-
-// CaptureActiveCredential saves tokens the CLI refreshed during a run back
-// into the active account so a later switch does not restore stale tokens.
-func (a *Auth) CaptureActiveCredential(ctx context.Context) error {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	if a.accounts.ActiveAccountID == "" || a.store == nil {
-		a.mu.Unlock()
-		return nil
-	}
-	a.mu.Unlock()
-	credential, err := readAccountCredential(claudeCredentialPath(), claudeGlobalConfigPath())
-	if err != nil {
-		return err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	next := a.accounts.Clone()
-	for index := range next.Accounts {
-		if next.Accounts[index].ID == next.ActiveAccountID {
-			next.Accounts[index].Credential = credential
-			break
-		}
-	}
-	if err := a.store.SaveAgentAccounts(ctx, agent.ProviderClaude, next); err != nil {
-		return err
-	}
-	a.accounts = next
-	return nil
-}
-
-// restoreActiveAccount makes the saved active account the host login at
-// startup. When the host already holds that same account, its tokens may be
-// newer than the saved copy (capability probes also run the CLI), so the
-// saved copy is refreshed from the host instead of overwriting it.
-func (a *Auth) restoreActiveAccount() error {
-	active, ok := a.accounts.Find(a.accounts.ActiveAccountID)
-	if !ok {
-		return nil
-	}
-	current, err := readAccountCredential(claudeCredentialPath(), claudeGlobalConfigPath())
-	if err == nil && sameAccount(current, active.Credential) {
-		for index := range a.accounts.Accounts {
-			if a.accounts.Accounts[index].ID == active.ID {
-				a.accounts.Accounts[index].Credential = current
-			}
-		}
-		return a.store.SaveAgentAccounts(context.Background(), agent.ProviderClaude, a.accounts)
-	}
-	return writeActiveCredential(active.Credential)
-}
-
-func (a *Auth) codeAuthEnv(base []string) []string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.attempt != nil {
-		return isolatedClaudeAuthEnvFor(base, a.attempt.home)
-	}
-	return base
-}
-
-// resolveCompletion claims the result of a code login that was started for a
-// saved account. Plain logins keep CodeService's default credential check.
-func (a *Auth) resolveCompletion(exitErr error, output string) (bool, error) {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	attempt := a.attempt
-	a.attempt = nil
-	a.mu.Unlock()
-	if attempt == nil {
-		return false, nil
-	}
-	defer os.RemoveAll(attempt.root)
+// Finish reads the login the CLI wrote to the private directory.
+func (l *accountLogin) Finish(exitErr error, output string) (json.RawMessage, error) {
+	defer l.Abort()
 	if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
-		return true, accountLoginFailure(fmt.Sprintf("claude login failed: %s", truncate(exitErr.Error(), 300)), output)
+		return nil, accountLoginFailure(fmt.Sprintf("claude login failed: %s", truncate(exitErr.Error(), 300)), output)
 	}
-	credentialPath := filepath.Join(attempt.home, ".credentials.json")
-	credential, err := readAccountCredential(credentialPath, filepath.Join(attempt.home, ".claude.json"))
+	credentialPath := filepath.Join(l.home, ".credentials.json")
+	credential, err := readAccountCredential(credentialPath, filepath.Join(l.home, ".claude.json"))
 	if errors.Is(err, os.ErrNotExist) {
-		return true, accountLoginFailure("Claude login completed without writing credentials to "+credentialPath, output)
+		return nil, accountLoginFailure("Claude login completed without writing credentials to "+credentialPath, output)
 	}
 	if err != nil {
-		return true, accountLoginFailure("read Claude login credential: "+truncate(err.Error(), 300), output)
+		return nil, accountLoginFailure("read Claude login credential: "+truncate(err.Error(), 300), output)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), accountValidationTimeout)
-	defer cancel()
-	validated, err := a.validate(ctx, credential)
-	if err != nil {
-		return true, errors.New(truncate(err.Error(), 300))
-	}
+	return credential, nil
+}
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	next := a.accounts.Clone()
-	id := attempt.accountID
-	if id == "" {
-		id, err = agentauth.NewAccountID()
-		if err != nil {
-			return true, errors.New("could not create an account identifier")
-		}
-		next.Accounts = append(next.Accounts, accountRecord(id, attempt.label, validated))
-	} else {
-		updated := false
-		for index := range next.Accounts {
-			if next.Accounts[index].ID == id {
-				next.Accounts[index] = accountRecord(id, attempt.label, validated)
-				updated = true
-				break
-			}
-		}
-		if !updated {
-			return true, agentauth.ErrAccountNotFound
-		}
-	}
-	activeCredential := json.RawMessage(nil)
-	if a.activeRuns == 0 {
-		next.ActiveAccountID = id
-		activeCredential = validated.Credential
-	}
-	if err := a.persistLocked(ctx, next, activeCredential); err != nil {
-		return true, errors.New(truncate(err.Error(), 300))
-	}
-	a.accounts = next
-	return true, nil
+func (l *accountLogin) Abort() {
+	_ = os.RemoveAll(l.root)
 }
 
 // accountLoginFailure keeps the CLI's own last words, which usually say why
@@ -396,18 +155,6 @@ func accountLoginFailure(message, output string) error {
 		message += "; claude output: " + output
 	}
 	return errors.New(message)
-}
-
-func (a *Auth) clearAccountAttempt() {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	attempt := a.attempt
-	a.attempt = nil
-	a.mu.Unlock()
-	if attempt != nil {
-		_ = os.RemoveAll(attempt.root)
-	}
 }
 
 func prepareIsolatedClaudeHome(pattern string) (string, string, error) {
@@ -425,36 +172,6 @@ func prepareIsolatedClaudeHome(pattern string) (string, string, error) {
 		return "", "", err
 	}
 	return root, home, nil
-}
-
-func accountRecord(id, label string, validated validatedAccount) agentauth.AccountRecord {
-	return agentauth.AccountRecord{
-		ID: id, Label: label, Email: validated.Email, PlanType: validated.PlanType,
-		ValidatedAt: time.Now().UTC(),
-		Credential:  append(json.RawMessage(nil), validated.Credential...),
-	}
-}
-
-func (a *Auth) persistLocked(ctx context.Context, next agentauth.AccountSet, activeCredential json.RawMessage) error {
-	if a.store == nil {
-		return errors.New("agent account store is unavailable")
-	}
-	previous := a.accounts.Clone()
-	if err := a.store.SaveAgentAccounts(ctx, agent.ProviderClaude, next); err != nil {
-		return err
-	}
-	if len(activeCredential) == 0 {
-		return nil
-	}
-	if err := writeActiveCredential(activeCredential); err != nil {
-		_ = a.store.SaveAgentAccounts(context.Background(), agent.ProviderClaude, previous)
-		return err
-	}
-	return nil
-}
-
-func writeActiveCredential(credential []byte) error {
-	return writeAccountCredential(claudeCredentialPath(), claudeGlobalConfigPath(), credential)
 }
 
 // readAccountCredential extracts one account's entries from the CLI's
@@ -483,7 +200,8 @@ func readAccountCredential(credentialPath, configPath string) (json.RawMessage, 
 
 // writeAccountCredential merges one account into the CLI's files, keeping
 // every unrelated entry. If the second file cannot be written, the first is
-// restored so the host never mixes two accounts.
+// restored so the host never mixes two accounts; a failed restore is
+// reported with the write error, because the host may then do exactly that.
 func writeAccountCredential(credentialPath, configPath string, credential []byte) error {
 	var stored accountCredential
 	if err := json.Unmarshal(credential, &stored); err != nil || len(stored.Credentials["claudeAiOauth"]) == 0 {
@@ -522,42 +240,18 @@ func writeAccountCredential(credentialPath, configPath string, credential []byte
 		return err
 	}
 	if err := writeJSONObject(configPath, config); err != nil {
+		var restoreErr error
 		if readErr == nil {
-			_ = agentauth.WriteCredentialFile(credentialPath, previousCredentials)
+			restoreErr = writeCredentialFile(credentialPath, previousCredentials)
 		} else {
-			_ = os.Remove(credentialPath)
+			restoreErr = os.Remove(credentialPath)
+		}
+		if restoreErr != nil {
+			return errors.Join(err, fmt.Errorf("restore previous Claude credentials: %w", restoreErr))
 		}
 		return err
 	}
 	return nil
-}
-
-// sameAccount reports whether two saved credentials belong to one Claude
-// account, comparing the stable account UUID before falling back to email.
-func sameAccount(left, right []byte) bool {
-	leftID, rightID := accountIdentity(left), accountIdentity(right)
-	return leftID != "" && leftID == rightID
-}
-
-func accountIdentity(credential []byte) string {
-	var stored accountCredential
-	if json.Unmarshal(credential, &stored) != nil || len(stored.OAuthAccount) == 0 {
-		return ""
-	}
-	var profile struct {
-		AccountUUID  string `json:"accountUuid"`
-		EmailAddress string `json:"emailAddress"`
-	}
-	if json.Unmarshal(stored.OAuthAccount, &profile) != nil {
-		return ""
-	}
-	if profile.AccountUUID != "" {
-		return "uuid:" + profile.AccountUUID
-	}
-	if profile.EmailAddress != "" {
-		return "email:" + profile.EmailAddress
-	}
-	return ""
 }
 
 func readJSONObject(path string) (map[string]json.RawMessage, error) {
@@ -580,5 +274,5 @@ func writeJSONObject(path string, object map[string]json.RawMessage) error {
 	if err != nil {
 		return err
 	}
-	return agentauth.WriteCredentialFile(path, data)
+	return writeCredentialFile(path, data)
 }

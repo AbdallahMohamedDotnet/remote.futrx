@@ -208,13 +208,13 @@ printf '\033[32mLogin successful for %s.\033[0m\n' "$code"
 }
 
 func TestNormalizeLoginLabelAllowsBlankLabelOnlyForReconnect(t *testing.T) {
-	if label, err := NormalizeLoginLabel("  ", "account-id"); err != nil || label != "" {
+	if label, err := normalizeLoginLabel("  ", "account-id"); err != nil || label != "" {
 		t.Fatalf("reconnect label = %q, %v", label, err)
 	}
-	if _, err := NormalizeLoginLabel("  ", ""); err != ErrAccountLabelRequired {
+	if _, err := normalizeLoginLabel("  ", ""); err != ErrAccountLabelRequired {
 		t.Fatalf("new account blank label error = %v", err)
 	}
-	if label, err := NormalizeLoginLabel("  Company ", "account-id"); err != nil || label != "Company" {
+	if label, err := normalizeLoginLabel("  Company ", "account-id"); err != nil || label != "Company" {
 		t.Fatalf("reconnect with label = %q, %v", label, err)
 	}
 }

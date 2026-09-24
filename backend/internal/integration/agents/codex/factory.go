@@ -45,14 +45,19 @@ func NewFactory() (agentmodule.Factory, error) {
 				return "Codex is logged in with an API key. Sign in with ChatGPT to use subscription limits."
 			}
 			return ""
-		}).WithAccounts(auth)
+		})
+		// Attach only a real service: a nil pointer inside the interface
+		// would still report saved accounts as available.
+		if auth.accounts != nil {
+			binding = binding.WithAccounts(auth.accounts)
+		}
 		return agentmodule.Components{
 			Provider: newProvider(
 				deps.ProjectPreparer,
 				deps.CredentialCollector,
 				*validatedProfile,
 				deps.CredentialSyncTimeout,
-				auth,
+				auth.accounts,
 			),
 			Auth: &binding,
 		}, nil

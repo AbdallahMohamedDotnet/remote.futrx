@@ -353,7 +353,8 @@ func (h *AgentAuthHandler) sendAccountError(w http.ResponseWriter, err error) {
 		status = http.StatusBadRequest
 	case errors.Is(err, agentauth.ErrAccountNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, agentauth.ErrAccountInUse), errors.Is(err, agentauth.ErrActiveAccountDelete):
+	case errors.Is(err, agentauth.ErrAccountInUse), errors.Is(err, agentauth.ErrActiveAccountDelete),
+		errors.Is(err, agentauth.ErrAccountLoginInProgress), errors.Is(err, agentauth.ErrAccountIdentityMismatch):
 		status = http.StatusConflict
 	}
 	httptransport.SendErr(w, status, err.Error())

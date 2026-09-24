@@ -22,6 +22,15 @@ var (
 	ErrAccountNotFound      = errors.New("agent account not found")
 	ErrAccountInUse         = errors.New("cannot switch accounts while the agent is running")
 	ErrActiveAccountDelete  = errors.New("the active account cannot be removed")
+	// ErrAccountLoginInProgress reports an account login that has not
+	// finished yet.
+	ErrAccountLoginInProgress = errors.New("account login is already in progress")
+	// ErrAccountIdentityMismatch reports a credential that signs in as a
+	// different provider account than the saved account it was meant for.
+	ErrAccountIdentityMismatch = errors.New("credential belongs to a different account")
+	// ErrAccountNotApplied reports a committed account selection whose
+	// credential could not be written to the host yet.
+	ErrAccountNotApplied = errors.New("its credential could not be written to the host")
 )
 
 // AccountRecord is the private persistence model for one provider credential.
@@ -40,11 +49,53 @@ type AccountSet struct {
 	Accounts        []AccountRecord `json:"accounts"`
 }
 
-// AccountStore persists opaque provider credentials. Provider integrations
-// remain responsible for interpreting and validating Credential.
+// AccountStore persists opaque provider credentials. Only AccountService
+// writes through it; provider integrations interpret and validate Credential
+// through AccountCredentials.
 type AccountStore interface {
 	AgentAccounts(context.Context, agent.ProviderID) (AccountSet, error)
 	SaveAgentAccounts(context.Context, agent.ProviderID, AccountSet) error
+}
+
+// ValidatedAccount is what a provider learned while validating a credential.
+// Credential is the validated copy, which the provider CLI may have refreshed.
+type ValidatedAccount struct {
+	Email      string
+	PlanType   string
+	Credential json.RawMessage
+}
+
+// AccountIdentity holds the stable identifiers a credential records for its
+// provider account, under provider-defined keys such as "account" or
+// "email". Unknown identifiers are absent.
+type AccountIdentity map[string]string
+
+// Known reports whether the identity records any identifier.
+func (a AccountIdentity) Known() bool {
+	for _, value := range a {
+		if value != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// Same reports whether two identities name one account: they share at least
+// one identifier and agree on every identifier both record. An identity with
+// no identifiers matches nothing.
+func (a AccountIdentity) Same(b AccountIdentity) bool {
+	shared := false
+	for key, value := range a {
+		other := b[key]
+		if value == "" || other == "" {
+			continue
+		}
+		if value != other {
+			return false
+		}
+		shared = true
+	}
+	return shared
 }
 
 // Account is the redacted account metadata exposed to clients.
@@ -63,8 +114,8 @@ type AccountsSnapshot struct {
 }
 
 // AccountController is the optional multi-account capability attached to a
-// provider auth binding. Transport can expose it without knowing credential
-// formats or provider login policy.
+// provider auth binding. AccountService implements it; transport can expose
+// it without knowing credential formats or provider login policy.
 type AccountController interface {
 	AccountsSnapshot() AccountsSnapshot
 	ImportCurrent(context.Context, string) error
@@ -95,6 +146,28 @@ func (s AccountSet) Find(id string) (AccountRecord, bool) {
 	return AccountRecord{}, false
 }
 
+// replace swaps in record for the saved account with the same ID.
+func (s *AccountSet) replace(record AccountRecord) bool {
+	for index := range s.Accounts {
+		if s.Accounts[index].ID == record.ID {
+			s.Accounts[index] = record
+			return true
+		}
+	}
+	return false
+}
+
+// remove drops the saved account with id.
+func (s *AccountSet) remove(id string) bool {
+	for index, record := range s.Accounts {
+		if record.ID == id {
+			s.Accounts = append(s.Accounts[:index], s.Accounts[index+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 // Snapshot redacts credentials into the client-facing account list.
 func (s AccountSet) Snapshot() AccountsSnapshot {
 	snapshot := AccountsSnapshot{
@@ -116,9 +189,9 @@ func (s AccountSet) Snapshot() AccountsSnapshot {
 	return snapshot
 }
 
-// EnsureUniqueLabel rejects a case-insensitive label collision with any
+// ensureUniqueLabel rejects a case-insensitive label collision with any
 // account other than exceptID.
-func (s AccountSet) EnsureUniqueLabel(label, exceptID string) error {
+func (s AccountSet) ensureUniqueLabel(label, exceptID string) error {
 	for _, record := range s.Accounts {
 		if record.ID != exceptID && strings.EqualFold(record.Label, label) {
 			return fmt.Errorf("%w: an account named %q already exists", ErrAccountLabelConflict, label)
@@ -127,8 +200,8 @@ func (s AccountSet) EnsureUniqueLabel(label, exceptID string) error {
 	return nil
 }
 
-// NormalizeAccountLabel trims a user-supplied label and enforces its bounds.
-func NormalizeAccountLabel(label string) (string, error) {
+// normalizeAccountLabel trims a user-supplied label and enforces its bounds.
+func normalizeAccountLabel(label string) (string, error) {
 	label = strings.TrimSpace(label)
 	if label == "" {
 		return "", ErrAccountLabelRequired
@@ -139,18 +212,18 @@ func NormalizeAccountLabel(label string) (string, error) {
 	return label, nil
 }
 
-// NormalizeLoginLabel normalizes the label of an account login. Reconnecting
+// normalizeLoginLabel normalizes the label of an account login. Reconnecting
 // a saved account (accountID set) may leave the label blank to keep the saved
 // one, which the caller then fills in.
-func NormalizeLoginLabel(label, accountID string) (string, error) {
+func normalizeLoginLabel(label, accountID string) (string, error) {
 	if accountID != "" && strings.TrimSpace(label) == "" {
 		return "", nil
 	}
-	return NormalizeAccountLabel(label)
+	return normalizeAccountLabel(label)
 }
 
-// NewAccountID returns a random opaque account identifier.
-func NewAccountID() (string, error) {
+// newAccountID returns a random opaque account identifier.
+func newAccountID() (string, error) {
 	value := make([]byte, 16)
 	if _, err := crand.Read(value); err != nil {
 		return "", err

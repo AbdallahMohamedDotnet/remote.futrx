@@ -36,14 +36,18 @@ func NewFactory() (agentmodule.Factory, error) {
 		if err != nil {
 			return agentmodule.Components{}, err
 		}
-		binding := agentauth.NewCodeBinding(agent.ProviderClaude, auth.code).WithAccounts(auth)
+		binding := agentauth.NewCodeBinding(agent.ProviderClaude, auth.code)
+		// A nil *AccountService in the interface would read as available.
+		if auth.accounts != nil {
+			binding = binding.WithAccounts(auth.accounts)
+		}
 		return agentmodule.Components{
 			Provider: newProvider(
 				deps.ProjectPreparer,
 				deps.CredentialCollector,
 				*validatedProfile,
 				deps.CredentialSyncTimeout,
-				auth,
+				auth.accounts,
 			),
 			Auth: &binding,
 		}, nil

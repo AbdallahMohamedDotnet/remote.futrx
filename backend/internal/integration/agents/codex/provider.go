@@ -8,6 +8,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/agents/codexharness"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
 type Provider struct {
@@ -15,7 +16,8 @@ type Provider struct {
 	credentialCollector   provisioning.CredentialCollector
 	profile               provisioning.Profile
 	credentialSyncTimeout time.Duration
-	accounts              *Auth
+	// accounts is nil when saved accounts are unavailable.
+	accounts *agentauth.AccountService
 }
 
 func newProvider(
@@ -23,7 +25,7 @@ func newProvider(
 	credentialCollector provisioning.CredentialCollector,
 	profile provisioning.Profile,
 	credentialSyncTimeout time.Duration,
-	accounts *Auth,
+	accounts *agentauth.AccountService,
 ) *Provider {
 	return &Provider{
 		projectPreparer:       projectPreparer,
@@ -43,10 +45,8 @@ func (p *Provider) Parser(req agent.RunRequest) agent.LineParser {
 }
 
 func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agent.Event)) error {
-	var releaseAccount func()
 	if p.accounts != nil {
-		var err error
-		releaseAccount, err = p.accounts.BeginRun()
+		releaseAccount, err := p.accounts.BeginRun()
 		if err != nil {
 			return err
 		}
@@ -64,21 +64,25 @@ func (p *Provider) Run(ctx context.Context, req agent.RunRequest, emit func(agen
 		return err
 	}
 	err = codexharness.Run(ctx, cmd, req, "Codex", emit)
-	credentialReady := err == nil && containerName == ""
+	// A successful run may leave a refreshed login on the host, written by
+	// the host CLI or copied back from the project container.
+	hostLoginTouched := err == nil && containerName == ""
 	if err == nil && containerName != "" && p.credentialCollector != nil {
 		syncCtx, cancel := context.WithTimeout(context.Background(), p.credentialSyncTimeout)
 		defer cancel()
 		if syncErr := p.syncCredentialsFromContainer(syncCtx, containerName); syncErr != nil {
 			log.Printf("codex[%s] sync auth from %s: %v", req.ConversationID, containerName, syncErr)
-		} else {
-			credentialReady = true
 		}
+		// Check the host login even when the copy failed: the container's
+		// login may already have replaced it, as a rejected API-key login
+		// does.
+		hostLoginTouched = true
 	}
-	if credentialReady && p.accounts != nil {
+	if hostLoginTouched && p.accounts != nil {
 		captureCtx, cancel := context.WithTimeout(context.Background(), p.credentialSyncTimeout)
 		defer cancel()
-		if captureErr := p.accounts.CaptureActiveCredential(captureCtx); captureErr != nil {
-			log.Printf("codex[%s] retain refreshed account: %v", req.ConversationID, captureErr)
+		if captureErr := p.accounts.CaptureAfterRun(captureCtx); captureErr != nil {
+			log.Printf("codex[%s] keep account login after run: %v", req.ConversationID, captureErr)
 		}
 	}
 	return err

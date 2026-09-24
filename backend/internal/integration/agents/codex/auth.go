@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -40,35 +39,19 @@ type AuthStatus struct {
 
 type DeviceLoginState = agentauth.DeviceState
 
-// Auth combines Codex's device login with its optional saved-account vault.
-// DeviceService continues to own process lifecycle and subscriptions; Auth
-// owns only Codex credential placement and account selection.
+// Auth combines Codex's device login with its optional saved accounts.
+// DeviceService owns the login process and subscriptions and
+// agentauth.AccountService owns the account lifecycle; Auth supplies only
+// Codex credential mechanics.
 type Auth struct {
 	device *agentauth.DeviceService[AuthStatus]
-	store  agentauth.AccountStore
-
-	mutationMu sync.Mutex
-	mu         sync.Mutex
-	accounts   agentauth.AccountSet
-	attempt    *accountLoginAttempt
-	activeRuns int
-	validate   func(context.Context, []byte) (validatedAccount, error)
+	// accounts is nil when saved accounts are unavailable.
+	accounts    *agentauth.AccountService
+	credentials *accountCredentials
 }
 
-func NewAuth(store agentauth.AccountStore) (*Auth, error) {
-	auth := &Auth{store: store, validate: validateAccountCredential}
-	if store != nil {
-		accounts, err := store.AgentAccounts(context.Background(), agent.ProviderCodex)
-		if err != nil {
-			return nil, err
-		}
-		auth.accounts = accounts
-		if active, ok := accounts.Find(accounts.ActiveAccountID); ok {
-			if err := writeActiveCredential(active.Credential); err != nil {
-				return nil, fmt.Errorf("restore active Codex account: %w", err)
-			}
-		}
-	}
+func NewAuth(vault *agentauth.AccountVault) (*Auth, error) {
+	auth := &Auth{credentials: &accountCredentials{validate: validateAccountCredential}}
 	auth.device = agentauth.NewDeviceService(agentauth.DeviceConfig[AuthStatus]{
 		Command:         "codex",
 		Args:            []string{"login", "--device-auth"},
@@ -96,8 +79,13 @@ func NewAuth(store agentauth.AccountStore) (*Auth, error) {
 			}
 		},
 		ResolveCompletion: func(err error, output string) agentauth.DeviceCompletion {
-			if auth.hasAccountAttempt() {
-				return auth.completeAccountLogin(err, output)
+			if auth.accounts != nil {
+				if handled, loginErr := auth.accounts.FinishLogin(err, output); handled {
+					if loginErr != nil {
+						return agentauth.DeviceCompletion{Error: loginErr.Error()}
+					}
+					return agentauth.DeviceCompletion{Completed: true}
+				}
 			}
 			authenticated, _, usesAPIKey := authenticated()
 			switch {
@@ -112,18 +100,39 @@ func NewAuth(store agentauth.AccountStore) (*Auth, error) {
 			}
 		},
 	})
+	if vault != nil {
+		accounts, err := vault.Open(context.Background(), agentauth.AccountConfig{
+			Provider:    agent.ProviderCodex,
+			Label:       "Codex",
+			Credentials: auth.credentials,
+			Login:       accountLoginFlow{auth: auth},
+			// A Codex build that ignores CODEX_HOME, such as a Snap, may
+			// write the host credential while an account login runs.
+			LoginMayWriteHost: true,
+			Changed:           auth.Broadcast,
+		})
+		if err != nil {
+			return nil, err
+		}
+		auth.accounts = accounts
+	}
 	return auth, nil
 }
 
-func (a *Auth) Authenticated() bool                    { return a.device.Authenticated() }
-func (a *Auth) Status() AuthStatus                     { return a.device.Status() }
-func (a *Auth) LoginState() agentauth.DeviceState      { return a.device.LoginState() }
-func (a *Auth) Subscribe() (<-chan AuthStatus, func()) { return a.device.Subscribe() }
-func (a *Auth) StartDeviceLogin(ctx context.Context) (agentauth.DeviceState, error) {
-	return a.device.StartDeviceLogin(ctx)
-}
+func (a *Auth) Status() AuthStatus                { return a.device.Status() }
+func (a *Auth) LoginState() agentauth.DeviceState { return a.device.LoginState() }
+func (a *Auth) Broadcast()                        { a.device.Broadcast() }
 
-func (a *Auth) Broadcast() { a.device.Broadcast() }
+// deviceAuthEnv points the Codex login at an account login's isolated
+// CODEX_HOME while one is pending, and at the host login otherwise.
+func (a *Auth) deviceAuthEnv(base []string) []string {
+	if a.accounts != nil {
+		if env, ok := a.accounts.LoginEnv(base); ok {
+			return env
+		}
+	}
+	return codexAuthEnv(base)
+}
 
 func authenticated() (bool, string, bool) {
 	authMode, usesAPIKey := codexAuthMode(codexCredentialPath())

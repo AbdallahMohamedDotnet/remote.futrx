@@ -3,30 +3,241 @@ package codex
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 )
 
-const accountValidationTimeout = 30 * time.Second
+// accountCredentials is Codex's half of saved accounts: the host auth.json
+// the CLI reads, validation through the Codex app server, and the ChatGPT
+// account a login names.
+type accountCredentials struct {
+	// validate asks Codex whether a credential is a usable ChatGPT login.
+	// Tests replace it because the real check reaches OpenAI.
+	validate func(context.Context, json.RawMessage) (agentauth.ValidatedAccount, error)
+}
 
-type accountLoginAttempt struct {
-	accountID string
-	label     string
-	root      string
-	home      string
+var _ agentauth.AccountCredentials = (*accountCredentials)(nil)
+
+func (c *accountCredentials) ReadHost() (json.RawMessage, error) {
+	return os.ReadFile(codexCredentialPath())
+}
+
+func (c *accountCredentials) WriteHost(credential json.RawMessage) error {
+	return agentauth.WriteCredentialFile(codexCredentialPath(), credential)
+}
+
+func (c *accountCredentials) Validate(ctx context.Context, credential json.RawMessage) (agentauth.ValidatedAccount, error) {
+	return c.validate(ctx, credential)
+}
+
+func (c *accountCredentials) Identity(credential json.RawMessage) agentauth.AccountIdentity {
+	return codexAccountIdentity(credential)
+}
+
+// codexIDTokenClaims are the id_token claims that name a ChatGPT account.
+type codexIDTokenClaims struct {
+	Email string `json:"email"`
+	Auth  struct {
+		ChatGPTAccountID string `json:"chatgpt_account_id"`
+		ChatGPTUserID    string `json:"chatgpt_user_id"`
+		UserID           string `json:"user_id"`
+	} `json:"https://api.openai.com/auth"`
+}
+
+// codexAccountIdentity reads which ChatGPT account and user a Codex auth.json
+// signs in as. The id_token signature is not verified: identity only checks
+// that a login still belongs to its saved account, and a login is saved only
+// after Validate has refreshed it through the Codex app server. An API-key or
+// unreadable login names no account.
+func codexAccountIdentity(credential json.RawMessage) agentauth.AccountIdentity {
+	var file struct {
+		AuthMode string `json:"auth_mode"`
+		Tokens   *struct {
+			IDToken   string `json:"id_token"`
+			AccountID string `json:"account_id"`
+		} `json:"tokens"`
+	}
+	if err := json.Unmarshal(credential, &file); err != nil || file.Tokens == nil ||
+		strings.EqualFold(strings.TrimSpace(file.AuthMode), "apikey") {
+		return nil
+	}
+	claims := parseCodexIDToken(file.Tokens.IDToken)
+	identity := agentauth.AccountIdentity{}
+	// set records the first non-empty candidate for key.
+	set := func(key string, candidates ...string) {
+		for _, value := range candidates {
+			if value = strings.TrimSpace(value); value != "" {
+				identity[key] = value
+				return
+			}
+		}
+	}
+	set("account", file.Tokens.AccountID, claims.Auth.ChatGPTAccountID)
+	// The user ID names the person within a possibly shared workspace
+	// account. The email can change, so it stands in only without one.
+	set("user", claims.Auth.ChatGPTUserID, claims.Auth.UserID)
+	if identity["user"] == "" {
+		set("email", strings.ToLower(claims.Email))
+	}
+	return identity
+}
+
+// parseCodexIDToken decodes the claims of a JWT without verifying it. A
+// malformed token yields no claims.
+func parseCodexIDToken(token string) codexIDTokenClaims {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return codexIDTokenClaims{}
+	}
+	// JWTs omit base64 padding, but tolerate a token that kept it.
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return codexIDTokenClaims{}
+	}
+	var claims codexIDTokenClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return codexIDTokenClaims{}
+	}
+	return claims
+}
+
+// accountLoginFlow runs `codex login --device-auth` for a saved account.
+type accountLoginFlow struct{ auth *Auth }
+
+var _ agentauth.AccountLoginFlow = accountLoginFlow{}
+
+// Reset refuses to start while any Codex login runs: the device login is
+// shared by plain and account logins.
+func (f accountLoginFlow) Reset(context.Context) error {
+	if f.auth.device.LoginState().Active {
+		return fmt.Errorf("a Codex %w", agentauth.ErrAccountLoginInProgress)
+	}
+	return nil
+}
+
+func (f accountLoginFlow) Prepare() (agentauth.AccountLogin, error) {
+	login, err := newAccountLogin(externalCredentialPaths())
+	if err != nil {
+		return nil, err
+	}
+	return login, nil
+}
+
+func (f accountLoginFlow) Start(ctx context.Context) (agentauth.LoginSnapshot, error) {
+	state, err := f.auth.device.StartDeviceLogin(ctx)
+	return agentauth.LoginSnapshot{
+		Active: state.Active, URL: state.VerificationURI, UserCode: state.UserCode,
+		StartedAt: state.StartedAt, ExpiresAt: state.ExpiresAt,
+		Completed: state.Completed, Error: state.Error,
+	}, err
+}
+
+// accountLogin is one Codex account login writing to an isolated CODEX_HOME.
+type accountLogin struct {
+	root string
+	home string
 	// external holds host credential files a Codex build that ignores the
 	// isolated CODEX_HOME writes instead, such as a Snap package that pins
 	// CODEX_HOME to its own data directory.
 	external []watchedCredential
+}
+
+var _ agentauth.AccountLogin = (*accountLogin)(nil)
+
+// newAccountLogin creates the isolated CODEX_HOME and remembers each host
+// credential file in externalPaths so a write to it can be undone.
+func newAccountLogin(externalPaths []string) (*accountLogin, error) {
+	root, home, err := prepareIsolatedCodexHome("remote-codex-login-*")
+	if err != nil {
+		return nil, err
+	}
+	login := &accountLogin{root: root, home: home, external: make([]watchedCredential, 0, len(externalPaths))}
+	for _, path := range externalPaths {
+		watched, err := watchCredential(path)
+		if err != nil {
+			_ = os.RemoveAll(root)
+			return nil, fmt.Errorf("read current Codex credential: %w", err)
+		}
+		login.external = append(login.external, watched)
+	}
+	return login, nil
+}
+
+func (l *accountLogin) Env(base []string) []string {
+	return isolatedCodexAuthEnvFor(base, l.home)
+}
+
+// Finish takes the login's credential, then puts every host file the CLI
+// touched back as it was. Saving the account decides what becomes active.
+func (l *accountLogin) Finish(exitErr error, output string) (json.RawMessage, error) {
+	defer os.RemoveAll(l.root)
+	credential, readErr := l.credential()
+	if err := l.restoreExternal(); err != nil {
+		return nil, errors.New("restore previous Codex credential: " + truncate(err.Error(), 160))
+	}
+	if exitErr != nil {
+		return nil, accountLoginFailure(fmt.Sprintf("codex login failed: %s", truncate(exitErr.Error(), 300)), output)
+	}
+	if readErr != nil {
+		return nil, accountLoginFailure(truncate(readErr.Error(), 400), output)
+	}
+	return credential, nil
+}
+
+// Abort undoes what a login that will not finish may already have written.
+func (l *accountLogin) Abort() {
+	_ = l.restoreExternal()
+	_ = os.RemoveAll(l.root)
+}
+
+// credential returns what the login wrote: the isolated CODEX_HOME file when
+// the CLI honored it, otherwise a host file it changed instead.
+func (l *accountLogin) credential() (json.RawMessage, error) {
+	isolatedPath := filepath.Join(l.home, "auth.json")
+	credential, err := os.ReadFile(isolatedPath)
+	if err == nil {
+		return credential, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read Codex login credential: %w", err)
+	}
+	checked := []string{isolatedPath}
+	for _, watched := range l.external {
+		if current, changed := watched.changed(); changed {
+			return current, nil
+		}
+		checked = append(checked, watched.path)
+	}
+	return nil, fmt.Errorf("Codex login completed without writing credentials (checked %s)", strings.Join(checked, ", "))
+}
+
+func (l *accountLogin) restoreExternal() error {
+	var failures []error
+	for _, watched := range l.external {
+		if _, changed := watched.changed(); !changed {
+			continue
+		}
+		if err := watched.restore(); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
+}
+
+// accountLoginFailure keeps the CLI's own last words, which usually say why
+// no credential was written.
+func accountLoginFailure(message, output string) error {
+	if output != "" {
+		message += "; codex output: " + output
+	}
+	return errors.New(message)
 }
 
 // watchedCredential remembers a host credential file as it was before an
@@ -65,406 +276,6 @@ func (w watchedCredential) restore() error {
 	return err
 }
 
-func (a *Auth) AccountsSnapshot() agentauth.AccountsSnapshot {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.accounts.Snapshot()
-}
-
-func (a *Auth) ImportCurrent(ctx context.Context, label string) error {
-	label, err := agentauth.NormalizeAccountLabel(label)
-	if err != nil {
-		return err
-	}
-	credential, err := os.ReadFile(codexCredentialPath())
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return errors.New("Codex is not signed in")
-		}
-		return fmt.Errorf("read current Codex credential: %w", err)
-	}
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	if a.activeRuns > 0 {
-		a.mu.Unlock()
-		return agentauth.ErrAccountInUse
-	}
-	a.mu.Unlock()
-	validated, err := a.validate(ctx, credential)
-	if err != nil {
-		return err
-	}
-
-	a.mu.Lock()
-	if err := a.accounts.EnsureUniqueLabel(label, ""); err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	id, err := agentauth.NewAccountID()
-	if err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	next := a.accounts.Clone()
-	next.Accounts = append(next.Accounts, accountRecord(id, label, validated))
-	activeCredential := json.RawMessage(nil)
-	if a.activeRuns == 0 {
-		next.ActiveAccountID = id
-		activeCredential = validated.Credential
-	}
-	if err := a.persistLocked(ctx, next, activeCredential); err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	a.accounts = next
-	a.mu.Unlock()
-	a.Broadcast()
-	return nil
-}
-
-func (a *Auth) StartAccountLogin(ctx context.Context, label, accountID string) (agentauth.LoginSnapshot, error) {
-	// Reconnecting a saved account may omit the label to keep its own.
-	label, err := agentauth.NormalizeLoginLabel(label, accountID)
-	if err != nil {
-		return agentauth.LoginSnapshot{}, err
-	}
-	if a.LoginState().Active {
-		return agentauth.LoginSnapshot{}, errors.New("a Codex login is already in progress")
-	}
-
-	a.mutationMu.Lock()
-	a.mu.Lock()
-	if a.activeRuns > 0 {
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return agentauth.LoginSnapshot{}, agentauth.ErrAccountInUse
-	}
-	if a.attempt != nil {
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return agentauth.LoginSnapshot{}, errors.New("a Codex account login is already in progress")
-	}
-	if accountID != "" {
-		record, ok := a.accounts.Find(accountID)
-		if !ok {
-			a.mu.Unlock()
-			a.mutationMu.Unlock()
-			return agentauth.LoginSnapshot{}, agentauth.ErrAccountNotFound
-		}
-		if label == "" {
-			label = record.Label
-		}
-	}
-	if err := a.accounts.EnsureUniqueLabel(label, accountID); err != nil {
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return agentauth.LoginSnapshot{}, err
-	}
-	root, home, err := prepareIsolatedCodexHome("remote-codex-login-*")
-	if err != nil {
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return agentauth.LoginSnapshot{}, fmt.Errorf("prepare Codex login: %w", err)
-	}
-	external := make([]watchedCredential, 0, 2)
-	for _, path := range externalCredentialPaths() {
-		watched, err := watchCredential(path)
-		if err != nil {
-			_ = os.RemoveAll(root)
-			a.mu.Unlock()
-			a.mutationMu.Unlock()
-			return agentauth.LoginSnapshot{}, fmt.Errorf("read current Codex credential: %w", err)
-		}
-		external = append(external, watched)
-	}
-	a.attempt = &accountLoginAttempt{
-		accountID: accountID, label: label, root: root, home: home,
-		external: external,
-	}
-	a.mu.Unlock()
-	a.mutationMu.Unlock()
-
-	state, err := a.device.StartDeviceLogin(ctx)
-	if err != nil {
-		a.clearAccountAttempt()
-	}
-	return agentauth.LoginSnapshot{
-		Active: state.Active, URL: state.VerificationURI, UserCode: state.UserCode,
-		StartedAt: state.StartedAt, ExpiresAt: state.ExpiresAt,
-		Completed: state.Completed, Error: state.Error,
-	}, err
-}
-
-func (a *Auth) ActivateAccount(ctx context.Context, accountID string) error {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-
-	a.mu.Lock()
-	if a.activeRuns > 0 {
-		a.mu.Unlock()
-		return agentauth.ErrAccountInUse
-	}
-	record, ok := a.accounts.Find(accountID)
-	a.mu.Unlock()
-	if !ok {
-		return agentauth.ErrAccountNotFound
-	}
-	validated, err := a.validate(ctx, record.Credential)
-	if err != nil {
-		return err
-	}
-
-	a.mu.Lock()
-	if a.activeRuns > 0 {
-		a.mu.Unlock()
-		return agentauth.ErrAccountInUse
-	}
-	next := a.accounts.Clone()
-	for index := range next.Accounts {
-		if next.Accounts[index].ID == accountID {
-			next.Accounts[index] = accountRecord(accountID, next.Accounts[index].Label, validated)
-			break
-		}
-	}
-	next.ActiveAccountID = accountID
-	if err := a.persistLocked(ctx, next, validated.Credential); err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	a.accounts = next
-	a.mu.Unlock()
-	a.Broadcast()
-	return nil
-}
-
-func (a *Auth) DeleteAccount(ctx context.Context, accountID string) error {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	if accountID == a.accounts.ActiveAccountID {
-		a.mu.Unlock()
-		return agentauth.ErrActiveAccountDelete
-	}
-	next := a.accounts.Clone()
-	found := false
-	filtered := next.Accounts[:0]
-	for _, record := range next.Accounts {
-		if record.ID == accountID {
-			found = true
-			continue
-		}
-		filtered = append(filtered, record)
-	}
-	if !found {
-		a.mu.Unlock()
-		return agentauth.ErrAccountNotFound
-	}
-	next.Accounts = filtered
-	if a.store == nil {
-		a.mu.Unlock()
-		return errors.New("agent account store is unavailable")
-	}
-	if err := a.store.SaveAgentAccounts(ctx, agent.ProviderCodex, next); err != nil {
-		a.mu.Unlock()
-		return err
-	}
-	a.accounts = next
-	a.mu.Unlock()
-	a.Broadcast()
-	return nil
-}
-
-func (a *Auth) BeginRun() (func(), error) {
-	a.mutationMu.Lock()
-	a.mu.Lock()
-	if a.attempt != nil {
-		a.mu.Unlock()
-		a.mutationMu.Unlock()
-		return nil, errors.New("Codex account login is in progress")
-	}
-	a.activeRuns++
-	a.mu.Unlock()
-	a.mutationMu.Unlock()
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			a.mu.Lock()
-			a.activeRuns--
-			a.mu.Unlock()
-		})
-	}, nil
-}
-
-func (a *Auth) CaptureActiveCredential(ctx context.Context) error {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	if a.accounts.ActiveAccountID == "" || a.store == nil {
-		a.mu.Unlock()
-		return nil
-	}
-	a.mu.Unlock()
-	credential, err := os.ReadFile(codexCredentialPath())
-	if err != nil {
-		return err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	next := a.accounts.Clone()
-	for index := range next.Accounts {
-		if next.Accounts[index].ID == next.ActiveAccountID {
-			next.Accounts[index].Credential = append(json.RawMessage(nil), credential...)
-			break
-		}
-	}
-	if err := a.store.SaveAgentAccounts(ctx, agent.ProviderCodex, next); err != nil {
-		return err
-	}
-	a.accounts = next
-	return nil
-}
-
-func (a *Auth) deviceAuthEnv(base []string) []string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.attempt != nil {
-		return isolatedCodexAuthEnvFor(base, a.attempt.home)
-	}
-	return codexAuthEnv(base)
-}
-
-func (a *Auth) hasAccountAttempt() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.attempt != nil
-}
-
-func (a *Auth) completeAccountLogin(commandErr error, output string) agentauth.DeviceCompletion {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	attempt := a.attempt
-	a.attempt = nil
-	a.mu.Unlock()
-	if attempt == nil {
-		return agentauth.DeviceCompletion{Error: "Codex account login state was lost"}
-	}
-	defer os.RemoveAll(attempt.root)
-
-	// Take the login's credential, then put every host file the CLI touched
-	// back as it was. Saving the account below decides what becomes active.
-	credential, readErr := attempt.loginCredential()
-	if err := attempt.restoreExternal(); err != nil {
-		return agentauth.DeviceCompletion{Error: "restore previous Codex credential: " + truncate(err.Error(), 160)}
-	}
-	if commandErr != nil {
-		return accountLoginFailure(fmt.Sprintf("codex login failed: %s", truncate(commandErr.Error(), 300)), output)
-	}
-	if readErr != nil {
-		return accountLoginFailure(truncate(readErr.Error(), 400), output)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), accountValidationTimeout)
-	defer cancel()
-	validated, err := a.validate(ctx, credential)
-	if err != nil {
-		return agentauth.DeviceCompletion{Error: truncate(err.Error(), 300)}
-	}
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	next := a.accounts.Clone()
-	id := attempt.accountID
-	if id == "" {
-		id, err = agentauth.NewAccountID()
-		if err != nil {
-			return agentauth.DeviceCompletion{Error: "could not create an account identifier"}
-		}
-		next.Accounts = append(next.Accounts, accountRecord(id, attempt.label, validated))
-	} else {
-		updated := false
-		for index := range next.Accounts {
-			if next.Accounts[index].ID == id {
-				next.Accounts[index] = accountRecord(id, attempt.label, validated)
-				updated = true
-				break
-			}
-		}
-		if !updated {
-			return agentauth.DeviceCompletion{Error: agentauth.ErrAccountNotFound.Error()}
-		}
-	}
-	activate := a.activeRuns == 0
-	if activate {
-		next.ActiveAccountID = id
-	}
-	if err := a.persistLocked(ctx, next, func() json.RawMessage {
-		if activate {
-			return validated.Credential
-		}
-		return nil
-	}()); err != nil {
-		return agentauth.DeviceCompletion{Error: truncate(err.Error(), 300)}
-	}
-	a.accounts = next
-	return agentauth.DeviceCompletion{Completed: true}
-}
-
-// loginCredential returns what the login wrote: the isolated CODEX_HOME
-// file when the CLI honored it, otherwise a host file it changed instead.
-func (attempt *accountLoginAttempt) loginCredential() ([]byte, error) {
-	isolatedPath := filepath.Join(attempt.home, "auth.json")
-	credential, err := os.ReadFile(isolatedPath)
-	if err == nil {
-		return credential, nil
-	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("read Codex login credential: %w", err)
-	}
-	checked := []string{isolatedPath}
-	for _, watched := range attempt.external {
-		if current, changed := watched.changed(); changed {
-			return current, nil
-		}
-		checked = append(checked, watched.path)
-	}
-	return nil, fmt.Errorf("Codex login completed without writing credentials (checked %s)", strings.Join(checked, ", "))
-}
-
-func (attempt *accountLoginAttempt) restoreExternal() error {
-	var failures []error
-	for _, watched := range attempt.external {
-		if _, changed := watched.changed(); !changed {
-			continue
-		}
-		if err := watched.restore(); err != nil {
-			failures = append(failures, err)
-		}
-	}
-	return errors.Join(failures...)
-}
-
-// accountLoginFailure keeps the CLI's own last words, which usually say why
-// no credential was written.
-func accountLoginFailure(message, output string) agentauth.DeviceCompletion {
-	if output != "" {
-		message += "; codex output: " + output
-	}
-	return agentauth.DeviceCompletion{Error: message}
-}
-
-func (a *Auth) clearAccountAttempt() {
-	a.mutationMu.Lock()
-	defer a.mutationMu.Unlock()
-	a.mu.Lock()
-	attempt := a.attempt
-	a.attempt = nil
-	a.mu.Unlock()
-	if attempt != nil {
-		_ = os.RemoveAll(attempt.root)
-	}
-}
-
 func prepareIsolatedCodexHome(pattern string) (string, string, error) {
 	root, err := os.MkdirTemp("", pattern)
 	if err != nil {
@@ -480,40 +291,4 @@ func prepareIsolatedCodexHome(pattern string) (string, string, error) {
 		return "", "", err
 	}
 	return root, home, nil
-}
-
-type validatedAccount struct {
-	Email      string
-	PlanType   string
-	Credential json.RawMessage
-}
-
-func accountRecord(id, label string, validated validatedAccount) agentauth.AccountRecord {
-	return agentauth.AccountRecord{
-		ID: id, Label: label, Email: validated.Email, PlanType: validated.PlanType,
-		ValidatedAt: time.Now().UTC(),
-		Credential:  append(json.RawMessage(nil), validated.Credential...),
-	}
-}
-
-func (a *Auth) persistLocked(ctx context.Context, next agentauth.AccountSet, activeCredential json.RawMessage) error {
-	if a.store == nil {
-		return errors.New("agent account store is unavailable")
-	}
-	previous := a.accounts.Clone()
-	if err := a.store.SaveAgentAccounts(ctx, agent.ProviderCodex, next); err != nil {
-		return err
-	}
-	if len(activeCredential) == 0 {
-		return nil
-	}
-	if err := writeActiveCredential(activeCredential); err != nil {
-		_ = a.store.SaveAgentAccounts(context.Background(), agent.ProviderCodex, previous)
-		return err
-	}
-	return nil
-}
-
-func writeActiveCredential(credential []byte) error {
-	return agentauth.WriteCredentialFile(codexCredentialPath(), credential)
 }

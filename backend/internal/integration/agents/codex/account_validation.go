@@ -24,17 +24,17 @@ type accountReadResponse struct {
 	RequiresOpenAIAuth bool `json:"requiresOpenaiAuth"`
 }
 
-func validateAccountCredential(ctx context.Context, credential []byte) (validatedAccount, error) {
+func validateAccountCredential(ctx context.Context, credential json.RawMessage) (agentauth.ValidatedAccount, error) {
 	if len(credential) == 0 {
-		return validatedAccount{}, errors.New("saved Codex credential is empty")
+		return agentauth.ValidatedAccount{}, errors.New("saved Codex credential is empty")
 	}
 	var raw map[string]any
 	if err := json.Unmarshal(credential, &raw); err != nil {
-		return validatedAccount{}, errors.New("saved Codex credential is not valid JSON")
+		return agentauth.ValidatedAccount{}, errors.New("saved Codex credential is not valid JSON")
 	}
 	mode, usesAPIKey := codexAuthModeFromRaw(raw)
 	if usesAPIKey || mode != "chatgpt" {
-		return validatedAccount{}, errors.New("saved Codex account is not a ChatGPT subscription login")
+		return agentauth.ValidatedAccount{}, errors.New("saved Codex account is not a ChatGPT subscription login")
 	}
 	if credentialPath, ok := snapCodexCredentialPath(); ok {
 		return validateAccountCredentialAtPath(ctx, credential, credentialPath)
@@ -42,24 +42,24 @@ func validateAccountCredential(ctx context.Context, credential []byte) (validate
 
 	root, home, err := prepareIsolatedCodexHome("remote-codex-validate-*")
 	if err != nil {
-		return validatedAccount{}, fmt.Errorf("prepare Codex validation: %w", err)
+		return agentauth.ValidatedAccount{}, fmt.Errorf("prepare Codex validation: %w", err)
 	}
 	defer os.RemoveAll(root)
 	credentialPath := filepath.Join(home, "auth.json")
 	if err := os.WriteFile(credentialPath, credential, 0o600); err != nil {
-		return validatedAccount{}, err
+		return agentauth.ValidatedAccount{}, err
 	}
 	return inspectAccountCredential(ctx, home, credentialPath)
 }
 
-func validateAccountCredentialAtPath(ctx context.Context, credential []byte, credentialPath string) (validatedAccount, error) {
+func validateAccountCredentialAtPath(ctx context.Context, credential json.RawMessage, credentialPath string) (agentauth.ValidatedAccount, error) {
 	previous, readErr := os.ReadFile(credentialPath)
 	hadPrevious := readErr == nil
 	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
-		return validatedAccount{}, fmt.Errorf("read current Codex credential: %w", readErr)
+		return agentauth.ValidatedAccount{}, fmt.Errorf("read current Codex credential: %w", readErr)
 	}
 	if err := agentauth.WriteCredentialFile(credentialPath, credential); err != nil {
-		return validatedAccount{}, fmt.Errorf("stage Codex credential for validation: %w", err)
+		return agentauth.ValidatedAccount{}, fmt.Errorf("stage Codex credential for validation: %w", err)
 	}
 	validated, validationErr := inspectAccountCredential(ctx, filepath.Dir(credentialPath), credentialPath)
 	var restoreErr error
@@ -72,24 +72,24 @@ func validateAccountCredentialAtPath(ctx context.Context, credential []byte, cre
 		}
 	}
 	if restoreErr != nil {
-		return validatedAccount{}, fmt.Errorf("restore current Codex credential after validation: %w", restoreErr)
+		return agentauth.ValidatedAccount{}, fmt.Errorf("restore current Codex credential after validation: %w", restoreErr)
 	}
 	return validated, validationErr
 }
 
-func inspectAccountCredential(ctx context.Context, home, credentialPath string) (validatedAccount, error) {
+func inspectAccountCredential(ctx context.Context, home, credentialPath string) (agentauth.ValidatedAccount, error) {
 	account, err := readCodexAccount(ctx, home)
 	if err != nil {
-		return validatedAccount{}, fmt.Errorf("validate Codex account: %w", err)
+		return agentauth.ValidatedAccount{}, fmt.Errorf("validate Codex account: %w", err)
 	}
 	if account.Account == nil || account.Account.Type != "chatgpt" {
-		return validatedAccount{}, errors.New("Codex did not recognize a ChatGPT account")
+		return agentauth.ValidatedAccount{}, errors.New("Codex did not recognize a ChatGPT account")
 	}
 	refreshed, err := os.ReadFile(credentialPath)
 	if err != nil {
-		return validatedAccount{}, fmt.Errorf("read refreshed Codex credential: %w", err)
+		return agentauth.ValidatedAccount{}, fmt.Errorf("read refreshed Codex credential: %w", err)
 	}
-	return validatedAccount{
+	return agentauth.ValidatedAccount{
 		Email: account.Account.Email, PlanType: account.Account.PlanType,
 		Credential: append(json.RawMessage(nil), refreshed...),
 	}, nil

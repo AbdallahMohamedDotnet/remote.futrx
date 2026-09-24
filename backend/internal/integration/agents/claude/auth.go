@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
@@ -33,36 +32,22 @@ type AuthStatus = agentauth.CodeStatus
 type LoginState = agentauth.CodeLoginState
 type StartResult = agentauth.CodeStartResult
 
-// Auth combines Claude's authorization-code login with its optional
-// saved-account vault. CodeService continues to own the login process and
-// subscriptions; Auth owns only Claude credential placement and account
-// selection.
+// Auth combines Claude's authorization-code login with its optional saved
+// accounts. CodeService owns the login process and subscriptions and
+// AccountService owns the account lifecycle; this package supplies only
+// Claude credential mechanics.
 type Auth struct {
-	code  *agentauth.CodeService
-	store agentauth.AccountStore
-
-	mutationMu sync.Mutex
-	mu         sync.Mutex
-	accounts   agentauth.AccountSet
-	attempt    *accountLoginAttempt
-	activeRuns int
-	validate   func(context.Context, []byte) (validatedAccount, error)
+	code *agentauth.CodeService
+	// accounts is nil when saved accounts are unavailable.
+	accounts    *agentauth.AccountService
+	credentials *accountCredentials
 }
 
 // NewAuth configures the shared authorization-code service for the Claude CLI
-// and restores the saved active account, when one exists.
-func NewAuth(store agentauth.AccountStore) (*Auth, error) {
-	auth := &Auth{store: store, validate: validateAccountCredential}
-	if store != nil {
-		accounts, err := store.AgentAccounts(context.Background(), agent.ProviderClaude)
-		if err != nil {
-			return nil, err
-		}
-		auth.accounts = accounts
-		if err := auth.restoreActiveAccount(); err != nil {
-			return nil, fmt.Errorf("restore active Claude account: %w", err)
-		}
-	}
+// and, given a vault, opens Claude's saved accounts. Opening keeps a host
+// login for the active account and replaces any other with the saved one.
+func NewAuth(vault *agentauth.AccountVault) (*Auth, error) {
+	auth := &Auth{credentials: &accountCredentials{validate: validateAccountCredential}}
 	auth.code = agentauth.NewCodeService(agentauth.CodeConfig{
 		Command:           "claude",
 		Args:              []string{"auth", "login", "--claudeai"},
@@ -115,6 +100,25 @@ func NewAuth(store agentauth.AccountStore) (*Auth, error) {
 			},
 		},
 	})
+	if vault != nil {
+		accounts, err := vault.Open(context.Background(), agentauth.AccountConfig{
+			Provider:    agent.ProviderClaude,
+			Label:       "Claude",
+			Credentials: auth.credentials,
+			Login:       accountLoginFlow{auth: auth},
+			// Cancelling a code login stops it without reporting an
+			// outcome, so an abandoned account login must be replaceable.
+			ReplacePendingLogin: true,
+			// Claude account logins always write to a private
+			// CLAUDE_CONFIG_DIR, so runs may continue during one.
+			LoginMayWriteHost: false,
+			Changed:           auth.Broadcast,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("open saved Claude accounts: %w", err)
+		}
+		auth.accounts = accounts
+	}
 	return auth, nil
 }
 
@@ -129,6 +133,26 @@ func (a *Auth) SubmitCode(ctx context.Context, code string) error {
 	return a.code.SubmitCode(ctx, code)
 }
 func (a *Auth) Cancel(ctx context.Context) error { return a.code.Cancel(ctx) }
+
+// codeAuthEnv points the CLI at the private directory of a pending account
+// login. A plain login keeps the host environment.
+func (a *Auth) codeAuthEnv(base []string) []string {
+	if a.accounts != nil {
+		if env, ok := a.accounts.LoginEnv(base); ok {
+			return env
+		}
+	}
+	return base
+}
+
+// resolveCompletion hands the result of an account login to AccountService.
+// Plain logins keep CodeService's default credential check.
+func (a *Auth) resolveCompletion(exitErr error, output string) (bool, error) {
+	if a.accounts == nil {
+		return false, nil
+	}
+	return a.accounts.FinishLogin(exitErr, output)
+}
 
 func authenticated() bool {
 	for _, name := range []string{".credentials.json", "credentials.json"} {
