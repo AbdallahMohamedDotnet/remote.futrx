@@ -70,10 +70,25 @@ func (s *Service) Check(ctx context.Context) Status {
 	} else {
 		latest, latestSegments := latestReleaseTag(tags)
 		result.LatestTag = latest
-		if current, ok := parseReleaseTag(describeBase(s.currentVersion)); ok && latest != "" {
-			result.UpdateAvailable = compareVersions(latestSegments, current) > 0
-			if result.UpdateAvailable {
-				result.UpdateKind = classifyUpdate(s.currentVersion, latest)
+		if latest != "" {
+			currentVersion := describeBase(s.currentVersion)
+			current, ok := parseReleaseTag(currentVersion)
+			if isCommitHash(currentVersion) && (!ok || !containsTag(tags, currentVersion)) {
+				ok = false
+				matchingTags, lookupErr := s.host.ListRemoteTagsForCommit(ctx, s.installDir, currentVersion)
+				if lookupErr != nil {
+					result.Error = fmt.Sprintf("resolve running commit %s: %v", currentVersion, lookupErr)
+				} else if tag, segments := latestReleaseTag(matchingTags); tag != "" {
+					currentVersion, current, ok = tag, segments, true
+				}
+			}
+			if ok {
+				result.UpdateAvailable = compareVersions(latestSegments, current) > 0
+				if result.UpdateAvailable {
+					result.UpdateKind = classifyUpdate(currentVersion, latest)
+				}
+			} else if result.Error == "" {
+				result.Error = fmt.Sprintf("cannot determine release version for running build %q", s.currentVersion)
 			}
 		}
 	}
@@ -292,6 +307,18 @@ func (s *Service) statusLocked() Status {
 func describeBase(describe string) string {
 	base, _, _ := strings.Cut(describe, "-")
 	return base
+}
+
+func isCommitHash(value string) bool {
+	if len(value) < 7 || len(value) > 64 {
+		return false
+	}
+	for _, c := range value {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // parseReleaseTag parses "0.1", "v0.2.3" and similar numeric release tags

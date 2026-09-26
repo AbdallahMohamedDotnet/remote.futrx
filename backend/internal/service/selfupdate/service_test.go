@@ -11,6 +11,9 @@ import (
 type fakeHost struct {
 	tags        []string
 	tagsErr     error
+	commitTags  []string
+	commitErr   error
+	commitQuery string
 	started     []string
 	kinds       []string
 	pid         int
@@ -59,6 +62,11 @@ func newTestService(currentVersion, installDir, dataDir string, host HostClient)
 
 func (f *fakeHost) ListRemoteTags(context.Context, string) ([]string, error) {
 	return f.tags, f.tagsErr
+}
+
+func (f *fakeHost) ListRemoteTagsForCommit(_ context.Context, _, commitPrefix string) ([]string, error) {
+	f.commitQuery = commitPrefix
+	return f.commitTags, f.commitErr
 }
 
 func (f *fakeHost) StartUpdater(launch UpdaterLaunch) (int, error) {
@@ -200,6 +208,29 @@ func TestCheckReportsApplicationUpdateWithinReleaseLine(t *testing.T) {
 	status := newTestService("0.3.1", "/opt/x", t.TempDir(), host).Check(context.Background())
 	if status.LastCheck == nil || status.LastCheck.UpdateKind != UpdateKindApplication {
 		t.Fatalf("last check = %+v, want application update", status.LastCheck)
+	}
+}
+
+func TestCheckResolvesHashStampedRelease(t *testing.T) {
+	host := &fakeHost{
+		tags:       []string{"0.20.1", "0.20.3", "0.20.4"},
+		commitTags: []string{"0.20.1"},
+	}
+	status := newTestService("42989fe", "/opt/x", t.TempDir(), host).Check(context.Background())
+	if host.commitQuery != "42989fe" {
+		t.Fatalf("commit lookup = %q, want 42989fe", host.commitQuery)
+	}
+	if status.LastCheck == nil || status.LastCheck.Error != "" || !status.LastCheck.UpdateAvailable ||
+		status.LastCheck.LatestTag != "0.20.4" || status.LastCheck.UpdateKind != UpdateKindApplication {
+		t.Fatalf("last check = %+v, want application update to 0.20.4", status.LastCheck)
+	}
+}
+
+func TestCheckDoesNotClaimUnknownHashIsUpToDate(t *testing.T) {
+	host := &fakeHost{tags: []string{"0.20.4"}}
+	status := newTestService("42989fe", "/opt/x", t.TempDir(), host).Check(context.Background())
+	if status.LastCheck == nil || status.LastCheck.Error == "" || status.LastCheck.UpdateAvailable {
+		t.Fatalf("last check = %+v, want a version resolution error", status.LastCheck)
 	}
 }
 

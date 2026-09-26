@@ -151,7 +151,9 @@ echo "==> Building frontend"
 )
 
 echo "==> Building backend"
-APP_VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+# The selected ref was verified as a release tag above. Stamp that exact tag:
+# git describe can choose a different tag when two releases share one commit.
+APP_VERSION="$TARGET_REF"
 (
     cd backend
     go build -trimpath \
