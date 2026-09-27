@@ -322,18 +322,39 @@ func isCommitHash(value string) bool {
 	return true
 }
 
+// commitFromVersion extracts a commit identity from version stamps that carry one.
+// Production recovery builds may contain a bare hash, while immutable QA
+// candidates use "qa-<hash>". Local QA versions include additional metadata
+// and deliberately cannot be associated with a release tag.
+func commitFromVersion(version string) (string, bool) {
+	if isCommitHash(version) {
+		return version, true
+	}
+	commit, ok := strings.CutPrefix(version, "qa-")
+	if !ok || !isCommitHash(commit) {
+		return "", false
+	}
+	return commit, true
+}
+
 // resolveCurrentRelease returns the release baseline represented by the
 // running binary. Normal git-describe values resolve locally. Bare commit
-// hashes require one origin lookup, whose successful result is cached for a
-// later Apply as long as the resolved tag still exists remotely.
+// hashes and immutable QA candidates require one origin lookup, whose
+// successful result is cached for a later Apply as long as the resolved tag
+// still exists remotely.
 func (s *Service) resolveCurrentRelease(ctx context.Context, tags []string) (string, []int, error) {
 	currentVersion := describeBase(s.currentVersion)
 	current, ok := parseReleaseTag(currentVersion)
-	if !isCommitHash(currentVersion) || ok && containsTag(tags, currentVersion) {
-		if !ok {
-			return "", nil, fmt.Errorf("cannot determine release version for running build %q", s.currentVersion)
-		}
+	if ok && (!isCommitHash(currentVersion) || containsTag(tags, currentVersion)) {
 		return currentVersion, current, nil
+	}
+
+	currentCommit, hasCommit := commitFromVersion(s.currentVersion)
+	if !hasCommit && isCommitHash(currentVersion) {
+		currentCommit, hasCommit = currentVersion, true
+	}
+	if !hasCommit {
+		return "", nil, fmt.Errorf("cannot determine release version for running build %q", s.currentVersion)
 	}
 
 	s.mu.Lock()
@@ -348,9 +369,9 @@ func (s *Service) resolveCurrentRelease(ctx context.Context, tags []string) (str
 		return resolved, segments, nil
 	}
 
-	matchingTags, err := s.host.ListRemoteTagsForCommit(ctx, s.installDir, currentVersion)
+	matchingTags, err := s.host.ListRemoteTagsForCommit(ctx, s.installDir, currentCommit)
 	if err != nil {
-		return "", nil, fmt.Errorf("resolve running commit %s: %w", currentVersion, err)
+		return "", nil, fmt.Errorf("resolve running commit %s: %w", currentCommit, err)
 	}
 	resolved, segments := latestReleaseTag(matchingTags)
 	if resolved == "" {
