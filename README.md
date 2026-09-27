@@ -322,33 +322,21 @@ Replace `remote.example.com` with the hostname you set up above. The installer d
 
 #### Pseudonymous version telemetry
 
-Starting with `0.21.0`, the backend makes one best-effort report when telemetry
-first becomes available, immediately after the installed version changes, and
-otherwise at most once every seven days. The last attempted version and time
-are stored locally, so ordinary service restarts and failed requests do not
-produce extra retries. Reports go to
-`https://remote.futrx.com/api/telemetry/version`. The payload contains only the
-exact build version and a locally generated random pseudonymous installation
-ID. It does not contain the server hostname or domain, users, projects,
-provider accounts, chats, or source code. Development and QA builds do not
-report.
+Starting with `0.21.0`, Remote reports its version once after installation or a
+version change, then at most weekly. The payload is only the version and a
+random, stable installation ID; the collector adds a receipt timestamp and
+retains reports for three months. No hostname, user, project, provider, chat,
+prompt, source code, or resource data is sent. `dev` and `qa-*` builds do not
+report, and pre-`0.21.0` installations are not counted.
 
-The collector also records when each report was received, so reports from the
-same pseudonymous ID are linkable within the three-month Cloudflare Workers
-Analytics Engine retention window. They measure active reporting installations,
-not lifetime or successful installs, and the totals are approximate: offline
-and opted-out installations are absent, while the public collector can receive
-spoofed reports. Versions before `0.21.0` do not report, so this cannot measure
-legacy installations that have not upgraded.
-
-To opt out before the first startup, set the installer environment variable:
+Opt out before first startup with:
 
 ```bash
 curl -fsSL https://remote.futrx.com/get | sudo env REMOTE_TELEMETRY_DISABLED=1 bash -s -- remote.example.com
 ```
 
 See [Deployment and operations](docs/04-operations/09-deployment-and-operations.md#pseudonymous-version-telemetry)
-for the full behavior and post-install opt-out steps.
+for cadence, counting limitations, and post-install opt-out.
 
 ### 3. Create your first project
 

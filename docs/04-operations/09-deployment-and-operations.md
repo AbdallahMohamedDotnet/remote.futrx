@@ -228,54 +228,31 @@ When the backend starts, it:
 
 ## Pseudonymous version telemetry
 
-Starting with `0.21.0`, version telemetry is enabled by default. The backend
-makes one best-effort report when telemetry first becomes available,
-immediately after the installed version changes, and otherwise at most once
-every seven days. It stores the last attempted version and time under
-`DATA_DIR/telemetry`, so ordinary service restarts and failed requests do not
-produce extra retries. Reports go to
-`https://remote.futrx.com/api/telemetry/version`. A telemetry failure does not
-block startup, update checks, or update application. Development builds stamped
-`dev` and QA builds stamped `qa-*` do not report.
+From `0.21.0`, production builds send `{installationId, version}` to
+`https://remote.futrx.com/api/telemetry/version`:
 
-The report contains exactly two application-supplied values:
+- once when telemetry first runs;
+- once immediately after the version changes; and
+- at most once every seven days otherwise.
 
-- the exact build version compiled into the running backend, including a bare
-  commit hash when that is how the build was stamped; and
-- a locally generated opaque random installation ID, used to deduplicate
-  reports from the same installation.
+The random installation ID, last attempted version, and attempt time are kept
+under `DATA_DIR/telemetry` with owner-only permissions. Recording the attempt
+before the request prevents restarts or failures from causing extra retries.
+Telemetry never blocks startup or updates. `dev` and `qa-*` builds do not send.
 
-Remote does not send the installation hostname or domain, account or user
-information, project metadata, provider details, chats, prompts, source code,
-or host resource measurements. The collector writes the two reported values
-to a dedicated Cloudflare Workers Analytics Engine dataset, which also records
-the receipt timestamp. The stable ID and those timestamps make reports from one
-installation linkable within the retention window and reveal its approximate
-reporting activity. Analytics Engine retains rows for three months.
+The collector stores the ID, version, and receipt time for three months. It
+does not receive hostnames, users, projects, providers, chats, prompts, source
+code, or resource data. Counts represent active reporting installations, not
+all installs: old, offline, opted-out, cloned, and spoofed instances can make
+them incomplete or approximate.
 
-An **active reporting installation** is one pseudonymous installation ID whose
-latest successful report falls within the time window being queried. Grouping
-the latest report per ID by version estimates how many active installations run
-each version. It is not the lifetime number of downloads, completed
-installations, or servers that still exist. Counts are operational estimates:
-installations that opt out, are offline, or cannot reach the collector are
-absent; restored or cloned data can reuse an ID; and the public collector has
-no per-installation secret, so reports can be spoofed.
-
-Telemetry is forward-only. Versions before `0.21.0` do not contain this
-reporter, so the dataset cannot count legacy installations—including a
-hash-stamped installation whose old updater has not discovered a newer
-release—until that installation upgrades to a telemetry-capable version.
-
-To opt out during a fresh installation, pass the environment variable through
-`sudo` so it is applied before the service first starts:
+Opt out during installation with:
 
 ```bash
 curl -fsSL https://remote.futrx.com/get | sudo env REMOTE_TELEMETRY_DISABLED=1 bash -s -- remote.example.com
 ```
 
-For an existing installation, create a systemd override rather than editing
-the installed unit:
+For an existing installation, create a systemd override:
 
 ```bash
 sudo systemctl edit remote.futrx
@@ -293,9 +270,8 @@ sudo systemctl daemon-reload
 sudo systemctl restart remote.futrx
 ```
 
-The override survives normal updates. Disabling telemetry does not delete rows
-already received; they expire under Analytics Engine's rolling three-month
-retention.
+The override survives updates. Previously received rows expire after three
+months.
 
 ## Agent capability discovery timeout
 
