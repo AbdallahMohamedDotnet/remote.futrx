@@ -3,7 +3,6 @@ import type { RegisteredSkill } from "../../../models/skill";
 import { Code } from "../../primitives/icons";
 
 const PALETTE_MAX_HEIGHT = 360;
-const PALETTE_MIN_HEIGHT = 180;
 const PALETTE_GAP = 8;
 
 interface PalettePosition {
@@ -55,10 +54,10 @@ export function CommandPaletteView({
         left: bounds.left,
         bottom: window.innerHeight - bounds.top + PALETTE_GAP,
         width: bounds.width,
-        maxHeight: Math.max(
-          Math.min(PALETTE_MAX_HEIGHT, bounds.top - PALETTE_GAP * 2),
-          PALETTE_MIN_HEIGHT
-        ),
+        // Never taller than the space above the card: on a short viewport a
+        // floor here would push the header off the top of the screen, while a
+        // shorter palette still scrolls.
+        maxHeight: Math.max(0, Math.min(PALETTE_MAX_HEIGHT, bounds.top - PALETTE_GAP * 2)),
       });
     }
     place();
