@@ -1,290 +1,130 @@
 # Contributing to remote.futrx
 
-Thanks for your interest in improving remote.futrx — a self-hosted workspace for Claude Code, Codex, MiniMax, Kimi Code, Antigravity, and future agent integrations.
+Everyone is welcome to contribute. The most important rule is simple:
 
-Before you start, please read this document. It covers how the repository is laid out, how to build and test each part, and what we expect from commits and pull requests.
+> **Everything starts with an issue. No issue, no pull request.**
 
-## Licensing and sign-off
+Every bug fix, feature, refactor, documentation change, and other improvement
+must be connected to an open issue before work begins. The issue is where we
+agree on the problem, keep decisions visible, and prevent duplicated work.
 
-remote.futrx is licensed under the [GNU AGPL-3.0](LICENSE). By contributing, you agree that your contributions are licensed under the same terms.
+## How to open a new problem
 
-We use the [Developer Certificate of Origin](https://developercertificate.org/) (DCO) instead of a CLA. Sign off every commit to certify that you have the right to submit the change:
+First, [search the open issues](https://github.com/futrx-com/remote.futrx/issues)
+to see whether the problem has already been reported.
 
-```bash
-git commit -s
-```
+- If an issue already exists, add any useful context there instead of opening
+  a duplicate.
+- If no issue exists, [open a new issue](https://github.com/futrx-com/remote.futrx/issues/new/choose)
+  and choose the template that best matches the problem.
+- Do not publish security vulnerabilities in a public issue. Follow the
+  private reporting instructions in [SECURITY.md](SECURITY.md).
 
-This appends a `Signed-off-by: Your Name <your@email>` line to the commit message.
+This rule also applies to every new feature and feature request. Before
+starting a new feature, open a **Feature request** issue—even when the change
+seems small. Explain the user problem, the result you want, and how you will
+know the feature is complete. A pull request must not be the first place a new
+feature is proposed.
 
-## Finding something to work on
+Write the issue so that someone unfamiliar with the problem can understand it.
+Include:
 
-Most contributions start with an issue. Issues live in the repo; the public
-[project board](https://github.com/orgs/futrx-com/projects/4) shows their
-status.
+1. A clear title describing one problem.
+2. What you were trying to do and why it matters.
+3. What happened and what you expected instead.
+4. Steps to reproduce the problem, if it is a bug.
+5. What a successful result should look like.
+6. Relevant screenshots, logs, versions, or links. Remove secrets and personal
+   information first.
 
-### Status
+Keep one issue focused on one problem. If the work contains separate problems,
+open separate issues so each can be discussed, assigned, and completed on its
+own.
 
-- **Todo** — open issues, not yet picked up. Open to anyone.
-- **In Progress** — someone is actively working on it (check the assignee).
-- **Done** — closed via a merged PR.
+## Assign an issue to yourself
 
-### How to pick up an issue
+Anybody can claim an open issue, including first-time contributors. You do not
+need repository access and you do not need to wait for a maintainer.
 
-1. Browse the project board, or filter the issue list for
-   [`good first issue`](https://github.com/futrx-com/remote.futrx/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-   or
-   [`help wanted`](https://github.com/futrx-com/remote.futrx/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
-2. Comment *"I'd like to take this"* on the issue. A maintainer will assign
-   you and move the card to **In Progress**. If we don't reply in 3 days,
-   ping `@futrx-com/futrx-maintainers`.
+1. Open the issue you want to work on and check its current assignees.
+2. Add a new comment containing exactly:
 
-   > Outside contributors cannot be assigned until they comment on the issue.
-   > This is a GitHub security rule, not us being slow.
+   ```text
+   /assign
+   ```
 
-3. If a card has been **In Progress** with no PR for 10 days, we unassign it
-   and the issue returns to the pool. Open a draft PR early if you need more
-   time.
+3. The bot will add you as an assignee and react to your comment with a
+   thumbs-up.
 
-### Auto-claim with `/take`
+You may self-assign any open issue. If somebody is already working on it,
+coordinate with them in the issue before starting so effort is not duplicated.
 
-On any unassigned issue labeled `help wanted` or `good first issue`, comment
-`/take` and a bot will assign you automatically. This skips the wait for a
-maintainer; you still need to open a PR within 10 days.
+## Connect every pull request to an issue
 
-### Reporting bugs
+A pull request is the implementation of an issue, not the beginning of a new
+discussion. Open and assign the issue first, then create your branch from
+`qa` and make the change.
 
-Open an issue using the **Bug report** template. Include:
+Every pull request must:
 
-- What you did, what you expected, what happened
-- Browser + version, OS, remote.futrx commit/branch
-- Container logs (`journalctl -u <app>-dev-<port>`) if relevant
+- target the `qa` branch;
+- stay within the scope agreed in its issue; and
+- include `Fixes #123` or `Closes #123` in the pull request description,
+  replacing `123` with the real issue number.
 
-### Suggesting features
+This link is mandatory, including for small changes and draft pull requests.
+**A pull request that is not connected to an issue will be rejected and closed
+without review.**
 
-Open an issue using the **Feature request** template. Features larger than a
-few days of work get broken into sub-issues so people can claim smaller
-pieces.
+## Architecture
 
-### Questions?
-
-Use [GitHub Discussions](https://github.com/orgs/futrx-com/discussions),
-not issues. Issues are for actionable work.
-
-## Repository layout
-
-| Path | What it is |
-| --- | --- |
-| `backend/` | Go backend: HTTP/WebSocket transport, services, file-backed stores, LXD/Git/tmux integrations, and compiled-in agent modules |
-| `frontend/` | Preact + Vite SPA. The production build is written to `backend/public/` and embedded into the Go binary via `go:embed` |
-| `applications/` | Catalog of one-click installable apps, embedded into the backend binary; each directory is an `application.json`, an `install.sh`, and an optional `ui/` extension and `backend/` Go backend |
-| `infra/` | Installer, updater, systemd/Caddy templates, base-image tooling, and shell test suite |
-| `docs/` | Architecture and subsystem deep-dives — start with `docs/01-overview/01-system-overview.md` |
-
-## Adding an agent integration
-
-Agents are explicit compiled-in modules, not runtime backends. Each provider
-owns one validated factory declaration that binds its static descriptor,
-provisioning profile, and project-preparation policy to fresh runtime and
-authentication components. The generic factory constructs shared project
-preparation and narrows application dependencies before invoking provider
-code. The configuration composition root owns only reviewed order and
-application-wide policy; the module catalog validates the complete set,
-selects defaults, projects host/project profiles, and builds one consistent
-runtime.
-
-Read the [agent integration developer guide](docs/dev/agents/README.md) for the
-complete registration, capability-discovery, authentication, execution,
-event-parsing, provisioning, frontend, testing, and release flow. Its
-[adding-an-agent checklist](docs/dev/agents/07-adding-an-agent.md) is the source
-of truth for new integrations.
-
-## Adding an installable app, UI extension, or application backend
-
-Installable apps ("Applications") are data, not code: one directory under
-`applications/` at the repository root with an `application.json`, an `install.sh`, and —
-optionally — a `ui/` directory. The catalog is embedded into the binary, so
-adding an app is a directory plus a rebuild; no registration step.
-
-`ui/` is what makes an application a backend rather than just a service: its
-`scripts/main.js` runs in every signed-in browser and can contribute buttons,
-panels, and popups to defined slots in the SPA. That is the path for a feature
-that needs both something installed in the container and something added to the
-interface — say, an alternative editor with a launcher button.
-
-`backend/` is the third half, and the one that makes "everything is a backend"
-achievable: a directory of Go source that the server compiles and runs as a
-child process over [hashicorp/go-plugin](https://github.com/hashicorp/go-plugin),
-reachable from the application's own `ui/` through `remote.backend.call(...)`. An
-application can therefore add a server-side feature — not only a button that calls an
-endpoint someone else had to write.
-
-Both halves are code, and neither is sandboxed:
-
-- Extension code runs on the main origin with the SPA's privileges and reaches
-  the API as the signed-in user, so a `ui/` directory gets the same review as
-  any other frontend change here.
-- Application backend code runs as a child of the server process, with the server's
-  privileges, and is handed the install's secrets, so a `backend/` directory
-  gets the same review as any change under `backend/internal/`.
-
-Read [`applications/README.md`](applications/README.md) for the
-`application.json` schema, the install-script contract, the extension API, and the
-slot list. [`applications/hello-remote/`](applications/hello-remote/)
-is the worked example for both halves — a `ui/` and the `backend/` it calls —
-and real apps live in their own repositories rather than here. The full backend
-contract is
-[`docs/dev/installable-applications/15-application-backends.md`](docs/dev/installable-applications/15-application-backends.md).
+remote.futrx has a Preact/Vite frontend, a Go backend, a catalog of installable
+applications, and infrastructure scripts for installation and updates. Keep
+changes inside the existing boundaries and follow the patterns in the code
+around them. For deeper implementation details, read the
+[development documentation](docs/dev/).
 
 ## Development setup
 
+Use the commands below to build, test, and run the project locally. Before you
+start, also read [AGENTS.md](AGENTS.md) for the repository-specific development
+and QA workflow, including how to deploy and verify frontend, backend,
+installation, and update changes.
+
 ### Prerequisites
 
-- **Go** 1.25+ (see `backend/go.mod`). Also required *at runtime* on any server
-  that installs an application shipping a `backend/` directory, because backend source
-  is compiled on the host.
-- **Node.js** 22.14+ (matches CI)
-- **Linux with LXD** — only for running the full stack. Project workspaces are LXD containers, so the complete application only runs on a Linux host with LXD installed. Backend and frontend unit tests, builds, and most development run fine on macOS or any platform without LXD.
+- Go 1.25+
+- Node.js 22.14+
+- Linux with LXD only when running the complete application; builds and most
+  tests also work without LXD
 
 ### Backend
+
+Build and test the backend:
 
 ```bash
 cd backend
 go build ./...
 go test ./...
+go run ./cmd/remote
 ```
 
-The application catalog is a second Go module, rooted at the repository root, so
-`./...` in `backend/` does not reach an application's `backend/` source. Build and test
-it from the repository root:
+The backend listens on port `7682` by default. From the repository root, also
+build and test the separate application-catalog module:
 
 ```bash
 go build ./...
 go test ./...
 ```
-
-Run the server locally with `go run ./cmd/remote`. It listens on port `7682` by default (`PORT` overrides it). Endpoints that touch project workspaces need LXD; everything else (auth, chat stores, settings) works against the local filesystem.
 
 ### Frontend
 
 ```bash
 cd frontend
 npm install
+npm test
 npm run dev
 ```
 
-The Vite dev server runs on port `5174` and proxies `/api` and `/ws` to a local backend on `127.0.0.1:7682`, so run the Go server alongside it.
-
-Tests use the built-in Node test runner:
-
-```bash
-npm test
-```
-
-`npm run build` compiles the SPA into `backend/public/`; the next `go build` embeds it.
-
-### Infra
-
-Installer and deployment logic has its own shell tests:
-
-```bash
-bash infra/tests/health-check-test.sh
-bash infra/tests/go-toolchain-test.sh
-bash infra/tests/host-agent-install-test.sh
-bash infra/tests/dns-resolve-test.sh
-bash infra/tests/container-forwarding-test.sh
-bash infra/tests/swap-provision-test.sh
-bash infra/tests/release-version-test.sh
-bash infra/tests/deploy-app-script-test.sh
-bash infra/tests/qa-scripts-test.sh
-bash .github/scripts/classify-release-test.sh
-```
-
-The root package exposes every QA deployment path. Commands that take a ref
-require a clean checkout whose `HEAD` matches the pushed branch, tag, or commit:
-
-```bash
-npm run qa:install                         # public install on a fresh server
-npm run qa:install -- <ref>                # candidate install on a fresh server
-npm run qa:update -- <ref>                 # full infrastructure update
-npm run qa:deploy-app -- <ref>             # app-only deploy from a pushed ref
-npm run qa:deploy-local                    # app-only deploy of the working tree
-npm run qa:test                            # QA wrapper contract tests
-```
-
-The npm deployment aliases default to `./.qa.env` in the repo root, matching
-the `infra/qa/*.sh` scripts' own default of `.qa.env` in their worktree. Set
-`QA_ENV_FILE=/path/to/.qa.env` to point at a shared QA configuration
-elsewhere.
-
-These commands are driven from a Linux, macOS, or Windows workstation. They
-need `bash`, `git`, `ssh`, `scp`, `tar`, and `curl` on `PATH` — on Windows,
-run them from Git Bash, which ships all of them. Hostname resolution for the
-pre-flight check uses whichever of `getent`, `dscacheutil`, `dig`, `host`, or
-`nslookup` the platform provides, and falls back to DNS-over-HTTPS through
-`curl` when none is installed.
-
-There is no CI that exercises the installer against a server. `infra/` changes reach a box only when its operator runs `sudo bash infra/update.sh` over SSH or applies a release tag from the in-app updater (both re-detect the box's hostname from the installed unit). Treat changes to `infra/` with extra care since they modify hosts in place.
-
-## Making changes
-
-- **Match the surrounding code.** The backend follows a strict layering: `transport → service → integration/store`. Don't reach across layers (e.g. no LXD calls from handlers). The frontend keeps state transitions in `frontend/src/state/` with unit tests pinning their behavior.
-- **Write or update tests.** Backend packages have table-driven `_test.go` files next to the code. Frontend state changes should extend the corresponding `*.test.ts` file (and the `test` script in `frontend/package.json` if you add a new one). Note that CI does not currently run `go test` — run it locally before pushing.
-- **Format and vet.** Run `gofmt` and `go vet ./...` on Go changes; `tsc -b` (via `npm run build`) must pass on frontend changes.
-- **Update docs** when behavior changes — `README.md` for user-facing behavior, the relevant file under `docs/` for architecture changes.
-
-## Commit messages
-
-We use Conventional Commits with an area scope:
-
-```text
-type(scope): imperative summary
-```
-
-Types in use: `feat`, `fix`, `refactor`, `test`, `docs`. Scopes are area names like `containers`, `state`, `projects`, `files`, `workspaces`, `deploy`. Examples from history:
-
-```text
-fix(projects): serialize lifecycle transitions
-refactor(state): encapsulate chat preference state
-test(state): pin chat event projection behavior
-```
-
-Keep commits small and focused — one logical change per commit.
-
-## Releases
-
-Release tags use exactly `MAJOR.MINOR.PATCH`, without a `v` prefix. The version
-determines what an installed server runs:
-
-- Bump `PATCH` for frontend/backend-only releases.
-- Bump `MINOR` or `MAJOR` when the release changes host dependencies, Caddy or
-  systemd configuration, provider toolchains, workspace provisioning, or the
-  reusable base image.
-
-The tag workflow rejects patch releases that changed protected
-infrastructure-managed paths since the previous release. This guard is a
-minimum safety net, not a substitute for judgment: changes outside those paths
-that require a newer host toolchain must also use a minor or major release.
-
-The first release containing a change to the update machinery itself must be a
-minor or major release so existing installations receive the new scripts via
-full infrastructure convergence.
-
-## Pull requests
-
-1. Fork the repo and create a topic branch from **`qa`** (our default branch).
-   ```bash
-   git checkout qa
-   git pull origin qa
-   git checkout -b fix/123-short-description
-   ```
-2. Make your change with tests and docs.
-3. Run the test suites listed above.
-4. Open a PR against `futrx-com/remote.futrx:qa`. The
-   [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) will
-   prefill most fields. The PR description **must** contain `Fixes #N` (or
-   `Closes #N`) with the issue number — without it the issue stays open and
-   the project board does not move. A draft PR is fine while you iterate.
-
-## Reporting security issues
-
-**Do not open a public issue for security vulnerabilities.** See [SECURITY.md](SECURITY.md) for the private reporting process.
+The frontend runs on port `5174` and proxies API and WebSocket requests to the
+backend on port `7682`. Run `npm run build` before submitting frontend changes.
