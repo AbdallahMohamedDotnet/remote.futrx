@@ -153,6 +153,14 @@ func (s *Service) Create(ctx context.Context, in CreateInput, callerEmail string
 	if name == "" {
 		return Meta{}, ErrNameRequired
 	}
+	// Refuse before anything is recorded, so a full disk surfaces as a clear
+	// error on the create request rather than a project stuck in an error
+	// state carrying the transcript of a failed image unpack.
+	if s.containerLifecycle != nil {
+		if err := s.containerLifecycle.CheckCapacity(ctx); err != nil {
+			return Meta{}, err
+		}
+	}
 
 	m, err := s.repo.Create(ctx, Meta{
 		Name:   name,

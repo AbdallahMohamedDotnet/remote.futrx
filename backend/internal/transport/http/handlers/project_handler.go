@@ -696,6 +696,8 @@ func sendProjectError(w http.ResponseWriter, err error) {
 		httptransport.SendErr(w, http.StatusConflict, err.Error())
 	case errors.Is(err, serviceproject.ErrNotFound):
 		httptransport.SendErr(w, http.StatusNotFound, "project not found")
+	case errors.Is(err, serviceproject.ErrInsufficientStorage):
+		httptransport.SendErr(w, http.StatusInsufficientStorage, err.Error())
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 	}
