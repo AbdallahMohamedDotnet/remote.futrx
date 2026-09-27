@@ -37,6 +37,7 @@ interface WorkspaceContextValue {
   createChat: (projectId?: string) => Promise<ChatMeta>;
   deleteChat: (chatId: string) => Promise<void>;
   forkChat: (chatId: string) => Promise<ChatMeta>;
+  renameChat: (chatId: string, title: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
   reorderProjects: (projectIds: string[]) => Promise<void>;
 }
@@ -92,6 +93,12 @@ export function WorkspaceProvider({
     const chat = await chatApi.fork(chatId);
     return activateNewChat(chat);
   }, [activateNewChat]);
+
+  const renameChat = useCallback(async (chatId: string, title: string) => {
+    // The server pushes the renamed chat to every open sidebar; seeding the
+    // response too means this one shows the new title without waiting for it.
+    data.seedChat(await chatApi.update(chatId, { title }));
+  }, [data.seedChat]);
 
   const deleteProject = useCallback(async (projectId: string) => {
     await projectApi.delete(projectId);
@@ -153,6 +160,7 @@ export function WorkspaceProvider({
     createChat,
     deleteChat,
     forkChat,
+    renameChat,
     deleteProject,
     reorderProjects,
   }), [
@@ -174,6 +182,7 @@ export function WorkspaceProvider({
     createChat,
     deleteChat,
     forkChat,
+    renameChat,
     deleteProject,
     reorderProjects,
   ]);
