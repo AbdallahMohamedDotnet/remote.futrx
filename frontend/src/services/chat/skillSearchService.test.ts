@@ -65,6 +65,14 @@ test("a command or name hit ranks above a description-only hit", () => {
   assert.deepEqual(names(skillSearchService.filter(skills, "steps")), ["Build steps", "ui-ux-pro-max"]);
 });
 
+test("field weight scales match quality rather than overriding it", () => {
+  // "deploy" is one typo away from the /deply command but spells the other
+  // skill's name exactly; the exact name hit ranks first.
+  const typo: RegisteredSkill = { name: "deply", command: "/deply", provider: "claude" };
+  const exact: RegisteredSkill = { name: "deploy", command: "/ship", provider: "claude" };
+  assert.deepEqual(names(skillSearchService.filter([typo, exact], "deploy")), ["deploy", "deply"]);
+});
+
 test("tolerates a small typo in a longer word", () => {
   assert.deepEqual(names(skillSearchService.filter(skills, "refactr")), ["Refactor"]);
 });

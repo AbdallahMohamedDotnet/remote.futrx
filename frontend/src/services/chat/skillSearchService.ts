@@ -11,8 +11,11 @@ import { textFoldService } from "../platform/textFoldService.ts";
 import { textMatchService } from "../platform/textMatchService.ts";
 
 /**
- * What a hit in each field is worth. The command is what the user is typing,
- * so it outranks the display name, which outranks the prose.
+ * What a hit in each field is worth, as a multiplier on how well it matched.
+ * The command is what the user is typing, so it weighs most, then the display
+ * name, then the prose. This is a weighting, not a strict order: an exact name
+ * hit still beats a typo-level command hit, the same trade-off the sidebar's
+ * SEARCH_FIELD_WEIGHTS makes.
  */
 const FIELD_WEIGHTS = { command: 3, name: 2, description: 1, source: 0.5 } as const;
 
