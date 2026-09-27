@@ -18,14 +18,17 @@ import { extensionHost } from "../extensions/extensionHost";
 export function SettingsContainer({
   onBack,
   onHamburger,
+  activeTab,
+  onTabChange,
 }: {
   onBack: () => void;
   onHamburger: () => void;
+  activeTab: SettingsTab;
+  onTabChange: (tab: SettingsTab) => void;
 }) {
   const { auth } = useAuthContext();
   const userSettings = useUserSettingsContext();
   const userDirectory = useUserDirectory(auth.isAdmin);
-  const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const serverInfo = useServerInfo(activeTab === "info");
   const selfUpdate = useSelfUpdate(activeTab === "updates" && auth.isAdmin);
   const security = useSecuritySettings(activeTab === "security");
@@ -88,7 +91,7 @@ export function SettingsContainer({
       push={push}
       onBack={onBack}
       onHamburger={onHamburger}
-      onTabChange={setActiveTab}
+      onTabChange={onTabChange}
       onRefreshServerInfo={serverInfo.refresh}
       onCheckForUpdates={selfUpdate.check}
       onApplyUpdate={selfUpdate.apply}

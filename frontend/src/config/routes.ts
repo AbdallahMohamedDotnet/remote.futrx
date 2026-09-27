@@ -5,8 +5,8 @@ function applicationPath(path: ApplicationPath): ApplicationPath {
 }
 
 /**
- * Encodes a plugin route for a URL while leaving its separators alone, so a
- * plugin sees the path it declared ("kv/greeting") rather than an escaped one.
+ * Encodes a backend route for a URL while leaving its separators alone, so a
+ * backend sees the path it declared ("kv/greeting") rather than an escaped one.
  */
 function backendSuffix(path: string): string {
   const trimmed = path.replace(/^\/+/, "");
@@ -67,6 +67,14 @@ export const API_ROUTES = {
       `/api/${encodeURIComponent(provider)}/login/device`,
     apiKey: (provider: string) =>
       `/api/${encodeURIComponent(provider)}/login/api-key`,
+    importAccount: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/accounts/import`,
+    startAccountLogin: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/accounts/login`,
+    activateAccount: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/accounts/activate`,
+    accounts: (provider: string) =>
+      `/api/${encodeURIComponent(provider)}/accounts`,
   },
   projects: {
     collection: "/api/projects",
@@ -125,11 +133,12 @@ export const API_ROUTES = {
     item: (appId: string) => `/api/applications/${encodeURIComponent(appId)}`,
     action: (appId: string, action: string) =>
       `/api/applications/${encodeURIComponent(appId)}/${action}`,
-    /** An instance's Go plugin: the bare prefix describes it, deeper paths call it. */
+    /** An instance's Go backend: the bare prefix describes it, deeper paths call it. */
     backend: (appId: string, path = "") =>
       `/api/applications/${encodeURIComponent(appId)}/backend${backendSuffix(path)}`,
   },
   settings: "/api/me/settings",
+  agentQuota: "/api/agent-quota",
   security: {
     summary: "/api/me/security",
     enroll: "/api/me/security/2fa/enroll",
@@ -188,3 +197,12 @@ export const WEB_SOCKET_ROUTES = {
   terminal: (chatId: string): ApplicationPath =>
     applicationPath(`/ws/terminal?chat=${encodeURIComponent(chatId)}`),
 } as const;
+
+// The chat media-open URL is the only chat route an embedded image or link
+// may target with a click handler that opens the in-app viewer. Match the
+// route shape so callers do not have to share a substring across files.
+const CHAT_MEDIA_OPEN_PATTERN = /^\/api\/chats\/[^/?]+\/media-open\?/;
+
+export function isChatMediaOpenUrl(url: string): boolean {
+  return CHAT_MEDIA_OPEN_PATTERN.test(url);
+}

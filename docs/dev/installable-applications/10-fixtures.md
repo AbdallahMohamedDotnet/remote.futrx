@@ -1,11 +1,11 @@
 # 10 — Fixtures
 
 > **These fixture applications are not in this repository.** What ships here is one
-> worked example, [`hello-remote`](../../../applications/hello-remote/README.md), which covers the
-> same ground more briefly: a slot contribution, a view, a plugin process, and
-> per-instance storage. The fixtures below are described as the fuller surface
-> a developer working on the extension API itself would want, and the document
-> stands as the specification for them.
+> worked example, [`hello-remote`](../../../applications/hello-remote/README.md), which is the
+> installable kitchen sink: every slot and frontend mechanism, a host backend,
+> container commands, a supervised service and port, a host tool, and a project
+> skill. The historical fixtures below remain useful as focused specifications
+> for developers working on one extension surface at a time.
 
 Three applications exist purely to exercise the extension surface. None of them
 needs LXD or creates a container, so you can run the whole extension system on
@@ -15,7 +15,7 @@ a laptop.
 |---|---|---|---|
 | `ui-playground` | flask | `ui` | The full browser surface: every slot, every mechanism, plus an API self-test |
 | `ui-sandbox` | cube | `ui` | A second extension sharing the same slots, explaining *why* it is visible where it is |
-| `backend-playground` | server | `backend` | The full server surface: a Go plugin exercising every part of the backend contract, and the UI that calls it |
+| `backend-playground` | server | `backend` | The full server surface: a Go backend exercising every part of the backend contract, and the UI that calls it |
 
 They order themselves `-100`, `-99`, and `-98`, so the set always renders
 flask-then-cube-then-server in every shared slot regardless of load order.
@@ -76,13 +76,13 @@ broke the contract.
 ## Backend Playground
 
 The counterpart to UI Playground on the other side of the wire. It ships a Go
-plugin in `backend/main.go` and a `ui/`
+backend rooted at `backend/main.go` and a `ui/`
 that calls it, and every route exists to demonstrate one property of the
 contract:
 
 | Route | Demonstrates |
 |---|---|
-| `health` | the plugin is a live process — pid, uptime, and a request counter that climbs |
+| `health` | the backend is a live process — pid, uptime, and a request counter that climbs |
 | `echo` | what crosses the boundary, and what does not: no cookies, and a caller the browser cannot forge |
 | `instance` | the install the host handed over, redacted by caller — the pattern for anything sensitive |
 | `kv` | state in the process, written by one request and read by the next |
@@ -90,16 +90,16 @@ contract:
 | `compute` | real Go work on the server, which is the reason to have a backend at all |
 | `slow` | the application's `timeoutMs`, from the caller's side |
 | `boom` | a panic: one failed call, and the same pid afterwards |
-| `admin` | a plugin authorizing its own callers, beyond the application's `access` level |
+| `admin` | a backend authorizing its own callers, beyond the application's `access` level |
 
 ### Where it appears
 
 - A **server icon** in the chat header and the composer, opening the console.
 - A **Console** button on its own application card.
-- A **panel** under the applications list showing live plugin health and the
-  route table the plugin itself advertises.
+- A **panel** under the applications list showing live backend health and the
+  route table the backend itself advertises.
 
-### The plugin console
+### The backend console
 
 The popup runs any of the routes above and appends the raw answer to a log,
 newest first, each entry labelled with the call it came from. That labelling
@@ -108,13 +108,13 @@ rather than click order, and a shared unlabelled pane would show whichever
 finished last and name none of them.
 
 Its buttons are in two groups, because three of them are *supposed* to fail and
-a red result from an unmarked button reads as a broken plugin:
+a red result from an unmarked button reads as a broken backend:
 
 | Button | Expected |
 |---|---|
 | `panic` | fails with the panic message; `health` afterwards shows the same pid |
 | `timeout (11s)` | fails after the application's 10s `timeoutMs`; the next call still works |
-| `unknown route` | `404` from the plugin's mux |
+| `unknown route` | `404` from the backend's mux |
 
 They are dashed, grouped under "Meant to fail", and their results are logged in
 amber and tagged `expected` rather than in red. Watching the pid stay the same
@@ -127,27 +127,27 @@ is asking — which is the point of it.)
 ### The backend self-test
 
 The panel and the console both have **Run backend self-test**: fourteen checks
-asserting the contract from inside a real extension, against a real plugin
+asserting the contract from inside a real extension, against a real backend
 process, over the real route.
 
 | Check | What it proves |
 |---|---|
 | a running backend is available | install gating reaches `remote.backend` |
 | describe reports version and routes | the discovery half of the contract |
-| health answers from a live process | the plugin started and connected |
+| health answers from a live process | the backend started and connected |
 | the same process serves consecutive calls | one process per instance, and it is long-lived |
 | method, query, and body arrive | the request is forwarded faithfully |
 | the caller is stamped by the server | authorization has something to trust |
-| the session cookie is withheld | a plugin cannot act as its caller |
+| the session cookie is withheld | a backend cannot act as its caller |
 | in-memory state survives between calls | the process is not per-request |
-| the data directory is writable | `DataDir` works and is the plugin's own |
+| the data directory is writable | `DataDir` works and is the backend's own |
 | real Go work runs on the server | `fib(30)` and a prime sieve, computed host-side |
 | the instance is this application | `Init` handed over the right install |
 | an unknown route is refused | the mux, and `404` rather than a hang |
 | a wrong method is refused | `405` rather than a silent `GET` |
 | a panic costs one request, not the process | the pid is unchanged afterwards |
 
-**Run it after changing anything in `pkg/appplugin`, `internal/integration/pluginhost`,
+**Run it after changing anything in `pkg/applications`, `internal/integration/applications`,
 or the backend routes.** It is the browser-side counterpart to
 `TestBackendPlaygroundRunsFromTheEmbeddedCatalog`, which asserts the same
 things without a browser.
@@ -197,14 +197,14 @@ Then:
 That table is the whole feature in one pass: install gating, scope gating,
 coexistence, ordering, and lifecycle.
 
-### Testing backend plugins without a browser
+### Testing application backends without a browser
 
 `backend-playground` is also exercised headlessly, which is what makes it a
 regression test rather than only a demo:
 
 ```bash
 cd backend
-go test ./internal/integration/pluginhost/ -run TestBackendPlayground -v
+go test ./internal/integration/applications/ -run TestBackendPlayground -v
 ```
 
 That compiles the shipped application from the embedded catalog, runs it, and asserts
@@ -224,14 +224,14 @@ id except their own tests:
   cover the explicit `ui` manifest path.
 - `registry_test.go:TestRegistryInfersApplicationCapabilities` asserts the discovered capabilities.
 - `registry_backend_test.go:TestRegistryBackendSource` and
-  `pluginhost/catalog_test.go` use `backend-playground`.
+  `applications/catalog_test.go` use `backend-playground`.
 
 Update those if you remove it.
 
 ## Writing your own fixture
 
 If you are adding a slot or an extension API method, extend `ui-playground`
-rather than making a fourth fixture; if you are adding to the plugin contract,
+rather than making a fourth fixture; if you are adding to the backend contract,
 extend `backend-playground`. The point of both is to be the one place that
 exercises everything. Add:
 

@@ -58,7 +58,7 @@ hold for a project install to render:
    from its own project's sidebar row, which stays on screen the whole time.
 2. **Where the surface belongs to a project of its own** — a project row, a
    chat header, a composer, that project's Applications page — it is one of
-   those projects. This is what keeps a plugin off *other* projects' rows while
+   those projects. This is what keeps a extension off *other* projects' rows while
    its own project is open.
 
 **Surfaces that are explicitly global** — the server-wide Applications settings
@@ -110,7 +110,7 @@ the extension's choice; scope is not.
 
 The sandbox is not merely absent from beta's chat header — it is absent from
 alpha's own sidebar row too, for as long as the user is reading beta. Leaving a
-project puts its plugins away entirely.
+project puts its extensions away entirely.
 
 ## Multiple installs of one application
 
@@ -118,7 +118,7 @@ The same application can be installed globally and in several projects at once. 
 backend unions them into one entry:
 
 ```json
-{ "application": { "id": "my-plugin", … }, "global": true, "projectIds": ["p1", "p2"] }
+{ "application": { "id": "my-extension", … }, "global": true, "projectIds": ["p1", "p2"] }
 ```
 
 The extension is loaded **once** and its contributions are scoped to that

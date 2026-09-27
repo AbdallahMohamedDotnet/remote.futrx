@@ -2,7 +2,7 @@
 
 Every application declares a `version` in its `application.json`. It is required, and it is
 not decoration: it is the signal that decides whether an already-installed copy
-of an application has its install script run again.
+of an application's container side is converged again.
 
 ```json
 { "id": "s3disk", "name": "s3disk", "version": "0.2.0", … }
@@ -12,9 +12,9 @@ of an application has its install script run again.
 
 An installed instance records the version of the application it was installed from
 (`applicationVersion`). When the catalog's version for that application differs from what
-an instance recorded, that instance's container side is stale — the script that
-provisioned it belonged to a different release — and the install script is run
-again against it.
+an instance recorded, that instance's container side is stale. Remote rebuilds
+container programs, re-runs any custom install script, and rematerializes the
+manifest service against that same instance.
 
 Two things follow from "differs" rather than "is newer":
 
@@ -31,13 +31,14 @@ Two things follow from "differs" rather than "is newer":
 | Part of an application | When it refreshes |
 |---|---|
 | `infra/install.sh` | Only when the version differs |
+| Manifest `service` | On install/upgrade; start and stop then use the installed unit |
+| `backend/container/` programs | When their source digest or application version differs |
 | `ui/` assets | Every upload — they are served from the catalog, not a container |
-| `backend/` Go source | Every upload — the plugin process is stopped and rebuilt on its next call |
+| `backend/` Go source | Every upload — the backend process is stopped and rebuilt on its next call |
 | Catalog metadata (name, description, env fields, scopes) | Every upload |
 
-A `ui` or `backend` application reaches no container at all, so a version bump on one
-changes the catalog entry and nothing else. There is no install script for it
-to re-run.
+A UI-only or host-backend-only application reaches no container at all, so a
+version bump on one changes the catalog entry and nothing else.
 
 ## When the upgrade happens
 

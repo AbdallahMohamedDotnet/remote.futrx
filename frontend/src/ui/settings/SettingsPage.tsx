@@ -31,16 +31,8 @@ import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
 import { ApplicationsSection } from "../applications/ApplicationsSection";
 import type { ApplicationsController } from "../../state/hooks/applications/useApplications";
 
-export type SettingsTab =
-  | "appearance"
-  | "notifications"
-  | "agents"
-  | "users"
-  | "security"
-  | "applications"
-  | "updates"
-  | "info"
-  | "usage";
+import type { SettingsTab } from "../../models/workspace";
+export type { SettingsTab } from "../../models/workspace";
 
 const tabs: Array<{
   id: SettingsTab;
@@ -69,7 +61,7 @@ const tabs: Array<{
   {
     id: "usage",
     label: "Usage",
-    description: "Track tokens and estimated cost per project, user, provider, and model.",
+    description: "Track token usage per project, user, provider, and model.",
     Icon: Activity,
   },
   {

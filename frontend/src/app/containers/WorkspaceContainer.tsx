@@ -42,6 +42,8 @@ export function WorkspaceContainer() {
         <SettingsContainer
           onBack={workspace.showChat}
           onHamburger={workspace.openSidebar}
+          activeTab={workspace.ui.settingsTab}
+          onTabChange={workspace.selectSettingsTab}
         />
       ) : workspace.ui.view === "project-containers" ? (
         <ProjectContainersContainer

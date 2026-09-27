@@ -51,7 +51,7 @@ func serviceApplicationAt(version string) Application {
 		Install: "infra/install.sh",
 		Scopes:  []Scope{ScopeGlobal, ScopeProject},
 		Port:    Port{Internal: 5432},
-		Service: "db",
+		Service: &ApplicationService{Name: "db", Command: []string{"/usr/local/bin/db"}},
 	}
 }
 
@@ -149,7 +149,12 @@ func TestUploadDoesNotReinstallWhenTheVersionIsUnchanged(t *testing.T) {
 	store := &fakeStore{global: []Instance{installedAt("g1", "", "1.0.0", StatusRunning)}}
 	installer := &failingInstaller{}
 	registry := &versionedRegistry{application: serviceApplicationAt("1.0.0")}
-	catalog := &recordingCatalog{pkg: Package{ID: "db", Version: "1.0.0"}}
+	catalog := &recordingCatalog{
+		pkg: Package{ID: "db", Version: "1.0.0"},
+		stored: []PackageView{{Package: Package{
+			ID: "db", Version: "1.0.0",
+		}}},
+	}
 	host := &recordingHost{}
 	service := upgradeService(store, registry, installer, catalog, host)
 
@@ -163,10 +168,10 @@ func TestUploadDoesNotReinstallWhenTheVersionIsUnchanged(t *testing.T) {
 	if len(pkg.Upgraded) != 0 {
 		t.Fatalf("upgrade outcomes = %+v, want none", pkg.Upgraded)
 	}
-	// The plugin is still refreshed: its source may have changed even when the
-	// container side did not, and restarting it costs nothing.
-	if len(host.stopped) != 1 || host.stopped[0] != "g1" {
-		t.Fatalf("plugin was not refreshed: %v", host.stopped)
+	// The backend is still refreshed application-wide: its source may have
+	// changed even when the container side did not.
+	if len(host.invalidated) != 1 || host.invalidated[0] != "db" {
+		t.Fatalf("backend was not invalidated: %v", host.invalidated)
 	}
 }
 
@@ -200,7 +205,7 @@ func TestUploadDoesNotReinstallApplicationsWithNoContainerSide(t *testing.T) {
 			application := serviceApplicationAt("2.0.0")
 			application.Install = ""
 			application.Port = Port{}
-			application.Service = ""
+			application.Service = nil
 			if capability == "ui" {
 				application.UI = &ApplicationUI{}
 			} else {
@@ -227,6 +232,22 @@ func TestUploadDoesNotReinstallApplicationsWithNoContainerSide(t *testing.T) {
 				t.Fatalf("outcomes = %+v, want none", pkg.Upgraded)
 			}
 		})
+	}
+}
+
+func TestNeedsUpgradeWhenContainerSourceChanges(t *testing.T) {
+	application := serviceApplicationAt("1.0.0")
+	application.Install = ""
+	application.Container = &ApplicationContainer{BuildVersion: "1.0.0+newdigest"}
+	instance := installedAt("g1", "", "1.0.0", StatusRunning)
+	instance.ContainerBuildVersion = "1.0.0+olddigest"
+
+	if !needsUpgrade(instance, application) {
+		t.Fatal("container source change did not require reprovisioning")
+	}
+	instance.ContainerBuildVersion = application.Container.BuildVersion
+	if needsUpgrade(instance, application) {
+		t.Fatal("matching application and container build versions require an upgrade")
 	}
 }
 
@@ -257,10 +278,14 @@ func TestUploadLeavesStoppedInstancesAlone(t *testing.T) {
 
 // …and the upgrade it skipped happens when its owner starts it again.
 func TestStartingAStaleInstanceReinstallsIt(t *testing.T) {
-	store := &fakeStore{global: []Instance{installedAt("g1", "", "1.0.0", StatusStopped)}}
+	stale := installedAt("g1", "", "1.0.0", StatusStopped)
+	stale.Env = map[string]string{"REMOVED_PASSWORD": "stale-secret"}
+	application := serviceApplicationAt("2.0.0")
+	application.Env = []EnvVar{{Key: "GREETING", Default: "Hello"}}
+	store := &fakeStore{global: []Instance{stale}}
 	installer := &failingInstaller{}
 	service := upgradeService(
-		store, &versionedRegistry{application: serviceApplicationAt("2.0.0")}, installer, nil, nil)
+		store, &versionedRegistry{application: application}, installer, nil, nil)
 
 	view, err := service.Start(context.Background(), "g1")
 	if err != nil {
@@ -271,6 +296,16 @@ func TestStartingAStaleInstanceReinstallsIt(t *testing.T) {
 	}
 	if view.ApplicationVersion != "2.0.0" {
 		t.Fatalf("recorded version = %q, want 2.0.0", view.ApplicationVersion)
+	}
+	if got := installer.installed[0].Instance.Env; len(got) != 1 || got["GREETING"] != "Hello" {
+		t.Fatalf("upgrade env = %v, want current defaults without removed values", got)
+	}
+	stored, ok, err := store.Get(context.Background(), "g1")
+	if err != nil || !ok {
+		t.Fatalf("stored upgraded instance: ok=%v err=%v", ok, err)
+	}
+	if len(stored.Env) != 1 || stored.Env["GREETING"] != "Hello" {
+		t.Fatalf("stored env = %v, want pruned current inputs", stored.Env)
 	}
 
 	// Starting a current instance is an ordinary start, not a re-install.

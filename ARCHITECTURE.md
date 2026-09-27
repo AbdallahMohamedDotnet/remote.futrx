@@ -97,8 +97,13 @@ Three **separate** concerns, deliberately not conflated ([deep dive](docs/02-wor
 
 1. **Platform identity.** Exactly one local-admin account (email + password, argon2id, min 12 chars, in `local-admin.json`); every other user signs in through **Google OAuth only** and must be invited first. There is no self-signup. The first claim is gated on a one-time token generated at startup and printed only to the server terminal (`setup-token.json` holds its SHA-256, never the token), so an unclaimed server cannot be taken over by whoever loads the page first; once an administrator exists, that administrator authorises any further claim instead.
 2. **Agent-provider credentials.** Host-wide OAuth tokens for
-   Claude/Codex/Kimi, connected once by an admin and **shared by all projects
-   and users** on the box. MiniMax instead reads `MINIMAX_API_KEY` from each
+   Claude/Codex/Kimi, managed by an admin and **shared by all projects and
+   users** on the box. Claude and Codex can each retain multiple named
+   subscription credentials but expose one validated active host identity at
+   a time. The saved-account vault (`agent-accounts.json`) and its activation
+   rules belong to [`service/agent/auth`](backend/internal/service/agent/auth);
+   provider adapters supply only credential placement, validation, identity,
+   and isolated login. MiniMax instead reads `MINIMAX_API_KEY` from each
    project's secret store, while Antigravity authenticates through `agy`
    inside one project and stores that state in its project-specific durable
    provider mount.
@@ -192,7 +197,7 @@ retains native CLI argument and transport ownership.
 
 The explicit composition root in
 [`config/agents.go`](backend/internal/config/agents.go) only lists provider
-`NewFactory` functions in deterministic order. There is no plugin discovery or
+`NewFactory` functions in deterministic order. There is no backend discovery or
 package `init` registration. `service.New` passes application-facing
 `module.BuildDependencies`—the narrow
 [`ProjectResolver`](backend/internal/agent/project.go), full container ports,
@@ -230,6 +235,7 @@ A chat with **no project** ("loose chat") runs the CLI directly on the host inst
 | Project secrets | `DATA_DIR/projectsecrets/<id>.json` | JSON | **plaintext**, mode 0600, not encrypted at rest |
 | Public preview links | `DATA_DIR/projectshares/<id>.json` | JSON | SHA-256 token digests only, mode 0600 |
 | Chat events | `DATA_DIR/chats/<id>/events.jsonl` | JSONL | append-only, monotonic `seq`, no rotation |
+| Agent quota snapshots | `DATA_DIR/agent-quota.json` | JSON | latest provider-reported plan windows per provider account, mode 0600 |
 | Chat event index | `DATA_DIR/transcript-index.sqlite` | SQLite | disposable event-offset and transcript-turn index rebuilt from chat JSONL |
 | Scheduled tasks | `DATA_DIR/scheduled-tasks/tasks.json` | JSON | definitions, deadlines, durable claims, pending state, and last outcomes |
 | Push subscriptions | `DATA_DIR/push-subscriptions/sha256-<hash>.json` | JSON | one file per user, filename hashes the email |
@@ -304,7 +310,7 @@ trusting the extension. Stylesheets
 are injected, `scripts/main.js` is dynamically imported, and it registers
 contributions into a closed set of named slots ([`frontend/src/app/extensions/`](frontend/src/app/extensions/)):
 the chat header rail, the composer deck, project rows, the sidebar header and
-its search field, and the applications surfaces. This is what lets a plugin add
+its search field, and the applications surfaces. This is what lets a backend add
 interface — an icon that opens a workspace in another editor, a panel, a popup —
 alongside whatever its `install.sh` provisions in a container. Each slot carries
 its own icon sizing, so a contributed button matches its neighbours without the
@@ -316,41 +322,41 @@ handler is caught per contribution.
 An application also declares a `type`: a `service` application runs software on a port and
 gets a container (a dedicated LXD one at global scope), while `ui` and
 `backend` applications install nothing in any container — their whole payload is the
-extension or the plugin, so installing one allocates no container, port, or
+extension or the backend, so installing one allocates no container, port, or
 proxy device. That keeps "add a button to the UI" from provisioning a Linux
 container to do it, and both install on a host with no container runtime at
 all.
 
-**Catalog backend plugins.** The other half of "everything is a plugin": an
+**Catalog application backends.** The other half of "everything is a backend": an
 application may also ship a `backend/` directory of Go source
-([`docs/dev/installable-applications/15-backend-plugins.md`](docs/dev/installable-applications/15-backend-plugins.md)).
+([`docs/dev/installable-applications/15-application-backends.md`](docs/dev/installable-applications/15-application-backends.md)).
 The server compiles it and runs it as a child process over
 **hashicorp/go-plugin**, one process per installed instance, and forwards HTTP
 calls to it at `/api/applications/<instance>/backend/<path>` — which the
 application's own `ui/` reaches through `remote.backend.call(...)`. So an application can
 add a *server-side* feature rather than only a button that calls an endpoint
-someone else had to write. The contract a plugin implements is
-[`pkg/appplugin`](backend/pkg/appplugin/), a dependency-free package of wire
-types; the transport that carries it is `pkg/appplugin/pluginrpc`, deliberately
-go-plugin's net/rpc mode rather than gRPC, since plugins are Go programs
+someone else had to write. The contract a backend implements is
+[`pkg/applications`](backend/pkg/applications/), a dependency-free package of wire
+types; the transport that carries it is `pkg/applications/rpc`, deliberately
+go-plugin's net/rpc mode rather than gRPC, since backends are Go programs
 compiled from a catalog embedded in this same binary and a language-neutral
 protocol would buy nothing but protobuf codegen.
 
 The catalog ships **source, not binaries**, because it is embedded in a server
 that runs on whatever architecture it runs on, and because source is reviewable
-as a diff. [`internal/integration/pluginhost`](backend/internal/integration/pluginhost/)
+as a diff. [`internal/integration/applications`](backend/internal/integration/applications/)
 materializes an application's `backend/` beside a copy of the SDK into a generated
 module whose dependency versions are read from the running binary's own build
 info — so `go build` resolves entirely from the module cache the server's build
 already populated, and the normal path needs no network. Binaries are cached by
 a fingerprint of source, SDK, module files, and Go version, so a cold build
-happens once per edit and every later start is a stat and a handshake. Plugins
+happens once per edit and every later start is a stat and a handshake. Backends
 restart lazily: a crash, a stop, or a server restart is repaired by the next
 call, which is why the per-instance `DataDir` the host assigns is the only
 storage that survives.
 
 The trust boundary here is **the build, not the request** — for both halves,
-and it has to carry more weight for the plugin one. `ui/` assets are embedded
+and it has to carry more weight for the backend one. `ui/` assets are embedded
 by `//go:embed` next to the SPA and served from
 `/api/applications/catalog/<application>/ui/<path>` to signed-in users only, so
 extension code carries exactly the privileges of first-party frontend code and
@@ -360,10 +366,10 @@ install's secrets, so it is reviewed as backend code. There is no sandbox for
 either and none is implied; the server-side guarantees are narrower and
 specific — the registry resolves asset paths inside one application's `ui/` and
 nowhere else, responses are typed from the file extension with `nosniff`, and
-on the plugin path the caller identity is stamped from the session while the
-caller's own `Cookie` and `Authorization` headers are withheld, so a plugin can
+on the backend path the caller identity is stamped from the session while the
+caller's own `Cookie` and `Authorization` headers are withheld, so a backend can
 authorize a user without being able to act as them. Process isolation buys
-robustness rather than containment: a panicking or hanging plugin costs one
+robustness rather than containment: a panicking or hanging backend costs one
 call, not the server.
 
 **Agent authentication UI.** The frontend loads ordered module metadata and a
@@ -430,7 +436,7 @@ These are the boundaries the [threat model](docs/threat-model.md) reasons about:
 - [`docs/01-overview/`](docs/01-overview/) — system overview and the code map
 - [`docs/02-workspaces/`](docs/02-workspaces/) — auth, projects/containers, chat/agents, workspace tools
 - [`docs/dev/agents/`](docs/dev/agents/) — agent module contracts and the complete extension guide
-- [`docs/dev/installable-applications/`](docs/dev/installable-applications/) — the installable-application format, extension slots, and backend plugins
+- [`docs/dev/installable-applications/`](docs/dev/installable-applications/) — the installable-application format, extension slots, and application backends
 - [`docs/03-platform/`](docs/03-platform/) — previews & browser, data & frontend state, API & realtime
 - [`docs/04-operations/`](docs/04-operations/) — deployment and operations
 - [Threat model](docs/threat-model.md) · [Known limitations](docs/known-limitations.md)

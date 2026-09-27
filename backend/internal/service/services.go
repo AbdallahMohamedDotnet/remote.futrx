@@ -12,6 +12,7 @@ import (
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
+	agentquota "github.com/futrx-com/remote.futrx.com/internal/service/agent/quota"
 	serviceapplications "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
@@ -71,11 +72,13 @@ type Dependencies struct {
 	SessionRegistry   serviceauth.SessionRegistryStore
 	Push              PushStore
 	Usage             serviceusage.Repository
+	AgentQuota        agentquota.Repository
 	AuthBaseURL       string
 	ProjectContainers serviceproject.ContainerDependencies
 	AgentContainers   provisioning.ContainerDependencies
 	AgentModules      *agentmodule.Catalog
 	AgentAPIKeys      agentauth.APIKeyStore
+	AgentAccounts     agentauth.AccountStore
 	AgentOptions      AgentOptions
 	AuthOptions       AuthOptions
 	TmuxClient        TmuxClient
@@ -89,7 +92,7 @@ type Dependencies struct {
 	AppRegistry  serviceapplications.Registry
 	AppInstaller serviceapplications.Installer
 	AppPorts     serviceapplications.PortAllocator
-	// AppBackends runs the Go plugins applications ship in their backend/ directory.
+	// AppBackends runs the application backends applications ship in their backend/ directory.
 	// Leaving it nil keeps every other application capability working and
 	// reports backend calls as unavailable.
 	AppBackends serviceapplications.BackendHost
@@ -97,6 +100,12 @@ type Dependencies struct {
 	// of packages an administrator uploaded. Nil leaves the catalog to whatever
 	// the binary was built with.
 	AppPackages serviceapplications.PackageCatalog
+	// ApplicationLifecycle receives successful application catalog and
+	// installed-copy transitions. Subscribers are wired at the process root.
+	ApplicationLifecycle serviceapplications.ApplicationLifecyclePublisher
+	// ApplicationEvents is the process-wide validated event stream routed to
+	// subscribed application backends.
+	ApplicationEvents serviceapplications.EventSource
 }
 
 // ScheduleLimits mirrors the deployment's scheduled-task guardrails without
@@ -150,6 +159,7 @@ type Services struct {
 	Push              *servicepush.Service
 	Presence          *servicepresence.Service
 	Usage             *serviceusage.Service
+	AgentQuota        *agentquota.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -174,7 +184,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	// created empty here and populated once they exist — the same late
 	// binding the run hub uses above.
 	presenceService := servicepresence.New()
-	pushNotifier := &chatPushNotifier{chats: deps.Chats, presence: presenceService}
+	pushNotifier := &chatPushNotifier{chats: deps.Chats, projects: deps.Projects, presence: presenceService}
 	chats := notifyingChatRepository{
 		Repository: deps.Chats,
 		workspace:  workspace,
@@ -203,6 +213,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Projects:              agentProjectResolver{projects: projectService},
 		Containers:            deps.AgentContainers,
 		APIKeys:               deps.AgentAPIKeys,
+		Accounts:              agentauth.NewAccountVault(deps.AgentAccounts),
 		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,
 	})
 	if err != nil {
@@ -267,6 +278,10 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		usageService = serviceusage.New(deps.Usage, projectService, chats)
 		promptOptions = append(promptOptions, prompt.WithUsageRecorder(usageService))
 	}
+	// The quota service is built even without a store: readings still show for
+	// the life of the process, they just do not survive a restart.
+	agentQuotaService := agentquota.New(ctx, deps.AgentQuota, agentRuntime.PlanUsageReaders()...)
+	promptOptions = append(promptOptions, prompt.WithQuotaRecorder(agentQuotaService))
 	promptService := prompt.New(
 		chats,
 		deps.TmuxClient,
@@ -328,6 +343,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			deps.AppPorts,
 			serviceapplications.WithBackendHost(deps.AppBackends),
 			serviceapplications.WithPackageCatalog(deps.AppPackages),
+			serviceapplications.WithLifecyclePublisher(deps.ApplicationLifecycle),
+			serviceapplications.WithEventSource(ctx, deps.ApplicationEvents),
 		)
 	}
 
@@ -357,6 +374,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Push:              pushService,
 		Presence:          presenceService,
 		Usage:             usageService,
+		AgentQuota:        agentQuotaService,
 	}, nil
 }
 

@@ -17,7 +17,7 @@ import (
 // The catalog is server-wide, so every route here is admin-only — the same
 // audience as installing a global application, and for the same reason: a
 // package ships an install script, a browser extension and possibly a server
-// plugin, all of which run with the server's own privileges once installed.
+// backend, all of which run with the server's own privileges once installed.
 
 // packageFormField is the multipart field the SPA sends the archive in. A raw
 // application/zip body is accepted too, for `curl --data-binary`.

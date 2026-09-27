@@ -2,6 +2,7 @@ package applications
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"path"
@@ -24,6 +25,9 @@ const (
 	// containerSkillsRoot is the project source of truth for agent skills;
 	// provider-specific directories are symlinks onto it.
 	containerSkillsRoot = "/workspace/.agents/skills"
+	serviceConfigRoot   = "/etc/remote/applications"
+	serviceUnitRoot     = "/etc/systemd/system"
+	workspaceIdleRoot   = "/etc/remote/workspace-idle.d"
 
 	execTimeout    = 8 * time.Minute
 	controlTimeout = 30 * time.Second
@@ -31,8 +35,6 @@ const (
 
 	// healthTimeout bounds one run of an application's readiness probe, and healthWait
 	// bounds how long the probe is retried before the install is called failed.
-	// The install script is expected to wait for its own service, so this is the
-	// margin around it rather than the wait itself.
 	healthTimeout = 15 * time.Second
 	healthWait    = 60 * time.Second
 
@@ -61,8 +63,8 @@ func NewInstaller(runner command.Runner, registry *Registry, dataDir string) *In
 
 var _ svc.Installer = (*Installer)(nil)
 
-// Install (re)runs the application's install script inside the target container and
-// (re)creates the proxy device that exposes it on the host.
+// Install converges the application's container programs, optional custom
+// installer, manifest service, health check, and host proxy in that order.
 func (in *Installer) Install(ctx context.Context, spec svc.InstallSpec) error {
 	if err := in.ensureHostTools(ctx, spec); err != nil {
 		return err
@@ -71,6 +73,9 @@ func (in *Installer) Install(ctx context.Context, spec svc.InstallSpec) error {
 		return err
 	}
 	if err := in.runInstallScript(ctx, spec); err != nil {
+		return err
+	}
+	if err := in.installService(ctx, spec); err != nil {
 		return err
 	}
 	if err := in.awaitHealthy(ctx, spec); err != nil {
@@ -133,7 +138,7 @@ func (in *Installer) ensureHostTools(ctx context.Context, spec svc.InstallSpec) 
 // shares a container that stays up, so its unit is exactly what Stop stopped.
 // Either way systemctl start on a running unit is a no-op.
 func (in *Installer) startService(ctx context.Context, spec svc.InstallSpec) error {
-	name := spec.Application.Service
+	name := spec.Application.ServiceName()
 	if name == "" {
 		return nil
 	}
@@ -145,10 +150,9 @@ func (in *Installer) startService(ctx context.Context, spec svc.InstallSpec) err
 }
 
 // awaitHealthy runs the application's readiness probe inside the container until it
-// passes. An application that declares none is ready as soon as its install script
-// returns, which is the common case; one that does is saying that its service
-// keeps starting after the script exits, and reporting an app as running before
-// its own probe agrees would hand the user a port that answers nothing.
+// passes. An application that declares none is ready as soon as provisioning
+// and service startup return; reporting one with a probe as running before its
+// own check agrees would hand the user a port that answers nothing.
 func (in *Installer) awaitHealthy(ctx context.Context, spec svc.InstallSpec) error {
 	command := strings.TrimSpace(spec.Application.Healthcheck.Command)
 	if command == "" {
@@ -186,7 +190,7 @@ func (in *Installer) Stop(ctx context.Context, spec svc.InstallSpec) error {
 		_, _ = command.RunWithTimeout(ctx, in.runner, controlTimeout, "stop", "--force", inst.ContainerName)
 		return nil
 	}
-	if svcName := spec.Application.Service; svcName != "" {
+	if svcName := spec.Application.ServiceName(); svcName != "" {
 		_, _ = in.exec(ctx, inst.ContainerName, nil, controlTimeout, "systemctl", "stop", svcName)
 	}
 	return nil
@@ -198,6 +202,12 @@ func (in *Installer) Stop(ctx context.Context, spec svc.InstallSpec) error {
 func (in *Installer) Uninstall(ctx context.Context, spec svc.InstallSpec) error {
 	inst := spec.Instance
 	if inst.Scope == svc.ScopeGlobal {
+		// A failed legacy install may have been persisted before container target
+		// resolution completed. There is no container footprint to remove in that
+		// case, and passing an empty name to LXD turns Retry into a permanent error.
+		if inst.ContainerName == "" {
+			return nil
+		}
 		// Deleting the container also drops its proxy device.
 		if _, err := command.RunWithTimeout(ctx, in.runner, launchTimeout, "delete", "--force", inst.ContainerName); err != nil {
 			if !isMissing(err, "") {
@@ -209,8 +219,9 @@ func (in *Installer) Uninstall(ctx context.Context, spec svc.InstallSpec) error 
 	if err := in.removeDevice(ctx, inst.ContainerName, inst.DeviceName); err != nil {
 		return err
 	}
-	if svcName := spec.Application.Service; svcName != "" {
+	if svcName := spec.Application.ServiceName(); svcName != "" {
 		_, _ = in.exec(ctx, inst.ContainerName, nil, controlTimeout, "systemctl", "disable", "--now", svcName)
+		in.removeServiceFiles(ctx, spec)
 	}
 	in.removeSkills(ctx, spec)
 	return nil
@@ -287,9 +298,12 @@ func (in *Installer) ensureContainer(ctx context.Context, spec svc.InstallSpec) 
 	}
 }
 
-// runInstallScript pipes the application's install script into `bash -s` inside the
-// container with the resolved env applied.
+// runInstallScript pipes the generated container build and optional custom
+// installer into `bash -s` inside the container with the resolved env applied.
 func (in *Installer) runInstallScript(ctx context.Context, spec svc.InstallSpec) error {
+	if spec.Application.Install == "" && spec.Application.Container == nil {
+		return nil
+	}
 	script, ok := in.registry.Script(spec.Application.ID)
 	if !ok {
 		return fmt.Errorf("no install script for application %q", spec.Application.ID)
@@ -307,11 +321,148 @@ func (in *Installer) runInstallScript(ctx context.Context, spec svc.InstallSpec)
 // healthcheck gets the same one as the install script, since a probe that has
 // to authenticate needs the password that script generated.
 func (in *Installer) scriptEnv(spec svc.InstallSpec) map[string]string {
-	env := map[string]string{"APP_INTERNAL_PORT": strconv.Itoa(spec.Instance.InternalPort)}
+	env := make(map[string]string, len(spec.Instance.Env)+5)
 	for k, v := range spec.Instance.Env {
 		env[k] = v
 	}
+	// Manifest-owned values are supplied by Remote so an application-specific
+	// provisioner never has to repeat them. Assign them after user inputs so an
+	// env[] declaration cannot impersonate platform metadata.
+	env["APP_APPLICATION_ID"] = spec.Application.ID
+	env["APP_APPLICATION_NAME"] = spec.Application.Name
+	env["APP_APPLICATION_VERSION"] = spec.Application.Version
+	env["APP_SERVICE"] = spec.Application.ServiceName()
+	env["APP_INTERNAL_PORT"] = strconv.Itoa(spec.Instance.InternalPort)
 	return env
+}
+
+// installService materializes the manifest's service declaration as files
+// owned by Remote, then enables and restarts the unit. Application install
+// scripts never need to write systemd configuration or duplicate lifecycle
+// behavior.
+func (in *Installer) installService(ctx context.Context, spec svc.InstallSpec) error {
+	service := spec.Application.Service
+	if service == nil {
+		return nil
+	}
+
+	configDir := path.Join(serviceConfigRoot, service.Name)
+	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout,
+		"install", "-d", "-m", "755", configDir, workspaceIdleRoot); err != nil {
+		return fmt.Errorf("prepare service %s in %s: %w; output: %s",
+			service.Name, spec.Instance.ContainerName, err, tail(out))
+	}
+
+	environment := serviceEnvironment(spec)
+	unit := serviceUnit(spec, path.Join(configDir, "environment"))
+	if err := in.publisher.PushVerified(ctx, spec.Instance.ContainerName, environment,
+		path.Join(configDir, ".environment.sha256"), "600", path.Join(configDir, "environment")); err != nil {
+		return fmt.Errorf("publish service %s environment: %w", service.Name, err)
+	}
+	if err := in.publisher.PushVerified(ctx, spec.Instance.ContainerName, unit,
+		path.Join(configDir, ".unit.sha256"), "644", serviceUnitPath(service.Name)); err != nil {
+		return fmt.Errorf("publish service %s unit: %w", service.Name, err)
+	}
+	if err := in.publisher.PushVerified(ctx, spec.Instance.ContainerName, []byte(service.Name+"\n"),
+		path.Join(configDir, ".idle.sha256"), "644", path.Join(workspaceIdleRoot, service.Name)); err != nil {
+		return fmt.Errorf("publish service %s idle declaration: %w", service.Name, err)
+	}
+
+	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "systemctl", "daemon-reload"); err != nil {
+		return fmt.Errorf("reload systemd for %s in %s: %w; output: %s",
+			service.Name, spec.Instance.ContainerName, err, tail(out))
+	}
+	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "systemctl", "enable", service.Name); err != nil {
+		return fmt.Errorf("enable %s in %s: %w; output: %s",
+			service.Name, spec.Instance.ContainerName, err, tail(out))
+	}
+	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "systemctl", "restart", service.Name); err != nil {
+		return fmt.Errorf("restart %s in %s: %w; output: %s",
+			service.Name, spec.Instance.ContainerName, err, tail(out))
+	}
+	return nil
+}
+
+func serviceEnvironment(spec svc.InstallSpec) []byte {
+	var contents strings.Builder
+	for _, variable := range spec.Application.Service.Environment {
+		contents.WriteString(variable.Key)
+		contents.WriteByte('=')
+		contents.WriteString(base64.StdEncoding.EncodeToString([]byte(spec.Instance.Env[variable.FromEnv])))
+		contents.WriteByte('\n')
+	}
+	return []byte(contents.String())
+}
+
+func serviceUnit(spec svc.InstallSpec, environmentPath string) []byte {
+	service := spec.Application.Service
+	description := service.Description
+	if description == "" {
+		description = spec.Application.Name
+	}
+	command := make([]string, len(service.Command))
+	for index, argument := range service.Command {
+		argument = strings.ReplaceAll(argument, internalPortPlaceholder, strconv.Itoa(spec.Instance.InternalPort))
+		command[index] = systemdArgument(argument)
+	}
+
+	var unit strings.Builder
+	fmt.Fprintf(&unit, "[Unit]\nDescription=%s\nAfter=network.target\n\n", systemdValue(description))
+	unit.WriteString("[Service]\nType=simple\n")
+	fmt.Fprintf(&unit, "EnvironmentFile=%s\nExecStart=%s\n", environmentPath, strings.Join(command, " "))
+	if service.Restart != "" {
+		fmt.Fprintf(&unit, "Restart=%s\n", service.Restart)
+	}
+	if service.RestartSec > 0 {
+		fmt.Fprintf(&unit, "RestartSec=%ds\n", service.RestartSec)
+	}
+	if service.User != "" {
+		fmt.Fprintf(&unit, "User=%s\n", service.User)
+	}
+	if service.Group != "" {
+		fmt.Fprintf(&unit, "Group=%s\n", service.Group)
+	}
+	if service.Hardening.NoNewPrivileges {
+		unit.WriteString("NoNewPrivileges=true\n")
+	}
+	if service.Hardening.PrivateTmp {
+		unit.WriteString("PrivateTmp=true\n")
+	}
+	if service.Hardening.ProtectHome {
+		unit.WriteString("ProtectHome=true\n")
+	}
+	if service.Hardening.ProtectSystem != "" {
+		fmt.Fprintf(&unit, "ProtectSystem=%s\n", service.Hardening.ProtectSystem)
+	}
+	unit.WriteString("\n[Install]\nWantedBy=multi-user.target\n")
+	return []byte(unit.String())
+}
+
+func systemdArgument(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	return `"` + systemdValue(value) + `"`
+}
+
+func systemdValue(value string) string {
+	value = strings.ReplaceAll(value, "%", "%%")
+	return strings.ReplaceAll(value, "$", "$$")
+}
+
+func serviceUnitPath(name string) string {
+	return path.Join(serviceUnitRoot, name+".service")
+}
+
+func (in *Installer) removeServiceFiles(ctx context.Context, spec svc.InstallSpec) {
+	service := spec.Application.Service
+	if service == nil {
+		return
+	}
+	configDir := path.Join(serviceConfigRoot, service.Name)
+	_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "rm", "-f",
+		serviceUnitPath(service.Name), path.Join(workspaceIdleRoot, service.Name))
+	_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "rm", "-rf", configDir)
+	_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "systemctl", "daemon-reload")
 }
 
 // ensureProxy (re)creates the host proxy device for an instance. It removes any
@@ -363,6 +514,9 @@ func (in *Installer) removeDevice(ctx context.Context, container, device string)
 
 // containerState returns "running", "stopped", "frozen", or "missing".
 func (in *Installer) containerState(ctx context.Context, name string) (string, error) {
+	if strings.TrimSpace(name) == "" {
+		return "", fmt.Errorf("container name is required")
+	}
 	out, err := command.RunWithTimeout(ctx, in.runner, controlTimeout, "info", name)
 	if err != nil {
 		if isMissing(err, out) {
@@ -376,7 +530,7 @@ func (in *Installer) containerState(ctx context.Context, name string) (string, e
 			return strings.TrimSpace(strings.TrimPrefix(line, "status:")), nil
 		}
 	}
-	return "", fmt.Errorf("could not parse state of %s from: %s", name, out)
+	return "", fmt.Errorf("could not parse state of %s from: %s", name, tail(out))
 }
 
 // waitNetwork blocks until the container has an IPv4 address, so the first

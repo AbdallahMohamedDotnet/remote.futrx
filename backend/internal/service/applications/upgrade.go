@@ -4,21 +4,22 @@ import "context"
 
 // Upgrading an installed app to a new version of its application.
 //
-// An instance records the `version` from the application.json it was installed from.
-// When the catalog's version for that application no longer matches, the container
-// side is stale: the install script that provisioned it belonged to a
-// different release. Re-running that script is what makes it current, and the
-// recorded version is what tells us it has to happen.
+// An instance records the `version` from the application.json it was installed
+// from and, when present, the build identity derived from backend/container/.
+// When either no longer matches the catalog, the container side is stale.
+// Re-running the install script is what makes it current.
 //
 // The comparison is equality, not ordering. Versions are free text — "8.0",
 // "16", "1.2.3-rc1" — so there is no ordering to read, and none is invented:
 // a version that *differs* re-installs, whether that is forward or back. An
-// author who changes nothing keeps the version and nothing is re-run.
+// author who changes neither the manifest version nor container source keeps
+// the same identities and nothing is re-run.
 //
-// What is deliberately not re-run: nothing at all for a `ui` or `backend`
-// application, because neither provisions anything into a container. Their new code
-// is picked up by reloading the catalog and restarting the plugin, which
-// happens on every package replacement regardless of version.
+// What is deliberately not re-run: nothing at all for a UI-only or host-
+// backend-only application, because neither provisions anything into a
+// container. Their new code is picked up by reloading the catalog and
+// restarting the backend, which happens on every package replacement regardless
+// of version.
 
 // UpgradeOutcome is what happened to one instance when its application's version
 // moved. It is reported rather than logged: an upgrade re-runs an install
@@ -39,8 +40,8 @@ type UpgradeOutcome struct {
 	Error string `json:"error,omitempty"`
 }
 
-// upgradeInstances re-runs the install script for every instance of an application
-// whose recorded version differs from the catalog's.
+// upgradeInstances re-runs the install script for every instance whose recorded
+// application version or container build identity differs from the catalog's.
 //
 // Stopped instances are left alone: re-running an install script also brings
 // the app up, and resurrecting an app an operator deliberately stopped is not
@@ -52,43 +53,64 @@ type UpgradeOutcome struct {
 // already succeeded, and reporting a per-instance failure is more useful than
 // pretending the package was never stored.
 func (s *Service) upgradeInstances(ctx context.Context, applicationID string, instances []Instance) []UpgradeOutcome {
-	application, ok := s.registry.Get(applicationID)
-	if !ok {
+	if _, ok := s.registry.Get(applicationID); !ok {
 		return nil
 	}
 	var outcomes []UpgradeOutcome
-	for _, inst := range instances {
-		if inst.ApplicationID != applicationID || inst.Status == StatusStopped {
+	for _, snapshot := range instances {
+		if snapshot.ApplicationID != applicationID {
 			continue
 		}
-		if !needsUpgrade(inst, application) {
-			continue
+		if outcome, upgraded := s.upgradeInstance(ctx, applicationID, snapshot.ID); upgraded {
+			outcomes = append(outcomes, outcome)
 		}
-		outcome := UpgradeOutcome{
-			InstanceID: inst.ID,
-			Name:       inst.Name,
-			Scope:      inst.Scope,
-			ProjectID:  inst.ProjectID,
-			From:       inst.ApplicationVersion,
-			To:         application.Version,
-		}
-		if err := s.reinstall(ctx, application, &inst); err != nil {
-			outcome.Error = err.Error()
-			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
-		}
-		outcomes = append(outcomes, outcome)
 	}
 	return outcomes
 }
 
+// upgradeInstance reloads and re-evaluates the candidate under its instance
+// lock. UploadPackage supplies a ListAll snapshot, but a concurrent Stop or
+// Uninstall may have committed since that snapshot was taken; stale data must
+// never resurrect or recreate that copy.
+func (s *Service) upgradeInstance(
+	ctx context.Context,
+	applicationID, instanceID string,
+) (UpgradeOutcome, bool) {
+	unlock := s.instanceLocks.lock(instanceID)
+	defer unlock()
+
+	inst, application, err := s.load(ctx, instanceID)
+	if err != nil || inst.ApplicationID != applicationID || inst.Status == StatusStopped {
+		return UpgradeOutcome{}, false
+	}
+	if !needsUpgrade(inst, application) {
+		return UpgradeOutcome{}, false
+	}
+	outcome := UpgradeOutcome{
+		InstanceID: inst.ID,
+		Name:       inst.Name,
+		Scope:      inst.Scope,
+		ProjectID:  inst.ProjectID,
+		From:       inst.ApplicationVersion,
+		To:         application.Version,
+	}
+	if err := s.reinstall(ctx, application, &inst); err != nil {
+		outcome.Error = err.Error()
+		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
+	}
+	return outcome, true
+}
+
 // needsUpgrade reports whether an instance's container side was provisioned by
-// a different version of the application than the catalog now holds.
+// a different application release or container build than the catalog now
+// holds.
 //
 // Only applications that reach a container can be stale. A backend-only
 // application installs nothing to re-install; its new code is picked up by
 // restarting the backend.
 func needsUpgrade(inst Instance, application Application) bool {
-	return application.NeedsContainer() && inst.ApplicationVersion != application.Version
+	return application.NeedsContainer() && (inst.ApplicationVersion != application.Version ||
+		inst.ContainerBuildVersion != application.containerBuildVersion())
 }
 
 // reinstall re-runs an instance's install script against the current application and
@@ -99,12 +121,15 @@ func (s *Service) reinstall(ctx context.Context, application Application, inst *
 	if s.installer == nil {
 		return ErrUnavailable
 	}
+	if err := reconcileInstanceEnv(application, inst); err != nil {
+		return err
+	}
 	if inst.Scope == ScopeProject && s.projects != nil {
 		if err := s.projects.EnsureRunning(ctx, inst.ProjectID); err != nil {
 			return err
 		}
 	}
-	// The plugin is stopped first so the install script is not running
+	// The backend is stopped first so the install script is not running
 	// alongside a process holding the software it is replacing. It comes back
 	// on the next call to it, compiled from the source the new package shipped.
 	if err := s.stopBackend(ctx, application, *inst); err != nil {
@@ -114,5 +139,19 @@ func (s *Service) reinstall(ctx context.Context, application Application, inst *
 		return err
 	}
 	inst.ApplicationVersion = application.Version
+	inst.ContainerBuildVersion = application.containerBuildVersion()
 	return s.saveStatus(ctx, inst, StatusRunning, "")
+}
+
+// reconcileInstanceEnv projects persisted inputs onto the current manifest.
+// It preserves values that still exist, applies defaults/generators for new
+// declarations, and drops removed keys so an upgrade cannot retain obsolete
+// credentials or expose them after their secret declaration disappears.
+func reconcileInstanceEnv(application Application, inst *Instance) error {
+	env, err := resolveEnv(application, inst.Env)
+	if err != nil {
+		return err
+	}
+	inst.Env = env
+	return nil
 }

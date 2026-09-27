@@ -1,10 +1,10 @@
 // The `remote.backend` half of the extension API: the client an application's `ui/`
-// uses to call the Go plugin the same application ships in its `backend/` directory.
+// uses to call the application backend the same application ships in its `backend/` directory.
 //
 // An application can be installed in more than one place, and each install runs its
-// own plugin process, so every call has to resolve to an instance before it
+// own backend process, so every call has to resolve to an instance before it
 // has a URL. That resolution is the only real logic here; the rest is a thin,
-// same-origin `fetch` that reports a plugin's own error message rather than a
+// same-origin `fetch` that reports a backend's own error message rather than a
 // status code.
 
 import type {
@@ -78,8 +78,8 @@ function queryString(
 }
 
 /**
- * Plugins are free to answer with anything, so a body is read as JSON when it
- * says it is one and as text otherwise. A plugin's error text is far more use
+ * Backends are free to answer with anything, so a body is read as JSON when it
+ * says it is one and as text otherwise. A backend's error text is far more use
  * than "500", which is why it survives all the way to the thrown Error.
  */
 async function readBody(response: Response): Promise<unknown> {

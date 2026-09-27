@@ -39,7 +39,7 @@ export type ExtensionEventName =
 
 /**
  * One finished chat attachment. The paths are the container's, because that is
- * what an extension's plugin acts on and what the prompt hands the agent.
+ * what an extension's backend acts on and what the prompt hands the agent.
  */
 export interface CompletedUpload {
   chatId: string;
@@ -158,7 +158,7 @@ export interface ExtensionPopupHandle {
 }
 
 /**
- * Which running plugin a call should reach. An application installed in more than
+ * Which running backend a call should reach. An application installed in more than
  * one place runs a process per install, so a call that does not say resolves
  * to the global one.
  */
@@ -184,25 +184,25 @@ export interface ExtensionBackendCallOptions extends ExtensionBackendTarget {
 }
 
 /**
- * The application's own Go plugin. Present on every extension; `available` is false
+ * The application's own application backend. Present on every extension; `available` is false
  * when the application ships no `backend/` directory or none of its installs are
  * running, which is the case an extension should degrade around rather than
  * throw on.
  */
 export interface ExtensionBackendApi {
   available: boolean;
-  /** Running plugins this extension may call, in install order. */
+  /** Running backends this extension may call, in install order. */
   instances: AppBackendInstance[];
   /** The URL a call would use, for `fetch`, an `<iframe>`, or a download link. */
   url: (path: string, target?: ExtensionBackendTarget) => string;
-  /** What the plugin says about itself, including the routes it serves. */
+  /** What the backend says about itself, including the routes it serves. */
   describe: (target?: ExtensionBackendTarget) => Promise<AppBackendDescriptor>;
-  /** Calls a plugin route and resolves its parsed JSON body. */
+  /** Calls a backend route and resolves its parsed JSON body. */
   call: <T = unknown>(
     path: string,
     options?: ExtensionBackendCallOptions,
   ) => Promise<T>;
-  /** Calls a plugin route and resolves the raw `Response`. */
+  /** Calls a backend route and resolves the raw `Response`. */
   fetch: (
     path: string,
     options?: ExtensionBackendCallOptions,

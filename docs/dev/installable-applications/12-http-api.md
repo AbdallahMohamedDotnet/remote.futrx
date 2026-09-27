@@ -29,7 +29,10 @@ project UI uses the same catalog.
     "port": { "internal": 3306, "defaultExternal": 3306, "protocol": "tcp",
               "bindAddress": "127.0.0.1" },
     "env": [ … ],
-    "service": "mysql",
+    "service": {
+      "name": "mysql",
+      "command": ["/usr/sbin/mysqld", "--port", "{{internalPort}}"]
+    },
     "connection": { "user": "root", "passwordEnv": "MYSQL_ROOT_PASSWORD" },
     "install": "infra/install.sh",
     "ui": {
@@ -119,7 +122,7 @@ registered user.
 ]
 ```
 
-`backends` lists the running plugin processes the extension may call. An application
+`backends` lists the running backend processes the extension may call. An application
 installed in several places runs one process per install, so this is what lets
 `remote.backend` address the right one; it is absent for applications that ship no
 `backend/`.
@@ -172,21 +175,21 @@ Membership is checked by `project_handler.go` before delegating. The handler
 then verifies the instance actually belongs to *this* project, so a member of
 one project cannot control another's app by guessing its id.
 
-## Backend plugin routes
+## Backend backend routes
 
 An instance whose application ships a `backend/` directory is reachable at a `backend`
-sub-path. The bare prefix describes the plugin; anything deeper is forwarded to
+sub-path. The bare prefix describes the backend; anything deeper is forwarded to
 it verbatim.
 
 | Method | Path | Does |
 |---|---|---|
-| `GET` | `/api/applications/{id}/backend` | Describe the plugin |
-| *any* | `/api/applications/{id}/backend/{path…}` | Call the plugin |
+| `GET` | `/api/applications/{id}/backend` | Describe the backend |
+| *any* | `/api/applications/{id}/backend/{path…}` | Call the backend |
 | `GET` | `/api/projects/{projectID}/applications/{id}/backend` | Describe |
 | *any* | `/api/projects/{projectID}/applications/{id}/backend/{path…}` | Call |
 
-Calling a plugin on a **global** instance is the one action there that is not
-admin-only. The plugin is the server side of an extension that renders for
+Calling a backend on a **global** instance is the one action there that is not
+admin-only. The backend is the server side of an extension that renders for
 every signed-in user, so managing the app stays admin-only while calling it
 requires only a session — narrowed to administrators when the application declares
 `"backend": { "access": "admin" }`. Project routes require membership, checked
@@ -215,13 +218,13 @@ before delegation as everywhere else.
 
 The request is forwarded with its method, path, query, body, and headers. Two
 things are **not** forwarded: `Cookie` and `Authorization`. The caller is
-supplied separately, resolved from the session, so a plugin can authorize a
+supplied separately, resolved from the session, so a backend can authorize a
 caller without being able to act as them.
 
 Request bodies are capped at 1 MiB.
 
-The plugin's answer becomes the HTTP response as-is, minus `Set-Cookie` and
-hop-by-hop headers, and always with `X-Content-Type-Options: nosniff`. A plugin
+The backend's answer becomes the HTTP response as-is, minus `Set-Cookie` and
+hop-by-hop headers, and always with `X-Content-Type-Options: nosniff`. A backend
 that sets no status answers `200`; one that sets no content type answers
 `application/octet-stream`.
 
@@ -236,7 +239,7 @@ Content-Type: application/json
 { "key": "greeting", "value": "hello" }
 ```
 
-The full contract is [15 — Backend plugins](15-backend-plugins.md).
+The full contract is [15 — Application backends](15-application-backends.md).
 
 ## Payloads
 
@@ -311,12 +314,12 @@ has authorized:
 | `400` | unknown application, unsupported scope, missing project id, missing required env, port out of range |
 | `401` | no valid session |
 | `403` | admin-only route, non-admin caller |
-| `403` | an `access: admin` plugin and a non-admin caller |
-| `404` | unknown instance, wrong scope for the route, asset not found or out of bounds, the application ships no plugin |
+| `403` | an `access: admin` backend and a non-admin caller |
+| `404` | unknown instance, wrong scope for the route, asset not found or out of bounds, the application ships no backend |
 | `405` | wrong method |
-| `409` | this application is already installed in this scope; a plugin call while the app is stopped |
-| `500` | anything else, including install-script failure, a plugin that failed to compile, and a call that timed out |
-| `503` | applications unavailable (no container runtime configured), or no plugin host |
+| `409` | this application is already installed in this scope; a backend call while the app is stopped |
+| `500` | anything else, including install-script failure, a backend that failed to compile, and a call that timed out |
+| `503` | applications unavailable (no container runtime configured), or no backend host |
 
 Bodies are `{"error": "…"}`. An install-script failure includes the tail of the
 script's output, which is what the UI shows on the instance row.

@@ -14,12 +14,15 @@ Four things live here, and the differences matter:
 - **A UI extension** installs nothing anywhere. It is a `ui/` directory that
   runs in the browser and contributes to defined places in the Remote
   interface: a button in the chat header, a panel, a popup.
-- **A backend plugin** is a `backend/` directory of Go source. The server
-  compiles it and runs it as a process, and the application's `ui/` calls it. It is
-  how an application adds a server-side feature rather than only a button.
+- **An application backend** is a `backend/` directory of Go source. The server
+  compiles its root composition package with imported child packages and runs one
+  process, which the application's `ui/` calls. It is how an application adds a
+  server-side feature rather than only a button. A backend may also publish or
+  subscribe to declared server-side events, conventionally owned by
+  `backend/lifecycle/` and composed by `backend/main.go`.
 
 One application can be any of these, or several at once. A MySQL application can ship a "Connect"
-button alongside the database it provisions and a plugin that runs the queries
+button alongside the database it provisions and a backend that runs the queries
 behind it; an application that only adds a button ships no container side at all.
 
 ## Start here
@@ -28,11 +31,12 @@ behind it; an application that only adds a button ships no container side at all
 |---|---|
 | Understand how the whole thing fits together | [01 — Overview](01-overview.md) |
 | Add infrastructure to the catalog | [03 — Application capabilities](03-application-capabilities.md), [04 — Install scripts](04-install-scripts.md) |
-| Add a button, panel, or popup to the Remote UI | [07 — Tutorial](07-tutorial-build-a-plugin.md) |
-| Add a server-side feature in Go | [15 — Backend plugins](15-backend-plugins.md) |
+| Add a button, panel, or popup to the Remote UI | [07 — Tutorial](07-tutorial-build-an-application.md) |
+| Add a server-side feature in Go | [15 — Application backends](15-application-backends.md) |
 | Look up a field in `application.json` | [02 — application.json reference](02-application-json.md) |
 | Look up an extension API method | [06 — Extension API reference](06-extension-api.md) |
-| Look up the Go plugin contract | [15 — Backend plugins](15-backend-plugins.md) |
+| Look up the application backend contract | [15 — Application backends](15-application-backends.md) |
+| Publish or consume backend events | [18 — Backend event lifecycle](18-application-events.md) |
 | Know where you are allowed to render | [05 — Slots](05-slots.md) |
 | Know who sees your extension | [08 — Scoping and visibility](08-scoping-and-visibility.md) |
 | Make your UI match the app's look | [09 — Styling and icons](09-styling-and-icons.md) |
@@ -51,7 +55,7 @@ behind it; an application that only adds a button ships no container side at all
 4. [Install scripts](04-install-scripts.md) — the contract, the environment, idempotency.
 5. [Slots](05-slots.md) — every place an extension may render, and the context each provides.
 6. [Extension API reference](06-extension-api.md) — the complete `remote` object.
-7. [Tutorial: build a plugin](07-tutorial-build-a-plugin.md) — end to end, from empty directory to working button.
+7. [Tutorial: build an application](07-tutorial-build-an-application.md) — end to end, from empty directory to working button.
 8. [Scoping and visibility](08-scoping-and-visibility.md) — install scope is render scope.
 9. [Styling and icons](09-styling-and-icons.md) — design tokens, theming, the icon field.
 10. [Fixtures](10-fixtures.md) — `ui-playground`, `ui-sandbox`, `backend-playground`, and how to test with them.
@@ -59,9 +63,10 @@ behind it; an application that only adds a button ships no container side at all
 12. [HTTP API](12-http-api.md) — every endpoint, its shape, and its authorization.
 13. [Security model](13-security-model.md) — what is enforced, where, and what is not.
 14. [Troubleshooting](14-troubleshooting.md) — symptoms, causes, fixes.
-15. [Backend plugins](15-backend-plugins.md) — shipping Go that runs on the server, and calling it from `ui/`.
+15. [Application backends](15-application-backends.md) — shipping Go that runs on the server, and calling it from `ui/`.
 16. [Uploaded packages](16-uploaded-packages.md) — the same catalog entry, delivered as a `.zip` at runtime and surviving updates.
 17. [Versions and upgrades](17-versions-and-upgrades.md) — how `version` decides when an installed copy is re-provisioned.
+18. [Backend event lifecycle](18-application-events.md) — lifecycle-package ownership, manifest publishers and subscriptions, namespaces, routing, and delivery guarantees.
 
 ## Conventions in these documents
 

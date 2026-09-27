@@ -6,7 +6,6 @@
 package applications
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"path"
@@ -21,7 +20,7 @@ import (
 // Registry is an in-memory, validated view of an application catalog.
 //
 // It is a live view rather than a snapshot taken at boot: uploading or
-// removing a package reloads it in place, so the installer, the plugin host
+// removing a package reloads it in place, so the installer, the application backend host
 // and the HTTP handlers all see the new catalog without being rebuilt. Every
 // read is therefore taken under a lock.
 type Registry struct {
@@ -46,7 +45,7 @@ type Registry struct {
 type catalogView struct {
 	byID map[string]svc.Application
 	// sources maps application ID -> the filesystem it was loaded from, so assets
-	// and plugin source are read from the right catalog once more than one is
+	// and backend source are read from the right catalog once more than one is
 	// in play.
 	sources map[string]fs.FS
 	// scripts maps application ID -> install script bytes, including payload staging
@@ -171,7 +170,15 @@ func loadCatalogInto(view *catalogView, catalog fs.FS, source svc.ApplicationSou
 				continue
 			}
 		}
-		application, script, err := loadApplication(catalog, id)
+		load := loadApplication
+		if source == svc.SourceUploaded {
+			// Stored uploads predate the strict manifest decoder and deliberately
+			// survive Remote upgrades. Keep the old encoding/json compatibility
+			// rules for those already-committed files; PackageStore.add validates
+			// every new or replacement upload strictly before publishing it.
+			load = loadPersistedApplication
+		}
+		application, script, err := load(catalog, id)
 		if err != nil {
 			err = fmt.Errorf("load application %q: %w", id, err)
 			if reserve == nil {
@@ -194,13 +201,37 @@ func sortCatalog(view *catalogView) {
 }
 
 func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) {
+	return loadApplicationManifest(catalog, id, false)
+}
+
+// loadPersistedApplication preserves the decoder behavior that was in force
+// when an older uploaded package was accepted. Recognized values still pass
+// all current semantic validation and every derived field is recomputed below.
+func loadPersistedApplication(catalog fs.FS, id string) (svc.Application, []byte, error) {
+	return loadApplicationManifest(catalog, id, true)
+}
+
+func loadApplicationManifest(
+	catalog fs.FS,
+	id string,
+	legacyJSONCompatibility bool,
+) (svc.Application, []byte, error) {
 	root := path.Join(catalogRoot, id)
-	raw, err := fs.ReadFile(catalog, path.Join(root, "application.json"))
+	readManifest := readApplicationManifest
+	if legacyJSONCompatibility {
+		readManifest = readPersistedApplicationManifest
+	}
+	raw, err := readManifest(catalog, path.Join(root, "application.json"))
 	if err != nil {
 		return svc.Application{}, nil, fmt.Errorf("read application.json: %w", err)
 	}
 	var application svc.Application
-	if err := json.Unmarshal(raw, &application); err != nil {
+	if legacyJSONCompatibility {
+		err = decodePersistedApplicationManifest(raw, &application)
+	} else {
+		err = decodeApplicationManifest(raw, &application)
+	}
+	if err != nil {
 		return svc.Application{}, nil, fmt.Errorf("parse application.json: %w", err)
 	}
 	if application.ID == "" {
@@ -209,6 +240,15 @@ func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) 
 	if application.ID != id {
 		return svc.Application{}, nil, fmt.Errorf("application id %q does not match directory %q", application.ID, id)
 	}
+	if !packageIDPattern.MatchString(application.ID) {
+		return svc.Application{}, nil, fmt.Errorf(
+			"application id %q must be lowercase letters, digits and dashes, starting with a letter or digit",
+			application.ID,
+		)
+	}
+	// Container metadata is derived from backend/container/ below. A manifest
+	// cannot claim a build identity or commands that the package does not carry.
+	application.Container = nil
 	if err := validateInstallScriptPath(application.Install); err != nil {
 		return svc.Application{}, nil, err
 	}
@@ -230,15 +270,17 @@ func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) 
 	}
 	application.Skills = skills
 
-	var script []byte
-	application.Install, script, err = loadApplicationInfrastructure(catalog, root, application.Install)
+	infrastructure, err := loadApplicationInfrastructure(
+		catalog, root, application.ID, application.Version, application.Install)
 	if err != nil {
 		return svc.Application{}, nil, err
 	}
+	application.Install = infrastructure.installPath
+	application.Container = infrastructure.container
 	if err := validateApplication(application); err != nil {
 		return svc.Application{}, nil, err
 	}
-	return application, script, nil
+	return application, infrastructure.script, nil
 }
 
 // List returns the catalog sorted by display name.
@@ -246,7 +288,9 @@ func (r *Registry) List() []svc.Application {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]svc.Application, len(r.view.sorted))
-	copy(out, r.view.sorted)
+	for i, application := range r.view.sorted {
+		out[i] = cloneApplication(application)
+	}
 	return out
 }
 
@@ -255,7 +299,10 @@ func (r *Registry) Get(id string) (svc.Application, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	application, ok := r.view.byID[id]
-	return application, ok
+	if !ok {
+		return svc.Application{}, false
+	}
+	return cloneApplication(application), true
 }
 
 // Script returns the install script bytes for an application ID.

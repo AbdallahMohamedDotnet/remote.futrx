@@ -13,10 +13,15 @@ applications/
     application.json         metadata and capability configuration
     infra/
       install.sh              provisioner, run inside a container
-      package.sh              builds the optional infrastructure payload
-      payload.tar.gz          files staged for install.sh
-    backend/                  Go backend, compiled and run on the host
-      main.go
+    backend/
+      main.go                 host entry point and composition root
+      api/                    importable request-handling package
+        api.go
+      lifecycle/              importable host package for backend events
+        events.go
+      container/              Go programs built inside the target container
+        main.go                one program named after the application, or:
+        cmd/my-agent/main.go   an explicitly named program
     ui/                       browser extension
       scripts/main.js
       style/
@@ -28,15 +33,24 @@ applications/
   redis/
   ui-playground/       fixture: extension only, no container
   ui-sandbox/          fixture: extension only, no container
-  backend-playground/  fixture: Go plugin plus the UI that calls it
+  backend-playground/  fixture: Go backend plus the UI that calls it
 ```
 
 The only regular files at an application root are `README.md` and
 `application.json`. Everything executable or distributable is grouped by
-capability: provisioning in `infra/`, server code in `backend/`, browser code
-and assets in `ui/`, and project skills in `skills/`. These capability folders
-are optional; the tree above shows the complete layout rather than a list of
-required folders.
+capability: custom provisioning in `infra/`, a host entry point at
+`backend/main.go`, importable host packages in child directories such as
+`backend/api/` and `backend/lifecycle/`, container code in
+`backend/container/`, browser code and assets in `ui/`, and project skills in
+`skills/`. The `backend/` root is the required executable package; a child
+package does not create another process or capability. Remote generates one
+host module from the composition root and its imported child packages and
+excludes `backend/container/`. The former `backend/api/` executable layout is
+accepted only for compatibility with older uploaded packages. Under
+`backend/container/`, `cmd/` is optional: use a root `main.go` for one binary
+named after the application ID, or `cmd/<binary>/` for explicitly named or
+multiple binaries. Once a `cmd/*` program exists, Remote builds the discovered
+command packages rather than the root as an executable.
 
 That directory is `applications/` at the repository root. The whole tree is compiled
 into the server binary with `//go:embed applications` in
@@ -44,10 +58,12 @@ into the server binary with `//go:embed applications` in
 `go:embed` reaches only downwards, so a catalog at the root needs the directive
 at the root — and
 [`registry.go`](../../../backend/internal/integration/containers/applications/registry.go)
-validates and serves what it embedded. There is no runtime backend directory, no
-upload endpoint, and no way to add an application to a running server: adding one
-means adding a directory and rebuilding. That single fact drives most of the
-design, and the whole of the [security model](13-security-model.md).
+validates and serves what it embedded. There is no loose runtime source
+directory, and no package is loaded without the same catalog validation.
+Built-in applications arrive by adding a directory and rebuilding;
+an administrator can also add a validated application ZIP at runtime. See
+[16 — Uploaded packages](16-uploaded-packages.md) and the
+[security model](13-security-model.md).
 
 Adding an application requires **no code changes**. `NewRegistry()` walks the
 directory at startup, validates every entry, and the new app appears in the
@@ -56,13 +72,11 @@ Applications tab.
 ## One application, composable capabilities
 
 ```
-                         application.json
-            /                 |              |             \
- infra/install.sh         backend/          ui/           skills/
-         |                    |              |               |
- provisions a container   runs on the    runs in the     is published to
- (optionally with a port)  host as a      browser         target projects
-                           process
+                              application.json
+            /                       |                    |             \
+ infra/install.sh    backend/{main.go,api/,lifecycle/}  backend/container/  ui/  skills/
+         |                       |                       |              |          |
+ custom provisioning    one host process          container programs browser   projects
 ```
 
 There are no application types and `application.json` has no `type` field.
@@ -71,9 +85,10 @@ optional and independent:
 
 | Capability | Declared by | What Remote does |
 |---|---|---|
-| Infrastructure | `infra/install.sh`, or an `install` path inside `infra/` | Provisions software in a container |
+| Infrastructure | `infra/install.sh`, an `install` path inside `infra/`, `backend/container/`, or a manifest `service` | Provisions software in a container |
 | Network exposure | infrastructure plus `port.internal` | Allocates a host port and adds an LXD proxy device |
-| Backend | `backend/` | Compiles and runs the Go backend on the host |
+| Backend | `backend/main.go`; optional imported child packages such as `backend/api/` and `backend/lifecycle/` | Generates one host module, builds its root, and runs one backend process |
+| Backend event lifecycle | manifest `publishers` / `subscriptions` plus `backend/main.go`; business event behavior conventionally lives in `backend/lifecycle/` | Builds a core-owned runtime from the manifest, validates emissions, and routes matching events |
 | UI | `ui/` | Loads the browser extension |
 | Skills | `skills/*/SKILL.md` | Publishes skills to the target project |
 
@@ -90,7 +105,8 @@ discriminator to keep synchronized with the package layout.
 
 The layout supplies these capabilities directly — see
 [03 — Application capabilities](03-application-capabilities.md). `backend/` is covered in full by
-[15 — Backend plugins](15-backend-plugins.md).
+[15 — Application backends](15-application-backends.md), including its optional
+[event contract](18-application-events.md).
 
 ## The moving parts
 
@@ -122,7 +138,7 @@ flowchart TB
     end
 
     subgraph Integration["integration/containers/applications — the catalog and lxc"]
-        I_Registry["registry.go<br/>validates the catalog, serves ui/ assets and backend/ source"]
+        I_Registry["registry.go<br/>validates the catalog, serves ui/ assets and host backend source"]
         I_RegParts["registry_ui.go / registry_backend.go<br/>registry_packages.go / registry_skills.go"]
         I_Payload["infra_payload.go<br/>stages infra/payload.tar.gz into the install script"]
         I_Installer["installer.go<br/>lxc launch, infra/install.sh, systemd, proxy device"]
@@ -131,13 +147,13 @@ flowchart TB
     end
 
     subgraph Support["Supporting packages"]
-        P_PluginHost["integration/pluginhost<br/>compiles backend/, runs it over go-plugin"]
+        P_ApplicationHost["integration/applications<br/>builds the backend root with child packages, runs it over go-plugin"]
         P_FileApps["stores/fileapplications<br/>global.json, projects/{id}.json"]
         P_HostTools["integration/containers/applications/hosttools<br/>checksum-pinned host binaries"]
     end
 
     subgraph Catalog["applications/ — embedded by go:embed"]
-        C_Hello["hello-remote/<br/>the worked example: backend/ + ui/"]
+        C_Hello["hello-remote/<br/>the worked example: infra + service/port + host tool + backend + ui + skill"]
     end
 
     FE_Section --> FE_Catalog
@@ -163,7 +179,7 @@ flowchart TB
     S_Service --> I_Allocator
     S_Service --> P_FileApps
     S_UIExt --> I_Registry
-    S_Backend --> P_PluginHost
+    S_Backend --> P_ApplicationHost
     S_Packages --> I_Packages
 
     I_Registry --> I_RegParts
@@ -171,7 +187,7 @@ flowchart TB
     I_Registry -. go:embed .-> C_Hello
     I_Installer --> P_HostTools
     I_Packages -. uploaded packages join the catalog .-> I_Registry
-    P_PluginHost -. reads backend/ source from .-> I_Registry
+    P_ApplicationHost -. reads backend host source, excluding container/ .-> I_Registry
 ```
 
 Every arrow out of the service layer crosses an interface it declares itself:
@@ -183,18 +199,18 @@ is what keeps the domain testable without LXD, a Go toolchain, or a disk.
 
 | Layer | File | Responsibility |
 |---|---|---|
-| integration | `containers/applications/registry.go` | loads and validates the embedded catalog; serves `ui/` asset bytes and `backend/` source |
+| integration | `containers/applications/registry.go` | loads and validates the embedded catalog; serves `ui/` assets and the host backend tree while excluding `backend/container/` |
 | integration | `containers/applications/installer.go` | everything `lxc`-facing: containers, install scripts, proxy devices |
-| integration | `pluginhost/` | everything toolchain- and process-facing: compiling `backend/`, running it, forwarding calls |
-| contract | `pkg/appplugin` | the types and interface a plugin is written against |
+| integration | `applications/` | everything toolchain- and process-facing: generating a module for the backend root and its child host packages, compiling `.`, running it, and forwarding calls |
+| contract | `pkg/applications` | the types and interface a backend is written against |
 | service | `service/applications/service.go` | policy: install, lifecycle, which extensions a caller may load |
-| service | `service/applications/backend.go` | policy: who may call a plugin, and when |
+| service | `service/applications/backend.go` | policy: who may call a backend, and when |
 | transport | `transport/http/handlers/applications_handler.go` | routes, authorization, JSON |
-| transport | `transport/http/handlers/applications_backend_handler.go` | forwarding a request to a plugin and its answer back |
+| transport | `transport/http/handlers/applications_backend_handler.go` | forwarding a request to a backend and its answer back |
 
 The layering is strict: transport → service → integration. A handler never
 runs `lxc` and never launches a process; the registry never decides who may see
-what. `pkg/appplugin` sits outside the layering on purpose: it is the public
+what. `pkg/applications` sits outside the layering on purpose: it is the public
 contract, so it depends on nothing but the standard library.
 
 ### Frontend
@@ -205,7 +221,7 @@ contract, so it depends on nothing but the standard library.
 | `app/extensions/extensionApi.ts` | builds the `remote` object handed to each extension |
 | `state/stores/extensions/extensionStore.ts` | owns registered contributions and install visibility |
 | `state/hooks/extensions/extensionContributionState.ts` | decides which contributions apply to a surface |
-| `app/extensions/extensionBackend.ts` | resolves which running plugin a call reaches, and calls it |
+| `app/extensions/extensionBackend.ts` | resolves which running backend a call reaches, and calls it |
 | `config/extensions.ts` | the closed set of slot names and their icon sizing |
 | `app/extensions/extensionPopup.ts` | the modal an extension can open |
 | `ui/primitives/ExtensionSlot.tsx` | renders a slot's contributions into plain DOM nodes |
@@ -224,7 +240,7 @@ sequenceDiagram
     participant Svc as service/applications
     participant Reg as applications.Registry
     participant Store as stores/fileapplications
-    participant Host as pluginhost
+    participant Host as applications
     participant Proj as project service
     participant Inst as applications.Installer
     participant LXD as LXD
@@ -247,7 +263,7 @@ sequenceDiagram
         end
         Svc->>Store: persist as installing — a crash here stays recoverable
         Inst->>LXD: launch the dedicated container (global scope only)
-        Inst->>LXD: run infra/install.sh as root, then start the systemd unit
+        Inst->>LXD: build/provision, materialize the manifest service, then run its healthcheck
         opt port.internal is declared
             Inst->>LXD: add the proxy device that maps the host port
         end
@@ -288,7 +304,7 @@ sequenceDiagram
                                           |
 7. It calls its own backend      remote.backend.call("health")
                                  → /api/applications/<instance>/backend/health
-                                 → the application's compiled Go plugin
+                                 → the application's compiled Go backend
 ```
 
 Steps 2–6 repeat whenever the installed set changes — install, uninstall,

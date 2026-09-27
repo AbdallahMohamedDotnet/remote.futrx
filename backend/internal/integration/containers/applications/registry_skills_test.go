@@ -12,7 +12,7 @@ func skillCatalog(extra map[string]string) (*Registry, error) {
 			"name": "Kit",
 			"version": "1.0.0",
 			"scopes": ["project"],
-			"service": "kit"
+			"service": {"name": "kit", "command": ["/usr/local/bin/kit"]}
 		}`)},
 		"applications/kit/infra/install.sh": &fstest.MapFile{Data: []byte("#!/usr/bin/env bash\n")},
 	}

@@ -20,6 +20,9 @@ func (s *Service) SetPort(ctx context.Context, id string, port int) (View, error
 	if port < 1 || port > 65535 {
 		return View{}, ErrPortRange
 	}
+	unlock := s.instanceLocks.lock(id)
+	defer unlock()
+
 	inst, application, err := s.load(ctx, id)
 	if err != nil {
 		return View{}, err
@@ -51,14 +54,31 @@ func (s *Service) SetPort(ctx context.Context, id string, port int) (View, error
 
 // Uninstall removes an instance and everything it left behind.
 func (s *Service) Uninstall(ctx context.Context, id string) error {
-	inst, application, err := s.load(ctx, id)
+	unlock := s.instanceLocks.lock(id)
+	defer unlock()
+	inst, err := s.uninstallLocked(ctx, id)
 	if err != nil {
 		return err
 	}
-	if err := s.teardown(ctx, application, inst); err != nil {
-		return err
+	s.publishApplicationUninstalled(ctx, inst)
+	return nil
+}
+
+// uninstallLocked tears down one installed copy while its instance lock is
+// held. The caller publishes before releasing the lock so committed lifecycle
+// events preserve the same per-instance order as their state transitions.
+func (s *Service) uninstallLocked(ctx context.Context, id string) (Instance, error) {
+	inst, application, err := s.load(ctx, id)
+	if err != nil {
+		return Instance{}, err
 	}
-	return s.store.Delete(ctx, id)
+	if err := s.teardown(ctx, application, inst); err != nil {
+		return Instance{}, err
+	}
+	if err := s.store.Delete(ctx, id); err != nil {
+		return Instance{}, err
+	}
+	return inst, nil
 }
 
 // teardown removes an instance's footprint: its container side, and its backend
@@ -78,50 +98,84 @@ func (s *Service) teardown(ctx context.Context, application Application, inst In
 
 // transition runs a lifecycle action and records the resulting status.
 func (s *Service) transition(ctx context.Context, id string, target InstanceStatus) (View, error) {
-	inst, application, err := s.load(ctx, id)
+	unlock := s.instanceLocks.lock(id)
+	defer unlock()
+	view, inst, previousStatus, err := s.transitionLocked(ctx, id, target)
 	if err != nil {
 		return View{}, err
 	}
+	s.publishApplicationTransition(ctx, inst, previousStatus, target)
+	return view, nil
+}
+
+// transitionLocked performs the state change while its instance lock is held.
+// The returned event data is published while the caller still holds it.
+func (s *Service) transitionLocked(
+	ctx context.Context,
+	id string,
+	target InstanceStatus,
+) (View, Instance, InstanceStatus, error) {
+	inst, application, err := s.load(ctx, id)
+	if err != nil {
+		return View{}, Instance{}, "", err
+	}
+	// Error records are failed install attempts, not stopped installations. They
+	// can only be retried through Install (which first tears down the partial
+	// attempt) or explicitly uninstalled. Treating one as stopped can hand an
+	// empty legacy container name to LXD and, more importantly, skips the
+	// cleanup-and-recreate contract of Retry.
+	if inst.Status == StatusError || inst.Status == StatusInstalling {
+		return View{}, Instance{}, "", fmt.Errorf(
+			"%w: %s instances must be retried or uninstalled", ErrInvalidState, inst.Status)
+	}
+	previousStatus := inst.Status
 	// An application without infrastructure may be purely a record: stopped
 	// means the SPA no longer loads its extension. If it has a backend, the
 	// backend process and record move together.
 	if !application.NeedsContainer() {
 		if err := s.moveBackend(ctx, application, inst, target); err != nil {
 			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
-			return View{}, err
+			return View{}, Instance{}, "", err
 		}
 		if err := s.saveStatus(ctx, &inst, target, ""); err != nil {
-			return View{}, err
+			return View{}, Instance{}, "", err
 		}
-		return s.view(inst), nil
+		return s.view(inst), inst, previousStatus, nil
 	}
 	if s.installer == nil {
-		return View{}, ErrUnavailable
+		return View{}, Instance{}, "", ErrUnavailable
 	}
 	if inst.Scope == ScopeProject && s.projects != nil && target == StatusRunning {
 		if err := s.projects.EnsureRunning(ctx, inst.ProjectID); err != nil {
-			return View{}, err
+			return View{}, Instance{}, "", err
 		}
 	}
 	upgrading := target == StatusRunning && needsUpgrade(inst, application)
+	if upgrading {
+		if err := reconcileInstanceEnv(application, &inst); err != nil {
+			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
+			return View{}, Instance{}, "", err
+		}
+	}
 	if err := s.moveContainer(ctx, InstallSpec{Application: application, Instance: inst}, target); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
-		return View{}, err
+		return View{}, Instance{}, "", err
 	}
 	// Only record the new version once the install that delivered it has
 	// actually run, so a failed start leaves the instance asking for the
 	// upgrade again rather than claiming to have it.
 	if upgrading {
 		inst.ApplicationVersion = application.Version
+		inst.ContainerBuildVersion = application.containerBuildVersion()
 	}
 	if err := s.moveBackend(ctx, application, inst, target); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
-		return View{}, err
+		return View{}, Instance{}, "", err
 	}
 	if err := s.saveStatus(ctx, &inst, target, ""); err != nil {
-		return View{}, err
+		return View{}, Instance{}, "", err
 	}
-	return s.view(inst), nil
+	return s.view(inst), inst, previousStatus, nil
 }
 
 // moveContainer applies the requested lifecycle state to the container half

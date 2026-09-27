@@ -10,21 +10,21 @@ import (
 )
 
 type Config struct {
-	Host       string
-	Port       string
-	DataDir    string
-	InstallDir string
-	BaseURL    string
-	Agent      AgentOptions
-	Auth       AuthOptions
-	Plugins    PluginOptions
-	Schedule   ScheduleLimits
+	Host         string
+	Port         string
+	DataDir      string
+	InstallDir   string
+	BaseURL      string
+	Agent        AgentOptions
+	Auth         AuthOptions
+	Applications ApplicationOptions
+	Schedule     ScheduleLimits
 }
 
-// PluginOptions are application-wide settings for installable application
-// backends. Toolchain discovery remains in the plugin integration; config
+// ApplicationOptions are application-wide settings for installable application
+// backends. Toolchain discovery remains in the backend integration; config
 // owns the optional environment override supplied to it.
-type PluginOptions struct {
+type ApplicationOptions struct {
 	GoTool string
 }
 
@@ -105,8 +105,8 @@ func Load() Config {
 			SessionHistoryLimit: 20,
 			SetupTokenTTL:       envDuration("SETUP_TOKEN_TTL", 30*time.Minute),
 		},
-		Plugins: PluginOptions{
-			GoTool: envDefault("REMOTE_PLUGIN_GO", ""),
+		Applications: ApplicationOptions{
+			GoTool: envDefault("REMOTE_APPLICATION_GO", ""),
 		},
 		Schedule: ScheduleLimits{
 			MinInterval:        envDuration("SCHEDULE_MIN_INTERVAL", 5*time.Minute),

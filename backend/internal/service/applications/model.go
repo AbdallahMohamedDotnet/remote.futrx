@@ -9,7 +9,11 @@
 // and realized in a container through Installer.
 package applications
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	applicationapi "github.com/futrx-com/remote.futrx.com/pkg/applications"
+)
 
 // Scope selects where an application runs.
 type Scope string
@@ -21,6 +25,15 @@ const (
 	// ScopeProject installs the app inside a single project's container.
 	ScopeProject Scope = "project"
 )
+
+// ApplicationContainer describes Go source shipped in backend/container/ and
+// built inside the target container. The registry derives it from the source;
+// application.json never declares it.
+type ApplicationContainer struct {
+	Commands     []string `json:"commands,omitempty"`
+	SourceDigest string   `json:"sourceDigest"`
+	BuildVersion string   `json:"buildVersion"`
+}
 
 // Valid reports whether s is a known scope.
 func (s Scope) Valid() bool { return s == ScopeGlobal || s == ScopeProject }
@@ -62,6 +75,39 @@ type EnvVar struct {
 // Healthcheck is an in-container command that reports readiness.
 type Healthcheck struct {
 	Command string `json:"command,omitempty"`
+}
+
+// ApplicationService is a systemd service Remote owns inside the target
+// container. The manifest describes the service completely; application install
+// scripts only provision application-specific files and dependencies.
+type ApplicationService struct {
+	Name        string               `json:"name"`
+	Description string               `json:"description,omitempty"`
+	Command     []string             `json:"command"`
+	User        string               `json:"user,omitempty"`
+	Group       string               `json:"group,omitempty"`
+	Restart     string               `json:"restart,omitempty"`
+	RestartSec  int                  `json:"restartSec,omitempty"`
+	Environment []ServiceEnvironment `json:"environment,omitempty"`
+	Hardening   ServiceHardening     `json:"hardening,omitempty"`
+}
+
+// ServiceEnvironment maps one resolved install input into the service's
+// environment. Values are base64 encoded before they are written so secrets,
+// whitespace, and line breaks cannot change the environment-file syntax.
+type ServiceEnvironment struct {
+	Key      string `json:"key"`
+	FromEnv  string `json:"fromEnv"`
+	Encoding string `json:"encoding"`
+}
+
+// ServiceHardening maps the portable systemd isolation settings applications
+// may opt into without writing their own unit files.
+type ServiceHardening struct {
+	NoNewPrivileges bool   `json:"noNewPrivileges,omitempty"`
+	PrivateTmp      bool   `json:"privateTmp,omitempty"`
+	ProtectHome     bool   `json:"protectHome,omitempty"`
+	ProtectSystem   string `json:"protectSystem,omitempty"`
 }
 
 // Connection maps an application's env vars to the canonical fields a client needs
@@ -134,8 +180,8 @@ type ApplicationUI struct {
 }
 
 // ApplicationSource says where a catalog entry came from. It is decided by the
-// registry that loaded the entry and overwrites anything application.json declares,
-// so a package cannot describe itself as built in.
+// registry that loaded the entry; application.json cannot declare it, so a
+// package cannot describe itself as built in.
 type ApplicationSource string
 
 const (
@@ -160,16 +206,16 @@ type Application struct {
 	// "cache", …) or a path to an image inside the application's own ui/ directory
 	// ("ui/assets/logo.svg"), which lets an application ship its own mark.
 	Icon string `json:"icon,omitempty"`
-	// Source is filled in by the registry, not by application.json: it says whether
-	// this entry is built into the server or came from an uploaded package,
-	// which is what tells the UI whether it can be removed.
+	// Source is filled in by the registry, not accepted from application.json:
+	// it says whether this entry is built into the server or came from an
+	// uploaded package, which is what tells the UI whether it can be removed.
 	Source ApplicationSource `json:"source,omitempty"`
 	Scopes []Scope           `json:"scopes"`
 	Port   Port              `json:"port"`
 	Env    []EnvVar          `json:"env,omitempty"`
-	// Service is the systemd unit name inside the container used for
-	// start/stop/status.
-	Service string `json:"service,omitempty"`
+	// Service is the complete systemd service Remote realizes and controls in
+	// the target container.
+	Service *ApplicationService `json:"service,omitempty"`
 	// Install is the install-script filename relative to the application directory.
 	Install     string      `json:"install"`
 	Healthcheck Healthcheck `json:"healthcheck,omitempty"`
@@ -181,9 +227,21 @@ type Application struct {
 	// UI is set when the application ships a ui/ directory. Nil means the application has
 	// no browser-side extension and the SPA loads nothing for it.
 	UI *ApplicationUI `json:"ui,omitempty"`
-	// Backend is set when the application ships a backend/ directory. Nil means the
+	// Backend is set when the application ships a backend/ executable. The
+	// current layout uses backend/main.go; backend/api/ remains a legacy entry.
+	// Nil means the
 	// application has no Go backend and nothing is compiled or run for it.
 	Backend *ApplicationBackend `json:"backend,omitempty"`
+	// Publishers are the event families this application's backend may emit.
+	// Their names are local to the application; Remote qualifies them with the
+	// application ID so one package cannot claim another package's namespace.
+	Publishers []applicationapi.PublisherDeclaration `json:"publishers,omitempty"`
+	// Subscriptions are the canonical event families delivered to this
+	// application's backend while an installed copy is running.
+	Subscriptions []applicationapi.Subscription `json:"subscriptions,omitempty"`
+	// Container is set when the application ships backend/container/. Nil means
+	// it has no core-built container program.
+	Container *ApplicationContainer `json:"container,omitempty"`
 	// Skills names the agent skills this application ships. Like UI, it is filled in
 	// by the registry from the application's own skills/ directory rather than
 	// declared in application.json: each subdirectory holding a SKILL.md is one
@@ -192,8 +250,30 @@ type Application struct {
 	Skills []string `json:"skills,omitempty"`
 }
 
-// NeedsContainer reports whether this application has infrastructure to provision.
-func (application Application) NeedsContainer() bool { return application.Install != "" }
+// NeedsContainer reports whether this application has a declarative service,
+// custom infrastructure, or a core-built container program to provision.
+func (application Application) NeedsContainer() bool {
+	return application.Install != "" || application.Container != nil || application.Service != nil
+}
+
+// ServiceName returns the declared systemd unit name, or empty when the
+// application has no supervised service.
+func (application Application) ServiceName() string {
+	if application.Service == nil {
+		return ""
+	}
+	return application.Service.Name
+}
+
+// containerBuildVersion returns the identity of the core-built container
+// programs carried by this catalog entry. Applications with only a custom
+// install script have no independently tracked container build.
+func (application Application) containerBuildVersion() string {
+	if application.Container == nil {
+		return ""
+	}
+	return application.Container.BuildVersion
+}
 
 // NeedsPort reports whether this application exposes its provisioned component.
 func (application Application) NeedsPort() bool {
@@ -246,8 +326,12 @@ type Instance struct {
 	// "unknown, so re-install" — install scripts are idempotent, and assuming
 	// the container already holds the new version would be a guess.
 	ApplicationVersion string `json:"applicationVersion,omitempty"`
-	Name               string `json:"name"`
-	Scope              Scope  `json:"scope"`
+	// ContainerBuildVersion identifies the backend/container source installed
+	// alongside ApplicationVersion. It changes when that source changes even if
+	// an author forgets to bump application.json.
+	ContainerBuildVersion string `json:"containerBuildVersion,omitempty"`
+	Name                  string `json:"name"`
+	Scope                 Scope  `json:"scope"`
 	// ProjectID is set only for ScopeProject instances.
 	ProjectID string `json:"projectId,omitempty"`
 	// ContainerName is the LXD container the app runs in: a dedicated

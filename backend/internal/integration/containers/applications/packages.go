@@ -84,17 +84,20 @@ func (s *PackageStore) FS() fs.FS { return os.DirFS(s.root) }
 // staging directory *and* loaded by the same validator the built-in catalog
 // goes through. An upload that would not have produced a working application
 // leaves the previous one exactly as it was.
-func (s *PackageStore) add(upload svc.PackageUpload, reserve func(string) error) (svc.Package, error) {
+func (s *PackageStore) add(
+	upload svc.PackageUpload,
+	reserve func(string) error,
+) (svc.PackageMutation, error) {
 	files, err := readPackageArchive(upload.Data)
 	if err != nil {
-		return svc.Package{}, err
+		return svc.PackageMutation{}, err
 	}
 	id, err := packageID(files)
 	if err != nil {
-		return svc.Package{}, err
+		return svc.PackageMutation{}, err
 	}
 	if err := reserve(id); err != nil {
-		return svc.Package{}, err
+		return svc.PackageMutation{}, err
 	}
 
 	s.mu.Lock()
@@ -102,24 +105,25 @@ func (s *PackageStore) add(upload svc.PackageUpload, reserve func(string) error)
 
 	staged, err := os.MkdirTemp(filepath.Join(s.root, packageStagingDir), "upload-")
 	if err != nil {
-		return svc.Package{}, fmt.Errorf("stage package: %w", err)
+		return svc.PackageMutation{}, fmt.Errorf("stage package: %w", err)
 	}
 	defer os.RemoveAll(staged)
 
 	stagedDir := filepath.Join(staged, packageApplicationsDir, id)
 	if err := writePackageFiles(stagedDir, files); err != nil {
-		return svc.Package{}, err
+		return svc.PackageMutation{}, err
 	}
 	// The staged tree is laid out as a catalog of one, so the package is
 	// validated by loadApplication itself — not by a parallel set of checks that
 	// could drift from what the server will actually accept at install time.
 	application, _, err := loadApplication(os.DirFS(staged), id)
 	if err != nil {
-		return svc.Package{}, fmt.Errorf("%w: %s", svc.ErrPackageInvalid, err)
+		return svc.PackageMutation{}, fmt.Errorf("%w: %s", svc.ErrPackageInvalid, err)
 	}
 
-	if err := s.publish(id, stagedDir); err != nil {
-		return svc.Package{}, err
+	replaced, err := s.publish(id, stagedDir)
+	if err != nil {
+		return svc.PackageMutation{}, err
 	}
 
 	digest := sha256.Sum256(upload.Data)
@@ -135,16 +139,16 @@ func (s *PackageStore) add(upload svc.PackageUpload, reserve func(string) error)
 		UploadedBy: upload.Actor,
 	}
 	if err := s.writeMeta(pkg); err != nil {
-		return svc.Package{}, err
+		return svc.PackageMutation{}, err
 	}
-	return pkg, nil
+	return svc.PackageMutation{Package: pkg, Replaced: replaced}, nil
 }
 
 // publish swaps a staged application directory into the committed catalog. The
 // previous copy is moved aside first and only deleted once the new one is in
 // place, so a failure mid-swap restores what was there rather than leaving the
 // id with no directory at all.
-func (s *PackageStore) publish(id, stagedDir string) error {
+func (s *PackageStore) publish(id, stagedDir string) (bool, error) {
 	live := filepath.Join(s.root, packageApplicationsDir, id)
 	previous := live + ".replaced"
 	_ = os.RemoveAll(previous)
@@ -152,7 +156,7 @@ func (s *PackageStore) publish(id, stagedDir string) error {
 	hadPrevious := false
 	if _, err := os.Stat(live); err == nil {
 		if err := os.Rename(live, previous); err != nil {
-			return fmt.Errorf("replace package: %w", err)
+			return false, fmt.Errorf("replace package: %w", err)
 		}
 		hadPrevious = true
 	}
@@ -160,12 +164,12 @@ func (s *PackageStore) publish(id, stagedDir string) error {
 		if hadPrevious {
 			_ = os.Rename(previous, live)
 		}
-		return fmt.Errorf("publish package: %w", err)
+		return false, fmt.Errorf("publish package: %w", err)
 	}
 	if hadPrevious {
 		_ = os.RemoveAll(previous)
 	}
-	return nil
+	return hadPrevious, nil
 }
 
 // remove deletes a stored package and its metadata.
@@ -256,7 +260,7 @@ func (s *PackageStore) clearStaging() {
 
 // writePackageFiles materializes the package under dir. Nothing is written
 // executable: an install script is piped into bash by the installer and a
-// plugin is compiled from source, so no file in a package is ever run
+// application is compiled from source, so no file in a package is ever run
 // directly, and granting the bit would only widen what an upload can do.
 func writePackageFiles(dir string, files map[string][]byte) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {

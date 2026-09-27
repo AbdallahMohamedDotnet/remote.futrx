@@ -45,7 +45,7 @@ export class ExtensionHost {
    * the returned disposer is called.
    *
    * Nothing pushes installs to a browser. An app uninstalled elsewhere would
-   * otherwise keep drawing here for the life of the tab, calling a plugin that
+   * otherwise keep drawing here for the life of the tab, calling a backend that
    * is no longer running, so returning to the tab is one of the few moments
    * this side can learn about it.
    */

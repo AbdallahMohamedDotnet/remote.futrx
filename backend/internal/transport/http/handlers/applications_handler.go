@@ -125,8 +125,8 @@ func (h *ApplicationsHandler) handleResource(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Calling a global instance's plugin is the one thing on a global app that
-	// is not administration: the plugin is the server-side half of an
+	// Calling a global instance's backend is the one thing on a global app that
+	// is not administration: the backend is the server-side half of an
 	// extension that renders for every signed-in user, so it is gated by the
 	// application's own access level instead. Managing the app stays admin-only.
 	if path, ok := isBackendPath(action); ok {
@@ -395,6 +395,7 @@ func sendAppError(w http.ResponseWriter, err error) {
 	case errors.Is(err, serviceapplications.ErrBackendAccess):
 		httptransport.SendErr(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, serviceapplications.ErrAlreadyInstalled),
+		errors.Is(err, serviceapplications.ErrInvalidState),
 		errors.Is(err, serviceapplications.ErrNotRunning),
 		errors.Is(err, serviceapplications.ErrPackageInUse),
 		errors.Is(err, serviceapplications.ErrPackageReserved):
