@@ -57,8 +57,8 @@ git -C "$REPOSITORY" tag 1.3.0
 printf 'candidate\n' >> "$REPOSITORY/source.txt"
 git -C "$REPOSITORY" commit --quiet -am candidate
 candidate_sha="$(git -C "$REPOSITORY" rev-parse HEAD)"
-[ "$(release_build_version "$REPOSITORY" "$candidate_sha")" = "qa-${candidate_sha:0:12}" ] ||
-    fail "immutable QA candidate was not stamped with its qa-prefixed short SHA"
+[ "$(release_build_version "$REPOSITORY" "$candidate_sha")" = "qa-1.3.0-${candidate_sha:0:12}" ] ||
+    fail "immutable QA candidate was not stamped with its release baseline and short SHA"
 [ "$(release_build_version "$REPOSITORY" "")" = "dev" ] ||
     fail "untagged developer checkout did not receive the dev label"
 if release_build_version "$REPOSITORY" 1.3.0 >/dev/null 2>&1; then
@@ -69,6 +69,17 @@ git -C "$REPOSITORY" reset --hard --quiet "$release_commit"
 if release_build_version "$REPOSITORY" "$candidate_sha" >/dev/null 2>&1; then
     fail "candidate build version accepted a SHA that does not match HEAD"
 fi
+
+UNTAGGED_REPOSITORY="$TEST_DIR/untagged-repository"
+git init --quiet "$UNTAGGED_REPOSITORY"
+git -C "$UNTAGGED_REPOSITORY" config user.name Test
+git -C "$UNTAGGED_REPOSITORY" config user.email test@example.com
+printf 'candidate without a release\n' > "$UNTAGGED_REPOSITORY/source.txt"
+git -C "$UNTAGGED_REPOSITORY" add source.txt
+git -C "$UNTAGGED_REPOSITORY" commit --quiet -m candidate
+untagged_sha="$(git -C "$UNTAGGED_REPOSITORY" rev-parse HEAD)"
+[ "$(release_build_version "$UNTAGGED_REPOSITORY" "$untagged_sha")" = "qa-${untagged_sha:0:12}" ] ||
+    fail "candidate without a release ancestor did not retain the qa-prefixed SHA fallback"
 
 git -C "$REPOSITORY" tag v2.0.0
 git -C "$REPOSITORY" tag v10.0.0

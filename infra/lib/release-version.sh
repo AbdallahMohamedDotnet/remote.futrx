@@ -44,13 +44,25 @@ release_latest_tag() {
         release_highest_tag
 }
 
+# release_ancestor_tag REPOSITORY COMMIT
+# Prints the highest complete numeric release reachable from COMMIT. Release
+# versions are monotonic, so this is the baseline for an unreleased candidate;
+# choosing by version also handles multiple release tags on one commit.
+release_ancestor_tag() {
+    local repository="$1" commit="$2"
+    git -C "$repository" tag --merged "$commit" \
+        --list '[0-9]*' 'v[0-9]*' |
+        release_highest_tag
+}
+
 # release_build_version REPOSITORY SELECTED_REF
 # Prints the version that should be embedded in a backend built from HEAD.
 # A selected release tag is preserved exactly, even if another release tag
 # points at the same commit. An intentional 40-character candidate SHA is
-# represented by a qa-prefixed short SHA. Without an explicit ref, an exact
-# release tag is preferred and an untagged developer checkout is labelled
-# "dev".
+# represented by a qa-prefixed release baseline and short SHA. Without an
+# explicit ref, an exact release tag is preferred and an untagged developer
+# checkout is labelled "dev". A candidate without a reachable release keeps
+# the legacy commit-only QA shape.
 release_build_version() {
     local repository="$1"
     local selected_ref="${2:-}"
@@ -74,7 +86,14 @@ release_build_version() {
                 "${selected_ref}^{commit}"
         )" || return 1
         [ "$selected_commit" = "$head_commit" ] || return 1
-        printf 'qa-%s\n' "$(git -C "$repository" rev-parse --short=12 "$head_commit")"
+        local baseline short_commit
+        short_commit="$(git -C "$repository" rev-parse --short=12 "$head_commit")"
+        baseline="$(release_ancestor_tag "$repository" "$head_commit" || true)"
+        if [ -n "$baseline" ]; then
+            printf 'qa-%s-%s\n' "$baseline" "$short_commit"
+        else
+            printf 'qa-%s\n' "$short_commit"
+        fi
         return 0
     fi
 

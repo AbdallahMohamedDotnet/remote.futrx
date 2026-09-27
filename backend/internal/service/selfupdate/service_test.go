@@ -271,6 +271,18 @@ func TestHashStampedReleaseUsesResolvedBaselineForCheckAndApply(t *testing.T) {
 	}
 }
 
+func TestCheckUsesEmbeddedQACandidateBaseline(t *testing.T) {
+	host := &fakeHost{tags: []string{"0.20.4", "0.21.0"}}
+	status := newTestService("qa-0.20.4-6db1ea1ade2a", "/opt/x", t.TempDir(), host).Check(context.Background())
+	if host.commitCalls != 0 {
+		t.Fatalf("commit lookups = %d, want none for embedded baseline", host.commitCalls)
+	}
+	if status.LastCheck == nil || status.LastCheck.Error != "" || !status.LastCheck.UpdateAvailable ||
+		status.LastCheck.LatestTag != "0.21.0" || status.LastCheck.UpdateKind != UpdateKindInfrastructure {
+		t.Fatalf("last check = %+v, want infrastructure update from 0.20.4 to 0.21.0", status.LastCheck)
+	}
+}
+
 func TestCommitFromVersionRecognizesReleaseCandidatesOnly(t *testing.T) {
 	for _, test := range []struct {
 		version string
@@ -279,6 +291,7 @@ func TestCommitFromVersionRecognizesReleaseCandidatesOnly(t *testing.T) {
 	}{
 		{version: "42989fe", want: "42989fe", ok: true},
 		{version: "qa-6db1ea1ade2a", want: "6db1ea1ade2a", ok: true},
+		{version: "qa-0.20.4-6db1ea1ade2a", want: "6db1ea1ade2a", ok: true},
 		{version: "qa-local-6db1ea1ade2a-clean-20260927", ok: false},
 		{version: "qa-", ok: false},
 		{version: "dev", ok: false},

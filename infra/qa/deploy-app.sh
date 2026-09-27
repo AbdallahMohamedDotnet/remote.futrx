@@ -100,7 +100,9 @@ echo "==> Building frontend"
 )
 
 echo "==> Building backend"
-app_version="qa-$(git rev-parse --short=12 "$candidate_sha")"
+# shellcheck source=../lib/release-version.sh
+. infra/lib/release-version.sh
+app_version="$(release_build_version "$install_dir" "$candidate_sha")"
 (
     cd backend
     go build -trimpath \

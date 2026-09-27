@@ -322,19 +322,36 @@ func isCommitHash(value string) bool {
 	return true
 }
 
-// commitFromVersion extracts a commit identity from version stamps that carry one.
-// Production recovery builds may contain a bare hash, while immutable QA
-// candidates use "qa-<hash>". Local QA versions include additional metadata
-// and deliberately cannot be associated with a release tag.
+// parseQACandidateVersion recognizes immutable QA stamps. New candidates carry
+// their release baseline; the commit-only shape remains supported for builds
+// produced before baseline stamping was introduced.
+func parseQACandidateVersion(version string) (release, commit string, ok bool) {
+	stamp, ok := strings.CutPrefix(version, "qa-")
+	if !ok {
+		return "", "", false
+	}
+	if isCommitHash(stamp) {
+		return "", stamp, true
+	}
+	release, commit, ok = strings.Cut(stamp, "-")
+	if !ok || !isCommitHash(commit) {
+		return "", "", false
+	}
+	if _, ok := parseReleaseTag(release); !ok {
+		return "", "", false
+	}
+	return release, commit, true
+}
+
+// commitFromVersion extracts a commit identity from version stamps that carry
+// one. Local QA versions include additional metadata and deliberately cannot
+// be associated with a release tag.
 func commitFromVersion(version string) (string, bool) {
 	if isCommitHash(version) {
 		return version, true
 	}
-	commit, ok := strings.CutPrefix(version, "qa-")
-	if !ok || !isCommitHash(commit) {
-		return "", false
-	}
-	return commit, true
+	_, commit, ok := parseQACandidateVersion(version)
+	return commit, ok
 }
 
 // resolveCurrentRelease returns the release baseline represented by the
@@ -343,6 +360,11 @@ func commitFromVersion(version string) (string, bool) {
 // successful result is cached for a later Apply as long as the resolved tag
 // still exists remotely.
 func (s *Service) resolveCurrentRelease(ctx context.Context, tags []string) (string, []int, error) {
+	if release, _, ok := parseQACandidateVersion(s.currentVersion); ok && release != "" {
+		segments, _ := parseReleaseTag(release)
+		return release, segments, nil
+	}
+
 	currentVersion := describeBase(s.currentVersion)
 	current, ok := parseReleaseTag(currentVersion)
 	if ok && (!isCommitHash(currentVersion) || containsTag(tags, currentVersion)) {
