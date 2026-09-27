@@ -56,7 +56,7 @@ func (f reporterFunc) ReportVersion(ctx context.Context, version string) error {
 	return f(ctx, version)
 }
 
-func TestRunRetriesFailureAfterOneHourThenWaitsOneDayAfterSuccess(t *testing.T) {
+func TestRunWaitsOneWeekAfterFailureAndSuccess(t *testing.T) {
 	recorder := &recordingReporter{
 		errors: []error{errors.New("telemetry unavailable")},
 		calls:  make(chan struct{}, 3),
@@ -71,10 +71,10 @@ func TestRunRetriesFailureAfterOneHourThenWaitsOneDayAfterSuccess(t *testing.T) 
 	}()
 
 	waitForCall(t, recorder.calls)
-	waitForDuration(t, waits.durations, failureRetryInterval)
+	waitForDuration(t, waits.durations, reportInterval)
 	waits.advance <- struct{}{}
 	waitForCall(t, recorder.calls)
-	waitForDuration(t, waits.durations, successReportInterval)
+	waitForDuration(t, waits.durations, reportInterval)
 	cancel()
 	waitForDone(t, done)
 

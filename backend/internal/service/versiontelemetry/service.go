@@ -10,10 +10,7 @@ import (
 	"time"
 )
 
-const (
-	successReportInterval = 24 * time.Hour
-	failureRetryInterval  = time.Hour
-)
+const reportInterval = 7 * 24 * time.Hour
 
 type waitFunc func(context.Context, time.Duration) bool
 
@@ -36,8 +33,8 @@ func newService(version string, reporter Reporter, wait waitFunc) *Service {
 
 // Start launches one process-lifetime reporting loop. Calls after the first
 // are no-ops, so composition and future reconcilers cannot duplicate the
-// heartbeat. Reporting failures never escape this worker and are retried on a
-// shorter interval than successful heartbeats.
+// heartbeat. Reporting failures never escape this worker or trigger an early
+// retry; the next attempt uses the same weekly interval.
 func (s *Service) Start(ctx context.Context) {
 	if !shouldReportVersion(s.version) {
 		return
@@ -55,11 +52,8 @@ func (s *Service) Start(ctx context.Context) {
 
 func (s *Service) run(ctx context.Context) {
 	for ctx.Err() == nil {
-		next := successReportInterval
-		if err := s.reporter.ReportVersion(ctx, s.version); err != nil {
-			next = failureRetryInterval
-		}
-		if !s.wait(ctx, next) {
+		_ = s.reporter.ReportVersion(ctx, s.version)
+		if !s.wait(ctx, reportInterval) {
 			return
 		}
 	}

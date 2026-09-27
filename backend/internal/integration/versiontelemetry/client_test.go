@@ -92,15 +92,31 @@ func TestReportVersionPersistsIdentityAndPostsMinimalPayload(t *testing.T) {
 }
 
 func TestReportVersionRejectsNonSuccessStatus(t *testing.T) {
+	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer server.Close()
 
-	client := newClient(t.TempDir(), server.URL, server.Client(), bytes.NewReader(make([]byte, identityBytes)))
+	dataDir := t.TempDir()
+	client := newClient(dataDir, server.URL, server.Client(), bytes.NewReader(make([]byte, identityBytes)))
+	now := time.Date(2026, time.September, 27, 12, 0, 0, 0, time.UTC)
+	client.now = func() time.Time { return now }
 	err := client.ReportVersion(context.Background(), "0.21.0")
 	if err == nil || !strings.Contains(err.Error(), "HTTP 503") {
 		t.Fatalf("error = %v, want HTTP 503", err)
+	}
+
+	// A failed attempt is still recorded before network I/O, preventing an
+	// ordinary restart from turning a collector outage into repeated requests.
+	restarted := newClient(dataDir, server.URL, server.Client(), bytes.NewReader(make([]byte, identityBytes)))
+	restarted.now = func() time.Time { return now.Add(24 * time.Hour) }
+	if err := restarted.ReportVersion(context.Background(), "0.21.0"); err != nil {
+		t.Fatalf("suppressed retry: %v", err)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("requests = %d, want 1", got)
 	}
 }
 
@@ -163,10 +179,73 @@ func TestReportVersionReplacesInvalidPersistedIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(entries) != 1 || entries[0].Name() != "installation-id" {
-				t.Fatalf("identity directory entries = %v, want only installation-id", entries)
+			if len(entries) != 2 || entries[0].Name() != "installation-id" || entries[1].Name() != "version-report-state.json" {
+				t.Fatalf("identity directory entries = %v, want identity and report state", entries)
 			}
 		})
+	}
+}
+
+func TestReportVersionIsWeeklyAcrossRestartsAndImmediateForNewVersion(t *testing.T) {
+	requests := make(chan string, 4)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read request: %v", err)
+		}
+		requests <- string(body)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	dataDir := t.TempDir()
+	start := time.Date(2026, time.September, 27, 12, 0, 0, 0, time.UTC)
+	newReporter := func(now time.Time) *Client {
+		client := newClient(dataDir, server.URL, server.Client(), bytes.NewReader(bytes.Repeat([]byte{0xab}, identityBytes)))
+		client.now = func() time.Time { return now }
+		return client
+	}
+
+	if err := newReporter(start).ReportVersion(context.Background(), "0.21.0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := newReporter(start.Add(24*time.Hour)).ReportVersion(context.Background(), "0.21.0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := newReporter(start.Add(48*time.Hour)).ReportVersion(context.Background(), "0.21.1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := newReporter(start.Add(8*24*time.Hour)).ReportVersion(context.Background(), "0.21.1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := newReporter(start.Add(9*24*time.Hour)).ReportVersion(context.Background(), "0.21.1"); err != nil {
+		t.Fatal(err)
+	}
+
+	wantVersions := []string{"0.21.0", "0.21.1", "0.21.1"}
+	for _, version := range wantVersions {
+		select {
+		case body := <-requests:
+			if !strings.Contains(body, `"version":"`+version+`"`) {
+				t.Fatalf("body = %q, want version %s", body, version)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for version %s", version)
+		}
+	}
+	select {
+	case body := <-requests:
+		t.Fatalf("unexpected extra telemetry request: %s", body)
+	default:
+	}
+
+	statePath := filepath.Join(dataDir, "telemetry", "version-report-state.json")
+	info, err := os.Stat(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("report state mode = %o, want 600", got)
 	}
 }
 

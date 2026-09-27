@@ -322,13 +322,16 @@ Replace `remote.example.com` with the hostname you set up above. The installer d
 
 #### Pseudonymous version telemetry
 
-Starting with `0.21.0`, the backend sends a best-effort report when it starts
-and every 24 hours after a successful report to
-`https://remote.futrx.com/api/telemetry/version`. Failed reports retry after one
-hour. The payload contains only the exact build version and a locally generated
-random pseudonymous installation ID. It does not contain the server hostname or
-domain, users, projects, provider accounts, chats, or source code. Development
-and QA builds do not report.
+Starting with `0.21.0`, the backend makes one best-effort report when telemetry
+first becomes available, immediately after the installed version changes, and
+otherwise at most once every seven days. The last attempted version and time
+are stored locally, so ordinary service restarts and failed requests do not
+produce extra retries. Reports go to
+`https://remote.futrx.com/api/telemetry/version`. The payload contains only the
+exact build version and a locally generated random pseudonymous installation
+ID. It does not contain the server hostname or domain, users, projects,
+provider accounts, chats, or source code. Development and QA builds do not
+report.
 
 The collector also records when each report was received, so reports from the
 same pseudonymous ID are linkable within the three-month Cloudflare Workers

@@ -20,25 +20,35 @@ import (
 )
 
 const (
-	endpointURL    = "https://remote.futrx.com/api/telemetry/version"
-	requestTimeout = 3 * time.Second
-	identityBytes  = 16
-	identityLength = identityBytes * 2
+	endpointURL           = "https://remote.futrx.com/api/telemetry/version"
+	requestTimeout        = 3 * time.Second
+	minimumReportInterval = 7 * 24 * time.Hour
+	identityBytes         = 16
+	identityLength        = identityBytes * 2
 )
 
 var (
 	errRedirectRejected      = errors.New("version telemetry redirect rejected")
 	errInvalidInstallationID = errors.New("invalid installation identity")
+	errInvalidReportState    = errors.New("invalid version telemetry state")
 )
+
+type reportState struct {
+	Version         string `json:"version"`
+	LastAttemptUnix int64  `json:"lastAttemptUnix"`
+}
 
 type Client struct {
 	httpClient   *http.Client
 	endpoint     string
 	identityPath string
+	statePath    string
 	random       io.Reader
+	now          func() time.Time
 
 	mu             sync.Mutex
 	installationID string
+	stateMu        sync.Mutex
 }
 
 func New(dataDir string) *Client {
@@ -55,7 +65,9 @@ func newClient(dataDir, endpoint string, httpClient *http.Client, random io.Read
 		httpClient:   httpClient,
 		endpoint:     endpoint,
 		identityPath: filepath.Join(dataDir, "telemetry", "installation-id"),
+		statePath:    filepath.Join(dataDir, "telemetry", "version-report-state.json"),
 		random:       random,
+		now:          time.Now,
 	}
 }
 
@@ -72,6 +84,13 @@ func (c *Client) ReportVersion(ctx context.Context, version string) error {
 	installationID, err := c.loadOrCreateInstallationID()
 	if err != nil {
 		return fmt.Errorf("load installation identity: %w", err)
+	}
+	due, err := c.reserveReportAttempt(version, c.now())
+	if err != nil {
+		return fmt.Errorf("reserve version telemetry attempt: %w", err)
+	}
+	if !due {
+		return nil
 	}
 	payload, err := json.Marshal(struct {
 		InstallationID string `json:"installationId"`
@@ -99,6 +118,38 @@ func (c *Client) ReportVersion(ctx context.Context, version string) error {
 		return fmt.Errorf("send version telemetry: HTTP %d", response.StatusCode)
 	}
 	return nil
+}
+
+// reserveReportAttempt enforces an at-most-weekly request for one version
+// across process restarts. A changed version is always due immediately. The
+// attempt is persisted before network I/O so a failed request or process crash
+// cannot create a restart-driven retry loop.
+func (c *Client) reserveReportAttempt(version string, now time.Time) (bool, error) {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+
+	state, err := readReportState(c.statePath)
+	if err == nil && state.Version == version {
+		lastAttempt := time.Unix(state.LastAttemptUnix, 0)
+		elapsed := now.Sub(lastAttempt)
+		if elapsed >= 0 && elapsed < minimumReportInterval {
+			return false, nil
+		}
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, errInvalidReportState) {
+		return false, err
+	}
+
+	encoded, err := json.Marshal(reportState{
+		Version:         version,
+		LastAttemptUnix: now.Unix(),
+	})
+	if err != nil {
+		return false, err
+	}
+	if err := writePrivateFile(c.statePath, encoded); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (c *Client) loadOrCreateInstallationID() (string, error) {
@@ -133,8 +184,15 @@ func (c *Client) loadOrCreateInstallationID() (string, error) {
 }
 
 func writeInstallationID(path, installationID string) error {
+	return writePrivateFile(path, []byte(installationID))
+}
+
+func writePrivateFile(path string, content []byte) error {
 	dir := filepath.Dir(path)
-	temporary, err := os.CreateTemp(dir, ".installation-id-*")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	temporary, err := os.CreateTemp(dir, ".telemetry-*")
 	if err != nil {
 		return err
 	}
@@ -145,7 +203,7 @@ func writeInstallationID(path, installationID string) error {
 		_ = temporary.Close()
 		return err
 	}
-	if _, err := io.WriteString(temporary, installationID); err != nil {
+	if _, err := temporary.Write(content); err != nil {
 		_ = temporary.Close()
 		return err
 	}
@@ -160,6 +218,18 @@ func writeInstallationID(path, installationID string) error {
 		return err
 	}
 	return nil
+}
+
+func readReportState(path string) (reportState, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return reportState{}, err
+	}
+	var state reportState
+	if err := json.Unmarshal(raw, &state); err != nil || state.Version == "" || state.LastAttemptUnix <= 0 {
+		return reportState{}, errInvalidReportState
+	}
+	return state, nil
 }
 
 func readInstallationID(path string) (string, error) {

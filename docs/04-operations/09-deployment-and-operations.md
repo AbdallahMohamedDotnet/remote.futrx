@@ -229,11 +229,14 @@ When the backend starts, it:
 ## Pseudonymous version telemetry
 
 Starting with `0.21.0`, version telemetry is enabled by default. The backend
-makes a best-effort report on startup and every 24 hours after a successful
-report to `https://remote.futrx.com/api/telemetry/version`. Failed reports retry
-after one hour. A telemetry failure does not block startup, update checks, or
-update application. Development builds stamped `dev` and QA builds stamped
-`qa-*` do not report.
+makes one best-effort report when telemetry first becomes available,
+immediately after the installed version changes, and otherwise at most once
+every seven days. It stores the last attempted version and time under
+`DATA_DIR/telemetry`, so ordinary service restarts and failed requests do not
+produce extra retries. Reports go to
+`https://remote.futrx.com/api/telemetry/version`. A telemetry failure does not
+block startup, update checks, or update application. Development builds stamped
+`dev` and QA builds stamped `qa-*` do not report.
 
 The report contains exactly two application-supplied values:
 
