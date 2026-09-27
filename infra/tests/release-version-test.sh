@@ -81,6 +81,30 @@ untagged_sha="$(git -C "$UNTAGGED_REPOSITORY" rev-parse HEAD)"
 [ "$(release_build_version "$UNTAGGED_REPOSITORY" "$untagged_sha")" = "qa-${untagged_sha:0:12}" ] ||
     fail "candidate without a release ancestor did not retain the qa-prefixed SHA fallback"
 
+MERGED_RELEASE_REPOSITORY="$TEST_DIR/merged-release-repository"
+git init --quiet "$MERGED_RELEASE_REPOSITORY"
+git -C "$MERGED_RELEASE_REPOSITORY" config user.name Test
+git -C "$MERGED_RELEASE_REPOSITORY" config user.email test@example.com
+printf 'root\n' > "$MERGED_RELEASE_REPOSITORY/source.txt"
+git -C "$MERGED_RELEASE_REPOSITORY" add source.txt
+git -C "$MERGED_RELEASE_REPOSITORY" commit --quiet -m root
+git -C "$MERGED_RELEASE_REPOSITORY" tag 2.0.0
+merged_release_main_branch="$(git -C "$MERGED_RELEASE_REPOSITORY" branch --show-current)"
+git -C "$MERGED_RELEASE_REPOSITORY" branch qa
+git -C "$MERGED_RELEASE_REPOSITORY" switch --quiet qa
+printf 'released QA\n' >> "$MERGED_RELEASE_REPOSITORY/source.txt"
+git -C "$MERGED_RELEASE_REPOSITORY" commit --quiet -am released-qa
+git -C "$MERGED_RELEASE_REPOSITORY" switch --quiet "$merged_release_main_branch"
+git -C "$MERGED_RELEASE_REPOSITORY" merge --quiet --no-ff qa -m release
+git -C "$MERGED_RELEASE_REPOSITORY" tag 2.1.0
+git -C "$MERGED_RELEASE_REPOSITORY" switch --quiet qa
+printf 'next candidate\n' >> "$MERGED_RELEASE_REPOSITORY/source.txt"
+git -C "$MERGED_RELEASE_REPOSITORY" commit --quiet -am candidate
+merged_release_candidate_sha="$(git -C "$MERGED_RELEASE_REPOSITORY" rev-parse HEAD)"
+[ "$(release_build_version "$MERGED_RELEASE_REPOSITORY" "$merged_release_candidate_sha")" = \
+    "qa-2.1.0-${merged_release_candidate_sha:0:12}" ] ||
+    fail "candidate did not inherit the release tag attached to its QA merge"
+
 git -C "$REPOSITORY" tag v2.0.0
 git -C "$REPOSITORY" tag v10.0.0
 git -C "$REPOSITORY" tag 10.0.0

@@ -44,14 +44,32 @@ release_latest_tag() {
         release_highest_tag
 }
 
-# release_ancestor_tag REPOSITORY COMMIT
-# Prints the highest complete numeric release reachable from COMMIT. Release
-# versions are monotonic, so this is the baseline for an unreleased candidate;
-# choosing by version also handles multiple release tags on one commit.
-release_ancestor_tag() {
+# release_candidate_baseline REPOSITORY COMMIT
+# Prints the highest release incorporated into a candidate. A normal release
+# is an ancestor of the candidate. In the main <- qa release flow, the tagged
+# merge commit is not merged back into qa, so its merged QA parent is the
+# candidate's ancestor instead.
+release_candidate_baseline() {
     local repository="$1" commit="$2"
-    git -C "$repository" tag --merged "$commit" \
-        --list '[0-9]*' 'v[0-9]*' |
+    local tag tag_commit parent
+    local -a lineage
+    git -C "$repository" tag --list '[0-9]*' 'v[0-9]*' |
+        while IFS= read -r tag; do
+            tag_commit="$(git -C "$repository" rev-parse "${tag}^{commit}")" || continue
+            if git -C "$repository" merge-base --is-ancestor "$tag_commit" "$commit"; then
+                printf '%s\n' "$tag"
+                continue
+            fi
+
+            read -r -a lineage <<< "$(git -C "$repository" rev-list --parents -n 1 "$tag_commit")"
+            [ "${#lineage[@]}" -ge 3 ] || continue
+            for parent in "${lineage[@]:1}"; do
+                if git -C "$repository" merge-base --is-ancestor "$parent" "$commit"; then
+                    printf '%s\n' "$tag"
+                    break
+                fi
+            done
+        done |
         release_highest_tag
 }
 
@@ -88,7 +106,7 @@ release_build_version() {
         [ "$selected_commit" = "$head_commit" ] || return 1
         local baseline short_commit
         short_commit="$(git -C "$repository" rev-parse --short=12 "$head_commit")"
-        baseline="$(release_ancestor_tag "$repository" "$head_commit" || true)"
+        baseline="$(release_candidate_baseline "$repository" "$head_commit" || true)"
         if [ -n "$baseline" ]; then
             printf 'qa-%s-%s\n' "$baseline" "$short_commit"
         else
