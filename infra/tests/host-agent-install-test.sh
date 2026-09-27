@@ -22,6 +22,11 @@ bash -n "$APP_STEP"
 bash -n "$HOST_CLI_PROFILE_TEMPLATE"
 grep -Fq 'go run ./cmd/install-host-agents --prefix "$HOST_CLI_PREFIX"' "$APP_STEP" || \
     fail "application step does not invoke the module-driven host installer"
+grep -Fq 'release_build_version "$INSTALL_DIR" "${FUTRX_CHECKOUT_REF:-}"' "$APP_STEP" || \
+    fail "application step does not stamp the explicitly selected checkout"
+if grep -Fq 'git -C .. describe' "$APP_STEP"; then
+    fail "application step still derives production versions with git describe"
+fi
 if grep -Fq 'go run ./cmd/install-host-agents' "$HOST_DEPS"; then
     fail "host installer runs before the selected application checkout is available"
 fi
@@ -41,6 +46,8 @@ grep -Fq 'PATH="$HOST_CLI_BIN_DIR:/usr/local/sbin:/usr/local/bin:' "$INSTALLER" 
     fail "installer does not put the managed host CLI directory first on PATH"
 grep -Fq 'Environment=PATH=${HOST_CLI_BIN_DIR}:/usr/local/sbin:/usr/local/bin:' "$BACKEND_SERVICE_TEMPLATE" || \
     fail "backend service does not use the managed host CLI directory first"
+grep -Fq 'Environment=REMOTE_TELEMETRY_DISABLED=${REMOTE_TELEMETRY_DISABLED}' "$BACKEND_SERVICE_TEMPLATE" || \
+    fail "backend service does not receive the installer telemetry policy"
 grep -Fq '${HOST_CLI_BIN_DIR}${PATH:+:$PATH}' "$HOST_CLI_PROFILE_TEMPLATE" || \
     fail "login shells do not receive the managed host CLI path"
 

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,6 +20,7 @@ type Config struct {
 	Auth         AuthOptions
 	Applications ApplicationOptions
 	Schedule     ScheduleLimits
+	Telemetry    TelemetryOptions
 }
 
 // ApplicationOptions are application-wide settings for installable application
@@ -26,6 +28,13 @@ type Config struct {
 // owns the optional environment override supplied to it.
 type ApplicationOptions struct {
 	GoTool string
+}
+
+// TelemetryOptions controls the privacy-limited running-version heartbeat.
+type TelemetryOptions struct {
+	// Disabled opts this installation out of version telemetry
+	// (REMOTE_TELEMETRY_DISABLED, boolean, default false).
+	Disabled bool
 }
 
 // AgentOptions are application-wide policies for the agent subsystem.
@@ -113,6 +122,9 @@ func Load() Config {
 			MaxConcurrentRuns:  envInt("SCHEDULE_MAX_CONCURRENT", 2),
 			MaxTasksPerProject: envInt("SCHEDULE_MAX_TASKS_PER_PROJECT", 20),
 		},
+		Telemetry: TelemetryOptions{
+			Disabled: envTelemetryDisabled("REMOTE_TELEMETRY_DISABLED"),
+		},
 	}
 }
 
@@ -162,6 +174,22 @@ func envDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// envTelemetryDisabled defaults to reporting when unset. Unknown non-empty
+// values fail closed so a misspelled privacy opt-out never enables telemetry.
+func envTelemetryDisabled(key string) bool {
+	raw := os.Getenv(key)
+	switch strings.ToLower(raw) {
+	case "":
+		return false
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
 }
 
 // envDuration parses a Go duration from the environment. Unset or invalid

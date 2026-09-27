@@ -27,7 +27,7 @@
 #   --skip-dns-check                            useful on cloud bootstrap where the public
 #                                               A record is set but propagation isn't done.
 #   --ref=<40-character commit SHA>             install an immutable candidate commit instead
-#                                               of origin/main (used by QA branch installs).
+#                                               of the latest release (used by QA branch installs).
 #   --github-token=ghp_xxx                      private-repo PAT; prefer the
 #                                               GITHUB_TOKEN environment variable
 #                                               to avoid placing it in shell history.
@@ -37,6 +37,8 @@
 # Environment:
 #   GITHUB_TOKEN                                same as --github-token.
 #   FUTRX_INSTALL_DIR                           override /opt/remote.futrx (QA/tests).
+#   REMOTE_TELEMETRY_DISABLED                   true opts out of version telemetry;
+#                                               false (the default) keeps it enabled.
 
 set -euo pipefail
 
@@ -156,10 +158,15 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
                 # update.sh, steps/00-checkout.sh, ...) silently stops refreshing
                 # origin/main.
                 git -C "$LEGACY_TARGET" config remote.origin.fetch "$MAIN_REFSPEC"
-                git -C "$LEGACY_TARGET" fetch --quiet --tags origin
+                git -C "$LEGACY_TARGET" fetch --quiet --tags --prune --prune-tags origin
                 git -C "$LEGACY_TARGET" reset --hard origin/main
             fi
-            export FUTRX_INSTALL_CHECKOUT_SELECTED=1
+            if [ -n "$BOOTSTRAP_REF" ]; then
+                export FUTRX_CHECKOUT_REF="$BOOTSTRAP_REF"
+                export FUTRX_INSTALL_CHECKOUT_SELECTED=1
+            else
+                unset FUTRX_CHECKOUT_REF FUTRX_INSTALL_CHECKOUT_SELECTED
+            fi
             remote_exec_selected_installer "$LEGACY_TARGET/infra/install.sh" "$@"
         fi
     fi
@@ -178,8 +185,9 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
             exit 1
         fi
         mkdir -p "$TARGET"
-        # Production installs track main regardless of the repository's GitHub
-        # default branch (which may temporarily point at a QA branch).
+        # Bootstrap the release-selection logic from main regardless of the
+        # repository's GitHub default branch (which may temporarily point at a
+        # QA branch). Step 00 then selects the latest numeric release tag.
         git clone --depth=1 --branch main --single-branch "$CLONE_URL" "$TARGET"
         chmod 0600 "$TARGET/.git/config"
         if [ -n "$BOOTSTRAP_REF" ]; then
@@ -199,12 +207,17 @@ if [ -z "$INFRA_DIR_PROBE" ] || [ ! -d "${INFRA_DIR_PROBE}/steps" ]; then
             # keep refreshing origin/main instead of silently going stale on a
             # checkout whose remote.origin.fetch still points at another branch.
             git -C "$TARGET" config remote.origin.fetch "$MAIN_REFSPEC"
-            git -C "$TARGET" fetch --quiet --tags origin
+            git -C "$TARGET" fetch --quiet --tags --prune --prune-tags origin
             git -C "$TARGET" reset --hard origin/main
         fi
     fi
 
-    export FUTRX_INSTALL_CHECKOUT_SELECTED=1
+    if [ -n "$BOOTSTRAP_REF" ]; then
+        export FUTRX_CHECKOUT_REF="$BOOTSTRAP_REF"
+        export FUTRX_INSTALL_CHECKOUT_SELECTED=1
+    else
+        unset FUTRX_CHECKOUT_REF FUTRX_INSTALL_CHECKOUT_SELECTED
+    fi
     remote_exec_selected_installer "$TARGET/infra/install.sh" "$@"
 fi
 }
@@ -276,6 +289,48 @@ SERVICE_PORT="${SERVICE_PORT:-$FUTRX_DEFAULT_SERVICE_PORT}"
 HOST_CLI_PREFIX="$INSTALL_DIR/data/host-clis"
 HOST_CLI_BIN_DIR="$HOST_CLI_PREFIX/bin"
 
+# Preserve the effective policy from an existing service when a repair or
+# manual full update does not explicitly choose one. This makes an opt-out
+# selected during installation durable across later convergence runs, while a
+# caller-provided value still takes precedence.
+local existing_service_environment
+if [ -z "${REMOTE_TELEMETRY_DISABLED+x}" ] && command -v systemctl >/dev/null 2>&1; then
+    existing_service_environment="$(
+        systemctl show "$FUTRX_DEFAULT_SERVICE_NAME" \
+            --property=Environment --value 2>/dev/null || true
+    )"
+    REMOTE_TELEMETRY_DISABLED="$(
+        printf '%s\n' "$existing_service_environment" |
+            tr ' ' '\n' |
+            awk -F= '
+                {
+                    name = $1
+                    gsub(/^"|"$/, "", name)
+                    if (name == "REMOTE_TELEMETRY_DISABLED") {
+                        value = $2
+                        gsub(/^"|"$/, "", value)
+                    }
+                }
+                END { print value }
+            '
+    )"
+fi
+
+# Canonicalize the installer-facing opt-out before the unit is rendered. This
+# makes the policy available to the backend on its very first service start.
+case "${REMOTE_TELEMETRY_DISABLED:-false}" in
+    1|[Tt]|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Oo][Nn])
+        REMOTE_TELEMETRY_DISABLED=true
+        ;;
+    0|[Ff]|[Ff][Aa][Ll][Ss][Ee]|[Nn][Oo]|[Oo][Ff][Ff])
+        REMOTE_TELEMETRY_DISABLED=false
+        ;;
+    *)
+        err "REMOTE_TELEMETRY_DISABLED must be true or false."
+        exit 1
+        ;;
+esac
+
 # Host agent installation and the backend must resolve the same executables.
 # Use an application-owned prefix ahead of host-global locations so legacy or
 # manually installed binaries cannot shadow Remote's pinned toolchain.
@@ -283,6 +338,7 @@ PATH="$HOST_CLI_BIN_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:
 
 export INFRA_DIR INSTALL_DIR LEGACY_INSTALL_DIR REPO_URL SERVICE_PORT
 export HOST_CLI_PREFIX HOST_CLI_BIN_DIR PATH
+export REMOTE_TELEMETRY_DISABLED
 
 # ───────────────── helpers (sourced by steps) ─────────────────
 # log/warn/ok/err come from lib/common.sh (sourced above); re-export them so
@@ -295,7 +351,7 @@ export -f log warn ok err
 # regex `\$` anchors) survive untouched.
 render_template() {
     local tmpl="$1" dest="$2"
-    envsubst '$HOSTNAME $HOSTNAME_RE $INSTALL_DIR $SERVICE_PORT $LXD_BRIDGE_IP $LXD_BRIDGE $HOST_CLI_BIN_DIR' \
+    envsubst '$HOSTNAME $HOSTNAME_RE $INSTALL_DIR $SERVICE_PORT $LXD_BRIDGE_IP $LXD_BRIDGE $HOST_CLI_BIN_DIR $REMOTE_TELEMETRY_DISABLED' \
         < "$tmpl" > "$dest"
 }
 export -f render_template

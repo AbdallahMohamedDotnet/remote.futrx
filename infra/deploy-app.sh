@@ -114,7 +114,7 @@ remote_build_application() {
 
 cd "$INSTALL_DIR"
 PREVIOUS_SHA="$(git rev-parse --verify 'HEAD^{commit}')"
-git fetch --quiet --tags origin
+git fetch --quiet --tags --prune --prune-tags origin
 CURRENT_VERSION="$(git describe --tags --abbrev=0 --match '[0-9]*' --match 'v[0-9]*' HEAD 2>/dev/null || true)"
 TARGET_COMMIT="$(git rev-parse --verify --quiet "refs/tags/${TARGET_REF}^{commit}" || true)"
 if [ -z "$TARGET_COMMIT" ]; then

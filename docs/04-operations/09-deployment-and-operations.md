@@ -226,6 +226,74 @@ When the backend starts, it:
 7. starts the scheduled-task loop and restores persisted deadlines/claims;
 8. begins serving the embedded SPA, API, and WebSockets.
 
+## Pseudonymous version telemetry
+
+Starting with `0.21.0`, version telemetry is enabled by default. The backend
+makes a best-effort report on startup and every 24 hours after a successful
+report to `https://remote.futrx.com/api/telemetry/version`. Failed reports retry
+after one hour. A telemetry failure does not block startup, update checks, or
+update application. Development builds stamped `dev` and QA builds stamped
+`qa-*` do not report.
+
+The report contains exactly two application-supplied values:
+
+- the exact build version compiled into the running backend, including a bare
+  commit hash when that is how the build was stamped; and
+- a locally generated opaque random installation ID, used to deduplicate
+  reports from the same installation.
+
+Remote does not send the installation hostname or domain, account or user
+information, project metadata, provider details, chats, prompts, source code,
+or host resource measurements. The collector writes the two reported values
+to a dedicated Cloudflare Workers Analytics Engine dataset, which also records
+the receipt timestamp. The stable ID and those timestamps make reports from one
+installation linkable within the retention window and reveal its approximate
+reporting activity. Analytics Engine retains rows for three months.
+
+An **active reporting installation** is one pseudonymous installation ID whose
+latest successful report falls within the time window being queried. Grouping
+the latest report per ID by version estimates how many active installations run
+each version. It is not the lifetime number of downloads, completed
+installations, or servers that still exist. Counts are operational estimates:
+installations that opt out, are offline, or cannot reach the collector are
+absent; restored or cloned data can reuse an ID; and the public collector has
+no per-installation secret, so reports can be spoofed.
+
+Telemetry is forward-only. Versions before `0.21.0` do not contain this
+reporter, so the dataset cannot count legacy installations—including a
+hash-stamped installation whose old updater has not discovered a newer
+release—until that installation upgrades to a telemetry-capable version.
+
+To opt out during a fresh installation, pass the environment variable through
+`sudo` so it is applied before the service first starts:
+
+```bash
+curl -fsSL https://remote.futrx.com/get | sudo env REMOTE_TELEMETRY_DISABLED=1 bash -s -- remote.example.com
+```
+
+For an existing installation, create a systemd override rather than editing
+the installed unit:
+
+```bash
+sudo systemctl edit remote.futrx
+```
+
+```ini
+[Service]
+Environment=REMOTE_TELEMETRY_DISABLED=1
+```
+
+Then apply it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart remote.futrx
+```
+
+The override survives normal updates. Disabling telemetry does not delete rows
+already received; they expire under Analytics Engine's rolling three-month
+retention.
+
 ## Agent capability discovery timeout
 
 Capability discovery probes all registered agents compatible with the selected

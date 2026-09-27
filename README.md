@@ -320,6 +320,33 @@ curl -fsSL https://remote.futrx.com/get | sudo bash -s -- remote.example.com
 
 Replace `remote.example.com` with the hostname you set up above. The installer downloads Remote, installs its dependencies, builds the workspace image, starts the services, and enables HTTPS.
 
+#### Pseudonymous version telemetry
+
+Starting with `0.21.0`, the backend sends a best-effort report when it starts
+and every 24 hours after a successful report to
+`https://remote.futrx.com/api/telemetry/version`. Failed reports retry after one
+hour. The payload contains only the exact build version and a locally generated
+random pseudonymous installation ID. It does not contain the server hostname or
+domain, users, projects, provider accounts, chats, or source code. Development
+and QA builds do not report.
+
+The collector also records when each report was received, so reports from the
+same pseudonymous ID are linkable within the three-month Cloudflare Workers
+Analytics Engine retention window. They measure active reporting installations,
+not lifetime or successful installs, and the totals are approximate: offline
+and opted-out installations are absent, while the public collector can receive
+spoofed reports. Versions before `0.21.0` do not report, so this cannot measure
+legacy installations that have not upgraded.
+
+To opt out before the first startup, set the installer environment variable:
+
+```bash
+curl -fsSL https://remote.futrx.com/get | sudo env REMOTE_TELEMETRY_DISABLED=1 bash -s -- remote.example.com
+```
+
+See [Deployment and operations](docs/04-operations/09-deployment-and-operations.md#pseudonymous-version-telemetry)
+for the full behavior and post-install opt-out steps.
+
 ### 3. Create your first project
 
 1. When Remote starts for the first time, it prints a one-time setup link to

@@ -29,12 +29,14 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/lxc"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/tmuxcli"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/updatecli"
+	integrationversiontelemetry "github.com/futrx-com/remote.futrx.com/internal/integration/versiontelemetry"
 	"github.com/futrx-com/remote.futrx.com/internal/lifecycle"
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
 	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
 	servicemaintenance "github.com/futrx-com/remote.futrx.com/internal/service/maintenance"
 	serviceselfupdate "github.com/futrx-com/remote.futrx.com/internal/service/selfupdate"
 	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
+	serviceversiontelemetry "github.com/futrx-com/remote.futrx.com/internal/service/versiontelemetry"
 	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
 	serviceworkspaceide "github.com/futrx-com/remote.futrx.com/internal/service/workspaceide"
 	"github.com/futrx-com/remote.futrx.com/internal/stores"
@@ -213,6 +215,12 @@ func main() {
 	// replacement can deliver the completion started by its predecessor.
 	if err := selfUpdateService.StartLifecycleReconciler(ctx); err != nil {
 		log.Printf("self-update: lifecycle reconcile warning: %v", err)
+	}
+	if !cfg.Telemetry.Disabled {
+		serviceversiontelemetry.New(
+			version.Version,
+			integrationversiontelemetry.New(cfg.DataDir),
+		).Start(ctx)
 	}
 	log.Printf(
 		"auth: local admin enabled; Google OAuth configured=%t; BASE_URL=%s",

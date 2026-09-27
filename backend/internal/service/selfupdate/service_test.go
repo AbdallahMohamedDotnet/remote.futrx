@@ -14,6 +14,7 @@ type fakeHost struct {
 	commitTags  []string
 	commitErr   error
 	commitQuery string
+	commitCalls int
 	started     []string
 	kinds       []string
 	pid         int
@@ -66,6 +67,7 @@ func (f *fakeHost) ListRemoteTags(context.Context, string) ([]string, error) {
 
 func (f *fakeHost) ListRemoteTagsForCommit(_ context.Context, _, commitPrefix string) ([]string, error) {
 	f.commitQuery = commitPrefix
+	f.commitCalls++
 	return f.commitTags, f.commitErr
 }
 
@@ -211,18 +213,54 @@ func TestCheckReportsApplicationUpdateWithinReleaseLine(t *testing.T) {
 	}
 }
 
-func TestCheckResolvesHashStampedRelease(t *testing.T) {
-	host := &fakeHost{
-		tags:       []string{"0.20.1", "0.20.3", "0.20.4"},
-		commitTags: []string{"0.20.1"},
-	}
-	status := newTestService("42989fe", "/opt/x", t.TempDir(), host).Check(context.Background())
-	if host.commitQuery != "42989fe" {
-		t.Fatalf("commit lookup = %q, want 42989fe", host.commitQuery)
-	}
-	if status.LastCheck == nil || status.LastCheck.Error != "" || !status.LastCheck.UpdateAvailable ||
-		status.LastCheck.LatestTag != "0.20.4" || status.LastCheck.UpdateKind != UpdateKindApplication {
-		t.Fatalf("last check = %+v, want application update to 0.20.4", status.LastCheck)
+func TestHashStampedReleaseUsesResolvedBaselineForCheckAndApply(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		tags     []string
+		baseline string
+		target   string
+		wantKind UpdateKind
+	}{
+		{
+			name: "same release line",
+			tags: []string{"0.20.1", "0.20.3", "0.20.4"}, baseline: "0.20.1", target: "0.20.4",
+			wantKind: UpdateKindApplication,
+		},
+		{
+			name: "minor boundary",
+			tags: []string{"0.20.4", "0.21.0"}, baseline: "0.20.4", target: "0.21.0",
+			wantKind: UpdateKindInfrastructure,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			host := &fakeHost{
+				tags: test.tags, commitTags: []string{test.baseline}, pid: 4242, alive: true,
+			}
+			svc := newTestService("42989fe", "/opt/x", t.TempDir(), host)
+
+			status := svc.Check(context.Background())
+			if host.commitQuery != "42989fe" {
+				t.Fatalf("commit lookup = %q, want 42989fe", host.commitQuery)
+			}
+			if status.LastCheck == nil || status.LastCheck.Error != "" || !status.LastCheck.UpdateAvailable ||
+				status.LastCheck.LatestTag != test.target || status.LastCheck.UpdateKind != test.wantKind {
+				t.Fatalf("last check = %+v, want %s update to %s", status.LastCheck, test.wantKind, test.target)
+			}
+
+			status, err := svc.Apply(context.Background(), "admin@example.com", test.target)
+			if err != nil {
+				t.Fatalf("Apply: %v", err)
+			}
+			if host.commitCalls != 1 {
+				t.Fatalf("commit lookups = %d, want 1 shared by Check and Apply", host.commitCalls)
+			}
+			if len(host.kinds) != 1 || host.kinds[0] != string(test.wantKind) {
+				t.Fatalf("update kinds = %v, want [%s]", host.kinds, test.wantKind)
+			}
+			if status.Run == nil || status.Run.UpdateKind != test.wantKind {
+				t.Fatalf("run = %+v, want %s update", status.Run, test.wantKind)
+			}
+		})
 	}
 }
 
@@ -231,6 +269,33 @@ func TestCheckDoesNotClaimUnknownHashIsUpToDate(t *testing.T) {
 	status := newTestService("42989fe", "/opt/x", t.TempDir(), host).Check(context.Background())
 	if status.LastCheck == nil || status.LastCheck.Error == "" || status.LastCheck.UpdateAvailable {
 		t.Fatalf("last check = %+v, want a version resolution error", status.LastCheck)
+	}
+}
+
+func TestApplyUsesInfrastructurePathWhenHashCannotBeResolved(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		commitErr error
+	}{
+		{name: "untagged"},
+		{name: "ambiguous", commitErr: errors.New("commit prefix matches multiple tagged commits")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			host := &fakeHost{
+				tags: []string{"0.20.4"}, commitErr: test.commitErr, pid: 4242, alive: true,
+			}
+			svc := newTestService("42989fe", "/opt/x", t.TempDir(), host)
+			status, err := svc.Apply(context.Background(), "admin@example.com", "0.20.4")
+			if err != nil {
+				t.Fatalf("Apply: %v", err)
+			}
+			if len(host.kinds) != 1 || host.kinds[0] != string(UpdateKindInfrastructure) {
+				t.Fatalf("update kinds = %v, want [infrastructure]", host.kinds)
+			}
+			if status.Run == nil || status.Run.UpdateKind != UpdateKindInfrastructure {
+				t.Fatalf("run = %+v, want infrastructure update", status.Run)
+			}
+		})
 	}
 }
 

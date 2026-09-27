@@ -67,6 +67,39 @@ func TestLoadUsesSetupTokenTTLEnv(t *testing.T) {
 	}
 }
 
+func TestLoadUsesVersionTelemetryPolicy(t *testing.T) {
+	tests := []struct {
+		value        string
+		wantDisabled bool
+	}{
+		{value: "", wantDisabled: false},
+		{value: "1", wantDisabled: true},
+		{value: "true", wantDisabled: true},
+		{value: "TRUE", wantDisabled: true},
+		{value: "yes", wantDisabled: true},
+		{value: "YeS", wantDisabled: true},
+		{value: "on", wantDisabled: true},
+		{value: "ON", wantDisabled: true},
+		{value: "0", wantDisabled: false},
+		{value: "false", wantDisabled: false},
+		{value: "FALSE", wantDisabled: false},
+		{value: "no", wantDisabled: false},
+		{value: "No", wantDisabled: false},
+		{value: "off", wantDisabled: false},
+		{value: "OFF", wantDisabled: false},
+		{value: "invalid", wantDisabled: true},
+		{value: " true ", wantDisabled: true},
+	}
+	for _, test := range tests {
+		t.Run(test.value, func(t *testing.T) {
+			t.Setenv("REMOTE_TELEMETRY_DISABLED", test.value)
+			if got := Load().Telemetry.Disabled; got != test.wantDisabled {
+				t.Fatalf("REMOTE_TELEMETRY_DISABLED=%q: disabled = %v, want %v", test.value, got, test.wantDisabled)
+			}
+		})
+	}
+}
+
 func TestCodeServerBaseURLUsesInstalledDomain(t *testing.T) {
 	tests := []struct {
 		base string

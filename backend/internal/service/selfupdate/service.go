@@ -31,11 +31,15 @@ type Service struct {
 	lifecycle      UpdateLifecyclePublisher
 	runs           runState
 
-	mu          sync.Mutex
-	lastCheck   *CheckResult
-	launching   bool
-	reconciling bool
-	dispatching bool
+	mu        sync.Mutex
+	lastCheck *CheckResult
+	// resolvedCurrent caches the release tag associated with a hash-stamped
+	// running binary. The running version is immutable for this Service, so the
+	// mapping can be reused while that tag still exists on origin.
+	resolvedCurrent string
+	launching       bool
+	reconciling     bool
+	dispatching     bool
 }
 
 func New(
@@ -71,24 +75,14 @@ func (s *Service) Check(ctx context.Context) Status {
 		latest, latestSegments := latestReleaseTag(tags)
 		result.LatestTag = latest
 		if latest != "" {
-			currentVersion := describeBase(s.currentVersion)
-			current, ok := parseReleaseTag(currentVersion)
-			if isCommitHash(currentVersion) && (!ok || !containsTag(tags, currentVersion)) {
-				ok = false
-				matchingTags, lookupErr := s.host.ListRemoteTagsForCommit(ctx, s.installDir, currentVersion)
-				if lookupErr != nil {
-					result.Error = fmt.Sprintf("resolve running commit %s: %v", currentVersion, lookupErr)
-				} else if tag, segments := latestReleaseTag(matchingTags); tag != "" {
-					currentVersion, current, ok = tag, segments, true
-				}
-			}
-			if ok {
+			currentVersion, current, resolveErr := s.resolveCurrentRelease(ctx, tags)
+			if resolveErr == nil {
 				result.UpdateAvailable = compareVersions(latestSegments, current) > 0
 				if result.UpdateAvailable {
 					result.UpdateKind = classifyUpdate(currentVersion, latest)
 				}
-			} else if result.Error == "" {
-				result.Error = fmt.Sprintf("cannot determine release version for running build %q", s.currentVersion)
+			} else {
+				result.Error = resolveErr.Error()
 			}
 		}
 	}
@@ -114,14 +108,21 @@ func (s *Service) Apply(ctx context.Context, startedBy, tag string) (Status, err
 		return s.Status(ctx), fmt.Errorf("%w: %s", ErrUnknownTag, tag)
 	}
 
-	status, err := s.startUpdate(ctx, startedBy, tag)
+	// Resolution failures deliberately do not prevent an explicitly requested
+	// update. Passing the original version keeps classifyUpdate conservative:
+	// an untagged or ambiguous hash takes the infrastructure path.
+	currentVersion := s.currentVersion
+	if resolved, _, resolveErr := s.resolveCurrentRelease(ctx, tags); resolveErr == nil {
+		currentVersion = resolved
+	}
+	status, err := s.startUpdate(ctx, startedBy, currentVersion, tag)
 	if err != nil {
 		return status, err
 	}
 	return status, nil
 }
 
-func (s *Service) startUpdate(ctx context.Context, startedBy, tag string) (Status, error) {
+func (s *Service) startUpdate(ctx context.Context, startedBy, currentVersion, tag string) (Status, error) {
 	s.mu.Lock()
 	if s.launching {
 		status := s.statusLocked()
@@ -146,7 +147,7 @@ func (s *Service) startUpdate(ctx context.Context, startedBy, tag string) (Statu
 	// application-only deploy and skip the host convergence that actually
 	// failed. Fall back to the previous failed run's kind when retrying
 	// toward the same target.
-	kind := classifyUpdate(s.currentVersion, tag)
+	kind := classifyUpdate(currentVersion, tag)
 	if prevRun != nil && prevRun.State == RunStateFailed && prevRun.Target == tag && prevRun.UpdateKind != "" {
 		kind = prevRun.UpdateKind
 	}
@@ -319,6 +320,47 @@ func isCommitHash(value string) bool {
 		}
 	}
 	return true
+}
+
+// resolveCurrentRelease returns the release baseline represented by the
+// running binary. Normal git-describe values resolve locally. Bare commit
+// hashes require one origin lookup, whose successful result is cached for a
+// later Apply as long as the resolved tag still exists remotely.
+func (s *Service) resolveCurrentRelease(ctx context.Context, tags []string) (string, []int, error) {
+	currentVersion := describeBase(s.currentVersion)
+	current, ok := parseReleaseTag(currentVersion)
+	if !isCommitHash(currentVersion) || ok && containsTag(tags, currentVersion) {
+		if !ok {
+			return "", nil, fmt.Errorf("cannot determine release version for running build %q", s.currentVersion)
+		}
+		return currentVersion, current, nil
+	}
+
+	s.mu.Lock()
+	resolved := s.resolvedCurrent
+	if resolved != "" && !containsTag(tags, resolved) {
+		s.resolvedCurrent = ""
+		resolved = ""
+	}
+	s.mu.Unlock()
+	if resolved != "" {
+		segments, _ := parseReleaseTag(resolved)
+		return resolved, segments, nil
+	}
+
+	matchingTags, err := s.host.ListRemoteTagsForCommit(ctx, s.installDir, currentVersion)
+	if err != nil {
+		return "", nil, fmt.Errorf("resolve running commit %s: %w", currentVersion, err)
+	}
+	resolved, segments := latestReleaseTag(matchingTags)
+	if resolved == "" {
+		return "", nil, fmt.Errorf("cannot determine release version for running build %q", s.currentVersion)
+	}
+
+	s.mu.Lock()
+	s.resolvedCurrent = resolved
+	s.mu.Unlock()
+	return resolved, segments, nil
 }
 
 // parseReleaseTag parses "0.1", "v0.2.3" and similar numeric release tags
