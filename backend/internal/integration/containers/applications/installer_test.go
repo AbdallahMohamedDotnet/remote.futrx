@@ -2,6 +2,7 @@ package applications
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"strings"
@@ -82,6 +83,18 @@ func testInstaller(t *testing.T, runner *fakeRunner) *Installer {
 	return NewInstaller(runner, testRegistry(t), t.TempDir())
 }
 
+func TestContainerStateRejectsAnEmptyNameWithoutCallingLXD(t *testing.T) {
+	runner := newFakeRunner()
+	installer := testInstaller(t, runner)
+
+	if _, err := installer.containerState(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "container name is required") {
+		t.Fatalf("error = %v, want a missing container name error", err)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("empty name reached LXD: %v", runner.calls)
+	}
+}
+
 // The fixture service application is used throughout: it has an install script the
 // registry can hand the installer, and a port to proxy.
 func serviceSpec(scope svc.Scope, container string) svc.InstallSpec {
@@ -90,8 +103,10 @@ func serviceSpec(scope svc.Scope, container string) svc.InstallSpec {
 			ID:      fixtureService,
 			Name:    "Fixture Service",
 			Install: "infra/install.sh",
-			Service: "fixture",
-			Port:    svc.Port{Internal: 3306, DefaultExternal: 3306},
+			Service: &svc.ApplicationService{
+				Name: "fixture", Command: []string{"/usr/local/bin/fixture", "--port", "{{internalPort}}"},
+			},
+			Port: svc.Port{Internal: 3306, DefaultExternal: 3306},
 		},
 		Instance: svc.Instance{
 			ID:            "abc123",
@@ -104,6 +119,116 @@ func serviceSpec(scope svc.Scope, container string) svc.InstallSpec {
 			BindAddress:   "127.0.0.1",
 			Protocol:      svc.ProtocolTCP,
 		},
+	}
+}
+
+func TestManifestServiceRendersStandardUnitAndEncodedEnvironment(t *testing.T) {
+	spec := serviceSpec(svc.ScopeProject, "my-project")
+	spec.Application.Service = &svc.ApplicationService{
+		Name:        "fixture",
+		Description: "Fixture Service",
+		Command:     []string{"/usr/local/bin/fixture", "serve", "--port", "{{internalPort}}"},
+		User:        "nobody",
+		Group:       "nogroup",
+		Restart:     "on-failure",
+		RestartSec:  2,
+		Environment: []svc.ServiceEnvironment{
+			{Key: "FIXTURE_SECRET_B64", FromEnv: "FIXTURE_SECRET", Encoding: "base64"},
+		},
+		Hardening: svc.ServiceHardening{
+			NoNewPrivileges: true,
+			PrivateTmp:      true,
+			ProtectHome:     true,
+			ProtectSystem:   "strict",
+		},
+	}
+	spec.Instance.Env = map[string]string{"FIXTURE_SECRET": "line one\nline two='$value'"}
+
+	environment := string(serviceEnvironment(spec))
+	wantEnvironment := "FIXTURE_SECRET_B64=" + base64.StdEncoding.EncodeToString([]byte(spec.Instance.Env["FIXTURE_SECRET"])) + "\n"
+	if environment != wantEnvironment {
+		t.Fatalf("environment = %q, want %q", environment, wantEnvironment)
+	}
+
+	unit := string(serviceUnit(spec, "/etc/remote/applications/fixture/environment"))
+	for _, fragment := range []string{
+		"Description=Fixture Service",
+		"EnvironmentFile=/etc/remote/applications/fixture/environment",
+		`ExecStart="/usr/local/bin/fixture" "serve" "--port" "3306"`,
+		"Restart=on-failure",
+		"RestartSec=2s",
+		"User=nobody",
+		"Group=nogroup",
+		"NoNewPrivileges=true",
+		"PrivateTmp=true",
+		"ProtectHome=true",
+		"ProtectSystem=strict",
+		"WantedBy=multi-user.target",
+	} {
+		if !strings.Contains(unit, fragment) {
+			t.Errorf("unit does not contain %q:\n%s", fragment, unit)
+		}
+	}
+}
+
+func TestInstallMaterializesAndStartsTheManifestService(t *testing.T) {
+	runner := newFakeRunner("my-project")
+	installer := testInstaller(t, runner)
+
+	if err := installer.Install(context.Background(), serviceSpec(svc.ScopeProject, "my-project")); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	for _, command := range []string{
+		"file push --mode=600",
+		"file push --mode=644",
+		"systemctl daemon-reload",
+		"systemctl enable fixture",
+		"systemctl restart fixture",
+	} {
+		if !runner.contains(command) {
+			t.Errorf("install did not run %q:\n%s", command, strings.Join(runner.commands(), "\n"))
+		}
+	}
+}
+
+func TestInstallSupportsAServiceWithNoCustomInstaller(t *testing.T) {
+	runner := newFakeRunner("my-project")
+	installer := testInstaller(t, runner)
+	spec := serviceSpec(svc.ScopeProject, "my-project")
+	spec.Application.Install = ""
+	spec.Application.Container = nil
+
+	if err := installer.Install(context.Background(), spec); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if runner.contains("bash -s") {
+		t.Errorf("service-only application ran a custom installer:\n%s", strings.Join(runner.commands(), "\n"))
+	}
+	if !runner.contains("systemctl restart fixture") {
+		t.Errorf("manifest service was not started:\n%s", strings.Join(runner.commands(), "\n"))
+	}
+}
+
+func TestInstallScriptEnvironmentCarriesManifestMetadata(t *testing.T) {
+	spec := serviceSpec(svc.ScopeProject, "my-project")
+	spec.Application.Version = "4.5.6"
+	spec.Instance.Env = map[string]string{
+		"CUSTOM":             "value",
+		"APP_APPLICATION_ID": "forged",
+	}
+	env := testInstaller(t, newFakeRunner()).scriptEnv(spec)
+	for key, want := range map[string]string{
+		"APP_APPLICATION_ID":      fixtureService,
+		"APP_APPLICATION_NAME":    "Fixture Service",
+		"APP_APPLICATION_VERSION": "4.5.6",
+		"APP_SERVICE":             "fixture",
+		"APP_INTERNAL_PORT":       "3306",
+		"CUSTOM":                  "value",
+	} {
+		if env[key] != want {
+			t.Errorf("%s = %q, want %q", key, env[key], want)
+		}
 	}
 }
 
@@ -145,7 +270,9 @@ func portlessInfrastructureSpec(container string) svc.InstallSpec {
 			ID:      fixturePortless,
 			Name:    "Fixture Portless",
 			Install: "infra/install.sh",
-			Service: "fixture-portless",
+			Service: &svc.ApplicationService{
+				Name: "fixture-portless", Command: []string{"/usr/local/bin/fixture-portless"},
+			},
 		},
 		Instance: svc.Instance{
 			ID:            "abc123",
@@ -299,6 +426,10 @@ func TestUninstallProjectScopeKeepsTheProjectContainer(t *testing.T) {
 	if !runner.contains("systemctl disable --now fixture") {
 		t.Error("want the systemd unit disabled")
 	}
+	if !runner.contains("rm -f /etc/systemd/system/fixture.service /etc/remote/workspace-idle.d/fixture") ||
+		!runner.contains("rm -rf /etc/remote/applications/fixture") {
+		t.Error("want Remote-owned service files removed")
+	}
 }
 
 func TestUninstallGlobalScopeDeletesTheDedicatedContainer(t *testing.T) {
@@ -311,6 +442,18 @@ func TestUninstallGlobalScopeDeletesTheDedicatedContainer(t *testing.T) {
 	if !runner.hasPrefix("delete --force futrx-app-abc123") {
 		t.Errorf("want the dedicated container deleted, got:\n%s",
 			strings.Join(runner.commands(), "\n"))
+	}
+}
+
+func TestUninstallFailedGlobalInstallWithoutContainerIsANoop(t *testing.T) {
+	runner := newFakeRunner()
+	installer := testInstaller(t, runner)
+
+	if err := installer.Uninstall(context.Background(), serviceSpec(svc.ScopeGlobal, "")); err != nil {
+		t.Fatalf("uninstall: %v", err)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("empty container target reached LXD: %v", runner.commands())
 	}
 }
 

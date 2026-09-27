@@ -161,6 +161,7 @@ export function ChatContainer({
     canSendPrompt,
     preferences: {
       provider: displayMeta.provider || "codex",
+      accountId: displayMeta.accountId,
       model: displayMeta.model || "",
       mode: displayMode,
       reasoningEffort: displayMeta.reasoningEffort || "",
@@ -255,12 +256,35 @@ export function ChatContainer({
           onCaptureElement={browser.insertBrowserElementContext}
           onClose={browser.closeBrowserDrawer}
         />
-        {terminal.TerminalOverlay && (
+        {terminal.TerminalOverlay ? (
           <terminal.TerminalOverlay
             chat={displayMeta}
             open={drawers.terminalOpen}
             onClose={drawers.closeTerminal}
           />
+        ) : (
+          drawers.terminalOpen && (
+            <aside
+              id="workspace-terminal-pane"
+              class="workspace-pane workspace-terminal-pane relative z-20 h-full flex-none overflow-hidden bg-surface border-l border-line"
+              aria-label="Terminal"
+            >
+              <div class="flex h-full flex-col items-start justify-center gap-2 p-4">
+                <div class="text-[13px] font-medium text-ink-100">
+                  {terminal.overlayError ?? "Loading terminal…"}
+                </div>
+                {terminal.overlayError && (
+                  <button
+                    type="button"
+                    onClick={terminal.retryTerminalOverlay}
+                    class="h-8 rounded-control border border-line-strong px-3 text-[11px] font-medium text-ink-200 hover:bg-tint-strong"
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+            </aside>
+          )
         )}
       </div>
       <MediaViewerOverlay />

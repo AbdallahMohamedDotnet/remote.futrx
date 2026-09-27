@@ -27,7 +27,7 @@ import {
  *
  * An application package is a .zip of exactly what a built-in application's
  * directory holds — `application.json`, an optional `install.sh`, an optional `ui/`,
- * an optional `plugin/`. Once uploaded it is an ordinary catalog entry: it
+ * an optional `backend/`. Once uploaded it is an ordinary catalog entry: it
  * appears under "Available applications", installs the same way, and runs the
  * same way.
  *
@@ -177,7 +177,7 @@ export function ApplicationPackages({
           single folder — alongside its{" "}
           <span class="font-mono">install.sh</span>,{" "}
           <span class="font-mono">ui/</span> and{" "}
-          <span class="font-mono">plugin/</span>. Uploading again with the same
+          <span class="font-mono">backend/</span>. Uploading again with the same
           id replaces that app — and if its{" "}
           <span class="font-mono">version</span> changed, every running copy is
           re-installed at the new one.

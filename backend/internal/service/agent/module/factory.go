@@ -100,6 +100,7 @@ type BuildDependencies struct {
 	Projects              agent.ProjectResolver
 	Containers            provisioning.ContainerDependencies
 	APIKeys               agentauth.APIKeyStore
+	Accounts              *agentauth.AccountVault
 	CredentialSyncTimeout time.Duration
 }
 
@@ -111,6 +112,7 @@ type Dependencies struct {
 	CredentialCollector   provisioning.CredentialCollector
 	RuntimeAssets         provisioning.RuntimeAssetProvisioner
 	APIKeys               agentauth.APIKeyStore
+	Accounts              *agentauth.AccountVault
 	CredentialSyncTimeout time.Duration
 }
 
@@ -222,6 +224,7 @@ func (f Factory) buildComponents(deps BuildDependencies) (Components, error) {
 		CredentialCollector:   deps.Containers.Credentials,
 		RuntimeAssets:         deps.Containers.RuntimeAssets,
 		APIKeys:               deps.APIKeys,
+		Accounts:              deps.Accounts,
 		CredentialSyncTimeout: deps.CredentialSyncTimeout,
 	}
 	if supportsExecutionScope(f.descriptor, ScopeProject) {

@@ -1,8 +1,10 @@
 # 02 — `application.json` reference
 
-Every application directory contains exactly one `application.json`. It is loaded and
-validated at server startup by `registry.go:loadApplication`; a malformed file fails
-the build and the tests rather than producing a broken catalog entry.
+Every application directory contains exactly one `application.json`. Built-in
+entries are loaded and validated at server startup by
+`registry.go:loadApplication`; uploaded entries pass the same loader before
+the package is accepted. A malformed file is refused rather than producing a
+broken catalog entry.
 
 The Go type behind it is `Application` in
 [`service/applications/model.go`](../../../backend/internal/service/applications/model.go).
@@ -42,7 +44,24 @@ An application using every infrastructure and presentation field:
       "default": "app"
     }
   ],
-  "service": "mysql",
+  "service": {
+    "name": "mysql",
+    "description": "MySQL database server",
+    "command": ["/usr/sbin/mysqld", "--port", "{{internalPort}}"],
+    "user": "mysql",
+    "group": "mysql",
+    "restart": "on-failure",
+    "restartSec": 1,
+    "environment": [
+      {"key": "MYSQL_ROOT_PASSWORD_B64", "fromEnv": "MYSQL_ROOT_PASSWORD", "encoding": "base64"}
+    ],
+    "hardening": {
+      "noNewPrivileges": true,
+      "privateTmp": true,
+      "protectHome": true,
+      "protectSystem": "full"
+    }
+  },
   "connection": {
     "user": "root",
     "passwordEnv": "MYSQL_ROOT_PASSWORD",
@@ -66,7 +85,7 @@ An application with backend and UI capabilities:
 {
   "id": "backend-playground",
   "name": "Backend Playground",
-  "description": "Developer fixture: a Go plugin that exercises every part of the backend API.",
+  "description": "Developer fixture: a Go backend that exercises every part of the backend API.",
   "category": "development",
   "version": "1",
   "icon": "ui/assets/logo.svg",
@@ -82,6 +101,48 @@ An application with backend and UI capabilities:
   }
 }
 ```
+
+An application backend that publishes its own events and consumes both Remote
+lifecycle events and another application's events:
+
+```json
+{
+  "id": "event-worker",
+  "name": "Event Worker",
+  "version": "1",
+  "scopes": ["global", "project"],
+  "publishers": [
+    {
+      "name": "jobs",
+      "events": [
+        {
+          "name": "completed",
+          "version": 1,
+          "description": "A job completed successfully."
+        }
+      ]
+    }
+  ],
+  "subscriptions": [
+    {
+      "publisher": "remote.applications",
+      "events": ["installed", "uninstalled", "started", "stopped"]
+    },
+    {
+      "publisher": "applications.other-app.imports",
+      "events": ["completed"]
+    }
+  ]
+}
+```
+
+This package must also contain a host backend: event declarations without one
+are rejected. Keep typed business-event triggers and subscriber behavior in
+the importable child package `backend/lifecycle/`. `backend/main.go` receives
+the core-owned event runtime and composes those dependencies; it does not
+implement a publisher. All child packages compile into the same process. See
+[18 — Backend event lifecycle](18-application-events.md) for the runtime API,
+routing, and delivery guarantees.
 
 An application that provisions into a project's container without exposing a port:
 
@@ -100,7 +161,10 @@ An application that provisions into a project's container without exposing a por
     { "key": "AWS_ACCESS_KEY_ID", "label": "Access key ID", "required": true, "secret": true },
     { "key": "AWS_SECRET_ACCESS_KEY", "label": "Secret access key", "required": true, "secret": true }
   ],
-  "service": "object-mount",
+  "service": {
+    "name": "object-mount",
+    "command": ["/usr/local/bin/object-mount"]
+  },
   "install": "infra/install.sh"
 }
 ```
@@ -132,19 +196,21 @@ An application with only a UI capability:
 | `name` | string | yes | Display name in the catalog and on installed rows. |
 | `description` | string | no | One line; the card truncates to two lines. |
 | `category` | string | no | Free text, e.g. `database`, `cache`, `development`. |
-| `version` | string | **yes** | A string, not a number — `"8.0"`, `"16"`, `"1.2.3-rc1"`. Shown next to the name, and the signal that re-runs `infra/install.sh` on an installed copy when it changes. See [17 — Versions and upgrades](17-versions-and-upgrades.md). |
+| `version` | string | **yes** | A string, not a number — `"8.0"`, `"16"`, `"1.2.3-rc1"`. Shown next to the name, and the signal that reconverges an installed copy's container programs, custom installer, and manifest service when it changes. See [17 — Versions and upgrades](17-versions-and-upgrades.md). |
 | `icon` | string | no | Built-in key or a path into this application's `ui/`. See [09 — Styling and icons](09-styling-and-icons.md). |
 | `scopes` | string[] | yes | Any of `global`, `project`. At least one. |
 | `base` | string | no | LXD image for a dedicated global infrastructure container. Default `ubuntu:24.04`. |
 | `port` | object | no | See below. Requires infrastructure; omit it when nothing is exposed. |
 | `env` | object[] | no | Install-time inputs. See below. |
-| `service` | string | no | systemd unit name inside the container. Requires infrastructure; it is what stop and uninstall act on. |
+| `service` | object | no | Complete systemd service declaration. It is itself a container capability; Remote creates and owns the unit. See below. |
 | `connection` | object | no | Maps env vars to user/password/database. See below. |
 | `install` | string | no | Override for the install-script path inside `infra/`. When omitted, `infra/install.sh` is detected automatically. |
 | `healthcheck` | object | no | `{ "command": "…" }` run inside the container. Requires `port.internal`. |
 | `ui` | object | no | Overrides what is loaded from `ui/`. See below. |
-| `backend` | object | no | Overrides the defaults for the Go plugin in `backend/`. See below. |
-| `source` | string | — | **Server-set, not accepted from `application.json`.** `builtin` or `uploaded`; anything declared here is overwritten. |
+| `backend` | object | no | Overrides the defaults for the Go backend whose executable entry point is `backend/main.go`. See below. |
+| `publishers` | object[] | no | Event families the backend may publish. Publisher names are local; Remote qualifies them as `applications.<application-id>.<publisher>`. See below. |
+| `subscriptions` | object[] | no | Canonically named event families delivered to running backend instances. See below. |
+| `source` | string | — | **Response-only.** The server sets `builtin` or `uploaded`; declaring this field in `application.json` is rejected. |
 
 ### `port`
 
@@ -180,6 +246,29 @@ install script, and a field in the install dialog.
 Resolution order for a blank field: `generate`, then `default`, then reject if
 `required`.
 
+### `service`
+
+Declares a supervised container process without asking an install script to
+write systemd files. Remote writes the environment and unit, registers the
+daemon with workspace-idle detection, reloads systemd, enables and restarts the
+unit, and owns start/stop/uninstall lifecycle.
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | Unit name without `.service`. |
+| `description` | string | One-line systemd description; defaults to the application name. |
+| `command` | string[] | Absolute executable followed by arguments. `{{internalPort}}` is replaced with the instance's internal port. |
+| `user`, `group` | string | Optional service identity. Omit both to run as root. |
+| `restart` | string | One of systemd's standard restart policies: `no`, `on-success`, `on-failure`, `on-abnormal`, `on-watchdog`, `on-abort`, or `always`. |
+| `restartSec` | int | Non-negative restart delay in seconds. |
+| `environment` | object[] | Maps a declared `env[]` key into the service environment. Each entry is `{ "key", "fromEnv", "encoding": "base64" }`. |
+| `hardening` | object | Optional `noNewPrivileges`, `privateTmp`, `protectHome`, and `protectSystem` (`true`, `full`, or `strict`). |
+
+Environment mappings are deliberately base64 encoded. This preserves spaces,
+line breaks, quotes, and secrets without letting a value change systemd's
+environment-file syntax. The service decodes those values itself, as Hello
+Remote does for its `HELLO_*_B64` variables.
+
 ### `connection`
 
 Lets the UI show a uniform user/password/database panel for every server,
@@ -213,27 +302,100 @@ Every declared path must exist and must stay inside `ui/`. A typo fails
 
 ### `backend`
 
-Optional, and only meaningful when the application ships a `backend/` directory —
-which, exactly like `ui/`, is what opts the application in. There is nothing to name
-here because the layout is fixed: the plugin is `backend/`, and it is
-`package main`.
+Optional, and only meaningful when the application ships a host backend. In
+the current layout, the `backend/` root is the required executable
+`package main` and composition root. Child directories such as `backend/api/`
+and `backend/lifecycle/` are ordinary importable packages in that same
+generated host module. They organize implementation ownership; they do not opt
+the application into an additional capability or process. A `package main`
+under `backend/api/` remains accepted for older uploaded packages.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `access` | string | `registered` | `registered` — any signed-in user may call the plugin; `admin` — administrators only. |
-| `timeoutMs` | int | `15000` | Bounds one call. A plugin that has not answered by then fails that call and keeps running. |
+| `access` | string | `registered` | `registered` — any signed-in user may call the backend; `admin` — administrators only. |
+| `timeoutMs` | int | `15000` | Requests the bound for one call; `0` selects the default. Any nonnegative value is accepted for compatibility, but the effective runtime maximum is `300000` (five minutes). A backend that has not answered by then fails that call and keeps running. Event delivery has a separate 30-second maximum. |
 
-`access` is the only capability control the platform enforces on a plugin's
-behalf. Anything finer is the plugin's own job, using `Request.Caller` — see
-[15 — Backend plugins](15-backend-plugins.md).
+`access` is the only capability control the platform enforces on a backend's
+behalf. Anything finer is the backend's own job, using `Request.Caller` — see
+[15 — Application backends](15-application-backends.md).
 
-An unknown backend `access` value or a negative `timeoutMs` fails `NewRegistry()`.
+An unknown backend `access` value or a negative `timeoutMs` fails
+`NewRegistry()`.
+
+### `publishers[]`
+
+Declares exactly what an application's backend is allowed to emit. The
+publisher `name` is local to the application manifest; for example, `jobs` on
+application `event-worker` is delivered under the canonical publisher
+`applications.event-worker.jobs`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | Local lowercase name, at most 128 bytes, made of alphanumeric segments separated by `.` or `-`. It cannot begin with the reserved `remote` or `applications` segment. |
+| `events` | object[] | Between 1 and 128 event declarations; names must be unique within this publisher. |
+
+Each event declaration has:
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | At most 128 bytes; lowercase alphanumeric segments separated by `.` or `-`. |
+| `version` | int | Payload schema version, starting at `1`. Change it when the payload contract changes. |
+| `description` | string | Optional one-line description, at most 2048 bytes. |
+
+Publication is checked against all three manifest values: local publisher,
+event name, and version. Declaring a publisher does not publish anything by
+itself. Core constructs `Runtime.Events` from the installed manifest and binds
+it before `Backend.Init`; application code does not implement or initialize a
+publisher. Conventionally a typed wrapper in `backend/lifecycle/` calls
+`EventEmitter.Emit` wherever the application's business logic recognizes that
+an event occurred. Every emission is checked again against the installed
+manifest before core stamps its source and dispatches it.
+
+### `subscriptions[]`
+
+Selects events for delivery to a running backend instance.
+
+| Field | Type | Notes |
+|---|---|---|
+| `publisher` | string | Canonical publisher, at most 256 bytes: `remote.applications`, or `applications.<application-id>.<local-publisher>`. |
+| `events` | string[] | Between 1 and 128 unique event names, each at most 128 bytes. Subscriptions select names, not versions; inspect `Event.Version` in the handler. |
+
+Only one subscription block may name a particular canonical publisher. The
+seven valid names for `remote.applications` are `added`, `updated`, `deleted`,
+`installed`, `uninstalled`, `started`, and `stopped`. An application-owned
+publisher is validated structurally here; its existence and event list may
+change independently with that package, so subscribers must handle versions
+and payloads defensively.
+
+Like `publishers`, subscriptions require a host backend. A manifest declaration
+does not silently turn an ordinary backend into a subscriber: the value served
+by the root composition package must implement `applications.EventSubscriber`, or
+its install or start fails during the backend handshake. Put the cohesive
+implementation in `backend/lifecycle/`; embedding or delegating to it from the
+served value keeps the event contract out of the HTTP API package without
+creating a second process.
 
 ## Validation rules
 
 Every application must declare a non-empty `version`. Loading fails without one —
 including for an uploaded package, which is refused at upload rather than
 half-added.
+
+`application.json` is limited to 256 KiB. Field names are exact and
+case-sensitive; unknown fields, duplicate object keys, and trailing JSON values
+are rejected. `source`, `container`, and `skills` are derived from the catalog
+layout and cannot be declared in the manifest.
+
+That strict decoder applies to built-in applications and every new or
+replacement upload. Packages already persisted by an older Remote release are
+first try the strict current schema, then fall back to a frozen pre-events
+`encoding/json` schema. That keeps an installed application from disappearing
+merely because its old manifest contained an ignored, case-aliased, or
+response-only field. It also prevents a formerly unknown field named
+`publishers` or `subscriptions` from unexpectedly activating a capability.
+All recognized legacy values still pass current validation, and Remote still
+recomputes `source`, `container`, and `skills`. Re-uploading such a package
+requires its manifest to satisfy the strict current contract.
 
 Enforced in `registry_validation.go:validateApplication` and
 `registry.go:loadApplication`:
@@ -243,16 +405,35 @@ Enforced in `registry_validation.go:validateApplication` and
 - `version` must not be empty or whitespace.
 - `scopes` must be non-empty and contain only `global` / `project`.
 - An explicitly named `install` script must stay inside `infra/` and exist.
-- `port`, `service`, host tools, and `healthcheck` require infrastructure.
+- `port`, host tools, and `healthcheck` require a container capability. A
+  `service` declaration is itself such a capability.
+- A service requires a valid unit `name` and an absolute executable in
+  `command`; its environment mappings must reference declared `env[]` keys.
 - `defaultExternal` and `healthcheck` require `port.internal`.
 - At least one of `infra/`, `backend/`, `ui/`, or `skills/` must contribute a capability.
-- For `backend`: `port`, `service`, and `healthcheck` must all be absent, and a
-  `backend/` directory must exist.
+- A declared `backend` block requires an executable at `backend/main.go` (or
+  the legacy `backend/api/` executable layout). Backend, infrastructure,
+  service, port, and health-check capabilities may coexist in one application.
+- `publishers` and `subscriptions` require host backend source. Publisher names
+  are local and unique, events are unique per publisher and have versions of
+  at least `1`, and subscriptions use canonical publisher names with unique
+  event names.
+- A manifest may declare at most 64 publishers and 128 subscriptions. Each
+  publisher or subscription may list at most 128 events; publisher names,
+  canonical publisher names, event names, and event descriptions have the
+  byte limits documented above.
+- `remote.applications` subscriptions may name only its seven documented
+  version-1 lifecycle events.
 - Every path in the `ui` block must exist inside `ui/`.
 - A `ui/` directory that exists must contain at least one file.
-- A `backend/` directory that exists must contain at least one `package main`
-  Go file, and must not contain its own `go.mod` or `go.sum` — the server
-  generates those.
+- In the current layout, the `backend/` root must contain at least one non-test
+  `package main` Go file. Child host directories such as `backend/api/` and
+  `backend/lifecycle/` are importable packages compiled into that executable.
+- The host backend tree must not contain `go.mod`, `go.sum`, `go.work`, or
+  `go.work.sum`; Remote generates `go.mod` and owns the module/workspace
+  resolution used to build `.`. `backend/container/` is excluded from the
+  host tree and may carry module control files for its separate in-container
+  build.
 
 ## Reserved directory names
 

@@ -77,7 +77,7 @@ test("an explicit instance id wins, and an unknown one is refused", () => {
   );
 });
 
-// An application whose plugin is not running is the case an extension should degrade
+// An application whose backend is not running is the case an extension should degrade
 // around, so `available` says so rather than every call throwing later.
 test("an application with no running install reports itself unavailable", () => {
   const backend = createBackendApi(application, []);
@@ -86,12 +86,12 @@ test("an application with no running install reports itself unavailable", () => 
   assert.throws(() => backend.url("health"), /no running backend/);
 });
 
-test("an application that ships no plugin is unavailable even when installed", () => {
+test("an application that ships no backend is unavailable even when installed", () => {
   const uiOnly = { ...application, backend: undefined } as AppApplication;
   assert.equal(createBackendApi(uiOnly, [globalInstance]).available, false);
 });
 
-// Route separators have to survive encoding, or a plugin sees an escaped path
+// Route separators have to survive encoding, or a backend sees an escaped path
 // it never declared.
 test("route separators survive encoding but segments are escaped", () => {
   const backend = createBackendApi(application, [globalInstance]);

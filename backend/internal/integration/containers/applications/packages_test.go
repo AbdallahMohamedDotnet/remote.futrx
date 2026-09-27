@@ -76,7 +76,10 @@ func upload(t *testing.T, r *Registry, files map[string]string) svc.Package {
 	if err != nil {
 		t.Fatalf("install package: %v", err)
 	}
-	return pkg
+	if pkg.Replaced {
+		t.Fatal("first upload was reported as a replacement")
+	}
+	return pkg.Package
 }
 
 func TestAddPackageJoinsTheCatalog(t *testing.T) {
@@ -148,7 +151,72 @@ func TestUploadedBackendSourceComesFromThePackage(t *testing.T) {
 	}
 	data, err := fs.ReadFile(source, "main.go")
 	if err != nil || !strings.Contains(string(data), "package main") {
-		t.Fatalf("plugin source = %q, %v", data, err)
+		t.Fatalf("backend source = %q, %v", data, err)
+	}
+}
+
+func TestUploadedBackendSourceIncludesLifecycleAndExcludesContainer(t *testing.T) {
+	registry, _, _ := newTestRegistry(t)
+	upload(t, registry, map[string]string{
+		"application.json": `{
+			"id": "uploaded-lifecycle",
+			"name": "Uploaded Lifecycle",
+			"version": "1.0.0",
+			"scopes": ["global"]
+		}`,
+		"backend/main.go": `package main
+
+import _ "futrx.local/catalog/applications/uploaded-lifecycle/backend/lifecycle"
+
+func main() {}
+`,
+		"backend/api/api.go":          "package api\n",
+		"backend/lifecycle/events.go": "package lifecycle\n\nconst Event = \"greeted\"\n",
+		"backend/container/main.go":   "package main\n\nfunc main() {}\n",
+		"backend/container/go.mod":    "module example.com/container\n",
+	})
+
+	source, ok := registry.BackendSource("uploaded-lifecycle")
+	if !ok {
+		t.Fatal("BackendSource not available for the uploaded application")
+	}
+	for _, name := range []string{"main.go", "api/api.go", "lifecycle/events.go"} {
+		if _, err := fs.Stat(source, name); err != nil {
+			t.Errorf("host source is missing %s: %v", name, err)
+		}
+	}
+	for _, name := range []string{"container", "container/main.go", "container/go.mod"} {
+		if _, err := fs.Stat(source, name); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("container source %s is visible to the host compiler: %v", name, err)
+		}
+	}
+}
+
+func TestUploadedBackendRejectsLifecycleModuleFile(t *testing.T) {
+	registry, _, root := newTestRegistry(t)
+	_, err := registry.AddPackage(svc.PackageUpload{Data: zipOf(t, map[string]string{
+		"application.json": `{
+			"id": "uploaded-lifecycle-module",
+			"name": "Uploaded Lifecycle Module",
+			"version": "1.0.0",
+			"scopes": ["global"]
+		}`,
+		"backend/main.go":             "package main\n\nfunc main() {}\n",
+		"backend/lifecycle/events.go": "package lifecycle\n",
+		"backend/lifecycle/go.mod":    "module example.com/lifecycle\n",
+	})})
+	if !errors.Is(err, svc.ErrPackageInvalid) {
+		t.Fatalf("err = %v, want %v", err, svc.ErrPackageInvalid)
+	}
+	if err == nil || !strings.Contains(err.Error(), "backend/lifecycle/go.mod") {
+		t.Fatalf("err = %v, want lifecycle module path", err)
+	}
+	entries, readErr := os.ReadDir(filepath.Join(root, packageApplicationsDir))
+	if readErr != nil {
+		t.Fatalf("read committed packages: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("rejected upload left %d committed directories", len(entries))
 	}
 }
 
@@ -161,7 +229,7 @@ func TestUploadedServiceCarriesItsInstallScript(t *testing.T) {
 			"version": "1.0.0",
 			"scopes": ["global"],
 			"port": {"internal": 6000},
-			"service": "uploaded"
+			"service": {"name": "uploaded", "command": ["/usr/local/bin/uploaded"]}
 		}`,
 		"infra/install.sh": "#!/usr/bin/env bash\necho uploaded\n",
 	})
@@ -279,7 +347,13 @@ func TestUploadingAgainReplacesTheStoredPackage(t *testing.T) {
 	next["application.json"] = strings.Replace(uploadedManifest, `"1.0.0"`, `"2.0.0"`, 1)
 	next["ui/scripts/main.js"] = "export default () => 2;\n"
 	delete(next, "ui/views/panel.html")
-	upload(t, registry, next)
+	mutation, err := registry.AddPackage(svc.PackageUpload{Data: zipOf(t, next)})
+	if err != nil {
+		t.Fatalf("replace package: %v", err)
+	}
+	if !mutation.Replaced {
+		t.Fatal("replacement was reported as a first addition")
+	}
 
 	application, _ := registry.Get("uploaded-app")
 	if application.Version != "2.0.0" {
@@ -432,7 +506,7 @@ func TestPackageFilesAreNotWrittenExecutable(t *testing.T) {
 			"version": "1.0.0",
 			"scopes": ["global"],
 			"port": {"internal": 6000},
-			"service": "uploaded"
+			"service": {"name": "uploaded", "command": ["/usr/local/bin/uploaded"]}
 		}`,
 		"infra/install.sh": "#!/usr/bin/env bash\n",
 	})

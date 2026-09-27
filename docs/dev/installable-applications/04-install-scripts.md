@@ -1,8 +1,19 @@
 # 04 — Install scripts
 
-Applications that provision a container have one. UI-only or backend-only
-applications need no script — see
+Applications may provide one for custom container provisioning. A Go program in
+`backend/container/` needs no shell: Remote packages and builds it automatically.
+UI-only and host-backend-only applications need neither — see
 [03 — Application capabilities](03-application-capabilities.md).
+
+Hello Remote combines both paths. Its Go programs are built from
+`backend/container/`, its complete systemd service lives in `application.json`,
+and `infra/install.sh` creates the application-specific system account and
+persistent state directory the service uses. The script also records its
+provisioned version there so the example UI can prove that it ran. A custom
+script is for work the manifest cannot express, such as OS packages, users,
+mounts, data migrations, or application-specific configuration. Do not add
+shell merely to build a container program, create a unit, manage workspace-idle
+declarations, or run a health check; Remote owns those shared operations.
 
 ## The contract
 
@@ -14,6 +25,10 @@ lxc exec <container> --env APP_INTERNAL_PORT=3306 --env … -- bash -s
 
 It receives:
 
+- `APP_APPLICATION_ID`, `APP_APPLICATION_NAME`, and
+  `APP_APPLICATION_VERSION` — package identity from `application.json`.
+- `APP_SERVICE` — the manifest's systemd unit name, or empty when it declares
+  none. Use this instead of repeating the unit name in the script.
 - `APP_INTERNAL_PORT` — the port the app must bind **inside** the container.
   Always `port.internal` from `application.json`. When no port is declared it
   is `0` and means nothing.
@@ -22,8 +37,9 @@ It receives:
 
 It must:
 
-1. **Be idempotent.** It re-runs on every install *and every start*. A second
-   run must be a no-op, not a reinstall or a reset.
+1. **Be idempotent.** It re-runs on an install, retry, or versioned upgrade. A
+   second run must converge, not duplicate or reset state. An ordinary start
+   does not re-run a current script; it starts the declared service directly.
 2. **Bind `APP_INTERNAL_PORT` on all interfaces** (`0.0.0.0`), so the LXD proxy
    device can forward the host port to it. Binding only to `127.0.0.1` inside
    the container makes the app unreachable from the host. Portless
@@ -40,7 +56,65 @@ attached to the error message when the script fails.
 There is an 8-minute timeout (`execTimeout` in `installer.go`), which is
 generous enough for an `apt-get install` on a cold container.
 
-## Bundled infra files
+## Container-side Go programs
+
+The capability path `backend/container/` is enforced: Remote discovers
+container Go source only there. Inside it, `cmd/` is optional. Remote supports
+two executable layouts:
+
+| Programs | Source layout | Installed binary |
+|---|---|---|
+| One | Root package in `backend/container/` | `/usr/local/bin/<application-id>` |
+| One or more explicitly named programs | `backend/container/cmd/<binary>/` | `/usr/local/bin/<binary>` for every immediate `cmd/` child |
+
+Each executable package must use `package main` and provide `func main()`. A
+single-program application can therefore be as small as:
+
+```text
+backend/
+  container/
+    main.go
+```
+
+Use the standard Go `cmd/` layout when the binary name should differ from the
+application ID or when the application installs multiple programs:
+
+```text
+backend/
+  container/
+    cmd/
+      my-agent/
+        main.go
+    internal/
+      state/
+        state.go
+```
+
+This choice is filesystem-driven; there is no manifest field for it. Other
+subdirectories may hold imported Go packages, but Remote does not install them
+as independent executables.
+
+Remote deterministically packs the source, stages it in the target LXD
+container, installs the matching Go toolchain, and builds either the root
+package or every immediate `cmd/*` package. If any `cmd/*` program exists, the
+root package is not built as an executable. It may still contain importable
+library code, though `internal/` is the conventional home for implementation
+shared by the commands. Do not put a second `package main` at the root and
+expect Remote to install it alongside the `cmd/*` binaries.
+
+Remote places the resulting binaries in `/usr/local/bin`. It records a
+source-derived build marker, so idempotence does not require `--version`, a
+version variable, `package.sh`, or a committed archive. An optional
+`infra/install.sh` runs after these generated build steps when the application
+also needs custom provisioning. Remote materializes the manifest's `service`
+only after both have completed, so its command may safely reference a newly
+built or installed binary.
+
+Applications uploaded as ZIPs may ship their own `backend/container/go.mod` for
+dependencies. The built-in catalog's container source participates in the
+catalog module and receives a generated module when staged.
+
+## Legacy bundled infra files
 
 An application may include `infra/payload.tar.gz`. The archive holds
 regular files and directories under `infra/`. The catalog validates the
@@ -49,20 +123,9 @@ inside the target container. The script receives that directory as
 `APP_PACKAGE_DIR`; cleanup runs when the script exits, including on failure.
 Applications without an archive retain the plain `bash -s` behavior.
 
-For example, an application whose container-side program is a Go module builds it
-from `$APP_PACKAGE_DIR/infra/`. That module, the application's host `backend/` and
-its browser `ui/` all belong to the same application folder, and a packaging script
-in the application refreshes the archive from that source. The archive is what allows
-a catalog to carry nested Go modules, which `go:embed` does not traverse.
-
-The s3disk application is the worked example, and it lives in its own repository
-rather than here. Its `infra/` is a Go module with its own `go.mod`, its
-`infra/package.sh` rebuilds `infra/payload.tar.gz` reproducibly, and `infra/install.sh`
-compiles the staged source inside the container. Copy that shape if your application
-needs one — including the part that is easy to miss: because
-`go:embed` skips a nested module in silence rather than failing, a stale or
-missing archive produces a green build and a broken install, so the freshness
-of the archive needs a test of its own.
+This transport remains supported for existing uploaded packages. New Go-based
+container programs should use `backend/container/`; it removes the possibility
+of committing a payload that is stale relative to its source.
 
 Payloads are limited to 8 MiB compressed and 32 MiB expanded. Paths outside
 `infra/`, links, duplicate entries and special files are rejected. An
@@ -102,20 +165,7 @@ port = ${APP_INTERNAL_PORT}
 listen = 0.0.0.0
 EOF
 
-# 3. Start it under systemd.
-systemctl enable myapp >/dev/null 2>&1 || true
-systemctl restart myapp
-
-# 4. Wait until it is actually accepting connections.
-for _ in $(seq 1 30); do
-  if (exec 3<>"/dev/tcp/127.0.0.1/${APP_INTERNAL_PORT}") 2>/dev/null; then
-    exec 3<&-
-    break
-  fi
-  sleep 1
-done
-
-echo "install: myapp ready on port ${APP_INTERNAL_PORT}"
+echo "install: myapp provisioned"
 ```
 
 ## Idempotency in practice
@@ -128,7 +178,6 @@ These are the patterns that make a re-run safe:
 | `cat > /etc/app/zz-futrx.conf` (a file you own) | `>> /etc/app/app.conf` (appends grow every run) |
 | `CREATE DATABASE IF NOT EXISTS` | `CREATE DATABASE` |
 | `CREATE USER IF NOT EXISTS` / `ALTER USER` | `CREATE USER` |
-| `systemctl restart` | `systemctl start` (a no-op if config changed) |
 | `useradd -r app 2>/dev/null || true` | `useradd -r app` |
 
 The MySQL application is a worked example of the harder case: on a fresh install root
@@ -152,29 +201,11 @@ The same applies to non-secret user input. `ui-playground` used to escape
 
 ## Infrastructure with no port to wait for
 
-A portless infrastructure script uses the same contract minus the port. A mount application is
-the worked example: it installs `fuse3`, puts the binary in place, writes its
-credentials to a root-only environment file, generates a systemd unit, and then
-**waits for `mountpoint -q` to succeed** before exiting. That wait is the whole
-readiness check.
-
-An application whose daemon runs for the life of the container should also declare
-itself to the idle-workspace probe, by writing its process name into
-`/etc/remote/workspace-idle.d/<name>`:
-
-```sh
-mkdir -p /etc/remote/workspace-idle.d
-printf '%s\n' "$UNIT" >"/etc/remote/workspace-idle.d/${UNIT}"
-```
-
-The probe treats any unrecognised process as someone working in the project, so
-without this an always-running daemon pins every workspace it is installed in
-and an idle project is never archived. Remote reads names from that directory
-and ships no list of its own — an application that leaves nothing running needs
-nothing here.
-
-Note what it does *not* do: it never echoes a secret, and it writes credentials
-to a `0600` file rather than into the unit, which is world-readable.
+A portless infrastructure script uses the same contract minus the port. A mount
+application may install `fuse3`, place its binary, and wait for `mountpoint -q`
+before exiting. A long-running process belongs in the manifest's `service`
+object. Remote then creates its root-owned `0600` environment file, unit, and
+workspace-idle declaration consistently; the custom script does none of that.
 
 ## Healthcheck
 
@@ -185,20 +216,21 @@ container. `{{internalPort}}` is substituted:
 "healthcheck": { "command": "mysqladmin ping -h 127.0.0.1 -P {{internalPort}} --silent" }
 ```
 
-It runs after the install script on an install, and after the service is started
-on a start, with the same environment the install script gets. It is retried
+It runs after the install script and manifest service have been installed on an
+install, and after the service is started on a start, with the same resolved
+environment. It is retried
 every two seconds for up to a minute; an app whose probe never passes is
 reported as failed rather than as running.
 
-It is a separate, cheap check — the install script should still wait for its
-own service to come up before exiting, as in the skeleton above. The probe is
-the margin around that wait, not a replacement for it.
+It is the platform-owned readiness gate. A custom install script should wait
+only for work that it owns itself, such as a mount or migration; it must not
+start or poll the manifest-owned service.
 
 ## Testing a script
 
 The install script only runs against a real container, so it needs a host with
-a working LXD. The catalog tests do **not** execute it; they only assert it
-exists and is readable.
+a working LXD. Catalog tests validate the declarative service and generated
+unit behavior without LXD; they do **not** execute a custom script.
 
 The fastest loop:
 
@@ -215,7 +247,7 @@ The fastest loop:
 - **Anything host-side.** The script runs inside a container and cannot see the
   host.
 - **Interactive prompts.** There is no TTY. Use `DEBIAN_FRONTEND=noninteractive`.
-- **Data destruction on re-run.** Remember it runs on every start.
+- **Data destruction on re-run.** Installs, retries, and upgrades may all run it again.
 - **Network assumptions beyond the container.** A dedicated global container
   has network by the time the script runs (the installer waits for an IPv4
   route), but nothing else is guaranteed.

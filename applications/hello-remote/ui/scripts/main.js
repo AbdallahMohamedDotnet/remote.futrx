@@ -1,9 +1,15 @@
 // Entry module for the Hello Remote example.
 //
 // The default export runs once, after sign-in, with the extension API. It adds
-// one card action and one panel, and both of them do the same thing: call this
-// application's own Go plugin and show what came back. That round trip — browser to
-// a process the server compiled out of backend/ — is the whole example.
+// controls across every extension slot plus the applications panel. Together
+// they expose the complete frontend API and call this application's own Go
+// backend. That round trip — browser to the backend/api entry point the server
+// compiled with its sibling backend/lifecycle package — is the center of the
+// example.
+
+import { mountContainerPanel } from "./containerPanel.js";
+import { mountServicePanel } from "./servicePanel.js";
+import { activateFrontendShowcase } from "./showcase.js";
 
 const WAVE_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
@@ -11,12 +17,15 @@ const WAVE_ICON =
   '<path d="M12 3v9M8.5 6.5v7M15.5 6.5v7M5 10v3.5a7 7 0 0 0 14 0V10"/></svg>';
 
 export default function activate(remote) {
+  activateFrontendShowcase(remote);
+
   // Per-instance action. The slot renders for every installed application, so
   // `when` is what keeps this button on this application's cards.
   remote.ui.addButton(remote.slots.applicationCardActions, {
     label: "Say hello",
-    title: "Call this install's Go plugin",
+    title: "Call this install's Go backend",
     icon: WAVE_ICON,
+    variant: "solid",
     order: -10,
     when: (context) => context.instance?.applicationId === remote.application.id,
     onClick: (context) => sayHello(remote, context),
@@ -44,7 +53,7 @@ function sayHello(remote, context) {
     title: "Hello Remote",
     width: 420,
     mount: (body) => {
-      body.textContent = "Calling the plugin…";
+      body.textContent = "Calling the backend…";
       remote.backend
         .call("hello", target(context))
         .then((reply) => {
@@ -59,7 +68,7 @@ function sayHello(remote, context) {
           body.append(line, note);
         })
         .catch((error) => {
-          body.textContent = `The plugin did not answer: ${error.message}`;
+          body.textContent = `The backend did not answer: ${error.message}`;
         });
     },
   });
@@ -88,12 +97,16 @@ function renderPanel(host, remote, context) {
 
     const show = (reply) => {
       if (disposed) return;
-      if (reply.message) message.textContent = reply.message;
+      if (reply.warning) {
+        message.textContent = `Greeting counted with a warning: ${reply.warning}`;
+      } else if (reply.message) {
+        message.textContent = reply.message;
+      }
       if (typeof reply.visits === "number") count.textContent = String(reply.visits);
     };
     const fail = (error) => {
       if (disposed) return;
-      message.textContent = `The plugin did not answer: ${error.message}`;
+      message.textContent = `The backend did not answer: ${error.message}`;
     };
 
     const onClick = () => {
@@ -106,8 +119,25 @@ function renderPanel(host, remote, context) {
           if (!disposed) button.disabled = false;
         });
     };
+
     button.addEventListener("click", onClick);
-    detach = () => button.removeEventListener("click", onClick);
+    const unmountContainerPanel = mountContainerPanel(
+      host,
+      remote.backend,
+      target(context),
+      () => disposed
+    );
+    const unmountServicePanel = mountServicePanel(
+      host,
+      remote.backend,
+      target(context),
+      () => disposed
+    );
+    detach = () => {
+      button.removeEventListener("click", onClick);
+      unmountContainerPanel();
+      unmountServicePanel();
+    };
 
     remote.backend.call("hello", target(context)).then(show).catch(fail);
   });

@@ -5,7 +5,7 @@ Logic that belongs to no single caller, grouped by the domain it serves.
 | Folder | What it answers about |
 | --- | --- |
 | `auth/` | Which agent providers are logged in, and the recovery-code file a user saves |
-| `chat/` | Where an attachment is stored and what it is called, and where find-in-chat's matches are shown |
+| `chat/` | Where an attachment is stored and what it is called, where find-in-chat's matches are shown, and which skills a typed query finds |
 | `extensions/` | What the SPA has finished, and which application asked to hear it |
 | `files/` | What a filename means: its kind, its icon, what a click does |
 | `projects/` | The `<slug>--<port>.dev.<host>` preview URL shape |

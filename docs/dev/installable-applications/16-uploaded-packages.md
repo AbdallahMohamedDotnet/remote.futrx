@@ -32,6 +32,14 @@ and leaves every uploaded application in place — along with the instances
 installed from it and their settings, which were already stored beside it under
 `$DATA_DIR`.
 
+Persisted packages first use the current strict schema and then, when needed,
+a frozen pre-events `encoding/json` schema for ignored, case-aliased, and
+response-only manifest fields. That fallback deliberately cannot activate
+publishers or subscriptions that did not exist when the package was accepted.
+Current semantic validation still runs, and Remote always recomputes derived
+fields. Every new or replacement upload must satisfy the current strict
+manifest decoder.
+
 The layout is chosen so the directory **is** a catalog filesystem: `os.DirFS`
 over `app-packages/` has the same `applications/<id>/` shape the embedded catalog
 has, and loads through the same `loadApplication` the built-in one does. There is no
@@ -48,18 +56,28 @@ application.json     required — and it must set "id" and "version"
 infra/install.sh     optional container provisioning
 infra/payload.tar.gz optional infra payload (see 04 — Install scripts)
 ui/…                  optional browser extension
-backend/…             optional Go backend
+backend/main.go       optional host Go executable and composition root
+backend/api/…         optional request-handling package imported by main
+backend/lifecycle/…   optional event package imported by main
+backend/container/…   optional Go programs built inside the target container
 ```
 
 Both shapes are accepted: the files at the archive root, or inside a single
 folder — which is what "compress this folder" produces on a desktop. macOS
 bookkeeping (`__MACOSX/`, `.DS_Store`, `._*`) is ignored.
 
-So any zip tool will do — unless the application carries an `infra/payload.tar.gz`, which
-nothing here builds for you: the archive is extracted as it arrives, and an
-application whose container source is a nested Go module has to ship the payload
-already packed. The convention is `infra/package.sh`, which builds
-`infra/payload.tar.gz` and, with `--zip`, writes the whole archive.
+So any zip tool will do. For the host backend, Remote generates one module from
+the `backend/` root and its child host packages, then builds `.` as the single
+process; `backend/container/` is excluded from those source bytes and the host
+build fingerprint. Module-control files (`go.mod`, `go.sum`, `go.work`, and
+`go.work.sum`) are therefore refused in the host tree. Container-side Go ships
+as ordinary source under `backend/container/`; Remote packs and builds it in
+the target container. A root main package produces one binary named after the
+application ID, while `cmd/<binary>/` produces one or more explicitly named
+binaries. See
+[Container-side Go programs](04-install-scripts.md#container-side-go-programs).
+Legacy packages may still
+carry `infra/payload.tar.gz`, which is extracted as it arrives.
 
 `application.json` must set both `"id"` and `"version"`.
 
@@ -100,7 +118,7 @@ on every upload, because none of it lives in a container:
 
 - the catalog entry — name, version, env fields, scopes;
 - the `ui/` the browser loads;
-- the source the `backend/` is compiled from. Plugin processes for instances of
+- the source the `backend/` is compiled from. Backend processes for instances of
   that application are stopped, so the next call to one rebuilds and relaunches
   against the new source.
 
@@ -252,6 +270,6 @@ catalog.
 { "id": "s3disk", "name": "s3disk", "source": "uploaded", … }
 ```
 
-`builtin` or `uploaded`. It is decided by the registry and overwrites whatever
-`application.json` declared, so a package cannot describe itself as built in. The UI
-uses it to badge uploaded applications and to offer removing them.
+`builtin` or `uploaded`. It is decided by the registry; declaring `source` in
+`application.json` is rejected, so a package cannot describe itself as built
+in. The UI uses it to badge uploaded applications and to offer removing them.

@@ -23,7 +23,7 @@ func fixtureCatalog() fstest.MapFS {
 			"version": "1.0.0",
 			"scopes": ["global", "project"],
 			"port": {"internal": 5432, "defaultExternal": 5432},
-			"service": "fixture",
+			"service": {"name": "fixture", "command": ["/usr/local/bin/fixture"]},
 			"connection": {"user": "root", "passwordEnv": "FIXTURE_PASSWORD"}
 		}`),
 		"applications/" + fixtureService + "/infra/install.sh":    file("#!/usr/bin/env bash\necho service\n"),
@@ -37,7 +37,7 @@ func fixtureCatalog() fstest.MapFS {
 			"name": "Fixture Portless",
 			"version": "2.1.0",
 			"scopes": ["project"],
-			"service": "fixture-portless",
+			"service": {"name": "fixture-portless", "command": ["/usr/local/bin/fixture-portless"]},
 			"hostTools": [{
 				"name": "fixture-backup",
 				"version": "1.2.3",

@@ -138,7 +138,7 @@ function Preview() {
           account={{ email: "me@ahmedwaleed.net", authenticated: true }}
           onClose={noop} onOpenPalette={noop} onToggleSidebar={noop}
           onNewProject={noop} onNewChatInProject={noop} onToggleProject={noop}
-          onSelectChat={noop} onDeleteChat={noop} onToggleChatUnread={noop} onForkChat={noop}
+          onSelectChat={noop} onDeleteChat={noop} onToggleChatUnread={noop} onForkChat={noop} onRenameChat={noop}
           onReorderProjects={noop} onOpenProjectContainers={noop} onOpenSettings={noop} onSignOut={noop}
         />
       }

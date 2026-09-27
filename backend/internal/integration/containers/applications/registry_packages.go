@@ -9,7 +9,7 @@ import (
 
 // The registry is what joins an uploaded package to the running catalog: the
 // store owns the bytes on disk, and every write to it is followed by a reload
-// so the installer, the plugin host and the HTTP handlers see the new entry
+// so the installer, the application backend host and the HTTP handlers see the new entry
 // without anything being rebuilt or restarted.
 
 var _ svc.PackageCatalog = (*Registry)(nil)
@@ -65,24 +65,24 @@ func (r *Registry) Packages() []svc.PackageView {
 }
 
 // AddPackage stores an uploaded archive and reloads the catalog.
-func (r *Registry) AddPackage(upload svc.PackageUpload) (svc.Package, error) {
+func (r *Registry) AddPackage(upload svc.PackageUpload) (svc.PackageMutation, error) {
 	if r.packages == nil {
-		return svc.Package{}, svc.ErrPackagesUnavailable
+		return svc.PackageMutation{}, svc.ErrPackagesUnavailable
 	}
-	pkg, err := r.packages.add(upload, r.reservePackageID)
+	mutation, err := r.packages.add(upload, r.reservePackageID)
 	if err != nil {
-		return svc.Package{}, err
+		return svc.PackageMutation{}, err
 	}
 	if err := r.Reload(); err != nil {
-		return svc.Package{}, err
+		return svc.PackageMutation{}, err
 	}
 	// A package can pass its own validation and still be kept out of the
 	// catalog — the reload is the only place that knows. Reporting that here
 	// keeps the upload from looking successful when nothing was added.
-	if reason, failed := r.packageError(pkg.ID); failed {
-		return svc.Package{}, fmt.Errorf("%w: %s", svc.ErrPackageInvalid, reason)
+	if reason, failed := r.packageError(mutation.ID); failed {
+		return svc.PackageMutation{}, fmt.Errorf("%w: %s", svc.ErrPackageInvalid, reason)
 	}
-	return pkg, nil
+	return mutation, nil
 }
 
 // reservePackageID refuses an id the binary already defines. Allowing it would

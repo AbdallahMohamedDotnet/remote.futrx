@@ -10,9 +10,9 @@ type UIExtension struct {
 	Application Application `json:"application"`
 	Global      bool        `json:"global"`
 	ProjectIDs  []string    `json:"projectIds,omitempty"`
-	// Backends are the running instances of this application whose plugin the
+	// Backends are the running instances of this application whose backend the
 	// extension may call. An application installed both globally and in a project
-	// has one plugin process per install, so an extension addresses an
+	// has one backend process per install, so an extension addresses an
 	// instance, not an application.
 	Backends []BackendInstance `json:"backends,omitempty"`
 }
@@ -89,7 +89,7 @@ func (a *uiExtensionAccumulator) add(instance Instance, projectID string) {
 	}
 }
 
-// addBackend records the instance an extension should address for a plugin
+// addBackend records the instance an extension should address for a backend
 // call. The same instance can be reached through both the global list and a
 // project list, so the entry is deduplicated by instance id.
 func (a *uiExtensionAccumulator) addBackend(extension *UIExtension, application Application, instance Instance) {

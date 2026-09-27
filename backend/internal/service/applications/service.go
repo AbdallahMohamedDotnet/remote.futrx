@@ -3,8 +3,11 @@ package applications
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
+
+const maxInstanceErrorRunes = 4000
 
 // Errors returned by the service. Handlers map these to HTTP status codes.
 var (
@@ -17,6 +20,7 @@ var (
 	ErrPortRange          = errors.New("applications: external port out of range")
 	ErrAlreadyInstalled   = errors.New("applications: this application is already installed in this scope")
 	ErrNotSupported       = errors.New("applications: capability not supported")
+	ErrInvalidState       = errors.New("applications: invalid lifecycle state")
 
 	// Uploaded-package errors.
 	ErrPackagesUnavailable = errors.New("applications: uploaded packages are not available on this server")
@@ -37,22 +41,27 @@ type Clock func() int64
 
 // Service is the policy layer for installable applications.
 type Service struct {
-	registry  Registry
-	store     Store
-	installer Installer
-	projects  ProjectContainers
-	ports     PortAllocator
-	backends  BackendHost
-	packages  PackageCatalog
-	now       Clock
+	registry      Registry
+	store         Store
+	installer     Installer
+	projects      ProjectContainers
+	ports         PortAllocator
+	backends      BackendHost
+	packages      PackageCatalog
+	lifecycle     ApplicationLifecyclePublisher
+	eventSource   EventSource
+	eventContext  context.Context
+	eventRouter   *applicationEventRouter
+	instanceLocks instanceLockSet
+	now           Clock
 }
 
-// Option configures optional service dependencies. Backend plugin hosting is
+// Option configures optional service dependencies. Backend backend hosting is
 // optional because a server without a Go toolchain, or a build that ships no
-// plugin applications, must still install and run everything else.
+// backend applications, must still install and run everything else.
 type Option func(*Service)
 
-// WithBackendHost enables applications that ship a backend/ directory. Without it,
+// WithBackendHost enables applications that ship a host backend. Without it,
 // their catalog entries still load and every backend call reports the feature
 // unavailable.
 func WithBackendHost(host BackendHost) Option {
@@ -71,6 +80,29 @@ func WithPackageCatalog(packages PackageCatalog) Option {
 	return func(s *Service) {
 		if packages != nil {
 			s.packages = packages
+		}
+	}
+}
+
+// WithLifecyclePublisher reports successful catalog and installed-copy
+// transitions. It is optional so the applications service remains usable in
+// isolated tools and tests that have no process-wide lifecycle composition.
+func WithLifecyclePublisher(publisher ApplicationLifecyclePublisher) Option {
+	return func(s *Service) {
+		if publisher != nil {
+			s.lifecycle = publisher
+		}
+	}
+}
+
+// WithEventSource routes process-wide events to running application backends.
+// ctx owns the subscription and worker lifetime; cancellation unsubscribes and
+// discards any events still queued during process shutdown.
+func WithEventSource(ctx context.Context, source EventSource) Option {
+	return func(s *Service) {
+		if source != nil {
+			s.eventContext = ctx
+			s.eventSource = source
 		}
 	}
 }
@@ -96,6 +128,7 @@ func New(
 	for _, option := range options {
 		option(service)
 	}
+	service.startEventRouter()
 	return service
 }
 
@@ -137,10 +170,11 @@ func (s *Service) Credentials(ctx context.Context, id string) (Credentials, erro
 	if err != nil {
 		return Credentials{}, err
 	}
+	env := declaredEnv(application, inst.Env)
 	conn := application.Connection
 	username := conn.User
 	if conn.UserEnv != "" {
-		username = inst.Env[conn.UserEnv]
+		username = env[conn.UserEnv]
 	}
 	return Credentials{
 		ContainerName: inst.ContainerName,
@@ -149,16 +183,16 @@ func (s *Service) Credentials(ctx context.Context, id string) (Credentials, erro
 		ExternalPort:  inst.ExternalPort,
 		BindAddress:   inst.BindAddress,
 		Username:      username,
-		Password:      inst.Env[conn.PasswordEnv],
-		Database:      inst.Env[conn.DatabaseEnv],
-		Env:           inst.Env,
+		Password:      env[conn.PasswordEnv],
+		Database:      env[conn.DatabaseEnv],
+		Env:           env,
 	}, nil
 }
 
 // saveStatus stamps status/error/updatedAt on an instance and persists it.
 func (s *Service) saveStatus(ctx context.Context, inst *Instance, status InstanceStatus, errMsg string) error {
 	inst.Status = status
-	inst.Error = errMsg
+	inst.Error = boundedInstanceError(errMsg)
 	inst.UpdatedAt = s.now()
 	return s.store.Put(ctx, *inst)
 }
@@ -181,16 +215,46 @@ func (s *Service) load(ctx context.Context, id string) (Instance, Application, e
 // view / views project Instances to API-safe Views (secret env redacted).
 func (s *Service) view(inst Instance) View {
 	application, _ := s.registry.Get(inst.ApplicationID)
+	// Old records may predate the write-side bound. Never make an applications
+	// page carry an arbitrarily large command dump just because one is still on
+	// disk; the retained prefix and tail preserve the useful failure context.
+	inst.Error = boundedInstanceError(inst.Error)
 	pub := map[string]string{}
-	secret := secretKeys(application)
-	for k, v := range inst.Env {
-		if !secret[k] {
-			pub[k] = v
+	for _, variable := range application.Env {
+		if !variable.Secret {
+			if value, ok := inst.Env[variable.Key]; ok {
+				pub[variable.Key] = value
+			}
 		}
 	}
 	safe := inst
 	safe.Env = nil // never leak secrets through the Instance blob
 	return View{Instance: safe, EnvPublic: pub}
+}
+
+func declaredEnv(application Application, stored map[string]string) map[string]string {
+	declared := make(map[string]string, len(application.Env))
+	for _, variable := range application.Env {
+		if value, ok := stored[variable.Key]; ok {
+			declared[variable.Key] = value
+		}
+	}
+	return declared
+}
+
+func boundedInstanceError(message string) string {
+	runes := []rune(message)
+	if len(runes) <= maxInstanceErrorRunes {
+		return message
+	}
+	const (
+		prefixRunes = 1200
+		markerRoom  = 64
+	)
+	tailRunes := maxInstanceErrorRunes - prefixRunes - markerRoom
+	omitted := len(runes) - prefixRunes - tailRunes
+	marker := []rune(fmt.Sprintf("\n… %d characters omitted …\n", omitted))
+	return string(runes[:prefixRunes]) + string(marker) + string(runes[len(runes)-tailRunes:])
 }
 
 func (s *Service) views(insts []Instance) []View {

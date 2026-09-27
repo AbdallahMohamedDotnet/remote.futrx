@@ -53,6 +53,13 @@ func withInfraPayload(fsys fs.FS, root string, script []byte) ([]byte, error) {
 	if err := validateInfraPayload(payload); err != nil {
 		return nil, err
 	}
+	return stageInfraPayload(payload, script), nil
+}
+
+// stageInfraPayload prepends archive extraction to an install script. Payload
+// discovery and validation stay with the caller so generated container source
+// and legacy infra/payload.tar.gz use the same transport.
+func stageInfraPayload(payload, script []byte) []byte {
 	payloadEnd := fmt.Sprintf("REMOTE_PAYLOAD_%x", sha256.Sum256(payload))
 	scriptEnd := fmt.Sprintf("REMOTE_SCRIPT_%x", sha256.Sum256(script))
 	var out strings.Builder
@@ -66,7 +73,7 @@ func withInfraPayload(fsys fs.FS, root string, script []byte) ([]byte, error) {
 		encoded = encoded[n:]
 	}
 	fmt.Fprintf(&out, "%s\nbash -s <<'%s'\n%s\n%s\n", payloadEnd, scriptEnd, script, scriptEnd)
-	return []byte(out.String()), nil
+	return []byte(out.String())
 }
 
 func validateInfraPayload(payload []byte) error {

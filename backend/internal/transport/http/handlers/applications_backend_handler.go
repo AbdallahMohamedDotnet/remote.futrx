@@ -6,19 +6,19 @@ import (
 	"strings"
 
 	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
-	"github.com/futrx-com/remote.futrx.com/pkg/appplugin"
+	"github.com/futrx-com/remote.futrx.com/pkg/applications"
 )
 
 // backendAction is the path segment that routes a request to an instance's Go
-// plugin instead of to the applications API.
+// backend instead of to the applications API.
 const backendAction = "backend"
 
-// maxBackendRequestBody bounds what a browser may hand a plugin. A plugin is a
+// maxBackendRequestBody bounds what a browser may hand a backend. A backend is a
 // child process on the host, so the size of what reaches it is the server's
 // decision, not the caller's.
 const maxBackendRequestBody = 1 << 20 // 1 MiB
 
-// isBackendPath reports whether an instance action addresses its plugin, and
+// isBackendPath reports whether an instance action addresses its backend, and
 // returns the path to forward, relative to the /backend/ prefix.
 func isBackendPath(action string) (string, bool) {
 	if action == backendAction {
@@ -30,12 +30,12 @@ func isBackendPath(action string) (string, bool) {
 	return "", false
 }
 
-// serveBackend answers the two things an instance's plugin route does: GET on
-// the bare prefix describes the plugin, and anything deeper is forwarded to it.
+// serveBackend answers the two things an instance's backend route does: GET on
+// the bare prefix describes the backend, and anything deeper is forwarded to it.
 //
 // Authorization has already established that the caller may reach this
 // instance — project membership for a project install, being signed in for a
-// global one. What the plugin will do for them is the plugin's decision, made
+// global one. What the backend will do for them is the backend's decision, made
 // against the caller the service stamps onto the request; the application's `access`
 // level is the only part of that the platform enforces itself.
 func (h *ApplicationsHandler) serveBackend(w http.ResponseWriter, r *http.Request, id, path string) {
@@ -67,7 +67,7 @@ func (h *ApplicationsHandler) serveBackend(w http.ResponseWriter, r *http.Reques
 		httptransport.SendErr(w, http.StatusBadRequest, "unreadable request body")
 		return
 	}
-	response, err := h.apps.CallBackend(r.Context(), id, appplugin.Request{
+	response, err := h.apps.CallBackend(r.Context(), id, applications.Request{
 		Method:  r.Method,
 		Path:    path,
 		Query:   r.URL.Query(),
@@ -81,20 +81,20 @@ func (h *ApplicationsHandler) serveBackend(w http.ResponseWriter, r *http.Reques
 	writeBackendResponse(w, response)
 }
 
-// backendCaller resolves the signed-in user a plugin will see. A plugin is
+// backendCaller resolves the signed-in user a backend will see. A backend is
 // told who is asking so it can authorize them itself, so an unidentifiable
 // caller is refused here rather than reaching one anonymously.
-func (h *ApplicationsHandler) backendCaller(w http.ResponseWriter, r *http.Request) (appplugin.Caller, bool) {
+func (h *ApplicationsHandler) backendCaller(w http.ResponseWriter, r *http.Request) (applications.Caller, bool) {
 	if h.auth == nil {
-		return appplugin.Caller{}, true
+		return applications.Caller{}, true
 	}
 	email, err := callerEmailFromRequest(r, h.auth)
 	if err != nil || email == "" {
 		httptransport.SendErr(w, http.StatusUnauthorized, "authentication required")
-		return appplugin.Caller{}, false
+		return applications.Caller{}, false
 	}
 	isAdmin, _ := h.auth.IsAdmin(r.Context(), email)
-	return appplugin.Caller{Email: email, IsAdmin: isAdmin}, true
+	return applications.Caller{Email: email, IsAdmin: isAdmin}, true
 }
 
 // hopByHopHeaders belong to one connection and must not be copied across a
@@ -110,10 +110,10 @@ var hopByHopHeaders = map[string]bool{
 	"upgrade":             true,
 }
 
-// forwardableHeaders copies the request headers a plugin may usefully read.
-// Credentials are withheld: the plugin is told who the caller is through
+// forwardableHeaders copies the request headers a backend may usefully read.
+// Credentials are withheld: the backend is told who the caller is through
 // Request.Caller, and giving it their session cookie as well would hand every
-// plugin the ability to act as them against the rest of the API.
+// backend the ability to act as them against the rest of the API.
 func forwardableHeaders(header http.Header) map[string][]string {
 	forwarded := make(map[string][]string, len(header))
 	for name, values := range header {
@@ -126,11 +126,11 @@ func forwardableHeaders(header http.Header) map[string][]string {
 	return forwarded
 }
 
-// writeBackendResponse turns a plugin's answer back into an HTTP response.
-// Set-Cookie is dropped because a plugin's response is same-origin with the
+// writeBackendResponse turns a backend's answer back into an HTTP response.
+// Set-Cookie is dropped because a backend's response is same-origin with the
 // SPA and must not be able to write the session; the content type is pinned
 // with nosniff for the same reason ui/ assets are.
-func writeBackendResponse(w http.ResponseWriter, response appplugin.Response) {
+func writeBackendResponse(w http.ResponseWriter, response applications.Response) {
 	for name, values := range response.Headers {
 		lower := strings.ToLower(name)
 		if hopByHopHeaders[lower] || lower == "set-cookie" || lower == "content-length" {

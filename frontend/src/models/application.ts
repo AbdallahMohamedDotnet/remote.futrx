@@ -26,6 +26,27 @@ export interface AppPort {
   bindAddress?: string;
 }
 
+export interface AppApplicationService {
+  name: string;
+  description?: string;
+  command: string[];
+  user?: string;
+  group?: string;
+  restart?: string;
+  restartSec?: number;
+  environment?: Array<{
+    key: string;
+    fromEnv: string;
+    encoding: "base64";
+  }>;
+  hardening?: {
+    noNewPrivileges?: boolean;
+    privateTmp?: boolean;
+    protectHome?: boolean;
+    protectSystem?: "true" | "full" | "strict";
+  };
+}
+
 /**
  * Browser-side extension an application ships in its `ui/` directory. Present only
  * when the application has one; paths are relative to `ui/` and already validated by
@@ -40,11 +61,11 @@ export interface AppApplicationUI {
   views?: Record<string, string>;
 }
 
-/** Who the server lets reach an application's plugin. */
+/** Who the server lets reach an application's backend. */
 export type AppBackendAccess = "registered" | "admin";
 
 /**
- * Go plugin an application ships in its `backend/` directory. Present only when the
+ * Go backend an application ships in its `backend/` directory. Present only when the
  * application has one; the SPA never sees the source, only that it exists and how it
  * may be called.
  */
@@ -53,14 +74,33 @@ export interface AppApplicationBackend {
   timeoutMs?: number;
 }
 
-/** One endpoint a running plugin advertises. */
+/** One versioned event a manifest publisher allows its backend to emit. */
+export interface AppEventDeclaration {
+  name: string;
+  version: number;
+  description?: string;
+}
+
+/** A publisher name is local to its application until Remote qualifies it. */
+export interface AppPublisherDeclaration {
+  name: string;
+  events: AppEventDeclaration[];
+}
+
+/** Event names consumed from a canonical publisher such as `remote.applications`. */
+export interface AppEventSubscription {
+  publisher: string;
+  events: string[];
+}
+
+/** One endpoint a running backend advertises. */
 export interface AppBackendRoute {
   method: string;
   path: string;
   description?: string;
 }
 
-/** What a running plugin reports about itself. */
+/** What a running backend reports about itself. */
 export interface AppBackendDescriptor {
   instanceId: string;
   applicationId: string;
@@ -69,13 +109,17 @@ export interface AppBackendDescriptor {
     version?: string;
     apiVersion: number;
     routes?: AppBackendRoute[];
+    /** Derived from whether the backend implements the optional event capability. */
+    publishesEvents?: boolean;
+    /** Derived from whether the backend implements the optional event capability. */
+    subscribesEvents?: boolean;
   };
   access: AppBackendAccess;
   timeoutMs: number;
 }
 
 /**
- * One running plugin an extension may call. An application installed both globally
+ * One running backend an extension may call. An application installed both globally
  * and in a project runs one process per install, so an extension addresses an
  * instance rather than an application.
  */
@@ -114,11 +158,15 @@ export interface AppApplication {
   scopes: AppScope[];
   port: AppPort;
   env?: AppEnvVar[];
-  service?: string;
+  service?: AppApplicationService;
   /** Set when the application ships a `ui/` extension. */
   ui?: AppApplicationUI;
   /** Set when the application ships a `backend/` Go backend. */
   backend?: AppApplicationBackend;
+  /** Event families this application's backend may publish. */
+  publishers?: AppPublisherDeclaration[];
+  /** Canonically named event families delivered to running backend instances. */
+  subscriptions?: AppEventSubscription[];
 }
 
 /**
@@ -130,7 +178,7 @@ export interface AppUIExtension {
   application: AppApplication;
   global: boolean;
   projectIds?: string[];
-  /** Running instances of this application whose plugin the extension may call. */
+  /** Running instances of this application whose backend the extension may call. */
   backends?: AppBackendInstance[];
 }
 

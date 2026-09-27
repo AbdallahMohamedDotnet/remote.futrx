@@ -34,13 +34,17 @@ func NewFactory() (agentmodule.Factory, error) {
 			StreamingPresentation: agentmodule.StreamingBlocks,
 		},
 	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {
+		tokenPlans := newAPIKeyValidator()
 		apiKeys, err := agentauth.NewAPIKeyService(
 			context.Background(),
 			agent.ProviderMiniMax,
 			deps.APIKeys,
-			newAPIKeyValidator(),
+			tokenPlans,
 		)
 		if err != nil {
+			return agentmodule.Components{}, err
+		}
+		if err := apiKeys.EnableAccounts(context.Background(), deps.Accounts, configconstants.MiniMaxLabel); err != nil {
 			return agentmodule.Components{}, err
 		}
 		binding := agentauth.NewAPIKeyBinding(agent.ProviderMiniMax, apiKeys)
@@ -51,6 +55,7 @@ func NewFactory() (agentmodule.Factory, error) {
 				newModelCatalogClient(),
 				deps.RuntimeAssets,
 				validatedProfile.CLI.Binary,
+				tokenPlans,
 			),
 			Auth: &binding,
 		}, nil

@@ -3,7 +3,7 @@ package applications
 import (
 	"context"
 
-	"github.com/futrx-com/remote.futrx.com/pkg/appplugin"
+	"github.com/futrx-com/remote.futrx.com/pkg/applications"
 )
 
 // Registry provides the installable catalog loaded from embedded application
@@ -44,15 +44,6 @@ type Installer interface {
 	Expose(ctx context.Context, spec InstallSpec) error
 }
 
-// BackendSpec is everything BackendHost needs to run one instance's plugin.
-// It deliberately excludes catalog presentation and persistence-only fields;
-// the host receives only the source identity and the plugin's initialization
-// contract.
-type BackendSpec struct {
-	ApplicationID string
-	Instance      appplugin.Instance
-}
-
 // BackendHost compiles an application's backend/ source and runs it as a child
 // process, one per instance, forwarding calls to it. It owns everything
 // go-plugin-facing, so the service layer never launches a process itself.
@@ -61,20 +52,34 @@ type BackendSpec struct {
 // checks that before calling, but a host that is asked anyway must not create
 // one.
 type BackendHost interface {
-	// Ensure builds the plugin if no current binary is cached, starts a
-	// process for the instance, and returns what the plugin says about
-	// itself. It is idempotent: a call against an already-running instance
-	// returns the descriptor it reported at connect time.
-	Ensure(ctx context.Context, spec BackendSpec) (appplugin.Descriptor, error)
-	// Call forwards one request, starting the plugin first if it is not
+	// Ensure builds the backend if no current binary is cached, starts a
+	// process for the instance, and returns the manifest-enriched descriptor.
+	// It is idempotent: a call against an already-running instance returns the
+	// descriptor established at connect time.
+	Ensure(ctx context.Context, instance applications.Instance) (applications.Descriptor, error)
+	// Call forwards one request, starting the backend first if it is not
 	// running — which is what makes installed backends survive a server
 	// restart without a start sweep.
-	Call(ctx context.Context, spec BackendSpec, request appplugin.Request) (appplugin.Response, error)
-	// Stop terminates the instance's plugin process, keeping its data
+	Call(ctx context.Context, instance applications.Instance, request applications.Request) (applications.Response, error)
+	// Notify delivers one subscribed event, lazily starting the backend after a
+	// Remote process restart in the same way Call does.
+	Notify(ctx context.Context, instance applications.Instance, event applications.Event) error
+	// Stop terminates the instance's backend process, keeping its data
 	// directory so a later start resumes with it.
 	Stop(ctx context.Context, instanceID string) error
-	// Remove stops the plugin and deletes the instance's data directory.
+	// Remove stops the backend and deletes the instance's data directory.
 	Remove(ctx context.Context, instanceID string) error
+	// InvalidateApplication stops every process created from an application and
+	// prevents an in-flight launch from surviving a package replacement. The
+	// next call rebuilds against the registry's current source and manifest.
+	InvalidateApplication(applicationID string)
+}
+
+// EventSource is the process-wide stream of validated application and core
+// events. The service subscribes once and owns routing those events to running
+// application backend instances.
+type EventSource interface {
+	Subscribe(func(context.Context, applications.Event)) (unsubscribe func())
 }
 
 // Store persists installed instances. Global instances are keyed only by ID;
@@ -106,6 +111,19 @@ type PortAllocator interface {
 	Allocate(ctx context.Context, bindAddress string, preferred int, taken map[int]bool) (int, error)
 }
 
+// ApplicationLifecyclePublisher is the success-notification capability used
+// by this service. Its concrete publisher and subscriber registry live in
+// internal/lifecycle; the producer depends only on the facts it emits.
+type ApplicationLifecyclePublisher interface {
+	PublishApplicationAdded(context.Context, string)
+	PublishApplicationUpdated(context.Context, string)
+	PublishApplicationDeleted(context.Context, string)
+	PublishApplicationInstalled(context.Context, string, string, string, string)
+	PublishApplicationUninstalled(context.Context, string, string, string, string)
+	PublishApplicationStarted(context.Context, string, string, string, string)
+	PublishApplicationStopped(context.Context, string, string, string, string)
+}
+
 // PackageUpload is one archive submitted for installation into the catalog.
 type PackageUpload struct {
 	// Filename is the client's name for the archive. It is recorded, never
@@ -114,6 +132,14 @@ type PackageUpload struct {
 	Data     []byte
 	// Actor is the email of the administrator who uploaded it.
 	Actor string
+}
+
+// PackageMutation is the atomic result of writing one uploaded package.
+// Replaced distinguishes a first addition from replacing an existing package
+// without a racy list-before-write check in the service layer.
+type PackageMutation struct {
+	Package
+	Replaced bool
 }
 
 // PackageCatalog is the writable half of the catalog: the part backed by
@@ -130,7 +156,7 @@ type PackageCatalog interface {
 	// touches are judged against is the service's to work out. It returns
 	// ErrPackageInvalid for a malformed archive and ErrPackageReserved for one
 	// whose id belongs to a built-in application.
-	AddPackage(upload PackageUpload) (Package, error)
+	AddPackage(upload PackageUpload) (PackageMutation, error)
 	// RemovePackage deletes a stored package and its catalog entry.
 	RemovePackage(id string) error
 }
