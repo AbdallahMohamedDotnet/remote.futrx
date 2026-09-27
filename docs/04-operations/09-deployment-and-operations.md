@@ -243,35 +243,8 @@ Telemetry never blocks startup or updates. `dev` and `qa-*` builds do not send.
 The collector stores the ID, version, and receipt time for three months. It
 does not receive hostnames, users, projects, providers, chats, prompts, source
 code, or resource data. Counts represent active reporting installations, not
-all installs: old, offline, opted-out, cloned, and spoofed instances can make
-them incomplete or approximate.
-
-Opt out during installation with:
-
-```bash
-curl -fsSL https://remote.futrx.com/get | sudo env REMOTE_TELEMETRY_DISABLED=1 bash -s -- remote.example.com
-```
-
-For an existing installation, create a systemd override:
-
-```bash
-sudo systemctl edit remote.futrx
-```
-
-```ini
-[Service]
-Environment=REMOTE_TELEMETRY_DISABLED=1
-```
-
-Then apply it:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart remote.futrx
-```
-
-The override survives updates. Previously received rows expire after three
-months.
+all installs: old, offline, cloned, and spoofed instances can make them
+incomplete or approximate.
 
 ## Agent capability discovery timeout
 

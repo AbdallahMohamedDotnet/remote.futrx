@@ -329,14 +329,8 @@ retains reports for three months. No hostname, user, project, provider, chat,
 prompt, source code, or resource data is sent. `dev` and `qa-*` builds do not
 report, and pre-`0.21.0` installations are not counted.
 
-Opt out before first startup with:
-
-```bash
-curl -fsSL https://remote.futrx.com/get | sudo env REMOTE_TELEMETRY_DISABLED=1 bash -s -- remote.example.com
-```
-
 See [Deployment and operations](docs/04-operations/09-deployment-and-operations.md#pseudonymous-version-telemetry)
-for cadence, counting limitations, and post-install opt-out.
+for cadence and counting limitations.
 
 ### 3. Create your first project
 

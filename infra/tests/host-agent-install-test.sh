@@ -46,8 +46,6 @@ grep -Fq 'PATH="$HOST_CLI_BIN_DIR:/usr/local/sbin:/usr/local/bin:' "$INSTALLER" 
     fail "installer does not put the managed host CLI directory first on PATH"
 grep -Fq 'Environment=PATH=${HOST_CLI_BIN_DIR}:/usr/local/sbin:/usr/local/bin:' "$BACKEND_SERVICE_TEMPLATE" || \
     fail "backend service does not use the managed host CLI directory first"
-grep -Fq 'Environment=REMOTE_TELEMETRY_DISABLED=${REMOTE_TELEMETRY_DISABLED}' "$BACKEND_SERVICE_TEMPLATE" || \
-    fail "backend service does not receive the installer telemetry policy"
 grep -Fq '${HOST_CLI_BIN_DIR}${PATH:+:$PATH}' "$HOST_CLI_PROFILE_TEMPLATE" || \
     fail "login shells do not receive the managed host CLI path"
 

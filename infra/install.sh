@@ -37,8 +37,6 @@
 # Environment:
 #   GITHUB_TOKEN                                same as --github-token.
 #   FUTRX_INSTALL_DIR                           override /opt/remote.futrx (QA/tests).
-#   REMOTE_TELEMETRY_DISABLED                   true opts out of version telemetry;
-#                                               false (the default) keeps it enabled.
 
 set -euo pipefail
 
@@ -289,48 +287,6 @@ SERVICE_PORT="${SERVICE_PORT:-$FUTRX_DEFAULT_SERVICE_PORT}"
 HOST_CLI_PREFIX="$INSTALL_DIR/data/host-clis"
 HOST_CLI_BIN_DIR="$HOST_CLI_PREFIX/bin"
 
-# Preserve the effective policy from an existing service when a repair or
-# manual full update does not explicitly choose one. This makes an opt-out
-# selected during installation durable across later convergence runs, while a
-# caller-provided value still takes precedence.
-local existing_service_environment
-if [ -z "${REMOTE_TELEMETRY_DISABLED+x}" ] && command -v systemctl >/dev/null 2>&1; then
-    existing_service_environment="$(
-        systemctl show "$FUTRX_DEFAULT_SERVICE_NAME" \
-            --property=Environment --value 2>/dev/null || true
-    )"
-    REMOTE_TELEMETRY_DISABLED="$(
-        printf '%s\n' "$existing_service_environment" |
-            tr ' ' '\n' |
-            awk -F= '
-                {
-                    name = $1
-                    gsub(/^"|"$/, "", name)
-                    if (name == "REMOTE_TELEMETRY_DISABLED") {
-                        value = $2
-                        gsub(/^"|"$/, "", value)
-                    }
-                }
-                END { print value }
-            '
-    )"
-fi
-
-# Canonicalize the installer-facing opt-out before the unit is rendered. This
-# makes the policy available to the backend on its very first service start.
-case "${REMOTE_TELEMETRY_DISABLED:-false}" in
-    1|[Tt]|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Oo][Nn])
-        REMOTE_TELEMETRY_DISABLED=true
-        ;;
-    0|[Ff]|[Ff][Aa][Ll][Ss][Ee]|[Nn][Oo]|[Oo][Ff][Ff])
-        REMOTE_TELEMETRY_DISABLED=false
-        ;;
-    *)
-        err "REMOTE_TELEMETRY_DISABLED must be true or false."
-        exit 1
-        ;;
-esac
-
 # Host agent installation and the backend must resolve the same executables.
 # Use an application-owned prefix ahead of host-global locations so legacy or
 # manually installed binaries cannot shadow Remote's pinned toolchain.
@@ -338,7 +294,6 @@ PATH="$HOST_CLI_BIN_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:
 
 export INFRA_DIR INSTALL_DIR LEGACY_INSTALL_DIR REPO_URL SERVICE_PORT
 export HOST_CLI_PREFIX HOST_CLI_BIN_DIR PATH
-export REMOTE_TELEMETRY_DISABLED
 
 # ───────────────── helpers (sourced by steps) ─────────────────
 # log/warn/ok/err come from lib/common.sh (sourced above); re-export them so
@@ -351,7 +306,7 @@ export -f log warn ok err
 # regex `\$` anchors) survive untouched.
 render_template() {
     local tmpl="$1" dest="$2"
-    envsubst '$HOSTNAME $HOSTNAME_RE $INSTALL_DIR $SERVICE_PORT $LXD_BRIDGE_IP $LXD_BRIDGE $HOST_CLI_BIN_DIR $REMOTE_TELEMETRY_DISABLED' \
+    envsubst '$HOSTNAME $HOSTNAME_RE $INSTALL_DIR $SERVICE_PORT $LXD_BRIDGE_IP $LXD_BRIDGE $HOST_CLI_BIN_DIR' \
         < "$tmpl" > "$dest"
 }
 export -f render_template

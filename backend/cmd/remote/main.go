@@ -217,13 +217,11 @@ func main() {
 	if err := selfUpdateService.StartLifecycleReconciler(ctx); err != nil {
 		log.Printf("self-update: lifecycle reconcile warning: %v", err)
 	}
-	if !cfg.Telemetry.Disabled {
-		serviceversiontelemetry.New(
-			version.Version,
-			fileversiontelemetry.New(cfg.DataDir),
-			integrationversiontelemetry.New(),
-		).Start(ctx)
-	}
+	serviceversiontelemetry.New(
+		version.Version,
+		fileversiontelemetry.New(cfg.DataDir),
+		integrationversiontelemetry.New(),
+	).Start(ctx)
 	log.Printf(
 		"auth: local admin enabled; Google OAuth configured=%t; BASE_URL=%s",
 		serviceSet.Auth.GoogleOAuthEnabled(),
