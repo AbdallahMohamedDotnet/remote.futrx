@@ -100,7 +100,7 @@ echo "==> Building frontend"
 )
 
 echo "==> Building backend"
-app_version="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+app_version="qa-$(git rev-parse --short=12 "$candidate_sha")"
 (
     cd backend
     go build -trimpath \

@@ -226,6 +226,26 @@ When the backend starts, it:
 7. starts the scheduled-task loop and restores persisted deadlines/claims;
 8. begins serving the embedded SPA, API, and WebSockets.
 
+## Pseudonymous version telemetry
+
+From `0.21.0`, production builds send `{installationId, version}` to
+`https://remote.futrx.com/api/telemetry/version`:
+
+- once when telemetry first runs;
+- once immediately after the version changes; and
+- at most once every seven days otherwise.
+
+The random installation ID, last attempted version, and attempt time are kept
+under `DATA_DIR/telemetry` with owner-only permissions. Recording the attempt
+before the request prevents restarts or failures from causing extra retries.
+Telemetry never blocks startup or updates. `dev` and `qa-*` builds do not send.
+
+The collector stores the ID, version, and receipt time for three months. It
+does not receive hostnames, users, projects, providers, chats, prompts, source
+code, or resource data. Counts represent active reporting installations, not
+all installs: old, offline, cloned, and spoofed instances can make them
+incomplete or approximate.
+
 ## Agent capability discovery timeout
 
 Capability discovery probes all registered agents compatible with the selected

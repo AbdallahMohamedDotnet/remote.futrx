@@ -320,6 +320,18 @@ curl -fsSL https://remote.futrx.com/get | sudo bash -s -- remote.example.com
 
 Replace `remote.example.com` with the hostname you set up above. The installer downloads Remote, installs its dependencies, builds the workspace image, starts the services, and enables HTTPS.
 
+#### Pseudonymous version telemetry
+
+Starting with `0.21.0`, Remote reports its version once after installation or a
+version change, then at most weekly. The payload is only the version and a
+random, stable installation ID; the collector adds a receipt timestamp and
+retains reports for three months. No hostname, user, project, provider, chat,
+prompt, source code, or resource data is sent. `dev` and `qa-*` builds do not
+report, and pre-`0.21.0` installations are not counted.
+
+See [Deployment and operations](docs/04-operations/09-deployment-and-operations.md#pseudonymous-version-telemetry)
+for cadence and counting limitations.
+
 ### 3. Create your first project
 
 1. When Remote starts for the first time, it prints a one-time setup link to
