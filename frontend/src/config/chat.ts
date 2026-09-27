@@ -1,6 +1,9 @@
 import type { ApprovalPolicy, SandboxPolicy } from "../models/chat";
 import { capitalize } from "./text.ts";
 
+/** Longest title a chat can be renamed to. Auto-titles stop well short of it. */
+export const CHAT_TITLE_MAX_LENGTH = 120;
+
 export const DEFAULT_TOOL_OUTPUT_PREVIEW_CHARS = 6000;
 export const READ_TOOL_OUTPUT_PREVIEW_CHARS = 8000;
 
