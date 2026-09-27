@@ -215,19 +215,26 @@ func TestCheckReportsApplicationUpdateWithinReleaseLine(t *testing.T) {
 
 func TestHashStampedReleaseUsesResolvedBaselineForCheckAndApply(t *testing.T) {
 	for _, test := range []struct {
-		name     string
-		tags     []string
-		baseline string
-		target   string
-		wantKind UpdateKind
+		name           string
+		currentVersion string
+		commitQuery    string
+		tags           []string
+		baseline       string
+		target         string
+		wantKind       UpdateKind
 	}{
 		{
-			name: "same release line",
+			name: "bare hash in same release line", currentVersion: "42989fe", commitQuery: "42989fe",
 			tags: []string{"0.20.1", "0.20.3", "0.20.4"}, baseline: "0.20.1", target: "0.20.4",
 			wantKind: UpdateKindApplication,
 		},
 		{
-			name: "minor boundary",
+			name: "bare hash across minor boundary", currentVersion: "42989fe", commitQuery: "42989fe",
+			tags: []string{"0.20.4", "0.21.0"}, baseline: "0.20.4", target: "0.21.0",
+			wantKind: UpdateKindInfrastructure,
+		},
+		{
+			name: "QA candidate", currentVersion: "qa-6db1ea1ade2a", commitQuery: "6db1ea1ade2a",
 			tags: []string{"0.20.4", "0.21.0"}, baseline: "0.20.4", target: "0.21.0",
 			wantKind: UpdateKindInfrastructure,
 		},
@@ -236,11 +243,11 @@ func TestHashStampedReleaseUsesResolvedBaselineForCheckAndApply(t *testing.T) {
 			host := &fakeHost{
 				tags: test.tags, commitTags: []string{test.baseline}, pid: 4242, alive: true,
 			}
-			svc := newTestService("42989fe", "/opt/x", t.TempDir(), host)
+			svc := newTestService(test.currentVersion, "/opt/x", t.TempDir(), host)
 
 			status := svc.Check(context.Background())
-			if host.commitQuery != "42989fe" {
-				t.Fatalf("commit lookup = %q, want 42989fe", host.commitQuery)
+			if host.commitQuery != test.commitQuery {
+				t.Fatalf("commit lookup = %q, want %q", host.commitQuery, test.commitQuery)
 			}
 			if status.LastCheck == nil || status.LastCheck.Error != "" || !status.LastCheck.UpdateAvailable ||
 				status.LastCheck.LatestTag != test.target || status.LastCheck.UpdateKind != test.wantKind {
@@ -264,11 +271,49 @@ func TestHashStampedReleaseUsesResolvedBaselineForCheckAndApply(t *testing.T) {
 	}
 }
 
-func TestCheckDoesNotClaimUnknownHashIsUpToDate(t *testing.T) {
-	host := &fakeHost{tags: []string{"0.20.4"}}
-	status := newTestService("42989fe", "/opt/x", t.TempDir(), host).Check(context.Background())
-	if status.LastCheck == nil || status.LastCheck.Error == "" || status.LastCheck.UpdateAvailable {
-		t.Fatalf("last check = %+v, want a version resolution error", status.LastCheck)
+func TestCheckUsesEmbeddedQACandidateBaseline(t *testing.T) {
+	host := &fakeHost{tags: []string{"0.20.4", "0.21.0"}}
+	status := newTestService("qa-0.20.4-6db1ea1ade2a", "/opt/x", t.TempDir(), host).Check(context.Background())
+	if host.commitCalls != 0 {
+		t.Fatalf("commit lookups = %d, want none for embedded baseline", host.commitCalls)
+	}
+	if status.LastCheck == nil || status.LastCheck.Error != "" || !status.LastCheck.UpdateAvailable ||
+		status.LastCheck.LatestTag != "0.21.0" || status.LastCheck.UpdateKind != UpdateKindInfrastructure {
+		t.Fatalf("last check = %+v, want infrastructure update from 0.20.4 to 0.21.0", status.LastCheck)
+	}
+}
+
+func TestCommitFromVersionRecognizesReleaseCandidatesOnly(t *testing.T) {
+	for _, test := range []struct {
+		version string
+		want    string
+		ok      bool
+	}{
+		{version: "42989fe", want: "42989fe", ok: true},
+		{version: "qa-6db1ea1ade2a", want: "6db1ea1ade2a", ok: true},
+		{version: "qa-0.20.4-6db1ea1ade2a", want: "6db1ea1ade2a", ok: true},
+		{version: "qa-local-6db1ea1ade2a-clean-20260927", ok: false},
+		{version: "qa-", ok: false},
+		{version: "dev", ok: false},
+	} {
+		t.Run(test.version, func(t *testing.T) {
+			got, ok := commitFromVersion(test.version)
+			if got != test.want || ok != test.ok {
+				t.Fatalf("commitFromVersion(%q) = (%q, %v), want (%q, %v)", test.version, got, ok, test.want, test.ok)
+			}
+		})
+	}
+}
+
+func TestCheckDoesNotClaimUnknownCommitIsUpToDate(t *testing.T) {
+	for _, currentVersion := range []string{"42989fe", "qa-6db1ea1ade2a"} {
+		t.Run(currentVersion, func(t *testing.T) {
+			host := &fakeHost{tags: []string{"0.20.4"}}
+			status := newTestService(currentVersion, "/opt/x", t.TempDir(), host).Check(context.Background())
+			if status.LastCheck == nil || status.LastCheck.Error == "" || status.LastCheck.UpdateAvailable {
+				t.Fatalf("last check = %+v, want a version resolution error", status.LastCheck)
+			}
+		})
 	}
 }
 

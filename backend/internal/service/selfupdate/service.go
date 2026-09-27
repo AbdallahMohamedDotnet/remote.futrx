@@ -322,18 +322,61 @@ func isCommitHash(value string) bool {
 	return true
 }
 
+// parseQACandidateVersion recognizes immutable QA stamps. New candidates carry
+// their release baseline; the commit-only shape remains supported for builds
+// produced before baseline stamping was introduced.
+func parseQACandidateVersion(version string) (release, commit string, ok bool) {
+	stamp, ok := strings.CutPrefix(version, "qa-")
+	if !ok {
+		return "", "", false
+	}
+	if isCommitHash(stamp) {
+		return "", stamp, true
+	}
+	release, commit, ok = strings.Cut(stamp, "-")
+	if !ok || !isCommitHash(commit) {
+		return "", "", false
+	}
+	if _, ok := parseReleaseTag(release); !ok {
+		return "", "", false
+	}
+	return release, commit, true
+}
+
+// commitFromVersion extracts a commit identity from version stamps that carry
+// one. Local QA versions include additional metadata and deliberately cannot
+// be associated with a release tag.
+func commitFromVersion(version string) (string, bool) {
+	if isCommitHash(version) {
+		return version, true
+	}
+	_, commit, ok := parseQACandidateVersion(version)
+	return commit, ok
+}
+
 // resolveCurrentRelease returns the release baseline represented by the
 // running binary. Normal git-describe values resolve locally. Bare commit
-// hashes require one origin lookup, whose successful result is cached for a
-// later Apply as long as the resolved tag still exists remotely.
+// hashes and immutable QA candidates require one origin lookup, whose
+// successful result is cached for a later Apply as long as the resolved tag
+// still exists remotely.
 func (s *Service) resolveCurrentRelease(ctx context.Context, tags []string) (string, []int, error) {
+	if release, _, ok := parseQACandidateVersion(s.currentVersion); ok && release != "" {
+		segments, _ := parseReleaseTag(release)
+		return release, segments, nil
+	}
+
 	currentVersion := describeBase(s.currentVersion)
 	current, ok := parseReleaseTag(currentVersion)
-	if !isCommitHash(currentVersion) || ok && containsTag(tags, currentVersion) {
-		if !ok {
-			return "", nil, fmt.Errorf("cannot determine release version for running build %q", s.currentVersion)
-		}
+	if ok && (!isCommitHash(currentVersion) || containsTag(tags, currentVersion)) {
 		return currentVersion, current, nil
+	}
+
+	currentCommit, hasCommit := commitFromVersion(s.currentVersion)
+	if !hasCommit && isCommitHash(currentVersion) {
+		currentCommit, hasCommit = currentVersion, true
+	}
+	if !hasCommit {
+		return "", nil, fmt.Errorf("cannot determine release version for running build %q", s.currentVersion)
 	}
 
 	s.mu.Lock()
@@ -348,9 +391,9 @@ func (s *Service) resolveCurrentRelease(ctx context.Context, tags []string) (str
 		return resolved, segments, nil
 	}
 
-	matchingTags, err := s.host.ListRemoteTagsForCommit(ctx, s.installDir, currentVersion)
+	matchingTags, err := s.host.ListRemoteTagsForCommit(ctx, s.installDir, currentCommit)
 	if err != nil {
-		return "", nil, fmt.Errorf("resolve running commit %s: %w", currentVersion, err)
+		return "", nil, fmt.Errorf("resolve running commit %s: %w", currentCommit, err)
 	}
 	resolved, segments := latestReleaseTag(matchingTags)
 	if resolved == "" {
