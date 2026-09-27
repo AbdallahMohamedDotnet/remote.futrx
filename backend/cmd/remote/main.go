@@ -41,6 +41,7 @@ import (
 	serviceworkspaceide "github.com/futrx-com/remote.futrx.com/internal/service/workspaceide"
 	"github.com/futrx-com/remote.futrx.com/internal/stores"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileproject"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/fileversiontelemetry"
 	"github.com/futrx-com/remote.futrx.com/internal/transport"
 	"github.com/futrx-com/remote.futrx.com/internal/version"
 )
@@ -219,7 +220,8 @@ func main() {
 	if !cfg.Telemetry.Disabled {
 		serviceversiontelemetry.New(
 			version.Version,
-			integrationversiontelemetry.New(cfg.DataDir),
+			fileversiontelemetry.New(cfg.DataDir),
+			integrationversiontelemetry.New(),
 		).Start(ctx)
 	}
 	log.Printf(

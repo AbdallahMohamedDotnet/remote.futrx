@@ -8,23 +8,54 @@ import (
 	"time"
 )
 
-type recordingReporter struct {
-	mu       sync.Mutex
-	versions []string
-	errors   []error
-	calls    chan struct{}
+type memoryRepository struct {
+	mu      sync.Mutex
+	id      string
+	attempt Attempt
+	found   bool
+	err     error
 }
 
-func (r *recordingReporter) ReportVersion(_ context.Context, version string) error {
+func (r *memoryRepository) InstallationID() (string, error) {
+	return r.id, r.err
+}
+
+func (r *memoryRepository) LastAttempt() (Attempt, bool, error) {
 	r.mu.Lock()
-	r.versions = append(r.versions, version)
+	defer r.mu.Unlock()
+	return r.attempt, r.found, r.err
+}
+
+func (r *memoryRepository) SaveAttempt(attempt Attempt) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return r.err
+	}
+	r.attempt = attempt
+	r.found = true
+	return nil
+}
+
+type recordingReporter struct {
+	mu      sync.Mutex
+	reports []Report
+	errors  []error
+	calls   chan struct{}
+}
+
+func (r *recordingReporter) ReportVersion(_ context.Context, report Report) error {
+	r.mu.Lock()
+	r.reports = append(r.reports, report)
 	var err error
 	if len(r.errors) > 0 {
 		err = r.errors[0]
 		r.errors = r.errors[1:]
 	}
 	r.mu.Unlock()
-	r.calls <- struct{}{}
+	if r.calls != nil {
+		r.calls <- struct{}{}
+	}
 	return err
 }
 
@@ -50,19 +81,21 @@ func (w *controlledWait) wait(ctx context.Context, duration time.Duration) bool 
 	}
 }
 
-type reporterFunc func(context.Context, string) error
+type reporterFunc func(context.Context, Report) error
 
-func (f reporterFunc) ReportVersion(ctx context.Context, version string) error {
-	return f(ctx, version)
+func (f reporterFunc) ReportVersion(ctx context.Context, report Report) error {
+	return f(ctx, report)
 }
 
-func TestRunWaitsOneWeekAfterFailureAndSuccess(t *testing.T) {
-	recorder := &recordingReporter{
+func TestRunUsesWeeklyIntervalAfterFailureAndSuccess(t *testing.T) {
+	repo := &memoryRepository{id: "installation-id"}
+	reporter := &recordingReporter{
 		errors: []error{errors.New("telemetry unavailable")},
 		calls:  make(chan struct{}, 3),
 	}
 	waits := newControlledWait()
-	service := newService("42989fe", recorder, waits.wait)
+	now := time.Date(2026, time.September, 27, 12, 0, 0, 0, time.UTC)
+	service := newService("42989fe", repo, reporter, waits.wait, func() time.Time { return now })
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -70,32 +103,65 @@ func TestRunWaitsOneWeekAfterFailureAndSuccess(t *testing.T) {
 		close(done)
 	}()
 
-	waitForCall(t, recorder.calls)
+	waitForCall(t, reporter.calls)
 	waitForDuration(t, waits.durations, reportInterval)
+	now = now.Add(reportInterval)
 	waits.advance <- struct{}{}
-	waitForCall(t, recorder.calls)
+	waitForCall(t, reporter.calls)
 	waitForDuration(t, waits.durations, reportInterval)
 	cancel()
 	waitForDone(t, done)
 
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	if len(recorder.versions) != 2 {
-		t.Fatalf("reported versions = %v, want two calls", recorder.versions)
+	reporter.mu.Lock()
+	defer reporter.mu.Unlock()
+	if len(reporter.reports) != 2 {
+		t.Fatalf("reports = %v, want two", reporter.reports)
 	}
-	for _, version := range recorder.versions {
-		if version != "42989fe" {
-			t.Fatalf("reported version = %q, want raw version 42989fe", version)
+	for _, report := range reporter.reports {
+		if report.InstallationID != "installation-id" || report.Version != "42989fe" {
+			t.Fatalf("report = %+v", report)
+		}
+	}
+}
+
+func TestReportIsWeeklyAcrossRestartsAndImmediateForNewVersion(t *testing.T) {
+	repo := &memoryRepository{id: "installation-id"}
+	reporter := &recordingReporter{errors: []error{errors.New("collector unavailable")}}
+	start := time.Date(2026, time.September, 27, 12, 0, 0, 0, time.UTC)
+
+	reportAt := func(version string, now time.Time) {
+		service := newService(version, repo, reporter, nil, func() time.Time { return now })
+		service.report(context.Background())
+	}
+	reportAt("0.21.0", start)
+	reportAt("0.21.0", start.Add(24*time.Hour))
+	reportAt("0.21.1", start.Add(48*time.Hour))
+	reportAt("0.21.1", start.Add(8*24*time.Hour))
+	reportAt("0.21.1", start.Add(9*24*time.Hour))
+
+	reporter.mu.Lock()
+	defer reporter.mu.Unlock()
+	want := []string{"0.21.0", "0.21.1", "0.21.1"}
+	if len(reporter.reports) != len(want) {
+		t.Fatalf("reports = %v, want versions %v", reporter.reports, want)
+	}
+	for index, version := range want {
+		if reporter.reports[index].Version != version {
+			t.Fatalf("report %d version = %q, want %q", index, reporter.reports[index].Version, version)
 		}
 	}
 }
 
 func TestStartIsIdempotentAndCancellable(t *testing.T) {
 	calls := make(chan struct{}, 2)
-	service := New("0.21.0", reporterFunc(func(context.Context, string) error {
-		calls <- struct{}{}
-		return nil
-	}))
+	service := New(
+		"0.21.0",
+		&memoryRepository{id: "installation-id"},
+		reporterFunc(func(context.Context, Report) error {
+			calls <- struct{}{}
+			return nil
+		}),
+	)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	service.Start(ctx)
@@ -111,10 +177,14 @@ func TestStartIsIdempotentAndCancellable(t *testing.T) {
 
 func TestRunWithCancelledContextDoesNotReport(t *testing.T) {
 	calls := make(chan struct{}, 1)
-	service := New("0.21.0", reporterFunc(func(context.Context, string) error {
-		calls <- struct{}{}
-		return nil
-	}))
+	service := New(
+		"0.21.0",
+		&memoryRepository{id: "installation-id"},
+		reporterFunc(func(context.Context, Report) error {
+			calls <- struct{}{}
+			return nil
+		}),
+	)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	service.run(ctx)
@@ -155,10 +225,14 @@ func TestStartSkipsDevelopmentBuilds(t *testing.T) {
 	for _, version := range []string{"dev", "qa-local-42989fe-clean-20260927", "qa-42989fe"} {
 		t.Run(version, func(t *testing.T) {
 			calls := make(chan struct{}, 1)
-			service := New(version, reporterFunc(func(context.Context, string) error {
-				calls <- struct{}{}
-				return nil
-			}))
+			service := New(
+				version,
+				&memoryRepository{id: "installation-id"},
+				reporterFunc(func(context.Context, Report) error {
+					calls <- struct{}{}
+					return nil
+				}),
+			)
 			service.Start(context.Background())
 			select {
 			case <-calls:

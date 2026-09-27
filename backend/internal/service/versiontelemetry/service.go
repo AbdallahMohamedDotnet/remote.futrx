@@ -16,19 +16,27 @@ type waitFunc func(context.Context, time.Duration) bool
 
 type Service struct {
 	version  string
+	repo     Repository
 	reporter Reporter
 	wait     waitFunc
+	now      func() time.Time
 
 	mu      sync.Mutex
 	started bool
 }
 
-func New(version string, reporter Reporter) *Service {
-	return newService(version, reporter, waitForInterval)
+func New(version string, repo Repository, reporter Reporter) *Service {
+	return newService(version, repo, reporter, waitForInterval, time.Now)
 }
 
-func newService(version string, reporter Reporter, wait waitFunc) *Service {
-	return &Service{version: version, reporter: reporter, wait: wait}
+func newService(
+	version string,
+	repo Repository,
+	reporter Reporter,
+	wait waitFunc,
+	now func() time.Time,
+) *Service {
+	return &Service{version: version, repo: repo, reporter: reporter, wait: wait, now: now}
 }
 
 // Start launches one process-lifetime reporting loop. Calls after the first
@@ -52,11 +60,39 @@ func (s *Service) Start(ctx context.Context) {
 
 func (s *Service) run(ctx context.Context) {
 	for ctx.Err() == nil {
-		_ = s.reporter.ReportVersion(ctx, s.version)
+		s.report(ctx)
 		if !s.wait(ctx, reportInterval) {
 			return
 		}
 	}
+}
+
+func (s *Service) report(ctx context.Context) {
+	installationID, err := s.repo.InstallationID()
+	if err != nil {
+		return
+	}
+
+	now := s.now()
+	lastAttempt, found, err := s.repo.LastAttempt()
+	if err != nil || found && !reportDue(lastAttempt, s.version, now) {
+		return
+	}
+	if err := s.repo.SaveAttempt(Attempt{Version: s.version, At: now}); err != nil {
+		return
+	}
+	_ = s.reporter.ReportVersion(ctx, Report{
+		InstallationID: installationID,
+		Version:        s.version,
+	})
+}
+
+func reportDue(lastAttempt Attempt, version string, now time.Time) bool {
+	if lastAttempt.Version != version {
+		return true
+	}
+	elapsed := now.Sub(lastAttempt.At)
+	return elapsed < 0 || elapsed >= reportInterval
 }
 
 func waitForInterval(ctx context.Context, interval time.Duration) bool {
