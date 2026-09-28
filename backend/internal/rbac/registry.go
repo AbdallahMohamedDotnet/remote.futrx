@@ -22,7 +22,7 @@ func NewRegistry(groups ...[]Definition) (*Registry, error) {
 			if definition.Baseline == "" {
 				definition.Baseline = BaselineNone
 			}
-			if err := definition.validate(); err != nil {
+			if err := definition.Validate(); err != nil {
 				return nil, err
 			}
 			if _, dup := registry.definitions[definition.Key]; dup {

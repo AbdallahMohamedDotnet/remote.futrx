@@ -1,14 +1,7 @@
-// Package permission owns Remote's permission vocabulary, the persisted policy
-// (direct assignments, custom roles, and role bindings), and the evaluator
-// that answers whether an actor may perform a registered action.
-//
-// Definitions are code-owned: only developers add permission keys, and only by
-// declaring a Definition in the service that owns the protected operation.
-// Runtime callers can assign registered keys but can never invent one.
-package rbac
+// Package models defines the RBAC vocabulary and persisted policy records.
+package models
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -145,7 +138,7 @@ func (d Definition) SupportsScope(kind ScopeKind) bool {
 	return false
 }
 
-func (d Definition) validate() error {
+func (d Definition) Validate() error {
 	if !d.Key.Valid() {
 		return fmt.Errorf("%w: malformed key %q", ErrInvalidDefinition, d.Key)
 	}
@@ -183,5 +176,3 @@ func probeID(kind ScopeKind) string {
 	}
 	return "probe"
 }
-
-var errNilDefinitions = errors.New("no definitions")

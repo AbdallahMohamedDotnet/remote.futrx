@@ -157,7 +157,7 @@ func (s *Service) DeleteRole(ctx context.Context, id string, options DeleteRoleO
 		if err != nil {
 			return err
 		}
-		role, ok := m.state.role(id)
+		role, ok := m.state.Role(id)
 		if !ok {
 			return nil
 		}

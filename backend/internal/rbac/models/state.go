@@ -1,4 +1,4 @@
-package rbac
+package models
 
 import (
 	"fmt"
@@ -74,7 +74,7 @@ func (s State) Clone() State {
 	return out
 }
 
-func (s State) role(id string) (Role, bool) {
+func (s State) Role(id string) (Role, bool) {
 	for _, role := range s.Roles {
 		if role.ID == id {
 			return role, true
@@ -145,7 +145,7 @@ func (s State) ValidateStructure() error {
 		if err := b.Scope.Validate(); err != nil {
 			return fmt.Errorf("%w: binding %s: %w", ErrInvalidState, b.ID, err)
 		}
-		if _, ok := s.role(b.RoleID); !ok {
+		if _, ok := s.Role(b.RoleID); !ok {
 			return fmt.Errorf("%w: binding %s references unknown role %q; restore the role or remove the binding from permissions.json",
 				ErrInvalidState, b.ID, b.RoleID)
 		}
@@ -156,74 +156,4 @@ func (s State) ValidateStructure() error {
 		bound[natural] = struct{}{}
 	}
 	return nil
-}
-
-// ValidateAgainst checks the state against the code-owned catalog. Stored
-// policy that names an unregistered key, or applies a permission at a scope
-// kind it does not support, is an error rather than something to discard:
-// silently dropping a deny would weaken access.
-func (s State) ValidateAgainst(registry *Registry) error {
-	for _, a := range s.Assignments {
-		definition, ok := registry.Lookup(a.Permission)
-		if !ok {
-			return fmt.Errorf("%w: assignment %s names unknown permission %q; register it or remove the assignment from permissions.json",
-				ErrInvalidState, a.ID, a.Permission)
-		}
-		if !definition.SupportsScope(a.Scope.Kind) {
-			return fmt.Errorf("%w: assignment %s applies %s at unsupported %s scope",
-				ErrInvalidState, a.ID, a.Permission, a.Scope.Kind)
-		}
-	}
-	for _, role := range s.Roles {
-		for _, rule := range role.Rules {
-			if _, ok := registry.Lookup(rule.Permission); !ok {
-				return fmt.Errorf("%w: role %s names unknown permission %q; register it or remove the rule from permissions.json",
-					ErrInvalidState, role.ID, rule.Permission)
-			}
-		}
-	}
-	for _, b := range s.Bindings {
-		role, _ := s.role(b.RoleID)
-		for _, rule := range role.Rules {
-			definition, _ := registry.Lookup(rule.Permission)
-			if !definition.SupportsScope(b.Scope.Kind) {
-				return fmt.Errorf("%w: binding %s applies role %s rule %s at unsupported %s scope",
-					ErrInvalidState, b.ID, role.ID, rule.Permission, b.Scope.Kind)
-			}
-		}
-	}
-	return nil
-}
-
-// AuditOperation names the kind of policy mutation an AuditEvent records.
-type AuditOperation string
-
-const (
-	AuditAssignmentSet     AuditOperation = "assignment.set"
-	AuditAssignmentRemoved AuditOperation = "assignment.removed"
-	AuditRoleCreated       AuditOperation = "role.created"
-	AuditRoleUpdated       AuditOperation = "role.updated"
-	AuditRoleDeleted       AuditOperation = "role.deleted"
-	AuditRoleBound         AuditOperation = "binding.created"
-	AuditRoleUnbound       AuditOperation = "binding.removed"
-)
-
-// SystemActorName is recorded as the actor of trusted internal mutations.
-const SystemActorName = "system"
-
-// AuditEvent is one durable record of a successful policy mutation. It never
-// carries session material or unrelated user data.
-type AuditEvent struct {
-	At         int64
-	Actor      string
-	Operation  AuditOperation
-	TargetUser string
-	Permission Key
-	RoleID     string
-	Scope      Scope
-	OldEffect  Effect
-	NewEffect  Effect
-	// Detail carries what the other fields cannot, such as a role's name and
-	// rules.
-	Detail string
 }

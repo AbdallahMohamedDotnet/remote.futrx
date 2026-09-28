@@ -139,7 +139,7 @@ func (s *Service) BindRole(ctx context.Context, in BindingInput) (RoleBinding, e
 		if err != nil {
 			return err
 		}
-		role, ok := m.state.role(in.RoleID)
+		role, ok := m.state.Role(in.RoleID)
 		if !ok {
 			return ErrRoleNotFound
 		}
@@ -190,7 +190,7 @@ func (s *Service) UnbindRole(ctx context.Context, in BindingInput) error {
 		if err != nil {
 			return err
 		}
-		role, ok := m.state.role(in.RoleID)
+		role, ok := m.state.Role(in.RoleID)
 		if !ok {
 			return nil
 		}

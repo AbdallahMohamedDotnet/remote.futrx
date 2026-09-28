@@ -132,7 +132,7 @@ func matchingEffects(state State, email string, check Check) (deny, allow bool) 
 		if b.UserEmail != email || b.Scope != check.Scope {
 			continue
 		}
-		role, ok := state.role(b.RoleID)
+		role, ok := state.Role(b.RoleID)
 		if !ok {
 			continue
 		}

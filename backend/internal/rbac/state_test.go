@@ -28,7 +28,7 @@ func TestValidateAgainstRejectsUnknownPermissionKeys(t *testing.T) {
 			if err := test.state.ValidateStructure(); err != nil {
 				t.Fatalf("ValidateStructure() = %v, want the state to be structurally valid", err)
 			}
-			err := test.state.ValidateAgainst(registry)
+			err := ValidateAgainst(test.state, registry)
 			if !errors.Is(err, ErrInvalidState) {
 				t.Fatalf("ValidateAgainst() error = %v, want ErrInvalidState", err)
 			}
@@ -50,7 +50,7 @@ func TestValidateAgainstRejectsUnsupportedScopeKinds(t *testing.T) {
 	}
 	for name, state := range map[string]State{"assignment": assignment, "role binding": binding} {
 		t.Run(name, func(t *testing.T) {
-			if err := state.ValidateAgainst(registry); !errors.Is(err, ErrInvalidState) {
+			if err := ValidateAgainst(state, registry); !errors.Is(err, ErrInvalidState) {
 				t.Fatalf("ValidateAgainst() error = %v, want ErrInvalidState", err)
 			}
 		})
@@ -71,7 +71,7 @@ func TestValidateAgainstAcceptsRegisteredPolicy(t *testing.T) {
 	if err := state.ValidateStructure(); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.ValidateAgainst(stateTestRegistry()); err != nil {
+	if err := ValidateAgainst(state, stateTestRegistry()); err != nil {
 		t.Fatal(err)
 	}
 }

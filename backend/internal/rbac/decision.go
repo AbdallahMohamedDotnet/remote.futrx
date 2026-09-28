@@ -1,6 +1,9 @@
 package rbac
 
-import "errors"
+import (
+	"errors"
+	"github.com/futrx-com/remote.futrx.com/internal/rbac/models"
+)
 
 // Stable errors. Public errors never reveal which role or deny record caused a
 // denial; the structured Decision carries that for logs and tests.
@@ -8,14 +11,14 @@ var (
 	ErrDenied            = errors.New("permission denied")
 	ErrActorRequired     = errors.New("authenticated actor required")
 	ErrUnknownPermission = errors.New("unknown permission")
-	ErrInvalidScope      = errors.New("invalid permission scope")
+	ErrInvalidScope      = models.ErrInvalidScope
 	ErrInvalidEffect     = errors.New("invalid permission effect")
-	ErrInvalidDefinition = errors.New("invalid permission definition")
+	ErrInvalidDefinition = models.ErrInvalidDefinition
 	ErrInvalidRole       = errors.New("invalid role")
 	ErrRoleNotFound      = errors.New("role not found")
 	ErrRoleInUse         = errors.New("role is bound to users")
 	ErrUserNotRegistered = errors.New("user is not registered")
-	ErrInvalidState      = errors.New("invalid permission state")
+	ErrInvalidState      = models.ErrInvalidState
 	ErrAuditFailed       = errors.New("permission audit failed")
 )
 

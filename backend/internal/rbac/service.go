@@ -58,7 +58,7 @@ func NewService(
 	if err != nil {
 		return nil, fmt.Errorf("load permission policy: %w", err)
 	}
-	if err := state.ValidateAgainst(registry); err != nil {
+	if err := ValidateAgainst(state, registry); err != nil {
 		return nil, err
 	}
 	service := &Service{
