@@ -1,6 +1,6 @@
 # Permissions
 
-`internal/service/permission` lets Remote decide whether an existing
+`internal/rbac` lets Remote decide whether an existing
 authenticated user may perform a registered action, supports explicit allow and
 deny assignments, groups permissions into custom roles, and lets an authorized
 user delegate permissions to someone else. Authorization is decided **inside the
@@ -26,7 +26,7 @@ project membership.
 | Who exists, and who is an administrator | `service/user`, `service/auth` (`auth.Service.IsAdmin`, which includes the local administrator) |
 | Which projects a member can see | `service/project` membership list |
 | Which registered actions exist | Code: each owning service's `permissions.go` |
-| Who is allowed or denied an action | `service/permission` policy, persisted in `permissions.json` |
+| Who is allowed or denied an action | `rbac` policy, persisted in `permissions.json` |
 
 Administrators are the root policy: they are allowed every registered
 permission, and no stored assignment can remove that. Project membership stays
@@ -104,7 +104,7 @@ DTO, or persisted definition file. Runtime users assign registered keys; only a
 developer adds one.
 
 Register the group in the composition root's catalog,
-[`permissionDefinitions()`](../../backend/internal/service/permission_composition.go):
+[`permissionDefinitions()`](../../backend/internal/rbac_composition.go):
 
 ```go
 return [][]servicepermission.Definition{
@@ -196,7 +196,7 @@ caller parameter, so the authenticated actor travels in `context.Context`.
 
 Every caller of `ContextWithSystemActor`, `SystemActor`, and `ContextWithActor`
 is on an allowlist in
-[`architecture_test.go`](../../backend/internal/service/permission/architecture_test.go).
+[`architecture_test.go`](../../backend/internal/rbac/architecture_test.go).
 Adding one means editing that list, which puts the new entry point in review.
 Today they are: agent runs starting a container, application container
 readiness, notification fan-out reading members, user-removal cleanup, and the
@@ -307,7 +307,7 @@ instead of building a policy.
 
 ## Architecture rules
 
-[`architecture_test.go`](../../backend/internal/service/permission/architecture_test.go)
+[`architecture_test.go`](../../backend/internal/rbac/architecture_test.go)
 asserts that:
 
 - the permission package does not import auth, user, project, chat, stores, or
