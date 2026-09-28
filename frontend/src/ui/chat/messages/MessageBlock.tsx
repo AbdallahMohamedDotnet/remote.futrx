@@ -20,7 +20,7 @@ export function MessageBlock({
   streaming: boolean;
   chatId?: string;
   cwd?: string;
-  onAnswerQuestion?: (text: string) => void;
+  onAnswerQuestion?: (text: string) => boolean;
   onRespondInteraction?: ChatInteractionResponder;
   onRewind?: (t: number, text: string) => void;
   streamingPresentation: "blocks" | "tokens";

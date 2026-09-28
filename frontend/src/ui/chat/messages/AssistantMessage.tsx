@@ -18,7 +18,7 @@ export function AssistantMessage({
   streaming: boolean;
   chatId?: string;
   cwd?: string;
-  onAnswerQuestion?: (text: string) => void;
+  onAnswerQuestion?: (text: string) => boolean;
   onRespondInteraction?: ChatInteractionResponder;
   streamingPresentation: "blocks" | "tokens";
 }) {
