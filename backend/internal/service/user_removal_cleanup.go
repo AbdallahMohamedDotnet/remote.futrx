@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	servicepermission "github.com/futrx-com/remote.futrx.com/internal/service/permission"
+	servicepermission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 

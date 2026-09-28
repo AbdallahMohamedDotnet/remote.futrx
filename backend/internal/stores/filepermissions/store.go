@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/futrx-com/remote.futrx.com/internal/service/permission"
+	permission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 )
 
 var _ permission.Repository = (*Store)(nil)

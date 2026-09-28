@@ -1,4 +1,4 @@
-package permission
+package rbac
 
 // Delegation rules: "can give permissions" is itself a permission, but
 // holding it is not an unrestricted route to permissions the delegator does

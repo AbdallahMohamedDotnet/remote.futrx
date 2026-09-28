@@ -1,7 +1,7 @@
 package filepermissions
 
 import (
-	"github.com/futrx-com/remote.futrx.com/internal/service/permission"
+	permission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 )
 
 // schemaVersion is stored from the first release so a later layout change can

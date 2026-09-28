@@ -3,7 +3,7 @@ package project
 import (
 	"context"
 
-	"github.com/futrx-com/remote.futrx.com/internal/service/permission"
+	permission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 )
 
 // Permissions owned by the project service. Keys are stable persisted

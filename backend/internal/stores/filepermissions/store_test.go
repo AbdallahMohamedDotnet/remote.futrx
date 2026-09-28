@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/futrx-com/remote.futrx.com/internal/service/permission"
+	permission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 )
 
 func assignment(id, email string) permission.Assignment {

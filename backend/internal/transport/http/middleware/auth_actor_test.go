@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	permission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
-	"github.com/futrx-com/remote.futrx.com/internal/service/permission"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filesessions"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filetwofactor"

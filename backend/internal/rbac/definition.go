@@ -5,7 +5,7 @@
 // Definitions are code-owned: only developers add permission keys, and only by
 // declaring a Definition in the service that owns the protected operation.
 // Runtime callers can assign registered keys but can never invent one.
-package permission
+package rbac
 
 import (
 	"errors"

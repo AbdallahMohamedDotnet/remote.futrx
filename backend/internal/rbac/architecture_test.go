@@ -1,4 +1,4 @@
-package permission
+package rbac
 
 import (
 	"go/ast"
@@ -16,7 +16,7 @@ const modulePath = "github.com/futrx-com/remote.futrx.com/internal/"
 
 // backendRoot is the repository's backend directory as seen from this
 // package's directory, where `go test` runs.
-const backendRoot = "../../.."
+const backendRoot = "../.."
 
 type sourceFile struct {
 	path    string // slash-separated, relative to the backend directory
@@ -82,7 +82,7 @@ func TestPermissionPackageDependsOnlyOnItsOwnPorts(t *testing.T) {
 		"stores", "transport",
 	}
 	for _, source := range productionSources(t) {
-		if source.dir != "internal/service/permission" {
+		if source.dir != "internal/rbac" && source.dir != "internal/rbac/models" {
 			continue
 		}
 		if imported, bad := importsAny(source.imports, forbidden...); bad {
@@ -99,10 +99,10 @@ func TestEnforcingServicesDoNotDependOnAuthTransportOrStores(t *testing.T) {
 	enforcing := map[string]bool{}
 	sources := productionSources(t)
 	for _, source := range sources {
-		if source.dir == "internal/service/permission" || !strings.HasPrefix(source.dir, "internal/service/") {
+		if strings.HasPrefix(source.dir, "internal/rbac") || !strings.HasPrefix(source.dir, "internal/service/") {
 			continue
 		}
-		if slices.Contains(source.imports, "service/permission") {
+		if slices.Contains(source.imports, "rbac") {
 			enforcing[source.dir] = true
 		}
 	}
@@ -128,14 +128,14 @@ func TestActorConstructorsAreCalledOnlyFromReviewedEntryPoints(t *testing.T) {
 			"internal/service/chat_notification_audience.go", // notification fan-out reads members
 			"internal/service/services.go",                   // application container readiness
 			"internal/service/user_removal_cleanup.go",       // removing a user revokes their access
-			"internal/service/permission/assignments.go",     // RemoveUserPolicy cleanup
+			"internal/rbac/assignments.go",                   // RemoveUserPolicy cleanup
 		},
 		"SystemActor": {
-			"internal/service/permission/actor.go",
+			"internal/rbac/actor.go",
 		},
 		"ContextWithActor": {
 			"internal/transport/http/middleware/auth.go", // attaches the authenticated session's actor
-			"internal/service/permission/actor.go",
+			"internal/rbac/actor.go",
 		},
 	}
 
@@ -181,7 +181,7 @@ func TestActorConstructorsAreCalledOnlyFromReviewedEntryPoints(t *testing.T) {
 // There is deliberately no runtime way to create a permission definition.
 func TestNoRuntimeOperationCreatesPermissionDefinitions(t *testing.T) {
 	for _, source := range productionSources(t) {
-		if !strings.HasPrefix(source.path, "internal/service/permission/") &&
+		if !strings.HasPrefix(source.path, "internal/rbac/") &&
 			!strings.HasPrefix(source.path, "internal/stores/filepermissions/") {
 			continue
 		}

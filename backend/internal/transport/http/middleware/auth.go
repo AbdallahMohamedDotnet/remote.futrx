@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	permission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
-	"github.com/futrx-com/remote.futrx.com/internal/service/permission"
 	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 

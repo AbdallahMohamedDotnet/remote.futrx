@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
+	servicepermission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
-	servicepermission "github.com/futrx-com/remote.futrx.com/internal/service/permission"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 )

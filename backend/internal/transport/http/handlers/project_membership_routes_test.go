@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	servicepermission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
-	servicepermission "github.com/futrx-com/remote.futrx.com/internal/service/permission"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filepermissions"

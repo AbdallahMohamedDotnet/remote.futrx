@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/futrx-com/remote.futrx.com/internal/service/permission"
+	permission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 )
 
 // allowAllAuthorizer lets tests that exercise lifecycle behavior, not

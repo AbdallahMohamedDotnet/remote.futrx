@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	servicepermission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	serviceapplications "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
-	servicepermission "github.com/futrx-com/remote.futrx.com/internal/service/permission"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 	serviceschedule "github.com/futrx-com/remote.futrx.com/internal/service/schedule"
