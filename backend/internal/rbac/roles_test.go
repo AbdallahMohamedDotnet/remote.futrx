@@ -8,7 +8,7 @@ import (
 func TestOneRoleGroupsSeveralPermissionsAndIsBoundOnce(t *testing.T) {
 	f := newFixture(t)
 	role := mustRole(t, f.service, "Operators",
-		RoleRule{permSecrets, Allow}, RoleRule{permDocs, Allow})
+		RoleRule{Permission: permSecrets, Effect: Allow}, RoleRule{Permission: permDocs, Effect: Allow})
 
 	mustBind(t, f.service, as(testAdmin), role.ID, testBob, ProjectScope(projectB))
 
@@ -19,12 +19,12 @@ func TestOneRoleGroupsSeveralPermissionsAndIsBoundOnce(t *testing.T) {
 
 func TestUpdatingARoleChangesItsBindingsWithoutRewritingUsers(t *testing.T) {
 	f := newFixture(t)
-	role := mustRole(t, f.service, "Operators", RoleRule{permSecrets, Allow})
+	role := mustRole(t, f.service, "Operators", RoleRule{Permission: permSecrets, Effect: Allow})
 	mustBind(t, f.service, as(testAdmin), role.ID, testBob, ProjectScope(projectB))
 	before, _ := f.repo.Load(context.Background())
 
 	updated, err := f.service.UpdateRole(as(testAdmin), role.ID, RoleInput{
-		Name: "Operators", Rules: []RoleRule{{permSecrets, Deny}},
+		Name: "Operators", Rules: []RoleRule{{Permission: permSecrets, Effect: Deny}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ func TestUpdatingARoleChangesItsBindingsWithoutRewritingUsers(t *testing.T) {
 
 func TestBoundRolesCannotBeDeletedByAccident(t *testing.T) {
 	f := newFixture(t)
-	role := mustRole(t, f.service, "Operators", RoleRule{permSecrets, Allow})
+	role := mustRole(t, f.service, "Operators", RoleRule{Permission: permSecrets, Effect: Allow})
 	mustBind(t, f.service, as(testAdmin), role.ID, testBob, ProjectScope(projectB))
 
 	requireError(t, f.service.DeleteRole(as(testAdmin), role.ID, DeleteRoleOptions{}), ErrRoleInUse)
@@ -73,20 +73,20 @@ func TestDeletingAMissingRoleIsANoOp(t *testing.T) {
 
 func TestRoleValidation(t *testing.T) {
 	f := newFixture(t)
-	mustRole(t, f.service, "Operators", RoleRule{permSecrets, Allow})
+	mustRole(t, f.service, "Operators", RoleRule{Permission: permSecrets, Effect: Allow})
 
 	tests := []struct {
 		name string
 		in   RoleInput
 		want error
 	}{
-		{"empty name", RoleInput{Name: "  ", Rules: []RoleRule{{permSecrets, Allow}}}, ErrInvalidRole},
-		{"long name", RoleInput{Name: string(make([]byte, 81)), Rules: []RoleRule{{permSecrets, Allow}}}, ErrInvalidRole},
-		{"duplicate name ignoring case", RoleInput{Name: "OPERATORS", Rules: []RoleRule{{permDocs, Allow}}}, ErrInvalidRole},
+		{"empty name", RoleInput{Name: "  ", Rules: []RoleRule{{Permission: permSecrets, Effect: Allow}}}, ErrInvalidRole},
+		{"long name", RoleInput{Name: string(make([]byte, 81)), Rules: []RoleRule{{Permission: permSecrets, Effect: Allow}}}, ErrInvalidRole},
+		{"duplicate name ignoring case", RoleInput{Name: "OPERATORS", Rules: []RoleRule{{Permission: permDocs, Effect: Allow}}}, ErrInvalidRole},
 		{"no rules", RoleInput{Name: "Empty"}, ErrInvalidRole},
-		{"unknown key", RoleInput{Name: "Bad", Rules: []RoleRule{{"projects.nothing.manage", Allow}}}, ErrUnknownPermission},
-		{"bad effect", RoleInput{Name: "Bad", Rules: []RoleRule{{permDocs, "maybe"}}}, ErrInvalidEffect},
-		{"repeated permission", RoleInput{Name: "Bad", Rules: []RoleRule{{permDocs, Allow}, {permDocs, Deny}}}, ErrInvalidRole},
+		{"unknown key", RoleInput{Name: "Bad", Rules: []RoleRule{{Permission: "projects.nothing.manage", Effect: Allow}}}, ErrUnknownPermission},
+		{"bad effect", RoleInput{Name: "Bad", Rules: []RoleRule{{Permission: permDocs, Effect: "maybe"}}}, ErrInvalidEffect},
+		{"repeated permission", RoleInput{Name: "Bad", Rules: []RoleRule{{Permission: permDocs, Effect: Allow}, {Permission: permDocs, Effect: Deny}}}, ErrInvalidRole},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestRoleValidation(t *testing.T) {
 
 func TestRoleCannotBecomeBroaderThanItsBindingScope(t *testing.T) {
 	f := newFixture(t)
-	projectOnly := mustRole(t, f.service, "Project only", RoleRule{permSecrets, Allow})
+	projectOnly := mustRole(t, f.service, "Project only", RoleRule{Permission: permSecrets, Effect: Allow})
 
 	_, err := f.service.BindRole(as(testAdmin), BindingInput{
 		RoleID: projectOnly.ID, UserEmail: testBob, Scope: PlatformScope(),
@@ -107,10 +107,10 @@ func TestRoleCannotBecomeBroaderThanItsBindingScope(t *testing.T) {
 
 	// Narrowing a role's rules to a kind its existing bindings do not support
 	// is refused for the same reason.
-	platformBound := mustRole(t, f.service, "Docs", RoleRule{permDocs, Allow})
+	platformBound := mustRole(t, f.service, "Docs", RoleRule{Permission: permDocs, Effect: Allow})
 	mustBind(t, f.service, as(testAdmin), platformBound.ID, testBob, PlatformScope())
 	_, err = f.service.UpdateRole(as(testAdmin), platformBound.ID, RoleInput{
-		Name: "Docs", Rules: []RoleRule{{permLifecycle, Allow}},
+		Name: "Docs", Rules: []RoleRule{{Permission: permLifecycle, Effect: Allow}},
 	})
 	requireError(t, err, ErrInvalidScope)
 }
@@ -118,7 +118,7 @@ func TestRoleCannotBecomeBroaderThanItsBindingScope(t *testing.T) {
 func TestRepeatedCommandsAreIdempotent(t *testing.T) {
 	f := newFixture(t)
 	scope := ProjectScope(projectA)
-	role := mustRole(t, f.service, "Operators", RoleRule{permSecrets, Allow})
+	role := mustRole(t, f.service, "Operators", RoleRule{Permission: permSecrets, Effect: Allow})
 
 	mustSet(t, f.service, as(testAdmin), testAlice, permSecrets, Allow, scope)
 	mustSet(t, f.service, as(testAdmin), testAlice, permSecrets, Allow, scope)
@@ -153,7 +153,7 @@ func TestSettingADifferentEffectReplacesTheAssignment(t *testing.T) {
 
 func TestRemovingMissingAssignmentsAndBindingsIsANoOp(t *testing.T) {
 	f := newFixture(t)
-	role := mustRole(t, f.service, "Operators", RoleRule{permSecrets, Allow})
+	role := mustRole(t, f.service, "Operators", RoleRule{Permission: permSecrets, Effect: Allow})
 	events := len(f.repo.auditLog())
 
 	err := f.service.RemoveAssignment(as(testAdmin), AssignmentTarget{
@@ -175,7 +175,7 @@ func TestRemovingMissingAssignmentsAndBindingsIsANoOp(t *testing.T) {
 func TestRemovingAssignmentsAndBindingsRevokesAccess(t *testing.T) {
 	f := newFixture(t)
 	scope := ProjectScope(projectA)
-	role := mustRole(t, f.service, "Operators", RoleRule{permDocs, Allow})
+	role := mustRole(t, f.service, "Operators", RoleRule{Permission: permDocs, Effect: Allow})
 	mustSet(t, f.service, as(testAdmin), testAlice, permSecrets, Allow, scope)
 	mustBind(t, f.service, as(testAdmin), role.ID, testAlice, scope)
 
@@ -194,7 +194,7 @@ func TestRemovingAssignmentsAndBindingsRevokesAccess(t *testing.T) {
 
 func TestMutationTargetsMustBeRegisteredUsers(t *testing.T) {
 	f := newFixture(t)
-	role := mustRole(t, f.service, "Operators", RoleRule{permSecrets, Allow})
+	role := mustRole(t, f.service, "Operators", RoleRule{Permission: permSecrets, Effect: Allow})
 
 	_, err := f.service.SetAssignment(as(testAdmin), AssignmentInput{
 		UserEmail: testUnknown, Permission: permSecrets, Effect: Allow, Scope: ProjectScope(projectA),
@@ -229,7 +229,7 @@ func TestAssignmentInputIsValidated(t *testing.T) {
 
 func TestRoleRecordsAreIndependentOfTheUserDirectory(t *testing.T) {
 	f := newFixture(t)
-	role := mustRole(t, f.service, "Operators", RoleRule{permSecrets, Allow})
+	role := mustRole(t, f.service, "Operators", RoleRule{Permission: permSecrets, Effect: Allow})
 	mustBind(t, f.service, as(testAdmin), role.ID, testBob, ProjectScope(projectB))
 
 	// Binding a custom role must not make its holder an administrator.
@@ -243,7 +243,7 @@ func TestRoleRecordsAreIndependentOfTheUserDirectory(t *testing.T) {
 func TestRemoveUserPolicyDeletesAssignmentsAndBindingsButKeepsRoles(t *testing.T) {
 	f := newFixture(t)
 	scope := ProjectScope(projectA)
-	role := mustRole(t, f.service, "Operators", RoleRule{permDocs, Allow})
+	role := mustRole(t, f.service, "Operators", RoleRule{Permission: permDocs, Effect: Allow})
 	mustSet(t, f.service, as(testAdmin), testAlice, permSecrets, Allow, scope)
 	mustSet(t, f.service, as(testAdmin), testBob, permSecrets, Allow, scope)
 	mustBind(t, f.service, as(testAdmin), role.ID, testAlice, scope)

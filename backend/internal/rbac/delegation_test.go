@@ -76,7 +76,7 @@ func TestManagerWithoutManagementPermissionCannotMutate(t *testing.T) {
 		UserEmail: testBob, Permission: permLifecycle, Effect: Allow, Scope: ProjectScope(projectA),
 	})
 	requireError(t, err, ErrDenied)
-	_, err = f.service.CreateRole(as(testManager), RoleInput{Name: "X", Rules: []RoleRule{{permDocs, Allow}}})
+	_, err = f.service.CreateRole(as(testManager), RoleInput{Name: "X", Rules: []RoleRule{{Permission: permDocs, Effect: Allow}}})
 	requireError(t, err, ErrDenied)
 	// A roles.manage holder still cannot manage assignments.
 	grantManagement(t, f, PermissionRolesManage)
@@ -111,14 +111,14 @@ func TestManagerCannotSmuggleUnauthorizedKeysThroughARole(t *testing.T) {
 		g := newFixture(t)
 		grantManagement(t, g, PermissionRolesManage) // roles.manage only
 		_, err := g.service.CreateRole(as(testManager), RoleInput{
-			Name: "Sneaky", Rules: []RoleRule{{PermissionAssignmentsManage, Allow}},
+			Name: "Sneaky", Rules: []RoleRule{{Permission: PermissionAssignmentsManage, Effect: Allow}},
 		})
 		requireError(t, err, ErrDenied)
 	})
 
 	t.Run("a manager holding the exact management permission may include it", func(t *testing.T) {
 		if _, err := f.service.CreateRole(as(testManager), RoleInput{
-			Name: "Holds it", Rules: []RoleRule{{PermissionAssignmentsManage, Allow}},
+			Name: "Holds it", Rules: []RoleRule{{Permission: PermissionAssignmentsManage, Effect: Allow}},
 		}); err != nil {
 			t.Fatalf("CreateRole() error = %v", err)
 		}
@@ -126,7 +126,7 @@ func TestManagerCannotSmuggleUnauthorizedKeysThroughARole(t *testing.T) {
 
 	t.Run("binding a role with unauthorized keys is refused", func(t *testing.T) {
 		role, err := f.service.CreateRole(as(testManager), RoleInput{
-			Name: "Mixed", Rules: []RoleRule{{permLifecycle, Allow}, {permSecrets, Allow}},
+			Name: "Mixed", Rules: []RoleRule{{Permission: permLifecycle, Effect: Allow}, {Permission: permSecrets, Effect: Allow}},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -139,7 +139,7 @@ func TestManagerCannotSmuggleUnauthorizedKeysThroughARole(t *testing.T) {
 
 	t.Run("a role of only held keys may be bound", func(t *testing.T) {
 		role, err := f.service.CreateRole(as(testManager), RoleInput{
-			Name: "Held", Rules: []RoleRule{{permLifecycle, Allow}, {permAccess, Allow}},
+			Name: "Held", Rules: []RoleRule{{Permission: permLifecycle, Effect: Allow}, {Permission: permAccess, Effect: Allow}},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -150,7 +150,7 @@ func TestManagerCannotSmuggleUnauthorizedKeysThroughARole(t *testing.T) {
 
 	t.Run("binding at a project the manager cannot delegate in is refused", func(t *testing.T) {
 		role, err := f.service.CreateRole(as(testManager), RoleInput{
-			Name: "Held elsewhere", Rules: []RoleRule{{permLifecycle, Allow}},
+			Name: "Held elsewhere", Rules: []RoleRule{{Permission: permLifecycle, Effect: Allow}},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -166,7 +166,7 @@ func TestManagerCannotWidenABoundRoleBeyondWhatTheyHold(t *testing.T) {
 	f := newFixture(t)
 	grantManagement(t, f, PermissionAssignmentsManage, PermissionRolesManage)
 	role, err := f.service.CreateRole(as(testManager), RoleInput{
-		Name: "Held", Rules: []RoleRule{{permLifecycle, Allow}},
+		Name: "Held", Rules: []RoleRule{{Permission: permLifecycle, Effect: Allow}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -176,18 +176,18 @@ func TestManagerCannotWidenABoundRoleBeyondWhatTheyHold(t *testing.T) {
 	// Adding a permission the manager lacks would reach bob without the manager
 	// ever being allowed to grant it to bob directly.
 	_, err = f.service.UpdateRole(as(testManager), role.ID, RoleInput{
-		Name: "Held", Rules: []RoleRule{{permLifecycle, Allow}, {permSecrets, Allow}},
+		Name: "Held", Rules: []RoleRule{{Permission: permLifecycle, Effect: Allow}, {Permission: permSecrets, Effect: Allow}},
 	})
 	requireError(t, err, ErrDenied)
 	requireAllowed(t, f.service, as(testBob), permSecrets, ProjectScope(projectA), false)
 
 	// An unbound role can still be reshaped freely by a roles manager.
-	free, err := f.service.CreateRole(as(testManager), RoleInput{Name: "Free", Rules: []RoleRule{{permDocs, Allow}}})
+	free, err := f.service.CreateRole(as(testManager), RoleInput{Name: "Free", Rules: []RoleRule{{Permission: permDocs, Effect: Allow}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.service.UpdateRole(as(testManager), free.ID, RoleInput{
-		Name: "Free", Rules: []RoleRule{{permSecrets, Allow}},
+		Name: "Free", Rules: []RoleRule{{Permission: permSecrets, Effect: Allow}},
 	}); err != nil {
 		t.Fatalf("UpdateRole(unbound) error = %v", err)
 	}
@@ -224,17 +224,17 @@ func TestMutationsRequireAnActor(t *testing.T) {
 		UserEmail: testAlice, Permission: permSecrets, Effect: Allow, Scope: ProjectScope(projectA),
 	})
 	requireError(t, err, ErrActorRequired)
-	_, err = f.service.CreateRole(context.Background(), RoleInput{Name: "X", Rules: []RoleRule{{permDocs, Allow}}})
+	_, err = f.service.CreateRole(context.Background(), RoleInput{Name: "X", Rules: []RoleRule{{Permission: permDocs, Effect: Allow}}})
 	requireError(t, err, ErrActorRequired)
 }
 
 func TestEverySuccessfulMutationIsAudited(t *testing.T) {
 	f := newFixture(t)
 	scope := ProjectScope(projectA)
-	role := mustRole(t, f.service, "Operators", RoleRule{permDocs, Allow})
+	role := mustRole(t, f.service, "Operators", RoleRule{Permission: permDocs, Effect: Allow})
 	mustSet(t, f.service, as(testAdmin), testAlice, permSecrets, Allow, scope)
 	mustBind(t, f.service, as(testAdmin), role.ID, testAlice, scope)
-	if _, err := f.service.UpdateRole(as(testAdmin), role.ID, RoleInput{Name: "Ops", Rules: []RoleRule{{permDocs, Deny}}}); err != nil {
+	if _, err := f.service.UpdateRole(as(testAdmin), role.ID, RoleInput{Name: "Ops", Rules: []RoleRule{{Permission: permDocs, Effect: Deny}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.service.UnbindRole(as(testAdmin), BindingInput{RoleID: role.ID, UserEmail: testAlice, Scope: scope}); err != nil {
@@ -273,7 +273,7 @@ func TestAuditFailureRejectsTheMutation(t *testing.T) {
 		UserEmail: testAlice, Permission: permSecrets, Effect: Allow, Scope: ProjectScope(projectA),
 	})
 	requireError(t, err, ErrAuditFailed)
-	_, err = f.service.CreateRole(as(testAdmin), RoleInput{Name: "X", Rules: []RoleRule{{permDocs, Allow}}})
+	_, err = f.service.CreateRole(as(testAdmin), RoleInput{Name: "X", Rules: []RoleRule{{Permission: permDocs, Effect: Allow}}})
 	requireError(t, err, ErrAuditFailed)
 
 	state, _ := f.repo.Load(context.Background())

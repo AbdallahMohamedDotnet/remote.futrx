@@ -88,7 +88,7 @@ func TestEvaluationTable(t *testing.T) {
 			name: "direct deny overrides a role allow", actor: testAlice, key: permSecrets,
 			scope: ProjectScope(projectA), want: false, why: ReasonExplicitDeny,
 			setup: func(t *testing.T, f *fixture) {
-				role := mustRole(t, f.service, "Revealers", RoleRule{permSecrets, Allow})
+				role := mustRole(t, f.service, "Revealers", RoleRule{Permission: permSecrets, Effect: Allow})
 				mustBind(t, f.service, as(testAdmin), role.ID, testAlice, ProjectScope(projectA))
 				mustSet(t, f.service, as(testAdmin), testAlice, permSecrets, Deny, ProjectScope(projectA))
 			},
@@ -97,7 +97,7 @@ func TestEvaluationTable(t *testing.T) {
 			name: "role allow grants through a binding", actor: testAlice, key: permSecrets,
 			scope: ProjectScope(projectA), want: true, why: ReasonExplicitAllow,
 			setup: func(t *testing.T, f *fixture) {
-				role := mustRole(t, f.service, "Revealers", RoleRule{permSecrets, Allow})
+				role := mustRole(t, f.service, "Revealers", RoleRule{Permission: permSecrets, Effect: Allow})
 				mustBind(t, f.service, as(testAdmin), role.ID, testAlice, ProjectScope(projectA))
 			},
 		},
@@ -105,8 +105,8 @@ func TestEvaluationTable(t *testing.T) {
 			name: "a role deny overrides another role's allow", actor: testAlice, key: permSecrets,
 			scope: ProjectScope(projectA), want: false, why: ReasonExplicitDeny,
 			setup: func(t *testing.T, f *fixture) {
-				allow := mustRole(t, f.service, "Allow", RoleRule{permSecrets, Allow})
-				deny := mustRole(t, f.service, "Deny", RoleRule{permSecrets, Deny})
+				allow := mustRole(t, f.service, "Allow", RoleRule{Permission: permSecrets, Effect: Allow})
+				deny := mustRole(t, f.service, "Deny", RoleRule{Permission: permSecrets, Effect: Deny})
 				mustBind(t, f.service, as(testAdmin), allow.ID, testAlice, ProjectScope(projectA))
 				mustBind(t, f.service, as(testAdmin), deny.ID, testAlice, ProjectScope(projectA))
 			},
@@ -115,7 +115,7 @@ func TestEvaluationTable(t *testing.T) {
 			name: "a role binding at project A does not match project B", actor: testAlice, key: permSecrets,
 			scope: ProjectScope(projectB), want: false, why: ReasonDefaultDeny,
 			setup: func(t *testing.T, f *fixture) {
-				role := mustRole(t, f.service, "Revealers", RoleRule{permSecrets, Allow})
+				role := mustRole(t, f.service, "Revealers", RoleRule{Permission: permSecrets, Effect: Allow})
 				mustBind(t, f.service, as(testAdmin), role.ID, testAlice, ProjectScope(projectA))
 			},
 		},

@@ -138,12 +138,12 @@ func TestRegistryResolveValidatesChecks(t *testing.T) {
 		check Check
 		want  error
 	}{
-		{"valid", Check{"projects.lifecycle.manage", ProjectScope("abcd")}, nil},
-		{"unregistered key", Check{"projects.other.manage", ProjectScope("abcd")}, ErrUnknownPermission},
-		{"unsupported scope kind", Check{"projects.lifecycle.manage", PlatformScope()}, ErrInvalidScope},
-		{"malformed project id", Check{"projects.lifecycle.manage", ProjectScope("../x")}, ErrInvalidScope},
-		{"project scope without id", Check{"projects.lifecycle.manage", ProjectScope("")}, ErrInvalidScope},
-		{"platform scope with id", Check{PermissionRolesManage, Scope{Kind: ScopePlatform, ID: "x"}}, ErrInvalidScope},
+		{"valid", Check{Permission: "projects.lifecycle.manage", Scope: ProjectScope("abcd")}, nil},
+		{"unregistered key", Check{Permission: "projects.other.manage", Scope: ProjectScope("abcd")}, ErrUnknownPermission},
+		{"unsupported scope kind", Check{Permission: "projects.lifecycle.manage", Scope: PlatformScope()}, ErrInvalidScope},
+		{"malformed project id", Check{Permission: "projects.lifecycle.manage", Scope: ProjectScope("../x")}, ErrInvalidScope},
+		{"project scope without id", Check{Permission: "projects.lifecycle.manage", Scope: ProjectScope("")}, ErrInvalidScope},
+		{"platform scope with id", Check{Permission: PermissionRolesManage, Scope: Scope{Kind: ScopePlatform, ID: "x"}}, ErrInvalidScope},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
