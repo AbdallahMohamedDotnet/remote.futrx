@@ -8,7 +8,7 @@ import { ToolGroup } from "./ToolGroup";
 import { InteractionCard } from "../interactions/InteractionCard";
 import { CollaborationCard } from "./CollaborationCard";
 import type { ChatInteractionResponder } from "../../../types/chatApi";
-import { showTerminalTurnStatus } from "./turnActivity";
+import { showTerminalTurnStatus } from "./turnVisibility";
 
 type ToolPart = Extract<AssistantMessagePart, { kind: "tool" }>;
 

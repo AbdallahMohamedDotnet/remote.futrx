@@ -1,6 +1,6 @@
 import type { AssistantMessageBlock } from "../../../models/chatMessage";
 import { AssistantPartList } from "./AssistantPartList";
-import { hasVisibleAssistantContent } from "./turnActivity";
+import { hasVisibleAssistantContent } from "./turnVisibility";
 import type { ChatInteractionResponder } from "../../../types/chatApi";
 
 export function AssistantMessage({
