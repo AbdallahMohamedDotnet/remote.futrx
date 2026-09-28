@@ -6,23 +6,35 @@ import type { ChatInteractionResponder } from "../../../types/chatApi";
 
 export function MessageBlock({
   block,
+  hydratedPartIndex,
   streaming,
   chatId,
   cwd,
   onAnswerQuestion,
   onRespondInteraction,
   onRewind,
+  streamingPresentation,
 }: {
   block: ChatMessageBlock;
+  hydratedPartIndex?: number;
   streaming: boolean;
   chatId?: string;
   cwd?: string;
   onAnswerQuestion?: (text: string) => void;
   onRespondInteraction?: ChatInteractionResponder;
   onRewind?: (t: number, text: string) => void;
+  streamingPresentation: "blocks" | "tokens";
 }) {
   if (block.type === "user") {
-    return <UserMessage text={block.text} t={block.t} onRewind={onRewind} />;
+    return (
+      <UserMessage
+        text={block.text}
+        t={block.t}
+        chatId={chatId}
+        cwd={cwd}
+        onRewind={onRewind}
+      />
+    );
   }
 
   if (block.type === "error") {
@@ -32,7 +44,9 @@ export function MessageBlock({
   return (
     <AssistantMessage
       block={block}
+      hydratedPartIndex={hydratedPartIndex}
       streaming={streaming}
+      streamingPresentation={streamingPresentation}
       chatId={chatId}
       cwd={cwd}
       onAnswerQuestion={onAnswerQuestion}

@@ -86,6 +86,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		deps.Services.Auth,
 	)
 	usageHandler := httphandlers.NewUsageHandler(deps.Services.Usage, deps.Services.Auth)
+	agentQuotaHandler := httphandlers.NewAgentQuotaHandler(deps.Services.AgentQuota, deps.Services.Auth)
 	chatHandler := httphandlers.NewChatHandler(
 		deps.Services.Chats,
 		deps.Services.ChatAccess,
@@ -98,6 +99,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	applicationsHandler := httphandlers.NewApplicationsHandler(
 		deps.Services.Applications,
 		deps.Services.Auth,
+		deps.Services.Projects,
 	)
 
 	return httptransport.NewHandler(httptransport.Handlers{
@@ -134,6 +136,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		BrowserInspector: httphandlers.NewBrowserInspectorHandler(),
 		Schedules:        scheduleHandler,
 		Usage:            usageHandler,
+		AgentQuota:       agentQuotaHandler,
 		Uploads:          uploads,
 		TmuxWS:           wstransport.NewTmuxSocket(deps.TmuxClient),
 		TerminalWS:       terminalSocket,

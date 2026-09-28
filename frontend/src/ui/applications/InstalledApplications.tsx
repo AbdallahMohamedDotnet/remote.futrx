@@ -6,8 +6,10 @@ import type {
   AppInstance,
   AppInstanceStatus,
 } from "../../models/application";
+import { EXTENSION_SLOTS } from "../../config/extensions";
 import { useConfirm } from "../../state/context/ConfirmContext";
 import type { ApplicationsController } from "../../state/hooks/applications/useApplications";
+import { ExtensionSlot } from "../primitives/ExtensionSlot";
 import {
   Check,
   Eye,
@@ -19,9 +21,11 @@ import {
 import { AppIcon } from "./AppIcon";
 import { ApplicationEmptyState } from "./ApplicationEmptyState";
 import {
+  hasAssignedConnection,
   instanceSummary,
   hasContainer,
   hasPortBinding,
+  instanceLifecycleAction,
   pendingUpgradeVersion,
   uninstallConsequence,
 } from "./applicationPresentation";
@@ -95,6 +99,8 @@ function InstalledRow({
   // port, in which case the row shows a summary instead of zeros.
   const applicationHasContainer = hasContainer(application);
   const applicationHasPort = hasPortBinding(application);
+  const connectionAssigned = hasAssignedConnection(instance, application);
+  const lifecycleAction = instanceLifecycleAction(instance.status);
   const pendingUpgrade = pendingUpgradeVersion(instance, application);
 
   const remove = async () => {
@@ -135,7 +141,13 @@ function InstalledRow({
           </span>
         )}
         <div class="ml-auto flex items-center gap-1">
-          {running ? (
+          <ExtensionSlot
+            name={EXTENSION_SLOTS.applicationCardActions}
+            scope={controller.scope}
+            projectId={instance.projectId}
+            instance={instance}
+          />
+          {lifecycleAction === "stop" ? (
             <IconButton
               title="Stop"
               onClick={() => void run(() => controller.stop(instance.id))}
@@ -143,7 +155,7 @@ function InstalledRow({
             >
               <Square class="w-3.5 h-3.5" />
             </IconButton>
-          ) : (
+          ) : lifecycleAction === "start" ? (
             <IconButton
               title="Start"
               onClick={() => void run(() => controller.start(instance.id))}
@@ -151,7 +163,7 @@ function InstalledRow({
             >
               <Play class="w-3.5 h-3.5" />
             </IconButton>
-          )}
+          ) : null}
           <IconButton
             title="Uninstall"
             onClick={() => void remove()}
@@ -163,7 +175,7 @@ function InstalledRow({
         </div>
       </div>
 
-      {applicationHasPort ? (
+      {connectionAssigned ? (
         <div class="flex items-center gap-2 text-[12px] text-ink-300 flex-wrap">
           <span class="text-ink-400">host</span>
           {editingPort ? (
@@ -207,6 +219,10 @@ function InstalledRow({
               </span>
             ))}
         </div>
+      ) : applicationHasPort ? (
+        <div class="text-[12px] text-ink-400">
+          Connection details were not assigned before this attempt failed.
+        </div>
       ) : (
         <div class="text-[12px] text-ink-400 flex items-center gap-2 flex-wrap">
           <span>{instanceSummary(application, running)}</span>
@@ -219,14 +235,35 @@ function InstalledRow({
         </div>
       )}
 
-      {applicationHasPort && (
+      {connectionAssigned && (
         <ConnectionDetails instance={instance} controller={controller} />
       )}
 
       {instance.error && instance.status === "error" && (
-        <div class="text-[11.5px] text-accent-red break-words">{instance.error}</div>
+        <InstanceError message={instance.error} />
       )}
       {err && <div class="text-[11.5px] text-accent-red break-words">{err}</div>}
+    </div>
+  );
+}
+
+function InstanceError({ message }: { message: string }) {
+  return (
+    <div
+      role="alert"
+      class="rounded-md border border-accent-red/25 bg-accent-red/[0.06] px-2.5 py-2 text-[11.5px] text-accent-red"
+    >
+      <div>
+        This attempt failed. Use Retry on its catalog card below, or uninstall the failed attempt.
+      </div>
+      <details class="mt-1.5">
+        <summary class="w-fit cursor-pointer select-none text-ink-300 hover:text-ink-100">
+          Technical details
+        </summary>
+        <pre class="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-black/25 p-2 font-mono text-[11px] text-accent-red">
+          {message}
+        </pre>
+      </details>
     </div>
   );
 }

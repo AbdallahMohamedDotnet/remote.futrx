@@ -13,18 +13,21 @@ cd backend && go test ./internal/integration/containers/applications/
 This catches: a mismatched `id`, a missing `name`, an invalid capability layout or
 `scopes`, a `service` application with no port or no install script, a `ui` or
 `backend` application declaring a port, a `ui` block naming a file that does not
-exist, an empty `ui/` directory, and a `backend/` that is not a `package main`
-program or that carries its own `go.mod`.
+exist, an empty `ui/` directory, a `backend/` root that is not a `package main`
+program, or a host backend tree that carries `go.mod`, `go.sum`, `go.work`, or
+`go.work.sum` instead of using Remote's generated module.
 
-Plugin source is also compiled by the repository's own build, because a
-`backend/` directory is an ordinary package inside the catalog module at the
-repository root:
+Backend source is also compiled by the repository's own build. The catalog is
+a Go module: `backend/` is the executable package and child host directories
+such as `backend/api/` and `backend/lifecycle/` are normal importable packages:
 
 ```bash
 go build ./... && go vet ./...
 ```
 
-A plugin that does not compile fails there, not on someone's server.
+A backend or one of its imported host siblings that does not compile fails
+there, not on someone's server. The runtime build reproduces that layout in a
+generated module, compiles `.`, and omits `backend/container/` entirely.
 
 A malformed application fails the build — it never reaches a browser as a 404.
 
@@ -34,29 +37,34 @@ A malformed application fails the build — it never reaches a browser as a 404.
 cd backend
 go test ./internal/integration/containers/applications/   # catalog + installer
 go test ./internal/service/applications/                  # scoping + policy
-go test ./internal/integration/pluginhost/                # compiling and running plugins
-go test ./pkg/appplugin/...                               # the plugin SDK
+go test ./internal/integration/applications/                # compiling and running backends
+go test -race ./internal/lifecycle/                         # typed publishers + dynamic event bus/bridge
+go test ./pkg/applications/...                               # the backend SDK
 go build ./... && go vet ./...
 ```
 
 | File | Covers |
 |---|---|
 | `registry_test.go` | catalog loading, capability inference, `ui/` discovery, the declared `ui` manifest, asset path traversal, reserved directories |
-| `registry_backend_test.go` | `backend/` discovery and every layout the registry refuses |
+| `registry_backend_test.go` | `backend/` discovery, module-control-file rejection, host sibling inclusion, container-source exclusion, and every layout the registry refuses |
+| `registry_events_test.go` | publisher/subscription names, versions, canonical namespaces, and backend requirements |
 | `installer_test.go` | which `lxc` commands each scope issues — and, crucially, which it must **not** |
 | `service/applications/ui_extensions_test.go` | which extensions a caller may load, and their install scope |
-| `service/applications/backend_test.go` | who may call a plugin, when, and what lifecycle does to its process |
-| `pluginhost/host_test.go` | compiling, launching, one process per instance, restart, timeout, panic isolation, data retention |
-| `pluginhost/builder_test.go` | fingerprinting and the generated module files |
-| `pluginhost/catalog_test.go` | the shipped `backend-playground`, compiled and called end to end |
-| `pkg/appplugin/mux_test.go` | route matching, method fallbacks, request helpers |
+| `service/applications/backend_test.go` | who may call a backend, when, and what lifecycle does to its process |
+| `applications/host_test.go` | compiling, launching, one process per instance, restart, timeout, panic isolation, data retention |
+| `applications/events_test.go` | publication authorization, host-stamped identity, payload limits, runtime binding, and delivery |
+| `applications/builder_test.go` | fingerprinting and the generated module files |
+| `applications/catalog_test.go` | an API importing a sibling lifecycle package, with container source excluded, compiled and called end to end |
+| `pkg/applications/mux_test.go` | route matching, method fallbacks, request helpers |
+| `pkg/applications/rpc/events_test.go` | core-owned emitter binding and subscriber delivery across the backend RPC boundary |
+| `lifecycle/event_bus_test.go`, `application_event_bridge_test.go` | defensive payload copies and canonical version-1 core event envelopes |
 | `handlers/applications_backend_handler_test.go` | which headers cross the boundary in each direction |
 
-`pluginhost` tests compile real plugins with the Go toolchain, so they take
+`applications` tests compile real backends with the Go toolchain, so they take
 tens of seconds on a cold cache. `-short` skips exactly those:
 
 ```bash
-go test -short ./internal/integration/pluginhost/
+go test -short ./internal/integration/applications/
 ```
 
 They also skip themselves on a host with no Go toolchain rather than failing.
@@ -79,7 +87,7 @@ npm run build     # tsc -b + vite; type errors fail here
 |---|---|
 | `state/stores/extensions/extensionStore.test.ts` | ordering, unknown slots, `when` predicates, disposal, `removeImage`, and all the scoping rules |
 | `config/extensions.test.ts` | slot names are unique, and every slot declares an icon appearance |
-| `app/extensions/extensionBackend.test.ts` | which running plugin a call resolves to, and the URL it builds |
+| `app/extensions/extensionBackend.test.ts` | which running backend a call resolves to, and the URL it builds |
 
 Run one file directly while iterating:
 
@@ -105,8 +113,8 @@ checks, pass/fail each. This is the cheapest regression check after changing
 object rather than a test double.
 
 `backend-playground` ships the same thing for the other half: fourteen checks
-against a real plugin process, over the real route. Run it after changing
-`pkg/appplugin`, `pluginhost`, or the backend handler.
+against a real backend process, over the real route. Run it after changing
+`pkg/applications`, `applications`, or the backend handler.
 
 See [10 — Fixtures](10-fixtures.md).
 
@@ -138,8 +146,19 @@ or start, because the build fingerprint changed.
 | Lifecycle | Stop / start / uninstall, without reloading |
 | Failure isolation | Make an extension throw; confirm the surface still renders |
 | Theming | Toggle light/dark; confirm your CSS follows |
-| A plugin is a process | Watch `backend-playground`'s pid across stop and start |
-| A plugin survives a panic | Click **panic (survivable)**, then check the pid |
+| A backend is a process | Watch `backend-playground`'s pid across stop and start |
+| A backend survives a panic | Click **panic (survivable)**, then check the pid |
+| Project event isolation | Publish from a project instance; verify only matching subscriber instances in that same project receive it, never a global instance |
+| Global/catalog event reach | Publish globally or mutate the uploaded catalog; verify every matching running subscriber scope is eligible |
+| Subscription lifecycle | Stop a subscriber, publish, start it, and confirm there is no replay of the missed event |
+| Subscriber failure isolation | Make one `OnEvent` fail or time out; verify publication succeeds and later recipients are still attempted |
+
+For a manifest event change, also test a publication with the wrong publisher,
+event, and version; primitive, `null`, malformed, and over-64-KiB payloads; and
+an empty payload normalized to `{}`. An application subscription selects an
+event name, so exercise both the version the handler understands and one it
+must ignore safely. See
+[18 — Backend event lifecycle](18-application-events.md).
 
 ## Testing an install script
 
@@ -156,7 +175,7 @@ therefore also proves idempotency. (**Start** does not re-run the script.) See
 Be aware of the gaps rather than assuming coverage:
 
 - **Install scripts are never executed** by any test.
-- **A plugin's own behaviour is only as tested as the plugin.** The platform
+- **A backend's own behaviour is only as tested as the backend.** The platform
   tests the contract and the host; what an application's `backend/` actually does is
   covered by whatever tests that application ships.
 - **The HTTP handlers have no request-level tests** for the applications
@@ -174,6 +193,8 @@ cd backend  && gofmt -l ./internal ./cmd && go vet ./... && go test ./...
 cd frontend && npm run build && npm test
 ```
 
-Then, if you touched the extension surface or the plugin contract, install
+Then, if you touched the extension surface or the backend contract, install
 [`hello-remote`](../../../applications/hello-remote/README.md) at both scopes and confirm its
-panel still greets you and still counts across a server restart.
+panel still greets you, reaches the supervised service, inspects the container,
+and keeps its counter across a server restart. In a project install, also
+confirm that the `hello-remote-inspector` skill is present.

@@ -4,42 +4,52 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
-	"github.com/futrx-com/remote.futrx.com/pkg/appplugin"
+	"github.com/futrx-com/remote.futrx.com/pkg/applications"
 )
 
 // recordingHost stands in for the process supervisor. Every test here is about
 // policy — who may call, when, and with what stamped on the request — so what
 // the host does with a call matters far less than whether it was reached.
 type recordingHost struct {
-	ensured  []string
-	stopped  []string
-	removed  []string
-	requests []appplugin.Request
-	deadline bool
+	ensured     []string
+	stopped     []string
+	removed     []string
+	invalidated []string
+	requests    []applications.Request
+	deadline    bool
 
 	ensureErr error
-	response  appplugin.Response
+	response  applications.Response
 }
 
-func (h *recordingHost) Ensure(_ context.Context, spec BackendSpec) (appplugin.Descriptor, error) {
-	h.ensured = append(h.ensured, spec.Instance.ID)
+func (h *recordingHost) Ensure(_ context.Context, instance applications.Instance) (applications.Descriptor, error) {
+	h.ensured = append(h.ensured, instance.ID)
 	if h.ensureErr != nil {
-		return appplugin.Descriptor{}, h.ensureErr
+		return applications.Descriptor{}, h.ensureErr
 	}
-	return appplugin.Descriptor{Name: spec.ApplicationID, APIVersion: appplugin.APIVersion}, nil
+	return applications.Descriptor{Name: instance.ApplicationID, APIVersion: applications.APIVersion}, nil
 }
 
 func (h *recordingHost) Call(
 	ctx context.Context,
-	spec BackendSpec,
-	request appplugin.Request,
-) (appplugin.Response, error) {
-	h.ensured = append(h.ensured, spec.Instance.ID)
+	instance applications.Instance,
+	request applications.Request,
+) (applications.Response, error) {
+	h.ensured = append(h.ensured, instance.ID)
 	h.requests = append(h.requests, request)
 	_, h.deadline = ctx.Deadline()
 	return h.response, nil
+}
+
+func (h *recordingHost) Notify(
+	context.Context,
+	applications.Instance,
+	applications.Event,
+) error {
+	return nil
 }
 
 func (h *recordingHost) Stop(_ context.Context, instanceID string) error {
@@ -50,6 +60,10 @@ func (h *recordingHost) Stop(_ context.Context, instanceID string) error {
 func (h *recordingHost) Remove(_ context.Context, instanceID string) error {
 	h.removed = append(h.removed, instanceID)
 	return nil
+}
+
+func (h *recordingHost) InvalidateApplication(applicationID string) {
+	h.invalidated = append(h.invalidated, applicationID)
 }
 
 func backendImage(mutate func(*Application)) Application {
@@ -85,25 +99,94 @@ func runningInstance() Instance {
 	return Instance{ID: "abc123", ApplicationID: "demo", Scope: ScopeGlobal, Status: StatusRunning}
 }
 
-func anyCaller() appplugin.Caller {
-	return appplugin.Caller{Email: "user@example.com"}
+func anyCaller() applications.Caller {
+	return applications.Caller{Email: "user@example.com"}
 }
 
-// The caller a plugin sees is the one the transport resolved, never the one a
-// request claimed. A plugin authorizes against it, so it has to be unforgeable.
+func TestBackendInstanceCarriesManifestMetadata(t *testing.T) {
+	application := backendImage(func(application *Application) {
+		application.Name = "Manifest Name"
+		application.Version = "3.2.1"
+		application.Service = &ApplicationService{Name: "manifest", Command: []string{"/usr/local/bin/manifest"}}
+		application.Publishers = []applications.PublisherDeclaration{{
+			Name: "greetings",
+			Events: []applications.EventDeclaration{{
+				Name: "sent", Version: 1,
+			}},
+		}}
+		application.Subscriptions = []applications.Subscription{{
+			Publisher: "remote.applications", Events: []string{"started"},
+		}}
+	})
+	instance := backendInstanceDetails(application, runningInstance())
+	if instance.ApplicationName != "Manifest Name" {
+		t.Fatalf("application name = %q, want Manifest Name", instance.ApplicationName)
+	}
+	if instance.ApplicationVersion != "3.2.1" {
+		t.Fatalf("application version = %q, want 3.2.1", instance.ApplicationVersion)
+	}
+	if instance.Service != "manifest" {
+		t.Fatalf("service = %q, want manifest", instance.Service)
+	}
+	if len(instance.Publishers) != 1 || instance.Publishers[0].Name != "greetings" {
+		t.Fatalf("publishers = %+v", instance.Publishers)
+	}
+	if len(instance.Subscriptions) != 1 || instance.Subscriptions[0].Publisher != "remote.applications" {
+		t.Fatalf("subscriptions = %+v", instance.Subscriptions)
+	}
+}
+
+func TestCurrentManifestControlsReportedEnvironment(t *testing.T) {
+	application := backendImage(func(application *Application) {
+		application.Env = []EnvVar{
+			{Key: "VISIBLE"},
+			{Key: "SECRET", Secret: true},
+		}
+		application.Connection = Connection{UserEnv: "VISIBLE", PasswordEnv: "SECRET"}
+	})
+	instance := runningInstance()
+	instance.Env = map[string]string{
+		"VISIBLE": "current-user",
+		"SECRET":  "current-secret",
+		"REMOVED": "stale-value",
+	}
+	service, _ := withInstance(application, instance, &recordingHost{})
+
+	view, ok, err := service.Get(context.Background(), instance.ID)
+	if err != nil || !ok {
+		t.Fatalf("get: ok=%v err=%v", ok, err)
+	}
+	if len(view.EnvPublic) != 1 || view.EnvPublic["VISIBLE"] != "current-user" {
+		t.Fatalf("public env = %v, want only VISIBLE", view.EnvPublic)
+	}
+
+	credentials, err := service.Credentials(context.Background(), instance.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if credentials.Username != "current-user" || credentials.Password != "current-secret" {
+		t.Fatalf("connection mapping = %+v", credentials)
+	}
+	if len(credentials.Env) != 2 || credentials.Env["REMOVED"] != "" {
+		t.Fatalf("credential env = %v, want only currently declared inputs", credentials.Env)
+	}
+}
+
+// The caller a backend sees is the one the transport resolved, never the one a
+// request claimed. A backend authorizes against it, so it has to be unforgeable.
 func TestCallBackendStampsTheResolvedCaller(t *testing.T) {
-	host := &recordingHost{response: appplugin.Response{Body: []byte("ok")}}
+	host := &recordingHost{response: applications.Response{Body: []byte("ok")}}
 	service, _ := withInstance(backendImage(nil), runningInstance(), host)
 
 	response, err := service.CallBackend(
 		context.Background(),
 		"abc123",
-		appplugin.Request{
+		applications.Request{
 			Method: "GET",
 			Path:   "health",
-			Caller: appplugin.Caller{Email: "attacker@example.com", IsAdmin: true},
+			Caller: applications.Caller{Email: "attacker@example.com", IsAdmin: true},
 		},
-		appplugin.Caller{Email: "user@example.com", IsAdmin: false},
+		applications.Caller{Email: "user@example.com", IsAdmin: false},
 	)
 	if err != nil {
 		t.Fatalf("call: %v", err)
@@ -114,7 +197,7 @@ func TestCallBackendStampsTheResolvedCaller(t *testing.T) {
 	if got := host.requests[0].Caller; got.Email != "user@example.com" || got.IsAdmin {
 		t.Errorf("caller = %+v, want the resolved one", got)
 	}
-	// A plugin that answers without a status means 200; forwarding a zero
+	// A backend that answers without a status means 200; forwarding a zero
 	// would produce an invalid HTTP response.
 	if response.Status != 200 {
 		t.Errorf("status = %d, want 200 by default", response.Status)
@@ -129,12 +212,12 @@ func TestCallBackendRefusals(t *testing.T) {
 		name        string
 		application Application
 		instance    Instance
-		caller      appplugin.Caller
+		caller      applications.Caller
 		host        BackendHost
 		want        error
 	}{
 		{
-			name:        "no plugin host configured",
+			name:        "no backend host configured",
 			application: backendImage(nil),
 			instance:    runningInstance(),
 			caller:      anyCaller(),
@@ -142,7 +225,7 @@ func TestCallBackendRefusals(t *testing.T) {
 			want:        ErrUnavailable,
 		},
 		{
-			name:        "the application ships no plugin",
+			name:        "the application ships no backend",
 			application: backendImage(func(i *Application) { i.Backend = nil }),
 			instance:    runningInstance(),
 			caller:      anyCaller(),
@@ -160,7 +243,7 @@ func TestCallBackendRefusals(t *testing.T) {
 			want:   ErrNotRunning,
 		},
 		{
-			name: "an admin-only plugin and an ordinary caller",
+			name: "an admin-only backend and an ordinary caller",
 			application: backendImage(func(i *Application) {
 				i.Backend = &ApplicationBackend{Access: BackendAccessAdmin}
 			}),
@@ -181,7 +264,7 @@ func TestCallBackendRefusals(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			service, _ := withInstance(tc.application, tc.instance, tc.host)
 			_, err := service.CallBackend(
-				context.Background(), "abc123", appplugin.Request{Path: "health"}, tc.caller)
+				context.Background(), "abc123", applications.Request{Path: "health"}, tc.caller)
 			if !errors.Is(err, tc.want) {
 				t.Errorf("error = %v, want %v", err, tc.want)
 			}
@@ -189,7 +272,7 @@ func TestCallBackendRefusals(t *testing.T) {
 	}
 }
 
-// An admin-only plugin still answers an administrator: the access level is a
+// An admin-only backend still answers an administrator: the access level is a
 // gate, not a ban.
 func TestCallBackendAllowsAnAdministratorThroughAnAdminGate(t *testing.T) {
 	host := &recordingHost{}
@@ -201,8 +284,8 @@ func TestCallBackendAllowsAnAdministratorThroughAnAdminGate(t *testing.T) {
 	if _, err := service.CallBackend(
 		context.Background(),
 		"abc123",
-		appplugin.Request{Path: "health"},
-		appplugin.Caller{Email: "admin@example.com", IsAdmin: true},
+		applications.Request{Path: "health"},
+		applications.Caller{Email: "admin@example.com", IsAdmin: true},
 	); err != nil {
 		t.Fatalf("call: %v", err)
 	}
@@ -226,14 +309,14 @@ func TestDescribeBackendReportsTheImagePolicy(t *testing.T) {
 	if described.TimeoutMS != 2500 || described.Access != BackendAccessRegistered {
 		t.Errorf("policy = %+v, want the application's timeout and the default access", described)
 	}
-	if described.Descriptor.APIVersion != appplugin.APIVersion {
+	if described.Descriptor.APIVersion != applications.APIVersion {
 		t.Errorf("descriptor = %+v", described.Descriptor)
 	}
 }
 
-// A plugin's process follows its instance's status: installing or starting
+// A backend's process follows its instance's status: installing or starting
 // runs it, stopping ends it, and only uninstalling discards its data.
-func TestLifecycleMovesThePluginProcess(t *testing.T) {
+func TestLifecycleMovesTheBackendProcess(t *testing.T) {
 	host := &recordingHost{}
 	service, _ := backendService(backendImage(nil), nil, host)
 	ctx := context.Background()
@@ -247,7 +330,7 @@ func TestLifecycleMovesThePluginProcess(t *testing.T) {
 		t.Errorf("status = %q, want running", installed.Status)
 	}
 	if len(host.ensured) != 1 || host.ensured[0] != id {
-		t.Errorf("install did not start the plugin: %v", host.ensured)
+		t.Errorf("install did not start the backend: %v", host.ensured)
 	}
 
 	if _, err := service.Stop(ctx, id); err != nil {
@@ -257,14 +340,14 @@ func TestLifecycleMovesThePluginProcess(t *testing.T) {
 		t.Errorf("stopped = %v", host.stopped)
 	}
 	if len(host.removed) != 0 {
-		t.Error("stop discarded the plugin's data; only uninstall may")
+		t.Error("stop discarded the backend's data; only uninstall may")
 	}
 
 	if _, err := service.Start(ctx, id); err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	if len(host.ensured) != 2 {
-		t.Errorf("start did not run the plugin again: %v", host.ensured)
+		t.Errorf("start did not run the backend again: %v", host.ensured)
 	}
 
 	if err := service.Uninstall(ctx, id); err != nil {
@@ -275,21 +358,81 @@ func TestLifecycleMovesThePluginProcess(t *testing.T) {
 	}
 }
 
-// A plugin that will not start is an install failure the user can see, not a
+func TestFailedAttemptCannotBeStartedOrStopped(t *testing.T) {
+	host := &recordingHost{}
+	failed := runningInstance()
+	failed.Status = StatusError
+	failed.Error = "install failed"
+	service, store := withInstance(backendImage(nil), failed, host)
+
+	for _, action := range []struct {
+		name string
+		run  func() (View, error)
+	}{
+		{name: "start", run: func() (View, error) { return service.Start(context.Background(), failed.ID) }},
+		{name: "stop", run: func() (View, error) { return service.Stop(context.Background(), failed.ID) }},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			if _, err := action.run(); !errors.Is(err, ErrInvalidState) {
+				t.Fatalf("error = %v, want ErrInvalidState", err)
+			}
+		})
+	}
+	if len(host.ensured) != 0 || len(host.stopped) != 0 {
+		t.Fatalf("failed attempt reached backend host: ensured=%v stopped=%v", host.ensured, host.stopped)
+	}
+	if len(store.puts) != 0 {
+		t.Fatalf("failed attempt was rewritten: %+v", store.puts)
+	}
+}
+
+// A backend that will not start is an install failure the user can see, not a
 // silently half-installed app.
-func TestInstallRecordsAFailingPlugin(t *testing.T) {
-	host := &recordingHost{ensureErr: errors.New("compile plugin: syntax error")}
+func TestInstallRecordsAFailingBackend(t *testing.T) {
+	host := &recordingHost{ensureErr: errors.New("compile backend: syntax error")}
 	service, store := backendService(backendImage(nil), nil, host)
 
 	if _, err := service.Install(
 		context.Background(), InstallRequest{ApplicationID: "demo", Scope: ScopeGlobal},
 	); err == nil {
-		t.Fatal("a plugin that failed to start reported a successful install")
+		t.Fatal("a backend that failed to start reported a successful install")
 	}
 	last := store.puts[len(store.puts)-1]
 	if last.Status != StatusError || last.Error == "" {
 		t.Errorf("stored instance = %+v, want an error status carrying the reason", last)
 	}
+}
+
+func TestStoredAndReportedInstanceErrorsAreBounded(t *testing.T) {
+	host := &recordingHost{ensureErr: errors.New("prefix " + strings.Repeat("x", 9000) + " tail")}
+	service, store := backendService(backendImage(nil), nil, host)
+
+	if _, err := service.Install(
+		context.Background(), InstallRequest{ApplicationID: "demo", Scope: ScopeGlobal},
+	); err == nil {
+		t.Fatal("install succeeded despite the backend failure")
+	}
+	stored := store.puts[len(store.puts)-1]
+	if got := len([]rune(stored.Error)); got > maxInstanceErrorRunes {
+		t.Fatalf("stored error has %d runes, want at most %d", got, maxInstanceErrorRunes)
+	}
+	if !strings.Contains(stored.Error, "prefix ") || !strings.HasSuffix(stored.Error, " tail") {
+		t.Fatalf("bounded error lost its context: %q", stored.Error)
+	}
+
+	// The read-side bound also protects records written by older releases.
+	legacy := failedInstanceWithError(strings.Repeat("legacy", 2000))
+	view := service.view(legacy)
+	if got := len([]rune(view.Error)); got > maxInstanceErrorRunes {
+		t.Fatalf("reported error has %d runes, want at most %d", got, maxInstanceErrorRunes)
+	}
+}
+
+func failedInstanceWithError(message string) Instance {
+	instance := runningInstance()
+	instance.Status = StatusError
+	instance.Error = message
+	return instance
 }
 
 // A failed install leaves a record so its error and whatever it left in a
@@ -298,7 +441,7 @@ func TestInstallRecordsAFailingPlugin(t *testing.T) {
 // only way out of a failed install is to uninstall something the user was
 // never told they had.
 func TestInstallingOverAFailedAttemptRetriesIt(t *testing.T) {
-	host := &recordingHost{ensureErr: errors.New("compile plugin: syntax error")}
+	host := &recordingHost{ensureErr: errors.New("compile backend: syntax error")}
 	service, store := backendService(backendImage(nil), nil, host)
 	ctx := context.Background()
 	request := InstallRequest{ApplicationID: "demo", Scope: ScopeGlobal}

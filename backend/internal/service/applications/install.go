@@ -34,16 +34,20 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	}
 
 	id := newInstanceID()
+	unlock := s.instanceLocks.lock(id)
+	defer unlock()
+
 	inst := Instance{
-		ID:                 id,
-		ApplicationID:      application.ID,
-		ApplicationVersion: application.Version,
-		Name:               displayName(req.Name, application.Name),
-		Scope:              req.Scope,
-		ProjectID:          req.ProjectID,
-		Status:             StatusInstalling,
-		CreatedAt:          s.now(),
-		UpdatedAt:          s.now(),
+		ID:                    id,
+		ApplicationID:         application.ID,
+		ApplicationVersion:    application.Version,
+		ContainerBuildVersion: application.containerBuildVersion(),
+		Name:                  displayName(req.Name, application.Name),
+		Scope:                 req.Scope,
+		ProjectID:             req.ProjectID,
+		Status:                StatusInstalling,
+		CreatedAt:             s.now(),
+		UpdatedAt:             s.now(),
 	}
 
 	// Resolve env inputs (apply defaults, generate secrets, enforce required).
@@ -53,8 +57,8 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	}
 	inst.Env = env
 	// An application with no infrastructure has no container side: installing it only
-	// records that the user turned it on, which is what makes its backend run.
-	// Everything below this branch — container, port, proxy
+	// records that the user turned it on, which is what makes its ui/ load and
+	// its backend run. Everything below this branch — container, port, proxy
 	// device, install script — exists only for applications that provision software.
 	if !application.NeedsContainer() {
 		inst.Status = StatusRunning
@@ -65,12 +69,13 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 			return View{}, err
 		}
+		s.publishApplicationInstalled(ctx, inst)
 		return s.view(inst), nil
 	}
 
 	// Only the container half needs a container runtime, which is why the
 	// check is here rather than at the top: a server with no LXD can still
-	// install an application that only contributes backend behavior.
+	// install an application that only contributes UI or backend behavior.
 	if s.installer == nil {
 		return View{}, ErrUnavailable
 	}
@@ -103,7 +108,7 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 		return View{}, err
 	}
 	// An application may ship a backend too — the container half provisions
-	// the software, and callers talk to the backend half.
+	// the software, and the UI talks to the backend half.
 	if err := s.startBackend(ctx, application, inst); err != nil {
 		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
 		return View{}, err
@@ -111,6 +116,7 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (View, error)
 	if err := s.saveStatus(ctx, &inst, StatusRunning, ""); err != nil {
 		return View{}, err
 	}
+	s.publishApplicationInstalled(ctx, inst)
 	return s.view(inst), nil
 }
 
@@ -272,16 +278,6 @@ func bindOr(a, b string) string {
 		return b
 	}
 	return "127.0.0.1"
-}
-
-func secretKeys(application Application) map[string]bool {
-	m := map[string]bool{}
-	for _, e := range application.Env {
-		if e.Secret {
-			m[e.Key] = true
-		}
-	}
-	return m
 }
 
 // resolveEnv applies defaults, generates secrets, and enforces required inputs.

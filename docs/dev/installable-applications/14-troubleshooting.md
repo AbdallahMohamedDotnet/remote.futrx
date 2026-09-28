@@ -6,7 +6,7 @@
 log line names the application and the reason:
 
 ```
-load application catalog: load application "my-plugin": ui: entry: scripts/main.js not found
+load application catalog: load application "my-backend": ui: entry: scripts/main.js not found
 ```
 
 Common causes:
@@ -14,15 +14,16 @@ Common causes:
 | Message | Cause |
 |---|---|
 | `application id "x" does not match directory "y"` | `id` in `application.json` differs from the directory name |
-| `port, healthcheck, and service require infra/install.sh` | add infrastructure or remove container-only fields |
+| `port and healthcheck require a container capability` | declare `service`, `backend/container/`, or `infra/install.sh`, or remove the container-only fields |
+| `service.command must start with an absolute executable path` | put the executable and each argument in the manifest's `service.command` array |
 | `port.defaultExternal and healthcheck require port.internal` | declare the internal listener port |
 | `read install script "…"` | the explicitly configured install script does not exist |
 | `application has no infra, backend, ui, or skills` | add at least one capability directory |
 | `ui: entry: … not found` | the `ui` block names a file that does not exist |
 | `ui: … exists but is empty` | `ui/` has no files at all |
-| `backend: … contains no package main source` | `backend/` needs a Go program, not a library |
-| `backend: … declares package "helper", want main` | every non-test `.go` file directly in `backend/` must be `package main` |
-| `backend: backend/go.mod is not supported` | the server generates the plugin module; delete yours |
+| `backend: … contains no package main source` | the `backend/` root needs an executable Go program; child libraries such as `backend/api/` and `backend/lifecycle/` are not entry points |
+| `backend: … declares package "helper", want main` | every non-test `.go` file directly in `backend/` must be `package main`; child host packages may use their own package name |
+| `backend: backend/…/go.mod is not supported` | the server generates the host backend module; remove `go.mod`, `go.sum`, `go.work`, and `go.work.sum` from the host tree |
 | `backend: invalid access "everyone"` | `access` is `registered` or `admin` |
 
 Reproduce without running the server:
@@ -71,9 +72,9 @@ Work down the three gates:
 Then check the browser console. The host logs every failure:
 
 ```
-[extensions] my-plugin failed to load: …
-[extensions] my-plugin: unknown slot "chat.header"
-[extensions] my-plugin: scripts/main.js exports no default function
+[extensions] my-backend failed to load: …
+[extensions] my-backend: unknown slot "chat.header"
+[extensions] my-backend: scripts/main.js exports no default function
 ```
 
 ## The entry module loads but my button is missing
@@ -180,52 +181,52 @@ need a Go toolchain.
 
 ## My application's backend will not start
 
-The installed row carries the reason, because a plugin that fails to start
+The installed row carries the reason, because a backend that fails to start
 fails the install.
 
 | Message | Cause |
 |---|---|
-| `no Go toolchain found` | the server has no `go`. Install one, or set `REMOTE_PLUGIN_GO` to its path. |
-| `compile plugin "x": …` | your source does not compile. The compiler's output is in the message; the generated build directory is kept at `<dataDir>/plugins/build/<application>-<fingerprint>/` so you can look at exactly what it tried to build. |
+| `no Go toolchain found` | the server has no `go`. Install one, or set `REMOTE_APPLICATION_GO` to its path. |
+| `compile backend "x": …` | your source does not compile. The compiler's output is in the message; the generated build directory is kept at `<dataDir>/applications/build/<application>-<fingerprint>/` so you can look at exactly what it tried to build. |
 | `module lookup disabled by GOPROXY=off` in the offline attempt only | normal — the host retries with the network. If the *second* attempt also failed, the message shows both. |
-| `plugin x reports contract version 2, this server speaks 1` | the plugin was written against a different `appplugin.APIVersion`. Rebuild the catalog. |
-| `start plugin x: … handshake` | the plugin exited before completing the handshake. It is almost always a `panic` in `main` before `pluginrpc.Serve`, or a `Serve` call that was never reached. |
-| `initialize plugin x: …` | your `Init` returned an error. |
+| `backend x reports contract version 2, this server speaks 1` | the backend was written against a different `applications.APIVersion`. Rebuild the catalog. |
+| `start backend x: … handshake` | the backend exited before completing the handshake. It is almost always a `panic` in `main` before `rpc.Serve`, or a `Serve` call that was never reached. |
+| `initialize backend x: …` | your `Init` returned an error. |
 
-Compile once locally before installing — a `backend/` is an ordinary package in
-the catalog module at the repository root:
+Compile the executable once locally before installing. Its child host packages
+are ordinary imports in the catalog module at the repository root:
 
 ```bash
-go build ./applications/<id>/backend/
+go build ./applications/<id>/backend
 ```
 
-## My plugin runs but calls fail
+## My backend runs but calls fail
 
 | Symptom | Cause |
 |---|---|
-| `409 … is not running` | the app is stopped. A stopped backend's plugin is off, exactly as a stopped UI extension is unloaded. |
-| `404 … application has no backend plugin` | the application ships no `backend/`, or you are calling the wrong instance |
+| `409 … is not running` | the app is stopped. A stopped backend's backend is off, exactly as a stopped UI extension is unloaded. |
+| `404 … application has no backend backend` | the application ships no `backend/`, or you are calling the wrong instance |
 | `403 … restricted to administrators` | the application declares `"access": "admin"` |
-| `403` from the plugin itself | the plugin's own `Request.Caller` check refused you |
-| `plugin call timed out` | the route took longer than the application's `timeoutMs`. The plugin is still running; the call was abandoned. |
-| `plugin panicked: …` | a route panicked. The process survived — check `health` and you will see the same pid. |
+| `403` from the backend itself | the backend's own `Request.Caller` check refused you |
+| `backend call timed out` | the route took longer than the application's `timeoutMs`. The backend is still running; the call was abandoned. |
+| `backend panicked: …` | a route panicked. The process survived — check `health` and you will see the same pid. |
 | `remote.backend.available is false` | the application ships no `backend/`, or no install of it is running for this caller |
 | `no running backend with id …` | you passed an `instanceId` that is not in `remote.backend.instances` |
 
-## My plugin does not see my edit
+## My backend does not see my edit
 
 The catalog is embedded, so a `backend/` edit needs a backend rebuild — and then
 the fingerprint changes, so the next install or start recompiles it. Stop and
 start the app to force it without reinstalling.
 
-If you are sure the source changed and the plugin did not, check that the
-binary under `<dataDir>/plugins/bin/` has a new fingerprint suffix; the old one
+If you are sure the source changed and the backend did not, check that the
+binary under `<dataDir>/applications/bin/` has a new fingerprint suffix; the old one
 is pruned on a successful build.
 
-## My plugin lost its data
+## My backend lost its data
 
 `DataDir` survives stop and start and is deleted on **uninstall**. In-memory
-state is not durable at all: the host restarts a plugin lazily after a crash or
+state is not durable at all: the host restarts a backend lazily after a crash or
 a server restart, so anything that must survive belongs in `DataDir`.
 
 ## The self-test reports a failure
@@ -247,7 +248,7 @@ failures.
 | Extension not loading in the browser | `app/extensions/extensionHost.ts` |
 | Contribution not rendering | `state/stores/extensions/extensionStore.ts`, `state/hooks/extensions/extensionContributionState.ts`, `ui/primitives/ExtensionSlot.tsx` |
 | Button looks wrong | `app/extensions/extensionApi.ts`, `config/extensions.ts` |
-| Plugin will not compile or start | `internal/integration/pluginhost/builder.go`, `host.go` |
-| Plugin call refused or mis-authorized | `service/applications/backend.go` |
-| Wrong headers or status from a plugin | `transport/http/handlers/applications_backend_handler.go` |
+| Backend will not compile or start | `internal/integration/applications/builder.go`, `host.go` |
+| Backend call refused or mis-authorized | `service/applications/backend.go` |
+| Wrong headers or status from a backend | `transport/http/handlers/applications_backend_handler.go` |
 | `remote.backend` reaches the wrong instance | `app/extensions/extensionBackend.ts` |

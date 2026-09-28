@@ -6,7 +6,6 @@
 package applications
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"path"
@@ -21,16 +20,23 @@ import (
 // Registry is an in-memory, validated view of an application catalog.
 //
 // It is a live view rather than a snapshot taken at boot: uploading or
-// removing a package reloads it in place, so the installer, the plugin host
+// removing a package reloads it in place, so the installer, the application backend host
 // and the HTTP handlers all see the new catalog without being rebuilt. Every
 // read is therefore taken under a lock.
 type Registry struct {
 	// base is the catalog compiled into the binary. It always loads, and a
 	// failure to load it is a build error rather than an operational one.
 	base fs.FS
+	// packages holds uploaded packages, or nil on a server that does not
+	// accept uploads.
+	packages *PackageStore
 
 	mu   sync.RWMutex
 	view catalogView
+	// packageErrors records, per package id, why a stored package is not in
+	// the catalog. It is reported rather than logged and forgotten, because
+	// the files are still on disk and only an operator can act on them.
+	packageErrors map[string]string
 }
 
 // catalogView is one immutable snapshot of a loaded catalog. Swapping the
@@ -39,7 +45,7 @@ type Registry struct {
 type catalogView struct {
 	byID map[string]svc.Application
 	// sources maps application ID -> the filesystem it was loaded from, so assets
-	// and plugin source are read from the right catalog once more than one is
+	// and backend source are read from the right catalog once more than one is
 	// in play.
 	sources map[string]fs.FS
 	// scripts maps application ID -> install script bytes, including payload staging
@@ -62,37 +68,72 @@ func newCatalogView() catalogView {
 // where an app author finds it.
 func EmbeddedCatalog() fs.FS { return catalog.FS }
 
-// NewRegistry loads and validates the catalog embedded in the binary.
-func NewRegistry() (*Registry, error) { return NewRegistryFromFS(catalog.FS) }
-
-// NewRegistryFromFS loads and validates every applications/<id>/application.json in the
-// given filesystem. A malformed entry is a build/asset error, so loading fails
-// loudly rather than silently dropping an app.
+// NewRegistry loads and validates every applications/<id>/application.json in the
+// given catalog, plus — when packages is non-nil — every uploaded package
+// stored beside it.
 //
-// Taking the filesystem as an argument is what keeps the catalog a *set of
-// applications* rather than a fixed list: the server loads the embedded one, and
-// anything else — a test fixture, a catalog assembled from uploaded packages —
-// goes through exactly the same validation.
-func NewRegistryFromFS(catalog fs.FS) (*Registry, error) {
-	r := &Registry{base: catalog}
+// Taking the catalog as an argument is what keeps it a *set of applications*
+// rather than a fixed list: the server loads the embedded one, and anything
+// else — a test fixture, a catalog assembled from uploaded packages — goes
+// through exactly the same validation.
+//
+// The two halves are held to different standards on purpose. A built-in application
+// that does not load is a broken build and fails startup. An uploaded package
+// that does not load is one administrator's file, possibly written against a
+// different version of Remote: it is skipped with its reason recorded, because
+// refusing to boot the whole server over it would turn one bad upload into an
+// outage.
+func NewRegistry(catalog fs.FS, packages *PackageStore) (*Registry, error) {
+	r := &Registry{base: catalog, packages: packages}
 	if err := r.Reload(); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-// Reload rebuilds the catalog from the built-in applications. It returns an error
-// when the catalog is unloadable, which on a built-in catalog is a broken
-// build rather than an operational problem.
+// Reload rebuilds the catalog from the built-in applications and the package store.
+// It returns an error only when the built-in catalog itself is unloadable;
+// per-package failures are recorded and reported through Packages. A failure
+// to read the package directory at all is neither: it is swallowed here, and
+// the empty listing it also produces is all the caller sees.
 func (r *Registry) Reload() error {
 	view := newCatalogView()
 	if _, err := loadCatalogInto(&view, r.base, svc.SourceBuiltin, nil); err != nil {
 		return err
 	}
+	failures := map[string]string{}
+	if r.packages != nil {
+		builtin := make(map[string]bool, len(view.byID))
+		for id := range view.byID {
+			builtin[id] = true
+		}
+		// A package may not shadow a built-in application. Letting it would mean an
+		// upload could redefine what "mysql" installs on a server, which is a
+		// far larger claim than "add an application".
+		//
+		// Reaching here means the files were stored before that id was built
+		// in — an upload cannot get past the check made when it is written —
+		// so what the operator needs told is what became of their package, not
+		// that something was refused.
+		reserve := func(id string) error {
+			if builtin[id] {
+				return errPackageSuperseded(id)
+			}
+			return nil
+		}
+		// loadCatalogInto only returns an error here if the packages directory
+		// itself is unreadable, which is a store problem rather than a package
+		// problem; skipped is nil then and the loop below does nothing.
+		skipped, _ := loadCatalogInto(&view, r.packages.FS(), svc.SourceUploaded, reserve)
+		for id, reason := range skipped {
+			failures[id] = reason
+		}
+	}
 	sortCatalog(&view)
 
 	r.mu.Lock()
 	r.view = view
+	r.packageErrors = failures
 	r.mu.Unlock()
 	return nil
 }
@@ -129,7 +170,15 @@ func loadCatalogInto(view *catalogView, catalog fs.FS, source svc.ApplicationSou
 				continue
 			}
 		}
-		application, script, err := loadApplication(catalog, id)
+		load := loadApplication
+		if source == svc.SourceUploaded {
+			// Stored uploads predate the strict manifest decoder and deliberately
+			// survive Remote upgrades. Keep the old encoding/json compatibility
+			// rules for those already-committed files; PackageStore.add validates
+			// every new or replacement upload strictly before publishing it.
+			load = loadPersistedApplication
+		}
+		application, script, err := load(catalog, id)
 		if err != nil {
 			err = fmt.Errorf("load application %q: %w", id, err)
 			if reserve == nil {
@@ -152,13 +201,37 @@ func sortCatalog(view *catalogView) {
 }
 
 func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) {
+	return loadApplicationManifest(catalog, id, false)
+}
+
+// loadPersistedApplication preserves the decoder behavior that was in force
+// when an older uploaded package was accepted. Recognized values still pass
+// all current semantic validation and every derived field is recomputed below.
+func loadPersistedApplication(catalog fs.FS, id string) (svc.Application, []byte, error) {
+	return loadApplicationManifest(catalog, id, true)
+}
+
+func loadApplicationManifest(
+	catalog fs.FS,
+	id string,
+	legacyJSONCompatibility bool,
+) (svc.Application, []byte, error) {
 	root := path.Join(catalogRoot, id)
-	raw, err := fs.ReadFile(catalog, path.Join(root, "application.json"))
+	readManifest := readApplicationManifest
+	if legacyJSONCompatibility {
+		readManifest = readPersistedApplicationManifest
+	}
+	raw, err := readManifest(catalog, path.Join(root, "application.json"))
 	if err != nil {
 		return svc.Application{}, nil, fmt.Errorf("read application.json: %w", err)
 	}
 	var application svc.Application
-	if err := json.Unmarshal(raw, &application); err != nil {
+	if legacyJSONCompatibility {
+		err = decodePersistedApplicationManifest(raw, &application)
+	} else {
+		err = decodeApplicationManifest(raw, &application)
+	}
+	if err != nil {
 		return svc.Application{}, nil, fmt.Errorf("parse application.json: %w", err)
 	}
 	if application.ID == "" {
@@ -167,9 +240,24 @@ func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) 
 	if application.ID != id {
 		return svc.Application{}, nil, fmt.Errorf("application id %q does not match directory %q", application.ID, id)
 	}
+	if !packageIDPattern.MatchString(application.ID) {
+		return svc.Application{}, nil, fmt.Errorf(
+			"application id %q must be lowercase letters, digits and dashes, starting with a letter or digit",
+			application.ID,
+		)
+	}
+	// Container metadata is derived from backend/container/ below. A manifest
+	// cannot claim a build identity or commands that the package does not carry.
+	application.Container = nil
 	if err := validateInstallScriptPath(application.Install); err != nil {
 		return svc.Application{}, nil, err
 	}
+	ui, err := loadApplicationUI(catalog, path.Join(root, "ui"), application.UI)
+	if err != nil {
+		return svc.Application{}, nil, fmt.Errorf("ui: %w", err)
+	}
+	application.UI = ui
+
 	backend, err := loadApplicationBackend(catalog, path.Join(root, backendDir), application.Backend)
 	if err != nil {
 		return svc.Application{}, nil, fmt.Errorf("backend: %w", err)
@@ -182,15 +270,17 @@ func loadApplication(catalog fs.FS, id string) (svc.Application, []byte, error) 
 	}
 	application.Skills = skills
 
-	var script []byte
-	application.Install, script, err = loadApplicationInfrastructure(catalog, root, application.Install)
+	infrastructure, err := loadApplicationInfrastructure(
+		catalog, root, application.ID, application.Version, application.Install)
 	if err != nil {
 		return svc.Application{}, nil, err
 	}
+	application.Install = infrastructure.installPath
+	application.Container = infrastructure.container
 	if err := validateApplication(application); err != nil {
 		return svc.Application{}, nil, err
 	}
-	return application, script, nil
+	return application, infrastructure.script, nil
 }
 
 // List returns the catalog sorted by display name.
@@ -198,7 +288,9 @@ func (r *Registry) List() []svc.Application {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]svc.Application, len(r.view.sorted))
-	copy(out, r.view.sorted)
+	for i, application := range r.view.sorted {
+		out[i] = cloneApplication(application)
+	}
 	return out
 }
 
@@ -207,7 +299,10 @@ func (r *Registry) Get(id string) (svc.Application, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	application, ok := r.view.byID[id]
-	return application, ok
+	if !ok {
+		return svc.Application{}, false
+	}
+	return cloneApplication(application), true
 }
 
 // Script returns the install script bytes for an application ID.

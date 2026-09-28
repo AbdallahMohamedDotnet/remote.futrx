@@ -21,8 +21,8 @@ func TestRegistryLoadsCatalog(t *testing.T) {
 		// one that must be non-empty — it exists to carry the invariants.
 		wantApplications bool
 	}{
-		{"shipped", NewRegistry, false},
-		{"fixture", func() (*Registry, error) { return NewRegistryFromFS(fixtureCatalog()) }, true},
+		{"shipped", func() (*Registry, error) { return NewRegistry(EmbeddedCatalog(), nil) }, false},
+		{"fixture", func() (*Registry, error) { return NewRegistry(fixtureCatalog(), nil) }, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r, err := tc.load()
@@ -47,7 +47,7 @@ func assertCatalogInvariants(t *testing.T, r *Registry, wantApplications bool) {
 		if len(application.Scopes) == 0 {
 			t.Errorf("application %s has no scopes", application.ID)
 		}
-		if application.NeedsContainer() {
+		if application.Install != "" || application.Container != nil {
 			if _, ok := r.Script(application.ID); !ok {
 				t.Errorf("application %s missing install script", application.ID)
 			}
@@ -75,7 +75,7 @@ func TestRegistrySkipsReservedDirectories(t *testing.T) {
 	for _, name := range []string{"docs"} {
 		catalog["applications/"+name+"/README.md"] = &fstest.MapFile{Data: []byte("# not an application\n")}
 	}
-	r, err := NewRegistryFromFS(catalog)
+	r, err := NewRegistry(catalog, nil)
 	if err != nil {
 		t.Fatalf("load registry: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestRegistryCombinesInfrastructureAndBackend(t *testing.T) {
 	catalog["applications/"+fixtureService+"/backend/main.go"] = &fstest.MapFile{
 		Data: []byte("package main\n\nfunc main() {}\n"),
 	}
-	r, err := NewRegistryFromFS(catalog)
+	r, err := NewRegistry(catalog, nil)
 	if err != nil {
 		t.Fatalf("load combined application: %v", err)
 	}
@@ -144,7 +144,21 @@ func TestValidateRejectsBadApplications(t *testing.T) {
 		{"missing scopes", func(i *svc.Application) { i.Scopes = nil }},
 		{"port without infra", func(i *svc.Application) { i.Install = "" }},
 		{"healthcheck without internal port", func(i *svc.Application) { i.Port.Internal = 0; i.Healthcheck.Command = "true" }},
-		{"service without infra", func(i *svc.Application) { i.Install = ""; i.Port = svc.Port{}; i.Service = "unit" }},
+		{"service without command", func(i *svc.Application) {
+			i.Service = &svc.ApplicationService{Name: "unit"}
+		}},
+		{"service name with suffix", func(i *svc.Application) {
+			i.Service = &svc.ApplicationService{Name: "unit.service", Command: []string{"/usr/local/bin/unit"}}
+		}},
+		{"service with relative executable", func(i *svc.Application) {
+			i.Service = &svc.ApplicationService{Name: "unit", Command: []string{"unit"}}
+		}},
+		{"service environment references undeclared input", func(i *svc.Application) {
+			i.Service = &svc.ApplicationService{
+				Name: "unit", Command: []string{"/usr/local/bin/unit"},
+				Environment: []svc.ServiceEnvironment{{Key: "TOKEN_B64", FromEnv: "TOKEN", Encoding: "base64"}},
+			}
+		}},
 		{"no capabilities", func(i *svc.Application) { i.Install = ""; i.Port = svc.Port{} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -183,7 +197,7 @@ func TestInfrastructureApplicationCanInstallWithoutExposingAPort(t *testing.T) {
 	}
 	// Stop and uninstall act on the unit, so infrastructure that provisions a
 	// long-running thing has to name one.
-	if application.Service == "" {
+	if application.Service == nil {
 		t.Error("supervised infrastructure must name its systemd unit")
 	}
 }
@@ -194,10 +208,27 @@ func TestValidateAcceptsInfrastructureWithoutAPort(t *testing.T) {
 		Version: "1.0.0",
 		Install: "infra/install.sh",
 		Scopes:  []svc.Scope{svc.ScopeProject},
-		Service: "unit",
+		Service: &svc.ApplicationService{Name: "unit", Command: []string{"/usr/local/bin/worker"}},
 	}
 	if err := validateApplication(application); err != nil {
 		t.Errorf("validate(portless infrastructure) = %v, want nil", err)
+	}
+}
+
+func TestValidateAcceptsADeclarativeServiceWithoutAnInstallScript(t *testing.T) {
+	application := svc.Application{
+		Name:    "Worker",
+		Version: "1.0.0",
+		Scopes:  []svc.Scope{svc.ScopeProject},
+		Service: &svc.ApplicationService{
+			Name: "worker", Command: []string{"/usr/local/bin/worker"},
+		},
+	}
+	if err := validateApplication(application); err != nil {
+		t.Errorf("validate(declarative service) = %v, want nil", err)
+	}
+	if !application.NeedsContainer() {
+		t.Error("a declarative service must provision a container")
 	}
 }
 

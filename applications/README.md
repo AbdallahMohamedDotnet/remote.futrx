@@ -9,8 +9,8 @@ any an administrator has uploaded as a `.zip` — same shape, same validator,
 stored outside the binary. See [Uploaded packages](../docs/dev/installable-applications/16-uploaded-packages.md).
 
 **One application ships here: [`hello-remote/`](hello-remote/)**, the worked example
-— a Go backend and the browser UI that calls it, installing nothing in any
-container. Real apps — MySQL, PostgreSQL, Redis, s3disk — live in their own
+— every supported capability composed into one installable package.
+Real apps — MySQL, PostgreSQL, Redis, s3disk — live in their own
 repositories and reach a server as uploaded packages, so the catalog format can
 change here without a database application riding along in the same review.
 Everything below is the format they are all written against, and dropping a
@@ -41,14 +41,30 @@ applications/
   backend-playground/
     README.md
     application.json
-    backend/         Go source, compiled by the server and run as a process
-      main.go
+    backend/
+      main.go        required host entry point and composition root
+      api/           importable request-handling package
+        api.go
+      lifecycle/     importable host package for publisher/subscriber behavior
+        events.go
+      container/     Go source, compiled inside the target container
+        main.go       one binary named after the application, or:
+        cmd/my-agent/main.go
     ui/              the extension that calls it
 ```
 
 Keep regular files at the application root limited to `README.md` and
-`application.json`. Put provisioning files in `infra/`, server code in
-`backend/`, and browser code and assets in `ui/`.
+`application.json`. Put custom provisioning files in `infra/`, the required
+host executable at `backend/main.go`, importable host packages such as request
+handling in `backend/api/` and event ownership in `backend/lifecycle/`,
+container programs in `backend/container/`, and browser assets in `ui/`.
+Remote generates one host Go module from the `backend/` root and its child host
+packages, then builds `.`; `backend/container/` is excluded from that module.
+For container Go,
+`cmd/` itself is optional: a root main package in `backend/container/` builds
+one binary named after the application ID. Use
+`backend/container/cmd/<binary>/` when naming a binary explicitly or installing
+more than one. If `cmd/*` exists, the root is not built as an executable.
 
 ## 📚 Full documentation: [`docs/dev/installable-applications/`](../docs/dev/installable-applications/)
 
@@ -61,10 +77,10 @@ and nothing else. Start with
 |---|---|
 | Understand the system | [Overview](../docs/dev/installable-applications/01-overview.md) |
 | Add a database or service | [Application capabilities](../docs/dev/installable-applications/03-application-capabilities.md), [Install scripts](../docs/dev/installable-applications/04-install-scripts.md) |
-| Add a button or panel to the UI | [Tutorial](../docs/dev/installable-applications/07-tutorial-build-a-plugin.md) |
+| Add a button or panel to the UI | [Tutorial](../docs/dev/installable-applications/07-tutorial-build-an-application.md) |
 | Look up an `application.json` field | [application.json reference](../docs/dev/installable-applications/02-application-json.md) |
 | Look up an extension API method | [Extension API](../docs/dev/installable-applications/06-extension-api.md) |
-| Add a server-side feature in Go | [Backend plugins](../docs/dev/installable-applications/15-backend-plugins.md) |
+| Add a server-side feature in Go | [Application backends](../docs/dev/installable-applications/15-application-backends.md) |
 | Know where I can render | [Slots](../docs/dev/installable-applications/05-slots.md) |
 | Know who sees my extension | [Scoping and visibility](../docs/dev/installable-applications/08-scoping-and-visibility.md) |
 | Match the app's look | [Styling and icons](../docs/dev/installable-applications/09-styling-and-icons.md) |
@@ -78,19 +94,27 @@ and nothing else. Start with
 ## Adding an app, in short
 
 1. Create `applications/<id>/application.json`. `id` must equal the directory name, and
-   `version` is required — changing it is what re-runs `infra/install.sh` on copies
+   `version` is required — changing it is what reprovisions copies
    people already installed. See
    [Versions and upgrades](../docs/dev/installable-applications/17-versions-and-upgrades.md).
-2. Add any capabilities the application needs. `infra/install.sh` provisions a
-   container; `port.internal` exposes it; `backend/` adds server behavior; and
-   `ui/` adds browser behavior. These may be used independently or together.
+2. Add any capabilities the application needs. `service` declares a standardized
+   systemd process; `infra/install.sh` performs only custom provisioning;
+   `backend/container/` adds core-built container commands; `port.internal`
+   exposes it; `hostTools[]` installs checksum-pinned host
+   executables; `backend/main.go` adds server behavior; child host packages such
+   as `backend/api/` and `backend/lifecycle/` keep cohesive concerns out of the
+   composition package; `ui/` adds browser behavior; and `skills/` publishes
+   project-agent workflows. These may be used independently or together where their
+   validation rules allow it.
 3. Optionally add `ui/` to contribute to the interface. The layout is the
    manifest: `scripts/main.js` is the entry, `style/*.css` are injected,
    `views/*.html` are loadable by name.
-4. Optionally add `backend/` for server-side work. `main.go` implements
-   `appplugin.Backend`; the application's `ui/` reaches it through
-   `remote.backend.call(...)`. See
-   [Backend plugins](../docs/dev/installable-applications/15-backend-plugins.md).
+4. Optionally add a `backend/` executable for server-side work. Its `main.go`
+   composes a value that implements `applications.Backend`; the application's
+   `ui/` reaches it through `remote.backend.call(...)`. Keep request handling in
+   `backend/api/` and each event publisher in `backend/lifecycle/`, then compose
+   them at the root through `rpc.ServeWithRuntime`. See
+   [Application backends](../docs/dev/installable-applications/15-application-backends.md).
 5. Rebuild the backend. `NewRegistry()` validates every entry at startup, so a
    malformed application fails the build and the tests rather than 404ing in a
    browser.
@@ -121,15 +145,18 @@ pull request deserves the same review as any change under `frontend/src`. See
 **Backend code is server code.** A `backend/` directory is compiled and run as a
 child of the server process, with the server's privileges, and is handed the
 install's secrets. It deserves the same review as any change under
-`backend/internal/`. See [Security model](../docs/dev/installable-applications/13-security-model.md#backend-plugins).
+`backend/internal/`. See [Security model](../docs/dev/installable-applications/13-security-model.md#backend-backends).
 
 ## The example app
 
 [`hello-remote/`](hello-remote/) is the one application this repository ships, and it
-is here to be installed. It has `backend/` and `ui/` capabilities but no
-`infra/install.sh`, so it needs no LXD, port, or proxy device and works on a laptop. Installing it exercises the
-catalog, the install dialog's `env[]` field, both extension slots it draws in,
-and a real backend process — so if it works, the feature works.
+is here to be installed. It deliberately carries every composable capability:
+custom infrastructure, a supervised service and port, health checking, host
+tools, container-built commands, a host backend, UI, and a project skill. Its
+manifest also fills every author-controlled model field. Installing it exercises
+the catalog, every install-input behavior, connection metadata, both scopes,
+every extension slot, and the complete application lifecycle — so if it works,
+the feature works.
 
 Install it globally *and* in a project to watch one application run as two processes
 with two counters. Its [README](hello-remote/README.md) says what to look at

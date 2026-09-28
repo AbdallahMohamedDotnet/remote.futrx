@@ -54,6 +54,79 @@ func TestLoadApplicationAllowsNoInfrastructure(t *testing.T) {
 	}
 }
 
+func TestLoadApplicationGeneratesContainerInstallScript(t *testing.T) {
+	catalog := minimalCatalog(`{
+		"name": "Example",
+		"version": "2.0.0",
+		"scopes": ["project"]
+	}`)
+	catalog["applications/example/backend/container/cmd/example-agent/main.go"] = &fstest.MapFile{
+		Data: []byte("package main\nfunc main() {}\n"),
+	}
+
+	application, script, err := loadApplication(catalog, "example")
+	if err != nil {
+		t.Fatalf("load application: %v", err)
+	}
+	if application.Container == nil || !application.NeedsContainer() {
+		t.Fatalf("container capability = %+v", application.Container)
+	}
+	if application.Install != "" {
+		t.Errorf("generated install unexpectedly claims an infra path: %q", application.Install)
+	}
+	if !strings.Contains(string(script), "APP_BUILD_VERSION='2.0.0+") ||
+		!strings.Contains(string(script), "./cmd/example-agent") {
+		t.Fatalf("generated install script is missing build metadata or command:\n%s", script)
+	}
+}
+
+func TestLoadApplicationPrependsContainerBuildToCustomInstall(t *testing.T) {
+	catalog := minimalCatalog(`{
+		"name": "Example",
+		"version": "1.0.0",
+		"scopes": ["project"]
+	}`)
+	catalog["applications/example/backend/container/main.go"] = &fstest.MapFile{Data: []byte("package main\nfunc main() {}\n")}
+	catalog["applications/example/infra/install.sh"] = &fstest.MapFile{Data: []byte("echo custom-install\n")}
+
+	application, script, err := loadApplication(catalog, "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if application.Install != defaultInstallScriptPath {
+		t.Fatalf("install path = %q", application.Install)
+	}
+	generatedAt := bytes.Index(script, []byte("APP_BUILD_VERSION="))
+	customAt := bytes.Index(script, []byte("echo custom-install"))
+	if generatedAt < 0 || customAt < 0 || generatedAt >= customAt {
+		t.Fatalf("container build was not prepended to custom install script")
+	}
+}
+
+func TestHelloRemoteCombinesContainerBuildWithCustomProvisioning(t *testing.T) {
+	registry, err := NewRegistry(EmbeddedCatalog(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	application, ok := registry.Get("hello-remote")
+	if !ok {
+		t.Fatal("hello-remote is missing from the embedded catalog")
+	}
+	if application.Install != defaultInstallScriptPath {
+		t.Fatalf("install path = %q, want %q", application.Install, defaultInstallScriptPath)
+	}
+	script, ok := registry.Script(application.ID)
+	if !ok {
+		t.Fatal("hello-remote install program is missing")
+	}
+	generatedAt := bytes.Index(script, []byte("APP_BUILD_VERSION="))
+	customAt := bytes.Index(script, []byte("provisioned-version"))
+	serviceAt := bytes.Index(script, []byte("systemctl"))
+	if generatedAt < 0 || customAt < 0 || generatedAt >= customAt || serviceAt >= 0 {
+		t.Fatalf("container build must precede custom provisioning without owning systemd")
+	}
+}
+
 func TestLoadApplicationRejectsInvalidInfrastructureOverrides(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

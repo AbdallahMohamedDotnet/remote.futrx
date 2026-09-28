@@ -11,6 +11,7 @@ import (
 const (
 	fixtureService  = "fixture-service"
 	fixturePortless = "fixture-portless"
+	fixtureUI       = "fixture-ui"
 	fixtureBackend  = "fixture-backend"
 )
 
@@ -22,10 +23,13 @@ func fixtureCatalog() fstest.MapFS {
 			"version": "1.0.0",
 			"scopes": ["global", "project"],
 			"port": {"internal": 5432, "defaultExternal": 5432},
-			"service": "fixture",
+			"service": {"name": "fixture", "command": ["/usr/local/bin/fixture"]},
 			"connection": {"user": "root", "passwordEnv": "FIXTURE_PASSWORD"}
 		}`),
-		"applications/" + fixtureService + "/infra/install.sh": file("#!/usr/bin/env bash\necho service\n"),
+		"applications/" + fixtureService + "/infra/install.sh":    file("#!/usr/bin/env bash\necho service\n"),
+		"applications/" + fixtureService + "/ui/scripts/main.js":  file("export default () => {}\n"),
+		"applications/" + fixtureService + "/ui/style/panel.css":  file(".panel{}\n"),
+		"applications/" + fixtureService + "/ui/views/popup.html": file("<p></p>\n"),
 
 		// Portless infrastructure reaches a container without exposing anything
 		// and needs a host binary it supplies itself.
@@ -33,7 +37,7 @@ func fixtureCatalog() fstest.MapFS {
 			"name": "Fixture Portless",
 			"version": "2.1.0",
 			"scopes": ["project"],
-			"service": "fixture-portless",
+			"service": {"name": "fixture-portless", "command": ["/usr/local/bin/fixture-portless"]},
 			"hostTools": [{
 				"name": "fixture-backup",
 				"version": "1.2.3",
@@ -51,6 +55,25 @@ func fixtureCatalog() fstest.MapFS {
 		}`),
 		"applications/" + fixturePortless + "/infra/install.sh": file("#!/usr/bin/env bash\necho portless\n"),
 
+		// A UI application declares its block explicitly rather than relying on the
+		// layout convention, so both paths are exercised for real.
+		"applications/" + fixtureUI + "/application.json": file(`{
+			"name": "Fixture UI",
+			"version": "0.4.0",
+			"scopes": ["project"],
+			"ui": {
+				"entry": "scripts/main.js",
+				"styles": ["style/panel.css"],
+				"views": {"panel": "views/panel.html", "context": "views/context.html"}
+			}
+		}`),
+		"applications/" + fixtureUI + "/ui/scripts/main.js":     file("import './selftest.js'\nexport default () => {}\n"),
+		"applications/" + fixtureUI + "/ui/scripts/selftest.js": file("export const ok = true\n"),
+		"applications/" + fixtureUI + "/ui/style/panel.css":     file(".panel{}\n"),
+		"applications/" + fixtureUI + "/ui/views/panel.html":    file("<p></p>\n"),
+		"applications/" + fixtureUI + "/ui/views/context.html":  file("<p></p>\n"),
+		"applications/" + fixtureUI + "/ui/assets/logo.svg":     file("<svg/>\n"),
+
 		"applications/" + fixtureBackend + "/application.json": file(`{
 			"name": "Fixture Backend",
 			"version": "3.0.0",
@@ -63,7 +86,7 @@ func fixtureCatalog() fstest.MapFS {
 
 func testRegistry(t *testing.T) *Registry {
 	t.Helper()
-	r, err := NewRegistryFromFS(fixtureCatalog())
+	r, err := NewRegistry(fixtureCatalog(), nil)
 	if err != nil {
 		t.Fatalf("load fixture catalog: %v", err)
 	}

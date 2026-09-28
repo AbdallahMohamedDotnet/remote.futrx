@@ -54,7 +54,7 @@ func portlessInfrastructureApplication() Application {
 		Name:    "Mount Tool",
 		Install: "infra/install.sh",
 		Scopes:  []Scope{ScopeProject},
-		Service: "mount-tool",
+		Service: &ApplicationService{Name: "mount-tool", Command: []string{"/usr/local/bin/mount-tool"}},
 	}
 }
 
