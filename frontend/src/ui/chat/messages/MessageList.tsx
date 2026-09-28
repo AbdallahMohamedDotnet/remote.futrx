@@ -47,7 +47,7 @@ export function MessageList({
   contentRef: RefObject<HTMLDivElement>;
   bottomRef: RefObject<HTMLDivElement>;
   onScroll: () => void;
-  onAnswerQuestion: (text: string) => void;
+  onAnswerQuestion: (text: string) => boolean;
   onRespondInteraction?: ChatInteractionResponder;
   onLoadOlder: () => Promise<void>;
   onRewind: (t: number, text: string) => void;

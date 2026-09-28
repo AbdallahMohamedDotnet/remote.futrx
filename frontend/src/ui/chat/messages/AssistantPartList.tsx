@@ -27,7 +27,7 @@ export function AssistantPartList({
   streaming: boolean;
   chatId?: string;
   cwd?: string;
-  onAnswerQuestion?: (text: string) => void;
+  onAnswerQuestion?: (text: string) => boolean;
   onRespondInteraction?: ChatInteractionResponder;
   streamingPresentation: "blocks" | "tokens";
 }) {
@@ -41,7 +41,7 @@ function renderAssistantParts(
     hydratedPartIndex?: number;
     chatId?: string;
     cwd?: string;
-    onAnswerQuestion?: (text: string) => void;
+    onAnswerQuestion?: (text: string) => boolean;
     onRespondInteraction?: ChatInteractionResponder;
     streamingPresentation: "blocks" | "tokens";
   }
