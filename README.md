@@ -18,7 +18,7 @@
   ·
   <a href="#quick-start"><strong>Install</strong></a>
   ·
-  <a href="https://github.com/futrx-com/remote.futrx.com/issues"><strong>Roadmap</strong></a>
+  <a href="https://github.com/futrx-com/remote.futrx/issues"><strong>Roadmap</strong></a>
 </p>
 
 ![Remote showing an AI conversation beside a live application preview](docs/assets/readme/feature-live-preview.webp)
@@ -384,7 +384,7 @@ The full updater preserves project files and provider homes. Coordinate a mainte
 - [System architecture](ARCHITECTURE.md) — components, data flow, and trust boundaries
 - [Project philosophy](docs/01-overview/00-philosophy.md) — why Remote treats each project as a computer
 - [Contributing](CONTRIBUTING.md) — local development and contribution workflow
-- [Issue tracker](https://github.com/futrx-com/remote.futrx.com/issues) — bugs, ideas, and roadmap
+- [Issue tracker](https://github.com/futrx-com/remote.futrx/issues) — bugs, ideas, and roadmap
 
 ## License
 
