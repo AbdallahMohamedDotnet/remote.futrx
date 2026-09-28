@@ -7,7 +7,7 @@ import { renderInline } from "./inlineParser";
 import type { MarkdownBlock } from "./types";
 import { getTextAlignClass, isRtlText } from "./bidi";
 import { useRevealHeight } from "./useRevealHeight";
-import { isMermaidLanguage } from "./mermaidBlock";
+import { isMermaidLanguage } from "./mermaidSupport";
 import { MermaidBlock } from "./MermaidBlock";
 
 export function Markdown({ children, chatId, cwd }: { children: string; chatId?: string; cwd?: string }) {

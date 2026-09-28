@@ -183,8 +183,9 @@ Be aware of the gaps rather than assuming coverage:
   by hand.
 - **Rendering is not unit-tested.** `ExtensionSlot.tsx` has no test; the
   registry it reads from does. Rendering is verified in a browser.
-- **CI does not run `go test`.** Run it locally before pushing — see
-  [CONTRIBUTING](../../../CONTRIBUTING.md).
+- **Run `go test` locally before pushing.** CI runs `go vet`, `go test` and
+  `go build` for both modules, but a local run catches failures before review
+  — see [CONTRIBUTING](../../../CONTRIBUTING.md).
 
 ## Before opening a pull request
 
