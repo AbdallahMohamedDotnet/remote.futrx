@@ -23,6 +23,8 @@ export type AssistantMessagePart =
       interactionKind: string;
       supportsCancellation: boolean;
       status: string;
+      /** What the user answered, per question id; secret answers are never recorded. */
+      answers?: Record<string, string[]>;
     }
   | {
       kind: "collaboration";
