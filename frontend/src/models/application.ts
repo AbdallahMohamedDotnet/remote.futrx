@@ -159,6 +159,8 @@ export interface AppApplication {
   port: AppPort;
   env?: AppEnvVar[];
   service?: AppApplicationService;
+  /** Optional script that removes application-owned packages and files on uninstall. */
+  uninstall?: string;
   /** Set when the application ships a `ui/` extension. */
   ui?: AppApplicationUI;
   /** Set when the application ships a `backend/` Go backend. */

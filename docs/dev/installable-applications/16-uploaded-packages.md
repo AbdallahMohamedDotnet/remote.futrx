@@ -273,3 +273,9 @@ catalog.
 `builtin` or `uploaded`. It is decided by the registry; declaring `source` in
 `application.json` is rejected, so a package cannot describe itself as built
 in. The UI uses it to badge uploaded applications and to offer removing them.
+
+## Uninstall behavior
+
+Uploaded packages must explicitly declare cleanup under `infra/` and include
+the referenced file; adding a file alone does not enable cleanup.
+See [the focused guide](21-application-uninstall-scripts.md).

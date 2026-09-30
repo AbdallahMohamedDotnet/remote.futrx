@@ -197,8 +197,8 @@ func (in *Installer) Stop(ctx context.Context, spec svc.InstallSpec) error {
 }
 
 // Uninstall removes the proxy device and, for global scope, deletes the
-// dedicated container outright. For project scope it stops and disables the
-// service; installed packages and data remain in the project container.
+// dedicated container outright. For project scope it stops the service and
+// runs optional application-owned cleanup before removing Remote's unit files.
 func (in *Installer) Uninstall(ctx context.Context, spec svc.InstallSpec) error {
 	inst := spec.Instance
 	if inst.Scope == svc.ScopeGlobal {
@@ -221,6 +221,11 @@ func (in *Installer) Uninstall(ctx context.Context, spec svc.InstallSpec) error 
 	}
 	if svcName := spec.Application.ServiceName(); svcName != "" {
 		_, _ = in.exec(ctx, inst.ContainerName, nil, controlTimeout, "systemctl", "disable", "--now", svcName)
+	}
+	if err := in.runProjectUninstallScript(ctx, spec); err != nil {
+		return err
+	}
+	if spec.Application.ServiceName() != "" {
 		in.removeServiceFiles(ctx, spec)
 	}
 	in.removeSkills(ctx, spec)
@@ -312,6 +317,34 @@ func (in *Installer) runInstallScript(ctx context.Context, spec svc.InstallSpec)
 		strings.NewReader(string(script)), "bash", "-s")
 	if err != nil {
 		return fmt.Errorf("install %s: %w; output: %s", spec.Application.ID, err, tail(out))
+	}
+	return nil
+}
+
+// runProjectUninstallScript removes application-owned files after its service
+// is stopped. A missing container has no files to remove, while a stopped one
+// must be started explicitly before cleanup can run inside it.
+func (in *Installer) runProjectUninstallScript(ctx context.Context, spec svc.InstallSpec) error {
+	script, ok := in.registry.UninstallScript(spec.Application.ID)
+	if !ok || spec.Instance.ContainerName == "" {
+		return nil
+	}
+	container := spec.Instance.ContainerName
+	state, err := in.containerState(ctx, container)
+	if err != nil {
+		return err
+	}
+	switch state {
+	case "running":
+		out, err := in.execStdin(ctx, container, in.scriptEnv(spec), execTimeout,
+			strings.NewReader(string(script)), "bash", "-s")
+		if err != nil {
+			return fmt.Errorf("uninstall %s: %w; output: %s", spec.Application.ID, err, tail(out))
+		}
+	case "missing":
+		// A replaced project container has no package or settings to remove.
+	default:
+		return fmt.Errorf("start project container %s before uninstalling %s", container, spec.Application.ID)
 	}
 	return nil
 }
