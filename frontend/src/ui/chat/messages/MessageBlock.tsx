@@ -38,7 +38,7 @@ export function MessageBlock({
   }
 
   if (block.type === "error") {
-    return <ErrorMessage message={block.message} />;
+    return <ErrorMessage message={block.message} t={block.t} />;
   }
 
   return (
