@@ -273,3 +273,9 @@ catalog.
 `builtin` or `uploaded`. It is decided by the registry; declaring `source` in
 `application.json` is rejected, so a package cannot describe itself as built
 in. The UI uses it to badge uploaded applications and to offer removing them.
+
+## Json behavior
+
+Uploaded packages use the same JSON/default-file validation as built-ins.
+Include the UTF-8 default file under `infra/`; invalid defaults reject admission.
+See [the focused guide](22-application-json-settings.md).
