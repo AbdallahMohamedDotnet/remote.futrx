@@ -7,6 +7,13 @@ export interface FileNode {
   modTime?: number;
 }
 
+export interface FileOpenRequest {
+  cwd: string;
+  path: string;
+  line?: number;
+  column?: number;
+}
+
 export interface DirListing {
   /** The directory that was listed ("" = workspace root). */
   path: string;
