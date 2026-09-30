@@ -167,7 +167,7 @@ working LXD. Nothing in CI executes them.
 
 The loop: install at project scope → read the error and script output on the
 installed row if it fails → fix → hit **Retry**, which installs again and
-therefore also proves idempotency. (**Start** does not re-run the script.) See
+therefore also proves idempotency. (Start reinstalls if the declared service unit is missing.) See
 [04 — Install scripts](04-install-scripts.md).
 
 ## What is not covered by tests
@@ -199,3 +199,9 @@ Then, if you touched the extension surface or the backend contract, install
 panel still greets you, reaches the supervised service, inspects the container,
 and keeps its counter across a server restart. In a project install, also
 confirm that the `hello-remote-inspector` skill is present.
+
+## Recovery capability checks
+
+See [the focused guide](24-application-container-recovery.md) for source/test ownership and
+verification limits. Run applicable Go tests and frontend tests/builds;
+unit command assertions do not replace a live container or browser check.

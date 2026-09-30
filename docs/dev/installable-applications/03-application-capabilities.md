@@ -46,3 +46,8 @@ Start, stop, and uninstall operate on every capability an application has:
 For project-scoped infrastructure, uninstall disables the declared service but
 does not delete the project container or files installed into it. For global
 infrastructure, uninstall deletes the dedicated application container.
+
+Running applications with container capabilities are reinstalled after project
+container replacement; stopped ones remain stopped. A later Start reinstalls
+when its declared service-unit check fails. See
+[Container recovery](24-application-container-recovery.md).

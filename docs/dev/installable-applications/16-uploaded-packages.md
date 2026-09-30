@@ -273,3 +273,9 @@ catalog.
 `builtin` or `uploaded`. It is decided by the registry; declaring `source` in
 `application.json` is rejected, so a package cannot describe itself as built
 in. The UI uses it to badge uploaded applications and to offer removing them.
+
+## Recovery behavior
+
+Workspace upgrade recovery loads uploaded packages from the host package
+store as well as the embedded catalog. Missing packages cannot be restored.
+See [the focused guide](24-application-container-recovery.md).
