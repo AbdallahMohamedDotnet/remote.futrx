@@ -279,3 +279,36 @@ A checklist for reviewing a `ui/` directory:
 - [08 — Scoping and visibility](08-scoping-and-visibility.md) — who sees what.
 - The platform-wide [threat model](../../threat-model.md) — the
   boundaries this sits inside.
+
+## Project application web content
+
+`web.port` serves container HTTP content at
+`/apps/<project-slug>/<application-id>/` on the **main Remote browser origin**.
+The handler checks the caller's project visibility and requires a running
+installation; the manifest selects the upstream port. The host backend's
+`backend.access` policy does not apply to this web route. Stopped/uninstalled apps
+are not started by a request. These checks constrain routing, not what an
+admitted application's JavaScript can do inside the user's browser.
+
+This boundary differs from the host-backend RPC API. The web proxy strips all
+request cookies and upstream `Set-Cookie`, but does not explicitly strip
+`Authorization`. It restricts a returned `Service-Worker-Allowed` header to the
+application prefix and rewrites root-relative redirects. These measures do not
+isolate the browser origin: scripts served by an editor or other project
+application can still call Remote APIs with the user's session. Reviewing the
+package alone may not constrain content later supplied by the project. See
+[threat-model finding 20](../../threat-model.md#20-project-application-content-shares-the-platform-browser-origin--high).
+
+The share service rejects ports declared by **any** catalog application's
+`web.port`, irrespective of installation in the requested project. It checks
+the current catalog during share creation and validation, so a newly reserved
+port also invalidates existing anonymous grants. This adds to the existing
+browser/IDE/DevTools reservations while the built-in IDE remains present.
+It does not block authenticated previews or direct container-to-container
+connections on the shared LXD bridge.
+
+An uninstall script runs as root in the project container and may remove
+persistent files; review its exact deletion scope and its use during failed
+install Retry. `secret: true` hides stored env values in ordinary instance
+views, but JSON install editors display values and `defaultFile` contents
+become catalog defaults. Package defaults must not contain real credentials.

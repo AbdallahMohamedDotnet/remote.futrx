@@ -273,3 +273,8 @@ catalog.
 `builtin` or `uploaded`. It is decided by the registry; declaring `source` in
 `application.json` is rejected, so a package cannot describe itself as built
 in. The UI uses it to badge uploaded applications and to offer removing them.
+
+## Web behavior
+
+Uploaded packages follow the same project web-route validation as built-ins.
+See [the focused guide](19-project-application-web-routes.md).

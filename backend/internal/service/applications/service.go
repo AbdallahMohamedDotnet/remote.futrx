@@ -153,6 +153,24 @@ func (s *Service) ListProject(ctx context.Context, projectID string) ([]View, er
 	return s.views(insts), nil
 }
 
+// WebPort returns the declared HTTP port only for a running project install.
+func (s *Service) WebPort(ctx context.Context, projectID, applicationID string) (int, bool, error) {
+	application, ok := s.registry.Get(applicationID)
+	if !ok || application.Web == nil {
+		return 0, false, nil
+	}
+	instances, err := s.store.ListProject(ctx, projectID)
+	if err != nil {
+		return 0, false, err
+	}
+	for _, instance := range instances {
+		if instance.ApplicationID == applicationID && instance.Status == StatusRunning {
+			return application.Web.Port, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
 // Get returns a single instance as an API-safe view.
 func (s *Service) Get(ctx context.Context, id string) (View, bool, error) {
 	inst, ok, err := s.store.Get(ctx, id)

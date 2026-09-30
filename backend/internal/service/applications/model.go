@@ -179,6 +179,12 @@ type ApplicationUI struct {
 	Views map[string]string `json:"views,omitempty"`
 }
 
+// ApplicationWeb exposes a project application's HTTP service through Remote.
+// The public route is /apps/<project-slug>/<application-id>/.
+type ApplicationWeb struct {
+	Port int `json:"port"`
+}
+
 // ApplicationSource says where a catalog entry came from. It is decided by the
 // registry that loaded the entry; application.json cannot declare it, so a
 // package cannot describe itself as built in.
@@ -216,6 +222,7 @@ type Application struct {
 	// Service is the complete systemd service Remote realizes and controls in
 	// the target container.
 	Service *ApplicationService `json:"service,omitempty"`
+	Web     *ApplicationWeb     `json:"web,omitempty"`
 	// Install is the install-script filename relative to the application directory.
 	Install     string      `json:"install"`
 	Healthcheck Healthcheck `json:"healthcheck,omitempty"`

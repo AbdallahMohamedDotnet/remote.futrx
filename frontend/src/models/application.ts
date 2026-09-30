@@ -159,6 +159,8 @@ export interface AppApplication {
   port: AppPort;
   env?: AppEnvVar[];
   service?: AppApplicationService;
+  /** Project HTTP service exposed at /apps/<project-slug>/<application-id>/. */
+  web?: { port: number };
   /** Set when the application ships a `ui/` extension. */
   ui?: AppApplicationUI;
   /** Set when the application ships a `backend/` Go backend. */

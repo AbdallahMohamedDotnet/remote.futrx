@@ -35,6 +35,7 @@ func NewApplicationsHandler(
 func (h *ApplicationsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/applications", h.handleCollection)
 	mux.HandleFunc("/api/applications/", h.handleResource)
+	mux.HandleFunc("/apps/", h.serveWeb)
 }
 
 // installBody is the shared request shape for installing an app.

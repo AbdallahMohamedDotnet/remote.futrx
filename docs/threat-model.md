@@ -52,6 +52,7 @@ machine and guardrails.
 | 17 | No CSRF tokens and WebSocket origin checks disabled | Web | Tampering | **Medium** | cited |
 | 18 | Secrets/OAuth key plaintext at rest; leaked `session.key` forges admin sessions forever | Secrets | Elevation of privilege | **Medium** | cited |
 | 19 | `return_to` open redirect into untrusted preview/IDE subdomains | Web | Spoofing | **Low** | cited |
+| 20 | Project application content shares the platform browser origin | Web | Elevation of privilege | **High** | ✓ |
 
 ¹ Conditional — see finding 11 for the precondition.
 
@@ -74,6 +75,16 @@ External users reach only Caddy, which terminates TLS and forwards to the loopba
 
 - **Existing mitigations:** Caddy `forward_auth` does require an authenticated, registered session, and strips platform cookies before proxying. The dev-preview URL path (`--<port>.dev`) *does* enforce membership — proving the mechanism exists and is simply not applied to the IDE host class.
 - **Residual gap:** no per-project membership check for the IDE/code hosts. This is documented as a known gap in [`docs/02-workspaces/02-auth-users-and-access.md`](02-workspaces/02-auth-users-and-access.md), but the Caddyfile comments incorrectly call it "the same admin gate as the rest of the platform."
+
+### 20. Project application content shares the platform browser origin — **High**
+
+The `/apps/<project-slug>/<application-id>/` route serves application content
+on the main Remote origin. Project-controlled scripts can call Remote's API
+with the user's session, including routes outside the project. The gateway
+strips platform cookies before forwarding requests and strips upstream
+`Set-Cookie` responses. These measures protect the cookie value but cannot
+prevent same-origin API requests from browser script. An isolated application
+origin or stronger API authorization is still needed to close this gap.
 
 ### 11. Google OAuth authorizes on an unverified email — **High** (conditional) ✓ code-verified
 

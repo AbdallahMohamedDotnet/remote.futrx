@@ -65,6 +65,13 @@ func validateApplication(application svc.Application) error {
 	if err := validateService(application); err != nil {
 		return err
 	}
+	if application.Web != nil {
+		if application.Web.Port < 1024 || application.Web.Port > 65535 ||
+			len(application.Scopes) != 1 || application.Scopes[0] != svc.ScopeProject ||
+			application.Service == nil {
+			return fmt.Errorf("web.port requires a project-scoped service and a non-privileged port")
+		}
+	}
 	if err := validateApplicationEvents(application); err != nil {
 		return err
 	}

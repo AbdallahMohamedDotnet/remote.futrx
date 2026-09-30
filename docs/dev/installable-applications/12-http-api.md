@@ -337,3 +337,40 @@ const path = context.projectId
   : "/api/applications";
 const response = await fetch(path, { credentials: "same-origin" });
 ```
+
+## Project application web routes
+
+`/apps/<project-slug>/<application-id>/<path>` forwards HTTP requests to a
+project container. The identifier is the **catalog application ID**, not an
+installed instance ID. The route uses the platform session and the caller's
+visible projects (including administrator visibility). It additionally requires
+`web.port` in the catalog and a project instance whose status is `running`.
+This is separate from the Go host-backend RPC endpoint; `backend.access` does
+not narrow the web gateway to administrators.
+
+The upstream is `http://<slug>.lxd:<web.port>/<path>`; the prefix is stripped
+and the query is retained. The route does not call Start or EnsureRunning.
+It forwards the request method rather than limiting the route to GET.
+
+| Result | Meaning |
+|---|---|
+| 308 | A valid-shaped bare `/apps/<slug>/<id>` gains a trailing slash; query preserved. This happens after the registered-user gate, before project lookup. |
+| 401 | No registered authenticated caller |
+| 404 | Malformed route components, project outside caller visibility, unknown app, missing `web`, or no running project installation |
+| 500 | Project lookup or application lookup failed |
+| 502 | The reverse proxy cannot reach/communicate with the upstream |
+| Upstream status | A proxied application response, including its own errors or redirects |
+
+The proxy removes **all** request cookies and response `Set-Cookie` headers,
+sets forwarded request headers, rewrites root-relative `Location` headers
+into the application prefix, and narrows a supplied `Service-Worker-Allowed`
+header to that prefix. Absolute redirects and response bodies are not rewritten.
+It does not implement the host-backend RPC header allowlist; in particular,
+`Authorization` is not explicitly stripped here. Applications relying on their
+own cookies are not supported by this route. HTTP upstream connections are not pooled after requests complete.
+
+The gateway shares Remote's origin; cookie filtering does not prevent browser
+scripts from making authenticated requests to Remote APIs. See
+[13 — Security model](13-security-model.md#project-application-web-content).
+Catalog `web.port` values cannot be authorized by public preview share grants;
+this also applies to old grants after the catalog changes.

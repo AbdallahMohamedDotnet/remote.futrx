@@ -87,3 +87,5 @@ above the directory it is written in.
 
 Code references name the file and, where useful, the symbol —
 `registry_ui.go:loadApplicationUI`, `extensionContributionState.ts:visibleExtensionContributions`.
+
+- [Web capability guide](19-project-application-web-routes.md)

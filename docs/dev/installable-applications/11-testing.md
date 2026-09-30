@@ -178,9 +178,8 @@ Be aware of the gaps rather than assuming coverage:
 - **A backend's own behaviour is only as tested as the backend.** The platform
   tests the contract and the host; what an application's `backend/` actually does is
   covered by whatever tests that application ships.
-- **The HTTP handlers have no request-level tests** for the applications
-  routes; only `uiAssetContentType` is unit-tested. The endpoints are exercised
-  by hand.
+- **Web gateway coverage is partial.** Tests verify route rejection and proxy
+  transformations, but no authenticated browser/LXD flow was performed.
 - **Rendering is not unit-tested.** `ExtensionSlot.tsx` has no test; the
   registry it reads from does. Rendering is verified in a browser.
 - **Run `go test` locally before pushing.** CI runs `go vet`, `go test` and
@@ -199,3 +198,9 @@ Then, if you touched the extension surface or the backend contract, install
 panel still greets you, reaches the supervised service, inspects the container,
 and keeps its counter across a server restart. In a project install, also
 confirm that the `hello-remote-inspector` skill is present.
+
+## Web capability checks
+
+See [the focused guide](19-project-application-web-routes.md) for source/test ownership and
+verification limits. Run applicable Go tests and frontend tests/builds;
+unit command assertions do not replace a live container or browser check.
