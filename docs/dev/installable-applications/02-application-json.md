@@ -205,7 +205,7 @@ An application with only a UI capability:
 | `service` | object | no | Complete systemd service declaration. It is itself a container capability; Remote creates and owns the unit. See below. |
 | `connection` | object | no | Maps env vars to user/password/database. See below. |
 | `install` | string | no | Override for the install-script path inside `infra/`. When omitted, `infra/install.sh` is detected automatically. |
-| `web` | object | no | Project HTTP route: `{ "port": 8400 }` exposes a running project service at `https://<instance-id>.apps.<public-host>/`; `/apps/<project-slug>/<application-id>/` is its launch redirect. Requires project-only scope, a service, and a port between 1024 and 65535. |
+| `web` | object | no | Project HTTP route: `{ "port": 8400 }` exposes a running project service at `https://[<subdomain>.]<instance-id>.apps.<public-host>/`; optional `subdomain` supplies the leading DNS label; `/apps/<project-slug>/<application-id>/` is its launch redirect. Requires project-only scope, a service, and a port between 1024 and 65535. |
 | `uninstall` | string | no | Optional cleanup script inside `infra/`, run in a project container after its service stops and before Remote removes the service files. Global uninstall deletes the dedicated container instead. |
 | `healthcheck` | object | no | `{ "command": "…" }` run inside the container. Requires `port.internal`. |
 | `ui` | object | no | Overrides what is loaded from `ui/`. See below. |

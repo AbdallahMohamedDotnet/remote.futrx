@@ -26,7 +26,7 @@ in a slot's render function, which runs whenever that surface mounts.
 
 ```js
 remote.apiVersion              // 1
-remote.application                   // { id, name, version, icon }
+remote.application                   // { id, name, version, icon, web }
 remote.install                 // { global, projectIds }
 remote.slots                   // { chatHeaderActions: "chat.header.actions", … }
 
@@ -66,7 +66,8 @@ if (remote.apiVersion !== 1) return;
 
 ## `remote.application`
 
-`{ id, name, version, icon }` — the catalog entry this code was loaded from.
+`{ id, name, version, icon, web }` — current catalog metadata, refreshed when the host reconciles applications.
+`web`, when declared, contains `{ port, subdomain? }`.
 `remote.application.id` is the value to compare against `context.instance?.applicationId`.
 
 ## `remote.install`
