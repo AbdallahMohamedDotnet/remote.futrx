@@ -83,3 +83,20 @@ func (s *Service) require(ctx context.Context, key permission.Key, id ID) error 
 		Scope:      permission.ProjectScope(string(id)),
 	})
 }
+
+// projectAuthorizer checks one bound permission for a project.
+type projectAuthorizer func(ctx context.Context, id ID) error
+
+// bind fixes the authorizer and permission once, leaving the context and
+// project ID to each call. It applies the same ID validation as require.
+func bind(authorizer Authorizer, key permission.Key) projectAuthorizer {
+	return func(ctx context.Context, id ID) error {
+		if !ValidID(id) {
+			return ErrInvalidID
+		}
+		return authorizer.Require(ctx, permission.Check{
+			Permission: key,
+			Scope:      permission.ProjectScope(string(id)),
+		})
+	}
+}

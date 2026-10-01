@@ -291,3 +291,19 @@ func TestPermissionDefinitionsRegisterCleanly(t *testing.T) {
 		}
 	}
 }
+
+func TestBoundPermissionWithoutInjectedAuthorizerDenies(t *testing.T) {
+	service := New(nil, ContainerDependencies{}, nil, &accessTestRepository{})
+
+	for name, bound := range map[string]projectAuthorizer{
+		"lifecycle": service.requireLifecycle,
+		"access":    service.requireAccess,
+	} {
+		if err := bound(permission.ContextWithActor(context.Background(), permission.UserActor("u@example.com")), "abcd"); !errors.Is(err, permission.ErrDenied) {
+			t.Fatalf("%s: user error = %v, want ErrDenied", name, err)
+		}
+		if err := bound(context.Background(), "abcd"); !errors.Is(err, permission.ErrActorRequired) {
+			t.Fatalf("%s: anonymous error = %v, want ErrActorRequired", name, err)
+		}
+	}
+}
