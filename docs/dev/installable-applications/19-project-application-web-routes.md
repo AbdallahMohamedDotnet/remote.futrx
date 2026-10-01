@@ -78,3 +78,7 @@ Tests cover catalog service/scope/port validation, running-instance lookup,
 dynamic public-share port protection, path/query/cookie/redirect/worker-header
 proxy transformations and malformed routes. Verify real assets, redirects and
 WebSockets; test nonmember access and a stopped install in a live project.
+
+### Responsibility boundaries
+
+- [applications_web_proxy.go](../../../backend/internal/transport/http/handlers/applications_web_proxy.go) — Owns upstream request rewriting, cookie filtering, redirects, and service-worker scope; the handler retains caller/project authorization.
