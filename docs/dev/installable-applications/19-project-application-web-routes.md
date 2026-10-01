@@ -12,7 +12,8 @@ https://remote.example/apps/my-project/editor/src/main.ts?line=12
 ```
 
 The launch URL uses the catalog application ID; the app hostname uses the
-installation ID. Each installation has its own browser origin, including
+installation ID when no `web.subdomain` is declared (see named origins below).
+Each unnamed installation has its own browser origin, including
 installations of the same app in different projects. Reinstalling creates a
 fresh ID. The main Remote origin only serves the launch redirect.
 
@@ -42,7 +43,7 @@ See [12 — HTTP API](12-http-api.md#project-application-web-routes) for all sta
 
 ## Infrastructure
 
-Point `*.apps.<public-host>` to the same server as Remote. An existing broader
+For unnamed apps, point `*.apps.<public-host>` to the same server as Remote. An existing broader
 DNS wildcard may already cover it; verify an installation hostname resolves.
 The installer/updater installs one generic Caddy site block for this namespace.
 There is no per-application Caddy configuration to maintain.
