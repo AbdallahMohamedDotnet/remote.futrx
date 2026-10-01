@@ -16,6 +16,7 @@ import {
   Menu,
   Monitor,
   ShieldCheck,
+  Server,
   Users,
 } from "../primitives/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
@@ -29,17 +30,11 @@ import { UpdatesSettings } from "./UpdatesSettings";
 import { UsageSettings } from "./UsageSettings";
 import { UsersPanel } from "../account/UsersPanel";
 import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
+import { ApplicationsSection } from "../applications/ApplicationsSection";
+import type { ApplicationsController } from "../../state/hooks/applications/useApplications";
 
-export type SettingsTab =
-  | "appearance"
-  | "notifications"
-  | "agents"
-  | "users"
-  | "security"
-  | "updates"
-  | "info"
-  | "usage"
-  | "email";
+import type { SettingsTab } from "../../models/workspace";
+export type { SettingsTab } from "../../models/workspace";
 
 const tabs: Array<{
   id: SettingsTab;
@@ -68,7 +63,7 @@ const tabs: Array<{
   {
     id: "usage",
     label: "Usage",
-    description: "Track tokens and estimated cost per project, user, provider, and model.",
+    description: "Track token usage per project, user, provider, and model.",
     Icon: Activity,
   },
   {
@@ -82,6 +77,12 @@ const tabs: Array<{
     label: "Security",
     description: "Manage two-factor authentication, sessions, and sign-in history.",
     Icon: ShieldCheck,
+  },
+  {
+    id: "applications",
+    label: "Applications",
+    description: "Install databases and services that run globally on this server.",
+    Icon: Server,
   },
   {
     id: "updates",
@@ -98,7 +99,7 @@ const tabs: Array<{
   {
     id: "email",
     label: "Email",
-    description: "Send mail from this server through your Gmail account.",
+    description: "Send mail from this server through SMTP.",
     Icon: Mail,
   },
 ];
@@ -136,6 +137,7 @@ export function SettingsPage({
   onCheckForUpdates,
   onApplyUpdate,
   onAppearanceThemeChange,
+  applications,
 }: {
   activeTab: SettingsTab;
   currentEmail: string;
@@ -169,6 +171,7 @@ export function SettingsPage({
   onCheckForUpdates: () => Promise<void>;
   onApplyUpdate: (tag?: string) => Promise<void>;
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
+  applications: ApplicationsController;
 }) {
   const activeTabDetails = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 
@@ -284,6 +287,15 @@ export function SettingsPage({
 
             {activeTab === "security" && <SecuritySettings controller={security} />}
 
+            {activeTab === "applications" &&
+              (isAdmin ? (
+                <ApplicationsSection controller={applications} />
+              ) : (
+                <SettingsNotice>
+                  Global applications are managed by server administrators.
+                </SettingsNotice>
+              ))}
+
             {activeTab === "updates" &&
               (isAdmin ? (
                 <UpdatesSettings
@@ -301,6 +313,7 @@ export function SettingsPage({
                   Application updates are managed by server administrators.
                 </SettingsNotice>
               ))}
+
 
             {activeTab === "info" && (
               <ServerInfoSettings

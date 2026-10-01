@@ -19,7 +19,7 @@ export function SidebarContainer() {
     workspace.chats
   );
   const commands = useWorkspaceCommands();
-  const signOut = useAccountSignOut();
+  const signOut = useAccountSignOut(auth.email || auth.adminEmail);
   const search = useSidebarSearch();
   const openPalette = useOpenCommandPalette();
   const model = useMemo(
@@ -50,6 +50,7 @@ export function SidebarContainer() {
       onDeleteChat={commands.deleteChat}
       onToggleChatUnread={commands.toggleChatUnread}
       onForkChat={commands.forkChat}
+      onRenameChat={commands.renameChat}
       onReorderProjects={commands.reorderProjects}
       onOpenProjectContainers={workspace.showProjectContainers}
       onOpenSettings={workspace.showSettings}

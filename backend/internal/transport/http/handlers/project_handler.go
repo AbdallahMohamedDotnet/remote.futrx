@@ -26,17 +26,21 @@ type ProjectHandler struct {
 	users              *serviceuser.Service
 	auth               *serviceauth.Service
 	usage              *UsageHandler
+	apps               *ApplicationsHandler
 	shares             *serviceshare.Service
 	publicHostname     string
 	projectHostPattern *regexp.Regexp
 	codeHostPattern    *regexp.Regexp
 }
 
+// NewProjectHandler builds the handler. apps may be nil, which leaves the
+// per-project application routes reporting the feature unavailable.
 func NewProjectHandler(
 	projects *serviceproject.Service,
 	users *serviceuser.Service,
 	auth *serviceauth.Service,
 	publicHostname string,
+	apps *ApplicationsHandler,
 ) *ProjectHandler {
 	publicHostname = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(publicHostname)), ".")
 	escapedHostname := regexp.QuoteMeta(publicHostname)
@@ -44,6 +48,7 @@ func NewProjectHandler(
 		projects:       projects,
 		users:          users,
 		auth:           auth,
+		apps:           apps,
 		publicHostname: publicHostname,
 		projectHostPattern: regexp.MustCompile(
 			`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.` + escapedHostname + `$`,
@@ -213,6 +218,15 @@ func (h *ProjectHandler) HandleResource(w http.ResponseWriter, r *http.Request) 
 	}
 	if len(parts) >= 2 && parts[1] == "shares" {
 		h.handleShares(w, r, id, parts)
+		return
+	}
+
+	if len(parts) >= 2 && parts[1] == "applications" {
+		if h.apps == nil {
+			httptransport.SendErr(w, http.StatusServiceUnavailable, "applications unavailable")
+			return
+		}
+		h.apps.HandleProject(w, r, string(id), parts)
 		return
 	}
 
@@ -470,6 +484,24 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing domain", http.StatusBadRequest)
 		return
 	}
+	if httptransport.IsApplicationHost(domain, h.publicHostname) {
+		id, valid := httptransport.ApplicationInstanceID(domain, h.publicHostname)
+		if !valid || h.apps == nil || h.apps.apps == nil {
+			http.NotFound(w, r)
+			return
+		}
+		target, available, err := h.apps.apps.WebTarget(r.Context(), id)
+		if err != nil || !available {
+			http.NotFound(w, r)
+			return
+		}
+		if _, err := h.projects.Get(r.Context(), serviceproject.ID(target.ProjectID)); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	var slug string
 	if mm := h.projectHostPattern.FindStringSubmatch(domain); mm != nil {
 		slug = mm[1]
@@ -682,6 +714,8 @@ func sendProjectError(w http.ResponseWriter, err error) {
 		httptransport.SendErr(w, http.StatusConflict, err.Error())
 	case errors.Is(err, serviceproject.ErrNotFound):
 		httptransport.SendErr(w, http.StatusNotFound, "project not found")
+	case errors.Is(err, serviceproject.ErrInsufficientStorage):
+		httptransport.SendErr(w, http.StatusInsufficientStorage, err.Error())
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 	}
