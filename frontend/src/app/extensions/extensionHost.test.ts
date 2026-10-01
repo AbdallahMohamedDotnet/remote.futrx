@@ -267,3 +267,25 @@ test("a failed extension list leaves what is loaded alone", async (t) => {
 
   assert.equal(panelContributions().length, 1);
 });
+
+test("loaded extensions see replaced and removed installations without reactivation", async (t) => {
+  const first = { ...helloExtension(false), application: { ...helloExtension(false).application, backend: {} }, projectIds: ["p1"], backends: [
+    { instanceId: "old", scope: "project" as const, projectId: "p1" },
+  ] };
+  const replacement = { ...first, backends: [{ ...first.backends[0], instanceId: "new" }] };
+  serveExtensions(t, [ [first], [replacement], [] ]);
+  let remote!: ExtensionApi;
+  let activations = 0;
+  const { registry } = createRegistry();
+  const host = new ExtensionHost(registry, async () => ({ default(api) { remote = api; activations++; } }));
+  await host.sync();
+  assert.equal(remote.backend.instances[0].instanceId, "old");
+  assert.equal(remote.backend.available, true);
+  await host.sync();
+  assert.equal(activations, 1);
+  assert.equal(remote.backend.instances[0].instanceId, "new");
+  assert.equal(remote.backend.url("health", { projectId: "p1" }), "/api/projects/p1/applications/new/backend/health");
+  await host.sync();
+  assert.deepEqual(remote.backend.instances, []);
+  assert.equal(remote.backend.available, false);
+});

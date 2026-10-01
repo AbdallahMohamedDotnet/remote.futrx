@@ -8,15 +8,20 @@ import type { ExtensionBackendTarget } from "../../models/extension.ts";
  * explicit instance, matching project, global install, then first install.
  */
 export class ExtensionBackendTargets {
-  readonly instances: AppBackendInstance[];
+  private readonly currentInstances: () => AppBackendInstance[];
   private readonly applicationId: string;
 
   constructor(
     applicationId: string,
-    backends: AppBackendInstance[],
+    backends: AppBackendInstance[] | (() => AppBackendInstance[]),
   ) {
     this.applicationId = applicationId;
-    this.instances = [...backends];
+    const snapshot = typeof backends === "function" ? backends : () => backends;
+    this.currentInstances = snapshot;
+  }
+
+  get instances(): AppBackendInstance[] {
+    return [...this.currentInstances()];
   }
 
   url(path: string, target?: ExtensionBackendTarget): string {

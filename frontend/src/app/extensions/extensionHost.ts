@@ -1,6 +1,6 @@
 import { applicationsApi } from "../../api/applicationsApi.ts";
 import { API_ROUTES } from "../../config/routes.ts";
-import type { AppApplication, AppUIExtension } from "../../models/application";
+import type { AppApplication, AppBackendInstance, AppUIExtension } from "../../models/application";
 import type {
   ExtensionApi,
   ExtensionRegistry,
@@ -30,6 +30,7 @@ export class ExtensionHost {
   private readonly registry: ExtensionRegistry;
   private readonly loadEntryModule: LoadEntryModule;
   private readonly loaded = new Set<string>();
+  private readonly backends = new Map<string, AppBackendInstance[]>();
   private inFlight: Promise<void> | null = null;
   private resyncRequested = false;
 
@@ -84,6 +85,7 @@ export class ExtensionHost {
 
     this.removeInactive(extensions);
     for (const extension of extensions) {
+      this.backends.set(extension.application.id, extension.backends ?? []);
       fileOpenerStore.getState().setProjects(extension.application.id, extension.projectIds ?? []);
       this.registry.setVisibility(
         extension.application.id,
@@ -131,7 +133,7 @@ export class ExtensionHost {
         createExtensionApi(
           application,
           this.visibilityOf(extension),
-          extension.backends ?? [],
+          () => this.backends.get(application.id) ?? [],
           this.registry,
         ),
       );
@@ -152,6 +154,7 @@ export class ExtensionHost {
     this.registry.removeApplication(applicationId);
     extensionEventService.removeApplication(applicationId);
     this.loaded.delete(applicationId);
+    this.backends.delete(applicationId);
   }
 
   private visibilityOf(extension: AppUIExtension): ExtensionVisibility {

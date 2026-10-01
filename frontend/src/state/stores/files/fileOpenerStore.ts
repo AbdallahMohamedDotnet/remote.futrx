@@ -22,8 +22,8 @@ function createFileOpenerStore() {
       },
       setProjects(applicationId, projectIds) {
         const entry = openers.get(applicationId);
-        if (entry && (entry.projectIds.length !== projectIds.length ||
-          entry.projectIds.some((id) => !projectIds.includes(id)))) {
+        // A reinstall can change the editor origin without changing project IDs.
+        if (entry) {
           entry.projectIds = projectIds;
           notify();
         }
@@ -37,7 +37,7 @@ function createFileOpenerStore() {
       *forProject(projectId) {
         if (!projectId) return;
         for (const entry of openers.values()) {
-          if (entry.projectIds.includes(projectId)) yield (request) => entry.open(request);
+          if (entry.projectIds.includes(projectId)) yield (request) => entry.open({ ...request, projectId });
         }
       },
     };

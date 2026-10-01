@@ -33,7 +33,7 @@ const ICON_BUTTON_BASE =
 export function createExtensionApi(
   application: AppApplication,
   visibility: ExtensionVisibility,
-  backends: AppBackendInstance[],
+  backends: AppBackendInstance[] | (() => AppBackendInstance[]),
   registry: ExtensionRegistry,
 ): ExtensionApi {
   const views = application.ui?.views ?? {};
