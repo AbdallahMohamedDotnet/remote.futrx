@@ -200,6 +200,24 @@ panel still greets you, reaches the supervised service, inspects the container,
 and keeps its counter across a server restart. In a project install, also
 confirm that the `hello-remote-inspector` skill is present.
 
+## Uninstall capability checks
+
+See [the focused guide](21-application-uninstall-scripts.md) for source/test ownership and
+verification limits. Run applicable Go tests and frontend tests/builds;
+unit command assertions do not replace a live container or browser check.
+
+## Json capability checks
+
+See [the focused guide](22-application-json-settings.md) for source/test ownership and
+verification limits. Run applicable Go tests and frontend tests/builds;
+unit command assertions do not replace a live container or browser check.
+
+## Files capability checks
+
+See [the focused guide](23-application-file-openers.md) for source/test ownership and
+verification limits. Run applicable Go tests and frontend tests/builds;
+unit command assertions do not replace a live container or browser check.
+
 ## Recovery capability checks
 
 See [the focused guide](24-application-container-recovery.md) for source/test ownership and

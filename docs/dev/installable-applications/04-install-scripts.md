@@ -251,3 +251,34 @@ The fastest loop:
 - **Network assumptions beyond the container.** A dedicated global container
   has network by the time the script runs (the installer waits for an IPv4
   route), but nothing else is guaranteed.
+
+## Uninstall scripts
+
+An application may also declare `"uninstall": "infra/uninstall.sh"`. For a
+project installation, Remote first stops and disables the service, then runs
+this script as root in the project container with the same application
+environment, and finally removes Remote-owned service files. Use it to purge
+packages and application-owned settings that should not survive uninstall.
+The script should tolerate files or packages that are already absent: Retry
+uses the same cleanup after a failed partial install. A non-zero exit keeps
+the instance record so the user can retry uninstall. Global uninstall deletes
+the application's dedicated container instead.
+
+The field must be explicit; merely adding `infra/uninstall.sh` does not enable
+it. The relative path must stay under `infra/`, exist, and accompany a container
+capability. It receives `APP_*` metadata and resolved `env[]` values, runs with
+the same eight-minute timeout, and includes the output tail in errors. Cleanup
+uses the script from the currently loaded catalog.
+
+| Container state | Project uninstall with a cleanup script |
+|---|---|
+| Running | Request service shutdown, run cleanup, then remove generated units/skills and the instance through the service layer |
+| Exists but stopped | Return an error requiring the project container to be started; do not silently start it |
+| Missing | Skip the script; persistent workspace files are not thereby deleted |
+
+If cleanup fails, later teardown and record deletion do not run, but earlier
+proxy removal and stop requests are not rolled back. The previous database
+status can remain unchanged. Stop/disable and generated-file removal are
+currently best-effort commands, so verify real cleanup in a container.
+
+See the [full teardown flow](21-application-uninstall-scripts.md#removing-a-project-installation).

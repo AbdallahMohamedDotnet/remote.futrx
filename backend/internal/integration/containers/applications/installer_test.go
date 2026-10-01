@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
@@ -18,6 +19,8 @@ type fakeRunner struct {
 	running     map[string]bool
 	missingUnit bool
 	calls       [][]string
+	stdinBodies []string
+	stdinErr    error
 }
 
 func newFakeRunner(running ...string) *fakeRunner {
@@ -51,9 +54,10 @@ func (f *fakeRunner) Run(_ context.Context, args ...string) (string, error) {
 func (f *fakeRunner) RunStdin(_ context.Context, stdin io.Reader, args ...string) (string, error) {
 	f.calls = append(f.calls, args)
 	if stdin != nil {
-		_, _ = io.ReadAll(stdin)
+		body, _ := io.ReadAll(stdin)
+		f.stdinBodies = append(f.stdinBodies, string(body))
 	}
-	return "", nil
+	return "", f.stdinErr
 }
 
 // commands returns each recorded invocation as one space-joined string.
@@ -446,6 +450,46 @@ func TestUninstallProjectScopeKeepsTheProjectContainer(t *testing.T) {
 	if !runner.contains("rm -f /etc/systemd/system/fixture.service /etc/remote/workspace-idle.d/fixture") ||
 		!runner.contains("rm -rf /etc/remote/applications/fixture") {
 		t.Error("want Remote-owned service files removed")
+	}
+}
+
+func TestUninstallProjectRunsDeclaredCleanupBeforeRemovingServiceFiles(t *testing.T) {
+	catalog := fixtureCatalog()
+	manifest := string(catalog["applications/"+fixtureService+"/application.json"].Data)
+	manifest = strings.Replace(manifest, `"version": "1.0.0",`, `"version": "1.0.0", "uninstall": "infra/uninstall.sh",`, 1)
+	catalog["applications/"+fixtureService+"/application.json"] = &fstest.MapFile{Data: []byte(manifest)}
+	catalog["applications/"+fixtureService+"/infra/uninstall.sh"] = &fstest.MapFile{Data: []byte("echo cleanup\n")}
+	registry, err := NewRegistry(catalog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := newFakeRunner("my-project")
+	installer := NewInstaller(runner, registry, t.TempDir())
+	spec := serviceSpec(svc.ScopeProject, "my-project")
+	if err := installer.Uninstall(context.Background(), spec); err != nil {
+		t.Fatalf("uninstall: %v", err)
+	}
+	if len(runner.stdinBodies) != 1 || runner.stdinBodies[0] != "echo cleanup\n" {
+		t.Fatalf("cleanup script sent to container: %q", runner.stdinBodies)
+	}
+	commands := strings.Join(runner.commands(), "\n")
+	if strings.Index(commands, "systemctl disable --now fixture") > strings.Index(commands, "bash -s") ||
+		strings.Index(commands, "bash -s") > strings.Index(commands, "rm -f /etc/systemd/system/fixture.service") {
+		t.Fatalf("wrong teardown order:\n%s", commands)
+	}
+
+	runner.stdinErr = fmt.Errorf("cleanup failed")
+	if err := installer.Uninstall(context.Background(), spec); err == nil || !strings.Contains(err.Error(), "cleanup failed") {
+		t.Fatalf("failed cleanup should keep the instance retryable: %v", err)
+	}
+
+	missing := newFakeRunner()
+	installer = NewInstaller(missing, registry, t.TempDir())
+	if err := installer.Uninstall(context.Background(), spec); err != nil {
+		t.Fatalf("missing project container has nothing to clean up: %v", err)
+	}
+	if len(missing.stdinBodies) != 0 {
+		t.Fatal("ran cleanup in a missing project container")
 	}
 }
 

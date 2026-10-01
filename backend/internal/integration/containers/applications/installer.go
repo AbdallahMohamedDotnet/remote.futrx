@@ -205,37 +205,6 @@ func (in *Installer) Stop(ctx context.Context, spec svc.InstallSpec) error {
 	return nil
 }
 
-// Uninstall removes the proxy device and, for global scope, deletes the
-// dedicated container outright. For project scope it stops and disables the
-// service; installed packages and data remain in the project container.
-func (in *Installer) Uninstall(ctx context.Context, spec svc.InstallSpec) error {
-	inst := spec.Instance
-	if inst.Scope == svc.ScopeGlobal {
-		// A failed legacy install may have been persisted before container target
-		// resolution completed. There is no container footprint to remove in that
-		// case, and passing an empty name to LXD turns Retry into a permanent error.
-		if inst.ContainerName == "" {
-			return nil
-		}
-		// Deleting the container also drops its proxy device.
-		if _, err := command.RunWithTimeout(ctx, in.runner, launchTimeout, "delete", "--force", inst.ContainerName); err != nil {
-			if !isMissing(err, "") {
-				return fmt.Errorf("delete app container %s: %w", inst.ContainerName, err)
-			}
-		}
-		return nil
-	}
-	if err := in.removeDevice(ctx, inst.ContainerName, inst.DeviceName); err != nil {
-		return err
-	}
-	if svcName := spec.Application.ServiceName(); svcName != "" {
-		_, _ = in.exec(ctx, inst.ContainerName, nil, controlTimeout, "systemctl", "disable", "--now", svcName)
-		in.removeServiceFiles(ctx, spec)
-	}
-	in.removeSkills(ctx, spec)
-	return nil
-}
-
 // publishSkills puts an application's skills where the project's agent reads them.
 // A global app has no project workspace, so it publishes nothing.
 func (in *Installer) publishSkills(ctx context.Context, spec svc.InstallSpec) error {

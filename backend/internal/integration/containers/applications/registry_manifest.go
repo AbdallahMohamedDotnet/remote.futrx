@@ -38,6 +38,7 @@ type applicationManifestSchema struct {
 	Env           []svc.EnvVar                          `json:"env,omitempty"`
 	Service       *svc.ApplicationService               `json:"service,omitempty"`
 	Install       string                                `json:"install"`
+	Uninstall     string                                `json:"uninstall,omitempty"`
 	Healthcheck   svc.Healthcheck                       `json:"healthcheck,omitempty"`
 	Connection    svc.Connection                        `json:"connection,omitempty"`
 	Base          string                                `json:"base,omitempty"`
