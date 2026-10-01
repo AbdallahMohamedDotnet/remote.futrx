@@ -284,14 +284,17 @@ The project computer is the capability boundary: agents can install tools, run s
 
 ### 1. Point DNS to the server
 
-Every project gets its own HTTPS address, so Remote needs a hostname with wildcard subdomains under it. Pick whichever case describes you — Caddy automatically issues and renews a base-domain certificate and one wildcard certificate after you configure your DNS provider.
+Every project gets its own HTTPS address, so Remote needs a hostname with wildcard subdomains under it. Pick whichever case describes you — HTTPS is automatic in all three, with free Let's Encrypt certificates issued and renewed for you.
 
 **If you already own a domain,** use a subdomain of it. For a base domain such as `remote.example.com`, create these records, all pointing at your server's IP address:
 
 | DNS name | Purpose |
 | --- | --- |
 | `remote.example.com` | Remote web app |
-| `*.remote.example.com` | All application, preview, and browser IDE hosts |
+| `code.remote.example.com` | Browser IDE |
+| `*.code.remote.example.com` | Per-project browser IDEs |
+| `*.dev.remote.example.com` | Per-project application previews |
+| `*.apps.remote.example.com` | Installed project applications, one origin per installation |
 
 **If you want a free hostname,** [DuckDNS](https://www.duckdns.org) is the quickest, because it resolves every subdomain automatically and there are no DNS records to create:
 
@@ -307,11 +310,6 @@ Then install using `yourname.duckdns.org` as the hostname.
 > Free dynamic-DNS providers are community-run with no uptime guarantee, and some corporate networks block all of `*.duckdns.org` because of unrelated abuse elsewhere on it. If a preview link refuses to open at the office, that is usually why, and a domain you own avoids it.
 
 **If you have neither,** a domain costs around $10 a year and gives you the shortest, most reliable URLs. Register one and follow the first case.
-
-Configure your chosen provider using [Wildcard HTTPS](docs/dev/wildcard-https.md)
-before installing or upgrading. Wildcard issuance requires DNS API credentials
-and the matching Caddy DNS module; resolving a wildcard DNS record alone is not
-sufficient. Remote preserves this provider configuration across updates.
 
 ### 2. Install Remote
 

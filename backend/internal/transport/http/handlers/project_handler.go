@@ -9,8 +9,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 
+	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	serviceshare "github.com/futrx-com/remote.futrx.com/internal/service/share"
@@ -19,13 +22,15 @@ import (
 )
 
 type ProjectHandler struct {
-	projects       *serviceproject.Service
-	users          *serviceuser.Service
-	auth           *serviceauth.Service
-	usage          *UsageHandler
-	apps           *ApplicationsHandler
-	shares         *serviceshare.Service
-	publicHostname string
+	projects           *serviceproject.Service
+	users              *serviceuser.Service
+	auth               *serviceauth.Service
+	usage              *UsageHandler
+	apps               *ApplicationsHandler
+	shares             *serviceshare.Service
+	publicHostname     string
+	projectHostPattern *regexp.Regexp
+	codeHostPattern    *regexp.Regexp
 }
 
 // NewProjectHandler builds the handler. apps may be nil, which leaves the
@@ -38,12 +43,19 @@ func NewProjectHandler(
 	apps *ApplicationsHandler,
 ) *ProjectHandler {
 	publicHostname = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(publicHostname)), ".")
+	escapedHostname := regexp.QuoteMeta(publicHostname)
 	return &ProjectHandler{
 		projects:       projects,
 		users:          users,
 		auth:           auth,
 		apps:           apps,
 		publicHostname: publicHostname,
+		projectHostPattern: regexp.MustCompile(
+			`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.` + escapedHostname + `$`,
+		),
+		codeHostPattern: regexp.MustCompile(
+			`^([a-z0-9][a-z0-9-]*)\.code\.` + escapedHostname + `$`,
+		),
 	}
 }
 
@@ -66,6 +78,7 @@ func (h *ProjectHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/projects", h.HandleCollection)
 	mux.HandleFunc("/api/projects/reorder", h.HandleReorder)
 	mux.HandleFunc("/api/projects/", h.HandleResource)
+	mux.HandleFunc("/internal/tls-ask", h.HandleTLSAsk)
 }
 
 func (h *ProjectHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
@@ -456,7 +469,59 @@ func buildAgentBrowserURL(r *http.Request, slug string, port int) string {
 			scheme = "https"
 		}
 	}
-	return fmt.Sprintf("%s://dev--%s--%d.%s/vnc.html?autoconnect=1&resize=scale&reconnect=1", scheme, slug, port, host)
+	return fmt.Sprintf("%s://%s--%d.dev.%s/vnc.html?autoconnect=1&resize=scale&reconnect=1", scheme, slug, port, host)
+}
+
+// HandleTLSAsk lets Caddy issue on-demand certificates only for preview and
+// code subdomains belonging to projects that currently exist.
+func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	domain := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("domain")))
+	if domain == "" {
+		http.Error(w, "missing domain", http.StatusBadRequest)
+		return
+	}
+	if httptransport.IsApplicationHost(domain, h.publicHostname) {
+		id, valid := httptransport.ApplicationInstanceID(domain, h.publicHostname)
+		if !valid || h.apps == nil || h.apps.apps == nil {
+			http.NotFound(w, r)
+			return
+		}
+		target, available, err := h.apps.apps.WebTarget(r.Context(), id)
+		if err != nil || !available || target.Subdomain != "" {
+			http.NotFound(w, r)
+			return
+		}
+		if _, err := h.projects.Get(r.Context(), serviceproject.ID(target.ProjectID)); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	var slug string
+	if mm := h.projectHostPattern.FindStringSubmatch(domain); mm != nil {
+		slug = mm[1]
+		port, err := strconv.Atoi(mm[2])
+		if err != nil || port < configconstants.ProjectPreviewMinPort || port > configconstants.ProjectPreviewMaxPort {
+			http.Error(w, "port out of range", http.StatusNotFound)
+			return
+		}
+	} else if mm := h.codeHostPattern.FindStringSubmatch(domain); mm != nil {
+		slug = mm[1]
+	} else {
+		http.Error(w, "host not a recognized project domain", http.StatusNotFound)
+		return
+	}
+
+	if _, err := h.projects.GetBySlug(r.Context(), slug); err != nil {
+		http.Error(w, "no such project", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *ProjectHandler) handleSecrets(w http.ResponseWriter, r *http.Request, id serviceproject.ID, parts []string) {

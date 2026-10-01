@@ -136,6 +136,7 @@ whole-catalog timeout.
 | PUT, DELETE | `/api/projects/{id}/secrets/{key}` | Set or delete one secret |
 | GET, POST | `/api/projects/{id}/access` | List members or add a registered email |
 | DELETE | `/api/projects/{id}/access/{email}` | Remove a member |
+| GET | `/internal/tls-ask?domain=...` | Caddy allow-check for on-demand project certificates |
 
 Every `{id}` project route first requires admin status or project membership. Resource-limit changes and project deletion add an admin-only check.
 

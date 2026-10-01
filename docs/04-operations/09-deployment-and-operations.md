@@ -110,18 +110,18 @@ flowchart TD
     Internet["Internet"] --> Caddy
     Caddy --> Main["host → Go backend"]
     Caddy --> Launcher["code.host → IDE launcher or slug path"]
-    Caddy --> ProjectIDE["code.host/slug/ → slug.lxd:8842"]
-    Caddy --> Preview["dev--slug--port.host → slug.lxd:port"]
+    Caddy --> ProjectIDE["slug.code.host → slug.lxd:8842"]
+    Caddy --> Preview["slug--port.dev.host → slug.lxd:port"]
     Caddy --> Inspector["preview /__remote_inspector → Go backend"]
 
     ProjectIDE --> Auth["forward_auth /auth/verify"]
     Preview --> Auth
     Launcher --> Auth
-    ProjectIDE --> TLS["Shared wildcard TLS; authorization on each request"]
+    ProjectIDE --> TLS["on-demand TLS checked by /internal/tls-ask"]
     Preview --> TLS
 ```
 
-Caddy validates its rendered configuration before replacing the live file. It manages only the platform and wildcard certificates using the administrator-selected DNS provider. See [Wildcard HTTPS](../dev/wildcard-https.md) for setup and URL migration.
+Caddy validates its rendered configuration before replacing the live file. On-demand certificate requests are accepted only for existing project slugs and permitted hostname formats.
 
 ## Base-image build
 
@@ -330,7 +330,7 @@ The server-info settings page reports host, CPU, memory, storage, network, and G
 - Internal Caddy helper routes are denied externally.
 - Secret, auth, access, and user files use restrictive permissions.
 - SSH password and keyboard-interactive authentication are disabled after install.
-- TLS automation manages only the base and wildcard names; project access is checked on each request.
+- On-demand TLS issuance is restricted to valid, existing project hosts.
 - Project containers are unprivileged and receive host workspaces through mapped ownership.
 - Project containers currently share the LXD bridge without lateral ACLs; code-server and noVNC rely on Caddy for public authentication and do not independently authenticate direct bridge traffic.
 

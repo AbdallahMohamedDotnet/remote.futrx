@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate a provider-enabled Caddy and the two-name HTTPS configuration before
+# Validate a provider-enabled Caddy and the application wildcard configuration before
 # replacing live files. Certificate issuance/storage/renewal belong to Caddy.
 set -euo pipefail
 
@@ -51,5 +51,5 @@ EOF
     fi
     # Store a private fingerprint, never the credential values, for restart detection.
     (umask 077; sha256sum "$config_dir/remote-dns.env" | cut -d ' ' -f1 > "$config_dir/remote-dns.digest")
-    ok "Caddy configured for $HOSTNAME and *.$HOSTNAME"
+    ok "Caddy configured with *.$HOSTNAME for named applications"
 )

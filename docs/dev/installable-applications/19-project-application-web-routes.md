@@ -7,7 +7,7 @@ listening on `0.0.0.0:8400`. A signed-in project member opens:
 
 ```text
 https://remote.example/apps/my-project/editor/src/main.ts?line=12
-    -> 302 https://app--abcdef123456--instance.remote.example/src/main.ts?line=12
+    -> 302 https://abcdef123456.apps.remote.example/src/main.ts?line=12
     -> proxy http://my-project.lxd:8400/src/main.ts?line=12
 ```
 
@@ -43,14 +43,15 @@ See [12 — HTTP API](12-http-api.md#project-application-web-routes) for all sta
 
 ## Infrastructure
 
-Point `<public-host>` and `*.<public-host>` at Remote. Caddy automatically issues
-and renews two certificates: one for the platform host and one wildcard for all
-its immediate subdomains. The administrator selects a Caddy DNS provider and
-configures its credentials; see [Wildcard HTTPS](../wildcard-https.md).
+For unnamed apps, point `*.apps.<public-host>` to the same server as Remote. An existing broader
+DNS wildcard may already cover it; verify an installation hostname resolves.
+The installer/updater installs one generic Caddy site block for this namespace.
+There is no per-application Caddy configuration to maintain.
 
-Both named and unnamed app origins fit that wildcard. There are no per-app
-Caddy edits, certificate requests, or TLS admission callbacks. App availability
-and membership checks happen on every HTTP/WebSocket request at the gateway.
+Caddy requests individual certificates on demand. The loopback TLS admission
+endpoint approves only valid installation IDs belonging to a running project
+web application whose project still exists. The wildcard DNS record is needed;
+a wildcard certificate or DNS-provider API integration is not.
 
 ## Security boundary
 
@@ -82,7 +83,7 @@ firewall or a restriction on authenticated previews or the shared LXD bridge.
 - [Caddyfile.tmpl](../../../infra/templates/Caddyfile.tmpl) routes application hostnames to the gateway.
 
 Go tests cover launch redirects, escaped paths/queries, access denial,
-stopped/missing apps, host isolation, credential stripping,
+stopped/missing apps, host isolation, credential stripping, TLS admission,
 browser request policy and live WebSocket proxying. The opt-in Chromium test
 checks authenticated launch, own-app requests, cookie filtering and rejected
 platform reads, writes, logout, navigation and WebSockets. Run it as described
@@ -90,7 +91,7 @@ in [11 — Testing](11-testing.md#web-capability-checks).
 
 These tests use local fixture services. Verify a real app's install/start,
 assets, redirects and WebSockets on an LXD host, along with wildcard DNS and
-wildcard TLS, when integrating a new application.
+on-demand TLS, when integrating a new application.
 
 ## Named application subdomains
 
@@ -100,23 +101,24 @@ project slug is its URL-safe name, not its display name or container ID.
 The gateway uses the existing project membership check, then finds the running
 application with that label in that project. Wrong labels, unknown projects, stopped installations
 and duplicate running labels in one project are rejected. A named app's previous
-installation-ID host is rejected. Apps without the field use the single-label
+installation-ID host is rejected. Apps without the field retain their existing
 unnamed origins described above.
 
-Deploy the updated Caddy template and DNS-provider configuration together with
-the backend/frontend changes. The wildcard site forwards application hosts to
-the backend gateway, which reserves those origins from platform API/login routing
-and returns 404 for unknown applications. Preview and built-in launcher requests
-have dedicated matchers within the same wildcard site. The combined app/project
-label must fit 63 characters. Project names and manifest labels cannot contain
-the reserved `--` separator; single hyphens are allowed.
+Deploy the updated Caddy template for these single-label names. Its wildcard site
+forwards application hosts to the existing backend gateway;
+the gateway reserves application origins from platform API/login routing and
+returns 404 for unknown applications. Existing preview and built-in code namespaces
+retain their specific Caddy routes. The combined app/project label must fit 63 characters. Project names and manifest
+labels cannot contain the reserved `--` separator. Single hyphens are allowed. DNS
+must resolve the full hostname to this ingress.
 
 Reinstalling an app preserves its hostname and browser storage. Changing the
 manifest label or project slug changes its origin, requiring updated bookmarks
 and PWA installs. Server-side Code Server settings remain separately persisted.
 
-All application hosts occupy one DNS label below the full platform hostname.
+The named host occupies one DNS label below the full platform hostname and uses
+the shared `*.<public-host>` certificate. See [Code Server wildcard HTTPS](../wildcard-https.md)
+for administrator-selected DNS-provider setup. Named hosts do not request individual
+certificates. Preview and unnamed-app TLS behavior remains unchanged.
 Existing projects are not renamed automatically. Any legacy slug containing `--`
-cannot be used for a named application host. Old `<id>.apps.<host>` bookmarks
-must be replaced with `app--<id>--instance.<host>`; the launch redirect builds
-the new address automatically. Browser-local storage does not move between origins.
+cannot be used for a named application host.

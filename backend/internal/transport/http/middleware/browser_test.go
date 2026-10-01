@@ -8,7 +8,7 @@ import (
 
 func TestBrowserProtection(t *testing.T) {
 	const platform = "remote.test"
-	const app = "app--abcdef123456--instance.remote.test"
+	const app = "abcdef123456.apps.remote.test"
 	for _, tc := range []struct {
 		name, method, host, path, origin, site, mode, dest string
 		want                                               int
@@ -33,9 +33,9 @@ func TestBrowserProtection(t *testing.T) {
 		{"application navigation", "GET", app, "/", "", "same-site", "navigate", "document", 204},
 		{"embedded application", "GET", app, "/", "", "same-site", "navigate", "iframe", 204},
 		{"application own API", "POST", app, "/api/save", "https://" + app, "same-origin", "cors", "empty", 204},
-		{"cross application write", "POST", "app--123456abcdef--instance.remote.test", "/api/save", "https://" + app, "same-site", "cors", "empty", 403},
-		{"preview forward auth", "GET", "dev--project--3000.remote.test", "/auth/verify", "", "same-site", "navigate", "iframe", 204},
-		{"preview inspector", "GET", "dev--project--3000.remote.test", "/__remote_inspector", "", "same-site", "navigate", "iframe", 204},
+		{"cross application write", "POST", "123456abcdef.apps.remote.test", "/api/save", "https://" + app, "same-site", "cors", "empty", 403},
+		{"preview forward auth", "GET", "project--3000.dev.remote.test", "/auth/verify", "", "same-site", "navigate", "iframe", 204},
+		{"preview inspector", "GET", "project--3000.dev.remote.test", "/__remote_inspector", "", "same-site", "navigate", "iframe", 204},
 		{"non-browser API client", "POST", platform, "/api/projects", "", "", "", "", 204},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

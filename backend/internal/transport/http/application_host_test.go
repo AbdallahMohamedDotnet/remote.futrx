@@ -12,18 +12,18 @@ func TestApplicationHosts(t *testing.T) {
 		host            string
 		reserved, valid bool
 	}{
-		{"app--" + id + "--instance." + base, true, true},
-		{"app--" + id + "--instance." + base + ":8443", true, true},
-		{"app--ABCDEF123456--instance." + base, true, true},
-		{"app--" + id + "--instance." + base + ".", true, true},
-		{"app--" + id + "--instance." + base + ".:8443", true, true},
-		{"code." + "app--" + id + "--instance." + base, true, false},
-		{"code.extra." + "app--" + id + "--instance." + base, true, false},
-		{"-bad." + "app--" + id + "--instance." + base, true, false},
-		{"app--bad--instance." + base, true, false},
+		{id + ".apps." + base, true, true},
+		{id + ".apps." + base + ":8443", true, true},
+		{"ABCDEF123456.apps." + base, true, true},
+		{id + ".apps." + base + ".", true, true},
+		{id + ".apps." + base + ".:8443", true, true},
+		{"code." + id + ".apps." + base, true, false},
+		{"code.extra." + id + ".apps." + base, true, false},
+		{"-bad." + id + ".apps." + base, true, false},
+		{"bad.apps." + base, true, false},
 		{"apps." + base, true, false},
 		{id + ".nested.apps." + base, true, false},
-		{"app--" + id + "--instance." + base + ".evil.test", false, false},
+		{id + ".apps." + base + ".evil.test", false, false},
 		{id + ".apps.other.test", false, false},
 		{base, false, false},
 	} {
@@ -32,7 +32,7 @@ func TestApplicationHosts(t *testing.T) {
 			t.Errorf("host %q: id=%q valid=%v", tc.host, got, valid)
 		}
 	}
-	if ApplicationHost(id, "", base) != "app--"+id+"--instance."+base || ApplicationHost("../bad", "", base) != "" {
+	if ApplicationHost(id, "", base) != id+".apps."+base || ApplicationHost("../bad", "", base) != "" {
 		t.Fatal("incorrect application hostname construction")
 	}
 }
@@ -50,7 +50,7 @@ func TestProjectApplicationHosts(t *testing.T) {
 			}
 		}
 	}
-	for _, host := range []string{"code--project.remote.test.evil", "extra.code--project.remote.test", "code.-bad.remote.test", "code.project-.remote.test", "code..remote.test", "dev--slug--3000.remote.test", "slug.code.remote.test"} {
+	for _, host := range []string{"code--project.remote.test.evil", "extra.code--project.remote.test", "code.-bad.remote.test", "code.project-.remote.test", "code..remote.test", "slug--3000.dev.remote.test", "slug.code.remote.test"} {
 		if _, _, ok := ApplicationProject(host, "remote.test"); ok {
 			t.Fatal(host)
 		}
@@ -78,22 +78,5 @@ func TestApplicationHostSeparatorAndLength(t *testing.T) {
 	}
 	if ApplicationHost("proj", strings.Repeat("a", 57), "example.com") == "" {
 		t.Fatal("rejected 63-character label")
-	}
-}
-
-func TestWildcardNamespacesDoNotCollide(t *testing.T) {
-	for _, host := range []string{"dev--project--3000.remote.test", "code.remote.test"} {
-		if IsApplicationHost(host, "remote.test") {
-			t.Fatalf("reserved application host %s", host)
-		}
-	}
-	for _, host := range []string{"dev--project.remote.test", "dev--project--invalid.remote.test", "app--abcdef123456--instance.remote.test", "project--3000.dev.remote.test", "project.code.remote.test"} {
-		if !IsApplicationHost(host, "remote.test") {
-			t.Fatalf("host can reach platform router: %s", host)
-		}
-	}
-	host := ApplicationHost("abcdef123456", "", "remote.example.com")
-	if strings.Count(strings.TrimSuffix(host, ".remote.example.com"), ".") != 0 {
-		t.Fatalf("unnamed app is outside wildcard: %s", host)
 	}
 }

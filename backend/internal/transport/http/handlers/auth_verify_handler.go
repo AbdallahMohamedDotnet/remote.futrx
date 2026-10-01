@@ -2,19 +2,17 @@ package httphandlers
 
 import (
 	"errors"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 
-	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
 
-var projectVerifyHostPattern = regexp.MustCompile(`^dev--([a-z0-9][a-z0-9-]*)--(\d{4,5})\.(.+)$`)
+var projectVerifyHostPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.(.+)$`)
 
 type authVerifyHandler struct {
 	auth   *serviceauth.Service
@@ -29,10 +27,6 @@ func (h *authVerifyHandler) RegisterRoutes(mux *http.ServeMux) {
 func (h *authVerifyHandler) verify(w http.ResponseWriter, r *http.Request) {
 	host := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Host")))
 	matchedSlug, matchedPort := h.matchPreviewHost(host)
-	if matchedSlug != "" && (matchedPort < configconstants.ProjectPreviewMinPort || matchedPort > configconstants.ProjectPreviewMaxPort) {
-		http.NotFound(w, r)
-		return
-	}
 
 	// Only the preview host class can be authorized by a public share link.
 	// The IDE hosts and the main application never reach this branch, because
@@ -69,13 +63,9 @@ func (h *authVerifyHandler) verifySession(w http.ResponseWriter, r *http.Request
 }
 
 // matchPreviewHost resolves a forwarded host to the project slug and port
-// behind a dev--<slug>--<port>.<base> preview URL. Anything else yields an
+// behind a <slug>--<port>.dev.<base> preview URL. Anything else yields an
 // empty slug, which keeps the caller on the session-only path.
 func (h *authVerifyHandler) matchPreviewHost(host string) (string, int) {
-	if name, _, err := net.SplitHostPort(host); err == nil {
-		host = name
-	}
-	host = strings.TrimSuffix(host, ".")
 	match := projectVerifyHostPattern.FindStringSubmatch(host)
 	if match == nil {
 		return "", 0

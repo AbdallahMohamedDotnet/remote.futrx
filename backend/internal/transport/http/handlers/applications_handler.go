@@ -24,7 +24,7 @@ type ApplicationsHandler struct {
 	webTransport http.RoundTripper
 }
 
-// WithWebHost enables application web origins one DNS label below publicHost.
+// WithWebHost enables per-installation web origins below apps.<publicHost>.
 func (h *ApplicationsHandler) WithWebHost(publicHost string) *ApplicationsHandler {
 	h.webHost = publicHost
 	return h

@@ -20,7 +20,7 @@ flowchart TB
     User["Browser user"]
 
     subgraph Host["Single host (Ubuntu/Debian, runs as root)"]
-        Caddy["Caddy — public HTTPS edge<br/>wildcard TLS, forward_auth, cookie stripping"]
+        Caddy["Caddy — public HTTPS edge<br/>on-demand TLS, forward_auth, cookie stripping"]
         Go["Go backend — 127.0.0.1:7682<br/>embedded Preact SPA + REST + WebSockets"]
         Stores["Stores under DATA_DIR<br/>JSON metadata + JSONL chat logs<br/>derived SQLite chat index"]
         LXD["LXD daemon"]
@@ -54,22 +54,20 @@ flowchart TB
 - There is **no external database service.** Authoritative platform state is flat files under `DATA_DIR` (`/opt/remote.futrx/data`): JSON for auth/users/projects/access/secrets and append-only JSONL for chat event logs. A disposable embedded SQLite database persists chat event offsets and transcript-turn ranges for bounded reads, validating them against JSONL file metadata and a prefix fingerprint before extending them. Concurrency is guarded by in-process mutexes only.
 - Each project is **one unprivileged LXD container** built from a shared base image (`futrx-remote-dev-base`: Ubuntu 24.04 + Node 22 + pinned agent CLIs + Chromium + code-server). Durable state lives on the host and is bind-mounted in.
 
-## Public host classes
+## The four public host classes
 
-Caddy ([`infra/templates/Caddyfile.tmpl`](infra/templates/Caddyfile.tmpl)) terminates HTTPS for the base hostname and its wildcard and routes each differently. This routing table *is* the external attack surface:
+Caddy ([`infra/templates/Caddyfile.tmpl`](infra/templates/Caddyfile.tmpl)) terminates HTTPS for four classes of hostname and routes each differently. This routing table *is* the external attack surface:
 
 | Host pattern | Routes to | Auth at the edge |
 | --- | --- | --- |
 | `remote.example.com` (main) | Go backend on loopback | App session middleware; `/internal/*` blocked externally |
-| `code.<host>/<slug>/` | code-server IDE in container on `:8842` | `forward_auth` → `/auth/verify` (**registered user only — no project membership check**) |
-| `dev--<slug>--<port>.<host>` | Project dev server on `<slug>.lxd:<port>` | `forward_auth` → `/auth/verify` (**project membership enforced**, or a valid public share link for that exact slug+port) |
-| `dev--<slug>--6080.<host>` | Agent Browser noVNC on `:6080` | `forward_auth` → `/auth/verify` (project membership, via the dev pattern) |
-
-| `<app-label>--<slug>.<host>` or `app--<instance-id>--instance.<host>` | Application gateway, then manifest port in the project container | Session, project membership, and running application checks |
+| `code.<host>` and `<slug>.code.<host>` | code-server IDE in container on `:8842` | `forward_auth` → `/auth/verify` (**registered user only — no project membership check**) |
+| `<slug>--<port>.dev.<host>` | Project dev server on `<slug>.lxd:<port>` | `forward_auth` → `/auth/verify` (**project membership enforced**, or a valid public share link for that exact slug+port) |
+| `<slug>--6080.dev.<host>` | Agent Browser noVNC on `:6080` | `forward_auth` → `/auth/verify` (project membership, via the dev pattern) |
 
 Two properties of this table are load-bearing and both are analyzed in the threat model:
 
-1. **Caddy manages two certificate names**: the platform hostname and its wildcard. The administrator selects the DNS provider for wildcard DNS-01 validation. Authorization happens on every request, independently of TLS ([setup and URL migration](docs/dev/wildcard-https.md)).
+1. **Wildcard subdomains use on-demand TLS**, gated by the backend's `/internal/tls-ask` so only slugs of existing projects can mint certificates ([`project_handler.go` `HandleTLSAsk`](backend/internal/transport/http/handlers/project_handler.go)).
 2. **Caddy strips the platform cookies** (`remote_session`, `remote_2fa_pending`, `remote_oauth_state`, `return_to`, `remote_share`) via `header_up` before proxying any request into a container, so untrusted in-container code can never see a replayable session token. This is the mechanism behind the "isolated previews" claim.
 
 ## Backend layering
@@ -289,7 +287,7 @@ overlap, authorization, cron, and crash-recovery state machine.
 
 Three capabilities live inside each container ([deep dive](docs/03-platform/06-previews-and-browser.md)):
 
-- **App previews:** the backend runs `ss` inside the container to discover listening ports ([`listeners/scanner.go`](backend/internal/integration/containers/listeners/scanner.go), loopback binds excluded), and each becomes a `dev--<slug>--<port>.<host>` URL. No per-app proxy config is written — DNS + Caddy regex do the routing.
+- **App previews:** the backend runs `ss` inside the container to discover listening ports ([`listeners/scanner.go`](backend/internal/integration/containers/listeners/scanner.go), loopback binds excluded), and each becomes a `<slug>--<port>.dev.<host>` URL. No per-app proxy config is written — DNS + Caddy regex do the routing.
 - **Per-project IDE:** a pinned code-server listens on `127.0.0.1:8081` with `auth: none`, reachable only through a socket-activated proxy on `:8842` that scales to zero when idle. Authentication is entirely at the Caddy edge.
 - **Agent Browser:** one shared headed Chromium per project, driven by the user via noVNC (`:6080`) and by the agent via MCP-over-CDP (`127.0.0.1:9222`) — the *same* browser session, so the agent inherits whatever sites the user logged into. The human UI can start and view it directly; selecting the `browser` skill enables agent MCP access for Claude, Codex, or MiniMax.
 

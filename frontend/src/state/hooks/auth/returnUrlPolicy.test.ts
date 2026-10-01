@@ -6,7 +6,7 @@ const configuredOrigin = "https://remote.example.com";
 
 test("accepts the configured origin and its project subdomains", () => {
   const originTarget = "https://remote.example.com/settings";
-  const projectTarget = "https://dev--project--3000.remote.example.com/chat";
+  const projectTarget = "https://project--3000.dev.remote.example.com/chat";
 
   assert.equal(returnUrlPolicy.safeTarget(originTarget, configuredOrigin), originTarget);
   assert.equal(returnUrlPolicy.safeTarget(projectTarget, configuredOrigin), projectTarget);

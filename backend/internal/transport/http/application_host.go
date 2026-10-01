@@ -8,12 +8,10 @@ import (
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
 
-var previewHostLabel = regexp.MustCompile(`^dev--[a-z0-9][a-z0-9-]*--\d{4,5}$`)
-
 var applicationInstanceLabel = regexp.MustCompile(`^[a-f0-9]{12}$`)
 
-// ApplicationHost puts named and unnamed apps one DNS label below the platform.
-// The two separators in unnamed hosts keep them distinct from named app hosts.
+// ApplicationHost uses a project slug for named apps. Unnamed apps retain their
+// existing installation origin until they opt into a manifest subdomain.
 func ApplicationHost(identity, subdomain, publicHost string) string {
 	if publicHost == "" || !svc.ValidWebSubdomain(subdomain) {
 		return ""
@@ -27,7 +25,7 @@ func ApplicationHost(identity, subdomain, publicHost string) string {
 	if !applicationInstanceLabel.MatchString(identity) {
 		return ""
 	}
-	return "app--" + identity + "--instance." + publicHost
+	return identity + ".apps." + publicHost
 }
 
 // validProjectApplicationLabel owns the combined app/project DNS-label rules.
@@ -53,9 +51,10 @@ func IsApplicationHost(host, publicHost string) bool {
 		return false
 	}
 	prefix := strings.TrimSuffix(host, "."+base)
-	// Only the built-in launcher and valid preview hosts bypass the app gateway.
-	// All other subdomains, including obsolete nested hosts, fail closed here.
-	return prefix != "code" && !previewHostLabel.MatchString(prefix)
+	labels := strings.Split(prefix, ".")
+	// Keep the existing preview and built-in editor namespaces with their handlers.
+	last := labels[len(labels)-1]
+	return last == "apps" || (last != "dev" && last != "code")
 }
 
 // ApplicationProject returns the manifest label and project slug of a named host.
@@ -72,15 +71,12 @@ func ApplicationProject(host, publicHost string) (string, string, bool) {
 }
 
 func ApplicationInstanceID(host, publicHost string) (string, bool) {
-	suffix := "--instance." + requestHostname(publicHost)
+	suffix := ".apps." + requestHostname(publicHost)
 	host = requestHostname(host)
 	if publicHost == "" || !strings.HasSuffix(host, suffix) {
 		return "", false
 	}
-	id := strings.TrimPrefix(strings.TrimSuffix(host, suffix), "app--")
-	if !strings.HasPrefix(host, "app--") {
-		return "", false
-	}
+	id := strings.TrimSuffix(host, suffix)
 	return id, applicationInstanceLabel.MatchString(id)
 }
 

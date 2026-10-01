@@ -439,14 +439,14 @@ cat <<EOF
  ✓ Installed at:  $INSTALL_DIR
  ✓ Main UI:       https://$HOSTNAME
  ✓ Code editor:   https://code.$HOSTNAME
- ✓ Dev URLs:      https://dev--<slug>--<port>.$HOSTNAME
- ✓ DB viewers:    lazy per project at https://dev--<slug>--18080.$HOSTNAME
+ ✓ Dev URLs:      https://<slug>--<port>.dev.$HOSTNAME
+ ✓ DB viewers:    lazy per project at https://<slug>--18080.dev.$HOSTNAME
  ✓ Base image:    futrx-remote-dev-base (project containers launch from this)
 
  $AUTH_NOTE
 
  Next:
-   1. Open https://$HOSTNAME (Caddy manages the base and wildcard certificates)
+   1. Open https://$HOSTNAME (Caddy fetches the cert on first hit, ~10s)
    2. Create the administrator email and password
    3. Finish setup for at least one access-gate coding agent
    4. Before inviting users, configure Google sign-in in Settings → Users

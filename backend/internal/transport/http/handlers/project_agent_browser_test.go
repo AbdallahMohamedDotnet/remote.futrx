@@ -44,7 +44,7 @@ func TestProjectAgentBrowserRoutes(t *testing.T) {
 	if err := json.NewDecoder(startRec.Body).Decode(&started); err != nil {
 		t.Fatal(err)
 	}
-	wantURL := "https://dev--" + project.Slug + "--6080.remote.futrx.com/vnc.html?autoconnect=1&resize=scale&reconnect=1"
+	wantURL := "https://" + project.Slug + "--6080.dev.remote.futrx.com/vnc.html?autoconnect=1&resize=scale&reconnect=1"
 	if started.Status != serviceproject.AgentBrowserStatusStarting || started.URL != "" || started.Slug != project.Slug || started.Port != 6080 {
 		t.Fatalf("POST response = %#v", started)
 	}
