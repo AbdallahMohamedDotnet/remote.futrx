@@ -1,23 +1,6 @@
 package applications
 
-import (
-	"context"
-	"regexp"
-)
-
-var webSubdomainLabel = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
-
-// ValidWebSubdomain accepts one DNS label, or empty for existing unnamed apps.
-func ValidWebSubdomain(label string) bool { return label == "" || webSubdomainLabel.MatchString(label) }
-
-// WebTarget contains only the routing identity of a running project web app.
-// Caller/project authorization belongs to the transport; secrets never leave here.
-type WebTarget struct {
-	Subdomain  string
-	InstanceID string
-	ProjectID  string
-	Port       int
-}
+import "context"
 
 func (s *Service) ProjectWebTarget(ctx context.Context, projectID, applicationID string) (WebTarget, bool, error) {
 	instances, err := s.store.ListProject(ctx, projectID)
