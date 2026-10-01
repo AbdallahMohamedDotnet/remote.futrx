@@ -94,13 +94,18 @@ func TestPermissionPackageDependsOnlyOnItsOwnPorts(t *testing.T) {
 // models is the vocabulary at the bottom of the layering: it may not import
 // the RBAC package or the evaluator that builds on it.
 func TestModelsImportNoRBACParent(t *testing.T) {
+	seen := false
 	for _, source := range productionSources(t) {
 		if source.dir != "internal/rbac/models" {
 			continue
 		}
+		seen = true
 		if imported, bad := importsAny(source.imports, "rbac"); bad {
 			t.Errorf("%s imports %s; models must not depend on its RBAC parents", source.path, imported)
 		}
+	}
+	if !seen {
+		t.Fatal("models package not found; the scan is not seeing the sources")
 	}
 }
 

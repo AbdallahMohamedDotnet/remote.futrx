@@ -71,19 +71,6 @@ func (systemOnlyAuthorizer) Require(ctx context.Context, _ permission.Check) err
 	return nil
 }
 
-// require is the one helper every protected entry point uses, so each builds
-// the same check. The identifier is validated first so a malformed one keeps
-// its ErrInvalidID meaning instead of surfacing as an invalid scope.
-func (s *Service) require(ctx context.Context, key permission.Key, id ID) error {
-	if !ValidID(id) {
-		return ErrInvalidID
-	}
-	return s.authorizer.Require(ctx, permission.Check{
-		Permission: key,
-		Scope:      permission.ProjectScope(string(id)),
-	})
-}
-
 // projectAuthorizer checks one bound permission for a project.
 type projectAuthorizer func(ctx context.Context, id ID) error
 

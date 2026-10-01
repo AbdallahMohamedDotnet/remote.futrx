@@ -292,6 +292,26 @@ func TestPermissionDefinitionsRegisterCleanly(t *testing.T) {
 	}
 }
 
+func TestBoundPermissionRejectsMalformedIDWithoutConsultingAuthorizer(t *testing.T) {
+	authorizer := &recordingAuthorizer{}
+	service, _, _ := authorizationTestService(authorizer)
+	ctx := permission.ContextWithActor(context.Background(), permission.UserActor("u@example.com"))
+
+	for name, bound := range map[string]projectAuthorizer{
+		"lifecycle": service.requireLifecycle,
+		"access":    service.requireAccess,
+	} {
+		for _, id := range []ID{"", "../x", "a/b"} {
+			if err := bound(ctx, id); !errors.Is(err, ErrInvalidID) {
+				t.Fatalf("%s(%q): error = %v, want ErrInvalidID", name, id, err)
+			}
+		}
+	}
+	if n := len(authorizer.recorded()); n != 0 {
+		t.Fatalf("authorizer was called %d times; want 0 (malformed IDs must not reach it)", n)
+	}
+}
+
 func TestBoundPermissionWithoutInjectedAuthorizerDenies(t *testing.T) {
 	service := New(nil, ContainerDependencies{}, nil, &accessTestRepository{})
 
