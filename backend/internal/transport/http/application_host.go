@@ -48,7 +48,7 @@ func IsApplicationHost(host, publicHost string) bool {
 	labels := strings.Split(prefix, ".")
 	// Keep the existing preview and built-in editor namespaces with their handlers.
 	last := labels[len(labels)-1]
-	return last == "apps" || (len(labels) >= 2 && last != "dev" && last != "code")
+	return last == "apps" || (last != "dev" && last != "code")
 }
 
 // ApplicationProject returns the manifest label and project slug of a named host.
