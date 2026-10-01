@@ -35,6 +35,7 @@ export function createExtensionApi(
   visibility: ExtensionVisibility,
   backends: AppBackendInstance[] | (() => AppBackendInstance[]),
   registry: ExtensionRegistry,
+  currentApplication: () => AppApplication = () => application,
 ): ExtensionApi {
   const views = application.ui?.views ?? {};
   const assetUrl = (assetPath: string) =>
@@ -46,11 +47,10 @@ export function createExtensionApi(
 
   return {
     apiVersion: EXTENSION_API_VERSION,
-    application: {
-      id: application.id,
-      name: application.name,
-      version: application.version,
-      icon: application.icon,
+    get application() {
+      const current = currentApplication();
+      return { id: current.id, name: current.name, version: current.version,
+        icon: current.icon, web: current.web ? { ...current.web } : undefined };
     },
     install: {
       global: visibility.global,

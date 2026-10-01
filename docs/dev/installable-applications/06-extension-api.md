@@ -477,7 +477,8 @@ export default function activate(remote) {
     );
     if (!instance || !path.startsWith("/workspace/")) return null;
     const url = new URL(location.origin);
-    url.hostname = `${instance.instanceId}.apps.${url.hostname}`;
+    const label = remote.application.web?.subdomain;
+    url.hostname = `${label ? label + "." : ""}${instance.instanceId}.apps.${url.hostname}`;
     url.searchParams.set("file", path);
     if (line) url.searchParams.set("line", String(line));
     if (column) url.searchParams.set("column", String(column));
@@ -514,3 +515,7 @@ An extension is trusted browser code; return only URLs appropriate to its
 application and validate access at the destination. See
 [Workspace file openers](23-application-file-openers.md)
 for the path conversion and call sites.
+
+`remote.application.web` exposes the current manifest web port and optional
+subdomain label. Both this metadata and backend installation IDs refresh when
+the extension host reconciles applications. Read them when building a URL.

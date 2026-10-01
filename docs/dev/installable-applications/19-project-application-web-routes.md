@@ -91,3 +91,20 @@ in [11 — Testing](11-testing.md#web-capability-checks).
 These tests use local fixture services. Verify a real app's install/start,
 assets, redirects and WebSockets on an LXD host, along with wildcard DNS and
 on-demand TLS, when integrating a new application.
+
+## Named application subdomains
+
+Declare `web.subdomain` to use `<label>.<instance-id>.apps.<public-host>`.
+The label comes from the manifest and the instance ID from the running install.
+The gateway and `/internal/tls-ask` both require the exact canonical combination;
+a different label, missing label, stopped install or unknown ID is rejected.
+Omitting the field preserves the original unnamed hostname for existing apps.
+
+Deploy the updated Caddy template for these two-label names. A wildcard site
+matcher matches one label only; the application route now uses an HTTPS
+catch-all restricted to the application suffix. Certificate issuance is still
+gated by `/internal/tls-ask`. Other unmatched HTTP hosts return 404.
+DNS must resolve the full named hostname to the same ingress. Confirm your DNS
+provider's wildcard coverage; a wildcard certificate for `*.apps.<host>` does
+not cover nested names. Caddy obtains individual certificates on demand.
+Changing the label changes the browser origin; install a PWA again at its new URL.

@@ -532,3 +532,20 @@ source files, and verification limits.
 
 See [JSON installation settings](22-application-json-settings.md) for behavior, validation, failure cases,
 source files, and verification limits.
+
+### Application hostname label
+
+`web.subdomain` optionally names one lowercase DNS label (1–63 letters, digits
+or hyphens, with no leading or trailing hyphen). For example:
+
+```json
+"web": { "port": 8842, "subdomain": "code" }
+```
+
+The canonical origin is `https://<web.subdomain>.<instance-id>.apps.<public-host>/`.
+Both the label and current installation ID come from the installed app. Changing
+either changes its origin. Requests and TLS admission reject labels that do not
+match the manifest. Existing manifests without the field retain their unnamed
+`https://<instance-id>.apps.<public-host>/` origin. A named app does not also serve
+at its old unnamed host. Bookmarks and PWAs need the new origin after a label change.
+The UI extension receives the current declaration as `remote.application.web`.

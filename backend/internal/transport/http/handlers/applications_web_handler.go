@@ -52,7 +52,7 @@ func (h *ApplicationsHandler) serveWeb(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "application unavailable", http.StatusInternalServerError)
 			return
 		}
-		host := httptransport.ApplicationHost(target.InstanceID, h.webHost)
+		host := httptransport.ApplicationHost(target.InstanceID, target.Subdomain, h.webHost)
 		if !available || host == "" {
 			break
 		}
@@ -90,7 +90,7 @@ func (h *ApplicationsHandler) serveWebHost(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "application unavailable", http.StatusInternalServerError)
 		return
 	}
-	if available {
+	if available && httptransport.MatchesApplicationHost(r.Host, target.InstanceID, target.Subdomain, h.webHost) {
 		for _, project := range projects {
 			if string(project.ID) == target.ProjectID {
 				upstream := &url.URL{Scheme: "http", Host: net.JoinHostPort(project.Slug+".lxd", fmt.Sprint(target.Port))}

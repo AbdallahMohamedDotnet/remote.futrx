@@ -271,10 +271,10 @@ test("a failed extension list leaves what is loaded alone", async (t) => {
 });
 
 test("loaded extensions see replaced and removed installations without reactivation", async (t) => {
-  const first = { ...helloExtension(false), application: { ...helloExtension(false).application, backend: {} }, projectIds: ["p1"], backends: [
+  const first = { ...helloExtension(false), application: { ...helloExtension(false).application, backend: {}, web: { port: 8400, subdomain: "code" } }, projectIds: ["p1"], backends: [
     { instanceId: "old", scope: "project" as const, projectId: "p1" },
   ] };
-  const replacement = { ...first, backends: [{ ...first.backends[0], instanceId: "new" }] };
+  const replacement = { ...first, application: { ...first.application, web: { port: 8400, subdomain: "editor" } }, backends: [{ ...first.backends[0], instanceId: "new" }] };
   serveExtensions(t, [ [first], [replacement], [] ]);
   let remote!: ExtensionApi;
   let activations = 0;
@@ -287,12 +287,14 @@ test("loaded extensions see replaced and removed installations without reactivat
   const fileUrl = () => resolveFileOpener(fileOpenerStore.getState().forProject("p1"), { cwd: "/workspace", path: "/workspace/file" });
   await host.sync();
   assert.equal(remote.backend.instances[0].instanceId, "old");
+  assert.equal(remote.application.web?.subdomain, "code");
   assert.equal(remote.backend.available, true);
   assert.equal(fileUrl(), "old");
   const revision = fileOpenerStore.getState().revision;
   await host.sync();
   assert.equal(activations, 1);
   assert.equal(remote.backend.instances[0].instanceId, "new");
+  assert.equal(remote.application.web?.subdomain, "editor");
   assert.equal(fileUrl(), "new");
   assert.ok(fileOpenerStore.getState().revision > revision);
   assert.equal(remote.backend.url("health", { projectId: "p1" }), "/api/projects/p1/applications/new/backend/health");

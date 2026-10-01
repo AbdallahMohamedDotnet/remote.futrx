@@ -37,12 +37,19 @@ ${HOSTNAME} {
 # installation, verifies the session/project membership and running status,
 # then strips credentials before forwarding to the container. No application
 # edits Caddy, and no platform API or login page is served on these hosts.
-*.apps.${HOSTNAME} {
+# A wildcard site matches one label only; named apps have two dynamic labels.
+https:// {
     encode zstd gzip
     tls {
         on_demand
     }
-    reverse_proxy 127.0.0.1:${SERVICE_PORT}
+    @application expression `{http.request.host}.lowerAscii().endsWith(".apps.${HOSTNAME}") || {http.request.host}.lowerAscii().endsWith(".apps.${HOSTNAME}.")`
+    handle @application {
+        reverse_proxy 127.0.0.1:${SERVICE_PORT}
+    }
+    handle {
+        respond 404
+    }
 }
 
 code.${HOSTNAME} {

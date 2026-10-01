@@ -14,6 +14,9 @@ func TestApplicationHosts(t *testing.T) {
 		{"ABCDEF123456.apps." + base, true, true},
 		{id + ".apps." + base + ".", true, true},
 		{id + ".apps." + base + ".:8443", true, true},
+		{"code." + id + ".apps." + base, true, true},
+		{"code.extra." + id + ".apps." + base, true, false},
+		{"-bad." + id + ".apps." + base, true, false},
 		{"bad.apps." + base, true, false},
 		{"apps." + base, true, false},
 		{id + ".nested.apps." + base, true, false},
@@ -26,7 +29,7 @@ func TestApplicationHosts(t *testing.T) {
 			t.Errorf("host %q: id=%q valid=%v", tc.host, got, valid)
 		}
 	}
-	if ApplicationHost(id, base) != id+".apps."+base || ApplicationHost("../bad", base) != "" {
+	if ApplicationHost(id, "", base) != id+".apps."+base || ApplicationHost("../bad", "", base) != "" {
 		t.Fatal("incorrect application hostname construction")
 	}
 }

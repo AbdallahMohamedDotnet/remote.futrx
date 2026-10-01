@@ -277,3 +277,55 @@ func TestApplicationWebCertificatesRequireRunningProjectInstall(t *testing.T) {
 		})
 	}
 }
+
+func TestNamedApplicationWebHostAndCertificate(t *testing.T) {
+	for _, label := range []string{"code", "editor-2"} {
+		t.Run(label, func(t *testing.T) {
+			f := newWebFixture(t, "https://remote.test")
+			f.registry.application.Web.Subdomain = label
+			canonical := label + "." + webTestHost
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "APP") }))
+			defer upstream.Close()
+			f.apps.webTransport = &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, strings.TrimPrefix(upstream.URL, "http://"))
+			}}
+			for _, host := range []string{canonical, "wrong." + webTestHost, webTestHost, "extra." + canonical} {
+				request := httptest.NewRequest("GET", "https://"+host+"/api/", nil)
+				request.AddCookie(f.cookie(t, "member@example.test"))
+				response := httptest.NewRecorder()
+				f.handler().ServeHTTP(response, request)
+				want := 404
+				if host == canonical {
+					want = 200
+				}
+				if response.Code != want {
+					t.Fatalf("host %s: status %d, want %d", host, response.Code, want)
+				}
+			}
+			request := httptest.NewRequest("GET", "https://remote.test/apps/project/editor/?folder=%2Fworkspace", nil)
+			request.AddCookie(f.cookie(t, "member@example.test"))
+			response := httptest.NewRecorder()
+			f.handler().ServeHTTP(response, request)
+			if response.Header().Get("Location") != "https://"+canonical+"/?folder=%2Fworkspace" {
+				t.Fatal(response.Header())
+			}
+			handler, project := newTLSAskProjectHandler(t, "remote.test")
+			f.instance.ProjectID = string(project.ID)
+			if err := f.store.Put(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			handler.apps = f.apps
+			for _, host := range []string{canonical, "wrong." + webTestHost, webTestHost} {
+				response := httptest.NewRecorder()
+				handler.HandleTLSAsk(response, httptest.NewRequest("GET", "/internal/tls-ask?domain="+host, nil))
+				want := 404
+				if host == canonical {
+					want = 200
+				}
+				if response.Code != want {
+					t.Fatalf("TLS %s: status %d, want %d", host, response.Code, want)
+				}
+			}
+		})
+	}
+}

@@ -186,9 +186,10 @@ type ApplicationUI struct {
 
 // ApplicationWeb exposes a project application's HTTP service through Remote.
 // The launch route /apps/<project-slug>/<application-id>/ redirects to an
-// isolated <instance-id>.apps.<public-host> origin.
+// isolated [<subdomain>.]<instance-id>.apps.<public-host> origin.
 type ApplicationWeb struct {
-	Port int `json:"port"`
+	Port      int    `json:"port"`
+	Subdomain string `json:"subdomain,omitempty"`
 }
 
 // ApplicationSource says where a catalog entry came from. It is decided by the

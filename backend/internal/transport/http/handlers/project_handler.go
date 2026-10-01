@@ -491,7 +491,7 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		target, available, err := h.apps.apps.WebTarget(r.Context(), id)
-		if err != nil || !available {
+		if err != nil || !available || !httptransport.MatchesApplicationHost(domain, target.InstanceID, target.Subdomain, h.publicHostname) {
 			http.NotFound(w, r)
 			return
 		}
