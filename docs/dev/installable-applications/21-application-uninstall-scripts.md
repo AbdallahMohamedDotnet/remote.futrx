@@ -48,3 +48,7 @@ Tests check invalid or missing cleanup scripts, catalog availability, cleanup
 order, script errors and missing containers. The frontend confirmation test
 checks the cleanup explanation. Verify real files/packages, a failing script,
 a stopped container and Retry after partial installation.
+
+### Responsibility boundaries
+
+- [installer_uninstall.go](../../../backend/internal/integration/containers/applications/installer_uninstall.go) — Owns uninstall ordering and execution of the application cleanup script, including missing/stopped-container handling.
