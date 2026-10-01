@@ -310,6 +310,7 @@ type startTestLifecycle struct {
 	releaseLaunch   <-chan struct{}
 	transitionCalls chan<- string
 	busy            bool
+	capacityErr     error
 }
 
 func (l *startTestLifecycle) Available() bool { return true }
@@ -319,6 +320,8 @@ func (l *startTestLifecycle) State(context.Context, string) (ContainerState, err
 	defer l.mu.Unlock()
 	return l.state, nil
 }
+
+func (l *startTestLifecycle) CheckCapacity(context.Context) error { return l.capacityErr }
 
 func (l *startTestLifecycle) Ensure(context.Context, Meta) error {
 	l.mu.Lock()
