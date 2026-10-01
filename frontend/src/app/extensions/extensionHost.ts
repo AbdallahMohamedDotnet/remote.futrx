@@ -86,7 +86,10 @@ export class ExtensionHost {
     this.removeInactive(extensions);
     for (const extension of extensions) {
       this.current.set(extension.application.id, extension);
-      fileOpenerStore.getState().setProjects(extension.application.id, extension.projectIds ?? []);
+      fileOpenerStore.getState().setProjects(
+        extension.application.id,
+        extension.projectIds ?? [],
+      );
       this.registry.setVisibility(
         extension.application.id,
         this.visibilityOf(extension),

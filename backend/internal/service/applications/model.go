@@ -195,7 +195,8 @@ type WebTarget struct {
 
 // ApplicationWeb exposes a project application's HTTP service through Remote.
 // The launch route /apps/<project-slug>/<application-id>/ redirects to an
-// isolated [<subdomain>.]<instance-id>.apps.<public-host> origin.
+// isolated <subdomain>.<project-slug>.<public-host> origin when named,
+// or <instance-id>.apps.<public-host> when Subdomain is empty.
 type ApplicationWeb struct {
 	Port      int    `json:"port"`
 	Subdomain string `json:"subdomain,omitempty"`

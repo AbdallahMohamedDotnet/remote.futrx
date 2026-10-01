@@ -49,8 +49,13 @@ export function createExtensionApi(
     apiVersion: EXTENSION_API_VERSION,
     get application() {
       const current = currentApplication();
-      return { id: current.id, name: current.name, version: current.version,
-        icon: current.icon, web: current.web ? { ...current.web } : undefined };
+      return {
+        id: current.id,
+        name: current.name,
+        version: current.version,
+        icon: current.icon,
+        web: current.web ? { ...current.web } : undefined,
+      };
     },
     install: {
       global: visibility.global,
