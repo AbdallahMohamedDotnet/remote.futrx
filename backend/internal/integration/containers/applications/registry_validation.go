@@ -78,7 +78,7 @@ func validateApplication(application svc.Application) error {
 	}
 	if application.Web != nil {
 		if !svc.ValidWebSubdomain(application.Web.Subdomain) {
-			return fmt.Errorf("web.subdomain must be a lowercase DNS label of at most 63 characters")
+			return fmt.Errorf("web.subdomain must be a lowercase DNS label of at most 63 characters without consecutive hyphens (--)")
 		}
 		if application.Web.Port < 1024 || application.Web.Port > 65535 ||
 			len(application.Scopes) != 1 || application.Scopes[0] != svc.ScopeProject ||

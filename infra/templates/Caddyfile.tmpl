@@ -37,7 +37,7 @@ ${HOSTNAME} {
 # installation, verifies the session/project membership and running status,
 # then strips credentials before forwarding to the container. No application
 # edits Caddy, and no platform API or login page is served on these hosts.
-# A wildcard site matches one label only; named apps have two dynamic labels.
+# Named apps use <label>--<project-slug>.<host>; legacy apps use <id>.apps.<host>.
 https:// {
     encode zstd gzip
     tls {

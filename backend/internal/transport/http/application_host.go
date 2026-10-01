@@ -17,10 +17,10 @@ func ApplicationHost(identity, subdomain, publicHost string) string {
 		return ""
 	}
 	if subdomain != "" {
-		if identity == "" || !svc.ValidWebSubdomain(identity) || identity == "dev" || identity == "code" || identity == "apps" {
+		if identity == "" || !svc.ValidWebSubdomain(identity) || len(subdomain)+2+len(identity) > 63 {
 			return ""
 		}
-		return subdomain + "." + identity + "." + publicHost
+		return subdomain + "--" + identity + "." + publicHost
 	}
 	if !applicationInstanceLabel.MatchString(identity) {
 		return ""
@@ -56,11 +56,12 @@ func ApplicationProject(host, publicHost string) (string, string, bool) {
 	if !IsApplicationHost(host, publicHost) {
 		return "", "", false
 	}
-	labels := strings.Split(strings.TrimSuffix(requestHostname(host), "."+requestHostname(publicHost)), ".")
-	if len(labels) != 2 || labels[1] == "apps" || labels[0] == "" || labels[1] == "" || !svc.ValidWebSubdomain(labels[0]) || !svc.ValidWebSubdomain(labels[1]) {
+	name := strings.TrimSuffix(requestHostname(host), "."+requestHostname(publicHost))
+	label, slug, found := strings.Cut(name, "--")
+	if !found || label == "" || slug == "" || len(name) > 63 || !svc.ValidWebSubdomain(label) || !svc.ValidWebSubdomain(slug) {
 		return "", "", false
 	}
-	return labels[0], labels[1], true
+	return label, slug, true
 }
 
 func ApplicationInstanceID(host, publicHost string) (string, bool) {

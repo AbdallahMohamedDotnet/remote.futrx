@@ -283,13 +283,13 @@ func TestNamedApplicationWebHostAndCertificate(t *testing.T) {
 		t.Run(label, func(t *testing.T) {
 			f := newWebFixture(t, "https://remote.test")
 			f.registry.application.Web.Subdomain = label
-			canonical := label + ".project.remote.test"
+			canonical := label + "--project.remote.test"
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "APP") }))
 			defer upstream.Close()
 			f.apps.webTransport = &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				return (&net.Dialer{}).DialContext(ctx, network, strings.TrimPrefix(upstream.URL, "http://"))
 			}}
-			for _, host := range []string{canonical, "wrong.project.remote.test", webTestHost, "extra." + canonical} {
+			for _, host := range []string{canonical, "wrong--project.remote.test", webTestHost, "extra." + canonical} {
 				request := httptest.NewRequest("GET", "https://"+host+"/api/", nil)
 				request.AddCookie(f.cookie(t, "member@example.test"))
 				response := httptest.NewRecorder()
@@ -340,8 +340,8 @@ func TestNamedApplicationWebHostAndCertificate(t *testing.T) {
 				t.Fatal(err)
 			}
 			handler.apps = f.apps
-			canonical = label + "." + project.Slug + ".remote.test"
-			for _, host := range []string{canonical, "wrong.project.remote.test", webTestHost} {
+			canonical = label + "--" + project.Slug + ".remote.test"
+			for _, host := range []string{canonical, "wrong--project.remote.test", webTestHost} {
 				response := httptest.NewRecorder()
 				handler.HandleTLSAsk(response, httptest.NewRequest("GET", "/internal/tls-ask?domain="+host, nil))
 				want := 404

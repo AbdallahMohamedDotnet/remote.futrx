@@ -690,6 +690,7 @@ func (h *ProjectHandler) allowed(ctx context.Context, id serviceproject.ID, emai
 func sendProjectError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, serviceproject.ErrNameRequired),
+		errors.Is(err, serviceproject.ErrReservedNameSeparator),
 		errors.Is(err, serviceproject.ErrInvalidID),
 		errors.Is(err, serviceproject.ErrInvalidSecretKey),
 		errors.Is(err, serviceproject.ErrInvalidLimits):

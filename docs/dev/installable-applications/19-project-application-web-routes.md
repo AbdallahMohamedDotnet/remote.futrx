@@ -95,8 +95,8 @@ on-demand TLS, when integrating a new application.
 
 ## Named application subdomains
 
-Declare `web.subdomain` to use `<label>.<project-slug>.<public-host>`, for example
-`code.gamerhead.remote.example.com`. The label comes from the manifest; the
+Declare `web.subdomain` to use `<label>--<project-slug>.<public-host>`, for example
+`code--gamerhead.remote.example.com`. The label comes from the manifest; the
 project slug is its URL-safe name, not its display name or container ID.
 The gateway uses the existing project membership check, then finds the running
 application with that label in that project. Certificate admission performs the
@@ -105,14 +105,20 @@ and duplicate running labels in one project are rejected. A named app's previous
 installation-ID host is rejected. Apps without the field retain their existing
 unnamed origins described above.
 
-Deploy the updated Caddy template for these two-label names. The HTTPS catch-all
+Deploy the updated Caddy template for these single-label names. The HTTPS catch-all
 forwards hosts beneath the platform domain to the existing backend gateway;
 the gateway reserves application origins from platform API/login routing and
 returns 404 for unknown applications. Existing preview and built-in code namespaces
-retain their specific Caddy routes. `dev`, `code` and `apps` cannot be used as
-project slugs for named application origins. Certificate issuance remains gated
+retain their specific Caddy routes. The combined app/project label must fit 63 characters. Project names and manifest
+labels cannot contain the reserved `--` separator. Single hyphens are allowed. Certificate issuance remains gated
 by `/internal/tls-ask`; DNS must resolve the full hostname to this ingress.
 
 Reinstalling an app preserves its hostname and browser storage. Changing the
 manifest label or project slug changes its origin, requiring updated bookmarks
 and PWA installs. Server-side Code Server settings remain separately persisted.
+
+The new named host occupies one DNS label below the platform host, so a wildcard
+for `*.<public-host>` can cover it. This configuration still obtains individual
+on-demand certificates; wildcard certificate issuance is not enabled by this change.
+Existing projects are not renamed automatically. Any legacy slug containing `--`
+cannot be used for a named application host.

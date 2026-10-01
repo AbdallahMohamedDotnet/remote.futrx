@@ -482,7 +482,7 @@ export default function activate(remote) {
     const project = cwd.match(/^\/var\/lib\/remote\/projects\/([a-z0-9][a-z0-9-]*)\/workspace(?:\/|$)/);
     if (label && !project) return null;
     url.hostname = label
-      ? `${label}.${project[1]}.${url.hostname}`
+      ? `${label}--${project[1]}.${url.hostname}`
       : `${instance.instanceId}.apps.${url.hostname}`;
     url.searchParams.set("file", path);
     if (line) url.searchParams.set("line", String(line));
