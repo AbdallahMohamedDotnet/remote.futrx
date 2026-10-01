@@ -91,6 +91,58 @@ func TestPermissionPackageDependsOnlyOnItsOwnPorts(t *testing.T) {
 	}
 }
 
+// models is the vocabulary at the bottom of the layering: it may not import
+// the RBAC package or the evaluator that builds on it.
+func TestModelsImportNoRBACParent(t *testing.T) {
+	for _, source := range productionSources(t) {
+		if source.dir != "internal/rbac/models" {
+			continue
+		}
+		if imported, bad := importsAny(source.imports, "rbac"); bad {
+			t.Errorf("%s imports %s; models must not depend on its RBAC parents", source.path, imported)
+		}
+	}
+}
+
+// The evaluator is a pure function over models: no ports, stores, or services.
+func TestEvaluatorImportsOnlyModels(t *testing.T) {
+	seen := false
+	for _, source := range productionSources(t) {
+		if source.dir != "internal/rbac/evaluator" {
+			continue
+		}
+		seen = true
+		for _, imported := range source.imports {
+			if imported != "rbac/models" {
+				t.Errorf("%s imports %s; the evaluator may import only rbac/models", source.path, imported)
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("evaluator package not found; the scan is not seeing the sources")
+	}
+}
+
+// The file store implements the rbac contracts and nothing else from the
+// application.
+func TestFilePermissionsDependOnRBACContractsOnly(t *testing.T) {
+	seen := false
+	for _, source := range productionSources(t) {
+		if source.dir != "internal/stores/filepermissions" {
+			continue
+		}
+		seen = true
+		for _, imported := range source.imports {
+			if imported != "rbac" && imported != "rbac/models" {
+				t.Errorf("%s imports %s; the store may import only rbac contracts", source.path, imported)
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("filepermissions package not found; the scan is not seeing the sources")
+	}
+}
+
 // A service that enforces a permission depends on the narrow authorizer and
 // the permission vocabulary. It must not reach for concrete auth, handlers,
 // or persistence to make an authorization decision.
