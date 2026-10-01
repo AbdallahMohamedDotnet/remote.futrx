@@ -36,7 +36,7 @@ export function useWorkspaceFileBrowser({
   active: boolean;
 }) {
   const canOpenFile = useStore(extensionStore, (state) => Boolean(
-    state.bySlot.get(EXTENSION_SLOTS.chatHeaderActions) && fileOpenerStore.canOpen(projectId),
+    state.bySlot.get(EXTENSION_SLOTS.chatHeaderActions) && fileOpenerStore.getState().canOpen(projectId),
   )) || builtinEditorAvailable;
   const [state, dispatch] = useReducer(
     workspaceFileBrowserState.reduce,
@@ -146,7 +146,7 @@ export function useWorkspaceFileBrowser({
           kind: target.kind,
         });
       } else if (target.action === "application" && canOpenFile) {
-        const url = resolveFileOpener(fileOpenerStore.forProject(projectId), { cwd, path: containerPath })
+        const url = resolveFileOpener(fileOpenerStore.getState().forProject(projectId), { cwd, path: containerPath })
           ?? API_ROUTES.chats.ideOpen(chatId, containerPath);
         if (url) window.open(url, "_blank", "noopener");
         else window.location.assign(chatFilesApi.fileDownloadUrl(chatId, node.path));

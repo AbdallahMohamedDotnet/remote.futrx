@@ -84,7 +84,7 @@ export class ExtensionHost {
 
     this.removeInactive(extensions);
     for (const extension of extensions) {
-      fileOpenerStore.setProjects(extension.application.id, extension.projectIds ?? []);
+      fileOpenerStore.getState().setProjects(extension.application.id, extension.projectIds ?? []);
       this.registry.setVisibility(
         extension.application.id,
         this.visibilityOf(extension),
@@ -148,7 +148,7 @@ export class ExtensionHost {
    * an app that is no longer installed.
    */
   private forget(applicationId: string): void {
-    fileOpenerStore.remove(applicationId);
+    fileOpenerStore.getState().remove(applicationId);
     this.registry.removeApplication(applicationId);
     extensionEventService.removeApplication(applicationId);
     this.loaded.delete(applicationId);

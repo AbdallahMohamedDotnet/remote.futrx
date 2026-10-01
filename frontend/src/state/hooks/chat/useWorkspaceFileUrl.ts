@@ -20,7 +20,7 @@ export function useWorkspaceFileUrl(): (request: FileOpenRequest) => string | nu
     };
   }, []);
   return useCallback(
-    (request: FileOpenRequest) => resolveFileOpener(fileOpenerStore.forProject(extensionStore.getState().activeProjectId ?? undefined), request)
+    (request: FileOpenRequest) => resolveFileOpener(fileOpenerStore.getState().forProject(extensionStore.getState().activeProjectId ?? undefined), request)
       ?? builtinWorkspaceFileUrl(request),
     [openerVersion],
   );

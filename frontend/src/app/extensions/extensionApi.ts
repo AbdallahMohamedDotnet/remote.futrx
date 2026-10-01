@@ -97,7 +97,7 @@ export function createExtensionApi(
     },
     assets: { url: assetUrl },
     files: {
-      registerOpener: (open) => fileOpenerStore.register(application.id, [...visibility.projectIds], open),
+      registerOpener: (open) => fileOpenerStore.getState().register(application.id, [...visibility.projectIds], open),
     },
     backend: createBackendApi(application, backends),
     log: (...args) => console.info(`[extension:${application.id}]`, ...args),

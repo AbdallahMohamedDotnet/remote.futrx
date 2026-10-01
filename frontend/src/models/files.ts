@@ -86,3 +86,17 @@ export type WorkspaceFileBrowserAction =
   | { type: "search-failed"; error: string };
 
 export type FileOpener = (request: FileOpenRequest) => string | null;
+
+export interface FileOpenerEntry {
+  open: FileOpener;
+  projectIds: string[];
+}
+
+export interface FileOpenerStoreState {
+  revision: number;
+  register(applicationId: string, projectIds: string[], open: FileOpener): () => void;
+  setProjects(applicationId: string, projectIds: string[]): void;
+  remove(applicationId: string): void;
+  canOpen(projectId?: string): boolean;
+  forProject(projectId?: string): IterableIterator<FileOpener>;
+}
