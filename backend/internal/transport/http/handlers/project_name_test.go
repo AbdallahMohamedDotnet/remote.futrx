@@ -1,11 +1,12 @@
 package httphandlers
 
 import (
-	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 )
 
 func TestProjectReservedSeparatorReturnsBadRequest(t *testing.T) {

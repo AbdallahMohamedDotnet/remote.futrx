@@ -48,7 +48,11 @@ class CreateProjectFormLogic {
     const base = this.slugify(name);
     if (!trimmed) return { ok: false, slug: base, message: "" };
     if (trimmed.includes("--")) {
-      return { ok: false, slug: base, message: "Project name must not contain consecutive hyphens (--)." };
+      return {
+        ok: false,
+        slug: base,
+        message: "Project name must not contain consecutive hyphens (--).",
+      };
     }
     if (base.length < 2) {
       return { ok: false, slug: base, message: "Use at least 2 letters or numbers." };

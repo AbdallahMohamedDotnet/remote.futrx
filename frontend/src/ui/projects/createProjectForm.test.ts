@@ -97,17 +97,18 @@ test("pathPreview derives the workspace root from an existing project", () => {
   assert.equal(createProjectForm.pathPreview([], ""), "~/projects/…");
 });
 
- test("project names cannot contain the application hostname separator", () => {
+test("project names cannot contain the application hostname separator", () => {
   for (const name of ["game--head", "--start", "end--", "a---b"]) {
-   const result = createProjectForm.validate(name, []);
-   assert.equal(result.ok, false);
-   assert.match(result.message, /consecutive hyphens/);
+    const result = createProjectForm.validate(name, []);
+    assert.equal(result.ok, false);
+    assert.match(result.message, /consecutive hyphens/);
   }
   assert.equal(createProjectForm.validate("game-head", []).ok, true);
- });
- test("collision suffix does not create consecutive hyphens", () => {
+});
+
+test("collision suffix does not create consecutive hyphens", () => {
   const base = "a".repeat(29) + "-bc";
-  const result = createProjectForm.validate(base, [project({name: "other", slug: base})]);
+  const result = createProjectForm.validate(base, [project({ name: "other", slug: base })]);
   assert.equal(result.ok, true);
-  assert.equal(result.slug, "a".repeat(29)+"-2");
- });
+  assert.equal(result.slug, "a".repeat(29) + "-2");
+});
