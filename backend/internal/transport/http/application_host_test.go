@@ -14,7 +14,7 @@ func TestApplicationHosts(t *testing.T) {
 		{"ABCDEF123456.apps." + base, true, true},
 		{id + ".apps." + base + ".", true, true},
 		{id + ".apps." + base + ".:8443", true, true},
-		{"code." + id + ".apps." + base, true, true},
+		{"code." + id + ".apps." + base, true, false},
 		{"code.extra." + id + ".apps." + base, true, false},
 		{"-bad." + id + ".apps." + base, true, false},
 		{"bad.apps." + base, true, false},
@@ -31,5 +31,25 @@ func TestApplicationHosts(t *testing.T) {
 	}
 	if ApplicationHost(id, "", base) != id+".apps."+base || ApplicationHost("../bad", "", base) != "" {
 		t.Fatal("incorrect application hostname construction")
+	}
+}
+
+func TestProjectApplicationHosts(t *testing.T) {
+	for _, label := range []string{"code", "editor-2"} {
+		for _, slug := range []string{"gamerhead", "another-project"} {
+			host := ApplicationHost(slug, label, "remote.test")
+			if host != label+"."+slug+".remote.test" {
+				t.Fatal(host)
+			}
+			gotLabel, gotSlug, ok := ApplicationProject(host+":8443", "remote.test")
+			if !ok || gotLabel != label || gotSlug != slug {
+				t.Fatal(host, gotLabel, gotSlug)
+			}
+		}
+	}
+	for _, host := range []string{"code.project.remote.test.evil", "extra.code.project.remote.test", "code.-bad.remote.test", "code.project-.remote.test", "code..remote.test", "slug--3000.dev.remote.test", "slug.code.remote.test"} {
+		if _, _, ok := ApplicationProject(host, "remote.test"); ok {
+			t.Fatal(host)
+		}
 	}
 }

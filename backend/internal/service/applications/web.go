@@ -51,3 +51,24 @@ func (s *Service) webTarget(instance Instance) (WebTarget, bool) {
 	}
 	return WebTarget{Subdomain: application.Web.Subdomain, InstanceID: instance.ID, ProjectID: instance.ProjectID, Port: application.Web.Port}, true
 }
+
+// ProjectWebTargetBySubdomain resolves a label only inside the selected project.
+// Ambiguous labels fail closed instead of choosing an arbitrary installation.
+func (s *Service) ProjectWebTargetBySubdomain(ctx context.Context, projectID, label string) (WebTarget, bool, error) {
+	instances, err := s.store.ListProject(ctx, projectID)
+	if err != nil {
+		return WebTarget{}, false, err
+	}
+	var result WebTarget
+	found := false
+	for _, instance := range instances {
+		target, ok := s.webTarget(instance)
+		if ok && target.ProjectID == projectID && target.Subdomain == label {
+			if found {
+				return WebTarget{}, false, nil
+			}
+			result, found = target, true
+		}
+	}
+	return result, found, nil
+}

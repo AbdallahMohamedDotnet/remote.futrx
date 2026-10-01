@@ -283,13 +283,13 @@ func TestNamedApplicationWebHostAndCertificate(t *testing.T) {
 		t.Run(label, func(t *testing.T) {
 			f := newWebFixture(t, "https://remote.test")
 			f.registry.application.Web.Subdomain = label
-			canonical := label + "." + webTestHost
+			canonical := label + ".project.remote.test"
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "APP") }))
 			defer upstream.Close()
 			f.apps.webTransport = &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				return (&net.Dialer{}).DialContext(ctx, network, strings.TrimPrefix(upstream.URL, "http://"))
 			}}
-			for _, host := range []string{canonical, "wrong." + webTestHost, webTestHost, "extra." + canonical} {
+			for _, host := range []string{canonical, "wrong.project.remote.test", webTestHost, "extra." + canonical} {
 				request := httptest.NewRequest("GET", "https://"+host+"/api/", nil)
 				request.AddCookie(f.cookie(t, "member@example.test"))
 				response := httptest.NewRecorder()
@@ -302,6 +302,31 @@ func TestNamedApplicationWebHostAndCertificate(t *testing.T) {
 					t.Fatalf("host %s: status %d, want %d", host, response.Code, want)
 				}
 			}
+			// Project origins retain authorization and follow the current installation.
+			for _, email := range []string{"other@example.test", "removed@example.test"} {
+				req := httptest.NewRequest("GET", "https://"+canonical+"/", nil)
+				req.AddCookie(f.cookie(t, email))
+				rec := httptest.NewRecorder()
+				f.handler().ServeHTTP(rec, req)
+				if rec.Code == 200 {
+					t.Fatalf("unauthorized access: %s", email)
+				}
+			}
+			if err := f.store.Delete(context.Background(), f.instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			f.instance.ID = "123456abcdef"
+			if err := f.store.Put(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest("GET", "https://"+canonical+"/", nil)
+			req.AddCookie(f.cookie(t, "member@example.test"))
+			rec := httptest.NewRecorder()
+			f.handler().ServeHTTP(rec, req)
+			if rec.Code != 200 {
+				t.Fatalf("reinstall changed address: %d", rec.Code)
+			}
+
 			request := httptest.NewRequest("GET", "https://remote.test/apps/project/editor/?folder=%2Fworkspace", nil)
 			request.AddCookie(f.cookie(t, "member@example.test"))
 			response := httptest.NewRecorder()
@@ -315,7 +340,8 @@ func TestNamedApplicationWebHostAndCertificate(t *testing.T) {
 				t.Fatal(err)
 			}
 			handler.apps = f.apps
-			for _, host := range []string{canonical, "wrong." + webTestHost, webTestHost} {
+			canonical = label + "." + project.Slug + ".remote.test"
+			for _, host := range []string{canonical, "wrong.project.remote.test", webTestHost} {
 				response := httptest.NewRecorder()
 				handler.HandleTLSAsk(response, httptest.NewRequest("GET", "/internal/tls-ask?domain="+host, nil))
 				want := 404

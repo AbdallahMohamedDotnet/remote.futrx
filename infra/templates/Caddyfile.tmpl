@@ -43,7 +43,7 @@ https:// {
     tls {
         on_demand
     }
-    @application expression `{http.request.host}.lowerAscii().endsWith(".apps.${HOSTNAME}") || {http.request.host}.lowerAscii().endsWith(".apps.${HOSTNAME}.")`
+    @application expression `{http.request.host}.lowerAscii().endsWith(".${HOSTNAME}") || {http.request.host}.lowerAscii().endsWith(".${HOSTNAME}.")`
     handle @application {
         reverse_proxy 127.0.0.1:${SERVICE_PORT}
     }

@@ -472,14 +472,18 @@ parameters to the editor's own contract):
 export default function activate(remote) {
   // Additive API: older hosts may still report apiVersion 1 without files.
   if (!remote.files?.registerOpener) return;
-  remote.files.registerOpener(({ projectId, path, line, column }) => {
+  remote.files.registerOpener(({ projectId, cwd, path, line, column }) => {
     const instance = remote.backend.instances.find(
       (candidate) => candidate.scope === "project" && candidate.projectId === projectId,
     );
     if (!instance || !path.startsWith("/workspace/")) return null;
     const url = new URL(location.origin);
     const label = remote.application.web?.subdomain;
-    url.hostname = `${label ? label + "." : ""}${instance.instanceId}.apps.${url.hostname}`;
+    const project = cwd.match(/^\/var\/lib\/remote\/projects\/([a-z0-9][a-z0-9-]*)\/workspace(?:\/|$)/);
+    if (label && !project) return null;
+    url.hostname = label
+      ? `${label}.${project[1]}.${url.hostname}`
+      : `${instance.instanceId}.apps.${url.hostname}`;
     url.searchParams.set("file", path);
     if (line) url.searchParams.set("line", String(line));
     if (column) url.searchParams.set("column", String(column));

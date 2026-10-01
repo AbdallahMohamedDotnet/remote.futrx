@@ -94,17 +94,24 @@ on-demand TLS, when integrating a new application.
 
 ## Named application subdomains
 
-Declare `web.subdomain` to use `<label>.<instance-id>.apps.<public-host>`.
-The label comes from the manifest and the instance ID from the running install.
-The gateway and `/internal/tls-ask` both require the exact canonical combination;
-a different label, missing label, stopped install or unknown ID is rejected.
-Omitting the field preserves the original unnamed hostname for existing apps.
+Declare `web.subdomain` to use `<label>.<project-slug>.<public-host>`, for example
+`code.gamerhead.remote.example.com`. The label comes from the manifest; the
+project slug is its URL-safe name, not its display name or container ID.
+The gateway uses the existing project membership check, then finds the running
+application with that label in that project. Certificate admission performs the
+same project/label lookup. Wrong labels, unknown projects, stopped installations
+and duplicate running labels in one project are rejected. A named app's previous
+installation-ID host is rejected. Apps without the field retain their existing
+unnamed origins described above.
 
-Deploy the updated Caddy template for these two-label names. A wildcard site
-matcher matches one label only; the application route now uses an HTTPS
-catch-all restricted to the application suffix. Certificate issuance is still
-gated by `/internal/tls-ask`. Other unmatched HTTP hosts return 404.
-DNS must resolve the full named hostname to the same ingress. Confirm your DNS
-provider's wildcard coverage; a wildcard certificate for `*.apps.<host>` does
-not cover nested names. Caddy obtains individual certificates on demand.
-Changing the label changes the browser origin; install a PWA again at its new URL.
+Deploy the updated Caddy template for these two-label names. The HTTPS catch-all
+forwards hosts beneath the platform domain to the existing backend gateway;
+the gateway reserves application origins from platform API/login routing and
+returns 404 for unknown applications. Existing preview and built-in code namespaces
+retain their specific Caddy routes. `dev`, `code` and `apps` cannot be used as
+project slugs for named application origins. Certificate issuance remains gated
+by `/internal/tls-ask`; DNS must resolve the full hostname to this ingress.
+
+Reinstalling an app preserves its hostname and browser storage. Changing the
+manifest label or project slug changes its origin, requiring updated bookmarks
+and PWA installs. Server-side Code Server settings remain separately persisted.

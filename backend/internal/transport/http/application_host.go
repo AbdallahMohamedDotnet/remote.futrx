@@ -10,17 +10,22 @@ import (
 
 var applicationInstanceLabel = regexp.MustCompile(`^[a-f0-9]{12}$`)
 
-// ApplicationHost uses installation IDs: concatenated project/app names can be
-// ambiguous or exceed a DNS label. Reinstalls also get a fresh browser origin.
-func ApplicationHost(instanceID, subdomain, publicHost string) string {
-	if !applicationInstanceLabel.MatchString(instanceID) || publicHost == "" || !svc.ValidWebSubdomain(subdomain) {
+// ApplicationHost uses a project slug for named apps. Unnamed apps retain their
+// existing installation origin until they opt into a manifest subdomain.
+func ApplicationHost(identity, subdomain, publicHost string) string {
+	if publicHost == "" || !svc.ValidWebSubdomain(subdomain) {
 		return ""
 	}
-	prefix := ""
 	if subdomain != "" {
-		prefix = subdomain + "."
+		if identity == "" || !svc.ValidWebSubdomain(identity) || identity == "dev" || identity == "code" || identity == "apps" {
+			return ""
+		}
+		return subdomain + "." + identity + "." + publicHost
 	}
-	return prefix + instanceID + ".apps." + publicHost
+	if !applicationInstanceLabel.MatchString(identity) {
+		return ""
+	}
+	return identity + ".apps." + publicHost
 }
 
 func requestHostname(host string) string {
@@ -35,29 +40,40 @@ func requestHostname(host string) string {
 // IsApplicationHost also reserves malformed names, so they never fall through
 // to the platform API, login pages, or static UI on an application origin.
 func IsApplicationHost(host, publicHost string) bool {
-	base := "apps." + requestHostname(publicHost)
-	host = requestHostname(host)
-	return publicHost != "" && (host == base || strings.HasSuffix(host, "."+base))
+	host, base := requestHostname(host), requestHostname(publicHost)
+	if base == "" || !strings.HasSuffix(host, "."+base) {
+		return false
+	}
+	prefix := strings.TrimSuffix(host, "."+base)
+	labels := strings.Split(prefix, ".")
+	// Keep the existing preview and built-in editor namespaces with their handlers.
+	last := labels[len(labels)-1]
+	return last == "apps" || (len(labels) >= 2 && last != "dev" && last != "code")
+}
+
+// ApplicationProject returns the manifest label and project slug of a named host.
+func ApplicationProject(host, publicHost string) (string, string, bool) {
+	if !IsApplicationHost(host, publicHost) {
+		return "", "", false
+	}
+	labels := strings.Split(strings.TrimSuffix(requestHostname(host), "."+requestHostname(publicHost)), ".")
+	if len(labels) != 2 || labels[1] == "apps" || labels[0] == "" || labels[1] == "" || !svc.ValidWebSubdomain(labels[0]) || !svc.ValidWebSubdomain(labels[1]) {
+		return "", "", false
+	}
+	return labels[0], labels[1], true
 }
 
 func ApplicationInstanceID(host, publicHost string) (string, bool) {
-	if !IsApplicationHost(host, publicHost) {
+	suffix := ".apps." + requestHostname(publicHost)
+	host = requestHostname(host)
+	if publicHost == "" || !strings.HasSuffix(host, suffix) {
 		return "", false
 	}
-	labels := strings.Split(strings.TrimSuffix(requestHostname(host), ".apps."+requestHostname(publicHost)), ".")
-	if len(labels) == 2 {
-		if labels[0] == "" || !svc.ValidWebSubdomain(labels[0]) {
-			return "", false
-		}
-	} else if len(labels) != 1 {
-		return "", false
-	}
-	id := labels[len(labels)-1]
+	id := strings.TrimSuffix(host, suffix)
 	return id, applicationInstanceLabel.MatchString(id)
 }
 
-// MatchesApplicationHost rejects labels that do not belong to this installation.
-func MatchesApplicationHost(host, instanceID, subdomain, publicHost string) bool {
-	canonical := ApplicationHost(instanceID, subdomain, publicHost)
+func MatchesApplicationHost(host, identity, subdomain, publicHost string) bool {
+	canonical := ApplicationHost(identity, subdomain, publicHost)
 	return canonical != "" && requestHostname(host) == requestHostname(canonical)
 }
