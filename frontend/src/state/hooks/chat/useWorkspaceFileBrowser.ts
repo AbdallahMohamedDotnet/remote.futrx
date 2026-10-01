@@ -1,3 +1,4 @@
+import { resolveFileOpener } from "../../../services/files/resolveFileOpener.ts";
 import { builtinEditorAvailable } from "../../../ui/chat/ideLinks.ts";
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "preact/hooks";
 import { useStore } from "zustand";
@@ -10,7 +11,7 @@ import { workspaceFileBrowserState } from "./workspaceFileBrowserState";
 import { fileService } from "../../../services/files/fileService.ts";
 import { extensionStore } from "../../stores/extensions/extensionStore";
 import { EXTENSION_SLOTS } from "../../../config/extensions";
-import { fileOpenerRegistry } from "../../../services/files/fileOpenerRegistry.ts";
+import { fileOpenerStore } from "../../stores/files/fileOpenerStore.ts";
 
 export interface WorkspaceFileTreeState {
   canOpenFile: boolean;
@@ -35,7 +36,7 @@ export function useWorkspaceFileBrowser({
   active: boolean;
 }) {
   const canOpenFile = useStore(extensionStore, (state) => Boolean(
-    state.bySlot.get(EXTENSION_SLOTS.chatHeaderActions) && fileOpenerRegistry.canOpen(projectId),
+    state.bySlot.get(EXTENSION_SLOTS.chatHeaderActions) && fileOpenerStore.canOpen(projectId),
   )) || builtinEditorAvailable;
   const [state, dispatch] = useReducer(
     workspaceFileBrowserState.reduce,
@@ -145,7 +146,7 @@ export function useWorkspaceFileBrowser({
           kind: target.kind,
         });
       } else if (target.action === "application" && canOpenFile) {
-        const url = fileOpenerRegistry.url(projectId, { cwd, path: containerPath })
+        const url = resolveFileOpener(fileOpenerStore.forProject(projectId), { cwd, path: containerPath })
           ?? API_ROUTES.chats.ideOpen(chatId, containerPath);
         if (url) window.open(url, "_blank", "noopener");
         else window.location.assign(chatFilesApi.fileDownloadUrl(chatId, node.path));

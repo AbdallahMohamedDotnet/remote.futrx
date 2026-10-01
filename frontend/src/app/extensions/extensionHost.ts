@@ -7,7 +7,7 @@ import type {
   ExtensionVisibility,
 } from "../../models/extension";
 import { extensionEventService } from "../../services/extensions/extensionEventService.ts";
-import { fileOpenerRegistry } from "../../services/files/fileOpenerRegistry.ts";
+import { fileOpenerStore } from "../../state/stores/files/fileOpenerStore.ts";
 import { extensionRegistry } from "../../state/stores/extensions/extensionStore.ts";
 import { createExtensionApi } from "./extensionApi.ts";
 
@@ -84,7 +84,7 @@ export class ExtensionHost {
 
     this.removeInactive(extensions);
     for (const extension of extensions) {
-      fileOpenerRegistry.setProjects(extension.application.id, extension.projectIds ?? []);
+      fileOpenerStore.setProjects(extension.application.id, extension.projectIds ?? []);
       this.registry.setVisibility(
         extension.application.id,
         this.visibilityOf(extension),
@@ -148,7 +148,7 @@ export class ExtensionHost {
    * an app that is no longer installed.
    */
   private forget(applicationId: string): void {
-    fileOpenerRegistry.remove(applicationId);
+    fileOpenerStore.remove(applicationId);
     this.registry.removeApplication(applicationId);
     extensionEventService.removeApplication(applicationId);
     this.loaded.delete(applicationId);

@@ -84,3 +84,5 @@ export type WorkspaceFileBrowserAction =
   | { type: "search-started" }
   | { type: "search-succeeded"; entries: FileNode[]; truncated: boolean }
   | { type: "search-failed"; error: string };
+
+export type FileOpener = (request: FileOpenRequest) => string | null;

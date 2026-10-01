@@ -16,7 +16,7 @@ import type {
 import { extensionEventService } from "../../services/extensions/extensionEventService.ts";
 import { createBackendApi } from "./extensionBackend.ts";
 import { openExtensionPopup } from "./extensionPopup.ts";
-import { fileOpenerRegistry } from "../../services/files/fileOpenerRegistry.ts";
+import { fileOpenerStore } from "../../state/stores/files/fileOpenerStore.ts";
 
 const BUTTON_BASE =
   "inline-flex items-center gap-1.5 rounded-control px-2 py-1 text-[12px] " +
@@ -97,7 +97,7 @@ export function createExtensionApi(
     },
     assets: { url: assetUrl },
     files: {
-      registerOpener: (open) => fileOpenerRegistry.register(application.id, [...visibility.projectIds], open),
+      registerOpener: (open) => fileOpenerStore.register(application.id, [...visibility.projectIds], open),
     },
     backend: createBackendApi(application, backends),
     log: (...args) => console.info(`[extension:${application.id}]`, ...args),

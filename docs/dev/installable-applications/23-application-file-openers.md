@@ -39,7 +39,6 @@ the current built-in fallback makes the drawer available regardless.
 - [frontend/src/config/workspace.ts](../../../frontend/src/config/workspace.ts)
 - [frontend/src/models/extension.ts](../../../frontend/src/models/extension.ts)
 - [frontend/src/models/files.ts](../../../frontend/src/models/files.ts)
-- [frontend/src/services/files/fileOpenerRegistry.ts](../../../frontend/src/services/files/fileOpenerRegistry.ts)
 - [frontend/src/services/files/fileService.test.ts](../../../frontend/src/services/files/fileService.test.ts)
 - [frontend/src/services/files/fileService.ts](../../../frontend/src/services/files/fileService.ts)
 - [frontend/src/services/files/workspaceLinkService.test.ts](../../../frontend/src/services/files/workspaceLinkService.test.ts)
@@ -66,3 +65,8 @@ resolution, download fallback and built-in IDE line/column URLs. Multiple opener
 ordering/replacement is documented from implementation review rather than
 exhaustively tested. Verify Markdown, attachments and Files while switching
 projects; test an opener-only extension in the Files drawer separately.
+
+### Responsibility boundaries
+
+- [fileOpenerStore.ts](../../../frontend/src/state/stores/files/fileOpenerStore.ts) — Owns registration, project visibility, subscription notifications, and disposal.
+- [resolveFileOpener.ts](../../../frontend/src/services/files/resolveFileOpener.ts) — Tries visible openers in registration order and logs callback errors before trying the next opener.

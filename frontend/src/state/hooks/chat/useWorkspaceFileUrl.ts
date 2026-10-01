@@ -1,6 +1,7 @@
+import { resolveFileOpener } from "../../../services/files/resolveFileOpener.ts";
 import { builtinWorkspaceFileUrl } from "../../../ui/chat/ideLinks.ts";
 import { useCallback, useEffect, useState } from "preact/hooks";
-import { fileOpenerRegistry } from "../../../services/files/fileOpenerRegistry.ts";
+import { fileOpenerStore } from "../../stores/files/fileOpenerStore.ts";
 import type { FileOpenRequest } from "../../../models/files.ts";
 import { extensionStore } from "../../stores/extensions/extensionStore.ts";
 
@@ -9,7 +10,7 @@ export function useWorkspaceFileUrl(): (request: FileOpenRequest) => string | nu
   const [openerVersion, setVersion] = useState(0);
   useEffect(() => {
     const refresh = () => setVersion((version) => version + 1);
-    const unsubscribeOpener = fileOpenerRegistry.subscribe(refresh);
+    const unsubscribeOpener = fileOpenerStore.subscribe(refresh);
     const unsubscribeProject = extensionStore.subscribe((current, previous) => {
       if (current.activeProjectId !== previous.activeProjectId) refresh();
     });
@@ -19,7 +20,7 @@ export function useWorkspaceFileUrl(): (request: FileOpenRequest) => string | nu
     };
   }, []);
   return useCallback(
-    (request: FileOpenRequest) => fileOpenerRegistry.url(extensionStore.getState().activeProjectId ?? undefined, request)
+    (request: FileOpenRequest) => resolveFileOpener(fileOpenerStore.forProject(extensionStore.getState().activeProjectId ?? undefined), request)
       ?? builtinWorkspaceFileUrl(request),
     [openerVersion],
   );
