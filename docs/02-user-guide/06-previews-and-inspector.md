@@ -55,9 +55,9 @@ flowchart LR
     Strip --> App
 ```
 
-The first request for a new project-and-port hostname can be slower while
-on-demand TLS is issued. The TLS allow check confirms that the project slug and
-port are valid before a certificate is approved.
+Preview hosts share the platform wildcard certificate. The gateway checks project
+access and port bounds on every request; opening a new project or port does not
+request a certificate.
 
 ## Select an element for the agent
 
@@ -117,7 +117,7 @@ Check these in order:
 6. The project has a usable non-loopback IPv4 address.
 
 If the picker is correct but the page still fails, check preview DNS, Caddy,
-project membership, and on-demand TLS. See
+project membership, and wildcard TLS. See
 [Troubleshooting](12-troubleshooting.md) for the operator path.
 
 ## Related documentation

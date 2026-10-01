@@ -20,7 +20,7 @@ flowchart TB
     User["Browser user"]
 
     subgraph Host["Single host (Ubuntu/Debian, runs as root)"]
-        Caddy["Caddy — public HTTPS edge<br/>on-demand TLS, forward_auth, cookie stripping"]
+        Caddy["Caddy — public HTTPS edge<br/>wildcard TLS, forward_auth, cookie stripping"]
         Go["Go backend — 127.0.0.1:7682<br/>embedded Preact SPA + REST + WebSockets"]
         Stores["Stores under DATA_DIR<br/>JSON metadata + JSONL chat logs<br/>derived SQLite chat index"]
         LXD["LXD daemon"]

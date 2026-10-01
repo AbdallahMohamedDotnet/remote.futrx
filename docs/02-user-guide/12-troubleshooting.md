@@ -216,7 +216,7 @@ This is a known authorization gap: the IDE proxy currently checks registered-use
 
 ### The preview URL exists but does not load
 
-Check project membership, project IPv4 state, Caddy, DNS, and the process listener. The first request for a new project/port hostname may wait for on-demand TLS issuance.
+Check project membership, project IPv4 state, Caddy, DNS, and the process listener. Check wildcard certificate issuance/renewal and DNS-provider credentials; new project/port hosts reuse that certificate.
 
 ### Inspect mode does not select anything
 

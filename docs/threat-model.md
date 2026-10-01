@@ -60,7 +60,7 @@ machine and guardrails.
 
 ## Boundary 1 — Internet → Caddy → backend
 
-External users reach only Caddy, which terminates TLS and forwards to the loopback backend. The backend trusts Caddy's `X-Forwarded-*` headers because nothing else can reach it. What's well-defended here: TLS is automatic; `/internal/*` is blocked externally; the session cookie is `HttpOnly; Secure; SameSite=Lax`; the SPA has a deliberately narrow XSS surface (vnode-only markdown, href allowlist, no `innerHTML`); on-demand TLS is gated so random subdomains cannot burn ACME quota. The gaps:
+External users reach only Caddy, which terminates TLS and forwards to the loopback backend. The backend trusts Caddy's `X-Forwarded-*` headers because nothing else can reach it. What's well-defended here: TLS is automatic; `/internal/*` is blocked externally; the session cookie is `HttpOnly; Secure; SameSite=Lax`; the SPA has a deliberately narrow XSS surface (vnode-only markdown, href allowlist, no `innerHTML`); TLS manages only the platform and wildcard names, so random subdomains cannot trigger additional certificate issuance. The gaps:
 
 ### 2. Host tmux WebSocket grants a root host shell to any invited user — **Critical** ✓
 
@@ -71,7 +71,7 @@ External users reach only Caddy, which terminates TLS and forwards to the loopba
 
 ### 4. Any invited user reaches any project's code-server IDE — **High** ✓ code-verified
 
-**Elevation of privilege.** The `forward_auth` handler ([`auth_verify_handler.go`](../backend/internal/transport/http/handlers/auth_verify_handler.go)) extracts the project slug **only** from the dev-preview host pattern `^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.(.+)$`. For the IDE host classes — `<slug>.code.<host>` and `code.<host>/<slug>/` — the slug is never parsed, so [`access.go`](../backend/internal/service/auth/access.go) skips the membership branch and falls through to a **registered-user-only** check. code-server itself runs `auth: none` ([`code-server-up.sh`](../backend/internal/integration/containers/codeserver/assets/code-server-up.sh)) with an integrated root terminal over the bind-mounted project root. So any invited user can hand-craft `https://<victim-slug>.code.<host>/` and get a root shell and full read/write in a project they were never granted.
+**Elevation of privilege.** The `forward_auth` handler ([`auth_verify_handler.go`](../backend/internal/transport/http/handlers/auth_verify_handler.go)) extracts the project slug **only** from the dev-preview host pattern `^dev--([a-z0-9][a-z0-9-]*)--(\d{4,5})\.(.+)$`. For the IDE host classes — `code.<host>/<slug>/` — the slug is never parsed, so [`access.go`](../backend/internal/service/auth/access.go) skips the membership branch and falls through to a **registered-user-only** check. code-server itself runs `auth: none` ([`code-server-up.sh`](../backend/internal/integration/containers/codeserver/assets/code-server-up.sh)) with an integrated root terminal over the bind-mounted project root. So any invited user can hand-craft `https://code.<host>/<victim-slug>/` and get a root shell and full read/write in a project they were never granted.
 
 - **Existing mitigations:** Caddy `forward_auth` does require an authenticated, registered session, and strips platform cookies before proxying. The dev-preview URL path (`--<port>.dev`) *does* enforce membership — proving the mechanism exists and is simply not applied to the IDE host class.
 - **Residual gap:** no per-project membership check for the IDE/code hosts. This is documented as a known gap in [`docs/02-workspaces/02-auth-users-and-access.md`](02-workspaces/02-auth-users-and-access.md), but the Caddyfile comments incorrectly call it "the same admin gate as the rest of the platform."
@@ -304,7 +304,7 @@ project secret once an operator applies it.
 Roughly in order of risk reduction per unit effort:
 
 1. **Gate the host-shell and loose-chat paths** (findings 1, 2). At minimum require admin for `/ws?session=`, `/api/sessions/*`, and loose-chat runs; better, run loose chats in a disposable container. These are any-invited-user → host-root.
-2. **Enforce project membership on the IDE host class** (finding 4) — parse the slug from `<slug>.code.<host>` and `code.<host>/<slug>/` and apply `HasAccess`.
+2. **Enforce project membership on the IDE host class** (finding 4) — parse the slug from `code.<host>/<slug>/` and apply `HasAccess`.
 3. **Segment the container bridge** (finding 5) — LXD network ACLs or per-container nftables default-deny on peer ingress to 8842/6080/9222/5900.
 4. **Add a default disk quota** (finding 13) — move workspaces to a quota-capable pool or apply a project quota on the bind-mount source.
 5. **Sign the update chain** (finding 3) — require verified signed commits/tags

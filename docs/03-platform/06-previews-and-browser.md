@@ -25,7 +25,7 @@ The UI prefers a preview URL recently mentioned in chat when it matches the curr
 Preview host rules:
 
 - Port must be between 1024 and 65535.
-- On-demand TLS asks the backend to confirm the slug is a real project before certificate issuance.
+- Preview hosts use the shared wildcard certificate; project and port authorization happens on each request.
 - The authenticated user must be an admin or project member, or the request must carry a valid public share link for that exact slug and port.
 - Platform cookies are stripped before the request enters project code.
 
@@ -55,7 +55,7 @@ sequenceDiagram
 
 Properties that make this safe to hand out:
 
-- **One port, one project.** The token is bound to the project slug and the port. It is refused on any other host, on `*.code.<host>`, on port 6080 (Agent Browser noVNC), and on the main application.
+- **One port, one project.** The token is bound to the project slug and the port. It is refused on any other host, on `code.<host>`, on port 6080 (Agent Browser noVNC), and on the main application.
 - **Nothing replayable is stored.** `DATA_DIR/projectshares/<projectId>.json` holds only a SHA-256 digest of each token, plus port, label, creator, timestamps, and a revocation stamp.
 - **Time-boxed.** Default lifetime 24 hours; the UI offers 1 hour, 24 hours, and 7 days; the service refuses anything under 1 hour or over 30 days.
 - **Revocable immediately.** Every request re-reads the link from the store, so revoking one stops the next request, cookie or not.
@@ -149,7 +149,7 @@ Backend behavior:
 flowchart TD
     Main["https://host"] --> Backend["Main UI and API"]
     IDELauncher["https://code.host"] --> Launcher["Installable IDE launcher"]
-    IDEProject["https://slug.code.host"] --> CodeServer["slug.lxd:8842"]
+    IDEProject["https://code.host/slug/"] --> CodeServer["slug.lxd:8842"]
     Preview["https://dev--slug--port.host"] --> ProjectApp["slug.lxd:port"]
     AgentView["https://dev--slug--6080.host"] --> NoVNC["slug.lxd:6080"]
 ```
@@ -160,7 +160,7 @@ The installer configures host DNS resolution for `.lxd` names through the LXD br
 
 ```mermaid
 flowchart LR
-    Request["Public subdomain request"] --> TLS["On-demand TLS allow check"]
+    Request["Public subdomain request"] --> TLS["Shared wildcard TLS"]
     TLS --> Auth["Platform session and membership check"]
     Auth -->|"preview hosts only"| Share["Share link or share cookie check"]
     Auth --> Strip["Strip platform cookies"]
