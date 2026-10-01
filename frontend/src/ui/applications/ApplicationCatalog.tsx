@@ -194,7 +194,8 @@ function InstallDialog({
                     class="w-full min-h-48 px-2.5 py-2 rounded border border-white/10 bg-black/30 text-[12px] leading-relaxed font-mono text-ink-50 focus:outline-none focus:border-accent-blue/50 resize-y"
                   />
                   <span class="block text-[11px] text-ink-400">
-                    Edit the complete JSON object before installing. The saved value is hidden from installed app details.
+                    Edit the complete JSON object before installing.
+                    {variable.secret && " The saved value is hidden from installed app details."}
                   </span>
                 </>
               ) : (
