@@ -222,7 +222,9 @@ type Application struct {
 	// the target container.
 	Service *ApplicationService `json:"service,omitempty"`
 	// Install is the install-script filename relative to the application directory.
-	Install     string      `json:"install"`
+	Install string `json:"install"`
+	// Uninstall optionally removes application-owned files from a project container.
+	Uninstall   string      `json:"uninstall,omitempty"`
 	Healthcheck Healthcheck `json:"healthcheck,omitempty"`
 	// Connection maps env vars to canonical user/password/database fields.
 	Connection Connection `json:"connection,omitempty"`

@@ -37,6 +37,9 @@ func validateApplication(application svc.Application) error {
 	if len(application.HostTools) > 0 && !application.NeedsContainer() {
 		return fmt.Errorf("host tools require a provisioned application")
 	}
+	if application.Uninstall != "" && !application.NeedsContainer() {
+		return fmt.Errorf("uninstall script requires a provisioned application")
+	}
 	for _, tool := range application.HostTools {
 		if err := hosttools.Validate(tool); err != nil {
 			return fmt.Errorf("host tool %q: %w", tool.Name, err)

@@ -43,6 +43,8 @@ Start, stop, and uninstall operate on every capability an application has:
 - the UI loads only while the installed instance is running;
 - a proxy device exists only when `port.internal` is declared.
 
-For project-scoped infrastructure, uninstall disables the declared service but
-does not delete the project container or files installed into it. For global
-infrastructure, uninstall deletes the dedicated application container.
+For project-scoped infrastructure, uninstall disables the declared service and
+removes Remote-owned service files. A declared `uninstall` script can also purge
+application packages and data; without it those files remain. The project
+container itself is retained. Global uninstall deletes the dedicated container
+and skips the cleanup script. See [04 — Install scripts](04-install-scripts.md#uninstall-scripts).

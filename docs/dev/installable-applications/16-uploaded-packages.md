@@ -274,6 +274,12 @@ catalog.
 `application.json` is rejected, so a package cannot describe itself as built
 in. The UI uses it to badge uploaded applications and to offer removing them.
 
+## Uninstall behavior
+
+Uploaded packages must explicitly declare cleanup under `infra/` and include
+the referenced file; adding a file alone does not enable cleanup.
+See [the focused guide](21-application-uninstall-scripts.md).
+
 ## Json behavior
 
 Uploaded packages use the same JSON/default-file validation as built-ins.
