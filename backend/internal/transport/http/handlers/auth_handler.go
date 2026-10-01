@@ -30,7 +30,7 @@ func NewAuthHandler(auth *serviceauth.Service, access *serviceauth.AccessVerifie
 	}
 }
 
-// WithShares lets public preview links authorize <slug>--<port>.dev.<host>
+// WithShares lets public preview links authorize dev--<slug>--<port>.<host>
 // requests at /auth/verify. Without it the edge stays session-only.
 func (h *AuthHandler) WithShares(shares *serviceshare.Service) *AuthHandler {
 	if shares != nil {

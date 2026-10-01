@@ -22,7 +22,7 @@ func TestProjectSharesLifecycle(t *testing.T) {
 	created := decodeShare(t, sharesRequest(t, handler, http.MethodPost, base,
 		`{"port":3000,"ttlHours":168,"label":"client demo"}`, http.StatusCreated))
 
-	wantPrefix := "https://" + project.Slug + "--3000.dev." + sharesPublicHostname + "/?share="
+	wantPrefix := "https://dev--" + project.Slug + "--3000." + sharesPublicHostname + "/?share="
 	if !strings.HasPrefix(created.URL, wantPrefix) {
 		t.Fatalf("url = %q, want prefix %q", created.URL, wantPrefix)
 	}
@@ -190,7 +190,7 @@ func newSharesProjectHandler(t *testing.T) (*ProjectHandler, serviceproject.Meta
 func TestShareURLTokenIsQueryEscaped(t *testing.T) {
 	handler, project := newSharesProjectHandler(t)
 	got := handler.shareURL(project.Slug, 3000, "a+b/c=")
-	want := "https://" + project.Slug + "--3000.dev." + sharesPublicHostname +
+	want := "https://dev--" + project.Slug + "--3000." + sharesPublicHostname +
 		"/?share=" + url.QueryEscape("a+b/c=")
 	if got != want {
 		t.Fatalf("shareURL = %q, want %q", got, want)

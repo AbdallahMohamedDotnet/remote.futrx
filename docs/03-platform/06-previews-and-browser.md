@@ -14,7 +14,7 @@ flowchart LR
     App["Project process listens on TCP port"] --> Scan["Backend scans with ss"]
     Scan --> Filter["Exclude loopback-only listeners and deduplicate ports"]
     Filter --> Picker["Browser drawer app picker"]
-    Picker --> URL["https://slug--port.dev.host"]
+    Picker --> URL["https://dev--slug--port.host"]
     URL --> Caddy["Caddy authenticates request"]
     Caddy --> DNS["slug.lxd:port"]
     DNS --> App
@@ -41,12 +41,12 @@ sequenceDiagram
     participant Store as projectshares store
     participant App as Project app
 
-    Client->>Caddy: GET https://slug--port.dev.host/?share=TOKEN
+    Client->>Caddy: GET https://dev--slug--port.host/?share=TOKEN
     Caddy->>Verify: forward_auth with X-Forwarded-Host and X-Forwarded-Uri
     Verify->>Store: match SHA-256 of TOKEN for this slug and port
     Store-->>Verify: live, unexpired, unrevoked link
     Verify-->>Client: 302 to the same URL without the token, Set-Cookie remote_share
-    Client->>Caddy: GET https://slug--port.dev.host/
+    Client->>Caddy: GET https://dev--slug--port.host/
     Caddy->>Verify: forward_auth with the remote_share cookie
     Verify->>Store: is that link still live?
     Verify-->>Caddy: 200
@@ -59,7 +59,7 @@ Properties that make this safe to hand out:
 - **Nothing replayable is stored.** `DATA_DIR/projectshares/<projectId>.json` holds only a SHA-256 digest of each token, plus port, label, creator, timestamps, and a revocation stamp.
 - **Time-boxed.** Default lifetime 24 hours; the UI offers 1 hour, 24 hours, and 7 days; the service refuses anything under 1 hour or over 30 days.
 - **Revocable immediately.** Every request re-reads the link from the store, so revoking one stops the next request, cookie or not.
-- **Host-scoped cookie.** `remote_share` is set without a `Domain`, so the browser sends it only to that one `<slug>--<port>.dev.<host>` origin. Its value is `{slug, port, shareId, exp}` signed with the same HMAC key as platform sessions, under a separate domain-separation tag so a share pass can never verify as a session.
+- **Host-scoped cookie.** `remote_share` is set without a `Domain`, so the browser sends it only to that one `dev--<slug>--<port>.<host>` origin. Its value is `{slug, port, shareId, exp}` signed with the same HMAC key as platform sessions, under a separate domain-separation tag so a share pass can never verify as a session.
 - **Token leaves the URL immediately.** The first response is a redirect to the same URL minus `?share=`, so the token stays out of browser history, `Referer`, and the project's own logs. The redirect is also what makes `Set-Cookie` reach the browser: Caddy's `forward_auth` discards the auth response on 2xx and relays only non-2xx responses.
 - **Stripped at the container boundary.** `remote_share` is in the Caddyfile `header_up` cookie-strip list, so code running inside the container never sees it.
 
@@ -150,8 +150,8 @@ flowchart TD
     Main["https://host"] --> Backend["Main UI and API"]
     IDELauncher["https://code.host"] --> Launcher["Installable IDE launcher"]
     IDEProject["https://slug.code.host"] --> CodeServer["slug.lxd:8842"]
-    Preview["https://slug--port.dev.host"] --> ProjectApp["slug.lxd:port"]
-    AgentView["https://slug--6080.dev.host"] --> NoVNC["slug.lxd:6080"]
+    Preview["https://dev--slug--port.host"] --> ProjectApp["slug.lxd:port"]
+    AgentView["https://dev--slug--6080.host"] --> NoVNC["slug.lxd:6080"]
 ```
 
 The installer configures host DNS resolution for `.lxd` names through the LXD bridge. Caddy handles public HTTPS and routes to private container addresses.

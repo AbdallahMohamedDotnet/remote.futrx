@@ -236,7 +236,7 @@ systemctl enable --now futrx-lxd-forward.service >/dev/null 2>&1 \
 # Detect the bridge IP so the resolved drop-in can forward *.lxd queries.
 LXD_BRIDGE_IP=$(lxc network get "$LXD_BRIDGE" ipv4.address 2>/dev/null | sed 's|/.*||')
 if [ -z "$LXD_BRIDGE_IP" ]; then
-    warn "lxdbr0 bridge IP not detectable — *.dev.${HOSTNAME} routing will fail."
+    warn "lxdbr0 bridge IP not detectable — dev--<slug>--<port>.${HOSTNAME} routing will fail."
 else
     export LXD_BRIDGE_IP
 fi

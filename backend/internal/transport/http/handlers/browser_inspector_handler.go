@@ -6,7 +6,7 @@ import (
 	"regexp"
 )
 
-var devPreviewHostPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*--\d{4,5}\.dev\.`)
+var devPreviewHostPattern = regexp.MustCompile(`(?i)^dev--[a-z0-9][a-z0-9-]*--\d{4,5}\.`)
 
 type BrowserInspectorHandler struct{}
 

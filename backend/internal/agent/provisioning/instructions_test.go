@@ -10,8 +10,7 @@ func TestInstructionsTemplateUsesInstalledHostname(t *testing.T) {
 
 	for _, want := range []string{
 		"https://remote.example.com",
-		"https://<this-project-slug>--<port>.dev.remote.example.com",
-		"`.dev.remote.example.com`",
+		"https://dev--<this-project-slug>--<port>.remote.example.com",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("rendered instructions do not contain %q", want)

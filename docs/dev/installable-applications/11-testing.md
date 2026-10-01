@@ -179,7 +179,7 @@ Be aware of the gaps rather than assuming coverage:
   tests the contract and the host; what an application's `backend/` actually does is
   covered by whatever tests that application ships.
 - **Web gateway tests use fixture services.** Go tests cover access policy,
-  host dispatch, TLS admission, proxying and WebSockets. The opt-in Chromium
+  host dispatch, proxying and WebSockets. The opt-in Chromium
   check exercises real browser cookies and cross-origin requests; application
   installation and LXD routing still need an integration environment.
 - **Rendering is not unit-tested.** `ExtensionSlot.tsx` has no test; the

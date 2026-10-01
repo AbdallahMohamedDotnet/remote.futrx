@@ -49,7 +49,7 @@ listener from the picker.
 flowchart LR
     App["App listens on<br/>0.0.0.0:port"] --> Scan["Listener discovery"]
     Scan --> Picker["Browser app picker"]
-    Picker --> HTTPS["https://slug--port.dev.host"]
+    Picker --> HTTPS["https://dev--slug--port.host"]
     HTTPS --> Auth["Remote session +<br/>project membership"]
     Auth --> Strip["Strip Remote cookies"]
     Strip --> App

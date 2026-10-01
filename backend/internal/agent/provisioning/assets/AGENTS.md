@@ -119,7 +119,7 @@ Whenever the user asks for a dev server, **the URL they reach it at
 is**:
 
 ```
-https://<this-project-slug>--<port>.dev.{{PUBLIC_HOSTNAME}}
+https://dev--<this-project-slug>--<port>.{{PUBLIC_HOSTNAME}}
 ```
 
 Replace `<this-project-slug>` with the project slug shown in the environment
@@ -128,8 +128,7 @@ the slug from OAuth configuration, repository names, or user data.
 
 `localhost:<port>` is useful for health checks inside the container, but never
 give it to the user: they are on another machine. Give them the routed HTTPS
-URL. The route may be protected by the remote.futrx login, and its certificate
-is issued automatically on first access.
+URL. The route may be protected by the remote.futrx login, and HTTPS uses Remote’s shared wildcard certificate.
 
 ### Before starting
 
@@ -149,8 +148,7 @@ is issued automatically on first access.
 
 3. Configure the framework's documented host/origin allowlist for the exact
    routed hostname
-   `<this-project-slug>--<port>.dev.{{PUBLIC_HOSTNAME}}`, or the suffix
-   `.dev.{{PUBLIC_HOSTNAME}}` when the framework documents a suffix form.
+   `dev--<this-project-slug>--<port>.{{PUBLIC_HOSTNAME}}`.
    Syntax varies by framework and version. Do not disable host validation
    wholesale.
 

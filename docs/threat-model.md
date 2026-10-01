@@ -82,7 +82,7 @@ The original `/apps/<project-slug>/<application-id>/` proxy would have served
 project-controlled scripts on the main Remote origin. Cookie stripping could
 not stop those scripts from making authenticated platform API calls.
 
-The route only redirects to an isolated app origin: `<instance-id>.apps.<public-host>`
+The route only redirects to an isolated app origin: `app--<instance-id>--instance.<public-host>`
 for unnamed apps, or `<web.subdomain>--<project-slug>.<public-host>` for named apps.
 Named origins persist across reinstall, including browser storage and service workers. Host dispatch
 runs before the platform router, so app hosts cannot serve platform APIs or
@@ -151,7 +151,7 @@ do not protect against scripts already executing on the platform's own origin.
 
 ### 19. `return_to` open redirect into preview/IDE subdomains — **Low**
 
-**Spoofing.** `isSafeReturnTo` ([`auth_redirect.go`](../backend/internal/transport/http/handlers/auth_redirect.go)) accepts any HTTPS URL on the base host **or any subdomain** — including `*.dev.<host>` and `*.code.<host>`, which serve untrusted container content. A crafted `?return_to=` can bounce a freshly authenticated user onto attacker-influenced content on a trusted-looking origin (e.g. a fake password prompt).
+**Spoofing.** `isSafeReturnTo` ([`auth_redirect.go`](../backend/internal/transport/http/handlers/auth_redirect.go)) accepts any HTTPS URL on the base host **or any subdomain** — including previews and applications under `*.<host>`, which serve untrusted container content. A crafted `?return_to=` can bounce a freshly authenticated user onto attacker-influenced content on a trusted-looking origin (e.g. a fake password prompt).
 
 - **Existing mitigations:** external domains are rejected (https + base-or-subdomain only, ≤2048 chars); the target subdomain is itself `forward_auth`-gated.
 - **Residual gap:** restrict post-login redirects to the main app origin.

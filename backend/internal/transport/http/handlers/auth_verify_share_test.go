@@ -19,7 +19,7 @@ import (
 const (
 	verifyBaseHost    = "remote.example.test"
 	verifyProjectSlug = "alpha"
-	verifyPreviewHost = verifyProjectSlug + "--3000.dev." + verifyBaseHost
+	verifyPreviewHost = "dev--" + verifyProjectSlug + "--3000." + verifyBaseHost
 )
 
 // TestVerifyAcceptsShareTokenAndIssuesScopedCookie pins the first-visit
@@ -118,7 +118,7 @@ func TestVerifyRejectsShareAttempts(t *testing.T) {
 		},
 		{
 			name: "agent browser port is never shareable",
-			host: verifyProjectSlug + "--6080.dev." + verifyBaseHost,
+			host: "dev--" + verifyProjectSlug + "--6080." + verifyBaseHost,
 			uri:  "/vnc.html?share=good-token", validToken: "good-token",
 		},
 		{
@@ -132,7 +132,7 @@ func TestVerifyRejectsShareAttempts(t *testing.T) {
 		},
 		{
 			name: "preview host on another base domain",
-			host: verifyProjectSlug + "--3000.dev.attacker.test",
+			host: "dev--" + verifyProjectSlug + "--3000.attacker.test",
 			uri:  "/?share=good-token", validToken: "good-token",
 		},
 		{
@@ -319,5 +319,27 @@ func testAuthOptions() serviceauth.Options {
 		RecoveryCodeCount:   10,
 		SessionHistoryLimit: 20,
 		SetupTokenTTL:       30 * time.Minute,
+	}
+}
+
+// Port admission belongs to request authorization now that TLS uses a wildcard.
+func TestVerifyRejectsOutOfRangePreviewPorts(t *testing.T) {
+	handler, shares := newVerifyHandler(t)
+	shares.validToken = "good-token"
+	for _, host := range []string{"dev--alpha--1023." + verifyBaseHost, "dev--alpha--65536." + verifyBaseHost} {
+		rec := verifyRequest(t, handler, host, "/?share=good-token", nil)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("host %s: got %d, want 404", host, rec.Code)
+		}
+	}
+}
+
+func TestPreviewHostNormalization(t *testing.T) {
+	handler, _ := newVerifyHandler(t)
+	for _, host := range []string{verifyPreviewHost, verifyPreviewHost + ":443", verifyPreviewHost + ".:443"} {
+		slug, port := handler.matchPreviewHost(host)
+		if slug != verifyProjectSlug || port != 3000 {
+			t.Fatalf("%s: slug=%q port=%d", host, slug, port)
+		}
 	}
 }

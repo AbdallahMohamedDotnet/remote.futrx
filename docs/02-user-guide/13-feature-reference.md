@@ -159,7 +159,7 @@ coalesce into one follow-up under the default overlap policy.
 | Inspect element | Toggle crosshair, then click the element | Same-origin inspector wrapper |
 | Insert element context | Happens after selection | Selector, text, HTML, bounds, styles, parents |
 | Preview authentication | Sign in to Remote | Admin or project member |
-| Preview hostname | `slug--port.dev.<host>` | On-demand TLS and known-project check |
+| Preview hostname | `dev--slug--port.<host>` | Wildcard TLS and project membership check |
 
 ## Agent Browser
 

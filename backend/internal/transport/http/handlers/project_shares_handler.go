@@ -121,7 +121,7 @@ func (h *ProjectHandler) shareURL(slug string, port int, token string) string {
 	if slug == "" || h.publicHostname == "" {
 		return ""
 	}
-	return "https://" + slug + "--" + strconv.Itoa(port) + ".dev." + h.publicHostname +
+	return "https://dev--" + slug + "--" + strconv.Itoa(port) + "." + h.publicHostname +
 		"/?" + shareQueryParam + "=" + url.QueryEscape(token)
 }
 

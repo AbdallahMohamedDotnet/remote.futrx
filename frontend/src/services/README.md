@@ -8,7 +8,7 @@ Logic that belongs to no single caller, grouped by the domain it serves.
 | `chat/` | Where an attachment is stored and what it is called, where find-in-chat's matches are shown, and which skills a typed query finds |
 | `extensions/` | What the SPA has finished, and which application asked to hear it |
 | `files/` | What a filename means: its kind, its icon, what a click does |
-| `projects/` | The `<slug>--<port>.dev.<host>` preview URL shape |
+| `projects/` | The `dev--<slug>--<port>.<host>` preview URL shape |
 | `push/` | Which accounts opted this browser into push notifications |
 | `usage/` | Date ranges, bar geometry, and how tokens and money are written |
 | `workspace/` | The sidebar and its search: what they show, what filters them, and what the user folded away or filtered by |

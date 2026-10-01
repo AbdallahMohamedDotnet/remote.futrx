@@ -1,31 +1,7 @@
-# Caddyfile for remote.futrx — managed by infra/install.sh.
-#
-# Platform and application site blocks:
-#   1. ${HOSTNAME}            main chat UI + backend API
-#   2. code.${HOSTNAME}       code-server (VS Code in browser)
-#   3. *.dev.${HOSTNAME}      per-project dev URLs (<slug>--<port>.dev.<host>)
-#   4. *.apps.${HOSTNAME}     isolated installation origins (<instance-id>.apps.<host>)
-#
-# All use Remote authentication. Code + dev URLs use forward_auth; the
-# application gateway validates sessions and project membership itself.
-
-{
-    # Email used for Let's Encrypt ACME registration. Set to a real address
-    # if you want renewal-failure emails from LE.
-    # email you@example.com
-
-    # On-demand TLS for dev, code, and application subdomains. Caddy queries the
-    # backend's /internal/tls-ask before issuing each cert so attackers
-    # can't burn through ACME rate limits by hitting random subdomains.
-    on_demand_tls {
-        ask http://127.0.0.1:${SERVICE_PORT}/internal/tls-ask
-    }
-}
-
+# Managed by infra/install.sh. Exactly two managed names: the platform and
+# its wildcard. App/project creation never changes TLS configuration.
 ${HOSTNAME} {
     encode zstd gzip
-    # Defense in depth: /internal/* is reachable only on loopback (Caddy →
-    # backend). Reject any external attempt.
     @internal path /internal/*
     handle @internal {
         respond 403
@@ -33,28 +9,15 @@ ${HOSTNAME} {
     reverse_proxy 127.0.0.1:${SERVICE_PORT}
 }
 
-# One generic route for every project application. Remote resolves the
-# installation, verifies the session/project membership and running status,
-# then strips credentials before forwarding to the container. No application
-# edits Caddy, and no platform API or login page is served on these hosts.
-# Named apps use <label>--<project-slug>.<host>; legacy apps use <id>.apps.<host>.
-https:// {
+*.${HOSTNAME} {
     encode zstd gzip
     tls {
-        on_demand
+        # Administrator-selected DNS provider and provider-specific options.
+        import /etc/caddy/remote-dns.caddy
     }
-    @application expression `{http.request.host}.lowerAscii().endsWith(".${HOSTNAME}") || {http.request.host}.lowerAscii().endsWith(".${HOSTNAME}.")`
-    handle @application {
-        reverse_proxy 127.0.0.1:${SERVICE_PORT}
-    }
-    handle {
-        respond 404
-    }
-}
 
-code.${HOSTNAME} {
-    encode zstd gzip
-    route {
+    @launcherHost header_regexp launcherHost Host (?i)^code\.${HOSTNAME_RE}\.?(?::[0-9]+)?$
+    handle @launcherHost {
         # Admin-session gate (same check as the rest of the platform).
         forward_auth 127.0.0.1:${SERVICE_PORT} {
             uri /auth/verify
@@ -96,82 +59,31 @@ code.${HOSTNAME} {
             respond "Not found" 404
         }
     }
-}
 
-# Per-project IDE. <slug>.code.${HOSTNAME} proxies into the project's LXD
-# container at <slug>.lxd:8842, where an on-demand, idle-stopped
-# code-server lives (systemd socket activation inside the container). Same
-# Google admin gate as code.${HOSTNAME}; on-demand TLS is gated by the
-# backend's /internal/tls-ask, which now also allows <slug>.code.${HOSTNAME}.
-*.code.${HOSTNAME} {
-    encode zstd gzip
-    tls {
-        on_demand
-    }
-    forward_auth 127.0.0.1:${SERVICE_PORT} {
-        uri /auth/verify
-    }
-    @valid {
-        header_regexp host Host ^([a-z0-9][a-z0-9-]*)\.code\.${HOSTNAME_RE}$
-    }
-    handle @valid {
-        reverse_proxy {re.host.1}.lxd:8842 {
-            # On-demand backend: don't pool idle upstream connections, so the
-            # in-container systemd-socket-proxyd sees zero open connections soon
-            # after the tab closes and can reach its --exit-idle-time to stop
-            # code-server.
-            transport http {
-                keepalive off
+    @preview header_regexp preview Host (?i)^dev--([a-z0-9][a-z0-9-]*)--(\d{4,5})\.${HOSTNAME_RE}\.?(?::[0-9]+)?$
+    handle @preview {
+        route {
+            forward_auth 127.0.0.1:${SERVICE_PORT} {
+                uri /auth/verify
             }
-            # Strip the platform's admin-session cookies before the request
-            # enters the container (same rationale as the dev-URL block): the
-            # forward_auth above already validated the session on loopback, and
-            # in-container code must never see a token replayable against
-            # code.${HOSTNAME}.
-            header_up Cookie `(?:^|;\s*)(?:remote_session|remote_2fa_pending|remote_oauth_state|return_to)=[^;]*` ""
+            handle /internal/* {
+                respond 403
+            }
+            handle /__remote_inspector {
+                reverse_proxy 127.0.0.1:${SERVICE_PORT}
+            }
+            handle {
+                reverse_proxy {re.preview.1}.lxd:{re.preview.2} {
+                    # Authorization ran above; container code must not receive platform cookies.
+                    header_up Cookie `(?:^|;\s*)(?:remote_session|remote_2fa_pending|remote_oauth_state|return_to)=[^;]*` ""
+                }
+            }
         }
     }
-    respond "Use <slug>.code.${HOSTNAME}" 400
-}
 
-# Per-project dev URLs. <slug>--<port>.dev.${HOSTNAME} proxies into the
-# project's LXD container at <slug>.lxd:<port>. The .lxd resolution
-# depends on the systemd-resolved drop-in installed by infra/steps/01-host-deps.sh.
-*.dev.${HOSTNAME} {
-    encode zstd gzip
-    tls {
-        on_demand
-    }
-    forward_auth 127.0.0.1:${SERVICE_PORT} {
-        uri /auth/verify
-    }
-    @internal path /internal/*
-    handle @internal {
-        respond 403
-    }
-    # The Browser drawer's inspect mode serves a wrapper from the same dev
-    # subdomain as the previewed app, so it can inspect iframe DOM and post
-    # selected element metadata back to the main chat UI.
-    handle /__remote_inspector {
+    # Named apps: <label>--<project>.<host>. Unnamed: app--<id>--instance.<host>.
+    # The gateway authorizes each request and rejects unknown application hosts.
+    handle {
         reverse_proxy 127.0.0.1:${SERVICE_PORT}
     }
-    @valid {
-        header_regexp host Host ^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.${HOSTNAME_RE}$
-    }
-    handle @valid {
-        reverse_proxy {re.host.1}.lxd:{re.host.2} {
-            # Strip remote.futrx's own auth cookies before the request
-            # enters the project container. forward_auth (above) already
-            # validated the session against the main backend on loopback, so
-            # the gate is unaffected; this stops any code running inside a
-            # dev server from harvesting the admin session token (which would
-            # otherwise be replayable against code.${HOSTNAME} for host root).
-            # remote_share is the public-preview grant: host-scoped to this
-            # one <slug>--<port> origin, so this is the only block that can
-            # ever see it, and the app inside must not be able to read it.
-            # The app's own cookies pass through untouched.
-            header_up Cookie `(?:^|;\s*)(?:remote_session|remote_2fa_pending|remote_oauth_state|return_to)=[^;]*` ""
-        }
-    }
-    respond "Use <slug>--<port>.dev.${HOSTNAME} (e.g. myproj--3000.dev.${HOSTNAME})" 400
 }

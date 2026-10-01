@@ -20,8 +20,8 @@ class ProjectPreviewUrlService {
     if (!hostname) return [];
     const pattern = new RegExp(
       `${this.escapeRegExp(PROJECT_PREVIEW_URL.scheme)}:\\/\\/` +
-        `[a-z0-9][a-z0-9-]*${this.escapeRegExp(PROJECT_PREVIEW_URL.portSeparator)}` +
-        `${this.portDigitsPattern()}\\.${this.escapeRegExp(PROJECT_PREVIEW_URL.subdomain)}\\.` +
+        `${PROJECT_PREVIEW_URL.subdomain}--[a-z0-9][a-z0-9-]*${this.escapeRegExp(PROJECT_PREVIEW_URL.portSeparator)}` +
+        `${this.portDigitsPattern()}\\.` +
         `${this.escapeRegExp(hostname)}[^\\s<>)\\]]*`,
       "g",
     );
@@ -56,15 +56,15 @@ class ProjectPreviewUrlService {
     return match ? Number(match[1]) : null;
   }
 
-  /** `<slug>--`, the part of the hostname that comes before the port. */
+  /** `dev--<slug>--`, the part of the hostname that comes before the port. */
   private hostPrefix(slug: string): string {
-    return `${slug}${PROJECT_PREVIEW_URL.portSeparator}`;
+    return `${PROJECT_PREVIEW_URL.subdomain}--${slug}${PROJECT_PREVIEW_URL.portSeparator}`;
   }
 
-  /** `.dev.<public hostname>`, the part that comes after it. */
+  /** `.<public hostname>`, the part that comes after it. */
   private hostSuffix(publicHostname: string): string {
     const hostname = this.normalizeHostname(publicHostname);
-    return hostname ? `.${PROJECT_PREVIEW_URL.subdomain}.${hostname}` : "";
+    return hostname ? `.${hostname}` : "";
   }
 
   /** A coarse `\d{4,5}` pre-filter derived from the range, so the pattern can
