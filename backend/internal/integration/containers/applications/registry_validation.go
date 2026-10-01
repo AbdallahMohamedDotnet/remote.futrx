@@ -65,6 +65,14 @@ func validateApplication(application svc.Application) error {
 			return fmt.Errorf("invalid scope %q", scope)
 		}
 	}
+	for _, variable := range application.Env {
+		if variable.Format != "" && variable.Format != "json" {
+			return fmt.Errorf("env %q has unsupported format %q", variable.Key, variable.Format)
+		}
+		if err := svc.ValidateEnvValue(variable, variable.Default); err != nil {
+			return fmt.Errorf("env %q default: %w", variable.Key, err)
+		}
+	}
 	if err := validateService(application); err != nil {
 		return err
 	}

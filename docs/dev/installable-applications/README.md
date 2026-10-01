@@ -89,3 +89,4 @@ Code references name the file and, where useful, the symbol —
 `registry_ui.go:loadApplicationUI`, `extensionContributionState.ts:visibleExtensionContributions`.
 
 - [Uninstall capability guide](21-application-uninstall-scripts.md)
+- [Json capability guide](22-application-json-settings.md)
