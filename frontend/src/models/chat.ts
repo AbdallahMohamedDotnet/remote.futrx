@@ -54,6 +54,7 @@ export interface ProviderNativeEnvelope {
 }
 
 type ChatEventBase = {
+  userEmail?: string;
   seq?: number;
   t: number;
   turnId?: string;
@@ -78,7 +79,7 @@ export type ChatEvent = ChatEventBase & (
     }
   | { type: "permission_request"; id: string; toolName: string; input: Record<string, unknown> }
   | { type: "interaction_request"; id: string; interactionId?: string; name: string; input?: Record<string, unknown> }
-  | { type: "interaction_resolved"; id: string; interactionId?: string; name?: string }
+  | { type: "interaction_resolved"; id: string; interactionId?: string; name?: string; data?: unknown }
   | { type: "collaboration"; id: string; name?: string; data?: Record<string, unknown> }
   | { type: "turn_status"; data?: Record<string, unknown> }
   | { type: "provider_event"; name?: string; data?: unknown }
