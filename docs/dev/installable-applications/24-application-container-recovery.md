@@ -62,3 +62,7 @@ Tests check running versus stopped restoration, busy instance-lock skipping,
 missing-container project-start callbacks and missing-unit reinstall on Start.
 Not every failure combination is covered. Replace a disposable container with
 running/stopped apps, then check restoration and explicit stopped-app Start.
+
+### Responsibility boundaries
+
+- [restore.go](../../../backend/internal/service/applications/restore.go) — Owns project restoration and the per-instance lock; upgrade.go continues to own package-version upgrades.
