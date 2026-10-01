@@ -37,6 +37,9 @@ func validateApplication(application svc.Application) error {
 	if len(application.HostTools) > 0 && !application.NeedsContainer() {
 		return fmt.Errorf("host tools require a provisioned application")
 	}
+	if application.Uninstall != "" && !application.NeedsContainer() {
+		return fmt.Errorf("uninstall script requires a provisioned application")
+	}
 	for _, tool := range application.HostTools {
 		if err := hosttools.Validate(tool); err != nil {
 			return fmt.Errorf("host tool %q: %w", tool.Name, err)
@@ -60,6 +63,14 @@ func validateApplication(application svc.Application) error {
 	for _, scope := range application.Scopes {
 		if !scope.Valid() {
 			return fmt.Errorf("invalid scope %q", scope)
+		}
+	}
+	for _, variable := range application.Env {
+		if variable.Format != "" && variable.Format != "json" {
+			return fmt.Errorf("env %q has unsupported format %q", variable.Key, variable.Format)
+		}
+		if err := svc.ValidateEnvValue(variable, variable.Default); err != nil {
+			return fmt.Errorf("env %q default: %w", variable.Key, err)
 		}
 	}
 	if err := validateService(application); err != nil {

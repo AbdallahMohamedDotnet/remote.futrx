@@ -278,3 +278,15 @@ in. The UI uses it to badge uploaded applications and to offer removing them.
 
 Uploaded packages follow the same project web-route validation as built-ins.
 See [the focused guide](19-project-application-web-routes.md).
+
+## Uninstall behavior
+
+Uploaded packages must explicitly declare cleanup under `infra/` and include
+the referenced file; adding a file alone does not enable cleanup.
+See [the focused guide](21-application-uninstall-scripts.md).
+
+## Json behavior
+
+Uploaded packages use the same JSON/default-file validation as built-ins.
+Include the UTF-8 default file under `infra/`; invalid defaults reject admission.
+See [the focused guide](22-application-json-settings.md).

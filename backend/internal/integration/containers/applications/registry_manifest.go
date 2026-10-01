@@ -39,6 +39,7 @@ type applicationManifestSchema struct {
 	Service       *svc.ApplicationService               `json:"service,omitempty"`
 	Web           *svc.ApplicationWeb                   `json:"web,omitempty"`
 	Install       string                                `json:"install"`
+	Uninstall     string                                `json:"uninstall,omitempty"`
 	Healthcheck   svc.Healthcheck                       `json:"healthcheck,omitempty"`
 	Connection    svc.Connection                        `json:"connection,omitempty"`
 	Base          string                                `json:"base,omitempty"`

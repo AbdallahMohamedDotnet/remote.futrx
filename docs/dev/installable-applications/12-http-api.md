@@ -311,7 +311,7 @@ has authorized:
 
 | Status | When |
 |---|---|
-| `400` | unknown application, unsupported scope, missing project id, missing required env, port out of range |
+| `400` | unknown application, unsupported scope, missing project id, missing required env, invalid JSON settings, port out of range |
 | `401` | no valid session |
 | `403` | admin-only route, non-admin caller |
 | `403` | an `access: admin` backend and a non-admin caller |

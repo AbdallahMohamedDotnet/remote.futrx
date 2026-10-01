@@ -68,6 +68,11 @@ type EnvVar struct {
 	Secret bool `json:"secret,omitempty"`
 	// Default is applied when the user leaves the field blank.
 	Default string `json:"default,omitempty"`
+	// DefaultFile is resolved from the application's own files when the catalog
+	// loads, then cleared before the manifest is served to the browser.
+	DefaultFile string `json:"defaultFile,omitempty"`
+	// Format selects an editor and validation for structured install inputs.
+	Format string `json:"format,omitempty"`
 	// Generate names a generator ("password") used to fill a blank value.
 	Generate string `json:"generate,omitempty"`
 }
@@ -225,7 +230,9 @@ type Application struct {
 	Service *ApplicationService `json:"service,omitempty"`
 	Web     *ApplicationWeb     `json:"web,omitempty"`
 	// Install is the install-script filename relative to the application directory.
-	Install     string      `json:"install"`
+	Install string `json:"install"`
+	// Uninstall optionally removes application-owned files from a project container.
+	Uninstall   string      `json:"uninstall,omitempty"`
 	Healthcheck Healthcheck `json:"healthcheck,omitempty"`
 	// Connection maps env vars to canonical user/password/database fields.
 	Connection Connection `json:"connection,omitempty"`
