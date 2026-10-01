@@ -85,8 +85,13 @@ class ChatMessageBlockBuilder {
         });
         return next;
       }
-      case "interaction_resolved":
-        return this.updateInteraction(blocks, event.id, { status: event.status || "resolved" });
+      case "interaction_resolved": {
+        const answers = chatInteractionService.recordedAnswers(event.data);
+        return this.updateInteraction(blocks, event.id, {
+          status: event.status || "resolved",
+          ...(answers ? { answers } : {}),
+        });
+      }
       case "collaboration": {
         // wait is an internal parent/subagent synchronization primitive. Its
         // native event stays in the transcript log, while child-thread updates
