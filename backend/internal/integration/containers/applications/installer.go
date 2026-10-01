@@ -105,6 +105,15 @@ func (in *Installer) Start(ctx context.Context, spec svc.InstallSpec) error {
 	if err := in.ensureContainer(ctx, spec); err != nil {
 		return err
 	}
+	// A stopped project application keeps its database record when the project
+	// container is replaced. Reinstall it on first start if its unit disappeared
+	// with the old root filesystem.
+	if name := spec.Application.ServiceName(); name != "" {
+		if _, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout,
+			"test", "-f", serviceUnitPath(name)); err != nil {
+			return in.Install(ctx, spec)
+		}
+	}
 	if err := in.publishSkills(ctx, spec); err != nil {
 		return err
 	}

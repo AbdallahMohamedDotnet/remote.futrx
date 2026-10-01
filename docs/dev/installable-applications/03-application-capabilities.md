@@ -48,3 +48,8 @@ removes Remote-owned service files. A declared `uninstall` script can also purge
 application packages and data; without it those files remain. The project
 container itself is retained. Global uninstall deletes the dedicated container
 and skips the cleanup script. See [04 — Install scripts](04-install-scripts.md#uninstall-scripts).
+
+Running applications with container capabilities are reinstalled after project
+container replacement; stopped ones remain stopped. A later Start reinstalls
+when its declared service-unit check fails. See
+[Container recovery](24-application-container-recovery.md).

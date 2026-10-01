@@ -17,6 +17,7 @@ import (
 type fakeRunner struct {
 	// running is the set of containers `lxc info` should report as up.
 	running     map[string]bool
+	missingUnit bool
 	calls       [][]string
 	stdinBodies []string
 	stdinErr    error
@@ -41,6 +42,9 @@ func (f *fakeRunner) Run(_ context.Context, args ...string) (string, error) {
 		}
 		return "Error: Instance not found", fmt.Errorf("exit status 1")
 	case len(args) >= 1 && args[0] == "exec":
+		if f.missingUnit && strings.Contains(strings.Join(args, " "), "test -f /etc/systemd/system/fixture.service") {
+			return "", fmt.Errorf("exit status 1")
+		}
 		// waitNetwork probes for connectivity; report it immediately.
 		return "ok", nil
 	}
@@ -193,6 +197,19 @@ func TestInstallMaterializesAndStartsTheManifestService(t *testing.T) {
 		if !runner.contains(command) {
 			t.Errorf("install did not run %q:\n%s", command, strings.Join(runner.commands(), "\n"))
 		}
+	}
+}
+
+func TestStartReinstallsStoppedServiceAfterProjectContainerReplacement(t *testing.T) {
+	runner := newFakeRunner("my-project")
+	runner.missingUnit = true
+	installer := testInstaller(t, runner)
+	spec := serviceSpec(svc.ScopeProject, "my-project")
+	if err := installer.Start(context.Background(), spec); err != nil {
+		t.Fatal(err)
+	}
+	if !runner.contains("bash -s") || !runner.contains("systemctl restart fixture") {
+		t.Fatalf("missing service was not reinstalled: %v", runner.commands())
 	}
 }
 

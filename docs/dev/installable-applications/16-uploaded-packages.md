@@ -285,3 +285,9 @@ See [the focused guide](21-application-uninstall-scripts.md).
 Uploaded packages use the same JSON/default-file validation as built-ins.
 Include the UTF-8 default file under `infra/`; invalid defaults reject admission.
 See [the focused guide](22-application-json-settings.md).
+
+## Recovery behavior
+
+Workspace upgrade recovery loads uploaded packages from the host package
+store as well as the embedded catalog. Missing packages cannot be restored.
+See [the focused guide](24-application-container-recovery.md).
