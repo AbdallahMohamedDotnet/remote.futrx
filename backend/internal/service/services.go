@@ -65,9 +65,9 @@ type Dependencies struct {
 	ProjectSecrets    serviceproject.SecretsRepository
 	ProjectAccess     serviceproject.AccessRepository
 	ProjectShares     serviceshare.Repository
-	Permissions       servicepermission.Repository
+	Permissions       *servicepermission.Service
 	Schedules         serviceschedule.Repository
-	Auth              AuthStore
+	Auth              *serviceauth.Service
 	Users             serviceuser.Repository
 	UserSettings      serviceusersettings.Repository
 	TwoFactor         serviceauth.TwoFactorStore
@@ -82,7 +82,6 @@ type Dependencies struct {
 	AgentAPIKeys      agentauth.APIKeyStore
 	AgentAccounts     agentauth.AccountStore
 	AgentOptions      AgentOptions
-	AuthOptions       AuthOptions
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
 	ScheduleLimits    ScheduleLimits
@@ -172,16 +171,17 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if deps.AgentModules == nil {
 		return Services{}, errors.New("agent module catalog is required")
 	}
-	if deps.Auth != nil {
-		if err := deps.AgentModules.ValidateAccessGate(); err != nil {
-			return Services{}, fmt.Errorf("agent module catalog: %w", err)
-		}
+	if deps.Auth == nil {
+		return Services{}, errors.New("authentication service is required")
+	}
+	if err := deps.AgentModules.ValidateAccessGate(); err != nil {
+		return Services{}, fmt.Errorf("agent module catalog: %w", err)
 	}
 	if deps.Schedules == nil {
 		return Services{}, errors.New("scheduled task repository is required")
 	}
 	if deps.Permissions == nil {
-		return Services{}, errors.New("permission repository is required")
+		return Services{}, errors.New("permission service is required")
 	}
 
 	workspace := workspacehub.New()
@@ -199,27 +199,10 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		},
 		push: pushNotifier,
 	}
-	// Identity and policy are built before the project service so the project
-	// service can receive its authorizer at construction. Auth reads users
-	// through a removal-cleanup-free view of the same repository: cleanup needs
-	// the project service, which needs authorization, which needs auth. Only
-	// removal differs between the two views, and auth never removes users.
-	authService, err := newAuth(
-		ctx,
-		deps.Auth,
-		serviceuser.New(deps.Users),
-		deps.AuthBaseURL,
-		deps.TwoFactor,
-		deps.SessionRegistry,
-		deps.AuthOptions,
-	)
-	if err != nil {
-		return Services{}, err
-	}
-	permissionService, err := newPermissions(ctx, deps.Permissions, authService, deps.ProjectAccess)
-	if err != nil {
-		return Services{}, err
-	}
+	// Authentication and authorization are built by the composition root and
+	// injected, so this layer knows neither their stores nor their adapters.
+	authService := deps.Auth
+	permissionService := deps.Permissions
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
 	projectService := serviceproject.New(
 		projects,

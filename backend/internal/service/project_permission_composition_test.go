@@ -70,21 +70,6 @@ func realAuthorizerProjects(t *testing.T) (*serviceproject.Service, *systemCalle
 	return projects, repo
 }
 
-func TestPermissionCatalogRegistersEveryProjectPermission(t *testing.T) {
-	registry, err := servicepermission.NewRegistry(permissionDefinitions()...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, key := range []servicepermission.Key{
-		serviceproject.PermissionLifecycleManage, serviceproject.PermissionAccessManage,
-		servicepermission.PermissionAssignmentsManage, servicepermission.PermissionRolesManage,
-	} {
-		if _, ok := registry.Lookup(key); !ok {
-			t.Errorf("%s is not registered by the composition root", key)
-		}
-	}
-}
-
 // Trusted internal callers must keep working from contexts that carry no
 // authenticated actor, even for a user who is explicitly denied the
 // permission: their work is not the user's explicit lifecycle action.

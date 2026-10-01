@@ -34,42 +34,33 @@ func actorContext(email string) context.Context {
 	return servicepermission.ContextWithActor(context.Background(), servicepermission.UserActor(email))
 }
 
-func TestProjectMembershipAdaptsTheAccessRepository(t *testing.T) {
-	access := &cleanupProjectAccess{members: map[serviceproject.ID][]string{}}
-	membership := projectMembership{access: accessHas{access, map[string]bool{"beefcafe/member@example.com": true}}}
-
-	for name, test := range map[string]struct {
-		project, email string
-		want           bool
-	}{
-		"a member":                       {"beefcafe", "member@example.com", true},
-		"email case and padding ignored": {"beefcafe", "  Member@Example.com ", true},
-		"another project":                {"deadbeef", "member@example.com", false},
-		"a non-member":                   {"beefcafe", "other@example.com", false},
-		"an empty email":                 {"beefcafe", " ", false},
-	} {
-		t.Run(name, func(t *testing.T) {
-			got, err := membership.HasAccess(context.Background(), test.project, test.email)
-			if err != nil || got != test.want {
-				t.Fatalf("HasAccess() = %v, %v; want %v", got, err, test.want)
-			}
-		})
+// newPermissions builds a permission service the way the composition root does,
+// from the production catalog, with a membership adapter over access.
+func newPermissions(
+	ctx context.Context,
+	repo servicepermission.Repository,
+	identity servicepermission.IdentityDirectory,
+	access serviceproject.AccessRepository,
+) (*servicepermission.Service, error) {
+	registry, err := servicepermission.NewRegistry(
+		servicepermission.ManagementDefinitions(),
+		serviceproject.PermissionDefinitions(),
+	)
+	if err != nil {
+		return nil, err
 	}
-
-	got, err := (projectMembership{}).HasAccess(context.Background(), "beefcafe", "member@example.com")
-	if err != nil || got {
-		t.Fatalf("HasAccess() without a repository = %v, %v; want false", got, err)
-	}
+	return servicepermission.NewService(ctx, registry, repo, identity, testMembership{access: access})
 }
 
-// accessHas answers Has from a fixed set of "<project>/<email>" pairs.
-type accessHas struct {
-	*cleanupProjectAccess
-	members map[string]bool
+type testMembership struct {
+	access serviceproject.AccessRepository
 }
 
-func (a accessHas) Has(_ context.Context, id serviceproject.ID, email string) (bool, error) {
-	return a.members[string(id)+"/"+email], nil
+func (m testMembership) HasAccess(ctx context.Context, projectID string, email string) (bool, error) {
+	if m.access == nil {
+		return false, nil
+	}
+	return m.access.Has(ctx, serviceproject.ID(projectID), servicepermission.NormalizeEmail(email))
 }
 
 func TestPermissionPolicySurvivesRestartWithIdenticalDecisions(t *testing.T) {
