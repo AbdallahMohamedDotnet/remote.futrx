@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { AppApplication } from "../../models/application";
 import type { ApplicationsController } from "../../state/hooks/applications/useApplications";
-import { prepareInstallRequest } from "../../services/applications/prepareInstallRequest";
+import { useApplicationInstallForm } from "../../state/hooks/applications/useApplicationInstallForm";
 import { AppIcon } from "./AppIcon";
 import { ApplicationEmptyState } from "./ApplicationEmptyState";
 import { hasPortBinding } from "./applicationPresentation";
@@ -131,27 +131,9 @@ function InstallDialog({
   onClose: () => void;
   onInstall: ApplicationsController["install"];
 }) {
-  const [name, setName] = useState(application.name);
-  const [env, setEnv] = useState<Record<string, string>>({});
-  const [externalPort, setExternalPort] = useState<string>("");
-  // An application without port-bearing infrastructure has no host port to configure.
   const asksForPort = hasPortBinding(application);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const submit = async (event: Event) => {
-    event.preventDefault();
-    setBusy(true);
-    setErr(null);
-    try {
-      await onInstall(prepareInstallRequest(application, { name, env, externalPort }, asksForPort));
-      onClose();
-    } catch (error) {
-      setErr((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { name, setName, env, setEnv, externalPort, setExternalPort, busy, err, submit } =
+    useApplicationInstallForm(application, asksForPort, onInstall, onClose);
 
   return (
     <div

@@ -52,3 +52,9 @@ Tests check default-file loading/path rejection, malformed JSON, arrays, null,
 primitives, default selection and browser request preparation. Oversized-value
 rejection is implemented but not exhaustively tested by these existing tests.
 Verify valid and invalid direct API requests and the multiline editor.
+
+### Responsibility boundaries
+
+- [registry_environment.go](../../../backend/internal/integration/containers/applications/registry_environment.go) — Loads and validates default files before catalog validation.
+- [environment.go](../../../backend/internal/service/applications/environment.go) — Validates structured environment values without performing installation.
+- [useApplicationInstallForm.ts](../../../frontend/src/state/hooks/applications/useApplicationInstallForm.ts) — Owns form state and submission; the dialog renders fields and the request service validates the payload.
