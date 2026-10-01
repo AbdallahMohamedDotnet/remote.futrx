@@ -3,6 +3,7 @@ package rbac
 import (
 	"errors"
 
+	"github.com/futrx-com/remote.futrx.com/internal/rbac/evaluator"
 	"github.com/futrx-com/remote.futrx.com/internal/rbac/models"
 )
 
@@ -48,3 +49,19 @@ type State = models.State
 func NormalizeEmail(email string) string { return models.NormalizeEmail(email) }
 
 var errNilDefinitions = errors.New("no definitions")
+
+type Reason = evaluator.Reason
+
+const (
+	ReasonSystem          = evaluator.ReasonSystem
+	ReasonAdministrator   = evaluator.ReasonAdministrator
+	ReasonExplicitDeny    = evaluator.ReasonExplicitDeny
+	ReasonExplicitAllow   = evaluator.ReasonExplicitAllow
+	ReasonBaseline        = evaluator.ReasonBaseline
+	ReasonDefaultDeny     = evaluator.ReasonDefaultDeny
+	ReasonUnknownActor    = evaluator.ReasonUnknownActor
+	ReasonInvalidCheck    = evaluator.ReasonInvalidCheck
+	ReasonActorNotPresent = evaluator.ReasonActorNotPresent
+)
+
+type Decision = evaluator.Decision

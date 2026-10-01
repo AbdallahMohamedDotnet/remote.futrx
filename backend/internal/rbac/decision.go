@@ -2,6 +2,8 @@ package rbac
 
 import (
 	"errors"
+
+	"github.com/futrx-com/remote.futrx.com/internal/rbac/evaluator"
 	"github.com/futrx-com/remote.futrx.com/internal/rbac/models"
 )
 
@@ -9,7 +11,7 @@ import (
 // denial; the structured Decision carries that for logs and tests.
 var (
 	ErrDenied            = errors.New("permission denied")
-	ErrActorRequired     = errors.New("authenticated actor required")
+	ErrActorRequired     = evaluator.ErrActorRequired
 	ErrUnknownPermission = errors.New("unknown permission")
 	ErrInvalidScope      = models.ErrInvalidScope
 	ErrInvalidEffect     = errors.New("invalid permission effect")
@@ -22,23 +24,5 @@ var (
 	ErrAuditFailed       = errors.New("permission audit failed")
 )
 
-// Reason explains a Decision for logs and tests.
-type Reason string
-
-const (
-	ReasonSystem          Reason = "system"
-	ReasonAdministrator   Reason = "administrator"
-	ReasonExplicitDeny    Reason = "explicit-deny"
-	ReasonExplicitAllow   Reason = "explicit-allow"
-	ReasonBaseline        Reason = "baseline"
-	ReasonDefaultDeny     Reason = "default-deny"
-	ReasonUnknownActor    Reason = "unknown-actor"
-	ReasonInvalidCheck    Reason = "invalid-check"
-	ReasonActorNotPresent Reason = "no-actor"
-)
-
-// Decision is the structured outcome of one evaluation.
-type Decision struct {
-	Allowed bool
-	Reason  Reason
-}
+// Reason and Decision live in the pure evaluator; they are re-exported by
+// models.go.

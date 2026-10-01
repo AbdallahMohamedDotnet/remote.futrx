@@ -3,6 +3,8 @@ package rbac
 import (
 	"context"
 	"errors"
+
+	"github.com/futrx-com/remote.futrx.com/internal/rbac/evaluator"
 )
 
 // Evaluator answers permission checks. It combines the code-owned registry
@@ -57,7 +59,8 @@ func (e *Evaluator) Require(ctx context.Context, check Check) error {
 	return nil
 }
 
-// evaluate is the pure decision procedure over one policy snapshot. Mutations
+// evaluate resolves what the decision needs (definition, identity, membership)
+// and delegates the decision itself to the pure evaluator package. Mutations
 // call it with the snapshot they hold under the store lock so that
 // authorization and write cannot be separated by a concurrent change.
 func (e *Evaluator) evaluate(
@@ -68,101 +71,35 @@ func (e *Evaluator) evaluate(
 	check Check,
 ) (Decision, error) {
 	if !actorPresent {
-		return Decision{Reason: ReasonActorNotPresent}, ErrActorRequired
+		return evaluator.Decide(Definition{}, state, evaluator.Facts{}, check)
 	}
 	definition, err := e.registry.resolve(check)
 	if err != nil {
 		return Decision{Reason: ReasonInvalidCheck}, err
 	}
-	if actor.IsSystem() {
-		return Decision{Allowed: true, Reason: ReasonSystem}, nil
+	facts := evaluator.Facts{ActorPresent: true, System: actor.IsSystem(), Email: actor.Email}
+	if facts.System {
+		return evaluator.Decide(definition, state, facts, check)
 	}
 
-	admin, err := e.identity.IsAdmin(ctx, actor.Email)
+	facts.Admin, err = e.identity.IsAdmin(ctx, actor.Email)
 	if err != nil {
 		return Decision{Reason: ReasonDefaultDeny}, err
 	}
-	if admin {
-		return Decision{Allowed: true, Reason: ReasonAdministrator}, nil
-	}
-	registered, err := e.identity.IsRegistered(ctx, actor.Email)
-	if err != nil {
-		return Decision{Reason: ReasonDefaultDeny}, err
-	}
-	if !registered {
-		return Decision{Reason: ReasonUnknownActor}, nil
-	}
-
-	deny, allow := matchingEffects(state, actor.Email, check)
-	if deny {
-		return Decision{Reason: ReasonExplicitDeny}, nil
-	}
-	if allow {
-		return Decision{Allowed: true, Reason: ReasonExplicitAllow}, nil
-	}
-
-	baseline, err := e.baseline(ctx, definition.Baseline, actor, check)
-	if err != nil {
-		return Decision{Reason: ReasonDefaultDeny}, err
-	}
-	if baseline {
-		return Decision{Allowed: true, Reason: ReasonBaseline}, nil
-	}
-	return Decision{Reason: ReasonDefaultDeny}, nil
-}
-
-// matchingEffects collects the direct assignments and bound-role rules that
-// name check's permission at exactly check's scope. Scope matching is exact:
-// a platform rule never matches a project check, and project A never matches
-// project B.
-func matchingEffects(state State, email string, check Check) (deny, allow bool) {
-	record := func(effect Effect) {
-		if effect == Deny {
-			deny = true
-		} else if effect == Allow {
-			allow = true
+	if !facts.Admin {
+		facts.Registered, err = e.identity.IsRegistered(ctx, actor.Email)
+		if err != nil {
+			return Decision{Reason: ReasonDefaultDeny}, err
 		}
 	}
-	for _, a := range state.Assignments {
-		if a.UserEmail == email && a.Permission == check.Permission && a.Scope == check.Scope {
-			record(a.Effect)
-		}
+	decision, err := evaluator.Decide(definition, state, facts, check)
+	if !errors.Is(err, evaluator.ErrMembershipUnresolved) {
+		return decision, err
 	}
-	for _, b := range state.Bindings {
-		if b.UserEmail != email || b.Scope != check.Scope {
-			continue
-		}
-		role, ok := state.Role(b.RoleID)
-		if !ok {
-			continue
-		}
-		for _, rule := range role.Rules {
-			if rule.Permission == check.Permission {
-				record(rule.Effect)
-			}
-		}
+	// Only now does the outcome depend on membership; look it up once.
+	facts.MembershipResolved = true
+	if e.members != nil {
+		facts.ProjectMember, facts.MembershipErr = e.members.HasAccess(ctx, check.Scope.ID, actor.Email)
 	}
-	return deny, allow
-}
-
-// baseline evaluates the code-owned compatibility policy for a non-admin
-// registered actor. Administrators were already admitted by the root policy.
-func (e *Evaluator) baseline(
-	ctx context.Context,
-	policy BaselinePolicy,
-	actor Actor,
-	check Check,
-) (bool, error) {
-	switch policy {
-	case BaselineAuthenticated:
-		return true, nil
-	case BaselineProjectMember:
-		if check.Scope.Kind != ScopeProject || e.members == nil {
-			return false, nil
-		}
-		return e.members.HasAccess(ctx, check.Scope.ID, actor.Email)
-	case BaselineAdmin, BaselineNone:
-		return false, nil
-	}
-	return false, errors.New("unreachable baseline policy: " + string(policy))
+	return evaluator.Decide(definition, state, facts, check)
 }
