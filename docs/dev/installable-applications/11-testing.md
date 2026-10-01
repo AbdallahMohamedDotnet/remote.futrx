@@ -211,3 +211,9 @@ unit command assertions do not replace a live container or browser check.
 See [the focused guide](22-application-json-settings.md) for source/test ownership and
 verification limits. Run applicable Go tests and frontend tests/builds;
 unit command assertions do not replace a live container or browser check.
+
+## Files capability checks
+
+See [the focused guide](23-application-file-openers.md) for source/test ownership and
+verification limits. Run applicable Go tests and frontend tests/builds;
+unit command assertions do not replace a live container or browser check.
