@@ -40,7 +40,13 @@ ${HOSTNAME} {
     tls {
         import /etc/caddy/remote-dns.caddy
     }
-    reverse_proxy 127.0.0.1:${SERVICE_PORT}
+    @named header_regexp named Host (?i)^[a-z0-9-]+--[a-z0-9-]+\.${HOSTNAME_RE}\.?(?::[0-9]+)?$
+    handle @named {
+        reverse_proxy 127.0.0.1:${SERVICE_PORT}
+    }
+    handle {
+        respond 404
+    }
 }
 
 *.apps.${HOSTNAME} {

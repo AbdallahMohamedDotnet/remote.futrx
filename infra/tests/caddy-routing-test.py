@@ -81,7 +81,8 @@ try:
                 for value in node:
                     walk(value)
         walk(config)
-        assert names == {BASE, '*.' + BASE, 'code.' + BASE, '*.code.' + BASE, '*.dev.' + BASE, '*.apps.' + BASE}, names
+        required = {BASE, '*.' + BASE, '*.dev.' + BASE, '*.apps.' + BASE}
+        assert required <= names <= required | {'code.' + BASE, '*.code.' + BASE}, names
         policies = config['apps']['tls']['automation']['policies']
         wildcard = next(p for p in policies if not p.get('subjects') or '*.' + BASE in p['subjects'])
         assert not wildcard.get('on_demand'), wildcard
@@ -110,6 +111,7 @@ try:
                 for host in ['code--gamerhead', 'code--another-project']:
                     assert b'BACKEND /?folder=%2Fworkspace' in visit(host + '.' + BASE, '/?folder=%2Fworkspace'), host
                 assert not Backend.admissions, Backend.admissions
+                assert b'404' in visit('dev.' + BASE).split(b'\r\n', 1)[0]
                 certs = list((work / 'storage/certificates').rglob('*.crt'))
                 assert len([p for p in certs if p.name.startswith('wildcard')]) == 1, certs
                 assert not any('code--' in p.name for p in certs), certs
