@@ -264,6 +264,9 @@ func loadApplicationManifest(
 			application.ID,
 		)
 	}
+	if err := resolveEnvironmentDefaults(catalog, root, application.Env); err != nil {
+		return svc.Application{}, nil, err
+	}
 	// Container metadata is derived from backend/container/ below. A manifest
 	// cannot claim a build identity or commands that the package does not carry.
 	application.Container = nil

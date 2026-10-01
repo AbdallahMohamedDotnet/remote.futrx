@@ -68,6 +68,11 @@ type EnvVar struct {
 	Secret bool `json:"secret,omitempty"`
 	// Default is applied when the user leaves the field blank.
 	Default string `json:"default,omitempty"`
+	// DefaultFile is resolved from the application's own files when the catalog
+	// loads, then cleared before the manifest is served to the browser.
+	DefaultFile string `json:"defaultFile,omitempty"`
+	// Format selects an editor and validation for structured install inputs.
+	Format string `json:"format,omitempty"`
 	// Generate names a generator ("password") used to fill a blank value.
 	Generate string `json:"generate,omitempty"`
 }
