@@ -7,78 +7,87 @@ listening on `0.0.0.0:8400`. A signed-in project member opens:
 
 ```text
 https://remote.example/apps/my-project/editor/src/main.ts?line=12
-    -> http://my-project.lxd:8400/src/main.ts?line=12
+    -> 302 https://abcdef123456.apps.remote.example/src/main.ts?line=12
+    -> proxy http://my-project.lxd:8400/src/main.ts?line=12
 ```
 
-The handler looks up the slug among the caller's visible projects, looks up
-the application in the catalog, and requires a `running` project instance.
-The manifest supplies the upstream port. A URL cannot select an arbitrary port
-or upstream host. The route does not start a stopped installation or recreate a
-project container. The declared service must already be reachable.
+The launch URL uses the catalog application ID; the app hostname uses the
+installation ID. Each installation has its own browser origin, including
+installations of the same app in different projects. Reinstalling creates a
+fresh ID. The main Remote origin only serves the launch redirect.
 
-The proxy strips the `/apps/<slug>/<application-id>` prefix, preserves the
-query, removes all request cookies and upstream `Set-Cookie` headers, rewrites
-root-relative redirects into the application prefix, and restricts an upstream
-`Service-Worker-Allowed` header to that prefix. The handler uses Go's reverse proxy, including its HTTP upgrade handling; a
-live WebSocket lifecycle still needs runtime verification.
+Every app-host request validates the session, registered account, caller's
+project visibility, current catalog web declaration and running installation.
+A URL cannot choose an arbitrary upstream host or port. `/api`, `/auth` and
+`/internal` on an app hostname stay within that application's upstream and
+never reach Remote's platform router. Unknown app hosts return 404.
 
-Use relative asset URLs or explicitly account for the prefix in the app.
-Remote does not rewrite HTML, JavaScript, absolute redirects, or arbitrary
-application URL generation. Applications that depend on their own browser
-cookies are not compatible with this gateway's cookie stripping.
+The proxy preserves the request method, public Host, escaped path and query.
+Relative assets and redirects work from `/`; applications need no URL prefix
+and no Caddy rules. WebSocket upgrades use the same origin and access checks.
+Remote does not rewrite HTML, JavaScript or application redirects.
+
+All request cookies and `Authorization` are removed before forwarding.
+Upstream `Set-Cookie` and `Clear-Site-Data` are removed, and responses use
+`Cache-Control: private, no-store`. Apps that rely on their own browser cookies
+are not supported by this gateway. Service workers are confined to the app's
+origin; they cannot control Remote or another installation.
+
+`web.port` must be 1024–65535, with a declared service and exactly project
+scope. No host port is allocated. Without `port.internal`, `APP_INTERNAL_PORT`
+is zero and `healthcheck.command` must be omitted. Requests do not start
+stopped installations or recreate containers. Missing/stopped installations
+return 404; unavailable upstreams return 502. Upstream keep-alives are disabled.
+See [12 — HTTP API](12-http-api.md#project-application-web-routes) for all statuses.
+
+## Infrastructure
+
+Point `*.apps.<public-host>` to the same server as Remote. An existing broader
+DNS wildcard may already cover it; verify an installation hostname resolves.
+The installer/updater installs one generic Caddy site block for this namespace.
+There is no per-application Caddy configuration to maintain.
+
+Caddy requests individual certificates on demand. The loopback TLS admission
+endpoint approves only valid installation IDs belonging to a running project
+web application whose project still exists. The wildcard DNS record is needed;
+a wildcard certificate or DNS-provider API integration is not.
+
+## Security boundary
+
+The platform's domain-scoped HttpOnly session reaches the trusted Remote
+gateway, which strips it before the container. Separate origins prevent app
+JavaScript from reading Remote's DOM/storage. Browser Origin and Fetch Metadata
+checks also reject cross-origin API requests, forms and WebSocket handshakes,
+including same-site requests from sibling subdomains. Cookie stripping alone
+would not provide that protection. Main-origin frame and opener restrictions
+prevent app pages from embedding or retaining a privileged Remote window.
+
+This does not sandbox admitted UI extensions, host backends or container
+programs. Continue to install trusted packages. Read
+[13 — Security model](13-security-model.md#project-application-web-content)
+for the browser requirements and remaining OS/network trust boundaries.
 
 All catalog-declared `web.port` values are excluded from public preview
-sharing, even if that app is not installed in a particular project. The
-callback reads the current catalog on each check, so package changes affect
-new grants and validation of existing grants. This is a catalog-wide port
-reservation, not a firewall or a restriction on authenticated previews.
-
-See [12 — HTTP API](12-http-api.md) for status
-codes. Read [13 — Security model](13-security-model.md)
-before using this for project-controlled content: this route shares the main
-browser origin, and the LXD bridge bypass remains a separate boundary.
-
-`web.port` must be 1024–65535. Remote requires a declared service and exactly
-project scope. No host port is allocated; without `port.internal`,
-`APP_INTERNAL_PORT` is zero and `healthcheck.command` must be omitted.
-
-The route returns 404 for invisible projects, absent catalog web declarations,
-or stopped/missing installations; unavailable upstreams produce 502.
-Bare application URLs gain a trailing slash (308). Upstream keep-alives are
-disabled. No response HTML or arbitrary URL rewriting is performed.
+sharing, even where the app is not installed. Changes to the current catalog
+affect new and existing grants. This is a catalog-wide port reservation, not a
+firewall or a restriction on authenticated previews or the shared LXD bridge.
 
 ## Source and verification
 
-- [backend/internal/integration/containers/applications/registry_clone.go](../../../backend/internal/integration/containers/applications/registry_clone.go)
-- [backend/internal/integration/containers/applications/registry_manifest.go](../../../backend/internal/integration/containers/applications/registry_manifest.go)
-- [backend/internal/integration/containers/applications/registry_validation.go](../../../backend/internal/integration/containers/applications/registry_validation.go)
-- [backend/internal/integration/containers/applications/registry_web_test.go](../../../backend/internal/integration/containers/applications/registry_web_test.go)
-- [backend/internal/service/applications/model.go](../../../backend/internal/service/applications/model.go)
-- [backend/internal/service/applications/service.go](../../../backend/internal/service/applications/service.go)
-- [backend/internal/service/applications/web_test.go](../../../backend/internal/service/applications/web_test.go)
-- [backend/internal/service/services.go](../../../backend/internal/service/services.go)
-- [backend/internal/service/share/errors.go](../../../backend/internal/service/share/errors.go)
-- [backend/internal/service/share/port_policy_test.go](../../../backend/internal/service/share/port_policy_test.go)
-- [backend/internal/service/share/service.go](../../../backend/internal/service/share/service.go)
-- [backend/internal/transport/http/handlers/applications_handler.go](../../../backend/internal/transport/http/handlers/applications_handler.go)
-- [backend/internal/transport/http/handlers/applications_web_handler.go](../../../backend/internal/transport/http/handlers/applications_web_handler.go)
-- [backend/internal/transport/http/handlers/applications_web_handler_test.go](../../../backend/internal/transport/http/handlers/applications_web_handler_test.go)
-- [backend/internal/transport/http/handlers/auth_verify_handler.go](../../../backend/internal/transport/http/handlers/auth_verify_handler.go)
-- [backend/internal/transport/http/handlers/auth_verify_share.go](../../../backend/internal/transport/http/handlers/auth_verify_share.go)
-- [backend/internal/transport/http/handlers/auth_verify_share_test.go](../../../backend/internal/transport/http/handlers/auth_verify_share_test.go)
-- [frontend/src/models/application.ts](../../../frontend/src/models/application.ts)
+- [web.go](../../../backend/internal/service/applications/web.go) resolves running web installations without returning secrets.
+- [application_host.go](../../../backend/internal/transport/http/application_host.go) owns installation hostname parsing.
+- [applications_web_handler.go](../../../backend/internal/transport/http/handlers/applications_web_handler.go) owns host dispatch, launch redirects and caller/project authorization.
+- [applications_web_proxy.go](../../../backend/internal/transport/http/handlers/applications_web_proxy.go) forwards to containers and filters credentials/response headers.
+- [browser.go](../../../backend/internal/transport/http/middleware/browser.go) enforces browser request origins.
+- [Caddyfile.tmpl](../../../infra/templates/Caddyfile.tmpl) routes application hostnames to the gateway.
 
-The included unit tests verify decisions and generated requests/commands.
-No live container installation, authenticated browser flow, or QA deployment
-was performed for this split.
+Go tests cover launch redirects, escaped paths/queries, access denial,
+stopped/missing apps, host isolation, credential stripping, TLS admission,
+browser request policy and live WebSocket proxying. The opt-in Chromium test
+checks authenticated launch, own-app requests, cookie filtering and rejected
+platform reads, writes, logout, navigation and WebSockets. Run it as described
+in [11 — Testing](11-testing.md#web-capability-checks).
 
-## What to verify
-
-Tests cover catalog service/scope/port validation, running-instance lookup,
-dynamic public-share port protection, path/query/cookie/redirect/worker-header
-proxy transformations and malformed routes. Verify real assets, redirects and
-WebSockets; test nonmember access and a stopped install in a live project.
-
-### Responsibility boundaries
-
-- [applications_web_proxy.go](../../../backend/internal/transport/http/handlers/applications_web_proxy.go) — Owns upstream request rewriting, cookie filtering, redirects, and service-worker scope; the handler retains caller/project authorization.
+These tests use local fixture services. Verify a real app's install/start,
+assets, redirects and WebSockets on an LXD host, along with wildcard DNS and
+on-demand TLS, when integrating a new application.

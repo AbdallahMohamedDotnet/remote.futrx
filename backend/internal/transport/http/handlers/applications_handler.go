@@ -17,9 +17,17 @@ import (
 // infrastructure. Per-project routes are delegated here by ProjectHandler,
 // which has already enforced project membership.
 type ApplicationsHandler struct {
-	apps     *serviceapplications.Service
-	auth     *serviceauth.Service
-	projects visibleProjects
+	apps         *serviceapplications.Service
+	auth         *serviceauth.Service
+	projects     visibleProjects
+	webHost      string
+	webTransport http.RoundTripper
+}
+
+// WithWebHost enables per-installation web origins below apps.<publicHost>.
+func (h *ApplicationsHandler) WithWebHost(publicHost string) *ApplicationsHandler {
+	h.webHost = publicHost
+	return h
 }
 
 // NewApplicationsHandler builds the handler. apps may be nil when the server

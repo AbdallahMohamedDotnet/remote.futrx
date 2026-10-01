@@ -282,22 +282,38 @@ A checklist for reviewing a `ui/` directory:
 
 ## Project application web content
 
-`web.port` serves container HTTP content at
-`/apps/<project-slug>/<application-id>/` on the **main Remote browser origin**.
-The handler checks the caller's project visibility and requires a running
-installation; the manifest selects the upstream port. The host backend's
-`backend.access` policy does not apply to this web route. Stopped/uninstalled apps
-are not started by a request. These checks constrain routing, not what an
-admitted application's JavaScript can do inside the user's browser.
+`web.port` serves container HTTP content on a separate origin per installation:
+`https://<instance-id>.apps.<public-host>/`. The main-origin
+`/apps/<project-slug>/<application-id>/` URL only redirects after authorizing
+the caller. Each application-host request verifies a registered session,
+project visibility, a running installation and the current catalog declaration.
+The manifest selects the upstream port. The host backend's `backend.access`
+policy does not apply here; requests do not start stopped apps.
 
-This boundary differs from the host-backend RPC API. The web proxy strips all
-request cookies and upstream `Set-Cookie`, but does not explicitly strip
-`Authorization`. It restricts a returned `Service-Worker-Allowed` header to the
-application prefix and rewrites root-relative redirects. These measures do not
-isolate the browser origin: scripts served by an editor or other project
-application can still call Remote APIs with the user's session. Reviewing the
-package alone may not constrain content later supplied by the project. See
-[threat-model finding 20](../../threat-model.md#20-project-application-content-shares-the-platform-browser-origin--high).
+Host dispatch occurs before the platform router. Even `/api`, `/auth`, and
+`/internal` on an app hostname reach only that application's upstream. Unknown
+or malformed app hostnames cannot fall through to Remote's UI or APIs. Each
+reinstallation gets a fresh ID/origin, so a previous installation's service
+worker cannot control the replacement's origin.
+
+The existing `HttpOnly` platform session cookie is still domain-scoped for
+Remote's subdomains. The gateway validates it but removes all cookies and
+`Authorization` before the container, and strips upstream `Set-Cookie` and
+`Clear-Site-Data`. JavaScript cannot read the HttpOnly cookie. Cookie filtering
+alone does not stop the browser from attaching it to requests to Remote, so
+Origin and Fetch Metadata checks also reject cross-origin API reads, writes,
+forms and WebSockets. Safe login and launch navigation remains allowed. Remote's
+main UI rejects cross-origin framing, separates opener windows, and requests
+origin-keyed agent clusters. App responses request origin-keyed clusters too.
+
+These checks use browser-controlled headers. Non-browser clients without
+Origin/Fetch Metadata remain supported and still need authentication and
+endpoint authorization. Browsers must support Fetch Metadata for the full
+navigation/subresource protection; WebSocket Origin checks apply independently.
+This is browser-origin isolation, not OS isolation. Admitted UI extensions
+still execute inside Remote's UI, host backends remain privileged, and project
+services retain the project's existing container permissions. Continue to
+admit packages only from trusted, vetted sources.
 
 The share service rejects ports declared by **any** catalog application's
 `web.port`, irrespective of installation in the requested project. It checks

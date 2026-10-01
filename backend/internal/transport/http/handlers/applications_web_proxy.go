@@ -4,32 +4,26 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 )
 
-func newWebProxy(upstream *url.URL, prefix string) *httputil.ReverseProxy {
+func newWebProxy(upstream *url.URL, scheme string) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(upstream)
-			pr.Out.URL.Path = strings.TrimPrefix(pr.In.URL.Path, prefix)
-			pr.Out.URL.RawPath = ""
-			if pr.Out.URL.Path == "" {
-				pr.Out.URL.Path = "/"
-			}
+			pr.Out.Host = pr.In.Host
 			pr.Out.Header.Del("Cookie")
+			pr.Out.Header.Del("Authorization")
 			pr.SetXForwarded()
+			pr.Out.Header.Set("X-Forwarded-Proto", scheme)
 		},
 		Transport: &http.Transport{DisableKeepAlives: true, Proxy: nil},
 		ModifyResponse: func(response *http.Response) error {
 			response.Header.Del("Set-Cookie")
-			// An application shares Remote's origin. Never let its service worker
-			// claim the main UI or another project's application routes.
-			if response.Header.Get("Service-Worker-Allowed") != "" {
-				response.Header.Set("Service-Worker-Allowed", prefix+"/")
-			}
-			if location := response.Header.Get("Location"); strings.HasPrefix(location, "/") && !strings.HasPrefix(location, "//") {
-				response.Header.Set("Location", prefix+location)
-			}
+			response.Header.Del("Clear-Site-Data")
+			response.Header.Set("Cache-Control", "private, no-store")
+			response.Header.Set("Origin-Agent-Cluster", "?1")
+			// Paths, redirects, and service workers stay on the installation's
+			// own origin; no HTML or path-prefix rewriting is needed.
 			return nil
 		},
 	}

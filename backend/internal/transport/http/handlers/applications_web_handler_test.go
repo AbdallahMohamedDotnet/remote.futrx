@@ -10,10 +10,11 @@ import (
 
 func TestApplicationWebProxyStripsPlatformCookiesAndKeepsRoute(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/src/file" || r.URL.RawQuery != "line=7" || r.Header.Get("Cookie") != "" {
+		if r.URL.Path != "/src/file" || r.URL.RawQuery != "line=7" || r.Header.Get("Cookie") != "" || r.Header.Get("Authorization") != "" {
 			t.Errorf("upstream request: path=%q query=%q cookie=%q", r.URL.Path, r.URL.RawQuery, r.Header.Get("Cookie"))
 		}
 		w.Header().Set("Set-Cookie", "remote_session=stolen")
+		w.Header().Set("Clear-Site-Data", `"cookies"`)
 		w.Header().Set("Location", "/signin")
 		w.Header().Set("Service-Worker-Allowed", "/")
 		w.WriteHeader(http.StatusFound)
@@ -23,16 +24,17 @@ func TestApplicationWebProxyStripsPlatformCookiesAndKeepsRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodGet, "http://remote.test/apps/project/editor/src/file?line=7", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://abcdef123456.apps.remote.test/src/file?line=7", nil)
 	req.Header.Set("Cookie", "remote_session=secret")
+	req.Header.Set("Authorization", "Bearer secret")
 	rec := httptest.NewRecorder()
-	newWebProxy(target, "/apps/project/editor").ServeHTTP(rec, req)
+	newWebProxy(target, "https").ServeHTTP(rec, req)
 	response := rec.Result()
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, response.Body)
 	if response.StatusCode != http.StatusFound || response.Header.Get("Set-Cookie") != "" ||
-		response.Header.Get("Location") != "/apps/project/editor/signin" ||
-		response.Header.Get("Service-Worker-Allowed") != "/apps/project/editor/" {
+		response.Header.Get("Location") != "/signin" || response.Header.Get("Clear-Site-Data") != "" ||
+		response.Header.Get("Service-Worker-Allowed") != "/" {
 		t.Fatalf("proxy response: status=%d cookie=%q location=%q workerScope=%q", response.StatusCode,
 			response.Header.Get("Set-Cookie"), response.Header.Get("Location"),
 			response.Header.Get("Service-Worker-Allowed"))

@@ -180,7 +180,8 @@ type ApplicationUI struct {
 }
 
 // ApplicationWeb exposes a project application's HTTP service through Remote.
-// The public route is /apps/<project-slug>/<application-id>/.
+// The launch route /apps/<project-slug>/<application-id>/ redirects to an
+// isolated <instance-id>.apps.<public-host> origin.
 type ApplicationWeb struct {
 	Port int `json:"port"`
 }

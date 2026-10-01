@@ -159,7 +159,7 @@ export interface AppApplication {
   port: AppPort;
   env?: AppEnvVar[];
   service?: AppApplicationService;
-  /** Project HTTP service exposed at /apps/<project-slug>/<application-id>/. */
+  /** Project HTTP service; /apps/<slug>/<application-id>/ launches its isolated app origin. */
   web?: { port: number };
   /** Set when the application ships a `ui/` extension. */
   ui?: AppApplicationUI;
