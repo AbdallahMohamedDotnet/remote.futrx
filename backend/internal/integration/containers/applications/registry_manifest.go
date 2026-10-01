@@ -37,6 +37,7 @@ type applicationManifestSchema struct {
 	Port          svc.Port                              `json:"port"`
 	Env           []svc.EnvVar                          `json:"env,omitempty"`
 	Service       *svc.ApplicationService               `json:"service,omitempty"`
+	Web           *svc.ApplicationWeb                   `json:"web,omitempty"`
 	Install       string                                `json:"install"`
 	Uninstall     string                                `json:"uninstall,omitempty"`
 	Healthcheck   svc.Healthcheck                       `json:"healthcheck,omitempty"`

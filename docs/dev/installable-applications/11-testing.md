@@ -178,9 +178,10 @@ Be aware of the gaps rather than assuming coverage:
 - **A backend's own behaviour is only as tested as the backend.** The platform
   tests the contract and the host; what an application's `backend/` actually does is
   covered by whatever tests that application ships.
-- **The HTTP handlers have no request-level tests** for the applications
-  routes; only `uiAssetContentType` is unit-tested. The endpoints are exercised
-  by hand.
+- **Web gateway tests use fixture services.** Go tests cover access policy,
+  host dispatch, TLS admission, proxying and WebSockets. The opt-in Chromium
+  check exercises real browser cookies and cross-origin requests; application
+  installation and LXD routing still need an integration environment.
 - **Rendering is not unit-tested.** `ExtensionSlot.tsx` has no test; the
   registry it reads from does. Rendering is verified in a browser.
 - **Run `go test` locally before pushing.** CI runs `go vet`, `go test` and
@@ -199,6 +200,24 @@ Then, if you touched the extension surface or the backend contract, install
 panel still greets you, reaches the supervised service, inspects the container,
 and keeps its counter across a server restart. In a project install, also
 confirm that the `hello-remote-inspector` skill is present.
+
+## Web capability checks
+
+See [the focused guide](19-project-application-web-routes.md) for source/test ownership and
+verification limits. Run applicable Go tests and frontend tests/builds;
+unit command assertions do not replace a live container or browser check.
+
+The browser check needs Playwright and its Chromium binary available to Node.
+From a checkout with those installed, run:
+
+```bash
+cd backend
+FUTRX_BROWSER_TEST=1 go test ./internal/transport/http/handlers -run TestApplicationWebBrowserIsolation -count=1 -v
+```
+
+Set `PLAYWRIGHT_BROWSERS_PATH` if Chromium is installed outside Playwright's
+default cache. The test creates a local TLS gateway, fixture session and HTTP
+upstream; it does not use a real account or external service.
 
 ## Uninstall capability checks
 
