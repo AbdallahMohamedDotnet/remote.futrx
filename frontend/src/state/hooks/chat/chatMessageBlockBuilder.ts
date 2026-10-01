@@ -23,7 +23,12 @@ class ChatMessageBlockBuilder {
     switch (event.type) {
       case "user": {
         const next = this.endTrailingAssistant(blocks);
-        return [...next, { type: "user", text: event.text, t: event.t }];
+        return [...next, {
+          type: "user",
+          text: event.text,
+          t: event.t,
+          ...(event.userEmail ? { userEmail: event.userEmail } : {}),
+        }];
       }
       case "assistant_text": {
         const { blocks: next, assistant } = this.ensureTrailingAssistant(blocks, event.t);
@@ -80,8 +85,13 @@ class ChatMessageBlockBuilder {
         });
         return next;
       }
-      case "interaction_resolved":
-        return this.updateInteraction(blocks, event.id, { status: event.status || "resolved" });
+      case "interaction_resolved": {
+        const answers = chatInteractionService.recordedAnswers(event.data);
+        return this.updateInteraction(blocks, event.id, {
+          status: event.status || "resolved",
+          ...(answers ? { answers } : {}),
+        });
+      }
       case "collaboration": {
         // wait is an internal parent/subagent synchronization primitive. Its
         // native event stays in the transcript log, while child-thread updates
