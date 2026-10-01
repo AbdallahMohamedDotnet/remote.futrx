@@ -17,7 +17,7 @@ func ApplicationHost(identity, subdomain, publicHost string) string {
 		return ""
 	}
 	if subdomain != "" {
-		if identity == "" || !svc.ValidWebSubdomain(identity) || len(subdomain)+2+len(identity) > 63 {
+		if !validProjectApplicationLabel(subdomain, identity) {
 			return ""
 		}
 		return subdomain + "--" + identity + "." + publicHost
@@ -26,6 +26,12 @@ func ApplicationHost(identity, subdomain, publicHost string) string {
 		return ""
 	}
 	return identity + ".apps." + publicHost
+}
+
+// validProjectApplicationLabel owns the combined app/project DNS-label rules.
+func validProjectApplicationLabel(label, slug string) bool {
+	return label != "" && slug != "" && len(label)+2+len(slug) <= 63 &&
+		svc.ValidWebSubdomain(label) && svc.ValidWebSubdomain(slug)
 }
 
 func requestHostname(host string) string {
@@ -58,7 +64,7 @@ func ApplicationProject(host, publicHost string) (string, string, bool) {
 	}
 	name := strings.TrimSuffix(requestHostname(host), "."+requestHostname(publicHost))
 	label, slug, found := strings.Cut(name, "--")
-	if !found || label == "" || slug == "" || len(name) > 63 || !svc.ValidWebSubdomain(label) || !svc.ValidWebSubdomain(slug) {
+	if !found || !validProjectApplicationLabel(label, slug) {
 		return "", "", false
 	}
 	return label, slug, true
