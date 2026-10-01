@@ -17,6 +17,30 @@ are allowed everything, and no stored record can remove that.
 | **Binding** | Attaches a role to a user at a scope. Every rule in the role must support that scope kind. |
 | **Baseline** | The code-owned rule used when nothing matches (`none`, `admin`, `project-member`, `authenticated`). It preserves access that predates the permission. |
 
+## Data model
+
+```go
+// Actor: the principal making the request.   (actor.go)
+Actor{Email string, system bool}
+
+// Scope: what the action applies to.         (models/definition.go)
+Scope{Kind ScopeKind, ID string}
+
+// Definition: a registered permission (code-only).   (models/definition.go)
+Definition{Key, Description, Scopes []ScopeKind, Baseline, Delegable bool}
+
+// Role: a reusable bundle of rules — a template, not a user record.  (models/state.go)
+Role{ID, Name, Description, Rules []{Permission, Effect}}  // plus bookkeeping fields
+
+// Assignment: one direct allow or deny.   (models/state.go)
+Assignment{UserEmail, Permission, Scope, Effect}           // plus bookkeeping fields
+
+// RoleBinding: attaches a role to a user at a scope.   (models/state.go)
+RoleBinding{UserEmail, RoleID, Scope}                      // plus bookkeeping fields
+```
+
+A **Role** is a template; what a user holds comes from their **Bindings** and **Assignments**.
+
 ## Layout
 
 ```
@@ -31,6 +55,13 @@ cmd/remote/main.go       the only place that knows every concrete type
 registered, and project membership when the decision needs it) from the
 `IdentityDirectory` and `ProjectMembership` ports, loads the current policy on
 every check (no caching), then calls `Decide`.
+
+```mermaid
+flowchart LR
+    A["Registry + persisted policy + actor facts"] --> B["rbac resolves facts"]
+    B --> C["evaluator.Decide (pure)"]
+    C --> D["owning service"]
+```
 
 ## Evaluation order
 
@@ -66,8 +97,7 @@ The structured `Decision` is for logs and tests.
    Authorize first, before any lookup. A service built without an authorizer
    must fail closed (the project default admits only the system actor).
 
-Keys are persisted. Removing or renaming one while `permissions.json` names it
-stops startup, so migrate the records or keep an alias first.
+Renaming a key needs a stored-record migration first.
 
 ## Supplying the actor
 
@@ -77,6 +107,23 @@ stops startup, so migrate the records or keep an alias first.
   is allowlisted in
   [`architecture_test.go`](../../backend/internal/rbac/architecture_test.go);
   adding one puts it in review.
+
+## Testing
+
+See [`permissions_test.go`](../../backend/internal/service/project/permissions_test.go)
+and [`project_membership_routes_test.go`](../../backend/internal/transport/http/handlers/project_membership_routes_test.go)
+for working examples. Attach an actor with:
+
+```go
+ctx := permission.ContextWithActor(context.Background(), permission.UserActor("member@example.com"))
+```
+
+- **allow**: inject `allowAllAuthorizer{}` for tests not about authorization.
+- **deny**: inject `&recordingAuthorizer{err: permission.ErrDenied}` to verify denial and that no side effect runs.
+- **administrator**: pass `permission.ContextWithSystemActor(ctx)` — the system actor is always allowed.
+- **system and no actor**: a service without an injected authorizer admits only the system actor; an anonymous context returns `ErrActorRequired`.
+
+Tests not about authorization can inject an allow-all Authorizer and ignore the permission path entirely.
 
 ## Delegation
 
