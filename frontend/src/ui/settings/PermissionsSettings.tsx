@@ -1,3 +1,4 @@
+import type { ProjectMeta } from "../../models/project";
 import type { PermissionsController } from "../../state/hooks/permissions/usePermissions";
 import { permissionsViewState } from "../../state/hooks/permissions/permissionsView";
 import { AlertCircle, Loader } from "../primitives/icons";
@@ -6,7 +7,13 @@ import { BindingsList } from "./permissions/BindingsList";
 import { DefinitionsList } from "./permissions/DefinitionsList";
 import { RolesList } from "./permissions/RolesList";
 
-export function PermissionsSettings({ permissions }: { permissions: PermissionsController }) {
+export function PermissionsSettings({
+  permissions,
+  projects,
+}: {
+  permissions: PermissionsController;
+  projects: ProjectMeta[];
+}) {
   const { loading, loaded, error, definitions, roles, assignments, bindings } = permissions;
   const view = permissionsViewState({ loading, error, loaded });
 
@@ -30,8 +37,23 @@ export function PermissionsSettings({ permissions }: { permissions: PermissionsC
   return (
     <div class="space-y-4">
       <RolesList roles={roles} loading={loading} />
-      <AssignmentsList assignments={assignments} loading={loading} />
-      <BindingsList bindings={bindings} roles={roles} loading={loading} />
+      <AssignmentsList
+        assignments={assignments}
+        definitions={definitions}
+        projects={projects}
+        loading={loading}
+        onAdd={permissions.addAssignment}
+        onRemove={permissions.removeAssignment}
+      />
+      <BindingsList
+        bindings={bindings}
+        roles={roles}
+        definitions={definitions}
+        projects={projects}
+        loading={loading}
+        onAdd={permissions.addBinding}
+        onRemove={permissions.removeBinding}
+      />
       <DefinitionsList definitions={definitions} />
     </div>
   );

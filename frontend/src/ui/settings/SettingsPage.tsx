@@ -1,3 +1,4 @@
+import type { ProjectMeta } from "../../models/project";
 import type { AppearanceTheme } from "../../models/settings";
 import type { UserDirectory } from "../../state/hooks/users/useUserDirectory";
 import type { ServerInfo } from "../../models/serverInfo";
@@ -133,6 +134,7 @@ export function SettingsPage({
   onAppearanceThemeChange,
   applications,
   permissions,
+  projects,
 }: {
   activeTab: SettingsTab;
   currentEmail: string;
@@ -168,6 +170,7 @@ export function SettingsPage({
   onAppearanceThemeChange: (theme: AppearanceTheme) => void;
   applications: ApplicationsController;
   permissions: PermissionsController;
+  projects: ProjectMeta[];
 }) {
   const activeTabDetails = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 
@@ -285,7 +288,7 @@ export function SettingsPage({
 
             {activeTab === "permissions" &&
               (isAdmin ? (
-                <PermissionsSettings permissions={permissions} />
+                <PermissionsSettings permissions={permissions} projects={projects} />
               ) : (
                 <SettingsNotice>
                   Permissions are managed by server administrators.

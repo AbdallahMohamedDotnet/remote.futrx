@@ -3,6 +3,7 @@ import {
   SettingsPage,
   type SettingsTab,
 } from "../../ui/settings/SettingsPage";
+import { useWorkspaceContext } from "../../state/context/WorkspaceContext";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
 import { useUserDirectory } from "../../state/hooks/users/useUserDirectory";
@@ -28,6 +29,7 @@ export function SettingsContainer({
   onTabChange: (tab: SettingsTab) => void;
 }) {
   const { auth } = useAuthContext();
+  const { projects } = useWorkspaceContext();
   const userSettings = useUserSettingsContext();
   const userDirectory = useUserDirectory(auth.isAdmin);
   const serverInfo = useServerInfo(activeTab === "info");
@@ -101,6 +103,7 @@ export function SettingsContainer({
       security={security}
       applications={applications}
       permissions={permissions}
+      projects={projects}
     />
   );
 }

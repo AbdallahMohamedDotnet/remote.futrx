@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "preact/hooks";
 import { permissionsApi } from "../../../api/permissions";
 import type {
   RbacAssignment,
+  RbacAssignmentInput,
   RbacBinding,
+  RbacBindingInput,
   RbacDefinition,
   RbacRole,
 } from "../../../models/rbac";
@@ -16,6 +18,10 @@ export interface PermissionsController {
   bindings: RbacBinding[];
   error: string | null;
   refresh: () => Promise<void>;
+  addAssignment: (input: RbacAssignmentInput) => Promise<void>;
+  removeAssignment: (id: string) => Promise<void>;
+  addBinding: (input: RbacBindingInput) => Promise<void>;
+  removeBinding: (id: string) => Promise<void>;
 }
 
 export function usePermissions(enabled: boolean): PermissionsController {
@@ -53,5 +59,50 @@ export function usePermissions(enabled: boolean): PermissionsController {
     if (enabled) void refresh();
   }, [enabled, refresh]);
 
-  return { loading, loaded, definitions, roles, assignments, bindings, error, refresh };
+  const addAssignment = useCallback(
+    async (input: RbacAssignmentInput) => {
+      await permissionsApi.addAssignment(input);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  const removeAssignment = useCallback(
+    async (id: string) => {
+      await permissionsApi.removeAssignment(id);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  const addBinding = useCallback(
+    async (input: RbacBindingInput) => {
+      await permissionsApi.addBinding(input);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  const removeBinding = useCallback(
+    async (id: string) => {
+      await permissionsApi.removeBinding(id);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  return {
+    loading,
+    loaded,
+    definitions,
+    roles,
+    assignments,
+    bindings,
+    error,
+    refresh,
+    addAssignment,
+    removeAssignment,
+    addBinding,
+    removeBinding,
+  };
 }
