@@ -15,6 +15,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 CADDY = os.environ.get('CADDY_BINARY', 'caddy')
 BASE = 'remote.example.test'
+NAMED = ['code--gamerhead.' + BASE, 'code--another-project.' + BASE]
 
 class Backend(http.server.BaseHTTPRequestHandler):
     admissions = []
@@ -22,7 +23,7 @@ class Backend(http.server.BaseHTTPRequestHandler):
         if self.path.startswith('/internal/tls-ask?'):
             domain = parse_qs(urlsplit(self.path).query)['domain'][0]
             self.admissions.append(domain)
-            allowed = domain in ['gamerhead--3000.dev.' + BASE, 'abcdef123456.apps.' + BASE]
+            allowed = domain in ['gamerhead--3000.dev.' + BASE] + NAMED
             self.send_response(200 if allowed else 404)
             self.end_headers()
             return
@@ -55,15 +56,15 @@ def visit(host, path='/', authority=None):
                 data += chunk
     return data
 
-try:
+def run():
     with tempfile.TemporaryDirectory(prefix='remote-caddy-test-') as work:
         work = Path(work)
         template = (ROOT / 'infra/templates/Caddyfile.tmpl').read_text()
         for key, value in {'HOSTNAME': BASE, 'HOSTNAME_RE': BASE.replace('.', r'\.'),
                            'SERVICE_PORT': str(servers[0].server_port), 'INSTALL_DIR': str(ROOT)}.items():
             template = template.replace('${' + key + '}', value)
-        # Exercise the real template with an internal CA instead of external DNS/ACME.
-        template = template.replace('{\n', '{\n local_certs\n skip_install_trust\n', 1).replace('import /etc/caddy/remote-dns.caddy', 'issuer internal')
+        # Exercise the real template with an internal CA instead of external ACME.
+        template = template.replace('{\n', '{\n local_certs\n skip_install_trust\n', 1)
         caddyfile = work / 'Caddyfile'
         caddyfile.write_text(template)
         adapted = subprocess.run([CADDY, 'adapt', '--config', str(caddyfile), '--adapter', 'caddyfile'], check=True, capture_output=True)
@@ -81,11 +82,11 @@ try:
                 for value in node:
                     walk(value)
         walk(config)
-        required = {BASE, '*.' + BASE, '*.dev.' + BASE, '*.apps.' + BASE}
+        required = {BASE, '*.' + BASE, '*.dev.' + BASE}
         assert required <= names <= required | {'code.' + BASE, '*.code.' + BASE}, names
         policies = config['apps']['tls']['automation']['policies']
         wildcard = next(p for p in policies if not p.get('subjects') or '*.' + BASE in p['subjects'])
-        assert not wildcard.get('on_demand'), wildcard
+        assert wildcard.get('on_demand'), wildcard
         config['admin'] = {'disabled': True}
         config['storage'] = {'module': 'file_system', 'root': str(work / 'storage')}
         for server in config['apps']['http']['servers'].values():
@@ -108,23 +109,31 @@ try:
                     time.sleep(.1)
                 else:
                     raise AssertionError('Caddy did not become ready')
-                for host in ['code--gamerhead', 'code--another-project']:
-                    assert b'BACKEND /?folder=%2Fworkspace' in visit(host + '.' + BASE, '/?folder=%2Fworkspace'), host
-                assert not Backend.admissions, Backend.admissions
-                assert b'404' in visit('dev.' + BASE).split(b'\r\n', 1)[0]
-                certs = list((work / 'storage/certificates').rglob('*.crt'))
-                assert len([p for p in certs if p.name.startswith('wildcard')]) == 1, certs
-                assert not any('code--' in p.name for p in certs), certs
-                # Existing preview and unnamed app origins still work, with their old admission flow.
+                for host in NAMED:
+                    assert b'BACKEND /?folder=%2Fworkspace' in visit(host, '/?folder=%2Fworkspace'), host
+                certs = lambda: list((work / 'storage/certificates').rglob('*.crt'))
+                # No DNS provider: each admitted host gets its own certificate, and
+                # a host the backend does not admit never gets one.
+                assert set(Backend.admissions) == set(NAMED), Backend.admissions
+                assert {p.stem for p in certs()} == set(NAMED) | {BASE}, certs()
+                try:
+                    visit('code--missing.' + BASE)
+                    raise AssertionError('unadmitted named host got a certificate')
+                except (OSError, ssl.SSLError):
+                    pass
+                Backend.admissions.clear()
+                # Existing preview origins still work, with their old admission flow.
                 assert b'PREVIEW' in visit('gamerhead--3000.dev.' + BASE)
                 assert b'BACKEND /__remote_inspector' in visit('gamerhead--3000.dev.' + BASE, '/__remote_inspector')
-                assert b'BACKEND' in visit('abcdef123456.apps.' + BASE)
-                assert set(Backend.admissions) == {'gamerhead--3000.dev.' + BASE, 'abcdef123456.apps.' + BASE}
+                assert set(Backend.admissions) == {'gamerhead--3000.dev.' + BASE}
                 assert b'403' in visit(BASE, '/internal/example').split(b'\r\n', 1)[0]
-                print('Code Server reuses one wildcard; original preview and unnamed app routing/TLS preserved')
+                print('Code Server uses on-demand certificates; original preview routing/TLS preserved')
             finally:
                 process.terminate()
                 process.wait(timeout=10)
+
+try:
+    run()
 finally:
     for server in servers:
         server.shutdown()

@@ -34,10 +34,11 @@ ${HOSTNAME} {
 
 # Code Server's manifest-defined <label>--<project>.<host> origin uses the
 # platform wildcard. This does not change preview or legacy app hostnames/TLS.
+# Certificates are on-demand per host, admitted by /internal/tls-ask like previews.
 *.${HOSTNAME} {
     encode zstd gzip
     tls {
-        import /etc/caddy/remote-dns.caddy
+        on_demand
     }
     @named header_regexp named Host (?i)^[a-z0-9-]+--[a-z0-9-]+\.${HOSTNAME_RE}\.?(?::[0-9]+)?$
     handle @named {

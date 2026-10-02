@@ -341,12 +341,29 @@ func TestNamedApplicationWebHostUsesWildcard(t *testing.T) {
 			}
 			handler.apps = f.apps
 			canonical = label + "--" + project.Slug + ".remote.test"
-			for _, host := range []string{canonical, "wrong--project.remote.test", webTestHost} {
+			// Caddy asks before issuing per host: only the canonical host of the
+			// running installation is admitted.
+			for host, want := range map[string]int{
+				canonical: http.StatusOK,
+				"wrong--" + project.Slug + ".remote.test": http.StatusNotFound,
+				label + "--missing.remote.test":           http.StatusNotFound,
+				"extra." + canonical:                      http.StatusNotFound,
+				webTestHost:                               http.StatusNotFound,
+			} {
 				response := httptest.NewRecorder()
 				handler.HandleTLSAsk(response, httptest.NewRequest("GET", "/internal/tls-ask?domain="+host, nil))
-				if response.Code != http.StatusNotFound {
-					t.Fatalf("TLS %s: individual issuance must be rejected, got %d", host, response.Code)
+				if response.Code != want {
+					t.Fatalf("TLS %s: status %d, want %d", host, response.Code, want)
 				}
+			}
+			f.instance.Status = serviceapplications.StatusStopped
+			if err := f.store.Put(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			response = httptest.NewRecorder()
+			handler.HandleTLSAsk(response, httptest.NewRequest("GET", "/internal/tls-ask?domain="+canonical, nil))
+			if response.Code != http.StatusNotFound {
+				t.Fatalf("TLS %s: stopped installation admitted, got %d", canonical, response.Code)
 			}
 		})
 	}

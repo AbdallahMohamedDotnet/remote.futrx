@@ -116,9 +116,9 @@ Reinstalling an app preserves its hostname and browser storage. Changing the
 manifest label or project slug changes its origin, requiring updated bookmarks
 and PWA installs. Server-side Code Server settings remain separately persisted.
 
-The named host occupies one DNS label below the full platform hostname and uses
-the shared `*.<public-host>` certificate. See [Code Server wildcard HTTPS](../wildcard-https.md)
-for administrator-selected DNS-provider setup. Named hosts do not request individual
-certificates. Preview and unnamed-app TLS behavior remains unchanged.
+The named host occupies one DNS label below the full platform hostname. It gets
+its own on-demand certificate, admitted like a preview; no DNS provider is
+required. See [Code Server wildcard HTTPS](../wildcard-https.md). Preview and
+unnamed-app TLS behavior remains unchanged.
 Existing projects are not renamed automatically. Any legacy slug containing `--`
 cannot be used for a named application host.

@@ -485,8 +485,29 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if httptransport.IsApplicationHost(domain, h.publicHostname) {
+		if h.apps == nil || h.apps.apps == nil {
+			http.NotFound(w, r)
+			return
+		}
+		// Named hosts get on-demand certificates like previews: admit only the
+		// canonical host of a running installation.
+		if label, slug, named := httptransport.ApplicationProject(domain, h.publicHostname); named {
+			project, err := h.projects.GetBySlug(r.Context(), slug)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			target, available, err := h.apps.apps.ProjectWebTargetBySubdomain(r.Context(), string(project.ID), label)
+			if err != nil || !available ||
+				!httptransport.MatchesApplicationHost(domain, project.Slug, target.Subdomain, h.publicHostname) {
+				http.NotFound(w, r)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		id, valid := httptransport.ApplicationInstanceID(domain, h.publicHostname)
-		if !valid || h.apps == nil || h.apps.apps == nil {
+		if !valid {
 			http.NotFound(w, r)
 			return
 		}
