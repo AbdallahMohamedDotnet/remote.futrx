@@ -506,21 +506,7 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		id, valid := httptransport.ApplicationInstanceID(domain, h.publicHostname)
-		if !valid {
-			http.NotFound(w, r)
-			return
-		}
-		target, available, err := h.apps.apps.WebTarget(r.Context(), id)
-		if err != nil || !available || target.Subdomain != "" {
-			http.NotFound(w, r)
-			return
-		}
-		if _, err := h.projects.Get(r.Context(), serviceproject.ID(target.ProjectID)); err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+		http.NotFound(w, r)
 		return
 	}
 	var slug string

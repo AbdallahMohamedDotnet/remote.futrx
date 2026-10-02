@@ -82,8 +82,7 @@ The original `/apps/<project-slug>/<application-id>/` proxy would have served
 project-controlled scripts on the main Remote origin. Cookie stripping could
 not stop those scripts from making authenticated platform API calls.
 
-The route only redirects to an isolated app origin: `<instance-id>.apps.<public-host>`
-for unnamed apps, or `<web.subdomain>--<project-slug>.<public-host>` for named apps.
+The route only redirects to an isolated app origin: `<web.subdomain>--<project-slug>.<public-host>`.
 Named origins persist across reinstall, including browser storage and service workers. Host dispatch
 runs before the platform router, so app hosts cannot serve platform APIs or
 login pages. Every app request validates the session, project visibility and

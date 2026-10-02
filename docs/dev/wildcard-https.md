@@ -12,9 +12,8 @@ project membership, and running installation on every application request.
 No manual certificate files or export scripts are needed; Caddy persists its
 own certificates and renewal state normally.
 
-This change does **not** migrate preview URLs or unnamed applications.
-`<slug>--<port>.dev.<host>` and `<instance-id>.apps.<host>` retain their existing
-routes, certificates, and admission checks.
+Preview URLs retain `<slug>--<port>.dev.<host>`. Application web routes require
+`web.subdomain` and use `<label>--<project>.<host>`.
 
 ## On-demand certificates, no DNS provider
 

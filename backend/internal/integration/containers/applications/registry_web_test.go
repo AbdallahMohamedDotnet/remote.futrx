@@ -10,7 +10,7 @@ import (
 func TestWebRouteRequiresProjectService(t *testing.T) {
 	valid := svc.Application{
 		ID: "editor", Name: "Editor", Version: "1", Scopes: []svc.Scope{svc.ScopeProject},
-		Web:     &svc.ApplicationWeb{Port: 8400},
+		Web:     &svc.ApplicationWeb{Port: 8400, Subdomain: "editor"},
 		Service: &svc.ApplicationService{Name: "editor", Command: []string{"/usr/bin/editor"}},
 	}
 	if err := validateApplication(valid); err != nil {
@@ -36,12 +36,12 @@ func TestWebRouteRequiresProjectService(t *testing.T) {
 }
 
 func TestWebSubdomainValidation(t *testing.T) {
-	for _, label := range []string{"", "code", "editor-2", "9"} {
+	for _, label := range []string{"code", "editor-2", "9"} {
 		if !svc.ValidWebSubdomain(label) {
 			t.Errorf("rejected valid label %q", label)
 		}
 	}
-	for _, label := range []string{"code--editor", "Code", "a.b", "-code", "code-", "a_b", "code/evil", "*", strings.Repeat("a", 64)} {
+	for _, label := range []string{"", "code--editor", "Code", "a.b", "-code", "code-", "a_b", "code/evil", "*", strings.Repeat("a", 64)} {
 		app := svc.Application{ID: "editor", Name: "Editor", Version: "1", Scopes: []svc.Scope{svc.ScopeProject}, Web: &svc.ApplicationWeb{Port: 8400, Subdomain: label}, Service: &svc.ApplicationService{Name: "editor", Command: []string{"/usr/bin/editor"}}}
 		if err := validateApplication(app); err == nil {
 			t.Errorf("accepted invalid label %q", label)

@@ -2,20 +2,18 @@
 
 ## Reaching the application's HTTP server
 
-Declare `"web": { "port": 8400 }`, scope `["project"]`, and a service
+Declare `"web": { "port": 8400, "subdomain": "editor" }`, scope `["project"]`, and a service
 listening on `0.0.0.0:8400`. A signed-in project member opens:
 
 ```text
 https://remote.example/apps/my-project/editor/src/main.ts?line=12
-    -> 302 https://abcdef123456.apps.remote.example/src/main.ts?line=12
+    -> 302 https://editor--my-project.remote.example/src/main.ts?line=12
     -> proxy http://my-project.lxd:8400/src/main.ts?line=12
 ```
 
 The launch URL uses the catalog application ID; the app hostname uses the
-installation ID when no `web.subdomain` is declared (see named origins below).
-Each unnamed installation has its own browser origin, including
-installations of the same app in different projects. Reinstalling creates a
-fresh ID. The main Remote origin only serves the launch redirect.
+required manifest `web.subdomain` and project slug. Each application/project
+pair has its own browser origin. Reinstalling preserves the origin. The main Remote origin only serves the launch redirect.
 
 Every app-host request validates the session, registered account, caller's
 project visibility, current catalog web declaration and running installation.
@@ -43,14 +41,14 @@ See [12 — HTTP API](12-http-api.md#project-application-web-routes) for all sta
 
 ## Infrastructure
 
-For unnamed apps, point `*.apps.<public-host>` to the same server as Remote. An existing broader
+For application web routes, point `*.<public-host>` to the same server as Remote. An existing broader
 DNS wildcard may already cover it; verify an installation hostname resolves.
 The installer/updater installs one generic Caddy site block for this namespace.
 There is no per-application Caddy configuration to maintain.
 
 Caddy requests individual certificates on demand. The loopback TLS admission
-endpoint approves only valid installation IDs belonging to a running project
-web application whose project still exists. The wildcard DNS record is needed;
+endpoint approves only canonical manifest-label/project hosts belonging to a
+running project web application whose project still exists. The wildcard DNS record is needed;
 a wildcard certificate or DNS-provider API integration is not.
 
 ## Security boundary
@@ -100,9 +98,7 @@ Declare `web.subdomain` to use `<label>--<project-slug>.<public-host>`, for exam
 project slug is its URL-safe name, not its display name or container ID.
 The gateway uses the existing project membership check, then finds the running
 application with that label in that project. Wrong labels, unknown projects, stopped installations
-and duplicate running labels in one project are rejected. A named app's previous
-installation-ID host is rejected. Apps without the field retain their existing
-unnamed origins described above.
+and duplicate running labels in one project are rejected. Web routes without `web.subdomain` and previous installation-ID hosts are rejected.
 
 Deploy the updated Caddy template for these single-label names. Its wildcard site
 forwards application hosts to the existing backend gateway;
@@ -118,7 +114,6 @@ and PWA installs. Server-side Code Server settings remain separately persisted.
 
 The named host occupies one DNS label below the full platform hostname. It gets
 its own on-demand certificate, admitted like a preview; no DNS provider is
-required. See [Code Server wildcard HTTPS](../wildcard-https.md). Preview and
-unnamed-app TLS behavior remains unchanged.
+required. See [Code Server wildcard HTTPS](../wildcard-https.md). Preview TLS behavior remains unchanged.
 Existing projects are not renamed automatically. Any legacy slug containing `--`
 cannot be used for a named application host.

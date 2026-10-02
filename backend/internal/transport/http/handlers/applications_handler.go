@@ -24,7 +24,7 @@ type ApplicationsHandler struct {
 	webTransport http.RoundTripper
 }
 
-// WithWebHost enables per-installation web origins below apps.<publicHost>.
+// WithWebHost enables manifest-defined project web origins.
 func (h *ApplicationsHandler) WithWebHost(publicHost string) *ApplicationsHandler {
 	h.webHost = publicHost
 	return h

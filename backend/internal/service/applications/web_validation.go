@@ -7,8 +7,7 @@ import (
 
 var webSubdomainLabel = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 
-// ValidWebSubdomain accepts one DNS label without the reserved -- separator,
-// or empty for existing unnamed apps.
+// ValidWebSubdomain requires one DNS label without the reserved -- separator.
 func ValidWebSubdomain(label string) bool {
-	return label == "" || (webSubdomainLabel.MatchString(label) && !strings.Contains(label, "--"))
+	return webSubdomainLabel.MatchString(label) && !strings.Contains(label, "--")
 }

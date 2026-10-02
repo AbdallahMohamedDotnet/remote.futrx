@@ -480,10 +480,8 @@ export default function activate(remote) {
     const url = new URL(location.origin);
     const label = remote.application.web?.subdomain;
     const project = cwd.match(/^\/var\/lib\/remote\/projects\/([a-z0-9][a-z0-9-]*)\/workspace(?:\/|$)/);
-    if (label && !project) return null;
-    url.hostname = label
-      ? `${label}--${project[1]}.${url.hostname}`
-      : `${instance.instanceId}.apps.${url.hostname}`;
+    if (!label || !project) return null;
+    url.hostname = `${label}--${project[1]}.${url.hostname}`;
     url.searchParams.set("file", path);
     if (line) url.searchParams.set("line", String(line));
     if (column) url.searchParams.set("column", String(column));

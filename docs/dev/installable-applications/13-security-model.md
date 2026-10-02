@@ -283,8 +283,7 @@ A checklist for reviewing a `ui/` directory:
 ## Project application web content
 
 `web.port` serves container HTTP content on a separate origin per installation:
-`https://<instance-id>.apps.<public-host>/` by default, or
-`https://<web.subdomain>--<project-slug>.<public-host>/` for named apps. The main-origin
+`https://<web.subdomain>--<project-slug>.<public-host>/`. The main-origin
 `/apps/<project-slug>/<application-id>/` URL only redirects after authorizing
 the caller. Each application-host request verifies a registered session,
 project visibility, a running installation and the current catalog declaration.

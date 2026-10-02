@@ -6,34 +6,13 @@ import (
 )
 
 func TestApplicationHosts(t *testing.T) {
-	const base = "remote.test"
-	const id = "abcdef123456"
-	for _, tc := range []struct {
-		host            string
-		reserved, valid bool
-	}{
-		{id + ".apps." + base, true, true},
-		{id + ".apps." + base + ":8443", true, true},
-		{"ABCDEF123456.apps." + base, true, true},
-		{id + ".apps." + base + ".", true, true},
-		{id + ".apps." + base + ".:8443", true, true},
-		{"code." + id + ".apps." + base, true, false},
-		{"code.extra." + id + ".apps." + base, true, false},
-		{"-bad." + id + ".apps." + base, true, false},
-		{"bad.apps." + base, true, false},
-		{"apps." + base, true, false},
-		{id + ".nested.apps." + base, true, false},
-		{id + ".apps." + base + ".evil.test", false, false},
-		{id + ".apps.other.test", false, false},
-		{base, false, false},
-	} {
-		got, valid := ApplicationInstanceID(tc.host, base)
-		if valid != tc.valid || (valid && got != id) || IsApplicationHost(tc.host, base) != tc.reserved {
-			t.Errorf("host %q: id=%q valid=%v", tc.host, got, valid)
+	for _, host := range []string{"abcdef123456.apps.remote.test", "apps.remote.test"} {
+		if _, _, ok := ApplicationProject(host, "remote.test"); ok {
+			t.Fatal("accepted removed origin", host)
 		}
 	}
-	if ApplicationHost(id, "", base) != id+".apps."+base || ApplicationHost("../bad", "", base) != "" {
-		t.Fatal("incorrect application hostname construction")
+	if ApplicationHost("abcdef123456", "", "remote.test") != "" {
+		t.Fatal("accepted missing manifest subdomain")
 	}
 }
 
