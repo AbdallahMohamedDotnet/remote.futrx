@@ -184,11 +184,22 @@ type ApplicationUI struct {
 	Views map[string]string `json:"views,omitempty"`
 }
 
+// WebTarget contains only the routing identity of a running project web app.
+// Caller/project authorization belongs to the transport; secrets never leave here.
+type WebTarget struct {
+	Subdomain  string
+	InstanceID string
+	ProjectID  string
+	Port       int
+}
+
 // ApplicationWeb exposes a project application's HTTP service through Remote.
 // The launch route /apps/<project-slug>/<application-id>/ redirects to an
-// isolated <instance-id>.apps.<public-host> origin.
+// isolated <subdomain>--<project-slug>.<public-host> origin when named,
+// A nonempty Subdomain is required for a public web origin.
 type ApplicationWeb struct {
-	Port int `json:"port"`
+	Port      int    `json:"port"`
+	Subdomain string `json:"subdomain,omitempty"`
 }
 
 // ApplicationSource says where a catalog entry came from. It is decided by the

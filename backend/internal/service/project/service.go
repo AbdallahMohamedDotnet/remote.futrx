@@ -161,6 +161,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput, callerEmail string
 	if name == "" {
 		return Meta{}, ErrNameRequired
 	}
+	if strings.Contains(name, "--") {
+		return Meta{}, ErrReservedNameSeparator
+	}
 	// Refuse before anything is recorded, so a full disk surfaces as a clear
 	// error on the create request rather than a project stuck in an error
 	// state carrying the transcript of a failed image unpack.
@@ -199,6 +202,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput, callerEmail string
 func (s *Service) Update(ctx context.Context, id ID, in UpdateInput) (Meta, error) {
 	if !ValidID(id) {
 		return Meta{}, ErrInvalidID
+	}
+	if in.Name != nil && strings.Contains(*in.Name, "--") {
+		return Meta{}, ErrReservedNameSeparator
 	}
 	return s.repo.Update(ctx, id, func(m *Meta) {
 		if in.Name != nil && strings.TrimSpace(*in.Name) != "" {

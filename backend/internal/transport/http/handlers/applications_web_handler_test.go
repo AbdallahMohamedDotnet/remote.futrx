@@ -24,8 +24,9 @@ func TestApplicationWebProxyStripsPlatformCookiesAndKeepsRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodGet, "https://abcdef123456.apps.remote.test/src/file?line=7", nil)
-	req.Header.Set("Cookie", "remote_session=secret")
+	req := httptest.NewRequest(http.MethodGet, "https://editor--project.remote.test/src/file?line=7", nil)
+	req.Header.Add("Cookie", "remote_session=secret; remote_2fa_pending=pending; remote_oauth_state=state; return_to=target")
+	req.Header.Add("Cookie", "remote_share=grant; application_cookie=value")
 	req.Header.Set("Authorization", "Bearer secret")
 	rec := httptest.NewRecorder()
 	newWebProxy(target, "https").ServeHTTP(rec, req)

@@ -292,9 +292,8 @@ Every project gets its own HTTPS address, so Remote needs a hostname with wildca
 | --- | --- |
 | `remote.example.com` | Remote web app |
 | `code.remote.example.com` | Browser IDE |
-| `*.code.remote.example.com` | Per-project browser IDEs |
 | `*.dev.remote.example.com` | Per-project application previews |
-| `*.apps.remote.example.com` | Installed project applications, one origin per installation |
+| `*.remote.example.com` | Installed project applications at `<label>--<project>` |
 
 **If you want a free hostname,** [DuckDNS](https://www.duckdns.org) is the quickest, because it resolves every subdomain automatically and there are no DNS records to create:
 

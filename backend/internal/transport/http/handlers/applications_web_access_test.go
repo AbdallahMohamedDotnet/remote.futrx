@@ -21,7 +21,7 @@ import (
 )
 
 const webTestID = "abcdef123456"
-const webTestHost = webTestID + ".apps.remote.test"
+const webTestHost = "editor--project.remote.test"
 
 type webTestRegistry struct {
 	application serviceapplications.Application
@@ -78,7 +78,7 @@ func newWebFixture(t *testing.T, baseURL string) *webFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry := &webTestRegistry{application: serviceapplications.Application{ID: "editor", Scopes: []serviceapplications.Scope{serviceapplications.ScopeProject}, Web: &serviceapplications.ApplicationWeb{Port: 8400}}}
+	registry := &webTestRegistry{application: serviceapplications.Application{ID: "editor", Scopes: []serviceapplications.Scope{serviceapplications.ScopeProject}, Web: &serviceapplications.ApplicationWeb{Port: 8400, Subdomain: "editor"}}}
 	instance := serviceapplications.Instance{ID: webTestID, ApplicationID: "editor", Scope: serviceapplications.ScopeProject, ProjectID: "aaaa1111", Status: serviceapplications.StatusRunning}
 	if err := store.Put(context.Background(), instance); err != nil {
 		t.Fatal(err)
@@ -140,8 +140,9 @@ func TestApplicationWebAuthorizationAndLaunch(t *testing.T) {
 		{"no platform API on app host", "GET", "https://" + webTestHost + "/api/projects", member, 200, "", "APPLICATION /api/projects"},
 		{"no platform auth on app host", "GET", "https://" + webTestHost + "/auth/me", member, 200, "", "APPLICATION /auth/me"},
 		{"no platform internal route", "GET", "https://" + webTestHost + "/internal/tls-ask", member, 200, "", "APPLICATION /internal/tls-ask"},
-		{"malformed app host", "GET", "https://bad.apps.remote.test/", member, 404, "", ""},
-		{"unknown install", "GET", "https://000000000000.apps.remote.test/", member, 404, "", ""},
+		{"removed installation origin", "GET", "https://" + webTestID + ".apps.remote.test/", member, 404, "", ""},
+		{"malformed app host", "GET", "https://bad.remote.test/", member, 404, "", ""},
+		{"unknown install", "GET", "https://unknown--project.remote.test/", member, 404, "", ""},
 		{"nonmember", "GET", "https://" + webTestHost + "/", f.cookie(t, "other@example.test"), 404, "", ""},
 		{"removed user", "GET", "https://" + webTestHost + "/", f.cookie(t, "removed@example.test"), 403, "", ""},
 		{"admin", "GET", "https://" + webTestHost + "/", f.cookie(t, "admin@example.test"), 200, "", "APPLICATION /"},
@@ -204,7 +205,7 @@ func TestApplicationWebSocketOriginAndProxy(t *testing.T) {
 	dialer := websocket.Dialer{NetDial: func(network, _ string) (net.Conn, error) {
 		return net.Dial(network, strings.TrimPrefix(gateway.URL, "http://"))
 	}}
-	for _, origin := range []string{"https://" + webTestHost, "https://123456abcdef.apps.remote.test"} {
+	for _, origin := range []string{"https://" + webTestHost, "https://other--project.remote.test"} {
 		header := http.Header{"Origin": {origin}, "Cookie": {f.cookie(t, "member@example.test").String()}}
 		conn, response, err := dialer.Dial("ws://"+webTestHost+"/socket?x=1", header)
 		if origin != "https://"+webTestHost {
@@ -240,6 +241,7 @@ func TestApplicationWebCertificatesRequireRunningProjectInstall(t *testing.T) {
 	}
 	f.instance.ProjectID = string(project.ID)
 	handler.apps = f.apps
+	webHost := "editor--" + project.Slug + ".remote.test"
 	for _, tc := range []struct {
 		name, host string
 		state      serviceapplications.InstanceStatus
@@ -248,14 +250,15 @@ func TestApplicationWebCertificatesRequireRunningProjectInstall(t *testing.T) {
 		web        bool
 		want       int
 	}{
-		{"running", webTestHost, serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), true, 200},
-		{"unknown", "000000000000.apps.remote.test", serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), true, 404},
-		{"malformed", "bad.apps.remote.test", serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), true, 404},
+		{"removed installation origin", webTestID + ".apps.remote.test", serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), true, 404},
+		{"running", webHost, serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), true, 200},
+		{"unknown", "unknown--project.remote.test", serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), true, 404},
+		{"malformed", "bad.remote.test", serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), true, 404},
 		{"foreign suffix", webTestHost + ".evil.test", serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), true, 404},
-		{"stopped", webTestHost, serviceapplications.StatusStopped, serviceapplications.ScopeProject, string(project.ID), true, 404},
-		{"global", webTestHost, serviceapplications.StatusRunning, serviceapplications.ScopeGlobal, "", true, 404},
-		{"missing project", webTestHost, serviceapplications.StatusRunning, serviceapplications.ScopeProject, "bbbb2222", true, 404},
-		{"no web declaration", webTestHost, serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), false, 404},
+		{"stopped", webHost, serviceapplications.StatusStopped, serviceapplications.ScopeProject, string(project.ID), true, 404},
+		{"global", webHost, serviceapplications.StatusRunning, serviceapplications.ScopeGlobal, "", true, 404},
+		{"missing project", webHost, serviceapplications.StatusRunning, serviceapplications.ScopeProject, "bbbb2222", true, 404},
+		{"no web declaration", webHost, serviceapplications.StatusRunning, serviceapplications.ScopeProject, string(project.ID), false, 404},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := f.store.Delete(context.Background(), f.instance.ID); err != nil {
@@ -264,7 +267,7 @@ func TestApplicationWebCertificatesRequireRunningProjectInstall(t *testing.T) {
 			f.instance.Status, f.instance.Scope, f.instance.ProjectID = tc.state, tc.scope, tc.projectID
 			f.registry.application.Web = nil
 			if tc.web {
-				f.registry.application.Web = &serviceapplications.ApplicationWeb{Port: 8400}
+				f.registry.application.Web = &serviceapplications.ApplicationWeb{Port: 8400, Subdomain: "editor"}
 			}
 			if err := f.store.Put(context.Background(), f.instance); err != nil {
 				t.Fatal(err)
@@ -273,6 +276,97 @@ func TestApplicationWebCertificatesRequireRunningProjectInstall(t *testing.T) {
 			handler.HandleTLSAsk(rec, httptest.NewRequest("GET", "/internal/tls-ask?domain="+url.QueryEscape(tc.host), nil))
 			if rec.Code != tc.want {
 				t.Fatalf("status=%d want=%d", rec.Code, tc.want)
+			}
+		})
+	}
+}
+
+func TestNamedApplicationWebHostUsesWildcard(t *testing.T) {
+	for _, label := range []string{"code", "editor-2"} {
+		t.Run(label, func(t *testing.T) {
+			f := newWebFixture(t, "https://remote.test")
+			f.registry.application.Web.Subdomain = label
+			canonical := label + "--project.remote.test"
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "APP") }))
+			defer upstream.Close()
+			f.apps.webTransport = &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, strings.TrimPrefix(upstream.URL, "http://"))
+			}}
+			for _, host := range []string{canonical, "wrong--project.remote.test", webTestHost, "extra." + canonical} {
+				request := httptest.NewRequest("GET", "https://"+host+"/api/", nil)
+				request.AddCookie(f.cookie(t, "member@example.test"))
+				response := httptest.NewRecorder()
+				f.handler().ServeHTTP(response, request)
+				want := 404
+				if host == canonical {
+					want = 200
+				}
+				if response.Code != want {
+					t.Fatalf("host %s: status %d, want %d", host, response.Code, want)
+				}
+			}
+			// Project origins retain authorization and follow the current installation.
+			for _, email := range []string{"other@example.test", "removed@example.test"} {
+				req := httptest.NewRequest("GET", "https://"+canonical+"/", nil)
+				req.AddCookie(f.cookie(t, email))
+				rec := httptest.NewRecorder()
+				f.handler().ServeHTTP(rec, req)
+				if rec.Code == 200 {
+					t.Fatalf("unauthorized access: %s", email)
+				}
+			}
+			if err := f.store.Delete(context.Background(), f.instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			f.instance.ID = "123456abcdef"
+			if err := f.store.Put(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest("GET", "https://"+canonical+"/", nil)
+			req.AddCookie(f.cookie(t, "member@example.test"))
+			rec := httptest.NewRecorder()
+			f.handler().ServeHTTP(rec, req)
+			if rec.Code != 200 {
+				t.Fatalf("reinstall changed address: %d", rec.Code)
+			}
+
+			request := httptest.NewRequest("GET", "https://remote.test/apps/project/editor/?folder=%2Fworkspace", nil)
+			request.AddCookie(f.cookie(t, "member@example.test"))
+			response := httptest.NewRecorder()
+			f.handler().ServeHTTP(response, request)
+			if response.Header().Get("Location") != "https://"+canonical+"/?folder=%2Fworkspace" {
+				t.Fatal(response.Header())
+			}
+			handler, project := newTLSAskProjectHandler(t, "remote.test")
+			f.instance.ProjectID = string(project.ID)
+			if err := f.store.Put(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			handler.apps = f.apps
+			canonical = label + "--" + project.Slug + ".remote.test"
+			// Caddy asks before issuing per host: only the canonical host of the
+			// running installation is admitted.
+			for host, want := range map[string]int{
+				canonical: http.StatusOK,
+				"wrong--" + project.Slug + ".remote.test": http.StatusNotFound,
+				label + "--missing.remote.test":           http.StatusNotFound,
+				"extra." + canonical:                      http.StatusNotFound,
+				webTestHost:                               http.StatusNotFound,
+			} {
+				response := httptest.NewRecorder()
+				handler.HandleTLSAsk(response, httptest.NewRequest("GET", "/internal/tls-ask?domain="+host, nil))
+				if response.Code != want {
+					t.Fatalf("TLS %s: status %d, want %d", host, response.Code, want)
+				}
+			}
+			f.instance.Status = serviceapplications.StatusStopped
+			if err := f.store.Put(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			response = httptest.NewRecorder()
+			handler.HandleTLSAsk(response, httptest.NewRequest("GET", "/internal/tls-ask?domain="+canonical, nil))
+			if response.Code != http.StatusNotFound {
+				t.Fatalf("TLS %s: stopped installation admitted, got %d", canonical, response.Code)
 			}
 		})
 	}

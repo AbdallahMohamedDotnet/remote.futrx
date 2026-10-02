@@ -212,7 +212,7 @@ export interface ExtensionBackendApi {
 
 export interface ExtensionApi {
   apiVersion: number;
-  application: Pick<AppApplication, "id" | "name" | "version" | "icon">;
+  application: Pick<AppApplication, "id" | "name" | "version" | "icon" | "web">;
   install: ExtensionVisibility;
   slots: ExtensionSlotCatalog;
   ui: {
