@@ -67,10 +67,3 @@ export interface RbacBindingInput {
   userEmail: string;
   scope: RbacScope;
 }
-
-// Transitional: removed with api/permissionsApi.ts when the contract API lands.
-export interface RbacState {
-  roles: RbacRole[];
-  assignments: RbacAssignment[];
-  bindings: RbacBinding[];
-}

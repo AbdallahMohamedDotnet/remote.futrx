@@ -150,11 +150,13 @@ export const API_ROUTES = {
   },
   permissions: {
     definitions: "/api/admin/permissions/definitions",
-    state: "/api/admin/permissions/state",
     roles: "/api/admin/permissions/roles",
-    role: (id: string) => `/api/admin/permissions/roles/${encodeURIComponent(id)}`,
+    role: (id: string, unbind = false) =>
+      `/api/admin/permissions/roles/${encodeURIComponent(id)}${unbind ? "?unbind=true" : ""}`,
     assignments: "/api/admin/permissions/assignments",
+    assignment: (id: string) => `/api/admin/permissions/assignments/${encodeURIComponent(id)}`,
     bindings: "/api/admin/permissions/bindings",
+    binding: (id: string) => `/api/admin/permissions/bindings/${encodeURIComponent(id)}`,
   },
   usage: {
     summary: (query: string) => `/api/usage/summary${query ? `?${query}` : ""}`,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
-import { permissionsApi } from "../../../api/permissionsApi";
+import { permissionsApi } from "../../../api/permissions";
 import type {
   RbacAssignment,
   RbacBinding,
@@ -29,14 +29,16 @@ export function usePermissions(enabled: boolean): PermissionsController {
     setLoading(true);
     setError(null);
     try {
-      const [nextDefinitions, state] = await Promise.all([
+      const [nextDefinitions, nextRoles, nextAssignments, nextBindings] = await Promise.all([
         permissionsApi.listDefinitions(),
-        permissionsApi.fetchState(),
+        permissionsApi.listRoles(),
+        permissionsApi.listAssignments(),
+        permissionsApi.listBindings(),
       ]);
       setDefinitions(nextDefinitions);
-      setRoles(state.roles);
-      setAssignments(state.assignments);
-      setBindings(state.bindings);
+      setRoles(nextRoles);
+      setAssignments(nextAssignments);
+      setBindings(nextBindings);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
