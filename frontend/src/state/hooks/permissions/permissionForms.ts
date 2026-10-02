@@ -1,9 +1,12 @@
+import { ApiError } from "../../../api/apiError.ts";
 import type {
   RbacAssignmentInput,
   RbacBindingInput,
   RbacDefinition,
   RbacEffect,
   RbacRole,
+  RbacRoleInput,
+  RbacRoleRule,
   RbacScope,
   RbacScopeKind,
 } from "../../../models/rbac";
@@ -24,6 +27,16 @@ export interface BindingDraft {
   scopeKind: RbacScopeKind;
   projectId: string;
 }
+
+export interface RoleDraft {
+  name: string;
+  description: string;
+  rules: RbacRoleRule[];
+}
+
+// Mirrors the limits in backend/internal/rbac/roles.go.
+const ROLE_NAME_MAX = 80;
+const ROLE_DESCRIPTION_MAX = 500;
 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -94,6 +107,53 @@ class PermissionFormLogic {
       ok: true,
       input: { userEmail, roleId: role.id, scope: this.buildScope(kind, draft.projectId) },
     };
+  }
+
+  /** `selfId` is the role being edited, so it does not collide with its own name. */
+  validateRole(
+    draft: RoleDraft,
+    roles: RbacRole[],
+    definitions: RbacDefinition[],
+    selfId?: string
+  ): FormResult<RbacRoleInput> {
+    const name = draft.name.trim();
+    const description = draft.description.trim();
+    if (!name) return { ok: false, message: "Name is required." };
+    if (name.length > ROLE_NAME_MAX) {
+      return { ok: false, message: `Name must be at most ${ROLE_NAME_MAX} characters.` };
+    }
+    if (description.length > ROLE_DESCRIPTION_MAX) {
+      return { ok: false, message: `Description must be at most ${ROLE_DESCRIPTION_MAX} characters.` };
+    }
+    const taken = roles.some(
+      (role) => role.id !== selfId && role.name.trim().toLowerCase() === name.toLowerCase()
+    );
+    if (taken) return { ok: false, message: `A role named ${name} already exists.` };
+    if (draft.rules.length === 0) return { ok: false, message: "Add at least one rule." };
+    const seen = new Set<string>();
+    for (const rule of draft.rules) {
+      if (!rule.permission) return { ok: false, message: "Choose a permission for every rule." };
+      if (!definitions.some((definition) => definition.key === rule.permission)) {
+        return { ok: false, message: `${rule.permission} is not a registered permission.` };
+      }
+      if (seen.has(rule.permission)) {
+        return { ok: false, message: `${rule.permission} appears more than once.` };
+      }
+      seen.add(rule.permission);
+    }
+    return { ok: true, input: { name, description, rules: draft.rules } };
+  }
+
+  /** A 409 means the role is still bound; every other failure is reported as the server sent it. */
+  deleteRoleErrorMessage(cause: unknown): string {
+    if (cause instanceof ApiError && cause.status === 409) {
+      return "This role is still bound to users. Tick “Also remove its bindings” to delete it anyway.";
+    }
+    return (cause as Error).message || "Something went wrong.";
+  }
+
+  isRoleStillBound(cause: unknown): boolean {
+    return cause instanceof ApiError && cause.status === 409;
   }
 }
 

@@ -36,7 +36,15 @@ export function PermissionsSettings({
 
   return (
     <div class="space-y-4">
-      <RolesList roles={roles} loading={loading} />
+      <RolesList
+        roles={roles}
+        bindings={bindings}
+        definitions={definitions}
+        loading={loading}
+        onCreate={permissions.createRole}
+        onUpdate={permissions.updateRole}
+        onDelete={permissions.deleteRole}
+      />
       <AssignmentsList
         assignments={assignments}
         definitions={definitions}

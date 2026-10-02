@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { RbacDefinition, RbacRole } from "../../../models/rbac";
+import { ApiError } from "../../../api/apiError.ts";
 import { permissionForms } from "./permissionForms.ts";
 
 const definitions: RbacDefinition[] = [
@@ -65,4 +66,40 @@ test("binding validation requires a role whose rules share the scope kind", () =
     message: "This role's rules share no scope kind.",
   });
   assert.deepEqual(permissionForms.validateBinding({ ...draft, roleId: "zz" }, roles, definitions), { ok: false, message: "Choose a role." });
+});
+
+test("role validation mirrors the server rules", () => {
+  const roles = [role(["projects.access.manage"])];
+  const draft = { name: " Editor ", description: " d ", rules: [{ permission: "projects.access.manage", effect: "allow" as const }] };
+  assert.deepEqual(permissionForms.validateRole(draft, roles, definitions), {
+    ok: true,
+    input: { name: "Editor", description: "d", rules: draft.rules },
+  });
+  assert.deepEqual(permissionForms.validateRole({ ...draft, name: " " }, roles, definitions), { ok: false, message: "Name is required." });
+  assert.deepEqual(permissionForms.validateRole({ ...draft, name: "x".repeat(81) }, roles, definitions), { ok: false, message: "Name must be at most 80 characters." });
+  assert.deepEqual(permissionForms.validateRole({ ...draft, rules: [] }, roles, definitions), { ok: false, message: "Add at least one rule." });
+  assert.deepEqual(
+    permissionForms.validateRole({ ...draft, rules: [...draft.rules, ...draft.rules] }, roles, definitions),
+    { ok: false, message: "projects.access.manage appears more than once." }
+  );
+  assert.deepEqual(
+    permissionForms.validateRole({ ...draft, rules: [{ permission: "a.b.c", effect: "deny" }] }, roles, definitions),
+    { ok: false, message: "a.b.c is not a registered permission." }
+  );
+});
+
+test("role names are unique case-insensitively except against the role being edited", () => {
+  const roles = [{ ...role(["projects.access.manage"]), name: "Editor" }];
+  const draft = { name: "editor", description: "", rules: [{ permission: "projects.access.manage", effect: "allow" as const }] };
+  assert.equal(permissionForms.validateRole(draft, roles, definitions).ok, false);
+  assert.equal(permissionForms.validateRole(draft, roles, definitions, "r1").ok, true);
+});
+
+test("a 409 on delete offers the unbind option; other errors pass through", () => {
+  const conflict = new ApiError("role is bound to users", 409);
+  assert.equal(permissionForms.isRoleStillBound(conflict), true);
+  assert.match(permissionForms.deleteRoleErrorMessage(conflict), /Also remove its bindings/);
+  const other = new ApiError("boom", 500);
+  assert.equal(permissionForms.isRoleStillBound(other), false);
+  assert.equal(permissionForms.deleteRoleErrorMessage(other), "boom");
 });

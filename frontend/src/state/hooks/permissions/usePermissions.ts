@@ -7,6 +7,7 @@ import type {
   RbacBindingInput,
   RbacDefinition,
   RbacRole,
+  RbacRoleInput,
 } from "../../../models/rbac";
 
 export interface PermissionsController {
@@ -22,6 +23,9 @@ export interface PermissionsController {
   removeAssignment: (id: string) => Promise<void>;
   addBinding: (input: RbacBindingInput) => Promise<void>;
   removeBinding: (id: string) => Promise<void>;
+  createRole: (input: RbacRoleInput) => Promise<void>;
+  updateRole: (id: string, input: RbacRoleInput) => Promise<void>;
+  deleteRole: (id: string, unbind: boolean) => Promise<void>;
 }
 
 export function usePermissions(enabled: boolean): PermissionsController {
@@ -91,6 +95,30 @@ export function usePermissions(enabled: boolean): PermissionsController {
     [refresh]
   );
 
+  const createRole = useCallback(
+    async (input: RbacRoleInput) => {
+      await permissionsApi.createRole(input);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  const updateRole = useCallback(
+    async (id: string, input: RbacRoleInput) => {
+      await permissionsApi.updateRole(id, input);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  const deleteRole = useCallback(
+    async (id: string, unbind: boolean) => {
+      await permissionsApi.deleteRole(id, unbind);
+      await refresh();
+    },
+    [refresh]
+  );
+
   return {
     loading,
     loaded,
@@ -104,5 +132,8 @@ export function usePermissions(enabled: boolean): PermissionsController {
     removeAssignment,
     addBinding,
     removeBinding,
+    createRole,
+    updateRole,
+    deleteRole,
   };
 }
