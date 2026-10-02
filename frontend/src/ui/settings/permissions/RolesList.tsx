@@ -1,4 +1,5 @@
 import type { RbacRole } from "../../../models/rbac";
+import { PERMISSIONS_EMPTY_COPY } from "../../../state/hooks/permissions/permissionsView";
 import { Empty } from "../../projects/project-containers/ProjectContainerPrimitives";
 import { PermissionBadge, PermissionsRow, PermissionsSection } from "./PermissionsPrimitives";
 

@@ -1,4 +1,5 @@
 import type { RbacBinding, RbacRole } from "../../../models/rbac";
+import { PERMISSIONS_EMPTY_COPY } from "../../../state/hooks/permissions/permissionsView";
 import { Empty } from "../../projects/project-containers/ProjectContainerPrimitives";
 import { PermissionBadge, PermissionsRow, PermissionsSection, ScopeBadge } from "./PermissionsPrimitives";
 
@@ -18,7 +19,7 @@ export function BindingsList({
       loading={loading}
     >
       {bindings.length === 0 ? (
-        <Empty text="No role bindings yet." compact />
+        <Empty text={PERMISSIONS_EMPTY_COPY.bindings} compact />
       ) : (
         bindings.map((binding) => (
           <PermissionsRow key={binding.id}>

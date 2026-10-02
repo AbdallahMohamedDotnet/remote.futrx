@@ -1,4 +1,5 @@
 import type { RbacAssignment } from "../../../models/rbac";
+import { PERMISSIONS_EMPTY_COPY } from "../../../state/hooks/permissions/permissionsView";
 import { Empty } from "../../projects/project-containers/ProjectContainerPrimitives";
 import { EffectBadge, PermissionsRow, PermissionsSection, ScopeBadge } from "./PermissionsPrimitives";
 
@@ -16,7 +17,7 @@ export function AssignmentsList({
       loading={loading}
     >
       {assignments.length === 0 ? (
-        <Empty text="No assignments yet." compact />
+        <Empty text={PERMISSIONS_EMPTY_COPY.assignments} compact />
       ) : (
         assignments.map((assignment) => (
           <PermissionsRow key={assignment.id}>

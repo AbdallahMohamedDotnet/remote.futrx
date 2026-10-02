@@ -9,6 +9,7 @@ import type {
 
 export interface PermissionsController {
   loading: boolean;
+  loaded: boolean;
   definitions: RbacDefinition[];
   roles: RbacRole[];
   assignments: RbacAssignment[];
@@ -19,6 +20,7 @@ export interface PermissionsController {
 
 export function usePermissions(enabled: boolean): PermissionsController {
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [definitions, setDefinitions] = useState<RbacDefinition[]>([]);
   const [roles, setRoles] = useState<RbacRole[]>([]);
   const [assignments, setAssignments] = useState<RbacAssignment[]>([]);
@@ -39,6 +41,7 @@ export function usePermissions(enabled: boolean): PermissionsController {
       setRoles(nextRoles);
       setAssignments(nextAssignments);
       setBindings(nextBindings);
+      setLoaded(true);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -50,5 +53,5 @@ export function usePermissions(enabled: boolean): PermissionsController {
     if (enabled) void refresh();
   }, [enabled, refresh]);
 
-  return { loading, definitions, roles, assignments, bindings, error, refresh };
+  return { loading, loaded, definitions, roles, assignments, bindings, error, refresh };
 }

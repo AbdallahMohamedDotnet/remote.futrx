@@ -79,12 +79,6 @@ const tabs: Array<{
     Icon: ShieldCheck,
   },
   {
-    id: "permissions",
-    label: "Permissions",
-    description: "Roles, assignments, and bindings.",
-    Icon: ShieldCheck,
-  },
-  {
     id: "applications",
     label: "Applications",
     description: "Install databases and services that run globally on this server.",

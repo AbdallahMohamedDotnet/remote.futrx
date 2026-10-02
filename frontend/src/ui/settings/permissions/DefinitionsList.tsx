@@ -1,4 +1,5 @@
 import type { RbacDefinition } from "../../../models/rbac";
+import { PERMISSIONS_EMPTY_COPY } from "../../../state/hooks/permissions/permissionsView";
 import { Empty } from "../../projects/project-containers/ProjectContainerPrimitives";
 import { PermissionBadge, PermissionsRow, PermissionsSection } from "./PermissionsPrimitives";
 
@@ -9,7 +10,7 @@ export function DefinitionsList({ definitions }: { definitions: RbacDefinition[]
       description="Permissions registered by the server. Read-only."
     >
       {definitions.length === 0 ? (
-        <Empty text="No permissions registered." compact />
+        <Empty text={PERMISSIONS_EMPTY_COPY.definitions} compact />
       ) : (
         definitions.map((definition) => (
           <PermissionsRow key={definition.key}>
