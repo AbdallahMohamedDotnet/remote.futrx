@@ -1,22 +1,23 @@
 export type RbacEffect = "allow" | "deny";
 export type RbacScopeKind = "platform" | "project";
+export type RbacBaseline = "none" | "admin" | "project-member" | "authenticated";
 
 export interface RbacScope {
   kind: RbacScopeKind;
   id?: string;
 }
 
-export interface RbacRoleRule {
-  permission: string;
-  effect: RbacEffect;
-}
-
 export interface RbacDefinition {
   key: string;
   description: string;
   scopes: RbacScopeKind[];
-  baseline: string;
+  baseline: RbacBaseline;
   delegable: boolean;
+}
+
+export interface RbacRoleRule {
+  permission: string;
+  effect: RbacEffect;
 }
 
 export interface RbacRole {
@@ -48,12 +49,6 @@ export interface RbacBinding {
   createdAt: number;
 }
 
-export interface RbacState {
-  roles: RbacRole[];
-  assignments: RbacAssignment[];
-  bindings: RbacBinding[];
-}
-
 export interface RbacRoleInput {
   name: string;
   description: string;
@@ -71,4 +66,11 @@ export interface RbacBindingInput {
   roleId: string;
   userEmail: string;
   scope: RbacScope;
+}
+
+// Transitional: removed with api/permissionsApi.ts when the contract API lands.
+export interface RbacState {
+  roles: RbacRole[];
+  assignments: RbacAssignment[];
+  bindings: RbacBinding[];
 }
