@@ -30,7 +30,6 @@ type ProjectHandler struct {
 	shares             *serviceshare.Service
 	publicHostname     string
 	projectHostPattern *regexp.Regexp
-	codeHostPattern    *regexp.Regexp
 }
 
 // NewProjectHandler builds the handler. apps may be nil, which leaves the
@@ -52,9 +51,6 @@ func NewProjectHandler(
 		publicHostname: publicHostname,
 		projectHostPattern: regexp.MustCompile(
 			`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.` + escapedHostname + `$`,
-		),
-		codeHostPattern: regexp.MustCompile(
-			`^([a-z0-9][a-z0-9-]*)\.code\.` + escapedHostname + `$`,
 		),
 	}
 }
@@ -472,8 +468,8 @@ func buildAgentBrowserURL(r *http.Request, slug string, port int) string {
 	return fmt.Sprintf("%s://%s--%d.dev.%s/vnc.html?autoconnect=1&resize=scale&reconnect=1", scheme, slug, port, host)
 }
 
-// HandleTLSAsk lets Caddy issue on-demand certificates only for preview and
-// code subdomains belonging to projects that currently exist.
+// HandleTLSAsk lets Caddy issue on-demand certificates only for preview and application
+// subdomains belonging to projects that currently exist.
 func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -517,8 +513,6 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "port out of range", http.StatusNotFound)
 			return
 		}
-	} else if mm := h.codeHostPattern.FindStringSubmatch(domain); mm != nil {
-		slug = mm[1]
 	} else {
 		http.Error(w, "host not a recognized project domain", http.StatusNotFound)
 		return

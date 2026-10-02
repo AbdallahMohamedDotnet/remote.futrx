@@ -292,7 +292,6 @@ Every project gets its own HTTPS address, so Remote needs a hostname with wildca
 | --- | --- |
 | `remote.example.com` | Remote web app |
 | `code.remote.example.com` | Browser IDE |
-| `*.code.remote.example.com` | Per-project browser IDEs |
 | `*.dev.remote.example.com` | Per-project application previews |
 | `*.remote.example.com` | Installed project applications at `<label>--<project>` |
 

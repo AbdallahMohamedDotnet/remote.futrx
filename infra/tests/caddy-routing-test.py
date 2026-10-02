@@ -83,7 +83,7 @@ def run():
                     walk(value)
         walk(config)
         required = {BASE, '*.' + BASE, '*.dev.' + BASE}
-        assert required <= names <= required | {'code.' + BASE, '*.code.' + BASE}, names
+        assert required <= names <= required | {'code.' + BASE}, names
         policies = config['apps']['tls']['automation']['policies']
         wildcard = next(p for p in policies if not p.get('subjects') or '*.' + BASE in p['subjects'])
         assert wildcard.get('on_demand'), wildcard
