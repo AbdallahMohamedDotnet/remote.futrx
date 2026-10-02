@@ -49,14 +49,6 @@ ${HOSTNAME} {
     }
 }
 
-*.apps.${HOSTNAME} {
-    encode zstd gzip
-    tls {
-        on_demand
-    }
-    reverse_proxy 127.0.0.1:${SERVICE_PORT}
-}
-
 code.${HOSTNAME} {
     encode zstd gzip
     route {
