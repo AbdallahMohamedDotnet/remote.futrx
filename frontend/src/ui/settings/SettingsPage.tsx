@@ -74,6 +74,12 @@ const tabs: Array<{
     Icon: Users,
   },
   {
+    id: "permissions",
+    label: "Permissions",
+    description: "Roles, assignments, and bindings.",
+    Icon: ShieldCheck,
+  },
+  {
     id: "security",
     label: "Security",
     description: "Manage two-factor authentication, sessions, and sign-in history.",
