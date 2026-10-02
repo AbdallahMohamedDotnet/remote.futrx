@@ -349,6 +349,9 @@ for cadence and counting limitations.
 4. Select **New project**.
 5. To use MiniMax, open **Settings → Agents**, add a named MiniMax account, and save its Token Plan subscription key. Pay-as-you-go MiniMax API keys are not supported.
 6. Start a chat and describe what you want in normal language.
+7. To send email from this server, open **Settings → Email** and choose the Gmail preset
+   (address plus an app password; the Google account needs 2-Step Verification
+   enabled to generate a 16-character app password) or configure a custom SMTP server.
 
 Remote will show the agent's progress. When the work is ready, review it in the chat, IDE, terminal, file manager, Git history, or live preview.
 

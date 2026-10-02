@@ -17,6 +17,7 @@ The application does not use an external database service. Durable metadata is s
 ├── users.json
 ├── local-admin.json
 ├── oauth.json
+├── smtp.json                           provider-neutral SMTP configuration; mode `0600`
 ├── agent-quota.json                    last reported plan windows per provider account
 ├── session.key
 ├── scheduled-tasks/tasks.json          standing definitions, claims, and run state
@@ -254,6 +255,7 @@ Project metadata and workspaces are separate:
 | --- | --- |
 | `local-admin.json` | Local administrator email and password hash |
 | `oauth.json` | Google OAuth client ID and secret |
+| `smtp.json` | Provider-neutral SMTP configuration (host/port/TLS/auth, sender address); mode `0600` |
 | `agent-api-keys.json` | Legacy singleton provider API keys; MiniMax entries are migrated into named accounts; mode `0600` |
 | `agent-accounts.json` | Saved Claude/Codex subscription credentials and MiniMax Token Plan keys, grouped by provider with an active/default account ID; mode `0600`; credentials are never returned by the API |
 | `session.key` | Random key used to sign platform sessions |
