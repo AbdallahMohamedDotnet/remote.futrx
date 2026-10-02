@@ -32,8 +32,8 @@ ${HOSTNAME} {
     reverse_proxy 127.0.0.1:${SERVICE_PORT}
 }
 
-# Code Server's manifest-defined <label>--<project>.<host> origin uses the
-# platform wildcard. This does not change preview or legacy app hostnames/TLS.
+# Manifest-defined <label>--<project>.<host> origins use the platform wildcard.
+# Preview hosts retain their separate routing below.
 # Certificates are on-demand per host, admitted by /internal/tls-ask like previews.
 *.${HOSTNAME} {
     encode zstd gzip
@@ -42,6 +42,9 @@ ${HOSTNAME} {
     }
     @named header_regexp named Host (?i)^[a-z0-9-]+--[a-z0-9-]+\.${HOSTNAME_RE}\.?(?::[0-9]+)?$
     handle @named {
+        # The trusted gateway needs the session cookie to authenticate the caller
+        # and check project membership. After authorization, newWebProxy removes
+        # all Cookie and Authorization headers before forwarding to the container.
         reverse_proxy 127.0.0.1:${SERVICE_PORT}
     }
     handle {
