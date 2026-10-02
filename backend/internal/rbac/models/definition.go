@@ -99,16 +99,16 @@ func (b BaselinePolicy) valid() bool {
 
 // Definition declares one registered permission.
 type Definition struct {
-	Key         Key
-	Description string
+	Key         Key    `json:"key"`
+	Description string `json:"description"`
 	// Scopes lists the scope kinds the permission can be assigned and checked
 	// at. Every listed kind is compared exactly, which is what makes a
 	// Delegable definition safe to delegate.
-	Scopes   []ScopeKind
-	Baseline BaselinePolicy
+	Scopes   []ScopeKind    `json:"scopes"`
+	Baseline BaselinePolicy `json:"baseline"`
 	// Delegable marks permissions a non-administrator may hand to others while
 	// holding them at the same scope.
-	Delegable bool
+	Delegable bool `json:"delegable"`
 }
 
 // Check is one authorization question: may the actor use Permission on Scope.

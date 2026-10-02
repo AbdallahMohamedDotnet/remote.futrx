@@ -42,3 +42,12 @@ func (s *Service) Bindings(ctx context.Context) ([]RoleBinding, error) {
 	state, err := s.requireRead(ctx)
 	return state.Bindings, err
 }
+
+// Definitions lists every registered permission. The registry is code-owned,
+// so this is read-only; it is gated like the other policy reads.
+func (s *Service) Definitions(ctx context.Context) ([]Definition, error) {
+	if _, err := s.requireRead(ctx); err != nil {
+		return nil, err
+	}
+	return s.registry.Definitions(), nil
+}

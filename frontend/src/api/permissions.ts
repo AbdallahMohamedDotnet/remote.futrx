@@ -2,8 +2,10 @@ import { requestJson } from "./apiRequest";
 import type {
   RbacAssignment,
   RbacAssignmentInput,
+  RbacAssignmentTarget,
   RbacBinding,
   RbacBindingInput,
+  RbacBindingTarget,
   RbacDefinition,
   RbacRole,
   RbacRoleInput,
@@ -25,11 +27,12 @@ export const permissionsApi = {
     (await requestJson<{ bindings: RbacBinding[] }>("GET", API_ROUTES.permissions.bindings)).bindings,
   addAssignment: (input: RbacAssignmentInput) =>
     requestJson<RbacAssignment>("POST", API_ROUTES.permissions.assignments, input),
-  removeAssignment: (id: string) =>
-    requestJson<void>("DELETE", API_ROUTES.permissions.assignment(id)),
+  removeAssignment: (target: RbacAssignmentTarget) =>
+    requestJson<void>("DELETE", API_ROUTES.permissions.assignmentTarget(target)),
   addBinding: (input: RbacBindingInput) =>
     requestJson<RbacBinding>("POST", API_ROUTES.permissions.bindings, input),
-  removeBinding: (id: string) => requestJson<void>("DELETE", API_ROUTES.permissions.binding(id)),
+  removeBinding: (target: RbacBindingTarget) =>
+    requestJson<void>("DELETE", API_ROUTES.permissions.bindingTarget(target)),
   createRole: (input: RbacRoleInput) =>
     requestJson<RbacRole>("POST", API_ROUTES.permissions.roles, input),
   updateRole: (id: string, input: RbacRoleInput) =>

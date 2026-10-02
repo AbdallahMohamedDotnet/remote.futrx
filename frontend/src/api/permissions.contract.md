@@ -1,17 +1,14 @@
-PROPOSED contract. Not implemented by the backend. Pending sign-off from whoever
-writes the backend routes. If the backend picks different paths or shapes, only
-permissions.contract.md and permissions.ts change; the UI does not.
+Contract for the permission policy HTTP surface, implemented by the backend in
+transport/http/handlers/permissions_handler.go. If a path or shape changes, only
+this file, config/routes.ts and permissions.ts change; the UI does not.
 
-Status legend: **verified** = visible in `backend/internal/rbac`; **proposed** =
-the transport layer does not exist, so the HTTP shape is a proposal;
-**unverified** = not visible in the code.
+Status legend: **verified** = visible in `backend/internal/rbac`.
 
 ## Types (field names from `backend/internal/rbac/models`)
 
-Only `Scope` carries json tags in Go (`kind`, `id,omitempty`). `Definition`,
-`Role`, `RoleRule`, `RoleBinding` and `Assignment` have **no json tags**, so
-their wire casing is **unverified**. This contract proposes lowerCamelCase of the
-Go field names (`ID` -> `id`, `UserEmail` -> `userEmail`, `RoleID` -> `roleId`).
+All records carry json tags in Go (`models/state.go`, `models/definition.go`), so the
+casing below is the wire casing: lowerCamelCase of the Go field names
+(`ID` -> `id`, `UserEmail` -> `userEmail`, `RoleID` -> `roleId`).
 
 | Type        | Fields                                                                                  |
 |-------------|-----------------------------------------------------------------------------------------|
@@ -34,55 +31,73 @@ GET /api/admin/permissions/assignments  -> 200 { assignments: Assignment[] }
 GET /api/admin/permissions/bindings     -> 200 { bindings: RoleBinding[] }
 ```
 
-Backend currently returns 500 for denials until it maps ErrDenied to 403. The UI
-treats any non-2xx as an error and does NOT special-case 403 yet.
+Denials on these routes are 403. The UI treats any non-2xx as an error and does
+NOT special-case 403 yet.
 
 Definitions are code-owned (registry). GET only; there are no write routes and
 there never will be.
 
 ## Writes
 
+Create and duplicate both return **200**: the service does not report whether a
+record already existed.
+
 ```
 POST /api/admin/permissions/assignments
   body { userEmail, permission, scope: { kind, id }, effect }
-  Upsert: same effect is a no-op, different effect updates. Returns the assignment.
-  201 created / 200 updated / 400 invalid key, scope or unregistered user / 403 denied
+  Upsert: same effect is a no-op, different effect updates. Returns the assignment. 200.
 
-DELETE /api/admin/permissions/assignments/{id}  -> 204, idempotent
+DELETE /api/admin/permissions/assignments
+  ?userEmail=<email>&permission=<key>&scopeKind=<kind>&scopeId=<id>
+  204, idempotent. scopeId is omitted for platform scope. There is no delete-by-id.
 
 POST /api/admin/permissions/bindings
   body { userEmail, roleId, scope: { kind, id } }
-  Idempotent. Returns the binding.
-  201 created / 200 existing / 400 if role rules do not support scope kind, or user unregistered / 403 denied
+  Idempotent. Returns the binding. 200.
 
-DELETE /api/admin/permissions/bindings/{id}  -> 204, idempotent
+DELETE /api/admin/permissions/bindings
+  ?userEmail=<email>&roleId=<id>&scopeKind=<kind>&scopeId=<id>
+  204, idempotent. scopeId is omitted for platform scope. There is no delete-by-id.
 
 POST /api/admin/permissions/roles
   body { name, description, rules: [{ permission, effect }] }
-  Server-assigned id.
+  Server-assigned id. Returns the role. 200.
 
 PUT /api/admin/permissions/roles/{id}
-  body { name, description, rules }
+  body { name, description, rules }. Returns the role.
 
 DELETE /api/admin/permissions/roles/{id}?unbind=true
-  204 / 409 if bound and unbind not set.
+  204 / 409 if bound and unbind not set. Deleting a missing role is 204.
 ```
 
-## Verified vs unverified
+## Error mapping (new routes only)
 
-Verified in `backend/internal/rbac` (service layer):
-- `SetAssignment`: same effect is a no-op, a different effect updates the existing record (`assignments.go`).
-- `BindRole`: binding the same (user, role, scope) twice is a no-op (`assignments.go`).
+| Service error          | Status |
+|------------------------|--------|
+| ErrActorRequired       | 401    |
+| ErrDenied              | 403    |
+| ErrRoleNotFound        | 404    |
+| ErrRoleInUse           | 409    |
+| ErrInvalidRole, ErrInvalidScope, ErrInvalidEffect, ErrUnknownPermission, ErrUserNotRegistered | 400 |
+| malformed body or query | 400   |
+| anything else          | 500    |
+
+Gating happens inside `rbac.Service`: reads use `requireRead` (either
+management permission), assignment and binding writes require
+`permissions.assignments.manage`, role writes require `permissions.roles.manage`.
+`GET /definitions` is gated by `Service.Definitions` with the same `requireRead`.
+
+## Status
+
+Implemented by the backend in `transport/http/handlers/permissions_handler.go`.
+Behaviour verified in `backend/internal/rbac`:
+- `SetAssignment`: same effect is a no-op, a different effect updates the record.
+- `BindRole`: binding the same (user, role, scope) twice is a no-op.
 - `RemoveAssignment` / `UnbindRole` / `DeleteRole` of a missing record is a no-op.
-- `DeleteRole` on a bound role fails with `ErrRoleInUse` unless `Unbind` is set; with it, bindings are removed with the role (`roles.go`).
-- Role validation: name 1-80 chars and unique case-insensitively, description <= 500, at least one rule, no duplicate permission, known permission, valid effect (`roles.go`).
-- `BindRole` rejects roles whose rules do not support the scope kind (`requireRulesSupportScope`).
+- `DeleteRole` on a bound role fails with `ErrRoleInUse` unless `Unbind` is set.
+- Role validation: name 1-80 chars and unique case-insensitively, description <= 500, at least one rule, no duplicate permission, known permission, valid effect.
+- `BindRole` rejects roles whose rules do not support the scope kind.
 
-Proposed, not confirmed (no transport exists):
-- Every path, status code and body wrapper above, including 201 vs 200 (the service does not report created vs existing) and 409 for `ErrRoleInUse`.
-- Removal by `{id}`: the service removes by natural key (user, permission, scope) or (role, user, scope), so the handler must resolve the id first.
-- `PUT` for role update, and a 400 for `ErrUserNotRegistered`.
-
-Unverified:
-- JSON casing of every record except `Scope`.
-- Which HTTP status `ErrDenied` produces today (no mapping found in `transport/`).
+Corrections from the first proposal: DELETE by `{id}` became natural-key query
+parameters (the service removes by natural key); create and duplicate both return
+200 instead of 201/200.

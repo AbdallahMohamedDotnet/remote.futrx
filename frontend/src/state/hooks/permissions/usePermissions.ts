@@ -3,8 +3,10 @@ import { permissionsApi } from "../../../api/permissions";
 import type {
   RbacAssignment,
   RbacAssignmentInput,
+  RbacAssignmentTarget,
   RbacBinding,
   RbacBindingInput,
+  RbacBindingTarget,
   RbacDefinition,
   RbacRole,
   RbacRoleInput,
@@ -20,9 +22,9 @@ export interface PermissionsController {
   error: string | null;
   refresh: () => Promise<void>;
   addAssignment: (input: RbacAssignmentInput) => Promise<void>;
-  removeAssignment: (id: string) => Promise<void>;
+  removeAssignment: (target: RbacAssignmentTarget) => Promise<void>;
   addBinding: (input: RbacBindingInput) => Promise<void>;
-  removeBinding: (id: string) => Promise<void>;
+  removeBinding: (target: RbacBindingTarget) => Promise<void>;
   createRole: (input: RbacRoleInput) => Promise<void>;
   updateRole: (id: string, input: RbacRoleInput) => Promise<void>;
   deleteRole: (id: string, unbind: boolean) => Promise<void>;
@@ -72,8 +74,8 @@ export function usePermissions(enabled: boolean): PermissionsController {
   );
 
   const removeAssignment = useCallback(
-    async (id: string) => {
-      await permissionsApi.removeAssignment(id);
+    async (target: RbacAssignmentTarget) => {
+      await permissionsApi.removeAssignment(target);
       await refresh();
     },
     [refresh]
@@ -88,8 +90,8 @@ export function usePermissions(enabled: boolean): PermissionsController {
   );
 
   const removeBinding = useCallback(
-    async (id: string) => {
-      await permissionsApi.removeBinding(id);
+    async (target: RbacBindingTarget) => {
+      await permissionsApi.removeBinding(target);
       await refresh();
     },
     [refresh]

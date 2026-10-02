@@ -1,5 +1,5 @@
 import type { ProjectMeta } from "../../../models/project";
-import type { RbacAssignment, RbacAssignmentInput, RbacDefinition } from "../../../models/rbac";
+import type { RbacAssignment, RbacAssignmentInput, RbacAssignmentTarget, RbacDefinition } from "../../../models/rbac";
 import { useConfirm } from "../../../state/context/ConfirmContext";
 import { X } from "../../primitives/icons";
 import { AddAssignmentForm } from "./AddAssignmentForm";
@@ -20,7 +20,7 @@ export function AssignmentsList({
   projects: ProjectMeta[];
   loading: boolean;
   onAdd: (input: RbacAssignmentInput) => Promise<void>;
-  onRemove: (id: string) => Promise<void>;
+  onRemove: (target: RbacAssignmentTarget) => Promise<void>;
 }) {
   const confirm = useConfirm();
 
@@ -32,7 +32,12 @@ export function AssignmentsList({
       confirmLabel: "Remove",
       pendingLabel: "Removing…",
       tone: "danger",
-      action: () => onRemove(assignment.id),
+      action: () =>
+        onRemove({
+          userEmail: assignment.userEmail,
+          permission: assignment.permission,
+          scope: assignment.scope,
+        }),
     });
   };
 

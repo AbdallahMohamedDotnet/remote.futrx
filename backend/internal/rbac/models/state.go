@@ -8,42 +8,42 @@ import (
 
 // Assignment is one direct allow or deny of a permission to a user at a scope.
 type Assignment struct {
-	ID         string
-	UserEmail  string
-	Permission Key
-	Effect     Effect
-	Scope      Scope
-	CreatedBy  string
-	CreatedAt  int64
+	ID         string `json:"id"`
+	UserEmail  string `json:"userEmail"`
+	Permission Key    `json:"permission"`
+	Effect     Effect `json:"effect"`
+	Scope      Scope  `json:"scope"`
+	CreatedBy  string `json:"createdBy"`
+	CreatedAt  int64  `json:"createdAt"`
 }
 
 // RoleRule is one permission a role contributes when bound. The binding, not
 // the rule, supplies the concrete scope.
 type RoleRule struct {
-	Permission Key
-	Effect     Effect
+	Permission Key    `json:"permission"`
+	Effect     Effect `json:"effect"`
 }
 
 // Role is a reusable bundle of rules. It is independent of the user
 // directory's fixed admin/member roles.
 type Role struct {
-	ID          string
-	Name        string
-	Description string
-	Rules       []RoleRule
-	CreatedBy   string
-	CreatedAt   int64
-	UpdatedAt   int64
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Rules       []RoleRule `json:"rules"`
+	CreatedBy   string     `json:"createdBy"`
+	CreatedAt   int64      `json:"createdAt"`
+	UpdatedAt   int64      `json:"updatedAt"`
 }
 
 // RoleBinding attaches a role to a user at a concrete scope.
 type RoleBinding struct {
-	ID        string
-	RoleID    string
-	UserEmail string
-	Scope     Scope
-	CreatedBy string
-	CreatedAt int64
+	ID        string `json:"id"`
+	RoleID    string `json:"roleId"`
+	UserEmail string `json:"userEmail"`
+	Scope     Scope  `json:"scope"`
+	CreatedBy string `json:"createdBy"`
+	CreatedAt int64  `json:"createdAt"`
 }
 
 // State is the complete persisted policy. The zero value is an empty policy,

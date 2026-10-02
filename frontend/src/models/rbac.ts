@@ -62,8 +62,16 @@ export interface RbacAssignmentInput {
   scope: RbacScope;
 }
 
+export interface RbacAssignmentTarget {
+  userEmail: string;
+  permission: string;
+  scope: RbacScope;
+}
+
 export interface RbacBindingInput {
   roleId: string;
   userEmail: string;
   scope: RbacScope;
 }
+
+export type RbacBindingTarget = RbacBindingInput;

@@ -1,5 +1,5 @@
 import type { ProjectMeta } from "../../../models/project";
-import type { RbacBinding, RbacBindingInput, RbacDefinition, RbacRole } from "../../../models/rbac";
+import type { RbacBinding, RbacBindingInput, RbacBindingTarget, RbacDefinition, RbacRole } from "../../../models/rbac";
 import { useConfirm } from "../../../state/context/ConfirmContext";
 import { X } from "../../primitives/icons";
 import { AddBindingForm } from "./AddBindingForm";
@@ -22,7 +22,7 @@ export function BindingsList({
   projects: ProjectMeta[];
   loading: boolean;
   onAdd: (input: RbacBindingInput) => Promise<void>;
-  onRemove: (id: string) => Promise<void>;
+  onRemove: (target: RbacBindingTarget) => Promise<void>;
 }) {
   const confirm = useConfirm();
   const roleName = (id: string) => roles.find((role) => role.id === id)?.name ?? id;
@@ -35,7 +35,8 @@ export function BindingsList({
       confirmLabel: "Unbind",
       pendingLabel: "Unbinding…",
       tone: "danger",
-      action: () => onRemove(binding.id),
+      action: () =>
+        onRemove({ roleId: binding.roleId, userEmail: binding.userEmail, scope: binding.scope }),
     });
   };
 

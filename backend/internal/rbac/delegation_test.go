@@ -335,3 +335,19 @@ func TestConcurrentRevocationAndGrantCannotPassAStaleCheck(t *testing.T) {
 		}
 	}
 }
+
+func TestOnlyManagementHoldersMayReadDefinitions(t *testing.T) {
+	f := newFixture(t)
+
+	if _, err := f.service.Definitions(as(testManager)); !errors.Is(err, ErrDenied) {
+		t.Fatalf("Definitions() error = %v, want ErrDenied", err)
+	}
+	if _, err := f.service.Definitions(context.Background()); !errors.Is(err, ErrActorRequired) {
+		t.Fatalf("Definitions() without actor error = %v, want ErrActorRequired", err)
+	}
+	grantManagement(t, f, PermissionRolesManage)
+	definitions, err := f.service.Definitions(as(testManager))
+	if err != nil || len(definitions) != len(f.service.registry.Definitions()) {
+		t.Fatalf("Definitions() = %v, %v; want every registered definition", definitions, err)
+	}
+}
