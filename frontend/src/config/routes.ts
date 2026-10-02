@@ -148,6 +148,14 @@ export const API_ROUTES = {
     preferences: "/api/me/security/preferences",
     ackAlert: "/api/me/security/alerts/ack",
   },
+  permissions: {
+    definitions: "/api/admin/permissions/definitions",
+    state: "/api/admin/permissions/state",
+    roles: "/api/admin/permissions/roles",
+    role: (id: string) => `/api/admin/permissions/roles/${encodeURIComponent(id)}`,
+    assignments: "/api/admin/permissions/assignments",
+    bindings: "/api/admin/permissions/bindings",
+  },
   usage: {
     summary: (query: string) => `/api/usage/summary${query ? `?${query}` : ""}`,
     records: (query: string) => `/api/usage/records${query ? `?${query}` : ""}`,
