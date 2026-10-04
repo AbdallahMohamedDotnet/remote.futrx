@@ -21,7 +21,7 @@ import { ExtensionBackendTargets } from "./extensionBackendTarget.ts";
 
 export function createBackendApi(
   application: AppApplication,
-  backends: AppBackendInstance[],
+  backends: AppBackendInstance[] | (() => AppBackendInstance[]),
 ): ExtensionBackendApi {
   const targets = new ExtensionBackendTargets(application.id, backends);
 
@@ -49,8 +49,8 @@ export function createBackendApi(
   };
 
   return {
-    available: Boolean(application.backend) && targets.instances.length > 0,
-    instances: targets.instances,
+    get available() { return Boolean(application.backend) && targets.instances.length > 0; },
+    get instances() { return targets.instances; },
     url: (path, target) => targets.url(path, target),
     fetch: request,
     call: async <T,>(path: string, options?: ExtensionBackendCallOptions) => {

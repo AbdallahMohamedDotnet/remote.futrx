@@ -8,6 +8,8 @@ export interface FileNode {
 }
 
 export interface FileOpenRequest {
+  /** Set by the opener registry from the project selecting the editor. */
+  projectId?: string;
   cwd: string;
   path: string;
   line?: number;

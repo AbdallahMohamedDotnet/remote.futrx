@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	serviceapplications "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	httptransport "github.com/futrx-com/remote.futrx.com/internal/transport/http"
 )
@@ -52,7 +53,7 @@ func (h *ApplicationsHandler) serveWeb(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "application unavailable", http.StatusInternalServerError)
 			return
 		}
-		host := httptransport.ApplicationHost(target.InstanceID, h.webHost)
+		host := httptransport.ApplicationHost(project.Slug, target.Subdomain, h.webHost)
 		if !available || host == "" {
 			break
 		}
@@ -76,8 +77,8 @@ func (h *ApplicationsHandler) serveWeb(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ApplicationsHandler) serveWebHost(w http.ResponseWriter, r *http.Request) {
-	id, ok := httptransport.ApplicationInstanceID(r.Host, h.webHost)
-	if !ok {
+	label, slug, named := httptransport.ApplicationProject(r.Host, h.webHost)
+	if !named {
 		http.NotFound(w, r)
 		return
 	}
@@ -85,24 +86,30 @@ func (h *ApplicationsHandler) serveWebHost(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	target, available, err := h.apps.WebTarget(r.Context(), id)
-	if err != nil {
-		http.Error(w, "application unavailable", http.StatusInternalServerError)
+	for _, project := range projects {
+		var target serviceapplications.WebTarget
+		var available bool
+		var err error
+		if project.Slug != slug {
+			continue
+		}
+		target, available, err = h.apps.ProjectWebTargetBySubdomain(r.Context(), string(project.ID), label)
+		if err != nil {
+			http.Error(w, "application unavailable", http.StatusInternalServerError)
+			return
+		}
+		if !available || target.ProjectID != string(project.ID) || !httptransport.MatchesApplicationHost(r.Host, project.Slug, target.Subdomain, h.webHost) {
+			continue
+		}
+		upstream := &url.URL{Scheme: "http", Host: net.JoinHostPort(project.Slug+".lxd", fmt.Sprint(target.Port))}
+		proxy := newWebProxy(upstream, h.webScheme())
+		if h.webTransport != nil {
+			proxy.Transport = h.webTransport
+		}
+		proxy.ServeHTTP(w, r)
 		return
 	}
-	if available {
-		for _, project := range projects {
-			if string(project.ID) == target.ProjectID {
-				upstream := &url.URL{Scheme: "http", Host: net.JoinHostPort(project.Slug+".lxd", fmt.Sprint(target.Port))}
-				proxy := newWebProxy(upstream, h.webScheme())
-				if h.webTransport != nil {
-					proxy.Transport = h.webTransport
-				}
-				proxy.ServeHTTP(w, r)
-				return
-			}
-		}
-	}
+
 	http.NotFound(w, r)
 }
 

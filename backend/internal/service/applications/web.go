@@ -2,14 +2,6 @@ package applications
 
 import "context"
 
-// WebTarget contains only the routing identity of a running project web app.
-// Caller/project authorization belongs to the transport; secrets never leave here.
-type WebTarget struct {
-	InstanceID string
-	ProjectID  string
-	Port       int
-}
-
 func (s *Service) ProjectWebTarget(ctx context.Context, projectID, applicationID string) (WebTarget, bool, error) {
 	instances, err := s.store.ListProject(ctx, projectID)
 	if err != nil {
@@ -40,5 +32,26 @@ func (s *Service) webTarget(instance Instance) (WebTarget, bool) {
 		instance.ProjectID == "" || instance.Status != StatusRunning {
 		return WebTarget{}, false
 	}
-	return WebTarget{InstanceID: instance.ID, ProjectID: instance.ProjectID, Port: application.Web.Port}, true
+	return WebTarget{Subdomain: application.Web.Subdomain, InstanceID: instance.ID, ProjectID: instance.ProjectID, Port: application.Web.Port}, true
+}
+
+// ProjectWebTargetBySubdomain resolves a label only inside the selected project.
+// Ambiguous labels fail closed instead of choosing an arbitrary installation.
+func (s *Service) ProjectWebTargetBySubdomain(ctx context.Context, projectID, label string) (WebTarget, bool, error) {
+	instances, err := s.store.ListProject(ctx, projectID)
+	if err != nil {
+		return WebTarget{}, false, err
+	}
+	var result WebTarget
+	found := false
+	for _, instance := range instances {
+		target, ok := s.webTarget(instance)
+		if ok && target.ProjectID == projectID && target.Subdomain == label {
+			if found {
+				return WebTarget{}, false, nil
+			}
+			result, found = target, true
+		}
+	}
+	return result, found, nil
 }

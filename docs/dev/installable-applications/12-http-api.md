@@ -342,7 +342,7 @@ const response = await fetch(path, { credentials: "same-origin" });
 
 `GET /apps/<project-slug>/<application-id>/<path>` is an authenticated launch
 link. The identifier is the **catalog application ID**. It redirects (302) to
-`https://<instance-id>.apps.<public-host>/<path>`, preserving escaped paths and
+`https://<web.subdomain>--<project-slug>.<public-host>/<path>`, preserving escaped paths and
 queries. A bare launch URL redirects to the installation's root. HEAD is also
 supported; other launch methods return 405. No application bytes are served
 on the main Remote origin.

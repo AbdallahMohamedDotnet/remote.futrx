@@ -292,9 +292,8 @@ Every project gets its own HTTPS address, so Remote needs a hostname with wildca
 | --- | --- |
 | `remote.example.com` | Remote web app |
 | `code.remote.example.com` | Browser IDE |
-| `*.code.remote.example.com` | Per-project browser IDEs |
 | `*.dev.remote.example.com` | Per-project application previews |
-| `*.apps.remote.example.com` | Installed project applications, one origin per installation |
+| `*.remote.example.com` | Installed project applications at `<label>--<project>` |
 
 **If you want a free hostname,** [DuckDNS](https://www.duckdns.org) is the quickest, because it resolves every subdomain automatically and there are no DNS records to create:
 
@@ -350,6 +349,9 @@ for cadence and counting limitations.
 4. Select **New project**.
 5. To use MiniMax, open **Settings → Agents**, add a named MiniMax account, and save its Token Plan subscription key. Pay-as-you-go MiniMax API keys are not supported.
 6. Start a chat and describe what you want in normal language.
+7. To send email from this server, open **Settings → Email** and choose the Gmail preset
+   (address plus an app password; the Google account needs 2-Step Verification
+   enabled to generate a 16-character app password) or configure a custom SMTP server.
 
 Remote will show the agent's progress. When the work is ready, review it in the chat, IDE, terminal, file manager, Git history, or live preview.
 

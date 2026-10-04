@@ -30,6 +30,7 @@ export class ExtensionHost {
   private readonly registry: ExtensionRegistry;
   private readonly loadEntryModule: LoadEntryModule;
   private readonly loaded = new Set<string>();
+  private readonly current = new Map<string, AppUIExtension>();
   private inFlight: Promise<void> | null = null;
   private resyncRequested = false;
 
@@ -84,7 +85,11 @@ export class ExtensionHost {
 
     this.removeInactive(extensions);
     for (const extension of extensions) {
-      fileOpenerStore.getState().setProjects(extension.application.id, extension.projectIds ?? []);
+      this.current.set(extension.application.id, extension);
+      fileOpenerStore.getState().setProjects(
+        extension.application.id,
+        extension.projectIds ?? [],
+      );
       this.registry.setVisibility(
         extension.application.id,
         this.visibilityOf(extension),
@@ -131,8 +136,9 @@ export class ExtensionHost {
         createExtensionApi(
           application,
           this.visibilityOf(extension),
-          extension.backends ?? [],
+          () => this.current.get(application.id)?.backends ?? [],
           this.registry,
+          () => this.current.get(application.id)?.application ?? application,
         ),
       );
     } catch (error) {
@@ -152,6 +158,7 @@ export class ExtensionHost {
     this.registry.removeApplication(applicationId);
     extensionEventService.removeApplication(applicationId);
     this.loaded.delete(applicationId);
+    this.current.delete(applicationId);
   }
 
   private visibilityOf(extension: AppUIExtension): ExtensionVisibility {

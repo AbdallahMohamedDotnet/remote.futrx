@@ -26,7 +26,7 @@ in a slot's render function, which runs whenever that surface mounts.
 
 ```js
 remote.apiVersion              // 1
-remote.application                   // { id, name, version, icon }
+remote.application                   // { id, name, version, icon, web }
 remote.install                 // { global, projectIds }
 remote.slots                   // { chatHeaderActions: "chat.header.actions", … }
 
@@ -66,7 +66,8 @@ if (remote.apiVersion !== 1) return;
 
 ## `remote.application`
 
-`{ id, name, version, icon }` — the catalog entry this code was loaded from.
+`{ id, name, version, icon, web }` — current catalog metadata, refreshed when the host reconciles applications.
+`web`, when declared, contains `{ port, subdomain? }`.
 `remote.application.id` is the value to compare against `context.instance?.applicationId`.
 
 ## `remote.install`
@@ -243,7 +244,9 @@ if (!remote.backend.available) {
 
 `[{ instanceId, scope, projectId }]` — the running backends this extension may
 call. An application installed globally **and** in two projects runs three processes,
-which is why a call has to resolve to one of them.
+which is why a call has to resolve to one of them. This list refreshes when the
+extension host reconciles installations, including after a reinstall. Read it
+when building a link; do not retain an installation ID across reconciliations.
 
 ### Choosing which one a call reaches
 
@@ -451,6 +454,7 @@ registerOpener(open: (request: {
 
 | Value | Meaning |
 |---|---|
+| `projectId` | Project selecting this opener; supplied by the registry, independently of the workspace path |
 | `cwd` | Host workspace context; the link parser normalizes chat links to the workspace root, while Files passes the chat's cwd |
 | `path` | In-container absolute path, normally `/workspace/...` |
 | `line`, `column` | Optional positive positions parsed from `:line[:column]` in links |
@@ -461,19 +465,23 @@ registerOpener(open: (request: {
 The URL builder belongs to the extension; the file-opener API does not require
 the web-gateway feature. The following example assumes that separate gateway
 is available. A custom editor that accepts `file`, `line` and `column` could
-register this callback (adapt the URL parameters to the editor's own contract):
+register this callback when it also has an application backend (adapt the URL
+parameters to the editor's own contract):
 
 ```js
 export default function activate(remote) {
   // Additive API: older hosts may still report apiVersion 1 without files.
   if (!remote.files?.registerOpener) return;
-  remote.files.registerOpener(({ cwd, path, line, column }) => {
-    const project = cwd.match(/^\/var\/lib\/remote\/projects\/([^/]+)\/workspace(?:\/|$)/);
-    if (!project || !path.startsWith("/workspace/")) return null;
-    const url = new URL(
-      `/apps/${encodeURIComponent(project[1])}/${encodeURIComponent(remote.application.id)}/`,
-      location.origin,
+  remote.files.registerOpener(({ projectId, cwd, path, line, column }) => {
+    const instance = remote.backend.instances.find(
+      (candidate) => candidate.scope === "project" && candidate.projectId === projectId,
     );
+    if (!instance || !path.startsWith("/workspace/")) return null;
+    const url = new URL(location.origin);
+    const label = remote.application.web?.subdomain;
+    const project = cwd.match(/^\/var\/lib\/remote\/projects\/([a-z0-9][a-z0-9-]*)\/workspace(?:\/|$)/);
+    if (!label || !project) return null;
+    url.hostname = `${label}--${project[1]}.${url.hostname}`;
     url.searchParams.set("file", path);
     if (line) url.searchParams.set("line", String(line));
     if (column) url.searchParams.set("column", String(column));
@@ -510,3 +518,7 @@ An extension is trusted browser code; return only URLs appropriate to its
 application and validate access at the destination. See
 [Workspace file openers](23-application-file-openers.md)
 for the path conversion and call sites.
+
+`remote.application.web` exposes the current manifest web port and optional
+subdomain label. Both this metadata and backend installation IDs refresh when
+the extension host reconciles applications. Read them when building a URL.

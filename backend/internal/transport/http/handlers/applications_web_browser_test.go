@@ -33,8 +33,9 @@ func TestApplicationWebBrowserIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := "https://remote.test:" + port
-	appBase := "https://" + webTestHost + ":" + port
+	appBase := "https://code--project.remote.test" + ":" + port
 	f := newWebFixture(t, base)
+	f.registry.application.Web.Subdomain = "code"
 	var reads, writes, sockets atomic.Int32
 	var leaked atomic.Bool
 	upgrader := httptransport.NewUpgrader()

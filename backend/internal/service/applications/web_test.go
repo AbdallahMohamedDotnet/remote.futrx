@@ -28,3 +28,33 @@ func TestWebPortRequiresRunningDeclaredProjectInstallation(t *testing.T) {
 		}
 	}
 }
+
+func TestNamedWebTargetUsesProjectAndRejectsAmbiguity(t *testing.T) {
+	ctx := context.Background()
+	first := Instance{ID: "first", ApplicationID: "editor", ProjectID: "p1", Scope: ScopeProject, Status: StatusRunning}
+	store := &fakeStore{byProject: map[string][]Instance{"p1": {first}}}
+	registry := &singleApplicationRegistry{application: Application{ID: "editor", Web: &ApplicationWeb{Port: 8400, Subdomain: "code"}}}
+	service := New(registry, store, nil, nil, nil)
+	for _, tc := range []struct {
+		project, label string
+		want           bool
+	}{
+		{"p1", "code", true}, {"p2", "code", false}, {"p1", "wrong", false},
+	} {
+		_, ok, err := service.ProjectWebTargetBySubdomain(ctx, tc.project, tc.label)
+		if err != nil || ok != tc.want {
+			t.Fatal(tc, ok, err)
+		}
+	}
+	second := first
+	second.ID = "second"
+	store.byProject["p1"] = []Instance{first, second}
+	if _, ok, _ := service.ProjectWebTargetBySubdomain(ctx, "p1", "code"); ok {
+		t.Fatal("ambiguous label accepted")
+	}
+	first.Status = StatusStopped
+	store.byProject["p1"] = []Instance{first}
+	if _, ok, _ := service.ProjectWebTargetBySubdomain(ctx, "p1", "code"); ok {
+		t.Fatal("stopped app accepted")
+	}
+}
