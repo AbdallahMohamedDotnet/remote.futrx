@@ -24,6 +24,11 @@ func TestProjectHandlerTLSAskUsesConfiguredPublicHostname(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:       "shared code host",
+			domain:     "code.remote.example.test",
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:       "removed code host",
 			domain:     project.Slug + ".code.remote.example.test",
 			wantStatus: http.StatusNotFound,
