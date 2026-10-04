@@ -54,6 +54,12 @@ ${HOSTNAME} {
 
 code.${HOSTNAME} {
     encode zstd gzip
+    # code.${HOSTNAME} also matches the application wildcard above. Keep both
+    # hostnames in the same on-demand automation policy so a config reload does
+    # not evict the editor certificate from Caddy's active TLS cache.
+    tls {
+        on_demand
+    }
     route {
         # Admin-session gate (same check as the rest of the platform).
         forward_auth 127.0.0.1:${SERVICE_PORT} {

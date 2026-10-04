@@ -480,6 +480,13 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing domain", http.StatusBadRequest)
 		return
 	}
+	// The shared code-server origin overlaps the application wildcard in the
+	// Caddy config, so it belongs to the same on-demand TLS policy. It is a
+	// single configured platform hostname, not a user-controlled subdomain.
+	if domain == "code."+h.publicHostname {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	if httptransport.IsApplicationHost(domain, h.publicHostname) {
 		if h.apps == nil || h.apps.apps == nil {
 			http.NotFound(w, r)
