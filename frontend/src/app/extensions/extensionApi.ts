@@ -16,6 +16,7 @@ import type {
 import { extensionEventService } from "../../services/extensions/extensionEventService.ts";
 import { createBackendApi } from "./extensionBackend.ts";
 import { openExtensionPopup } from "./extensionPopup.ts";
+import { fileOpenerStore } from "../../state/stores/files/fileOpenerStore.ts";
 
 const BUTTON_BASE =
   "inline-flex items-center gap-1.5 rounded-control px-2 py-1 text-[12px] " +
@@ -32,8 +33,9 @@ const ICON_BUTTON_BASE =
 export function createExtensionApi(
   application: AppApplication,
   visibility: ExtensionVisibility,
-  backends: AppBackendInstance[],
+  backends: AppBackendInstance[] | (() => AppBackendInstance[]),
   registry: ExtensionRegistry,
+  currentApplication: () => AppApplication = () => application,
 ): ExtensionApi {
   const views = application.ui?.views ?? {};
   const assetUrl = (assetPath: string) =>
@@ -45,11 +47,15 @@ export function createExtensionApi(
 
   return {
     apiVersion: EXTENSION_API_VERSION,
-    application: {
-      id: application.id,
-      name: application.name,
-      version: application.version,
-      icon: application.icon,
+    get application() {
+      const current = currentApplication();
+      return {
+        id: current.id,
+        name: current.name,
+        version: current.version,
+        icon: current.icon,
+        web: current.web ? { ...current.web } : undefined,
+      };
     },
     install: {
       global: visibility.global,
@@ -95,6 +101,9 @@ export function createExtensionApi(
       },
     },
     assets: { url: assetUrl },
+    files: {
+      registerOpener: (open) => fileOpenerStore.getState().register(application.id, [...visibility.projectIds], open),
+    },
     backend: createBackendApi(application, backends),
     log: (...args) => console.info(`[extension:${application.id}]`, ...args),
   };

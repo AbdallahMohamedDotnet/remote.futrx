@@ -31,7 +31,7 @@ export type WorkspaceView = "chat" | "settings" | "project-containers";
 
 export type SettingsTab =
   | "appearance" | "notifications" | "agents" | "users" | "security"
-  | "applications" | "updates" | "info" | "usage" | "permissions";
+  | "applications" | "updates" | "info" | "usage" | "permissions" | "email";
 
 export interface WorkspaceUiState {
   activeChatId: string | null;

@@ -100,9 +100,9 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		deps.Services.Applications,
 		deps.Services.Auth,
 		deps.Services.Projects,
-	)
+	).WithWebHost(deps.PublicHostname)
 
-	return httptransport.NewHandler(httptransport.Handlers{
+	handler := httptransport.NewHandler(httptransport.Handlers{
 		Sessions: httphandlers.NewTmuxHandler(deps.Services.Tmux),
 		Chats:    chatHandler,
 		Projects: httphandlers.NewProjectHandler(
@@ -130,6 +130,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			deps.Services.Auth,
 			deps.Services.Presence,
 		),
+		EmailSettings:    httphandlers.NewEmailSettingsHandler(deps.Services.Email, deps.Services.Auth),
 		ServerInfo:       httphandlers.NewServerInfoHandler(deps.ServerInfo),
 		SelfUpdate:       httphandlers.NewSelfUpdateHandler(deps.SelfUpdate, deps.Services.Auth),
 		Skills:           httphandlers.NewSkillHandler(deps.Services.Skills),
@@ -147,7 +148,12 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		Auth:             auth,
 		Middleware:       middleware,
 		Static:           httptransport.NewStaticHandler(deps.Static),
-	}), nil
+	})
+	baseURL := "https://" + deps.PublicHostname
+	if deps.Services.Auth != nil {
+		baseURL = deps.Services.Auth.BaseURL()
+	}
+	return httpmiddleware.NewBrowserProtection(baseURL).Wrap(applicationsHandler.WebHandler(handler)), nil
 }
 
 func NewHTTPServer(addr string, handler http.Handler) *http.Server {

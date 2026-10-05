@@ -88,6 +88,7 @@ func chatEventFromAgentEvent(ev agent.Event) (ChatEvent, bool) {
 		out.Type = "interaction_resolved"
 		out.ID = ev.InteractionID
 		out.Name = ev.ToolName
+		out.Data = ev.Data
 	case agent.EventTurnStatus, agent.EventRunInterrupted:
 		out.Type = "turn_status"
 		out.Provider = servicechat.Provider(ev.Provider)

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 
+import { fileOpenerStore } from "../../state/stores/files/fileOpenerStore.ts";
+import { resolveFileOpener } from "../../services/files/resolveFileOpener.ts";
 import { applicationsApi } from "../../api/applicationsApi.ts";
 import { EXTENSION_SLOTS } from "../../config/extensions.ts";
 import type { AppUIExtension } from "../../models/application.ts";
@@ -266,4 +268,38 @@ test("a failed extension list leaves what is loaded alone", async (t) => {
   await host.sync();
 
   assert.equal(panelContributions().length, 1);
+});
+
+test("loaded extensions see replaced and removed installations without reactivation", async (t) => {
+  const first = { ...helloExtension(false), application: { ...helloExtension(false).application, backend: {}, web: { port: 8400, subdomain: "code" } }, projectIds: ["p1"], backends: [
+    { instanceId: "old", scope: "project" as const, projectId: "p1" },
+  ] };
+  const replacement = { ...first, application: { ...first.application, web: { port: 8400, subdomain: "editor" } }, backends: [{ ...first.backends[0], instanceId: "new" }] };
+  serveExtensions(t, [ [first], [replacement], [] ]);
+  let remote!: ExtensionApi;
+  let activations = 0;
+  const { registry } = createRegistry();
+  const host = new ExtensionHost(registry, async () => ({ default(api) {
+    remote = api;
+    activations++;
+    api.files.registerOpener(({ projectId }) => api.backend.instances.find((item) => item.projectId === projectId)?.instanceId ?? null);
+  } }));
+  const fileUrl = () => resolveFileOpener(fileOpenerStore.getState().forProject("p1"), { cwd: "/workspace", path: "/workspace/file" });
+  await host.sync();
+  assert.equal(remote.backend.instances[0].instanceId, "old");
+  assert.equal(remote.application.web?.subdomain, "code");
+  assert.equal(remote.backend.available, true);
+  assert.equal(fileUrl(), "old");
+  const revision = fileOpenerStore.getState().revision;
+  await host.sync();
+  assert.equal(activations, 1);
+  assert.equal(remote.backend.instances[0].instanceId, "new");
+  assert.equal(remote.application.web?.subdomain, "editor");
+  assert.equal(fileUrl(), "new");
+  assert.ok(fileOpenerStore.getState().revision > revision);
+  assert.equal(remote.backend.url("health", { projectId: "p1" }), "/api/projects/p1/applications/new/backend/health");
+  await host.sync();
+  assert.deepEqual(remote.backend.instances, []);
+  assert.equal(remote.backend.available, false);
+  assert.equal(fileUrl(), null);
 });

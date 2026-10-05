@@ -7,6 +7,7 @@ import type {
   ExtensionVisibility,
 } from "../../models/extension";
 import { extensionEventService } from "../../services/extensions/extensionEventService.ts";
+import { fileOpenerStore } from "../../state/stores/files/fileOpenerStore.ts";
 import { extensionRegistry } from "../../state/stores/extensions/extensionStore.ts";
 import { createExtensionApi } from "./extensionApi.ts";
 
@@ -29,6 +30,7 @@ export class ExtensionHost {
   private readonly registry: ExtensionRegistry;
   private readonly loadEntryModule: LoadEntryModule;
   private readonly loaded = new Set<string>();
+  private readonly current = new Map<string, AppUIExtension>();
   private inFlight: Promise<void> | null = null;
   private resyncRequested = false;
 
@@ -83,6 +85,11 @@ export class ExtensionHost {
 
     this.removeInactive(extensions);
     for (const extension of extensions) {
+      this.current.set(extension.application.id, extension);
+      fileOpenerStore.getState().setProjects(
+        extension.application.id,
+        extension.projectIds ?? [],
+      );
       this.registry.setVisibility(
         extension.application.id,
         this.visibilityOf(extension),
@@ -129,8 +136,9 @@ export class ExtensionHost {
         createExtensionApi(
           application,
           this.visibilityOf(extension),
-          extension.backends ?? [],
+          () => this.current.get(application.id)?.backends ?? [],
           this.registry,
+          () => this.current.get(application.id)?.application ?? application,
         ),
       );
     } catch (error) {
@@ -146,9 +154,11 @@ export class ExtensionHost {
    * an app that is no longer installed.
    */
   private forget(applicationId: string): void {
+    fileOpenerStore.getState().remove(applicationId);
     this.registry.removeApplication(applicationId);
     extensionEventService.removeApplication(applicationId);
     this.loaded.delete(applicationId);
+    this.current.delete(applicationId);
   }
 
   private visibilityOf(extension: AppUIExtension): ExtensionVisibility {

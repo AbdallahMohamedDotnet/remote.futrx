@@ -20,7 +20,7 @@ export function MessageBlock({
   streaming: boolean;
   chatId?: string;
   cwd?: string;
-  onAnswerQuestion?: (text: string) => void;
+  onAnswerQuestion?: (text: string) => boolean;
   onRespondInteraction?: ChatInteractionResponder;
   onRewind?: (t: number, text: string) => void;
   streamingPresentation: "blocks" | "tokens";
@@ -30,6 +30,7 @@ export function MessageBlock({
       <UserMessage
         text={block.text}
         t={block.t}
+        userEmail={block.userEmail}
         chatId={chatId}
         cwd={cwd}
         onRewind={onRewind}
@@ -38,7 +39,7 @@ export function MessageBlock({
   }
 
   if (block.type === "error") {
-    return <ErrorMessage message={block.message} />;
+    return <ErrorMessage message={block.message} t={block.t} />;
   }
 
   return (

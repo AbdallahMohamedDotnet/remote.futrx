@@ -49,9 +49,10 @@ machine and guardrails.
 | 14 | Login rate limiter bypassed via `X-Forwarded-For` spoofing | Web | Spoofing | **Medium** | ✓ |
 | 15 | `/ws/workspace` leaks other users' project/chat metadata | Web | Information disclosure | **Medium** | ✓ |
 | 16 | Stateless 30-day sessions with no revocation | Web | Spoofing | **Medium** | ✓ |
-| 17 | No CSRF tokens and WebSocket origin checks disabled | Web | Tampering | **Medium** | cited |
+| 17 | Cross-origin browser requests / WebSocket handshakes | Web | Tampering | Mitigated (previously **Medium**) | tests |
 | 18 | Secrets/OAuth key plaintext at rest; leaked `session.key` forges admin sessions forever | Secrets | Elevation of privilege | **Medium** | cited |
 | 19 | `return_to` open redirect into untrusted preview/IDE subdomains | Web | Spoofing | **Low** | cited |
+| 20 | Project application content shares the platform browser origin | Web | Elevation of privilege | Mitigated (previously **High**) | Go + Chromium tests |
 
 ¹ Conditional — see finding 11 for the precondition.
 
@@ -70,10 +71,30 @@ External users reach only Caddy, which terminates TLS and forwards to the loopba
 
 ### 4. Any invited user reaches any project's code-server IDE — **High** ✓ code-verified
 
-**Elevation of privilege.** The `forward_auth` handler ([`auth_verify_handler.go`](../backend/internal/transport/http/handlers/auth_verify_handler.go)) extracts the project slug **only** from the dev-preview host pattern `^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.(.+)$`. For the IDE host classes — `<slug>.code.<host>` and `code.<host>/<slug>/` — the slug is never parsed, so [`access.go`](../backend/internal/service/auth/access.go) skips the membership branch and falls through to a **registered-user-only** check. code-server itself runs `auth: none` ([`code-server-up.sh`](../backend/internal/integration/containers/codeserver/assets/code-server-up.sh)) with an integrated root terminal over the bind-mounted project root. So any invited user can hand-craft `https://<victim-slug>.code.<host>/` and get a root shell and full read/write in a project they were never granted.
+**Elevation of privilege.** The `forward_auth` handler ([`auth_verify_handler.go`](../backend/internal/transport/http/handlers/auth_verify_handler.go)) extracts the project slug **only** from the dev-preview host pattern `^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.(.+)$`. For the IDE host classes — `code.<host>/<slug>/` — the slug is never parsed, so [`access.go`](../backend/internal/service/auth/access.go) skips the membership branch and falls through to a **registered-user-only** check. code-server itself runs `auth: none` ([`code-server-up.sh`](../backend/internal/integration/containers/codeserver/assets/code-server-up.sh)) with an integrated root terminal over the bind-mounted project root. So any invited user can hand-craft `https://code.<host>/<victim-slug>/` and get a root shell and full read/write in a project they were never granted.
 
 - **Existing mitigations:** Caddy `forward_auth` does require an authenticated, registered session, and strips platform cookies before proxying. The dev-preview URL path (`--<port>.dev`) *does* enforce membership — proving the mechanism exists and is simply not applied to the IDE host class.
 - **Residual gap:** no per-project membership check for the IDE/code hosts. This is documented as a known gap in [`docs/02-workspaces/02-auth-users-and-access.md`](02-workspaces/02-auth-users-and-access.md), but the Caddyfile comments incorrectly call it "the same admin gate as the rest of the platform."
+
+### 20. Project application content shares the platform browser origin — mitigated
+
+The original `/apps/<project-slug>/<application-id>/` proxy would have served
+project-controlled scripts on the main Remote origin. Cookie stripping could
+not stop those scripts from making authenticated platform API calls.
+
+The route only redirects to an isolated app origin: `<web.subdomain>--<project-slug>.<public-host>`.
+Named origins persist across reinstall, including browser storage and service workers. Host dispatch
+runs before the platform router, so app hosts cannot serve platform APIs or
+login pages. Every app request validates the session, project visibility and
+running installation, then strips cookies and Authorization before forwarding.
+Cross-origin browser API requests, forms and WebSockets are rejected, including
+same-site sibling origins; the main UI also rejects cross-origin framing and
+separates opener windows. Go and Chromium fixture tests cover these boundaries.
+See [application web security](dev/installable-applications/13-security-model.md#project-application-web-content).
+
+The platform session remains domain-scoped at the trusted gateway. This is
+browser isolation, not a sandbox for trusted UI extensions, host backends or
+project processes, and it does not fix the other host/network findings below.
 
 ### 11. Google OAuth authorizes on an unverified email — **High** (conditional) ✓ code-verified
 
@@ -113,16 +134,23 @@ External users reach only Caddy, which terminates TLS and forwards to the loopba
 - **Rate limiting.** `/auth/2fa/verify` shares the per-IP limiter used by password login (5 failures / 5 minutes), bounding brute force against the 6-digit space.
 - **Residual gap:** the rate limiter is per-process and per-IP, so it neither survives a restart nor constrains a distributed attacker.
 
-### 17. No CSRF tokens; WebSocket origin checks disabled — **Medium**
+### 17. Cross-origin requests and WebSockets — mitigated
 
-**Tampering.** No state-changing route carries a CSRF token, and the WS upgrader's `CheckOrigin` unconditionally returns true ([`http/websocket.go`](../backend/internal/transport/http/websocket.go)), including for the host-shell and container-shell sockets. Protection rests entirely on the `SameSite=Lax` cookie and the same-origin edge.
+Browser middleware now validates Origin against the destination scheme/host
+and rejects cross-origin Fetch Metadata for API reads, writes, forms and
+WebSocket handshakes. This includes sibling subdomains, which `SameSite=Lax`
+alone does not isolate. The WebSocket upgrader also uses Gorilla's default
+same-host Origin check instead of an unconditional allow.
 
-- **Existing mitigations:** `SameSite=Lax` does block script-initiated cross-site WS handshakes and POSTs in current browsers, so this is not exploitable from an unrelated origin today. OAuth uses a random state cookie.
-- **Residual gap:** protection is one cookie attribute deep with no defense-in-depth. Any regression to `SameSite=None`, or a content-injection foothold on a sibling subdomain, directly exposes host/container shells.
+Safe login/launch navigation remains allowed; OAuth still verifies its state
+cookie. Non-browser clients may omit Origin/Fetch Metadata but still require
+normal authentication and endpoint authorization. Browsers without Fetch
+Metadata do not get the full navigation/subresource protection. These checks
+do not protect against scripts already executing on the platform's own origin.
 
 ### 19. `return_to` open redirect into preview/IDE subdomains — **Low**
 
-**Spoofing.** `isSafeReturnTo` ([`auth_redirect.go`](../backend/internal/transport/http/handlers/auth_redirect.go)) accepts any HTTPS URL on the base host **or any subdomain** — including `*.dev.<host>` and `*.code.<host>`, which serve untrusted container content. A crafted `?return_to=` can bounce a freshly authenticated user onto attacker-influenced content on a trusted-looking origin (e.g. a fake password prompt).
+**Spoofing.** `isSafeReturnTo` ([`auth_redirect.go`](../backend/internal/transport/http/handlers/auth_redirect.go)) accepts any HTTPS URL on the base host **or any subdomain** — including `*.dev.<host>` and application hosts, which serve untrusted container content. A crafted `?return_to=` can bounce a freshly authenticated user onto attacker-influenced content on a trusted-looking origin (e.g. a fake password prompt).
 
 - **Existing mitigations:** external domains are rejected (https + base-or-subdomain only, ≤2048 chars); the target subdomain is itself `forward_auth`-gated.
 - **Residual gap:** restrict post-login redirects to the main app origin.
@@ -219,7 +247,7 @@ Provider tokens, project secrets, the session key, the OAuth client secret, and 
 
 ### 18. Plaintext secrets at rest; leaked `session.key` = permanent admin forgery — **Medium**
 
-**Elevation of privilege / Information disclosure.** `session.key`, `oauth.json` (Google client secret), `local-admin.json` (argon2id hash), `agent-accounts.json` (every saved Claude/Codex subscription login and MiniMax key, including inactive ones that never reach containers), and all `projectsecrets/*.json` are plaintext files. There is no encryption at rest and no key rotation mechanism. Anyone who obtains `session.key` (via findings 1/2, a backup, or a disk image) can mint a valid admin session **forever**; the only remediation is manually replacing the key (which logs everyone out). Provider CLI stderr and raw provider JSON are also persisted/logged unredacted, a potential credential sink if a CLI ever echoes a token.
+**Elevation of privilege / Information disclosure.** `session.key`, `oauth.json` (Google client secret), `local-admin.json` (argon2id hash), `smtp.json` (SMTP configuration including password), `agent-accounts.json` (every saved Claude/Codex subscription login and MiniMax key, including inactive ones that never reach containers), and all `projectsecrets/*.json` are plaintext files. There is no encryption at rest and no key rotation mechanism. Anyone who obtains `session.key` (via findings 1/2, a backup, or a disk image) can mint a valid admin session **forever**; the only remediation is manually replacing the key (which logs everyone out). Provider CLI stderr and raw provider JSON are also persisted/logged unredacted, a potential credential sink if a CLI ever echoes a token.
 
 - **Residual gap:** no at-rest encryption, no rotation/revocation, no secret scrubbing in logs. Treat `DATA_DIR` and root's home as crown jewels; back them up encrypted; restrict host access tightly.
 
@@ -275,7 +303,7 @@ project secret once an operator applies it.
 Roughly in order of risk reduction per unit effort:
 
 1. **Gate the host-shell and loose-chat paths** (findings 1, 2). At minimum require admin for `/ws?session=`, `/api/sessions/*`, and loose-chat runs; better, run loose chats in a disposable container. These are any-invited-user → host-root.
-2. **Enforce project membership on the IDE host class** (finding 4) — parse the slug from `<slug>.code.<host>` and `code.<host>/<slug>/` and apply `HasAccess`.
+2. **Enforce project membership on the IDE host class** (finding 4) — parse the slug from `code.<host>/<slug>/` and apply `HasAccess`.
 3. **Segment the container bridge** (finding 5) — LXD network ACLs or per-container nftables default-deny on peer ingress to 8842/6080/9222/5900.
 4. **Add a default disk quota** (finding 13) — move workspaces to a quota-capable pool or apply a project quota on the bind-mount source.
 5. **Sign the update chain** (finding 3) — require verified signed commits/tags

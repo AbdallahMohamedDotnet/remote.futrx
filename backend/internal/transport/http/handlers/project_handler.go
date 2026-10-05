@@ -30,7 +30,6 @@ type ProjectHandler struct {
 	shares             *serviceshare.Service
 	publicHostname     string
 	projectHostPattern *regexp.Regexp
-	codeHostPattern    *regexp.Regexp
 }
 
 // NewProjectHandler builds the handler. apps may be nil, which leaves the
@@ -52,9 +51,6 @@ func NewProjectHandler(
 		publicHostname: publicHostname,
 		projectHostPattern: regexp.MustCompile(
 			`^([a-z0-9][a-z0-9-]*)--(\d{4,5})\.dev\.` + escapedHostname + `$`,
-		),
-		codeHostPattern: regexp.MustCompile(
-			`^([a-z0-9][a-z0-9-]*)\.code\.` + escapedHostname + `$`,
 		),
 	}
 }
@@ -472,8 +468,8 @@ func buildAgentBrowserURL(r *http.Request, slug string, port int) string {
 	return fmt.Sprintf("%s://%s--%d.dev.%s/vnc.html?autoconnect=1&resize=scale&reconnect=1", scheme, slug, port, host)
 }
 
-// HandleTLSAsk lets Caddy issue on-demand certificates only for preview and
-// code subdomains belonging to projects that currently exist.
+// HandleTLSAsk lets Caddy issue on-demand certificates only for preview and application
+// subdomains belonging to projects that currently exist.
 func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -484,6 +480,38 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing domain", http.StatusBadRequest)
 		return
 	}
+	// The shared code-server origin overlaps the application wildcard in the
+	// Caddy config, so it belongs to the same on-demand TLS policy. It is a
+	// single configured platform hostname, not a user-controlled subdomain.
+	if domain == "code."+h.publicHostname {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if httptransport.IsApplicationHost(domain, h.publicHostname) {
+		if h.apps == nil || h.apps.apps == nil {
+			http.NotFound(w, r)
+			return
+		}
+		// Named hosts get on-demand certificates like previews: admit only the
+		// canonical host of a running installation.
+		if label, slug, named := httptransport.ApplicationProject(domain, h.publicHostname); named {
+			project, err := h.projects.GetBySlug(r.Context(), slug)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			target, available, err := h.apps.apps.ProjectWebTargetBySubdomain(r.Context(), string(project.ID), label)
+			if err != nil || !available ||
+				!httptransport.MatchesApplicationHost(domain, project.Slug, target.Subdomain, h.publicHostname) {
+				http.NotFound(w, r)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+		return
+	}
 	var slug string
 	if mm := h.projectHostPattern.FindStringSubmatch(domain); mm != nil {
 		slug = mm[1]
@@ -492,8 +520,6 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "port out of range", http.StatusNotFound)
 			return
 		}
-	} else if mm := h.codeHostPattern.FindStringSubmatch(domain); mm != nil {
-		slug = mm[1]
 	} else {
 		http.Error(w, "host not a recognized project domain", http.StatusNotFound)
 		return
@@ -686,6 +712,7 @@ func (h *ProjectHandler) allowed(ctx context.Context, id serviceproject.ID, emai
 func sendProjectError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, serviceproject.ErrNameRequired),
+		errors.Is(err, serviceproject.ErrReservedNameSeparator),
 		errors.Is(err, serviceproject.ErrInvalidID),
 		errors.Is(err, serviceproject.ErrInvalidSecretKey),
 		errors.Is(err, serviceproject.ErrInvalidLimits):
@@ -696,6 +723,8 @@ func sendProjectError(w http.ResponseWriter, err error) {
 		httptransport.SendErr(w, http.StatusConflict, err.Error())
 	case errors.Is(err, serviceproject.ErrNotFound):
 		httptransport.SendErr(w, http.StatusNotFound, "project not found")
+	case errors.Is(err, serviceproject.ErrInsufficientStorage):
+		httptransport.SendErr(w, http.StatusInsufficientStorage, err.Error())
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 	}

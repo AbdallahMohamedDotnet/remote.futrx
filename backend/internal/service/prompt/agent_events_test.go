@@ -149,3 +149,21 @@ func TestChatEventFromAgentEventMapsToolLifecycle(t *testing.T) {
 		t.Fatalf("unexpected end event: %#v", end)
 	}
 }
+
+func TestChatEventFromAgentEventKeepsRecordedInteractionAnswers(t *testing.T) {
+	data := json.RawMessage(`{"answers":{"env":["staging"]}}`)
+	ev, ok := chatEventFromAgentEvent(agent.Event{
+		T:             900,
+		Type:          agent.EventInteractionDone,
+		InteractionID: "9",
+		ToolName:      "item/tool/requestUserInput",
+		Status:        "answered",
+		Data:          data,
+	})
+	if !ok {
+		t.Fatal("expected resolved interaction to map")
+	}
+	if ev.Type != "interaction_resolved" || ev.ID != "9" || ev.Status != "answered" || string(ev.Data) != string(data) {
+		t.Fatalf("unexpected resolved interaction event: %#v", ev)
+	}
+}
