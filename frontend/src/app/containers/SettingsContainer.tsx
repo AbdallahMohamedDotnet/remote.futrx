@@ -35,7 +35,9 @@ export function SettingsContainer({
   const serverInfo = useServerInfo(activeTab === "info");
   const selfUpdate = useSelfUpdate(activeTab === "updates" && auth.isAdmin);
   const security = useSecuritySettings(activeTab === "security");
-  const permissions = usePermissions(activeTab === "permissions" && auth.isAdmin);
+  const permissions = usePermissions(
+    (activeTab === "permissions" || activeTab === "users") && auth.isAdmin
+  );
   const applications = useGlobalApplications({
     enabled: activeTab === "applications" && auth.isAdmin,
     managesPackages: auth.isAdmin,

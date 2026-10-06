@@ -31,6 +31,7 @@ import { ServerInfoSettings } from "./ServerInfoSettings";
 import { UpdatesSettings } from "./UpdatesSettings";
 import { UsageSettings } from "./UsageSettings";
 import { UsersPanel } from "../account/UsersPanel";
+import { PLATFORM_SCOPE } from "../../config/constants/user-roles";
 import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
 import { ApplicationsSection } from "../applications/ApplicationsSection";
 import type { ApplicationsController } from "../../state/hooks/applications/useApplications";
@@ -294,6 +295,14 @@ export function SettingsPage({
                   onAdd={userDirectory.add}
                   onRemove={userDirectory.remove}
                   onSetRole={userDirectory.setRole}
+                  customRoles={permissions.roles}
+                  bindings={permissions.bindings}
+                  onBindRole={(userEmail, roleId) =>
+                    permissions.addBinding({ roleId, userEmail, scope: PLATFORM_SCOPE })
+                  }
+                  onUnbindRole={(userEmail, roleId) =>
+                    permissions.removeBinding({ roleId, userEmail, scope: PLATFORM_SCOPE })
+                  }
                 />
               </div>
             )}
