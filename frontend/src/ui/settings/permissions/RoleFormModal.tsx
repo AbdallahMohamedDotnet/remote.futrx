@@ -1,9 +1,11 @@
 import { useState } from "preact/hooks";
 import type { RbacDefinition, RbacRole, RbacRoleInput, RbacRoleRule } from "../../../models/rbac";
+import { permissionBranches } from "../../../state/hooks/permissions/permissionBranches";
 import { permissionForms } from "../../../state/hooks/permissions/permissionForms";
-import { Loader, X } from "../../primitives/icons";
+import { Loader } from "../../primitives/icons";
+import { BranchConfigurator } from "./BranchConfigurator";
+import { BranchOverviewCard } from "./BranchOverviewCard";
 import { PermissionModalShell } from "./PermissionModalShell";
-import { SELECT_CLASS } from "./PermissionFormFields";
 
 const FIELD_CLASS =
   "theme-submenu-surface w-full rounded-[9px] border border-line-strong bg-raised px-3 py-2.5 text-sm text-ink-100 outline-none transition-[border-color,box-shadow] duration-150";
@@ -13,12 +15,14 @@ export function RoleFormModal({
   role,
   roles,
   definitions,
+  grantAll,
   onSubmit,
   onClose,
 }: {
   role?: RbacRole;
   roles: RbacRole[];
   definitions: RbacDefinition[];
+  grantAll: boolean;
   onSubmit: (input: RbacRoleInput) => Promise<void>;
   onClose: () => void;
 }) {
@@ -27,12 +31,13 @@ export function RoleFormModal({
   const [rules, setRules] = useState<RbacRoleRule[]>(role?.rules ?? []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [openBranchId, setOpenBranchId] = useState<string | null>(null);
 
-  const updateRule = (index: number, patch: Partial<RbacRoleRule>) =>
-    setRules((current) => current.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)));
+  const branches = permissionBranches.buildBranches(definitions, rules, role?.rules ?? [], grantAll);
+  const openBranch = branches.find((branch) => branch.id === openBranchId);
 
   const submit = async () => {
-    const result = permissionForms.validateRole({ name, description, rules }, roles, definitions, role?.id);
+    const result = permissionForms.validateRole({ name, description, rules }, roles, definitions, role?.id, grantAll);
     if (!result.ok) {
       setErr(result.message);
       return;
@@ -54,6 +59,7 @@ export function RoleFormModal({
       title={role ? "Edit role" : "Create role"}
       subtitle="A role bundles allow and deny rules that can be bound to users."
       busy={busy}
+      wide
       onClose={onClose}
       footer={
         <>
@@ -102,55 +108,33 @@ export function RoleFormModal({
       </div>
       <div class="flex flex-col gap-[7px]">
         <div class="flex items-center justify-between">
-          <div class="text-xs uppercase tracking-[0.08em] text-ink-300">Rules</div>
-          <button
-            type="button"
-            onClick={() => setRules((current) => [...current, { permission: "", effect: "allow" }])}
-            disabled={busy}
-            class="h-7 px-2 rounded text-[11px] text-ink-300 hover:text-ink-100 hover:bg-tint-strong disabled:opacity-50"
-          >
-            Add rule
-          </button>
-        </div>
-        {rules.map((rule, index) => (
-          <div key={index} class="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
-            <select
-              value={rule.permission}
-              onChange={(e) => updateRule(index, { permission: (e.target as HTMLSelectElement).value })}
-              disabled={busy}
-              class={`${SELECT_CLASS} font-mono`}
-              aria-label="Permission"
-            >
-              <option value="">Choose permission…</option>
-              {definitions.map((definition) => (
-                <option key={definition.key} value={definition.key}>{definition.key}</option>
-              ))}
-            </select>
-            <select
-              value={rule.effect}
-              onChange={(e) =>
-                updateRule(index, { effect: (e.target as HTMLSelectElement).value as RbacRoleRule["effect"] })
-              }
-              disabled={busy}
-              class={SELECT_CLASS}
-              aria-label="Effect"
-            >
-              <option value="allow">allow</option>
-              <option value="deny">deny</option>
-            </select>
-            <button
-              type="button"
-              onClick={() => setRules((current) => current.filter((_, i) => i !== index))}
-              disabled={busy}
-              class="h-7 w-7 rounded text-ink-300 hover:text-accent-red hover:bg-tint-strong grid place-items-center disabled:opacity-50"
-              aria-label="Remove rule"
-              title="Remove"
-            >
-              <X class="w-3.5 h-3.5" />
-            </button>
+          <div class="text-xs uppercase tracking-[0.08em] text-ink-300">Permissions</div>
+          <div class="text-[11.5px] text-ink-300">
+            {rules.length} rule{rules.length === 1 ? "" : "s"} selected
           </div>
-        ))}
+        </div>
+        {openBranch ? (
+          <BranchConfigurator
+            key={openBranch.id}
+            branch={openBranch}
+            disabled={busy}
+            onBack={() => setOpenBranchId(null)}
+            onSetEntry={(key, state) => setRules((current) => permissionBranches.withState(current, key, state))}
+            onSetBranch={(state) =>
+              setRules((current) => permissionBranches.withBranchState(current, openBranch, state))
+            }
+          />
+        ) : branches.length === 0 ? (
+          <div class="text-[12.5px] text-ink-300">No permissions are available to grant.</div>
+        ) : (
+          <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {branches.map((branch) => (
+              <BranchOverviewCard key={branch.id} branch={branch} onOpen={() => setOpenBranchId(branch.id)} />
+            ))}
+          </div>
+        )}
       </div>
+
       {err && <div class="text-xs text-accent-red">{err}</div>}
     </PermissionModalShell>
   );

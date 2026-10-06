@@ -7,6 +7,7 @@ export function PermissionModalShell({
   title,
   subtitle,
   busy,
+  wide = false,
   onClose,
   footer,
   children,
@@ -15,6 +16,7 @@ export function PermissionModalShell({
   title: string;
   subtitle: string;
   busy: boolean;
+  wide?: boolean;
   onClose: () => void;
   footer: ComponentChildren;
   children: ComponentChildren;
@@ -31,7 +33,7 @@ export function PermissionModalShell({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        class="theme-menu-surface modal-card-pop relative w-full max-w-[480px] max-h-full overflow-y-auto rounded-[14px] border border-line bg-ink-800 text-ink-50 shadow-[0_24px_64px_rgba(0,0,0,.6)]"
+        class={`theme-menu-surface modal-card-pop relative w-full ${wide ? "max-w-[860px]" : "max-w-[480px]"} max-h-full overflow-y-auto rounded-[14px] border border-line bg-ink-800 text-ink-50 shadow-[0_24px_64px_rgba(0,0,0,.6)]`}
       >
         <div class="flex items-start justify-between gap-4 px-5 pb-3.5 pt-[18px]">
           <div class="flex flex-col gap-[3px]">

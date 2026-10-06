@@ -13,6 +13,7 @@ export function RolesList({
   roles,
   bindings,
   definitions,
+  grantAll,
   loading,
   onCreate,
   onUpdate,
@@ -21,6 +22,7 @@ export function RolesList({
   roles: RbacRole[];
   bindings: RbacBinding[];
   definitions: RbacDefinition[];
+  grantAll: boolean;
   loading: boolean;
   onCreate: (input: RbacRoleInput) => Promise<void>;
   onUpdate: (id: string, input: RbacRoleInput) => Promise<void>;
@@ -77,13 +79,14 @@ export function RolesList({
         ))
       )}
       {modal?.kind === "create" && (
-        <RoleFormModal roles={roles} definitions={definitions} onSubmit={onCreate} onClose={close} />
+        <RoleFormModal roles={roles} definitions={definitions} grantAll={grantAll} onSubmit={onCreate} onClose={close} />
       )}
       {modal?.kind === "edit" && (
         <RoleFormModal
           role={modal.role}
           roles={roles}
           definitions={definitions}
+          grantAll={grantAll}
           onSubmit={(input) => onUpdate(modal.role.id, input)}
           onClose={close}
         />

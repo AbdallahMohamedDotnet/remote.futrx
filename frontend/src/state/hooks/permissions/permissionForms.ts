@@ -10,6 +10,7 @@ import type {
   RbacScope,
   RbacScopeKind,
 } from "../../../models/rbac";
+import { permissionBranches } from "./permissionBranches.ts";
 
 export type FormResult<T> = { ok: true; input: T } | { ok: false; message: string };
 
@@ -109,12 +110,16 @@ class PermissionFormLogic {
     };
   }
 
-  /** `selfId` is the role being edited, so it does not collide with its own name. */
+  /**
+   * `selfId` is the role being edited, so it does not collide with its own name.
+   * `grantAll` is true for administrators, who may grant non-delegable permissions.
+   */
   validateRole(
     draft: RoleDraft,
     roles: RbacRole[],
     definitions: RbacDefinition[],
-    selfId?: string
+    selfId?: string,
+    grantAll = false
   ): FormResult<RbacRoleInput> {
     const name = draft.name.trim();
     const description = draft.description.trim();
@@ -131,10 +136,15 @@ class PermissionFormLogic {
     if (taken) return { ok: false, message: `A role named ${name} already exists.` };
     if (draft.rules.length === 0) return { ok: false, message: "Add at least one rule." };
     const seen = new Set<string>();
+    const savedRules = roles.find((role) => role.id === selfId)?.rules ?? [];
     for (const rule of draft.rules) {
       if (!rule.permission) return { ok: false, message: "Choose a permission for every rule." };
-      if (!definitions.some((definition) => definition.key === rule.permission)) {
+      const definition = definitions.find((candidate) => candidate.key === rule.permission);
+      if (!definition) {
         return { ok: false, message: `${rule.permission} is not a registered permission.` };
+      }
+      if (!permissionBranches.canWrite(definition, rule, savedRules, grantAll)) {
+        return { ok: false, message: `${rule.permission} cannot be granted from here.` };
       }
       if (seen.has(rule.permission)) {
         return { ok: false, message: `${rule.permission} appears more than once.` };

@@ -40,6 +40,7 @@ export function PermissionsSettings({
         roles={roles}
         bindings={bindings}
         definitions={definitions}
+        grantAll
         loading={loading}
         onCreate={permissions.createRole}
         onUpdate={permissions.updateRole}
