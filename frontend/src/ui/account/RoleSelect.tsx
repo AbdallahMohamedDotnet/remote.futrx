@@ -40,7 +40,7 @@ export function RoleSelect({
       <optgroup label="Base roles">
         {USER_ROLES.map((role) => (
           <option key={role} value={encodeRoleChoice({ kind: "base", role })}>
-            {role}
+            {role || "user"}
           </option>
         ))}
       </optgroup>

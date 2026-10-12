@@ -295,7 +295,7 @@ function UserRow({
               : "text-ink-300 bg-tint"
           }`}
         >
-          {user.role}
+          {user.role || "user"}
         </span>
         {boundRoles.map((role) => (
           <span
