@@ -113,7 +113,7 @@ func TestNotificationAudienceReadsMembersWithoutAnActor(t *testing.T) {
 	projects, _ := realAuthorizerProjects(t)
 	audience := chatNotificationAudience{
 		projects: projects,
-		users:    registeredUsers{{Email: "member@example.com", Role: serviceuser.RoleMember}},
+		users:    registeredUsers{{Email: "member@example.com", Role: ""}},
 	}
 
 	recipients, err := audience.recipients(context.Background(), servicechat.Meta{ProjectID: servicechat.ProjectID(systemCallerProjectID)})
