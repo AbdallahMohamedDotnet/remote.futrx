@@ -221,10 +221,6 @@ html[data-theme="light"] {
       width: var(--workspace-terminal-width, 560px);
       max-width: var(--workspace-terminal-max-width, max(420px, calc(100% - 320px)));
     }
-    .workspace-schedules-pane[aria-hidden="false"] {
-      width: min(520px, calc(100vw - 64px));
-      max-width: none;
-    }
     .workspace-browser-pane[aria-hidden="false"] {
       width: var(--workspace-browser-width, 720px);
       max-width: var(--workspace-browser-max-width, max(360px, calc(100% - 320px)));

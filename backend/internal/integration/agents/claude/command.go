@@ -95,11 +95,10 @@ func (p *Provider) buildCmdForAccount(
 		credentials = &value
 	}
 	project, err := p.projectPreparer.Prepare(ctx, agent.ProjectPreparationRequest{
-		ProjectID:           agent.ProjectID(req.ProjectID),
-		ConversationID:      req.ConversationID,
-		EnableBrowser:       req.EnableBrowser,
-		EnableScheduleTools: req.EnableScheduleTools,
-		Credentials:         credentials,
+		ProjectID:      agent.ProjectID(req.ProjectID),
+		ConversationID: req.ConversationID,
+		EnableBrowser:  req.EnableBrowser,
+		Credentials:    credentials,
 	}, emit)
 	if err != nil {
 		return nil, "", err

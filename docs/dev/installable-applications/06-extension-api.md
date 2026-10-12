@@ -4,6 +4,12 @@ The `remote` object is what an application's entry module receives. It is the pu
 surface a extension author writes against, defined in
 [`frontend/src/app/extensions/extensionApi.ts`](../../../frontend/src/app/extensions/extensionApi.ts).
 
+Agent execution controls live in the host backend SDK as `Runtime.AgentTurns`,
+served through `rpc.ServeWithRuntime` with the manifest opt-in. A UI extension
+can ask its own backend to create or inspect work through `remote.backend.call`;
+the browser `remote` object has no agent-turn methods. See
+[25 — Application agent runtime](25-application-agent-runtime.md).
+
 ## The entry module
 
 `ui/scripts/main.js` (or whatever `ui.entry` names) is imported once per
@@ -504,13 +510,12 @@ earlier. Do not rely on returning the disposer from `activate`: the current
 host awaits activation but does not consume its return value as a destructor.
 
 The Files drawer, Markdown links and attachment links use this API. Media
-keeps its viewer behavior and archives/unsupported media download. On the core
-capabilities branch, the built-in workspace IDE remains the fallback when no
-opener returns a URL. Its removal belongs to the separate editor migration.
+keeps its viewer behavior and archives/unsupported media download. When no
+opener returns a URL, non-media files download.
 The generic workspace-link helper can fall back to a chat download URL when
 no supplied resolver handles the file. Markdown observes opener changes and
 active-project changes. The Files drawer currently also derives availability
-from the header-action slot and the built-in fallback; verify an extension
+from the header-action slot; verify an extension
 that registers only an opener in that surface separately.
 
 Core does not provide an editor URL builder or sanitize the returned URL.

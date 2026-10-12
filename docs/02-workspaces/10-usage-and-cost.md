@@ -39,14 +39,15 @@ Files rotate **monthly by the UTC month of the run**, so a query for a date rang
 | --- | --- |
 | `at` | Run completion time, Unix milliseconds |
 | `projectId`, `projectSlug` | Empty for a loose (project-less) chat |
-| `chatId`, `runId` | `runId` is random per live run; a rebuilt record uses `<chatId>-<seq>` |
-| `userEmail` | The account that started the turn, or the owner of a scheduled task |
+| `chatId`, `runId` | `runId` is the turn ID for live runs and rebuilds; legacy events without it fall back to a matching ledger record or `<chatId>-<seq>` |
+| `userEmail` | The account that started the turn, or the owner captured by an application when accepting work |
+| `applicationId`, `applicationRequestId` | Application origin and its logical request ID for an application-started turn; recorded live and preserved on rebuild |
 | `provider`, `model` | `claude`, `codex`, `minimax`, `kimi`, `antigravity`, and the model id when known |
 | `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens` | Disjoint token buckets; `inputTokens` is uncached input. All are zero when the provider reports nothing |
 | `costUsd` | **Absent** when the cost is unknown |
 | `estimated` | `true` when `costUsd` came from the price table rather than the provider |
 | `durationMs`, `turns` | Claude Code only |
-| `scheduled` | `true` for an unattended scheduled turn |
+| `scheduled` | Legacy scheduled-task marker; new application turns use application identity rather than this flag |
 
 Only **completed** runs are recorded. A failed turn's token counts are not persisted in the chat event log, so counting them live would make the ledger impossible to reproduce from disk — see [Known gaps](#known-gaps).
 
@@ -173,7 +174,7 @@ cd /opt/remote.futrx/backend && go run ./cmd/usage-rebuild -data-dir /opt/remote
 
 The CLI is built from [`backend/cmd/usage-rebuild`](../../backend/cmd/usage-rebuild/main.go) and reads `DATA_DIR` from the environment when `-data-dir` is omitted.
 
-**A rebuild is idempotent.** Runs are keyed by `(chatId, event timestamp)` — the same pair a live record carries — so running it twice produces identical files. New completion events preserve `userEmail`, the turn ID and the scheduled-task marker. Rebuilds use those durable values, with matching live ledger records as a fallback for older events.
+**A rebuild is idempotent.** Runs are keyed by `(chatId, event timestamp)` — the same pair a live record carries — so running it twice produces identical files. New completion events preserve `userEmail`, the turn ID, and application/request identity. Rebuilds use those durable values, with matching live ledger records as a fallback for older events. Legacy scheduled attribution is retained when there is no application origin; if an older ledger incorrectly marked an application turn as scheduled, rebuilding repairs that flag from the persisted application identity.
 
 **What a rebuild cannot recover:** older chat events may have no author data. If neither an event nor a matching live record has attribution, the run retains an empty `userEmail`, appears under *Unattributed* when grouping by user, and a member cannot see it if it was a loose chat. Events written before completion events carried their provider can also be ambiguous if the chat later switched agents; a matching live ledger record preserves the original provider/model when one exists.
 

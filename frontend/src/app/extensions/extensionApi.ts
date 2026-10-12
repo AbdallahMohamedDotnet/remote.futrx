@@ -17,6 +17,7 @@ import { extensionEventService } from "../../services/extensions/extensionEventS
 import { createBackendApi } from "./extensionBackend.ts";
 import { openExtensionPopup } from "./extensionPopup.ts";
 import { fileOpenerStore } from "../../state/stores/files/fileOpenerStore.ts";
+import { attachWorkspaceActionTooltip } from "../../ui/primitives/workspaceActionTooltip.ts";
 
 const BUTTON_BASE =
   "inline-flex items-center gap-1.5 rounded-control px-2 py-1 text-[12px] " +
@@ -79,7 +80,13 @@ export function createExtensionApi(
           application.id,
           slot,
           (host, context) => {
-            host.appendChild(renderIconButton(button, context));
+            const element = renderIconButton(button, context);
+            host.appendChild(element);
+            if (context.slot === EXTENSION_SLOTS.chatHeaderActions) {
+              return attachWorkspaceActionTooltip(
+                element, button.title ?? button.label, context.tooltipPlacement,
+              );
+            }
           },
           { order: button.order, when: button.when },
         ),
@@ -118,7 +125,9 @@ function renderIconButton(
   element.type = "button";
   element.className = `${ICON_BUTTON_BASE} ${appearance.button}`;
   element.setAttribute("aria-label", button.label);
-  element.title = button.title ?? button.label;
+  if (context.slot !== EXTENSION_SLOTS.chatHeaderActions) {
+    element.title = button.title ?? button.label;
+  }
 
   const icon = document.createElement("span");
   icon.className =

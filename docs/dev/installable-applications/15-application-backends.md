@@ -6,6 +6,11 @@ resulting executable as a separate process, and forwards HTTP calls to it — so
 application can add a **server-side feature**, and its `ui/` can call that
 feature, without any change to the Remote codebase.
 
+Backends can also opt into background recovery, normal agent-turn execution,
+and application-defined agent tools. See
+[25 — Application agent runtime](25-application-agent-runtime.md). These are
+shared platform capabilities; workflow policy stays inside the application.
+
 ```
 applications/my-backend/
   application.json
@@ -146,9 +151,33 @@ backend implements three methods.
 | `Init(Instance)` | once, before the first request | The install this process serves. Returning an error fails the app's install or start. |
 | `Handle(Request)` | per request | May be called concurrently. |
 
-Event emission is supplied through `Runtime.Events`; event subscription is an
-optional capability layered on these three required methods. Neither changes
-the `Backend` interface; see [Application events](#application-events).
+Event subscription is an optional capability layered on these three required
+methods. Runtime capabilities and agent context also preserve this `Backend`
+interface.
+
+### `Runtime`
+
+Use `rpc.ServeWithRuntime` to receive Remote-owned capabilities. The host binds
+them before `Backend.Init`; retain them in your API or worker rather than
+implementing the runtime itself.
+
+| Field | Manifest declaration | Operations |
+|---|---|---|
+| `Events` | `publishers` | `Emit(Publication)` for declared events; see [Application events](#application-events) |
+| `AgentTurns` | `backend.agentTurns: true` | `Start(AgentTurnRequest)`, `Read(AgentTurnQuery)`, and `Forget(requestID)` |
+
+`Start` submits a prompt to an existing chat using an owner captured from
+`Request.Caller`. `Read` returns that installation's receipt, result, and
+paginated transcript. Save the result in application state before `Forget`,
+which removes only the receipt. Turns inherit the chat's provider/model/settings
+and enforce the owner's current authority and the installation's project scope.
+See [25 — Application agent runtime](25-application-agent-runtime.md) for the
+request fields, status/error contract, limits, and retry semantics.
+
+The independent `backend.agentTools` opt-in lets agents call the backend's own
+routes with trusted `Request.Agent` context. `backend.background` restores
+running backend processes after server restarts and child crashes. All three
+flags default to `false`.
 
 ### `Instance`
 
@@ -159,6 +188,7 @@ What `Init` receives, fixed for the process's lifetime:
 | `ID`, `ApplicationID` | the installed copy, and the application it came from |
 | `ApplicationName`, `ApplicationVersion` | manifest metadata; do not copy it into backend constants |
 | `Publishers`, `Subscriptions` | the validated event declarations from `application.json` |
+| `AgentTurns` | whether the installed manifest opted into agent execution; Remote stamps this boolean |
 | `Service` | the systemd unit declared by the manifest, if any |
 | `Scope`, `ProjectID` | `"global"`, or `"project"` with the project |
 | `ContainerName`, `InternalPort`, `ExternalPort` | the container half, when the application has one |
@@ -169,8 +199,9 @@ What `Init` receives, fixed for the process's lifetime:
 `install.sh` generated. That is deliberate, and it is why what a backend does
 with them is a review question — see [13 — Security model](13-security-model.md).
 
-`DataDir` survives stop and start, and is deleted on uninstall. It is the only
-storage the platform gives a backend.
+`DataDir` survives stop and start, and is deleted on uninstall. Store the
+application's workflow state here. Remote separately manages agent execution
+receipts through the SDK; those receipts do not replace application job storage.
 
 ### Application events
 
@@ -278,7 +309,8 @@ an error or panicking fails only that delivery and leaves the process running.
 Event delivery uses the smaller of the manifest backend `timeoutMs` and 30
 seconds. A handler that exceeds that deadline is different: Remote terminates
 the unresponsive process so uncancellable event RPCs cannot accumulate, then
-restores it lazily for a later request or event. Subscriber failure never rolls
+restores it for a later request or event, or through background recovery when
+the running installation opts in. Subscriber failure never rolls
 back the publication or a lifecycle transition.
 
 The complete namespace, routing, lifecycle, queue, and delivery contract is in
@@ -288,15 +320,20 @@ The complete namespace, routing, lifecycle, queue, and delivery contract is in
 
 | Field | Notes |
 |---|---|
-| `Method`, `Path`, `Query`, `Headers`, `Body` | the browser's call. `Path` is relative to the instance's `/backend/` prefix and has no leading slash. |
+| `Method`, `Path`, `Query`, `Headers`, `Body` | the forwarded browser or agent call. `Path` is relative to the backend and has no leading slash. Agent calls forward no incoming headers. |
 | `Caller` | `{ Email, IsAdmin }`, resolved by the server |
+| `Agent` | optional Remote-stamped `{ ChatID, Background, RequestID, Context }` on grant-authenticated agent calls; `nil` on ordinary browser calls |
 
 **`Caller` is stamped by the server, not read from the request.** A browser
 cannot forge it, which is what makes it usable for authorization. The transport
 withholds the caller's `Cookie` and `Authorization` headers, so a backend is told
-who is asking without being handed the means to act as them.
+who is asking without being handed the means to act as them. For agent calls,
+Remote resolves the grant's owner and current authority. It also stamps
+`Request.Agent`; callers cannot establish agent context through body fields.
+Application code must authorize its own routes using these trusted fields.
 
-Bodies are capped at 1 MiB.
+Browser bodies are capped at 1 MiB; agent tool bodies at 64 KiB. See the
+[agent HTTP routes](12-http-api.md#agent-to-application-routes).
 
 ### `Response`
 
@@ -430,7 +467,7 @@ server.
 ### Where things live
 
 ```
-<dataDir>/backends/
+<dataDir>/applications/
   bin/<application>-<fingerprint>     compiled backend, shared by every instance
   build/<application>-<fingerprint>/  generated module, kept only after a failure
   build-cache/                  GOCACHE for backend builds
@@ -460,9 +497,9 @@ unusual.
 | Stop | killed | kept |
 | Start | started again | kept |
 | Uninstall | killed | **deleted** |
-| Server restart | started again on the next call | kept |
-| Crash | replaced on the next call | kept |
-| Uploaded-package replacement | every old process is killed; the next call compiles the current package | kept |
+| Server restart | restored at startup when `backend.background` is true; otherwise on the next call or event | kept |
+| Crash | recovered by the 15-second background sweep when opted in; otherwise on the next call or event | kept |
+| Uploaded-package replacement | every old process is killed; the next call, event, or eligible background recovery compiles the current package | kept |
 
 Stop is the useful one: it is how a user turns a backend off without losing
 what it stored.
@@ -472,8 +509,9 @@ make a declared subscription eligible after the copy reaches running state;
 stop and uninstall remove that eligibility immediately. A lazily restored
 backend repeats its normal handshake before the next event is delivered.
 
-Because a backend restarts lazily, in-memory state is not durable and is not
-meant to be. Anything that must survive belongs in `DataDir`.
+Background recovery applies only to installations already marked running;
+stopped copies remain stopped. In-memory state is not durable under either
+recovery mode. Anything that must survive belongs in `DataDir`.
 
 ## Failure isolation
 
@@ -481,7 +519,7 @@ meant to be. Anything that must survive belongs in `DataDir`.
 |---|---|---|
 | A route panics | the call fails, with the panic message | it keeps running |
 | A route never returns | the call fails on the application's `timeoutMs` | it keeps running |
-| The process dies | the call fails | it is replaced on the next call |
+| The process dies | the call fails | it is replaced on the next call/event or eligible background sweep |
 | The source does not compile | install or start fails, with the compiler's output | there is no process |
 | The contract version mismatches | start fails, saying both versions | the process is killed |
 
@@ -529,3 +567,4 @@ contract. See [10 — Fixtures](10-fixtures.md).
 - [12 — HTTP API](12-http-api.md#backend-backend-routes) — the routes and their authorization.
 - [13 — Security model](13-security-model.md#application-backends) — what a backend can do, and what stops it.
 - [18 — Backend event lifecycle](18-application-events.md) — lifecycle-package ownership, manifest declarations, namespaces, scope routing, and delivery guarantees.
+- [25 — Application agent runtime](25-application-agent-runtime.md) — agent execution, scoped tools, receipt lifecycle, and background recovery.

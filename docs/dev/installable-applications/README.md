@@ -19,11 +19,15 @@ Four things live here, and the differences matter:
   process, which the application's `ui/` calls. It is how an application adds a
   server-side feature rather than only a button. A backend may also publish or
   subscribe to declared server-side events, conventionally owned by
-  `backend/lifecycle/` and composed by `backend/main.go`.
+  `backend/lifecycle/` and composed by `backend/main.go`. With explicit manifest
+  opt-ins, it can also start agent turns, read their results and transcript,
+  expose its own commands to agents, and recover background work after restarts.
 
 One application can be any of these, or several at once. A MySQL application can ship a "Connect"
 button alongside the database it provisions and a backend that runs the queries
 behind it; an application that only adds a button ships no container side at all.
+Applications own their workflow rules and state; the shared runtime supplies
+ordinary agent execution and checks the captured owner's current access.
 
 ## Start here
 
@@ -36,6 +40,7 @@ behind it; an application that only adds a button ships no container side at all
 | Look up a field in `application.json` | [02 — application.json reference](02-application-json.md) |
 | Look up an extension API method | [06 — Extension API reference](06-extension-api.md) |
 | Look up the application backend contract | [15 — Application backends](15-application-backends.md) |
+| Start/read agent turns or expose application tools | [25 — Application agent runtime](25-application-agent-runtime.md) |
 | Publish or consume backend events | [18 — Backend event lifecycle](18-application-events.md) |
 | Know where you are allowed to render | [05 — Slots](05-slots.md) |
 | Know who sees your extension | [08 — Scoping and visibility](08-scoping-and-visibility.md) |
@@ -68,6 +73,15 @@ behind it; an application that only adds a button ships no container side at all
 17. [Versions and upgrades](17-versions-and-upgrades.md) — how `version` decides when an installed copy is re-provisioned.
 18. [Backend event lifecycle](18-application-events.md) — lifecycle-package ownership, manifest publishers and subscriptions, namespaces, routing, and delivery guarantees.
 
+Additional capability guides:
+
+- [19 — Project application web routes](19-project-application-web-routes.md)
+- [21 — Uninstall scripts](21-application-uninstall-scripts.md)
+- [22 — JSON settings](22-application-json-settings.md)
+- [23 — File openers](23-application-file-openers.md)
+- [24 — Container recovery](24-application-container-recovery.md)
+- [25 — Application agent runtime](25-application-agent-runtime.md) — start/read/forget controls, scoped application tools, and background recovery.
+
 ## Conventions in these documents
 
 Paths are given relative to the repository root unless stated otherwise. These
@@ -87,9 +101,3 @@ above the directory it is written in.
 
 Code references name the file and, where useful, the symbol —
 `registry_ui.go:loadApplicationUI`, `extensionContributionState.ts:visibleExtensionContributions`.
-
-- [Web capability guide](19-project-application-web-routes.md)
-- [Uninstall capability guide](21-application-uninstall-scripts.md)
-- [Json capability guide](22-application-json-settings.md)
-- [Files capability guide](23-application-file-openers.md)
-- [Recovery capability guide](24-application-container-recovery.md)

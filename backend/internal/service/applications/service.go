@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -42,19 +43,23 @@ type Clock func() int64
 
 // Service is the policy layer for installable applications.
 type Service struct {
-	registry      Registry
-	store         Store
-	installer     Installer
-	projects      ProjectContainers
-	ports         PortAllocator
-	backends      BackendHost
-	packages      PackageCatalog
-	lifecycle     ApplicationLifecyclePublisher
-	eventSource   EventSource
-	eventContext  context.Context
-	eventRouter   *applicationEventRouter
-	instanceLocks instanceLockSet
-	now           Clock
+	registry       Registry
+	store          Store
+	installer      Installer
+	projects       ProjectContainers
+	ports          PortAllocator
+	backends       BackendHost
+	packages       PackageCatalog
+	lifecycle      ApplicationLifecyclePublisher
+	eventSource    EventSource
+	eventContext   context.Context
+	eventRouter    *applicationEventRouter
+	agentRuntime   *agentRuntime
+	agentTools     *applicationTools
+	backgroundOnce sync.Once
+	background     *backgroundBackends
+	instanceLocks  instanceLockSet
+	now            Clock
 }
 
 // Option configures optional service dependencies. Backend backend hosting is

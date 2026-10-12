@@ -29,6 +29,8 @@ export interface ExtensionSlotContext {
   projectName?: string;
   chatId?: string;
   cwd?: string;
+  /** Tooltip direction supplied by the workspace toolbar layout. */
+  tooltipPlacement?: "below" | "left";
 }
 
 export interface ExtensionEventCatalog {

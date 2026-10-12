@@ -9,4 +9,6 @@ test("formats tokens compactly", () => {
   assert.equal(usageFormatService.tokens(34_500), "35K");
   assert.equal(usageFormatService.tokens(1_250_000), "1.3M");
   assert.equal(usageFormatService.tokens(12_500_000), "13M");
+  assert.equal(usageFormatService.tokens(1_800_000_000), "1.8B");
+  assert.equal(usageFormatService.tokens(12_500_000_000), "13B");
 });

@@ -352,10 +352,10 @@ hub used by an interactive WebSocket prompt. It persists the scheduled
 envelope as a user event, resumes the chat's selected provider session, and
 broadcasts ordinary chat events.
 
-Interactive turns receive a short-lived `manage` capability only when the
-**Scheduled Tasks** skill is selected. Scheduled turns receive a narrower
-`complete-self` capability tied to one task and one run. Agent-created tasks
-start paused and require a human **Arm** action. See
+Interactive project turns receive a short-lived `manage` capability when the
+Scheduled Tasks application is installed and running, without manual skill
+selection. Scheduled turns receive a narrower `complete-self` capability tied
+to one task and run. Newly created tasks are active immediately. See
 [Scheduled tasks](06-scheduled-tasks.md).
 
 ## Rewind and fresh-session context

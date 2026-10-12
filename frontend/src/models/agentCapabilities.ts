@@ -48,7 +48,7 @@ export interface AgentProviderCapabilities {
     sessions: { resume: boolean; fork: boolean };
     skills: "none" | "slash-command" | "dollar-mention" | "instructions";
     browserTools: boolean;
-    scheduledTools: boolean;
+    applicationTools: boolean;
     executionPolicies: boolean;
     streamingPresentation?: "blocks" | "tokens";
   };

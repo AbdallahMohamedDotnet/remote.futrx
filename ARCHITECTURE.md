@@ -27,7 +27,7 @@ flowchart TB
 
         subgraph C1["Project container A (unprivileged LXD)"]
             AgentA["Agent CLI (root, skip-permissions)"]
-            IDEA["code-server :8842 (auth: none)"]
+            AppWeb["Optional installed application web service"]
             AppA["Project dev servers"]
             BrowA["Agent Browser — Chromium + noVNC :6080"]
         end
@@ -37,7 +37,7 @@ flowchart TB
 
     User -->|HTTPS| Caddy
     Caddy -->|"main host → loopback"| Go
-    Caddy -->|"&lt;slug&gt;.code.host → :8842"| IDEA
+    Go -->|"authenticated label--project.host gateway"| AppWeb
     Caddy -->|"&lt;slug&gt;--&lt;port&gt;.dev.host → :port"| AppA
     Caddy -->|"&lt;slug&gt;--6080.dev.host → :6080"| BrowA
     Go -->|reads/writes| Stores
@@ -52,23 +52,23 @@ flowchart TB
 - The Go backend is **one process, bound to loopback** (`HOST=127.0.0.1:7682`, [`backend/internal/config/config.go`](backend/internal/config/config.go)). Caddy is the only thing listening on the public interface.
 - The backend runs as **root** ([`infra/templates/remote.futrx.service.tmpl`](infra/templates/remote.futrx.service.tmpl), `User=root`) because it drives the `lxc` CLI and chowns workspace files into the container idmap. This is a deliberate design choice with security consequences — see the [threat model](docs/threat-model.md).
 - There is **no external database service.** Authoritative platform state is flat files under `DATA_DIR` (`/opt/remote.futrx/data`): JSON for auth/users/projects/access/secrets and append-only JSONL for chat event logs. A disposable embedded SQLite database persists chat event offsets and transcript-turn ranges for bounded reads, validating them against JSONL file metadata and a prefix fingerprint before extending them. Concurrency is guarded by in-process mutexes only.
-- Each project is **one unprivileged LXD container** built from a shared base image (`futrx-remote-dev-base`: Ubuntu 24.04 + Node 22 + pinned agent CLIs + Chromium + code-server). Durable state lives on the host and is bind-mounted in.
+- Each project is **one unprivileged LXD container** built from a shared base image (`futrx-remote-dev-base`: Ubuntu 24.04 + Node 22 + pinned agent CLIs + Chromium). Durable state lives on the host and is bind-mounted in. Optional applications add their own software when installed.
 
-## The four public host classes
+## Public host classes
 
-Caddy ([`infra/templates/Caddyfile.tmpl`](infra/templates/Caddyfile.tmpl)) terminates HTTPS for four classes of hostname and routes each differently. This routing table *is* the external attack surface:
+Caddy ([`infra/templates/Caddyfile.tmpl`](infra/templates/Caddyfile.tmpl)) terminates HTTPS for the main host, project preview hosts, and installation app hosts. This routing table *is* the external attack surface:
 
 | Host pattern | Routes to | Auth at the edge |
 | --- | --- | --- |
 | `remote.example.com` (main) | Go backend on loopback | App session middleware; `/internal/*` blocked externally |
-| `code.<host>` and `<slug>.code.<host>` | code-server IDE in container on `:8842` | `forward_auth` → `/auth/verify` (**registered user only — no project membership check**) |
 | `<slug>--<port>.dev.<host>` | Project dev server on `<slug>.lxd:<port>` | `forward_auth` → `/auth/verify` (**project membership enforced**, or a valid public share link for that exact slug+port) |
+| `<label>--<project-slug>.<host>` | Go application gateway → declared project app port | Session, registered account, project membership and running installation |
 | `<slug>--6080.dev.<host>` | Agent Browser noVNC on `:6080` | `forward_auth` → `/auth/verify` (project membership, via the dev pattern) |
 
 Two properties of this table are load-bearing and both are analyzed in the threat model:
 
-1. **Wildcard subdomains use on-demand TLS**, gated by the backend's `/internal/tls-ask` so only slugs of existing projects can mint certificates ([`project_handler.go` `HandleTLSAsk`](backend/internal/transport/http/handlers/project_handler.go)).
-2. **Caddy strips the platform cookies** (`remote_session`, `remote_2fa_pending`, `remote_oauth_state`, `return_to`, `remote_share`) via `header_up` before proxying any request into a container, so untrusted in-container code can never see a replayable session token. This is the mechanism behind the "isolated previews" claim.
+1. **Wildcard subdomains use on-demand TLS**, gated by the backend's `/internal/tls-ask` so only existing project previews and running web installations can mint certificates ([`project_handler.go` `HandleTLSAsk`](backend/internal/transport/http/handlers/project_handler.go)).
+2. **Caddy strips the platform cookies** (`remote_session`, `remote_2fa_pending`, `remote_oauth_state`, `return_to`, `remote_share`) via `header_up` before proxying preview requests into a container. The backend's authenticated application web route separately strips cookies before forwarding to an installed application's declared port.
 
 ## Backend layering
 
@@ -133,7 +133,7 @@ Three **separate** concerns, deliberately not conflated ([deep dive](docs/02-wor
    provider mount.
 3. **Per-project membership.** A flat email access-list per project (`projectaccess/<id>.json`). Any member — not only admins — can read/write that project's secrets and edit its member list.
 
-**Sessions** are stateless HMAC-SHA256 tokens (`{email, sub, iat, exp, sid}`, 30-day expiry) signed by a random key at `DATA_DIR/session.key` ([`session_codec.go`](backend/internal/service/auth/session_codec.go)). The cookie is `HttpOnly; Secure; SameSite=Lax` and **domain-scoped to the base host** so it reaches the preview/IDE subdomains for `forward_auth`. By default there is still no server-side session store: logout only clears the cookie, and per-request `IsRegistered` checks are the only way a session is invalidated early.
+**Sessions** are stateless HMAC-SHA256 tokens (`{email, sub, iat, exp, sid}`, 30-day expiry) signed by a random key at `DATA_DIR/session.key` ([`session_codec.go`](backend/internal/service/auth/session_codec.go)). The cookie is `HttpOnly; Secure; SameSite=Lax` and **domain-scoped to the base host** so it reaches preview subdomains for `forward_auth`. By default there is still no server-side session store: logout only clears the cookie, and per-request `IsRegistered` checks are the only way a session is invalidated early.
 
 An account can opt in, from Settings → Security, to a small tracked-session model layered on top of the same stateless cookie, via three independent per-account toggles held in `SessionRegistry` ([`session_registry.go`](backend/internal/service/auth/session_registry.go)): **single active session** (a new login supersedes the account's previous session id, checked inside `CurrentSession` alongside the existing local-admin-vs-Google rule), **sign-in history** (a bounded, newest-first record of past logins), and **recovery-code alert** (settable only while TOTP 2FA is also enabled; flags a login that used a recovery code instead of the authenticator app, surfaced on `/auth/me`). TOTP 2FA itself is a fourth, independent toggle (`twofactor.go`) that adds a second factor to the login flow (`/auth/2fa/verify`) without requiring any of the other three. None of the four toggles affects an account that has not turned it on: `CurrentSession`'s registry lookup, the history write, and the alert check are all short-circuited by the account's cached `SecurityPreferences`/2FA-enrollment state, so the stateless, zero-lookup path described above is exactly what unopted accounts still get.
 
@@ -261,7 +261,8 @@ A chat with **no project** ("loose chat") runs the CLI directly on the host inst
 | Chat events | `DATA_DIR/chats/<id>/events.jsonl` | JSONL | append-only, monotonic `seq`, no rotation |
 | Agent quota snapshots | `DATA_DIR/agent-quota.json` | JSON | latest provider-reported plan windows per provider account, mode 0600 |
 | Chat event index | `DATA_DIR/transcript-index.sqlite` | SQLite | disposable event-offset and transcript-turn index rebuilt from chat JSONL |
-| Scheduled tasks | `DATA_DIR/scheduled-tasks/tasks.json` | JSON | definitions, deadlines, durable claims, pending state, and last outcomes |
+| Application agent receipts | `DATA_DIR/application-turns/<instance-hash>/<request-hash>.json` | JSON | accepted input, turn identity and execution results |
+| Application workflow state | each backend instance's `DataDir` | application-owned | Scheduled Tasks stores definitions, deadlines and claims in `tasks.json` |
 | Push subscriptions | `DATA_DIR/push-subscriptions/sha256-<hash>.json` | JSON | one file per user, filename hashes the email |
 | Web Push signing key | `DATA_DIR/webpush-vapid.json` | JSON | VAPID P-256 pair, mode 0600; rotating it invalidates every browser subscription |
 | Session key | `DATA_DIR/session.key` | 32 random bytes | mode 0600 |
@@ -273,7 +274,7 @@ A chat with **no project** ("loose chat") runs the CLI directly on the host inst
 | Workspace files | `/var/lib/remote/projects/<slug>/workspace` | on-disk tree | bind-mounted to `/workspace` |
 | Agent homes | `/var/lib/remote/projects/<slug>/agent-home/*` | on-disk tree | bind-mounted to `/root/.claude` etc. |
 
-JSON and metadata writes use temp-file + rename. Chat events are different: they append directly to JSONL with `O_APPEND`. The SQLite chat index is derived state, transactionally refreshed from those logs, and is not a source of truth. The authoritative file paths do not add `fsync`, file locking, or a transaction spanning multiple stores. The design assumes exactly one backend process touching `DATA_DIR`.
+JSON and metadata writes use temp-file + rename. Chat events are different: they append directly to JSONL with `O_APPEND`. The SQLite chat index is derived state, transactionally refreshed from those logs, and is not a source of truth. Most authoritative stores do not add `fsync`, file locking, or a transaction spanning multiple stores. Application agent receipts and Scheduled Tasks snapshots fsync both file and directory. The design assumes exactly one backend process touching `DATA_DIR`.
 
 ## Container model
 
@@ -291,34 +292,35 @@ Containers are **cattle**; durable state lives on the host and is bind-mounted i
 
 The rootfs is disposable — [`upgrade-workspaces`](backend/cmd/upgrade-workspaces/main.go) replaces containers wholesale onto a new base image, so anything installed outside `/workspace` and the agent homes is lost on upgrade.
 
-## Scheduled execution
+## Application-owned agent workflows
 
-Scheduled tasks are a control-plane capability, not container cron jobs. The
-backend stores definitions and persisted claims in
-`DATA_DIR/scheduled-tasks/tasks.json`, owns one timer loop, and injects each due
-prompt through the normal prompt service and one-run-per-chat hub.
+Scheduled Tasks is an installable project application. Its backend owns the
+clock, cron calculation, task definitions, claims, completion rules and next
+occurrences. Its CLI, skill and UI ship in the package. New tasks are active;
+the retired core scheduler's data is not automatically imported.
 
-Interactive agents receive a short-lived, owner/chat/project-fenced `manage`
-capability only when the **Scheduled Tasks** skill is selected. A scheduled
-turn receives a narrower `complete-self` capability for its own task and run.
-Agent-created tasks start disabled and require a human **Arm** action. Default
-guardrails are a five-minute minimum recurrence, two concurrent scheduled
-runs, and twenty standing tasks per project.
+Core provides a generic installation-scoped `Runtime.AgentTurns` capability for
+starting and reading ordinary agent turns, durable execution receipts, scoped
+application tool calls and opt-in background backend recovery. The applications
+service owns policy; the SDK and application process host provide the contract
+and RPC transport; provider integration stays in `internal/integration/agents`.
+Other applications use these same capabilities without scheduler dependencies.
 
-See [Scheduled tasks](docs/02-workspaces/06-scheduled-tasks.md) for the claim,
-overlap, authorization, cron, and crash-recovery state machine.
+See [Application agent runtime](docs/dev/installable-applications/25-application-agent-runtime.md)
+for execution authority and recovery, and [Scheduled tasks](docs/02-workspaces/06-scheduled-tasks.md)
+for the application-owned workflow.
 
-## Previews, IDE, and the Agent Browser
+## Previews, installed applications, and the Agent Browser
 
-Three capabilities live inside each container ([deep dive](docs/03-platform/06-previews-and-browser.md)):
+Project containers expose these capabilities ([deep dive](docs/03-platform/06-previews-and-browser.md)):
 
 - **App previews:** the backend runs `ss` inside the container to discover listening ports ([`listeners/scanner.go`](backend/internal/integration/containers/listeners/scanner.go), loopback binds excluded), and each becomes a `<slug>--<port>.dev.<host>` URL. No per-app proxy config is written — DNS + Caddy regex do the routing.
-- **Per-project IDE:** a pinned code-server listens on `127.0.0.1:8081` with `auth: none`, reachable only through a socket-activated proxy on `:8842` that scales to zero when idle. Authentication is entirely at the Caddy edge.
+- **Installed application web services:** an application can declare a project port and a required `web.subdomain` label. The backend checks membership and installation status on every `<label>--<project-slug>.<host>` request. `/apps/<slug>/<application-id>/` only redirects to that isolated origin. No editor is installed by core.
 - **Agent Browser:** one shared headed Chromium per project, driven by the user via noVNC (`:6080`) and by the agent via MCP-over-CDP (`127.0.0.1:9222`) — the *same* browser session, so the agent inherits whatever sites the user logged into. The human UI can start and view it directly; selecting the `browser` skill enables agent MCP access for Claude, Codex, or MiniMax.
 
 ## Frontend
 
-A **Preact** (not React) SPA built with Vite + Tailwind, whose production build is embedded into the Go binary via `go:embed` and served same-origin ([deep dive](docs/03-platform/07-data-and-frontend-state.md)). It is an installable **PWA**: `frontend/public/` supplies the manifest, icons, and a service worker for Web Push plus network-first navigation. The worker deliberately does not cache the app shell or API data; it caches only the self-contained `/offline.html` fallback and serves it when navigation cannot reach the network. Cache cleanup is restricted to Remote-owned offline-cache names. (The `code.<host>` **IDE launcher** in [`infra/launcher/`](infra/launcher/) is a separate PWA on a separate origin, with its own manifest and worker.)
+A **Preact** (not React) SPA built with Vite + Tailwind, whose production build is embedded into the Go binary via `go:embed` and served same-origin ([deep dive](docs/03-platform/07-data-and-frontend-state.md)). It is an installable **PWA**: `frontend/public/` supplies the manifest, icons, and a service worker for Web Push plus network-first navigation. The worker deliberately does not cache the app shell or API data; it caches only the self-contained `/offline.html` fallback and serves it when navigation cannot reach the network. Cache cleanup is restricted to Remote-owned offline-cache names.
 
 **Notifications.** The backend raises a Web Push notification when an agent calls `AskUserQuestion`, when a turn completes or fails, and when a scheduled run finishes. The trigger hangs off the chat repository's append path ([`push_notifier.go`](backend/internal/service/push_notifier.go)), so every producer — interactive prompts, scheduled runs, crash recovery — is covered by construction. The audience mirrors chat visibility: project members plus admins, or every registered user for a loose chat. VAPID signing and RFC 8291 payload encryption are implemented against the standard library only ([`integration/webpush`](backend/internal/integration/webpush/)), so push services relay ciphertext they cannot read and the dependency list is unchanged. It is strictly layered (`config → models → transport → api → state → app → ui`), uses no external state store and no URL router, and talks to the backend over REST (`fetch`, cookie session) plus WebSockets for live data. All auth is the same-origin cookie — **no token ever touches JavaScript**, and there are no CSRF tokens (protection rests on `SameSite=Lax` and the same-origin edge). The markdown renderer emits vnodes only, with an href allowlist and no `innerHTML`, keeping the XSS surface narrow — the one place the SPA does assign markup is the catalog extension host below, which renders assets compiled into the binary rather than anything a request supplied.
 
@@ -376,9 +378,10 @@ info — so `go build` resolves entirely from the module cache the server's buil
 already populated, and the normal path needs no network. Binaries are cached by
 a fingerprint of source, SDK, module files, and Go version, so a cold build
 happens once per edit and every later start is a stat and a handshake. Backends
-restart lazily: a crash, a stop, or a server restart is repaired by the next
-call, which is why the per-instance `DataDir` the host assigns is the only
-storage that survives.
+recover lazily on the next call by default. `backend.background` opts running
+installations into startup and periodic recovery; stopped installations stay
+stopped. The per-instance `DataDir` retains application state. Generic agent
+execution receipts also survive separately under `DATA_DIR/application-turns`.
 
 The trust boundary here is **the build, not the request** — for both halves,
 and it has to carry more weight for the backend one. `ui/` assets are embedded
@@ -438,7 +441,7 @@ Deployment is a single-box, root-driven, idempotent-converge model ([deep dive](
   creates a GitHub Release for a semantic-version tag after classifying it.
   Production changes are applied separately by an operator through Remote's
   updater or `infra/update.sh`.
-- **Version pinning:** every pin — agent CLIs, host toolchain, code-server, Playwright/Chrome-for-Testing — lives in one manifest ([`versions.env`](backend/internal/agent/provisioning/versions.env), symlinked at [`infra/versions.env`](infra/versions.env)), embedded by the backend and sourced by the infra scripts. The Playwright browser archives additionally have sha256 pins backing a vendored fallback ([`vendors/`](vendors/README.md)) for servers geo-blocked by Google's CDN; the remaining upstream fetches (NodeSource, the Go tarball, the code-server `.deb`, the Ubuntu base image) are version-pinned but not checksum- or signature-verified.
+- **Version pinning:** core pins for agent CLIs, the host toolchain, and Playwright/Chrome-for-Testing live in one manifest ([`versions.env`](backend/internal/agent/provisioning/versions.env), symlinked at [`infra/versions.env`](infra/versions.env)), embedded by the backend and sourced by the infra scripts. Applications pin their own dependencies. The Playwright browser archives additionally have sha256 pins backing a vendored fallback ([`vendors/`](vendors/README.md)) for servers geo-blocked by Google's CDN; the remaining upstream fetches (NodeSource, the Go tarball, the Ubuntu base image) are version-pinned but not checksum- or signature-verified.
 
 The security consequences of applying unsigned update refs as root and of
 unverified upstream fetches are covered in the
@@ -449,7 +452,7 @@ unverified upstream fetches are covered in the
 These are the boundaries the [threat model](docs/threat-model.md) reasons about:
 
 1. **Internet → Caddy → backend.** External users hit only Caddy; the backend trusts Caddy's `X-Forwarded-*` headers because only loopback reaches it.
-2. **Registered user → other users' projects.** Enforced per-resource in handlers and at `forward_auth` — but unevenly (dev previews check membership; the IDE host class does not).
+2. **Registered user → other users' projects.** Enforced per-resource in handlers and at `forward_auth`; project previews and application web routes check membership.
 3. **Container → host, and container → sibling container.** Unprivileged LXC namespaces plus resource caps are the boundary; the shared bridge and in-container `auth: none` services are the soft spots.
 4. **Agent → everything it can reach.** The agent runs as root inside its container (or on the host for loose chats) with safety rails off, so any content it ingests (web pages, files, attachments) is a potential injection vector.
 5. **Host → upstreams.** The root-run installer, updater, and base-image build

@@ -76,7 +76,20 @@ func (s *Service) Rebuild(ctx context.Context) (RebuildResult, error) {
 				if record.UserEmail == "" {
 					record.UserEmail = prior.UserEmail
 				}
-				record.Scheduled = record.Scheduled || prior.Scheduled
+				if record.ApplicationID == "" {
+					record.ApplicationID = prior.ApplicationID
+				}
+				if record.ApplicationID == prior.ApplicationID && record.ApplicationRequestID == "" {
+					record.ApplicationRequestID = prior.ApplicationRequestID
+				}
+				// Preserve legacy scheduled attribution only without an application
+				// origin. Older versions incorrectly marked every application turn
+				// scheduled; persisted application identity repairs that on rebuild.
+				if record.ApplicationID == "" {
+					record.Scheduled = record.Scheduled || prior.Scheduled
+				} else {
+					record.Scheduled = false
+				}
 				if event.UserEmail == "" && prior.UserEmail != "" {
 					result.PreservedActors++
 				}
@@ -130,21 +143,23 @@ func recordFromChatEvent(
 	}
 
 	record := Record{
-		At:               event.T,
-		ProjectID:        string(chat.ProjectID),
-		ProjectSlug:      slugs[string(chat.ProjectID)],
-		ChatID:           string(chat.ID),
-		RunID:            fmt.Sprintf("%s-%d", chat.ID, event.Seq),
-		UserEmail:        event.UserEmail,
-		Scheduled:        event.ScheduledTaskID != "",
-		Provider:         provider,
-		Model:            model,
-		InputTokens:      usage.InputTokens,
-		OutputTokens:     usage.OutputTokens,
-		CacheReadTokens:  usage.CacheReadTokens,
-		CacheWriteTokens: usage.CacheWriteTokens,
-		DurationMs:       usage.DurationMs,
-		Turns:            usage.Turns,
+		At:                   event.T,
+		ProjectID:            string(chat.ProjectID),
+		ProjectSlug:          slugs[string(chat.ProjectID)],
+		ChatID:               string(chat.ID),
+		RunID:                fmt.Sprintf("%s-%d", chat.ID, event.Seq),
+		UserEmail:            event.UserEmail,
+		ApplicationID:        event.ApplicationID,
+		ApplicationRequestID: event.ApplicationRequestID,
+		Scheduled:            event.ApplicationID == "" && strings.TrimSpace(event.ScheduledTaskID) != "",
+		Provider:             provider,
+		Model:                model,
+		InputTokens:          usage.InputTokens,
+		OutputTokens:         usage.OutputTokens,
+		CacheReadTokens:      usage.CacheReadTokens,
+		CacheWriteTokens:     usage.CacheWriteTokens,
+		DurationMs:           usage.DurationMs,
+		Turns:                usage.Turns,
 	}
 	if event.TurnID != "" {
 		record.RunID = event.TurnID

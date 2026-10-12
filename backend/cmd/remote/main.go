@@ -42,7 +42,6 @@ import (
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	serviceversiontelemetry "github.com/futrx-com/remote.futrx.com/internal/service/versiontelemetry"
 	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
-	serviceworkspaceide "github.com/futrx-com/remote.futrx.com/internal/service/workspaceide"
 	"github.com/futrx-com/remote.futrx.com/internal/stores"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileproject"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileversiontelemetry"
@@ -183,7 +182,6 @@ func main() {
 		ProjectAccess:     storeSet.ProjectAccess,
 		ProjectShares:     storeSet.ProjectShares,
 		Permissions:       permissionService,
-		Schedules:         storeSet.Schedules,
 		Auth:              authService,
 		Users:             storeSet.Users,
 		UserSettings:      storeSet.UserSettings,
@@ -206,14 +204,10 @@ func main() {
 			CredentialSyncTimeout:      cfg.Agent.CredentialSyncTimeout,
 			BrowserIdleTTL:             cfg.Agent.BrowserIdleTTL,
 		},
-		TmuxClient:    tmuxClient,
-		ValidTmuxName: tmuxcli.ValidName,
-		ScheduleLimits: service.ScheduleLimits{
-			MinInterval:        cfg.Schedule.MinInterval,
-			MaxConcurrentRuns:  cfg.Schedule.MaxConcurrentRuns,
-			MaxTasksPerProject: cfg.Schedule.MaxTasksPerProject,
-		},
+		TmuxClient:           tmuxClient,
+		ValidTmuxName:        tmuxcli.ValidName,
 		AppStore:             storeSet.Applications,
+		AppTurns:             storeSet.ApplicationTurns,
 		AppRegistry:          appRegistry,
 		AppInstaller:         containerStack.AppInstaller,
 		AppPorts:             containerStack.AppPorts,
@@ -263,11 +257,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	codeServerBaseURL, err := config.CodeServerBaseURL(cfg.BaseURL)
-	if err != nil {
-		log.Fatalf("configure IDE URL: %v", err)
-	}
-
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:       serviceSet,
 		TmuxClient:     tmuxClient,
@@ -283,7 +272,6 @@ func main() {
 		SelfUpdate: selfUpdateService,
 		Files:      serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore()),
 		GitHistory: servicegithistory.New(gitcli.NewHistoryClient()),
-		IDE:        serviceworkspaceide.New(codeServerBaseURL, fileproject.WorkspaceRoot),
 	})
 	if err != nil {
 		log.Fatalf("init http handler: %v", err)

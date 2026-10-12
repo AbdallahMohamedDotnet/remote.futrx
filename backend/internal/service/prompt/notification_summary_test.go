@@ -61,7 +61,7 @@ func TestPromptPersistsOnlyVisibleAnswerAndCompletionSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider := &schedulePromptProvider{output: []string{
+	provider := &applicationPromptProvider{output: []string{
 		"Fixed the route. <notifi",
 		"cation_summary>Chat links survive refresh.</notification_",
 		"summary>",

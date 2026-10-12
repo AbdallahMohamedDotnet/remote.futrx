@@ -416,6 +416,40 @@ func TestScheduledRunsAreLabelledSeparately(t *testing.T) {
 	}
 }
 
+func TestApplicationTurnsNotifyWithoutResettingUnreadSuppression(t *testing.T) {
+	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Build monitor"})
+	ctx := context.Background()
+	chats := repo.Repository.(*chatRepoStub)
+	appendEvent := func(ev servicechat.Event) {
+		t.Helper()
+		if _, err := repo.AppendEvent(ctx, "beefcafe", ev); err != nil {
+			t.Fatal(err)
+		}
+		repo.push.push.Wait()
+	}
+
+	appendEvent(servicechat.Event{T: 10, Type: "complete", ApplicationID: "build-monitor"})
+	appendEvent(servicechat.Event{T: 20, Type: "user", ApplicationID: "build-monitor"})
+	appendEvent(servicechat.Event{T: 30, Type: "complete", ApplicationID: "build-monitor"})
+	if sent := sender.captured(); len(sent) != 1 || sent[0].Kind != servicepush.KindApplication || sent[0].Body != "An application-started turn finished." {
+		t.Fatalf("notifications = %+v, want one neutral application result", sent)
+	}
+
+	// Reading the chat admits another application result.
+	_, _ = chats.Update(ctx, "beefcafe", func(m *servicechat.Meta) { m.LastReadAt = 40 })
+	appendEvent(servicechat.Event{T: 50, Type: "error", ApplicationID: "build-monitor", Message: "build failed"})
+	if sent := sender.captured(); len(sent) != 2 || sent[1].Kind != servicepush.KindApplication || sent[1].Body != "build failed" {
+		t.Fatalf("notifications = %+v, want the application failure after reading", sent)
+	}
+
+	// A prompt typed by the user still reopens the notification slot.
+	appendEvent(servicechat.Event{T: 60, Type: "user"})
+	appendEvent(servicechat.Event{T: 70, Type: "complete"})
+	if sent := sender.captured(); len(sent) != 3 || sent[2].Kind != servicepush.KindComplete {
+		t.Fatalf("notifications = %+v, want the interactive completion", sent)
+	}
+}
+
 func TestAQuestionSuppressesTheTurnFinishedThatFollowsIt(t *testing.T) {
 	repo, sender := newNotifyingChat(t, servicechat.Meta{ID: "beefcafe", Title: "Plan the migration"})
 	ctx := context.Background()

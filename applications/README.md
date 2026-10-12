@@ -8,8 +8,10 @@ applications` in [`../catalog.go`](../catalog.go), a module of its own because
 any an administrator has uploaded as a `.zip` — same shape, same validator,
 stored outside the binary. See [Uploaded packages](../docs/dev/installable-applications/16-uploaded-packages.md).
 
-**One application ships here: [`hello-remote/`](hello-remote/)**, the worked example
-— every supported capability composed into one installable package.
+Applications in this directory ship in the server binary. The
+[`hello-remote/`](hello-remote/) example composes infrastructure, a backend,
+events, UI, and skills. [`scheduled-tasks/`](scheduled-tasks/) demonstrates
+application-owned workflows using the shared agent runtime.
 Real apps — MySQL, PostgreSQL, Redis, s3disk — live in their own
 repositories and reach a server as uploaded packages, so the catalog format can
 change here without a database application riding along in the same review.
@@ -18,7 +20,9 @@ directory in here is still all it takes to build one in.
 
 An application is one directory. It can install software into a container, contribute
 to the Remote interface from the browser, add a Go backend that runs on the
-server, or any combination:
+server, start and read agent turns, expose commands to agents, or any combination.
+Agent capabilities are independent opt-ins in `application.json`; workflow
+rules and persistent job state belong to the application.
 
 ```
 applications/
@@ -81,6 +85,7 @@ and nothing else. Start with
 | Look up an `application.json` field | [application.json reference](../docs/dev/installable-applications/02-application-json.md) |
 | Look up an extension API method | [Extension API](../docs/dev/installable-applications/06-extension-api.md) |
 | Add a server-side feature in Go | [Application backends](../docs/dev/installable-applications/15-application-backends.md) |
+| Start/read agent work or let agents call my app | [Application agent runtime](../docs/dev/installable-applications/25-application-agent-runtime.md) |
 | Know where I can render | [Slots](../docs/dev/installable-applications/05-slots.md) |
 | Know who sees my extension | [Scoping and visibility](../docs/dev/installable-applications/08-scoping-and-visibility.md) |
 | Match the app's look | [Styling and icons](../docs/dev/installable-applications/09-styling-and-icons.md) |
@@ -113,8 +118,12 @@ and nothing else. Start with
    composes a value that implements `applications.Backend`; the application's
    `ui/` reaches it through `remote.backend.call(...)`. Keep request handling in
    `backend/api/` and each event publisher in `backend/lifecycle/`, then compose
-   them at the root through `rpc.ServeWithRuntime`. See
-   [Application backends](../docs/dev/installable-applications/15-application-backends.md).
+   them at the root through `rpc.ServeWithRuntime`. Opt into `backend.agentTurns`
+   for `Runtime.AgentTurns.Start`, `Read`, and `Forget`; `backend.agentTools` for
+   agent calls to your backend; and `backend.background` for recovery after
+   server restarts and child crashes. See
+   [Application backends](../docs/dev/installable-applications/15-application-backends.md)
+   and [Application agent runtime](../docs/dev/installable-applications/25-application-agent-runtime.md).
 5. Rebuild the backend. `NewRegistry()` validates every entry at startup, so a
    malformed application fails the build and the tests rather than 404ing in a
    browser.
@@ -145,22 +154,25 @@ pull request deserves the same review as any change under `frontend/src`. See
 **Backend code is server code.** A `backend/` directory is compiled and run as a
 child of the server process, with the server's privileges, and is handed the
 install's secrets. It deserves the same review as any change under
-`backend/internal/`. See [Security model](../docs/dev/installable-applications/13-security-model.md#backend-backends).
+`backend/internal/`. See [Security model](../docs/dev/installable-applications/13-security-model.md#application-backends).
 
 ## The example app
 
-[`hello-remote/`](hello-remote/) is the one application this repository ships, and it
-is here to be installed. It deliberately carries every composable capability:
+[`hello-remote/`](hello-remote/) is here to be installed. It combines
 custom infrastructure, a supervised service and port, health checking, host
 tools, container-built commands, a host backend, UI, and a project skill. Its
-manifest also fills every author-controlled model field. Installing it exercises
-the catalog, every install-input behavior, connection metadata, both scopes,
-every extension slot, and the complete application lifecycle — so if it works,
-the feature works.
+manifest demonstrates install inputs and connection metadata. Installing it
+exercises the catalog, every install-input behavior, both scopes,
+every extension slot, and the application lifecycle.
 
 Install it globally *and* in a project to watch one application run as two processes
 with two counters. Its [README](hello-remote/README.md) says what to look at
 and why.
+
+For agent workflows, install [`scheduled-tasks/`](scheduled-tasks/README.md).
+Its backend owns the clock, claims, retries, and completion rules, and uses the
+same start/read/forget SDK and scoped agent tools available to other applications.
+Remote supplies agent execution and authority through the applications service.
 
 The larger developer fixtures described in [Fixtures](../docs/dev/installable-applications/10-fixtures.md) —
 `ui-playground`, `ui-sandbox`, `backend-playground` — are not in this

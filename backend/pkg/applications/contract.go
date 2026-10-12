@@ -55,7 +55,8 @@ type Descriptor struct {
 // retain these concurrency-safe capabilities and use them from any business
 // layer; they do not implement or initialize them.
 type Runtime struct {
-	Events EventEmitter
+	Events     EventEmitter
+	AgentTurns AgentTurns
 }
 
 // Caller is the signed-in user the host resolved for a request. It is supplied
@@ -75,6 +76,7 @@ type Instance struct {
 	ApplicationID      string `json:"applicationId"`
 	ApplicationName    string `json:"applicationName"`
 	ApplicationVersion string `json:"applicationVersion"`
+	AgentTurns         bool   `json:"agentTurns,omitempty"`
 	// Publishers and Subscriptions are the validated manifest declarations for
 	// this application. They cross the process boundary so the host can
 	// authorize publications from this exact installed package and the backend
@@ -112,6 +114,7 @@ type Request struct {
 	Headers map[string][]string `json:"headers,omitempty"`
 	Body    []byte              `json:"body,omitempty"`
 	Caller  Caller              `json:"caller"`
+	Agent   *AgentContext       `json:"agent,omitempty"`
 }
 
 // Response is what the host turns back into an HTTP response. A zero Status is

@@ -24,6 +24,7 @@ export function ExtensionSlot({
   projectName,
   chatId,
   cwd,
+  tooltipPlacement,
 }: ExtensionSlotProps) {
   const contextKey = JSON.stringify({
     scope,
@@ -32,9 +33,10 @@ export function ExtensionSlot({
     projectName,
     chatId,
     cwd,
+    tooltipPlacement,
   });
   const context = useMemo<ExtensionSlotContext>(
-    () => ({ slot: name, scope, instance, projectId, projectName, chatId, cwd }),
+    () => ({ slot: name, scope, instance, projectId, projectName, chatId, cwd, tooltipPlacement }),
     [name, contextKey],
   );
   const contributions = useExtensionContributions(name, context);

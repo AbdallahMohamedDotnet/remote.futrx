@@ -57,6 +57,10 @@ func (s *Service) CallBackend(
 	request applications.Request,
 	caller applications.Caller,
 ) (applications.Response, error) {
+	request.Agent = nil
+	return s.callBackend(ctx, id, request, caller)
+}
+func (s *Service) callBackend(ctx context.Context, id string, request applications.Request, caller applications.Caller) (applications.Response, error) {
 	unlock := s.instanceLocks.rlock(id)
 	defer unlock()
 
@@ -158,6 +162,7 @@ func backendInstanceDetails(application Application, instance Instance) applicat
 		ApplicationID:      instance.ApplicationID,
 		ApplicationName:    application.Name,
 		ApplicationVersion: application.Version,
+		AgentTurns:         application.Backend != nil && application.Backend.AgentTurns,
 		Publishers:         application.Publishers,
 		Subscriptions:      application.Subscriptions,
 		Service:            application.ServiceName(),
@@ -177,4 +182,20 @@ func (s *Service) moveBackend(ctx context.Context, application Application, inst
 		return s.startBackend(ctx, application, instance)
 	}
 	return s.stopBackend(ctx, application, instance)
+}
+
+// RestoreBackend restores an already-running installation after a host restart
+// or child crash. It uses the normal startup deadline, which includes a cold
+// generated-module build, rather than the shorter per-request API deadline.
+func (s *Service) RestoreBackend(ctx context.Context, id string) error {
+	unlock := s.instanceLocks.rlock(id)
+	defer unlock()
+	instance, application, err := s.load(ctx, id)
+	if err != nil {
+		return err
+	}
+	if instance.Status != StatusRunning {
+		return ErrNotRunning
+	}
+	return s.startBackend(ctx, application, instance)
 }

@@ -61,6 +61,11 @@ type Status struct {
 	Run            *RunStatus   `json:"run,omitempty"`
 }
 
+type ReleaseNotes struct {
+	Tag  string `json:"tag"`
+	Body string `json:"body,omitempty"`
+}
+
 type runRecord struct {
 	Target                 string     `json:"target"`
 	UpdateKind             UpdateKind `json:"updateKind,omitempty"`

@@ -47,11 +47,12 @@ type eventRuntimeBinder interface {
 // with its own environment, its own data directory, and its own crash
 // behaviour. They share one compiled binary.
 type Host struct {
-	root    string
-	catalog Catalog
-	builder *Builder
-	logger  hclog.Logger
-	events  EventSink
+	root       string
+	catalog    Catalog
+	builder    *Builder
+	logger     hclog.Logger
+	events     EventSink
+	agentTurns svc.AgentTurnsFactory
 
 	launches           keyedLocks
 	applicationChanges keyedLocks
@@ -65,18 +66,20 @@ type Host struct {
 
 // Options supplies process-host settings owned by the application edge.
 type Options struct {
-	GoTool string
-	Events EventSink
+	GoTool     string
+	Events     EventSink
+	AgentTurns svc.AgentTurnsFactory
 }
 
 // New builds a backend host that keeps compiled binaries, generated modules,
 // and per-instance data under root.
 func New(root string, catalog Catalog, options Options) *Host {
 	return &Host{
-		root:    root,
-		catalog: catalog,
-		builder: NewBuilder(root, options.GoTool),
-		events:  options.Events,
+		root:       root,
+		catalog:    catalog,
+		builder:    NewBuilder(root, options.GoTool),
+		events:     options.Events,
+		agentTurns: options.AgentTurns,
 		logger: hclog.New(&hclog.LoggerOptions{
 			Name:   "app-backend",
 			Level:  hclog.Info,
@@ -87,6 +90,12 @@ func New(root string, catalog Catalog, options Options) *Host {
 		running:            map[string]*backendProcess{},
 		generations:        map[string]uint64{},
 	}
+}
+
+func (h *Host) SetAgentTurns(factory svc.AgentTurnsFactory) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.agentTurns = factory
 }
 
 var _ svc.BackendHost = (*Host)(nil)
@@ -390,6 +399,20 @@ func (h *Host) connect(client *goplugin.Client, instance applications.Instance, 
 		}
 		if err := runtime.BindEvents(newInstancePublisher(instance, h.events)); err != nil {
 			return nil, fmt.Errorf("bind events for backend %s: %w", applicationID, err)
+		}
+	}
+	if instance.AgentTurns {
+		h.mu.Lock()
+		factory := h.agentTurns
+		h.mu.Unlock()
+		runtime, ok := backend.(interface {
+			BindAgentTurns(applications.AgentTurns) error
+		})
+		if !ok || factory == nil {
+			return nil, errors.New("application agent runtime unavailable")
+		}
+		if err := runtime.BindAgentTurns(factory.AgentTurnsForInstance(instance.ID)); err != nil {
+			return nil, fmt.Errorf("bind agent turns: %w", err)
 		}
 	}
 	if err := backend.Init(instanceWithDataDir(instance, dataDir)); err != nil {

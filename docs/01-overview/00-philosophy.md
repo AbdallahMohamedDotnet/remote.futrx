@@ -136,7 +136,7 @@ flowchart TB
         Tools["Linux, packages, Git, runtimes, skills"]
         Apps["Project processes and app ports"]
         Browser["Shared headed Chromium and noVNC"]
-        IDE["code-server"]
+        WebApp["Optional application web service"]
         Terminal["Terminal PTY"]
         Durable["Workspace and provider homes"]
     end
@@ -148,11 +148,11 @@ flowchart TB
     Agent --> Durable
     API -->|"authenticated terminal WebSocket"| Terminal
     Edge -->|"authenticated project URLs"| Apps
-    Edge -->|"forward-authenticated IDE URL"| IDE
+    Go -->|"authenticated app web route"| WebApp
     Edge -->|"forward-authenticated noVNC URL"| Browser
 ```
 
-The main UI, API, and WebSockets authenticate in the Go backend. Caddy's forward-authentication and platform-cookie stripping apply to project-facing IDE, preview, and noVNC routes. The control plane is intentionally not another tool available to container root. The agent may be root **inside** the project, but it does not receive the host's LXD controls, platform session store, other project mounts, or arbitrary host filesystem access beyond the project paths explicitly mounted into its container.
+The main UI, API, and WebSockets authenticate in the Go backend. Caddy's forward-authentication and platform-cookie stripping apply to project-facing preview and noVNC routes. The control plane is intentionally not another tool available to container root. The agent may be root **inside** the project, but it does not receive the host's LXD controls, platform session store, other project mounts, or arbitrary host filesystem access beyond the project paths explicitly mounted into its container.
 
 The separation is the core safety mechanism:
 
@@ -412,7 +412,7 @@ The design principle is:
 
 Remote does not choose between autonomy and control. It separates their timescales:
 
-- **before work**, the human chooses the project, agent, mode, skills, resources, access, credentials, and whether an agent-created schedule should be armed;
+- **before work**, the human chooses the project, agent, mode, skills, resources, access, credentials, and whether to install the Scheduled Tasks application;
 - **during work**, the agent can act without constant local approval while provider-emitted progress and tool activity stream back;
 - **at judgment boundaries**, the human can answer a question, take over the browser, inspect a rendered element, or work directly in the IDE or terminal;
 - **after work**, the human can review artifacts, diffs, commits, processes, resource use, and the running application;
@@ -457,8 +457,7 @@ The philosophy is also an acceptance test. The following current behaviors narro
 | Gap | Consequence |
 | --- | --- |
 | Loose chats run approval-free provider CLIs directly as the production host service user, currently root, and are visible to all registered users | A loose chat can reach platform data, provider credentials, project roots, and host controls such as `lxc`; it is outside the project-isolation promise and is the highest-priority boundary violation |
-| Project containers share the default LXD bridge without repository-defined inter-project network policy; code-server and noVNC listen on non-loopback interfaces without their own authentication | A sibling project can potentially bypass Caddy and reach another project's IDE or browser directly, crossing from network reach into files, processes, or browser identity |
-| IDE forward authentication checks registered-user status but not project membership | An IDE URL does not yet enforce the same project boundary as a preview URL |
+| Project containers share the default LXD bridge without repository-defined inter-project network policy; application web sockets and noVNC listen on non-loopback interfaces without their own authentication | A sibling project can potentially bypass Caddy and reach another project's application or browser directly, crossing from network reach into files, processes, or browser identity |
 | Incremental workspace-hub events are broadly broadcast after the initial filtered snapshot | Metadata synchronization does not yet have uniform per-event project filtering |
 | Membership is checked when chat and terminal WebSockets open, but active sockets are not revoked when membership changes | Removing a member blocks future checked connections but may not immediately stop an already-open control channel |
 | Provider login is host-wide and the application has no logout or credential-revoke control | Removing a connected identity requires operator-side file removal or revocation at the provider |

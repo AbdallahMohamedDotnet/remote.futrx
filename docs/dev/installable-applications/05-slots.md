@@ -23,7 +23,7 @@ degrades on an older one instead of failing to load.
 
 | Constant | Name | Where it renders | Context |
 |---|---|---|---|
-| `chatHeaderActions` | `chat.header.actions` | Chat header rail, ahead of the IDE / terminal / files / schedules / preview icons | `chatId`, `projectId`, `cwd` |
+| `chatHeaderActions` | `chat.header.actions` | Chat header rail, ahead of terminal / files / preview icons; installed applications can contribute actions here | `chatId`, `projectId`, `cwd`, `tooltipPlacement` |
 | `composerActions` | `chat.composer.actions` | Composer control deck, beside the attach (`+`) button | `projectId` |
 | `projectRowActions` | `sidebar.project.actions` | A project row's hover actions, ahead of container info and "New chat" | `projectId`, `projectName` |
 | `sidebarHeaderActions` | `sidebar.header.actions` | Sidebar header, beside "New project" | — |
@@ -48,6 +48,7 @@ interface ExtensionSlotContext {
   projectName?: string;
   chatId?: string;
   cwd?: string;          // the chat's working directory
+  tooltipPlacement?: "below" | "left"; // workspace toolbar layout
 }
 ```
 
@@ -74,6 +75,10 @@ knowing the app's densities.
 
 Sizing lives in `SLOT_ICON_APPEARANCE` in `config/extensions.ts`, and a test asserts every
 slot has an entry.
+
+In `chatHeaderActions`, `addIconButton` also renders the workspace tooltip using
+`title` (or `label` when omitted). It appears on hover or keyboard focus, dismisses
+with Escape, and follows the toolbar's `tooltipPlacement`.
 
 ## The two application slots
 

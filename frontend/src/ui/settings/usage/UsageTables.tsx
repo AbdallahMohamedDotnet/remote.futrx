@@ -145,7 +145,11 @@ export function UsageRecordsTable({
                     </td>
                     <td class="px-2 py-2 text-ink-200 font-mono">
                       {record.chatId}
-                      {record.scheduled && (
+                      {record.applicationId ? (
+                        <span class="ml-1.5 text-[10.5px] text-accent-green">
+                          app: {record.applicationId}
+                        </span>
+                      ) : record.scheduled && (
                         <span class="ml-1.5 text-[10.5px] text-accent-green">scheduled</span>
                       )}
                     </td>

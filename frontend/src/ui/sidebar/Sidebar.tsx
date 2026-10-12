@@ -8,6 +8,7 @@ import { SidebarEmptyState, SidebarNoMatches } from "./SidebarEmptyState";
 import { SidebarSkeleton } from "./SidebarSkeleton";
 import { SearchBar } from "../search/SearchBar";
 import { SearchResultRow } from "../search/SearchResultRow";
+import { UpdateNotice } from "./UpdateNotice";
 import { AccountFooter } from "./AccountFooter";
 import { ExtensionSlot } from "../primitives/ExtensionSlot";
 import { Skeleton } from "../primitives/Skeleton";
@@ -43,6 +44,8 @@ export function Sidebar({
   onReorderProjects,
   onOpenProjectContainers,
   onOpenSettings,
+  updateTag,
+  onOpenUpdates,
   onSignOut,
 }: {
   open: boolean;
@@ -68,6 +71,8 @@ export function Sidebar({
   onReorderProjects: (projectIds: string[]) => void;
   onOpenProjectContainers: (projectId: string) => void;
   onOpenSettings?: () => void;
+  updateTag: string | null;
+  onOpenUpdates: () => void;
   onSignOut: () => void;
 }) {
   const sidebarWidth = sidebarCollapsed ? "md:w-[64px]" : "md:w-[300px]";
@@ -272,6 +277,10 @@ export function Sidebar({
             </div>
           )}
         </div>
+
+        {account?.authenticated && updateTag && (
+          <UpdateNotice tag={updateTag} collapsed={sidebarCollapsed} onOpen={onOpenUpdates} />
+        )}
 
         {account?.authenticated && (
           <div class={expandedOnly}>

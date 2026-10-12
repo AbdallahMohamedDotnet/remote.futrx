@@ -12,13 +12,13 @@ import (
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
-	serviceschedule "github.com/futrx-com/remote.futrx.com/internal/service/schedule"
 	serviceshare "github.com/futrx-com/remote.futrx.com/internal/service/share"
 	serviceusage "github.com/futrx-com/remote.futrx.com/internal/service/usage"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	serviceusersettings "github.com/futrx-com/remote.futrx.com/internal/service/usersettings"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileagentquota"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileapplications"
+	"github.com/futrx-com/remote.futrx.com/internal/stores/fileapplicationturns"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filechat"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileemail"
@@ -28,7 +28,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileprojectsecrets"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileprojectshares"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filepush"
-	"github.com/futrx-com/remote.futrx.com/internal/stores/fileschedule"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filesessions"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filetwofactor"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileusage"
@@ -64,26 +63,26 @@ type PushStore interface {
 }
 
 type Stores struct {
-	Chats           ChatStore
-	chatIndexWarmer recentChatIndexWarmer
-	Projects        serviceproject.Repository
-	ProjectSecrets  serviceproject.SecretsRepository
-	ProjectAccess   serviceproject.AccessRepository
-	Schedules       serviceschedule.Repository
-	Auth            AuthStore
-	Users           serviceuser.Repository
-	UserSettings    serviceusersettings.Repository
-	TwoFactor       serviceauth.TwoFactorStore
-	SessionRegistry serviceauth.SessionRegistryStore
-	Applications    serviceapplications.Store
-	Push            PushStore
-	Usage           serviceusage.Repository
-	AgentAPIKeys    agentauth.APIKeyStore
-	Email           emailoutbound.ConfigurationStore
-	AgentQuota      agentquota.Repository
-	AgentAccounts   agentauth.AccountStore
-	ProjectShares   serviceshare.Repository
-	Permissions     servicepermission.Repository
+	Chats            ChatStore
+	chatIndexWarmer  recentChatIndexWarmer
+	Projects         serviceproject.Repository
+	ProjectSecrets   serviceproject.SecretsRepository
+	ProjectAccess    serviceproject.AccessRepository
+	Auth             AuthStore
+	Users            serviceuser.Repository
+	UserSettings     serviceusersettings.Repository
+	TwoFactor        serviceauth.TwoFactorStore
+	SessionRegistry  serviceauth.SessionRegistryStore
+	Applications     serviceapplications.Store
+	ApplicationTurns serviceapplications.AgentTurnRepository
+	Push             PushStore
+	Usage            serviceusage.Repository
+	AgentAPIKeys     agentauth.APIKeyStore
+	Email            emailoutbound.ConfigurationStore
+	AgentQuota       agentquota.Repository
+	AgentAccounts    agentauth.AccountStore
+	ProjectShares    serviceshare.Repository
+	Permissions      servicepermission.Repository
 }
 
 // WarmRecentChatIndexes populates disposable read indexes through the
@@ -119,11 +118,6 @@ func New(dataDir string) (Stores, error) {
 	projectShares, err := fileprojectshares.New(dataDir)
 	if err != nil {
 		return Stores{}, fmt.Errorf("init project shares store: %w", err)
-	}
-
-	schedules, err := fileschedule.New(dataDir)
-	if err != nil {
-		return Stores{}, fmt.Errorf("init scheduled tasks store: %w", err)
 	}
 
 	users, err := fileusers.New(dataDir)
@@ -173,25 +167,25 @@ func New(dataDir string) (Stores, error) {
 	authStore := fileauth.New(dataDir)
 	email := fileemail.New(dataDir)
 	return Stores{
-		Chats:           chats,
-		chatIndexWarmer: chats,
-		Projects:        projects,
-		ProjectSecrets:  projectSecrets,
-		ProjectAccess:   projectAccess,
-		Schedules:       schedules,
-		Auth:            authStore,
-		Users:           users,
-		UserSettings:    userSettings,
-		TwoFactor:       twoFactor,
-		SessionRegistry: sessionRegistry,
-		Applications:    applications,
-		Push:            push,
-		Usage:           usage,
-		AgentAPIKeys:    authStore,
-		Email:           email,
-		AgentQuota:      agentQuota,
-		AgentAccounts:   authStore,
-		ProjectShares:   projectShares,
-		Permissions:     permissions,
+		Chats:            chats,
+		chatIndexWarmer:  chats,
+		Projects:         projects,
+		ProjectSecrets:   projectSecrets,
+		ProjectAccess:    projectAccess,
+		Auth:             authStore,
+		Users:            users,
+		UserSettings:     userSettings,
+		TwoFactor:        twoFactor,
+		SessionRegistry:  sessionRegistry,
+		Applications:     applications,
+		ApplicationTurns: fileapplicationturns.New(dataDir),
+		Push:             push,
+		Usage:            usage,
+		AgentAPIKeys:     authStore,
+		Email:            email,
+		AgentQuota:       agentQuota,
+		AgentAccounts:    authStore,
+		ProjectShares:    projectShares,
+		Permissions:      permissions,
 	}, nil
 }

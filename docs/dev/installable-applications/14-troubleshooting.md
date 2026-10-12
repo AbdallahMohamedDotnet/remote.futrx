@@ -226,8 +226,28 @@ is pruned on a successful build.
 ## My backend lost its data
 
 `DataDir` survives stop and start and is deleted on **uninstall**. In-memory
-state is not durable at all: the host restarts a backend lazily after a crash or
-a server restart, so anything that must survive belongs in `DataDir`.
+state is not durable: a backend can restart after a crash or server restart,
+either lazily or through background recovery. Anything that must survive
+belongs in `DataDir`; agent receipts do not store application workflow state.
+
+## Agent runtime and tools
+
+| Symptom | Check or fix |
+|---|---|
+| `ErrAgentUnavailable` | Declare `backend.agentTurns: true`, use `rpc.ServeWithRuntime`, and retain its `Runtime.AgentTurns` handle; an unbound runtime cannot execute work |
+| `ErrAgentAccess` on start/read | Check that the installation is running and opted in, the captured owner is still registered and authorized, and a project installation targets a chat in its own project |
+| `ErrAgentBusy` | Retry later with the same request ID and input; the chat, maintenance, a lifecycle transition, or the shared two-turn limit may block admission. `Forget` also refuses active work |
+| `ErrAgentRequestChanged` | Reusing an accepted request ID requires identical owner, chat, prompt, and JSON context bytes; use a new ID for a different operation |
+| `ErrAgentTurnNotFound` | Read with the original request ID from the same installation; check whether it was forgotten or the instance was uninstalled |
+| An interrupted receipt after a server restart | Retry `Start` with the same input if the workflow permits it; host-crash delivery is at least once, so external side effects must tolerate retries |
+| `401` from `/agent-api/applications/…` | Use the current turn's bearer grant from `REMOTE_APPLICATION_GRANT`; grants expire, are revoked after the run, and must not be persisted |
+| `403` from that route | Check `backend.agentTools`, running installation, owner access, and `access: admin`; application-started turns can call only their own installation |
+| Background work does not recover until another call | Opt into `backend.background`; recovery runs at startup and every 15 seconds for running installations, while stopped ones remain stopped |
+| A browser call has no `Request.Agent` | Expected: Remote clears agent context on browser calls. Only grant-authenticated agent calls receive it |
+
+These flags are independent. Enabling agent tools does not bind the start/read
+SDK, and enabling background recovery alone does not grant either agent
+capability. See [25 — Application agent runtime](25-application-agent-runtime.md).
 
 ## The self-test reports a failure
 

@@ -107,7 +107,7 @@ func TestListSkillsUsesAgentsAsProjectSourceOfTruth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 4 {
+	if len(got) != 3 {
 		t.Fatalf("expected canonical, legacy fallback, and Remote default skills, got %#v", got)
 	}
 	if got[0].Command != "custom" || got[0].Name != "Custom Skill" {
@@ -118,9 +118,6 @@ func TestListSkillsUsesAgentsAsProjectSourceOfTruth(t *testing.T) {
 	}
 	if got[2].Command != "remote-application" || got[2].Source != "remote" {
 		t.Fatalf("expected the built-in Remote application skill, got %#v", got[2])
-	}
-	if got[3].Command != "scheduled-tasks" || got[3].Source != "remote" {
-		t.Fatalf("expected the built-in scheduled task skill, got %#v", got[3])
 	}
 }
 
@@ -154,8 +151,8 @@ description: Build a Remote application.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("expected one default skill and scheduled tasks, got %#v", got)
+	if len(got) != 1 {
+		t.Fatalf("expected only the default application skill, got %#v", got)
 	}
 	if got[0].Command != "remote-application" || got[0].Source != "remote" {
 		t.Fatalf("provisioned default skill = %#v, want remote-owned", got[0])

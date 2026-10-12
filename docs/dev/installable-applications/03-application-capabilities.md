@@ -9,18 +9,37 @@ application does from its files and manifest fields.
 | Infrastructure | `infra/install.sh` exists, `install` names another script inside `infra/`, `backend/container/` exists, or `service` is declared | Provisions the target container |
 | Network port | Infrastructure exists and `port.internal` is greater than zero | Allocates a host port and creates an LXD proxy device |
 | Backend | `backend/main.go` exists (`backend/api/` as an executable is accepted for compatibility) | Generates one host module from the root and child host packages, excludes `backend/container/`, and runs the backend executable |
+| Background backend | `backend.background: true` | Recovers running installations after host restarts and child crashes |
+| Agent execution | `backend.agentTurns: true` | Supplies installation-scoped start/read/forget for normal agent turns |
+| Agent tools | `backend.agentTools: true` | Supplies scoped access to application-defined backend commands during agent turns |
 | UI | `ui/` exists | Loads the browser extension |
 | Skills | `skills/*/SKILL.md` exists | Publishes the skills into the target project |
 
 Capabilities compose freely. A single application may provision software,
 expose it on a port, run a backend, extend the UI, and publish skills. Removing
-one folder removes only that capability; no manifest discriminator needs to be
-kept in sync with the package layout.
+one folder removes the capability discovered from it. Backend runtime controls
+are declared separately in the manifest; there is no application type
+discriminator to keep in sync with the package layout.
 
 Directories such as `backend/api/` and `backend/lifecycle/` are packages within
 the backend capability, not capabilities of their own. `backend/main.go`
 imports and composes them, and Remote runs the result as one per-instance
 process.
+
+## Agent and background controls
+
+These flags require a host backend, are independent, and default to `false`:
+
+| Manifest flag | Application API |
+|---|---|
+| `backend.agentTurns` | `Runtime.AgentTurns.Start(request)`, `Read(query)`, and `Forget(requestID)`, bound before `Init` through `rpc.ServeWithRuntime` |
+| `backend.agentTools` | Agent calls to application-defined routes through `/agent-api/applications/<application-id>/<path>`, with Remote-stamped `Request.Caller` and `Request.Agent` |
+| `backend.background` | Restores running backend processes at server startup and on the 15-second recovery sweep; stopped installations remain stopped |
+
+Turns inherit the existing chat's provider, model, and settings. Applications
+keep job definitions, timing, retries, and result acknowledgments in their own
+`DataDir`. Remote keeps installation-scoped execution receipts and enforces
+owner/project access. See [25 — Application agent runtime](25-application-agent-runtime.md).
 
 ## Infrastructure and scope
 
@@ -53,3 +72,7 @@ Running applications with container capabilities are reinstalled after project
 container replacement; stopped ones remain stopped. A later Start reinstalls
 when its declared service-unit check fails. See
 [Container recovery](24-application-container-recovery.md).
+
+Background backend and agent capabilities are independent opt-ins. See
+[25 — Application agent runtime](25-application-agent-runtime.md) for authority,
+receipts, tool permissions, and recovery.

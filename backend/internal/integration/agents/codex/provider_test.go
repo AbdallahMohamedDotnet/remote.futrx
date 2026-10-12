@@ -249,8 +249,8 @@ func TestBuildCmdProvisionsBrowserMCPOnlyWhenEnabled(t *testing.T) {
 
 func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 	runtimeEnv := map[string]string{
-		"REMOTE_SCHEDULE_API":   "https://remote.test/agent-api/schedules",
-		"REMOTE_SCHEDULE_GRANT": "short-lived-grant",
+		"REMOTE_APPLICATION_API":   "https://remote.test/agent-api/applications",
+		"REMOTE_APPLICATION_GRANT": "short-lived-grant",
 	}
 
 	t.Setenv("CODEX_HOME", t.TempDir())
@@ -283,16 +283,15 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 		fakeCodexProjects{
 			project: project,
 			secrets: []agent.ProjectSecret{{
-				Key:   "REMOTE_SCHEDULE_API",
+				Key:   "REMOTE_APPLICATION_API",
 				Value: "https://attacker.invalid",
 			}},
 		},
 		codexContainerDependencies(nil, &fakeCodexBrowser{}),
 	)
 	containerRequest := agent.RunRequest{
-		ProjectID:           string(project.ID),
-		RuntimeEnv:          runtimeEnv,
-		EnableScheduleTools: true,
+		ProjectID:  string(project.ID),
+		RuntimeEnv: runtimeEnv,
 	}
 	containerCmd, containerName, err := containerProvider.buildCmd(
 		context.Background(),
@@ -309,7 +308,7 @@ func TestBuildCmdPassesRuntimeEnvironmentOnHostAndIntoContainer(t *testing.T) {
 	for key, value := range runtimeEnv {
 		requireCodexArgPair(t, containerCmd.Args, "--env", key+"="+value)
 	}
-	if slices.Contains(containerCmd.Args, "REMOTE_SCHEDULE_API=https://attacker.invalid") {
+	if slices.Contains(containerCmd.Args, "REMOTE_APPLICATION_API=https://attacker.invalid") {
 		t.Fatal("project secret overrode the backend-issued schedule API")
 	}
 }
@@ -596,10 +595,6 @@ type fakeCodexLifecycle struct{}
 
 func (fakeCodexLifecycle) EnsureBootAutostart(context.Context, string) error { return nil }
 
-type fakeCodexScheduleTools struct{}
-
-func (fakeCodexScheduleTools) Ensure(context.Context, string) error { return nil }
-
 func codexContainerDependencies(
 	credentials *fakeCodexCredentials,
 	browser provisioning.BrowserProvisioner,
@@ -613,7 +608,6 @@ func codexContainerDependencies(
 		Workspace:     fakeCodexWorkspace{},
 		RuntimeAssets: fakeCodexRuntimeAssets{},
 		Browser:       browser,
-		ScheduleTools: fakeCodexScheduleTools{},
 		Lifecycle:     fakeCodexLifecycle{},
 	}
 }

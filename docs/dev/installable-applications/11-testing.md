@@ -40,6 +40,8 @@ go test ./internal/service/applications/                  # scoping + policy
 go test ./internal/integration/applications/                # compiling and running backends
 go test -race ./internal/lifecycle/                         # typed publishers + dynamic event bus/bridge
 go test ./pkg/applications/...                               # the backend SDK
+go test -race ./internal/service/applications ./pkg/applications/rpc # agent/runtime concurrency
+go test ./internal/transport/http/handlers -run TestAgentApplications # agent tool transport
 go build ./... && go vet ./...
 ```
 
@@ -51,16 +53,22 @@ go build ./... && go vet ./...
 | `installer_test.go` | which `lxc` commands each scope issues — and, crucially, which it must **not** |
 | `service/applications/ui_extensions_test.go` | which extensions a caller may load, and their install scope |
 | `service/applications/backend_test.go` | who may call a backend, when, and what lifecycle does to its process |
+| `service/applications/agent_runtime_test.go` | owner/project authority, idempotent requests, durable results, transcript pagination, scoped grants, trusted context, and background recovery |
+| `service/applications/agent_tools_test.go` | expired grant removal before dispatch |
+| `service/applications/agent_runtime_process_test.go` | independent app and Scheduled Tasks backends exercising the shared runtime through generated child processes and child-restart recovery |
+| `service/applications/instance_locks_test.go` | nonblocking callback admission during lifecycle transitions |
 | `applications/host_test.go` | compiling, launching, one process per instance, restart, timeout, panic isolation, data retention |
 | `applications/events_test.go` | publication authorization, host-stamped identity, payload limits, runtime binding, and delivery |
 | `applications/builder_test.go` | fingerprinting and the generated module files |
 | `applications/catalog_test.go` | an API importing a sibling lifecycle package, with container source excluded, compiled and called end to end |
 | `pkg/applications/mux_test.go` | route matching, method fallbacks, request helpers |
 | `pkg/applications/rpc/events_test.go` | core-owned emitter binding and subscriber delivery across the backend RPC boundary |
+| `pkg/applications/rpc/agent_turns_test.go` | start/read/forget calls, typed error identity, and panic recovery across RPC |
 | `lifecycle/event_bus_test.go`, `application_event_bridge_test.go` | defensive payload copies and canonical version-1 core event envelopes |
 | `handlers/applications_backend_handler_test.go` | which headers cross the boundary in each direction |
+| `handlers/agent_applications_handler_test.go` | bearer-only access, forwarded method/path/query/body, and transport error status |
 
-`applications` tests compile real backends with the Go toolchain, so they take
+`internal/integration/applications` tests compile real backends with the Go toolchain, so they take
 tens of seconds on a cold cache. `-short` skips exactly those:
 
 ```bash
@@ -68,6 +76,20 @@ go test -short ./internal/integration/applications/
 ```
 
 They also skip themselves on a host with no Go toolchain rather than failing.
+
+### Agent capability checks
+
+For an agent-enabled application, verify its own workflow as well as the shared
+contract: identical request retries reconnect to accepted work; changed input
+with the same ID fails; reads return only the installation's accepted turn;
+and results are saved before forgetting a receipt. Exercise loss of owner
+access, a stopped installation, a busy chat, and a backend restart.
+
+For tools, check interactive versus background context and the application's
+route permissions. Background grants must reach only their own installation;
+browser calls must have no agent context. For recovery, test `background`
+independently of `agentTurns` and `agentTools`, including a stopped copy that
+must stay stopped. See [25 — Application agent runtime](25-application-agent-runtime.md).
 
 `installer_test.go` runs against a fake `command.Runner` that records every
 invocation, so it asserts on absence as well as presence: a project-scope

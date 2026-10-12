@@ -65,6 +65,29 @@ type remoteTagRef struct {
 	sha  string
 }
 
+// ReadReleaseNotes reads the release commit's body, as release-on-tag.yml does.
+// Missing tags are fetched individually using origin's existing credentials;
+// reading notes leaves the checkout, index and FETCH_HEAD untouched.
+func (Client) ReadReleaseNotes(ctx context.Context, installDir, tag string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, lsRemoteTimeout)
+	defer cancel()
+	ref := "refs/tags/" + tag
+	read := func() ([]byte, error) {
+		return exec.CommandContext(ctx, "git", "-C", installDir, "log", "-1", "--format=%b", ref+"^{commit}", "--").Output()
+	}
+	out, err := read()
+	if err != nil {
+		if err := exec.CommandContext(ctx, "git", "-C", installDir, "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "origin", ref+":"+ref).Run(); err != nil {
+			return "", errors.New("could not fetch the release tag for its notes")
+		}
+		out, err = read()
+	}
+	if err != nil {
+		return "", errors.New("could not read the release commit notes")
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func listRemoteTagRefs(ctx context.Context, installDir string) ([]remoteTagRef, error) {
 	ctx, cancel := context.WithTimeout(ctx, lsRemoteTimeout)
 	defer cancel()

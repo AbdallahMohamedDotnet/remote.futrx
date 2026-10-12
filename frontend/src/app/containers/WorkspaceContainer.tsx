@@ -1,3 +1,6 @@
+import { useAuthContext } from "../../state/context/AuthContext";
+import { useSelfUpdate } from "../../state/hooks/server/useSelfUpdate";
+import { selfUpdateService } from "../../services/server/selfUpdateService";
 import { AppShell } from "../../ui/layout/AppShell";
 import { NoChatSelected } from "../../ui/layout/NoChatSelected";
 import { ChatSkeleton } from "../../ui/chat/ChatSkeleton";
@@ -15,6 +18,8 @@ import { SidebarContainer } from "./SidebarContainer";
 
 export function WorkspaceContainer() {
   const workspace = useWorkspaceContext();
+  const { auth } = useAuthContext();
+  const selfUpdate = useSelfUpdate(auth.authenticated && auth.isAdmin);
   const commands = useWorkspaceCommands();
   // The one caller of `useCommandPalette`: it binds the chord that toggles the
   // palette, and this is what renders the palette it toggles.
@@ -37,9 +42,10 @@ export function WorkspaceContainer() {
   );
 
   return (
-    <AppShell sidebar={<SidebarContainer />}>
+    <AppShell sidebar={<SidebarContainer updateTag={auth.isAdmin ? selfUpdateService.availableTag(selfUpdate.status) : null} />}>
       {workspace.ui.view === "settings" ? (
         <SettingsContainer
+          selfUpdate={selfUpdate}
           onBack={workspace.showChat}
           onHamburger={workspace.openSidebar}
           activeTab={workspace.ui.settingsTab}

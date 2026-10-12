@@ -164,29 +164,48 @@ Every `{id}` project route first requires admin status or project membership. Re
 | GET | `/api/chats/{id}/history/commits?repo=&limit=` | List commits |
 | GET | `/api/chats/{id}/history/diff?repo=&sha=` | Read one commit patch |
 | POST | `/api/chats/{id}/history/checkout` | Optional checkpoint and detached checkout |
-| GET, POST | `/api/chats/{id}/schedules` | List the caller's tasks for a project chat, or create one through the user API |
 
 All chat routes resolve the caller and enforce the chat's project membership. Loose chats have no project membership check.
 
-## Scheduled-task routes
+## Application and agent routes
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| PATCH, DELETE | `/api/schedules/{id}` | Edit/pause/resume or delete a visible owned task; admins can manage all |
-| POST | `/api/schedules/{id}/run` | Request an immediate occurrence without moving its regular deadline |
-| GET, POST | `/agent-api/schedules` | List or create tasks inside the capability's chat/project fence |
-| PATCH, DELETE | `/agent-api/schedules/{id}` | Pause or delete a capability-scoped task; an agent cannot enable it |
-| POST | `/agent-api/schedules/{id}/run` | Request a capability-scoped immediate occurrence |
-| POST | `/agent-api/schedules/current/complete` | Complete only the task/run named by a `complete-self` capability |
+Browser extensions call their installed backend through
+`/api/applications/{instance}/backend/{path}` or the project-scoped equivalent.
+Remote stamps `Request.Caller` from the session and clears `Request.Agent`.
 
-Browser routes use the signed user session. Agent routes require a short-lived
-bearer capability issued for one owner, chat, and project; they do not accept a
-platform session cookie. Agent-created tasks are forced to `createdByAgent` and
-start disabled until a user arms them.
+Agents call `/agent-api/applications/<application-id>/<path>` with a temporary
+bearer grant supplied through `REMOTE_APPLICATION_API` and
+`REMOTE_APPLICATION_GRANT`. Eligible applications opt into `backend.agentTools`.
+Remote resolves the installation from the grant and stamps current caller and
+turn context; the application owns route permissions and interprets its own
+context. Interactive turns can use eligible global/same-project tools;
+application-started turns can use only their own installation's tools. Bodies
+cap at 64 KiB, grants expire after four hours, and the provider run revokes them
+when it ends.
 
-Schedule request bodies cap at 64 KiB and reject unknown fields. Stored prompts
-cap at 32 KiB. The service re-checks the owner, chat, project, registration,
-and access on every fire.
+The other direction uses the application backend SDK, with
+`backend.agentTurns` and `rpc.ServeWithRuntime`:
+
+| SDK control | Purpose |
+| --- | --- |
+| `Runtime.AgentTurns.Start` | Submit a prompt to an existing chat under a captured owner's current authority |
+| `Runtime.AgentTurns.Read` | Read that installation's accepted request status, result, and paginated transcript |
+| `Runtime.AgentTurns.Forget` | Remove an inactive receipt after durable application acknowledgment, retaining chat history |
+
+These controls use the chat's existing provider/model/settings and share normal
+prompt execution. Request IDs are installation-scoped, prompts cap at 32 KiB,
+and optional opaque JSON context caps at 64 KiB. Core rechecks current
+registration and project/chat access. Workflow state stays in the application;
+core persists only generic execution receipts. `backend.background`
+independently opts running backend processes into restart/crash recovery.
+
+Scheduled Tasks is one consumer. It owns its `tasks` resource, clock, claims,
+retries, and completion rules. Agent tools call
+`/agent-api/applications/scheduled-tasks/tasks` and application-defined subpaths;
+browser clients use the normal backend transport. Core does not interpret
+task/run IDs or completion commands. See the
+[application API reference](../dev/installable-applications/12-http-api.md)
+and [agent runtime guide](../dev/installable-applications/25-application-agent-runtime.md).
 
 ## Upload and auxiliary routes
 

@@ -25,6 +25,12 @@ func (a BackendAccess) Valid() bool {
 // directory. Like ApplicationUI, the directory is what opts the application in; this block
 // only overrides the defaults. It is nil when the application ships no backend.
 type ApplicationBackend struct {
+	// Background restores a running installation after host restarts and child crashes.
+	Background bool `json:"background,omitempty"`
+	// AgentTurns permits this backend to request and observe normal agent turns.
+	AgentTurns bool `json:"agentTurns,omitempty"`
+	// AgentTools exposes this backend to scoped project-agent calls.
+	AgentTools bool `json:"agentTools,omitempty"`
 	// Access is who may call the backend. Empty means BackendAccessRegistered.
 	Access BackendAccess `json:"access,omitempty"`
 	// TimeoutMS requests the bound for a single call. Empty means

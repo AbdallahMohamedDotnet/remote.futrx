@@ -36,11 +36,17 @@ Two things follow from "differs" rather than "is newer":
 | Manifest `service` | Materialized on install, upgrade and restoration; normal Start uses its service or socket, and reinstalls if the declared service unit is missing |
 | `backend/container/` programs | On install/restoration when their build marker is absent, or when their source digest/application version differs |
 | `ui/` assets | Every upload — they are served from the catalog, not a container |
-| `backend/` Go source | Every upload — the backend process is stopped and rebuilt on its next call |
+| `backend/` Go source | Every upload — the backend process is stopped and rebuilt on its next call, event, or eligible background recovery |
 | Catalog metadata (name, description, env fields, scopes) | Every upload |
 
 A UI-only or host-backend-only application reaches no container at all, so a
 version bump on one changes the catalog entry and nothing else.
+
+The agent runtime flags are manifest declarations refreshed from the current
+catalog. `background` recovery applies only to running installations, while
+`agentTurns` and `agentTools` independently opt into execution and tools.
+Stop/start and upgrades retain application state and execution receipts;
+uninstall removes both. See [Application agent runtime](25-application-agent-runtime.md).
 
 ## When the upgrade happens
 

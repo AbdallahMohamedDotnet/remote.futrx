@@ -40,7 +40,7 @@ class WorkspaceUiStateTransitions {
       case "show-chat":
         return { ...state, view: "chat" };
       case "show-settings":
-        return { ...state, view: "settings", sidebarOpen: false };
+        return { ...state, view: "settings", settingsTab: action.tab ?? state.settingsTab, sidebarOpen: false };
       case "select-settings-tab":
         return { ...state, settingsTab: action.tab };
       case "restore-route":

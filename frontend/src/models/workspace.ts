@@ -49,7 +49,7 @@ export type WorkspaceUiAction =
   | { type: "open-create-project" }
   | { type: "close-create-project" }
   | { type: "show-chat" }
-  | { type: "show-settings" }
+  | { type: "show-settings"; tab?: SettingsTab }
   | { type: "select-settings-tab"; tab: SettingsTab }
   | { type: "restore-route"; view: "chat" | "settings"; chatId: string | null; tab: SettingsTab }
   | { type: "show-project-containers"; projectId: string | null };

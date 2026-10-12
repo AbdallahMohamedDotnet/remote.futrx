@@ -118,9 +118,9 @@ function Preview() {
   const workspaceActions = {
     cwd: "/opt/remote.futrx/gamerhead",
     onToggleTerminal: noop, onToggleBrowser: noop, onToggleHistory: noop,
-    onToggleFiles: noop, onToggleSchedules: noop,
+    onToggleFiles: noop,
     terminalOpen: false, browserOpen: true, historyOpen: false,
-    filesOpen: false, schedulesOpen: false, showHistory: true, showSchedules: true,
+    filesOpen: false, showHistory: true,
     orientation: "horizontal" as const,
   };
 
@@ -140,6 +140,7 @@ function Preview() {
           onNewProject={noop} onNewChatInProject={noop} onToggleProject={noop}
           onSelectChat={noop} onDeleteChat={noop} onToggleChatUnread={noop} onForkChat={noop} onRenameChat={noop}
           onReorderProjects={noop} onOpenProjectContainers={noop} onOpenSettings={noop} onSignOut={noop}
+          updateTag={null} onOpenUpdates={noop}
         />
       }
     >

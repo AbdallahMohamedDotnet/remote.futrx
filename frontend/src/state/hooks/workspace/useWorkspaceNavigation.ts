@@ -26,9 +26,9 @@ export function useWorkspaceNavigation(chats: ChatMeta[], loaded: boolean, enabl
     navigateWorkspace({ view: "chat", chatId: ui.activeChatId, tab: ui.settingsTab });
     dispatch({ type: "show-chat" });
   }, [ui.activeChatId, ui.settingsTab]);
-  const showSettings = useCallback(() => {
-    navigateWorkspace({ view: "settings", chatId: null, tab: ui.settingsTab });
-    dispatch({ type: "show-settings" });
+  const showSettings = useCallback((tab: SettingsTab = ui.settingsTab) => {
+    navigateWorkspace({ view: "settings", chatId: null, tab });
+    dispatch({ type: "show-settings", tab });
   }, [ui.settingsTab]);
   const selectSettingsTab = useCallback((tab: SettingsTab) => {
     navigateWorkspace({ view: "settings", chatId: null, tab });

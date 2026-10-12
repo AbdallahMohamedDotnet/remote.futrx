@@ -65,7 +65,7 @@ type CapabilityFeatures struct {
 	Sessions              CapabilitySessionSupport `json:"sessions"`
 	Skills                string                   `json:"skills"`
 	BrowserTools          bool                     `json:"browserTools"`
-	ScheduledTools        bool                     `json:"scheduledTools"`
+	ApplicationTools      bool                     `json:"applicationTools"`
 	ExecutionPolicies     bool                     `json:"executionPolicies"`
 	StreamingPresentation string                   `json:"streamingPresentation"`
 }

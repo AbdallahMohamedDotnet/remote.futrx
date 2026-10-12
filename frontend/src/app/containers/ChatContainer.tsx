@@ -8,7 +8,6 @@ import type { ChatComposerProps } from "../../ui/chat/composer/ChatComposer";
 import { WorkspaceActions } from "../../ui/chat/header/WorkspaceActions";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
-import { ScheduleDrawer } from "../../ui/chat/schedules/ScheduleDrawer";
 import { chatAttachmentService } from "../../services/chat/chatAttachmentService.ts";
 import { useChat } from "../../state/hooks/chat/useChat";
 import { useChatBrowserController } from "../../state/hooks/chat/useChatBrowserController";
@@ -108,21 +107,16 @@ export function ChatContainer({
     onToggleBrowser: browser.browserOpen ? browser.closeBrowserDrawer : drawers.openBrowser,
     onToggleHistory: drawers.historyOpen ? drawers.closeHistory : drawers.openHistory,
     onToggleFiles: drawers.filesOpen ? drawers.closeFiles : drawers.openFiles,
-    onToggleSchedules: drawers.schedulesOpen ? drawers.closeSchedules : drawers.openSchedules,
     terminalOpen: drawers.terminalOpen,
     browserOpen: browser.browserOpen,
     historyOpen: drawers.historyOpen,
     filesOpen: drawers.filesOpen,
-    schedulesOpen: drawers.schedulesOpen,
     showHistory: hasRepos,
-    showSchedules: !!displayMeta.projectId,
   };
   const activePane = drawers.historyOpen
     ? "history"
     : drawers.filesOpen
       ? "files"
-      : drawers.schedulesOpen
-        ? "schedules"
         : drawers.terminalOpen
           ? "terminal"
           : browser.browserOpen
@@ -239,11 +233,6 @@ export function ChatContainer({
           cwd={chat.cwd ?? ""}
           open={drawers.filesOpen}
           onClose={drawers.closeFiles}
-        />
-        <ScheduleDrawer
-          chatId={chat.id}
-          open={drawers.schedulesOpen}
-          onClose={drawers.closeSchedules}
         />
         <BrowserDrawer
           open={browser.browserOpen}

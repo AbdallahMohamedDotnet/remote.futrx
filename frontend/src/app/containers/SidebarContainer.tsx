@@ -9,7 +9,7 @@ import { useWorkspaceCommands } from "../../state/hooks/workspace/useWorkspaceCo
 import { workspaceSidebarService } from "../../services/workspace/workspaceSidebarService.ts";
 import { useAccountSignOut } from "../../state/hooks/auth/useAccountSignOut";
 
-export function SidebarContainer() {
+export function SidebarContainer({ updateTag }: { updateTag: string | null }) {
   const { auth } = useAuthContext();
   const workspace = useWorkspaceContext();
   const sidebar = useSidebarState(
@@ -53,7 +53,9 @@ export function SidebarContainer() {
       onRenameChat={commands.renameChat}
       onReorderProjects={commands.reorderProjects}
       onOpenProjectContainers={workspace.showProjectContainers}
-      onOpenSettings={workspace.showSettings}
+      updateTag={updateTag}
+      onOpenUpdates={() => workspace.showSettings("updates")}
+      onOpenSettings={() => workspace.showSettings()}
       onSignOut={signOut}
     />
   );

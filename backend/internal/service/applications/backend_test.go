@@ -492,3 +492,20 @@ func TestInstallingOverAWorkingInstanceIsStillRefused(t *testing.T) {
 		t.Errorf("a running instance was torn down: %v", host.removed)
 	}
 }
+
+func TestRestoreBackendStartsRunningInstanceAndRefusesStoppedInstance(t *testing.T) {
+	host := &recordingHost{}
+	instance := runningInstance()
+	service, _ := withInstance(backendImage(nil), instance, host)
+	if err := service.RestoreBackend(context.Background(), instance.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(host.ensured) != 1 {
+		t.Fatalf("restore ensure calls=%d", len(host.ensured))
+	}
+	instance.Status = StatusStopped
+	stopped, _ := withInstance(backendImage(nil), instance, &recordingHost{})
+	if err := stopped.RestoreBackend(context.Background(), instance.ID); !errors.Is(err, ErrNotRunning) {
+		t.Fatalf("stopped restore=%v", err)
+	}
+}

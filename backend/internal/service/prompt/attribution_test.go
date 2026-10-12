@@ -46,8 +46,8 @@ func TestPromptEventsPersistInitiatingUserForSuccessfulAndFailedRuns(t *testing.
 }
 
 func TestScheduledPromptUsesStoredOwnerAttribution(t *testing.T) {
-	service, store, meta := newUsagePromptService(t, &usageProvider{}, &recordingLedger{}, WithScheduleToolIssuer(stubScheduleTools{}))
-	handle, err := service.Start(StartInput{ChatID: meta.ID, Prompt: "scheduled", Actor: Actor{Email: "owner@example.com"}, ScheduledTaskID: "task"}, nil)
+	service, store, meta := newUsagePromptService(t, &usageProvider{}, &recordingLedger{}, WithApplicationToolIssuer(stubApplicationTools{}))
+	handle, err := service.Start(StartInput{ChatID: meta.ID, Prompt: "scheduled", Actor: Actor{Email: "owner@example.com"}, ApplicationInstanceID: "task", ApplicationID: "example-app"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestScheduledPromptUsesStoredOwnerAttribution(t *testing.T) {
 		t.Fatal("no events")
 	}
 	for _, event := range events {
-		if event.UserEmail != "owner@example.com" || event.ScheduledTaskID != "task" {
+		if event.UserEmail != "owner@example.com" || event.ApplicationID != "example-app" {
 			t.Fatalf("lost scheduled attribution: %#v", event)
 		}
 	}
