@@ -363,3 +363,22 @@ func TestCorruptOrInvalidFilesFailStartup(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminRoleSeededMarkerSurvivesRestart(t *testing.T) {
+	store, dir := newStore(t)
+	err := store.Mutate(context.Background(), func(state permission.State) (permission.State, []permission.AuditEvent, error) {
+		state.AdminRoleSeeded = true
+		return state, []permission.AuditEvent{{At: 1, Actor: "system", Operation: permission.AuditRoleCreated, RoleID: "admin"}}, nil
+	})
+	if err != nil {
+		t.Fatalf("Mutate() error = %v", err)
+	}
+	reopened, err := New(dir)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	state, _ := reopened.Load(context.Background())
+	if !state.AdminRoleSeeded {
+		t.Fatal("AdminRoleSeeded was not persisted")
+	}
+}

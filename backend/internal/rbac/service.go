@@ -19,6 +19,7 @@ type Service struct {
 	evaluator *Evaluator
 	now       func() time.Time
 	newID     func() (string, error)
+	seedAdmin bool
 }
 
 // Option customizes a Service, chiefly for deterministic tests.
@@ -27,6 +28,11 @@ type Option func(*Service)
 // WithClock replaces the time source recorded in policy and audit records.
 func WithClock(now func() time.Time) Option {
 	return func(service *Service) { service.now = now }
+}
+
+// WithBuiltinAdminRole offers the built-in admin role once at startup.
+func WithBuiltinAdminRole() Option {
+	return func(service *Service) { service.seedAdmin = true }
 }
 
 // WithIDGenerator replaces the record ID source.
@@ -71,6 +77,11 @@ func NewService(
 	}
 	for _, option := range options {
 		option(service)
+	}
+	if service.seedAdmin {
+		if err := seedAdminRole(ctx, registry, repo, state, service.now); err != nil {
+			return nil, err
+		}
 	}
 	return service, nil
 }

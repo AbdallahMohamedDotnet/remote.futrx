@@ -53,6 +53,9 @@ type State struct {
 	Assignments []Assignment
 	Roles       []Role
 	Bindings    []RoleBinding
+	// AdminRoleSeeded records that the built-in admin role was offered once, so
+	// deleting it is permanent and a restart does not recreate it.
+	AdminRoleSeeded bool
 }
 
 // NormalizeEmail is the one canonical form of a user reference.
@@ -66,6 +69,8 @@ func (s State) Clone() State {
 		Assignments: slices.Clone(s.Assignments),
 		Roles:       make([]Role, len(s.Roles)),
 		Bindings:    slices.Clone(s.Bindings),
+
+		AdminRoleSeeded: s.AdminRoleSeeded,
 	}
 	for i, role := range s.Roles {
 		role.Rules = slices.Clone(role.Rules)

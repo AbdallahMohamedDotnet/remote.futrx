@@ -350,7 +350,7 @@ func newPermissionService(
 	if err != nil {
 		return nil, err
 	}
-	return rbac.NewService(ctx, registry, policy, identity, members)
+	return rbac.NewService(ctx, registry, policy, identity, members, rbac.WithBuiltinAdminRole())
 }
 
 // projectMembership adapts the project access repository to the permission
