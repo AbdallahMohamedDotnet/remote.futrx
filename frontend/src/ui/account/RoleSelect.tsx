@@ -1,5 +1,5 @@
 import type { RbacRole } from "../../models/rbac";
-import { USER_ROLES } from "../../config/constants/user-roles";
+import { ADMIN_ROLE_ID, USER_ROLES } from "../../config/constants/user-roles";
 import {
   decodeRoleChoice,
   encodeRoleChoice,
@@ -26,6 +26,7 @@ export function RoleSelect({
   class: string;
   onSelect: (choice: RoleChoice) => void;
 }) {
+  const selectableRoles = customRoles.filter((role) => role.id !== ADMIN_ROLE_ID);
   return (
     <select
       value={encodeRoleChoice(value)}
@@ -49,9 +50,9 @@ export function RoleSelect({
           </option>
         ))}
       </optgroup>
-      {customRoles.length > 0 && (
+      {selectableRoles.length > 0 && (
         <optgroup label="Custom roles">
-          {customRoles.map((role) => (
+          {selectableRoles.map((role) => (
             <option
               key={role.id}
               value={encodeRoleChoice({ kind: "custom", roleId: role.id })}
