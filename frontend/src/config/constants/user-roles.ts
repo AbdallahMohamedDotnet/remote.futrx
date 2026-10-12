@@ -2,7 +2,7 @@ import type { UserRole } from "../../models/user";
 import type { RbacScope } from "../../models/rbac";
 
 // Every base role the application supports (mirrors the UserRole type).
-export const USER_ROLES: UserRole[] = ["", "admin"];
+export const USER_ROLES: UserRole[] = ["admin"];
 
 export const DEFAULT_USER_ROLE: UserRole = "";
 

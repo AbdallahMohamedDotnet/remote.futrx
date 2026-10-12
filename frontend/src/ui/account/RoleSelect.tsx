@@ -37,10 +37,15 @@ export function RoleSelect({
       title={title}
       class={className}
     >
+      {value.kind === "base" && value.role === "" && (
+        <option value={encodeRoleChoice(value)} disabled hidden>
+          Select role
+        </option>
+      )}
       <optgroup label="Base roles">
         {USER_ROLES.map((role) => (
           <option key={role} value={encodeRoleChoice({ kind: "base", role })}>
-            {role || "user"}
+            {role}
           </option>
         ))}
       </optgroup>

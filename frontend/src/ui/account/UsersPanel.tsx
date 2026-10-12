@@ -277,7 +277,12 @@ function UserRow({
   };
 
   const changeRole = (next: RoleChoice) => {
-    if (next.kind === "custom") return run(() => onBindRole(next.roleId));
+    if (next.kind === "custom") {
+      return run(async () => {
+        if (user.role === "admin") await onSetRole("");
+        await onBindRole(next.roleId);
+      });
+    }
     if (next.role === user.role) return;
     return run(() => onSetRole(next.role));
   };
@@ -288,15 +293,11 @@ function UserRow({
         <span class="text-[12.5px] text-ink-50 truncate" title={user.email}>
           {user.email}
         </span>
-        <span
-          class={`inline-flex items-center h-5 px-1.5 rounded text-[11px] font-medium ${
-            user.role === "admin"
-              ? "text-accent-blue bg-accent-blue/[0.14]"
-              : "text-ink-300 bg-tint"
-          }`}
-        >
-          {user.role || "user"}
-        </span>
+        {user.role === "admin" && (
+          <span class="inline-flex items-center h-5 px-1.5 rounded text-[11px] font-medium text-accent-blue bg-accent-blue/[0.14]">
+            admin
+          </span>
+        )}
         {boundRoles.map((role) => (
           <span
             key={role.id}
