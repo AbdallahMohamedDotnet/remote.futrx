@@ -34,6 +34,10 @@ func (l *installLog) protect(application Application, env map[string]string) {
 }
 
 func (l *installLog) write(text string) {
+	l.append(l.redactChunk(text))
+}
+
+func (l *installLog) redactChunk(text string) string {
 	l.pending += text
 	var clean strings.Builder
 	i := 0
@@ -47,9 +51,8 @@ func (l *installLog) write(text string) {
 				break
 			}
 			if strings.HasPrefix(secret, l.pending[i:]) {
-				l.append(clean.String())
 				l.pending = l.pending[i:]
-				return
+				return clean.String()
 			}
 		}
 		if !matched {
@@ -57,8 +60,8 @@ func (l *installLog) write(text string) {
 			i++
 		}
 	}
-	l.append(clean.String())
 	l.pending = ""
+	return clean.String()
 }
 
 func (l *installLog) finish() {
@@ -84,4 +87,15 @@ func (l *installLog) redact(text string) string {
 	copy.write(text)
 	copy.finish()
 	return copy.snapshot()
+}
+
+// Instance errors retain a prefix and tail, unlike the rolling live log.
+// Mask the full message before either bound can split a secret.
+func (l *installLog) redactInstanceError(text string) string {
+	copy := installLog{secrets: l.secrets}
+	copy.text = copy.redactChunk(text)
+	if copy.pending != "" {
+		copy.text += "[redacted]"
+	}
+	return boundedInstanceError(copy.snapshot())
 }

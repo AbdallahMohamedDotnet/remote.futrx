@@ -3,6 +3,7 @@ package applications
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -242,6 +243,74 @@ func TestInstallLogRedactsSecretsSplitAcrossEveryByteBoundary(t *testing.T) {
 	log.write(strings.Repeat("x", installLogLimit*2) + "\nlast line")
 	if len(log.snapshot()) > installLogLimit || !strings.HasSuffix(log.snapshot(), "last line") {
 		t.Fatal("log tail is not bounded")
+	}
+}
+
+func TestLegacyInstanceErrorRedactsSecretsBeforeTruncation(t *testing.T) {
+	secret := "fixture-\"private\"\nsecret-value"
+	encodedJSON, _ := json.Marshal(secret)
+	for name, value := range map[string]string{
+		"plain":  secret,
+		"base64": base64.StdEncoding.EncodeToString([]byte(secret)),
+		"json":   string(encodedJSON[1 : len(encodedJSON)-1]),
+	} {
+		for _, boundary := range []struct {
+			name     string
+			before   string
+			after    string
+			fragment string
+		}{
+			// Put ten characters of the secret on the retained side of each
+			// cut. Multibyte padding also exercises the rune-based limit.
+			{"prefix", strings.Repeat("界", 1190), strings.Repeat("x", 5000), value[:10]},
+			{"tail", strings.Repeat("x", 5000), strings.Repeat("界", 2726), value[len(value)-10:]},
+		} {
+			t.Run(name+"/"+boundary.name, func(t *testing.T) {
+				application := backendImage(func(app *Application) {
+					app.Env = []EnvVar{{Key: "PASSWORD", Secret: true}}
+				})
+				legacy := failedInstanceWithError(boundary.before + value + boundary.after)
+				legacy.Env = map[string]string{"PASSWORD": secret}
+				service, _ := withInstance(application, legacy, &recordingHost{})
+
+				view, ok, err := service.Get(context.Background(), legacy.ID)
+				if err != nil || !ok {
+					t.Fatalf("get legacy instance: found=%v err=%v", ok, err)
+				}
+				if strings.Contains(view.Error, boundary.fragment) {
+					t.Fatal("legacy error exposed a secret fragment at the truncation boundary")
+				}
+				if !strings.Contains(view.Error, "[redacted]") {
+					t.Fatal("legacy error did not mask the secret before truncation")
+				}
+				if len([]rune(view.Error)) > maxInstanceErrorRunes {
+					t.Fatal("legacy error exceeded the response limit")
+				}
+			})
+		}
+	}
+}
+
+func TestInstanceErrorRetainsContextBeyondLiveLogLimit(t *testing.T) {
+	const secret = "fixture-private-value"
+	application := backendImage(func(app *Application) {
+		app.Env = []EnvVar{{Key: "PASSWORD", Secret: true}}
+	})
+	message := "install failed: " + secret + strings.Repeat("x", installLogLimit*2) + " connection reset"
+	legacy := failedInstanceWithError(message)
+	legacy.Env = map[string]string{"PASSWORD": secret}
+	service, store := withInstance(application, legacy, &recordingHost{})
+	view := service.view(legacy)
+	if err := service.saveStatus(context.Background(), &legacy, StatusError, message); err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{view.Error, store.puts[0].Error} {
+		if !strings.HasPrefix(text, "install failed: [redacted]") || !strings.HasSuffix(text, " connection reset") {
+			t.Fatal("error lost its masked diagnostic prefix or tail")
+		}
+		if len([]rune(text)) > maxInstanceErrorRunes || strings.Contains(text, secret) {
+			t.Fatal("error exceeded its bound or exposed a secret")
+		}
 	}
 }
 

@@ -223,7 +223,7 @@ func (s *Service) saveStatus(ctx context.Context, inst *Instance, status Instanc
 	application, _ := s.registry.Get(inst.ApplicationID)
 	protected := installLog{}
 	protected.protect(application, inst.Env)
-	inst.Error = boundedInstanceError(protected.redact(errMsg))
+	inst.Error = protected.redactInstanceError(errMsg)
 	inst.UpdatedAt = s.now()
 	return s.store.Put(ctx, *inst)
 }
@@ -248,11 +248,10 @@ func (s *Service) view(inst Instance) View {
 	application, _ := s.registry.Get(inst.ApplicationID)
 	// Old records may predate the write-side bound. Never make an applications
 	// page carry an arbitrarily large command dump just because one is still on
-	// disk; the retained prefix and tail preserve the useful failure context.
-	inst.Error = boundedInstanceError(inst.Error)
+	// disk. Redact before bounding so a cut cannot expose part of a secret.
 	protected := installLog{}
 	protected.protect(application, inst.Env)
-	inst.Error = protected.redact(inst.Error)
+	inst.Error = protected.redactInstanceError(inst.Error)
 	pub := map[string]string{}
 	for _, variable := range application.Env {
 		if !variable.Secret {
