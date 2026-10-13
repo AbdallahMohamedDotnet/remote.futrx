@@ -351,7 +351,7 @@ export function useGlobalApplications({
   const bindings = useMemo<Bindings>(
     () => ({
       list: applicationsApi.listGlobal,
-      install: applicationsApi.startInstall,
+      install: applicationsApi.install,
       installations: applicationsApi.installations,
       start: applicationsApi.start,
       stop: applicationsApi.stop,
@@ -388,7 +388,7 @@ export function useProjectApplications({
       id
         ? {
             list: () => projectApi.listApplications(id),
-            install: (req) => projectApi.startApplicationInstall(id, req),
+            install: (req) => projectApi.installApplication(id, req),
             installations: () => projectApi.applicationInstallations(id),
             start: (appId) => projectApi.startApplication(id, appId),
             stop: (appId) => projectApi.stopApplication(id, appId),

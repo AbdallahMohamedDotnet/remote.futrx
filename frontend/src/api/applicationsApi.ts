@@ -50,9 +50,6 @@ export const applicationsApi = {
     requestJson<AppInstance[]>("GET", API_ROUTES.applications.collection),
 
   install: (req: AppInstallRequest) =>
-    requestJson<AppInstance>("POST", API_ROUTES.applications.collection, req),
-
-  startInstall: (req: AppInstallRequest) =>
     requestJson<AppInstallRun>("POST", API_ROUTES.applications.installations, req),
 
   installations: () =>
