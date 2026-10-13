@@ -5,7 +5,7 @@
   "category": "development",
   "version": "3",
   "icon": "terminal",
-  "scopes": ["project"],
+  "scopes": ["project", "global"],
   "globallyInstalledInsideContainers": true,
   "service": {
     "name": "remote-terminal",
