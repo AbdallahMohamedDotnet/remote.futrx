@@ -1,9 +1,11 @@
 package applications
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -13,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 	"github.com/futrx-com/remote.futrx.com/pkg/applications"
 )
 
@@ -169,6 +172,7 @@ type buildPlan struct {
 // it. The build directory survives a failure so the generated source can be
 // inspected, and is removed once it has produced a binary.
 func (b *Builder) compile(ctx context.Context, plan buildPlan) error {
+	svc.ReportInstallProgress(ctx, "compiling", "Compiling the application backend")
 	goTool, err := findGoTool(b.goTool)
 	if err != nil {
 		return err
@@ -211,12 +215,19 @@ func (b *Builder) compile(ctx context.Context, plan buildPlan) error {
 	// anyway and fails the whole build on a host where that probe errors
 	// instead of reporting "no repository" — which would make every backend
 	// uninstallable for a reason that has nothing to do with the backend.
-	arguments := []string{"build", "-trimpath", "-buildvcs=false", "-o", plan.binary + ".tmp", plan.entry}
+	arguments := []string{"build", "-v", "-trimpath", "-buildvcs=false", "-o", plan.binary + ".tmp", plan.entry}
 	offlineOutput, offlineErr := runGo(ctx, goTool, source, goEnv(b.root, true), arguments)
 	if offlineErr != nil {
+		if ctx.Err() != nil {
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return fmt.Errorf("compile backend %q: gave up after %s\n%s", plan.applicationID, buildTimeout, strings.TrimSpace(offlineOutput))
+			}
+			return fmt.Errorf("compile backend %q: %w\n%s", plan.applicationID, ctx.Err(), strings.TrimSpace(offlineOutput))
+		}
 		// Falling back to the network covers the case the offline path cannot:
 		// a backend that needs a module the server itself does not link, and a
 		// module cache that has been pruned.
+		svc.ReportInstallProgress(ctx, "dependencies", "Downloading backend dependencies and compiling")
 		output, err := runGo(ctx, goTool, source, goEnv(b.root, false), arguments)
 		if err != nil {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -243,8 +254,11 @@ func runGo(ctx context.Context, goTool, dir string, env, arguments []string) (st
 	command := exec.CommandContext(ctx, goTool, arguments...)
 	command.Dir = dir
 	command.Env = env
-	output, err := command.CombinedOutput()
-	return string(output), err
+	var output bytes.Buffer
+	writer := io.MultiWriter(&output, svc.InstallOutput(ctx))
+	command.Stdout, command.Stderr = writer, writer
+	err := command.Run()
+	return output.String(), err
 }
 
 // pruneStale removes binaries this application left behind under other

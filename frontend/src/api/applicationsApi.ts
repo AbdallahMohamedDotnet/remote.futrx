@@ -5,6 +5,7 @@ import type {
   AppApplication,
   AppInstance,
   AppInstallRequest,
+  AppInstallRun,
   AppPackage,
   AppPackageInstall,
   AppUIExtension,
@@ -49,7 +50,10 @@ export const applicationsApi = {
     requestJson<AppInstance[]>("GET", API_ROUTES.applications.collection),
 
   install: (req: AppInstallRequest) =>
-    requestJson<AppInstance>("POST", API_ROUTES.applications.collection, req),
+    requestJson<AppInstallRun>("POST", API_ROUTES.applications.installations, req),
+
+  installations: () =>
+    requestJson<AppInstallRun[]>("GET", API_ROUTES.applications.installations),
 
   start: (appId: string) =>
     requestJson<AppInstance>("POST", API_ROUTES.applications.action(appId, "start")),

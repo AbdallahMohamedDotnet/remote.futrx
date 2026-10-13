@@ -333,6 +333,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			projectContainersAdapter{projects: projectService},
 			deps.AppPorts,
 			serviceapplications.WithBackendHost(deps.AppBackends),
+			serviceapplications.WithInstallRuns(ctx),
 			serviceapplications.WithPackageCatalog(deps.AppPackages),
 			serviceapplications.WithLifecyclePublisher(deps.ApplicationLifecycle),
 			serviceapplications.WithEventSource(ctx, deps.ApplicationEvents),

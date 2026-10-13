@@ -66,24 +66,31 @@ var _ svc.Installer = (*Installer)(nil)
 // Install converges the application's container programs, optional custom
 // installer, manifest service, health check, and host proxy in that order.
 func (in *Installer) Install(ctx context.Context, spec svc.InstallSpec) error {
+	svc.ReportInstallProgress(ctx, "host-tools", "Preparing host dependencies")
 	if err := in.ensureHostTools(ctx, spec); err != nil {
 		return err
 	}
+	svc.ReportInstallProgress(ctx, "container", "Preparing the application container")
 	if err := in.ensureContainer(ctx, spec); err != nil {
 		return err
 	}
+	svc.ReportInstallProgress(ctx, "installing", "Downloading dependencies and building application programs")
 	if err := in.runInstallScript(ctx, spec); err != nil {
 		return err
 	}
+	svc.ReportInstallProgress(ctx, "service", "Configuring and starting the application service")
 	if err := in.installService(ctx, spec); err != nil {
 		return err
 	}
+	svc.ReportInstallProgress(ctx, "health", "Checking that the application is ready")
 	if err := in.awaitHealthy(ctx, spec); err != nil {
 		return err
 	}
+	svc.ReportInstallProgress(ctx, "skills", "Publishing application skills")
 	if err := in.publishSkills(ctx, spec); err != nil {
 		return err
 	}
+	svc.ReportInstallProgress(ctx, "connection", "Configuring the application connection")
 	return in.ensureProxy(ctx, spec.Instance)
 }
 
@@ -286,10 +293,10 @@ func (in *Installer) runInstallScript(ctx context.Context, spec svc.InstallSpec)
 	if !ok {
 		return fmt.Errorf("no install script for application %q", spec.Application.ID)
 	}
-	out, err := in.execStdin(ctx, spec.Instance.ContainerName, in.scriptEnv(spec), execTimeout,
+	out, err := in.execStdin(command.WithOutput(ctx, svc.InstallOutput(ctx)), spec.Instance.ContainerName, in.scriptEnv(spec), execTimeout,
 		strings.NewReader(string(script)), "bash", "-s")
 	if err != nil {
-		return fmt.Errorf("install %s: %w; output: %s", spec.Application.ID, err, tail(out))
+		return fmt.Errorf("install %s: %w; output: %s", spec.Application.ID, err, tail(svc.RedactInstallText(ctx, out)))
 	}
 	return nil
 }
@@ -545,10 +552,17 @@ func (in *Installer) execStdin(ctx context.Context, container string, env map[st
 	args = append(args, cmd...)
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	var out string
+	var err error
 	if stdin != nil {
-		return in.runner.RunStdin(tctx, stdin, args...)
+		out, err = in.runner.RunStdin(tctx, stdin, args...)
+	} else {
+		out, err = in.runner.Run(tctx, args...)
 	}
-	return in.runner.Run(tctx, args...)
+	if err != nil && tctx.Err() != nil {
+		return out, fmt.Errorf("application command (limit %s): %w", timeout, tctx.Err())
+	}
+	return out, err
 }
 
 func sortedKeys(m map[string]string) []string {
