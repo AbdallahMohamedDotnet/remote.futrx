@@ -7,22 +7,17 @@ import (
 	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
-type goToolchainPin struct {
-	moduleSHA256 string
-}
-
 // Update these with ApplicationContainerGoVersion. Module ZIP hashes were calculated after
 // go mod download verified the toolchain modules against sum.golang.org.
-var containerGoPins = map[string]goToolchainPin{
-	"amd64": {"4c2a63c008dbb90112f22ff9e47eb6fb487b17da1c70ecc7b9fad77577b8031e"},
-	"arm64": {"67d836d2f0e17ce538757ba43439fa8f77eb00fe9798e0b0920d94925184e7a6"},
+var containerGoPins = map[string]string{
+	"amd64": "4c2a63c008dbb90112f22ff9e47eb6fb487b17da1c70ecc7b9fad77577b8031e",
+	"arm64": "67d836d2f0e17ce538757ba43439fa8f77eb00fe9798e0b0920d94925184e7a6",
 }
 
-func containerGoBootstrap(goRoot string, pins map[string]goToolchainPin) string {
+func containerGoBootstrap(goRoot string, pins map[string]string) string {
 	var cases strings.Builder
 	for _, arch := range []string{"amd64", "arm64"} {
-		pin := pins[arch]
-		fmt.Fprintf(&cases, "      %s) MODULE_SHA=%s ;;\n", arch, shellQuote(pin.moduleSHA256))
+		fmt.Fprintf(&cases, "      %s) MODULE_SHA=%s ;;\n", arch, shellQuote(pins[arch]))
 	}
 	return strings.NewReplacer(
 		"__GO_ROOT__", shellQuote(goRoot),

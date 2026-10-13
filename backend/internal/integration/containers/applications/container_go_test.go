@@ -62,7 +62,7 @@ func TestContainerGoBootstrap(t *testing.T) {
 	}
 }
 
-func goBootstrapFixture(t *testing.T, mode string) (string, map[string]goToolchainPin, []string, string) {
+func goBootstrapFixture(t *testing.T, mode string) (string, map[string]string, []string, string) {
 	t.Helper()
 	for _, tool := range []string{"bash", "flock", "unzip", "sha256sum"} {
 		if _, err := exec.LookPath(tool); err != nil {
@@ -94,7 +94,7 @@ func goBootstrapFixture(t *testing.T, mode string) (string, map[string]goToolcha
 	if err := os.WriteFile(modulePath, module.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	pin := goToolchainPin{fmt.Sprintf("%x", sha256.Sum256(module.Bytes()))}
+	pin := fmt.Sprintf("%x", sha256.Sum256(module.Bytes()))
 	writeBootstrapExecutable(t, filepath.Join(bin, "dpkg"), "#!/bin/sh\necho amd64\n")
 	if mode == "interrupt" {
 		mv, err := exec.LookPath("mv")
@@ -126,7 +126,7 @@ esac
 `)
 	environment := append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "CURL_LOG="+log,
 		"FIXTURE_MODE="+mode, "FIXTURE_ZIP="+modulePath)
-	return filepath.Join(dir, "Go root's directory"), map[string]goToolchainPin{"amd64": pin, "arm64": pin}, environment, log
+	return filepath.Join(dir, "Go root's directory"), map[string]string{"amd64": pin, "arm64": pin}, environment, log
 }
 
 func writeBootstrapExecutable(t *testing.T, path, source string) {
