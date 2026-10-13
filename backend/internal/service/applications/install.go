@@ -50,8 +50,11 @@ func (s *Service) installIntoEveryProject(ctx context.Context, req InstallReques
 		return View{}, err
 	}
 	var installed View
-	var failures []error
-	for _, projectID := range projectIDs {
+	for index, projectID := range projectIDs {
+		if err := ctx.Err(); err != nil {
+			return installed, err
+		}
+		reportInstallProject(ctx, projectID, index, len(projectIDs))
 		projectReq := req
 		projectReq.Scope, projectReq.ProjectID = ScopeProject, projectID
 		view, err := s.installInstance(ctx, projectReq, application)
@@ -59,16 +62,23 @@ func (s *Service) installIntoEveryProject(ctx context.Context, req InstallReques
 		case err == nil:
 			installed = view
 		case !errors.Is(err, ErrAlreadyInstalled):
-			failures = append(failures, fmt.Errorf("project %s: %w", projectID, err))
+			return installed, fmt.Errorf("project %s: %w", projectID, err)
 		}
+		reportInstallProject(ctx, projectID, index+1, len(projectIDs))
 	}
-	return installed, errors.Join(failures...)
+	return installed, nil
 }
 
 // installInstance provisions and persists one instance at the request's
 // scope. It does not check that scope against the application, which is what
 // lets a global install place project instances of a global-only application.
 func (s *Service) installInstance(ctx context.Context, req InstallRequest, application Application) (View, error) {
+	unlockSlot := s.installSlots.lock(string(req.Scope) + "\x00" + req.ProjectID + "\x00" + application.ID)
+	defer unlockSlot()
+	if err := ctx.Err(); err != nil {
+		return View{}, err
+	}
+	ReportInstallProgress(ctx, "preparing", "Checking settings and cleaning up a previous failed attempt")
 	if err := s.claimInstallSlot(ctx, req.Scope, req.ProjectID, application.ID); err != nil {
 		return View{}, err
 	}
@@ -96,17 +106,20 @@ func (s *Service) installInstance(ctx context.Context, req InstallRequest, appli
 		return View{}, err
 	}
 	inst.Env = env
+	protectInstallInputs(ctx, application, env)
 	// An application with no infrastructure has no container side: installing it only
 	// records that the user turned it on, which is what makes its ui/ load and
 	// its backend run. Everything below this branch — container, port, proxy
 	// device, install script — exists only for applications that provision software.
 	if !application.NeedsContainer() {
-		inst.Status = StatusRunning
 		if err := s.store.Put(ctx, inst); err != nil {
 			return View{}, err
 		}
 		if err := s.startBackend(ctx, application, inst); err != nil {
-			_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
+			_ = s.saveStatus(context.WithoutCancel(ctx), &inst, StatusError, err.Error())
+			return View{}, err
+		}
+		if err := s.saveStatus(ctx, &inst, StatusRunning, ""); err != nil {
 			return View{}, err
 		}
 		s.publishApplicationInstalled(ctx, inst)
@@ -129,6 +142,7 @@ func (s *Service) installInstance(ctx context.Context, req InstallRequest, appli
 		inst.BindAddress = bindOr(req.BindAddress, application.Port.BindAddress)
 	}
 
+	ReportInstallProgress(ctx, "workspace", "Preparing the application workspace")
 	if err := s.resolveContainerTarget(ctx, req, &inst); err != nil {
 		return View{}, err
 	}
@@ -144,13 +158,13 @@ func (s *Service) installInstance(ctx context.Context, req InstallRequest, appli
 	}
 
 	if err := s.installer.Install(ctx, InstallSpec{Application: application, Instance: inst}); err != nil {
-		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
+		_ = s.saveStatus(context.WithoutCancel(ctx), &inst, StatusError, err.Error())
 		return View{}, err
 	}
 	// An application may ship a backend too — the container half provisions
 	// the software, and the UI talks to the backend half.
 	if err := s.startBackend(ctx, application, inst); err != nil {
-		_ = s.saveStatus(ctx, &inst, StatusError, err.Error())
+		_ = s.saveStatus(context.WithoutCancel(ctx), &inst, StatusError, err.Error())
 		return View{}, err
 	}
 	if err := s.saveStatus(ctx, &inst, StatusRunning, ""); err != nil {
@@ -235,6 +249,7 @@ func (s *Service) claimInstallSlot(ctx context.Context, scope Scope, projectID, 
 	if !ok {
 		return ErrUnknownApplication
 	}
+	protectInstallInputs(ctx, application, existing.Env)
 	if err := s.teardown(ctx, application, existing); err != nil {
 		return err
 	}

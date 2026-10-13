@@ -62,6 +62,8 @@ type Service struct {
 	backgroundOnce      sync.Once
 	background          *backgroundBackends
 	instanceLocks       instanceLockSet
+	installSlots        instanceLockSet
+	installRuns         installRuns
 	now                 Clock
 }
 
@@ -218,7 +220,10 @@ func (s *Service) Credentials(ctx context.Context, id string) (Credentials, erro
 // saveStatus stamps status/error/updatedAt on an instance and persists it.
 func (s *Service) saveStatus(ctx context.Context, inst *Instance, status InstanceStatus, errMsg string) error {
 	inst.Status = status
-	inst.Error = boundedInstanceError(errMsg)
+	application, _ := s.registry.Get(inst.ApplicationID)
+	protected := installLog{}
+	protected.protect(application, inst.Env)
+	inst.Error = boundedInstanceError(protected.redact(errMsg))
 	inst.UpdatedAt = s.now()
 	return s.store.Put(ctx, *inst)
 }
@@ -245,6 +250,9 @@ func (s *Service) view(inst Instance) View {
 	// page carry an arbitrarily large command dump just because one is still on
 	// disk; the retained prefix and tail preserve the useful failure context.
 	inst.Error = boundedInstanceError(inst.Error)
+	protected := installLog{}
+	protected.protect(application, inst.Env)
+	inst.Error = protected.redact(inst.Error)
 	pub := map[string]string{}
 	for _, variable := range application.Env {
 		if !variable.Secret {

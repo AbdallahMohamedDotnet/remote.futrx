@@ -176,6 +176,30 @@ Membership is checked by `project_handler.go` before delegating. The handler
 then verifies the instance actually belongs to *this* project, so a member of
 one project cannot control another's app by guessing its id.
 
+## Observed installations
+
+The browser uses an asynchronous install run, with the same request body as the
+synchronous install endpoints above. Global routes are admin-only; project
+routes require membership in that project.
+
+| Method | Global path | Project path | Does |
+|---|---|---|---|
+| `POST` | `/api/applications/installations` | `/api/projects/{projectID}/applications/installations` | Start an attempt; return `202` with its run |
+| `GET` | `/api/applications/installations` | `/api/projects/{projectID}/applications/installations` | List the latest runs in this scope |
+| `GET` | `/api/applications/installations/{applicationID}` | `/api/projects/{projectID}/applications/installations/{applicationID}` | Read the latest attempt, or `null` when none exists |
+
+A run has `id`, `applicationId`, `scope`, optional `projectId`, `state`
+(`running`, `succeeded`, `failed`), timestamps, an optional error, a bounded
+installer log, and `progress` containing the actual phase/message. Project counts
+and the current project are included for global placement inside project containers.
+The UI polls while running, keeps the terminal result, and issues another `POST`
+only when the user requests retry. A concurrent attempt returns `409`.
+
+Runs continue after the starting HTTP request closes. They are cancelled during
+server shutdown; persisted running records without a worker after restart become
+failed and retryable. The original synchronous `POST …/applications` routes stay
+available to tools and existing clients.
+
 ## Backend backend routes
 
 An instance whose application ships a `backend/` directory is reachable at a `backend`

@@ -197,6 +197,7 @@ func main() {
 		AppPorts:             containerStack.AppPorts,
 		AppBackends:          appBackends,
 		AppInstallTimeout:    cfg.Applications.InstallTimeout,
+		AppInstalls:          storeSet.ApplicationInstalls,
 		AppPackages:          appRegistry,
 		ApplicationLifecycle: applicationLifecycle,
 		ApplicationEvents:    applicationEvents,

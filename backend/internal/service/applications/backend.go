@@ -126,6 +126,7 @@ func (s *Service) startBackend(ctx context.Context, application Application, ins
 	if application.Backend == nil || s.backends == nil {
 		return nil
 	}
+	ReportInstallProgress(ctx, "backend", "Preparing the application backend")
 	ctx, cancel := context.WithTimeout(ctx, s.backendStartTimeout)
 	defer cancel()
 	if _, err := s.backends.Ensure(ctx, backendInstanceDetails(application, instance)); err != nil {

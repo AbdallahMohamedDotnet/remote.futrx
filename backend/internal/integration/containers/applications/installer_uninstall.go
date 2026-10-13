@@ -3,9 +3,10 @@ package applications
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
-	"strings"
 )
 
 // Uninstall removes the proxy device and, for global scope, deletes the
@@ -59,10 +60,11 @@ func (in *Installer) runProjectUninstallScript(ctx context.Context, spec svc.Ins
 	}
 	switch state {
 	case "running":
-		out, err := in.execStdin(ctx, container, in.scriptEnv(spec), in.installTimeout,
+		svc.ReportInstallProgress(ctx, "cleanup", "Cleaning up the previous application attempt")
+		out, err := in.execStdin(command.WithOutput(ctx, svc.InstallOutput(ctx)), container, in.scriptEnv(spec), in.installTimeout,
 			strings.NewReader(string(script)), "bash", "-s")
 		if err != nil {
-			return fmt.Errorf("uninstall %s: %w; output: %s", spec.Application.ID, err, tail(out))
+			return fmt.Errorf("uninstall %s: %w; output: %s", spec.Application.ID, err, tail(svc.RedactInstallText(ctx, out)))
 		}
 	case "missing":
 		// A replaced project container has no package or settings to remove.

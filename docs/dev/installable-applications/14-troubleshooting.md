@@ -3,8 +3,20 @@
 ## Installation takes a long time or times out
 
 Cold installations download dependencies and compile application programs. A
-slow machine can legitimately take several minutes. The install dialog stays
-open until the server finishes and reports the saved failure if it cannot.
+slow machine can legitimately take several minutes. The install dialog shows
+the actual provisioning phase and a live, bounded installer log, like the Remote
+update view. Closing it leaves the server-owned attempt running; **View progress**
+reopens it. A failed attempt retains its output and offers **Retry install**.
+Retry is explicit: connection failures never start a second attempt automatically.
+For global installs into project containers, the run also shows project counts;
+the first failure stops the run and retry skips copies already installed.
+
+The latest run per application/scope is stored under `DATA_DIR/application-installs/`.
+Logs redact declared secret inputs, including generated passwords, before saving
+or exposing output. A server restart interrupts an active attempt: the next status
+read records a failed run and allows retry instead of leaving it spinning forever.
+If the browser cannot refresh progress, it shows a connection message: the server
+may still be installing, so reconnect to check its state before trying again.
 
 The server supports these positive Go-duration settings (for example `45m`):
 
@@ -18,17 +30,18 @@ Unset, invalid, negative, and zero values retain the defaults; these operations
 always have a deadline. Caller cancellation still takes precedence. The
 application's `backend.timeoutMs` governs individual RPC calls, not compilation.
 
-Container Go bootstrap first tries the release archive at `go.dev`, then the
-same pinned toolchain's ZIP at the official `proxy.golang.org`. Both are checked
-against pinned SHA-256 hashes before extraction. It detects a stalled transfer
-after 30 seconds below 1 KiB/s, retries once, and changes source; a slow transfer
-that continues making progress can use the outer installation budget. An
+Container Go bootstrap downloads the pinned toolchain ZIP directly from the
+official `proxy.golang.org`, verifies its pinned SHA-256, then restores executable
+permissions before installing it. Go and Code Server downloads have a 20-second
+connection timeout and stop after 30 seconds below 1 KiB/s; a failed transfer
+stops immediately and asks the user to retry. Application-declared host tool
+downloads stop after 30 seconds without headers or body data. A slow transfer
+that continues making progress can use its outer provisioning budget. An
 existing compiler is kept until its replacement is verified. Concurrent
 application installs in one container serialize compiler provisioning.
 
 When updating `ApplicationContainerGoVersion`, update `containerGoPins` for
-amd64 and arm64 too. Release archive hashes are published in
-`https://go.dev/dl/?mode=json&include=all`. Obtain module ZIPs with
+amd64 and arm64 too. Obtain module ZIPs with
 `GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org go mod download`
 for `golang.org/toolchain@v0.0.1-go<VERSION>.linux-<ARCH>`, then calculate their
 raw ZIP SHA-256 hashes after the Go checksum-database verification succeeds.

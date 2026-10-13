@@ -1,10 +1,11 @@
 import { useState } from "preact/hooks";
-import type { AppApplication } from "../../models/application";
+import type { AppApplication, AppInstallRun } from "../../models/application";
 import type { ApplicationsController } from "../../state/hooks/applications/useApplications";
 import { useApplicationInstallForm } from "../../state/hooks/applications/useApplicationInstallForm";
 import { AppIcon } from "./AppIcon";
 import { ApplicationEmptyState } from "./ApplicationEmptyState";
 import { hasPortBinding } from "./applicationPresentation";
+import { ApplicationInstallRunCard } from "./ApplicationInstallRunCard";
 import {
   Check,
   Loader,
@@ -42,6 +43,7 @@ export function CatalogGrid({
             application={application}
             installed={installedIds.has(application.id)}
             failed={failedIds.has(application.id)}
+            run={controller.installRuns.find((run) => run.applicationId === application.id)}
             onInstall={() => setInstalling(application)}
           />
         ))}
@@ -50,7 +52,8 @@ export function CatalogGrid({
         <InstallDialog
           application={installing}
           onClose={() => setInstalling(null)}
-          onInstall={controller.install}
+          controller={controller}
+          installed={installedIds.has(installing.id)}
         />
       )}
     </>
@@ -61,11 +64,13 @@ function CatalogCard({
   application,
   installed,
   failed,
+  run,
   onInstall,
 }: {
   application: AppApplication;
   installed: boolean;
   failed: boolean;
+  run?: AppInstallRun;
   onInstall: () => void;
 }) {
   return (
@@ -97,7 +102,16 @@ function CatalogCard({
           </p>
         )}
       </div>
-      {installed ? (
+      {run?.state === "running" || (installed && run?.state === "succeeded") ? (
+        <button
+          type="button"
+          onClick={onInstall}
+          class="h-8 px-2.5 flex-none rounded border border-white/10 text-ink-200 text-[12px] font-medium inline-flex items-center gap-1"
+        >
+          {run.state === "running" ? <Loader class="w-3.5 h-3.5 animate-spin" /> : <Check class="w-3.5 h-3.5" />}
+          {run.state === "running" ? "View progress" : "View log"}
+        </button>
+      ) : installed ? (
         <span
           title="Already installed in this scope"
           class="h-8 px-2.5 flex-none rounded border border-white/10 text-ink-400 text-[12px] font-medium inline-flex items-center gap-1"
@@ -109,13 +123,13 @@ function CatalogCard({
         <button
           type="button"
           onClick={onInstall}
-          title={failed
+          title={failed || run?.state === "failed"
             ? "The last install failed. Retrying removes that attempt and installs again."
             : undefined}
           class="h-8 px-2.5 flex-none rounded bg-accent-blue/80 hover:bg-accent-blue text-white text-[12px] font-medium inline-flex items-center gap-1"
         >
-          {failed ? <RotateCcw class="w-3.5 h-3.5" /> : <Plus class="w-3.5 h-3.5" />}
-          {failed ? "Retry" : "Install"}
+          {failed || run?.state === "failed" ? <RotateCcw class="w-3.5 h-3.5" /> : <Plus class="w-3.5 h-3.5" />}
+          {failed || run?.state === "failed" ? "Retry" : "Install"}
         </button>
       )}
     </div>
@@ -125,15 +139,21 @@ function CatalogCard({
 function InstallDialog({
   application,
   onClose,
-  onInstall,
+  controller,
+  installed,
 }: {
   application: AppApplication;
   onClose: () => void;
-  onInstall: ApplicationsController["install"];
+  controller: ApplicationsController;
+  installed: boolean;
 }) {
   const asksForPort = hasPortBinding(application);
-  const { name, setName, env, setEnv, externalPort, setExternalPort, busy, err, submit } =
-    useApplicationInstallForm(application, asksForPort, onInstall, onClose);
+  const { name, setName, env, setEnv, externalPort, setExternalPort, busy: submitting, err, requested, submit } =
+    useApplicationInstallForm(application, asksForPort, controller.install);
+  const latest = controller.installRuns.find((run) => run.applicationId === application.id);
+  const run = latest?.state === "succeeded" && !installed && !requested ? undefined : latest;
+  const busy = submitting || run?.state === "running";
+  const succeeded = run?.state === "succeeded";
 
   return (
     <div
@@ -145,7 +165,10 @@ function InstallDialog({
           The title and the buttons stay put: an install that cannot be
           confirmed because its button is below the fold is not installable. */}
       <form
-        onSubmit={submit}
+        onSubmit={(event) => {
+          if (busy) event.preventDefault();
+          else void submit(event);
+        }}
         onClick={(event) => event.stopPropagation()}
         class={`${application.env?.some((variable) => variable.format === "json") ? "max-w-2xl" : "max-w-md"} w-full max-h-[calc(100dvh-2rem)] flex flex-col rounded-lg border border-white/10 bg-[#0f1217] shadow-xl`}
       >
@@ -163,6 +186,7 @@ function InstallDialog({
         </div>
 
         <div class="flex-1 min-h-0 overflow-y-auto touch-scroll px-4 pb-3 space-y-3">
+          {!busy && !succeeded && <fieldset disabled={submitting} class="space-y-3">
           <label class="block space-y-1">
             <span class="text-[11.5px] text-ink-300">Display name</span>
             <input
@@ -231,12 +255,20 @@ function InstallDialog({
               />
             </label>
           )}
+          </fieldset>}
+          {run && <ApplicationInstallRunCard run={run} />}
+          {run?.state === "running" && controller.error && (
+            <div role="alert" class="text-[12px] text-accent-yellow">
+              Could not refresh installation progress. The server may still be installing.
+              <button type="button" onClick={() => void controller.reload()} class="ml-1 underline">Reconnect</button>
+            </div>
+          )}
         </div>
 
         <div class="flex-none px-4 pt-3 pb-4 space-y-2 border-t border-white/[0.06]">
           {busy && (
-            <p role="status" class="text-[12px] text-ink-300">
-              Installing the application. Downloads and setup may take several minutes.
+            <p class="text-[12px] text-ink-300">
+              You can close this dialog and return using View progress.
             </p>
           )}
           {/* A failed install carries the tail of the script's output, which
@@ -261,16 +293,17 @@ function InstallDialog({
               onClick={onClose}
               class="h-9 px-3 rounded text-[13px] text-ink-300 hover:text-ink-100 hover:bg-white/[0.08]"
             >
-              Cancel
+              {busy || succeeded ? "Close" : "Cancel"}
             </button>
-            <button
+            {!succeeded && <button
               type="submit"
               disabled={busy}
               class="h-9 px-3.5 rounded bg-accent-blue/80 hover:bg-accent-blue text-white text-[13px] font-medium disabled:opacity-50 inline-flex items-center gap-1.5"
             >
               {busy && <Loader class="w-3.5 h-3.5 animate-spin" />}
-              {busy ? "Installing…" : "Install"}
-            </button>
+              {!busy && run?.state === "failed" && <RotateCcw class="w-3.5 h-3.5" />}
+              {busy ? "Installing…" : run?.state === "failed" ? "Retry install" : "Install"}
+            </button>}
           </div>
         </div>
       </form>

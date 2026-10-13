@@ -1,10 +1,8 @@
 package applications
 
 import (
-	"archive/tar"
 	"archive/zip"
 	"bytes"
-	"compress/gzip"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -22,10 +20,11 @@ func TestContainerGoBootstrap(t *testing.T) {
 		wantCalls            int
 		wantError            bool
 	}{
-		{"release archive", "valid", "", 1, false},
-		{"network failure falls back", "fallback", "", 2, false},
-		{"bad archive hash falls back", "badarchive", "", 2, false},
-		{"failed downloads preserve old toolchain", "corrupt", "old toolchain", 2, true},
+		{"verified module ZIP", "valid", "", 1, false},
+		{"connection failure stops without retry", "network", "old toolchain", 1, true},
+		{"stalled connection stops without retry", "stall", "old toolchain", 1, true},
+		{"corrupt download preserves old toolchain", "corrupt", "old toolchain", 1, true},
+		{"interrupted publication restores old toolchain", "interrupt", "old toolchain", 1, true},
 		{"matching toolchain needs no network", "valid", "go" + configconstants.ApplicationContainerGoVersion + " linux/amd64", 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -65,7 +64,7 @@ func TestContainerGoBootstrap(t *testing.T) {
 
 func goBootstrapFixture(t *testing.T, mode string) (string, map[string]goToolchainPin, []string, string) {
 	t.Helper()
-	for _, tool := range []string{"bash", "tar", "unzip", "sha256sum"} {
+	for _, tool := range []string{"bash", "flock", "unzip", "sha256sum"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			t.Skipf("shell regression requires %s", tool)
 		}
@@ -75,23 +74,6 @@ func goBootstrapFixture(t *testing.T, mode string) (string, map[string]goToolcha
 	log := filepath.Join(dir, "curl.log")
 	program := []byte("#!/bin/sh\necho 'go" + configconstants.ApplicationContainerGoVersion + " linux/amd64'\n")
 	files := []string{"bin/go", "bin/gofmt", "pkg/tool/linux_amd64/compile"}
-	var archive bytes.Buffer
-	compressed := gzip.NewWriter(&archive)
-	tarball := tar.NewWriter(compressed)
-	for _, name := range files {
-		if err := tarball.WriteHeader(&tar.Header{Name: "go/" + name, Mode: 0755, Size: int64(len(program))}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tarball.Write(program); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := tarball.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := compressed.Close(); err != nil {
-		t.Fatal(err)
-	}
 	var module bytes.Buffer
 	zipper := zip.NewWriter(&module)
 	for _, name := range files {
@@ -108,15 +90,19 @@ func goBootstrapFixture(t *testing.T, mode string) (string, map[string]goToolcha
 	if err := zipper.Close(); err != nil {
 		t.Fatal(err)
 	}
-	archivePath, modulePath := filepath.Join(dir, "go.tar.gz"), filepath.Join(dir, "go.zip")
-	if err := os.WriteFile(archivePath, archive.Bytes(), 0600); err != nil {
-		t.Fatal(err)
-	}
+	modulePath := filepath.Join(dir, "go.zip")
 	if err := os.WriteFile(modulePath, module.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	pin := goToolchainPin{fmt.Sprintf("%x", sha256.Sum256(archive.Bytes())), fmt.Sprintf("%x", sha256.Sum256(module.Bytes()))}
+	pin := goToolchainPin{fmt.Sprintf("%x", sha256.Sum256(module.Bytes()))}
 	writeBootstrapExecutable(t, filepath.Join(bin, "dpkg"), "#!/bin/sh\necho amd64\n")
+	if mode == "interrupt" {
+		mv, err := exec.LookPath("mv")
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeBootstrapExecutable(t, filepath.Join(bin, "mv"), "#!/bin/sh\ncase \"$1\" in */unpack/golang.org/*) kill -TERM \"$PPID\"; exit 143 ;; esac\nexec "+shellQuote(mv)+" \"$@\"\n")
+	}
 	writeBootstrapExecutable(t, filepath.Join(bin, "curl"), `#!/bin/bash
 set -eu
 destination=""
@@ -129,17 +115,17 @@ while [ "$#" -gt 0 ]; do
 done
 printf '%s\n' "$url" >> "$CURL_LOG"
 case "$FIXTURE_MODE:$url" in
-  fallback:https://go.dev/*) printf 'partial' > "$destination"; exit 56 ;;
-  badarchive:https://go.dev/*|corrupt:*) printf 'corrupt' > "$destination"; exit 0 ;;
+  network:*) printf 'partial' > "$destination"; echo 'curl: (56) Connection reset by peer' >&2; exit 56 ;;
+  stall:*) echo 'curl: (28) Operation too slow' >&2; exit 28 ;;
+  corrupt:*) printf 'corrupt' > "$destination"; exit 0 ;;
 esac
 case "$url" in
-  https://go.dev/*) cp "$FIXTURE_TAR" "$destination" ;;
   https://proxy.golang.org/*) cp "$FIXTURE_ZIP" "$destination" ;;
   *) exit 1 ;;
 esac
 `)
 	environment := append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "CURL_LOG="+log,
-		"FIXTURE_MODE="+mode, "FIXTURE_TAR="+archivePath, "FIXTURE_ZIP="+modulePath)
+		"FIXTURE_MODE="+mode, "FIXTURE_ZIP="+modulePath)
 	return filepath.Join(dir, "Go root's directory"), map[string]goToolchainPin{"amd64": pin, "arm64": pin}, environment, log
 }
 

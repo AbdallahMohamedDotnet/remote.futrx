@@ -36,8 +36,9 @@ if [ "$(cat "$APP_BUILD_MARKER" 2>/dev/null || true)" != "$APP_BUILD_VERSION" ];
 `)
 	for _, build := range containerBuildTargets(applicationID, commands) {
 		output := `"$APP_BUILD_DIR"/` + shellQuote(build.command)
+		fmt.Fprintf(&out, "  printf 'Building application program %%s\\n' %s\n", shellQuote(build.command))
 		fmt.Fprintf(&out,
-			"  (cd \"$APP_CONTAINER_SOURCE\" && CGO_ENABLED=0 \"$GOROOT_DIR/bin/go\" build"+
+			"  (cd \"$APP_CONTAINER_SOURCE\" && CGO_ENABLED=0 \"$GOROOT_DIR/bin/go\" build -v"+
 				" -mod=mod -buildvcs=false -trimpath"+
 				" -ldflags \"-s -w -X main.version=$APP_BUILD_VERSION\""+
 				" -o %s %s)\n",

@@ -86,6 +86,13 @@ func (h *ApplicationsHandler) handleCollection(w http.ResponseWriter, r *http.Re
 
 func (h *ApplicationsHandler) handleResource(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/applications/")
+	if rest == "installations" || strings.HasPrefix(rest, "installations/") {
+		if !h.requireAdmin(w, r) {
+			return
+		}
+		h.handleInstallations(w, r, serviceapplications.ScopeGlobal, "", rest)
+		return
+	}
 
 	// /api/applications/ui lists the extensions this caller should load. It is
 	// readable by any registered user because every user renders the UI of the
@@ -177,6 +184,10 @@ func (h *ApplicationsHandler) HandleProject(w http.ResponseWriter, r *http.Reque
 	sub := ""
 	if len(parts) >= 3 {
 		sub = parts[2]
+	}
+	if sub == "installations" || strings.HasPrefix(sub, "installations/") {
+		h.handleInstallations(w, r, serviceapplications.ScopeProject, projectID, sub)
+		return
 	}
 	if sub == "" {
 		switch r.Method {
@@ -404,6 +415,7 @@ func sendAppError(w http.ResponseWriter, err error) {
 	case errors.Is(err, serviceapplications.ErrBackendAccess):
 		httptransport.SendErr(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, serviceapplications.ErrAlreadyInstalled),
+		errors.Is(err, serviceapplications.ErrInstallInProgress),
 		errors.Is(err, serviceapplications.ErrInvalidState),
 		errors.Is(err, serviceapplications.ErrNotRunning),
 		errors.Is(err, serviceapplications.ErrPackageInUse),

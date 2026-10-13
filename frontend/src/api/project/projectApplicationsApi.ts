@@ -4,6 +4,7 @@ import type {
   AppCredentials,
   AppInstance,
   AppInstallRequest,
+  AppInstallRun,
 } from "../../models/application";
 
 // Project-scoped application management. Spread into projectApi.
@@ -13,6 +14,12 @@ export const projectApplicationsApi = {
 
   installApplication: (id: string, req: AppInstallRequest) =>
     requestJson<AppInstance>("POST", API_ROUTES.projects.applications(id), req),
+
+  startApplicationInstall: (id: string, req: AppInstallRequest) =>
+    requestJson<AppInstallRun>("POST", API_ROUTES.projects.applicationInstallations(id), req),
+
+  applicationInstallations: (id: string) =>
+    requestJson<AppInstallRun[]>("GET", API_ROUTES.projects.applicationInstallations(id)),
 
   startApplication: (id: string, appId: string) =>
     requestJson<AppInstance>(
