@@ -107,48 +107,27 @@ func (s *Service) installInstance(ctx context.Context, req InstallRequest, appli
 	}
 	inst.Env = env
 	protectInstallInputs(ctx, application, env)
-	// An application with no infrastructure has no container side: installing it only
-	// records that the user turned it on, which is what makes its ui/ load and
-	// its backend run. Everything below this branch — container, port, proxy
-	// device, install script — exists only for applications that provision software.
-	if !application.NeedsContainer() {
-		if err := s.store.Put(ctx, inst); err != nil {
-			return View{}, err
+	if application.NeedsContainer() {
+		// UI-only and backend-only apps can install without a container runtime.
+		if s.installer == nil {
+			return View{}, ErrUnavailable
 		}
-		if err := s.startBackend(ctx, application, inst); err != nil {
-			_ = s.saveStatus(context.WithoutCancel(ctx), &inst, StatusError, err.Error())
-			return View{}, err
+		// Portless infrastructure has no proxy device or host port.
+		if application.NeedsPort() {
+			inst.DeviceName = "app-" + id
+			inst.InternalPort = application.Port.Internal
+			inst.Protocol = protoOr(application.Port.Protocol, ProtocolTCP)
+			inst.BindAddress = bindOr(req.BindAddress, application.Port.BindAddress)
 		}
-		if err := s.saveStatus(ctx, &inst, StatusRunning, ""); err != nil {
-			return View{}, err
-		}
-		s.publishApplicationInstalled(ctx, inst)
-		return s.view(inst), nil
-	}
 
-	// Only the container half needs a container runtime, which is why the
-	// check is here rather than at the top: a server with no LXD can still
-	// install an application that only contributes UI or backend behavior.
-	if s.installer == nil {
-		return View{}, ErrUnavailable
-	}
-	// Portless infrastructure is provisioned into a container but exposes nothing, so it gets no
-	// device name, no internal port, and no host port: there is nothing for a
-	// proxy to forward.
-	if application.NeedsPort() {
-		inst.DeviceName = "app-" + id
-		inst.InternalPort = application.Port.Internal
-		inst.Protocol = protoOr(application.Port.Protocol, ProtocolTCP)
-		inst.BindAddress = bindOr(req.BindAddress, application.Port.BindAddress)
-	}
-
-	ReportInstallProgress(ctx, "workspace", "Preparing the application workspace")
-	if err := s.resolveContainerTarget(ctx, req, &inst); err != nil {
-		return View{}, err
-	}
-	if application.NeedsPort() {
-		if err := s.allocateHostPort(ctx, req, application, &inst); err != nil {
+		ReportInstallProgress(ctx, "workspace", "Preparing the application workspace")
+		if err := s.resolveContainerTarget(ctx, req, &inst); err != nil {
 			return View{}, err
+		}
+		if application.NeedsPort() {
+			if err := s.allocateHostPort(ctx, req, application, &inst); err != nil {
+				return View{}, err
+			}
 		}
 	}
 
@@ -157,9 +136,11 @@ func (s *Service) installInstance(ctx context.Context, req InstallRequest, appli
 		return View{}, err
 	}
 
-	if err := s.installer.Install(ctx, InstallSpec{Application: application, Instance: inst}); err != nil {
-		_ = s.saveStatus(context.WithoutCancel(ctx), &inst, StatusError, err.Error())
-		return View{}, err
+	if application.NeedsContainer() {
+		if err := s.installer.Install(ctx, InstallSpec{Application: application, Instance: inst}); err != nil {
+			_ = s.saveStatus(context.WithoutCancel(ctx), &inst, StatusError, err.Error())
+			return View{}, err
+		}
 	}
 	// An application may ship a backend too — the container half provisions
 	// the software, and the UI talks to the backend half.
