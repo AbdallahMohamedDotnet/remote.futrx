@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/pkg/applications"
 )
@@ -31,6 +32,38 @@ func (h *recordingHost) Ensure(_ context.Context, instance applications.Instance
 		return applications.Descriptor{}, h.ensureErr
 	}
 	return applications.Descriptor{Name: instance.ApplicationID, APIVersion: applications.APIVersion}, nil
+}
+
+type slowStartupHost struct {
+	*recordingHost
+	minimumBudget time.Duration
+}
+
+func (h *slowStartupHost) Ensure(ctx context.Context, instance applications.Instance) (applications.Descriptor, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok || time.Until(deadline) < h.minimumBudget {
+		return applications.Descriptor{}, context.DeadlineExceeded
+	}
+	return h.recordingHost.Ensure(ctx, instance)
+}
+
+func TestColdBackendInstallDoesNotApplyFiveMinuteStartupLimit(t *testing.T) {
+	app := backendImage(nil)
+	host := &slowStartupHost{recordingHost: &recordingHost{}, minimumBudget: 20 * time.Minute}
+	service, _ := backendService(app, nil, host)
+	if _, err := service.Install(context.Background(), InstallRequest{ApplicationID: app.ID, Scope: ScopeGlobal}); err != nil {
+		t.Fatalf("cold backend startup rejected the compile budget: %v", err)
+	}
+}
+
+func TestBackendStartupUsesConfiguredBudget(t *testing.T) {
+	app := backendImage(nil)
+	host := &slowStartupHost{recordingHost: &recordingHost{}, minimumBudget: 40 * time.Minute}
+	service := New(&singleApplicationRegistry{application: app}, &fakeStore{}, nil, nil, nil,
+		WithBackendHost(host), WithBackendStartTimeout(45*time.Minute))
+	if _, err := service.Install(context.Background(), InstallRequest{ApplicationID: app.ID, Scope: ScopeGlobal}); err != nil {
+		t.Fatalf("configured startup budget was not passed to the host: %v", err)
+	}
 }
 
 func (h *recordingHost) Call(

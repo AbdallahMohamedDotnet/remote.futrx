@@ -66,9 +66,10 @@ type Host struct {
 
 // Options supplies process-host settings owned by the application edge.
 type Options struct {
-	GoTool     string
-	Events     EventSink
-	AgentTurns svc.AgentTurnsFactory
+	GoTool       string
+	BuildTimeout time.Duration
+	Events       EventSink
+	AgentTurns   svc.AgentTurnsFactory
 }
 
 // New builds a backend host that keeps compiled binaries, generated modules,
@@ -77,7 +78,7 @@ func New(root string, catalog Catalog, options Options) *Host {
 	return &Host{
 		root:       root,
 		catalog:    catalog,
-		builder:    NewBuilder(root, options.GoTool),
+		builder:    NewBuilder(root, options.GoTool, options.BuildTimeout),
 		events:     options.Events,
 		agentTurns: options.AgentTurns,
 		logger: hclog.New(&hclog.LoggerOptions{

@@ -234,6 +234,11 @@ function InstallDialog({
         </div>
 
         <div class="flex-none px-4 pt-3 pb-4 space-y-2 border-t border-white/[0.06]">
+          {busy && (
+            <p role="status" class="text-[12px] text-ink-300">
+              Installing the application. Downloads and setup may take several minutes.
+            </p>
+          )}
           {/* A failed install carries the tail of the script's output, which
               runs to thousands of characters. It gets its own bounded, scrolling
               box: left to grow it squeezes the fields above it to nothing, and

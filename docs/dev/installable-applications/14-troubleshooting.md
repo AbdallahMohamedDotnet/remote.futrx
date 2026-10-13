@@ -1,5 +1,38 @@
 # 14 — Troubleshooting
 
+## Installation takes a long time or times out
+
+Cold installations download dependencies and compile application programs. A
+slow machine can legitimately take several minutes. The install dialog stays
+open until the server finishes and reports the saved failure if it cannot.
+
+The server supports these positive Go-duration settings (for example `45m`):
+
+| Setting | Default | Work it bounds |
+|---|---|---|
+| `APPLICATION_INSTALL_TIMEOUT` | `30m` | Each container install/uninstall script, host-backend compile, and backend startup |
+| `APPLICATION_CONTROL_TIMEOUT` | `2m` | Application LXD controls and service/skill file publication |
+
+Set them in the server service's environment and restart `remote.futrx.service`.
+Unset, invalid, negative, and zero values retain the defaults; these operations
+always have a deadline. Caller cancellation still takes precedence. The
+application's `backend.timeoutMs` governs individual RPC calls, not compilation.
+
+Container Go bootstrap first tries the release archive at `go.dev`, then the
+same pinned toolchain's ZIP at the official `proxy.golang.org`. Both are checked
+against pinned SHA-256 hashes before extraction. It detects a stalled transfer
+after 30 seconds below 1 KiB/s, retries once, and changes source; a slow transfer
+that continues making progress can use the outer installation budget. An
+existing compiler is kept until its replacement is verified. Concurrent
+application installs in one container serialize compiler provisioning.
+
+When updating `ApplicationContainerGoVersion`, update `containerGoPins` for
+amd64 and arm64 too. Release archive hashes are published in
+`https://go.dev/dl/?mode=json&include=all`. Obtain module ZIPs with
+`GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org go mod download`
+for `golang.org/toolchain@v0.0.1-go<VERSION>.linux-<ARCH>`, then calculate their
+raw ZIP SHA-256 hashes after the Go checksum-database verification succeeds.
+
 ## The server will not start after I added an application
 
 `NewRegistry()` validates the whole catalog at startup and fails loudly. The

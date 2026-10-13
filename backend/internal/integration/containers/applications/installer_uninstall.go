@@ -32,7 +32,7 @@ func (in *Installer) Uninstall(ctx context.Context, spec svc.InstallSpec) error 
 		return err
 	}
 	if svcName := spec.Application.ServiceName(); svcName != "" {
-		_, _ = in.exec(ctx, inst.ContainerName, nil, controlTimeout, "systemctl", "disable", "--now", svcName)
+		_, _ = in.exec(ctx, inst.ContainerName, nil, in.controlTimeout, "systemctl", "disable", "--now", svcName)
 	}
 	if err := in.runProjectUninstallScript(ctx, spec); err != nil {
 		return err
@@ -59,7 +59,7 @@ func (in *Installer) runProjectUninstallScript(ctx context.Context, spec svc.Ins
 	}
 	switch state {
 	case "running":
-		out, err := in.execStdin(ctx, container, in.scriptEnv(spec), execTimeout,
+		out, err := in.execStdin(ctx, container, in.scriptEnv(spec), in.installTimeout,
 			strings.NewReader(string(script)), "bash", "-s")
 		if err != nil {
 			return fmt.Errorf("uninstall %s: %w; output: %s", spec.Application.ID, err, tail(out))

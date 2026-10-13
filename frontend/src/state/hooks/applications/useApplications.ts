@@ -215,15 +215,17 @@ function useApplicationsCore({
   const install = useCallback(
     async (req: AppInstallRequest) => {
       if (!bindings) return;
-      const inst = await bindings.install(req);
-      // A global install of an application that lives inside project containers
-      // answers with a project copy, or nothing when every project already
-      // holds one. Neither belongs in this surface's list, so reload it instead.
-      if (inst.scope === scope) upsert(inst);
-      else await reload();
-      notifySettled();
+      try {
+        await bindings.install(req);
+      } finally {
+        // A retry replaces the failed instance with a new ID; a global install
+        // may change several project copies. Read the authoritative list after
+        // both success and failure, preserving the original install error.
+        await reload();
+        notifySettled();
+      }
     },
-    [bindings, upsert, notifySettled, scope, reload],
+    [bindings, notifySettled, reload],
   );
 
   const start = useCallback(

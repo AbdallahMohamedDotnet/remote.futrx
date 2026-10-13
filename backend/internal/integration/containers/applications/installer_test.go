@@ -3,11 +3,13 @@ package applications
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
@@ -100,6 +102,41 @@ func TestContainerStateRejectsAnEmptyNameWithoutCallingLXD(t *testing.T) {
 	}
 	if len(runner.calls) != 0 {
 		t.Fatalf("empty name reached LXD: %v", runner.calls)
+	}
+}
+
+type provisioningBudgetRunner struct {
+	*fakeRunner
+	minimumBudget time.Duration
+	block         bool
+}
+
+func (r *provisioningBudgetRunner) RunStdin(ctx context.Context, stdin io.Reader, args ...string) (string, error) {
+	if r.block {
+		<-ctx.Done()
+		return "partial build output", errors.New("exit status 143")
+	}
+	deadline, ok := ctx.Deadline()
+	if !ok || time.Until(deadline) < r.minimumBudget {
+		return "", context.DeadlineExceeded
+	}
+	return r.fakeRunner.RunStdin(ctx, stdin, args...)
+}
+
+func TestColdInstallHasEnoughBudgetForSlowBuild(t *testing.T) {
+	runner := &provisioningBudgetRunner{fakeRunner: newFakeRunner("project"), minimumBudget: 20 * time.Minute}
+	installer := NewInstaller(runner, testRegistry(t), t.TempDir())
+	if err := installer.runInstallScript(context.Background(), serviceSpec(svc.ScopeProject, "project")); err != nil {
+		t.Fatalf("cold build cut short by the old eight-minute limit: %v", err)
+	}
+}
+
+func TestConfiguredInstallDeadlineReportsCancellation(t *testing.T) {
+	runner := &provisioningBudgetRunner{fakeRunner: newFakeRunner("project"), block: true}
+	installer := NewInstaller(runner, testRegistry(t), t.TempDir(), InstallerOptions{InstallTimeout: time.Millisecond})
+	err := installer.runInstallScript(context.Background(), serviceSpec(svc.ScopeProject, "project"))
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "limit 1ms") || !strings.Contains(err.Error(), "partial build output") {
+		t.Fatalf("cancellation lost its deadline or build output: %v", err)
 	}
 }
 

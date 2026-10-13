@@ -19,12 +19,30 @@ const queryTimeout = 10 * time.Second
 // embedded workspace assets. Parent directories remain the responsibility of
 // the capability provisioning each asset.
 type Publisher struct {
-	runner command.Runner
+	runner       command.Runner
+	queryTimeout time.Duration
+	writeTimeout time.Duration
+}
+
+// Timeouts lets slow application provisioning use a larger budget while
+// preserving existing deadlines for ordinary workspace asset publication.
+type Timeouts struct {
+	Query time.Duration
+	Write time.Duration
 }
 
 // NewPublisher returns a publisher backed by runner.
-func NewPublisher(runner command.Runner) *Publisher {
-	return &Publisher{runner: runner}
+func NewPublisher(runner command.Runner, options ...Timeouts) *Publisher {
+	publisher := &Publisher{runner: runner, queryTimeout: queryTimeout, writeTimeout: 30 * time.Second}
+	if len(options) > 0 {
+		if options[0].Query > 0 {
+			publisher.queryTimeout = options[0].Query
+		}
+		if options[0].Write > 0 {
+			publisher.writeTimeout = options[0].Write
+		}
+	}
+	return publisher
 }
 
 // Hash returns the canonical marker value used for published content.
@@ -72,14 +90,14 @@ func (p *Publisher) push(
 ) error {
 	want := Hash(content)
 
-	got, err := command.RunWithTimeout(ctx, p.runner, queryTimeout, "exec", containerName, "--", "cat", hashPath)
+	got, err := command.RunWithTimeout(ctx, p.runner, p.queryTimeout, "exec", containerName, "--", "cat", hashPath)
 	if err == nil &&
 		strings.TrimSpace(got) == want &&
 		(!verifyDestinations || p.destinationsMatch(ctx, containerName, want, destPaths)) {
 		return nil
 	}
 
-	pctx, cancelP := context.WithTimeout(ctx, 30*time.Second)
+	pctx, cancelP := context.WithTimeout(ctx, p.writeTimeout)
 	defer cancelP()
 
 	tmp, err := os.CreateTemp("", "futrx-template-*")
@@ -95,10 +113,16 @@ func (p *Publisher) push(
 
 	for _, destPath := range destPaths {
 		if out, err := p.runner.Run(pctx, "file", "push", "--mode="+fileMode, tmp.Name(), containerName+destPath); err != nil {
+			if pctx.Err() != nil {
+				err = fmt.Errorf("publication (limit %s): %w", p.writeTimeout, pctx.Err())
+			}
 			return fmt.Errorf("push %s: %w; output: %s", destPath, err, out)
 		}
 	}
 	if out, err := p.runner.RunStdin(pctx, strings.NewReader(want), "exec", containerName, "--", "tee", hashPath); err != nil {
+		if pctx.Err() != nil {
+			err = fmt.Errorf("publication (limit %s): %w", p.writeTimeout, pctx.Err())
+		}
 		return fmt.Errorf("write %s hash marker: %w; output: %s", hashPath, err, out)
 	}
 	return nil
@@ -117,7 +141,7 @@ func (p *Publisher) destinationsMatch(
 		content, err := command.RunWithTimeout(
 			ctx,
 			p.runner,
-			queryTimeout,
+			p.queryTimeout,
 			"file",
 			"pull",
 			containerName+destPath,

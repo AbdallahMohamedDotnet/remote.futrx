@@ -126,7 +126,7 @@ func (s *Service) startBackend(ctx context.Context, application Application, ins
 	if application.Backend == nil || s.backends == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, backendStartTimeout)
+	ctx, cancel := context.WithTimeout(ctx, s.backendStartTimeout)
 	defer cancel()
 	if _, err := s.backends.Ensure(ctx, backendInstanceDetails(application, instance)); err != nil {
 		return fmt.Errorf("start backend: %w", err)
@@ -150,11 +150,6 @@ func (s *Service) removeBackend(ctx context.Context, application Application, in
 	}
 	return s.backends.Remove(ctx, instance.ID)
 }
-
-// backendStartTimeout bounds the first launch, which may include compiling the
-// application's source. It is generous because a cold build resolves modules; every
-// later start hits the binary cache and takes milliseconds.
-const backendStartTimeout = 5 * time.Minute
 
 func backendInstanceDetails(application Application, instance Instance) applications.Instance {
 	return applications.Instance{
