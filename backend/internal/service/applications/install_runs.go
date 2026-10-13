@@ -138,7 +138,7 @@ func (s *Service) StartInstall(ctx context.Context, req InstallRequest) (Install
 	m.runs[key] = run
 	initial := run.snapshot()
 	go func() {
-		_, err := s.Install(observeInstall(workerCtx, run), req)
+		_, err := s.Install(context.WithValue(workerCtx, installObserverKey{}, run), req)
 		run.finish(err)
 	}()
 	return initial, nil
