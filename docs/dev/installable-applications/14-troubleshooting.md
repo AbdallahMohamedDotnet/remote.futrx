@@ -11,24 +11,13 @@ Retry is explicit: connection failures never start a second attempt automaticall
 For global installs into project containers, the run also shows project counts;
 the first failure stops the run and retry skips copies already installed.
 
-The latest run per application/scope is stored under `DATA_DIR/application-installs/`.
-Logs redact declared secret inputs, including generated passwords, before saving
-or exposing output. A server restart interrupts an active attempt: the next status
-read records a failed run and allows retry instead of leaving it spinning forever.
+The latest run per application/scope is held in server memory. Logs redact
+declared secret inputs, including generated passwords, before exposing output.
+Closing or refreshing the browser retains progress; restarting the server discards
+live logs. The next status read marks interrupted application records as failed
+so they can be retried.
 If the browser cannot refresh progress, it shows a connection message: the server
 may still be installing, so reconnect to check its state before trying again.
-
-The server supports these positive Go-duration settings (for example `45m`):
-
-| Setting | Default | Work it bounds |
-|---|---|---|
-| `APPLICATION_INSTALL_TIMEOUT` | `30m` | Each container install/uninstall script, host-backend compile, and backend startup |
-| `APPLICATION_CONTROL_TIMEOUT` | `2m` | Application LXD controls and service/skill file publication |
-
-Set them in the server service's environment and restart `remote.futrx.service`.
-Unset, invalid, negative, and zero values retain the defaults; these operations
-always have a deadline. Caller cancellation still takes precedence. The
-application's `backend.timeoutMs` governs individual RPC calls, not compilation.
 
 Container Go bootstrap downloads the pinned toolchain ZIP directly from the
 official `proxy.golang.org`, verifies its pinned SHA-256, then restores executable

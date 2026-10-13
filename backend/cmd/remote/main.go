@@ -99,9 +99,8 @@ func main() {
 		filepath.Join(cfg.DataDir, "applications"),
 		appRegistry,
 		applicationbackends.Options{
-			GoTool:       cfg.Applications.GoTool,
-			BuildTimeout: cfg.Applications.InstallTimeout,
-			Events:       applicationEvents,
+			GoTool: cfg.Applications.GoTool,
+			Events: applicationEvents,
 		},
 	)
 	// Service-owned workers are closed after construction below. These defers
@@ -118,7 +117,6 @@ func main() {
 			AgentInstructions: provisioning.InstructionsTemplate(publicHostname),
 			AppRegistry:       appRegistry,
 			DataDir:           cfg.DataDir,
-			Applications:      cfg.Applications,
 		},
 	)
 
@@ -196,8 +194,6 @@ func main() {
 		AppInstaller:         containerStack.AppInstaller,
 		AppPorts:             containerStack.AppPorts,
 		AppBackends:          appBackends,
-		AppInstallTimeout:    cfg.Applications.InstallTimeout,
-		AppInstalls:          storeSet.ApplicationInstalls,
 		AppPackages:          appRegistry,
 		ApplicationLifecycle: applicationLifecycle,
 		ApplicationEvents:    applicationEvents,

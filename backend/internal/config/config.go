@@ -5,8 +5,6 @@ import (
 	"net/url"
 	"os"
 	"time"
-
-	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 type Config struct {
@@ -20,12 +18,11 @@ type Config struct {
 	Applications ApplicationOptions
 }
 
-// ApplicationOptions owns the toolchain override and provisioning budgets for
-// installable applications. A backend RPC keeps its separate manifest deadline.
+// ApplicationOptions are application-wide settings for installable application
+// backends. Toolchain discovery remains in the backend integration; config
+// owns the optional environment override supplied to it.
 type ApplicationOptions struct {
-	GoTool         string
-	InstallTimeout time.Duration
-	ControlTimeout time.Duration
+	GoTool string
 }
 
 // AgentOptions are application-wide policies for the agent subsystem.
@@ -91,9 +88,7 @@ func Load() Config {
 			SetupTokenTTL:       envDuration("SETUP_TOKEN_TTL", 30*time.Minute),
 		},
 		Applications: ApplicationOptions{
-			GoTool:         envDefault("REMOTE_APPLICATION_GO", ""),
-			InstallTimeout: envPositiveDuration("APPLICATION_INSTALL_TIMEOUT", configconstants.ApplicationInstallTimeout),
-			ControlTimeout: envPositiveDuration("APPLICATION_CONTROL_TIMEOUT", configconstants.ApplicationControlTimeout),
+			GoTool: envDefault("REMOTE_APPLICATION_GO", ""),
 		},
 	}
 }
@@ -124,14 +119,6 @@ func envDefault(key, def string) string {
 		return v
 	}
 	return def
-}
-
-// Provisioning stays bounded even if a duration is accidentally set to zero.
-func envPositiveDuration(key string, fallback time.Duration) time.Duration {
-	if duration := envDuration(key, fallback); duration > 0 {
-		return duration
-	}
-	return fallback
 }
 
 // envDuration parses a Go duration from the environment. Unset or invalid

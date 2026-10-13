@@ -86,11 +86,11 @@ func (h *ApplicationsHandler) handleCollection(w http.ResponseWriter, r *http.Re
 
 func (h *ApplicationsHandler) handleResource(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/applications/")
-	if rest == "installations" || strings.HasPrefix(rest, "installations/") {
+	if rest == "installations" {
 		if !h.requireAdmin(w, r) {
 			return
 		}
-		h.handleInstallations(w, r, serviceapplications.ScopeGlobal, "", rest)
+		h.handleInstallations(w, r, serviceapplications.ScopeGlobal, "")
 		return
 	}
 
@@ -185,8 +185,8 @@ func (h *ApplicationsHandler) HandleProject(w http.ResponseWriter, r *http.Reque
 	if len(parts) >= 3 {
 		sub = parts[2]
 	}
-	if sub == "installations" || strings.HasPrefix(sub, "installations/") {
-		h.handleInstallations(w, r, serviceapplications.ScopeProject, projectID, sub)
+	if sub == "installations" {
+		h.handleInstallations(w, r, serviceapplications.ScopeProject, projectID)
 		return
 	}
 	if sub == "" {

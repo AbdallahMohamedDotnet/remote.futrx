@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 )
 
 const maxInstanceErrorRunes = 4000
@@ -45,42 +43,31 @@ type Clock func() int64
 
 // Service is the policy layer for installable applications.
 type Service struct {
-	registry            Registry
-	store               Store
-	installer           Installer
-	projects            ProjectContainers
-	ports               PortAllocator
-	backends            BackendHost
-	backendStartTimeout time.Duration
-	packages            PackageCatalog
-	lifecycle           ApplicationLifecyclePublisher
-	eventSource         EventSource
-	eventContext        context.Context
-	eventRouter         *applicationEventRouter
-	agentRuntime        *agentRuntime
-	agentTools          *applicationTools
-	backgroundOnce      sync.Once
-	background          *backgroundBackends
-	instanceLocks       instanceLockSet
-	installSlots        instanceLockSet
-	installRuns         installRuns
-	now                 Clock
+	registry       Registry
+	store          Store
+	installer      Installer
+	projects       ProjectContainers
+	ports          PortAllocator
+	backends       BackendHost
+	packages       PackageCatalog
+	lifecycle      ApplicationLifecyclePublisher
+	eventSource    EventSource
+	eventContext   context.Context
+	eventRouter    *applicationEventRouter
+	agentRuntime   *agentRuntime
+	agentTools     *applicationTools
+	backgroundOnce sync.Once
+	background     *backgroundBackends
+	instanceLocks  instanceLockSet
+	installSlots   instanceLockSet
+	installRuns    installRuns
+	now            Clock
 }
 
 // Option configures optional service dependencies. Backend backend hosting is
 // optional because a server without a Go toolchain, or a build that ships no
 // backend applications, must still install and run everything else.
 type Option func(*Service)
-
-// WithBackendStartTimeout includes compilation and the startup handshake,
-// independently of an application's deadline for an individual RPC call.
-func WithBackendStartTimeout(timeout time.Duration) Option {
-	return func(s *Service) {
-		if timeout > 0 {
-			s.backendStartTimeout = timeout
-		}
-	}
-}
 
 // WithBackendHost enables applications that ship a host backend. Without it,
 // their catalog entries still load and every backend call reports the feature
@@ -139,13 +126,12 @@ func New(
 	options ...Option,
 ) *Service {
 	service := &Service{
-		registry:            registry,
-		store:               store,
-		installer:           installer,
-		projects:            projects,
-		ports:               ports,
-		backendStartTimeout: configconstants.ApplicationInstallTimeout,
-		now:                 func() int64 { return time.Now().Unix() },
+		registry:  registry,
+		store:     store,
+		installer: installer,
+		projects:  projects,
+		ports:     ports,
+		now:       func() int64 { return time.Now().Unix() },
 	}
 	for _, option := range options {
 		option(service)

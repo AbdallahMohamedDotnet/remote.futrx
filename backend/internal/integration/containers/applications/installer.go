@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/applications/hosttools"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/assets"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
@@ -30,7 +29,9 @@ const (
 	serviceUnitRoot     = "/etc/systemd/system"
 	workspaceIdleRoot   = "/etc/remote/workspace-idle.d"
 
-	launchTimeout = 90 * time.Second
+	execTimeout    = 8 * time.Minute
+	controlTimeout = 30 * time.Second
+	launchTimeout  = 90 * time.Second
 
 	// healthTimeout bounds one run of an application's readiness probe, and healthWait
 	// bounds how long the probe is retried before the install is called failed.
@@ -46,40 +47,18 @@ const (
 // lxc-facing for an app: launching the dedicated container (global scope),
 // running the install script, systemd control, and the host proxy device.
 type Installer struct {
-	hostTools      hostToolEnsurer
-	runner         command.Runner
-	registry       *Registry
-	publisher      *assets.Publisher
-	installTimeout time.Duration
-	controlTimeout time.Duration
-}
-
-// InstallerOptions keeps cold provisioning separate from short LXD controls.
-// Non-positive values retain the bounded defaults.
-type InstallerOptions struct {
-	InstallTimeout time.Duration
-	ControlTimeout time.Duration
+	hostTools hostToolEnsurer
+	runner    command.Runner
+	registry  *Registry
+	publisher *assets.Publisher
 }
 
 type hostToolEnsurer interface {
 	Ensure(context.Context, []svc.HostTool) error
 }
 
-func NewInstaller(runner command.Runner, registry *Registry, dataDir string, options ...InstallerOptions) *Installer {
-	install, control := configconstants.ApplicationInstallTimeout, configconstants.ApplicationControlTimeout
-	if len(options) > 0 {
-		if options[0].InstallTimeout > 0 {
-			install = options[0].InstallTimeout
-		}
-		if options[0].ControlTimeout > 0 {
-			control = options[0].ControlTimeout
-		}
-	}
-	return &Installer{
-		runner: runner, registry: registry, hostTools: hosttools.New(dataDir),
-		installTimeout: install, controlTimeout: control,
-		publisher: assets.NewPublisher(runner, assets.Timeouts{Query: control, Write: control}),
-	}
+func NewInstaller(runner command.Runner, registry *Registry, dataDir string) *Installer {
+	return &Installer{runner: runner, registry: registry, hostTools: hosttools.New(dataDir), publisher: assets.NewPublisher(runner)}
 }
 
 var _ svc.Installer = (*Installer)(nil)
@@ -137,7 +116,7 @@ func (in *Installer) Start(ctx context.Context, spec svc.InstallSpec) error {
 	// container is replaced. Reinstall it on first start if its unit disappeared
 	// with the old root filesystem.
 	if name := spec.Application.ServiceName(); name != "" {
-		if _, err := in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout,
+		if _, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout,
 			"test", "-f", serviceUnitPath(name)); err != nil {
 			return in.Install(ctx, spec)
 		}
@@ -179,7 +158,7 @@ func (in *Installer) startService(ctx context.Context, spec svc.InstallSpec) err
 	if name == "" {
 		return nil
 	}
-	out, err := in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout, "systemctl", "start", name)
+	out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "systemctl", "start", name)
 	if err != nil {
 		return fmt.Errorf("start %s in %s: %w; output: %s", name, spec.Instance.ContainerName, err, tail(out))
 	}
@@ -224,11 +203,11 @@ func (in *Installer) Stop(ctx context.Context, spec svc.InstallSpec) error {
 		return err
 	}
 	if inst.Scope == svc.ScopeGlobal {
-		_, _ = command.RunWithTimeout(ctx, in.runner, in.controlTimeout, "stop", "--force", inst.ContainerName)
+		_, _ = command.RunWithTimeout(ctx, in.runner, controlTimeout, "stop", "--force", inst.ContainerName)
 		return nil
 	}
 	if svcName := spec.Application.ServiceName(); svcName != "" {
-		_, _ = in.exec(ctx, inst.ContainerName, nil, in.controlTimeout, "systemctl", "stop", svcName)
+		_, _ = in.exec(ctx, inst.ContainerName, nil, controlTimeout, "systemctl", "stop", svcName)
 	}
 	return nil
 }
@@ -245,7 +224,7 @@ func (in *Installer) publishSkills(ctx context.Context, spec svc.InstallSpec) er
 			return fmt.Errorf("skill %q is declared by application %q but cannot be read", name, spec.Application.ID)
 		}
 		dir := path.Join(containerSkillsRoot, name)
-		if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout, "install", "-d", "-m", "755", dir); err != nil {
+		if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "install", "-d", "-m", "755", dir); err != nil {
 			return fmt.Errorf("skill %q: create %s: %w; output: %s", name, dir, err, tail(out))
 		}
 		if err := in.publisher.Push(ctx, spec.Instance.ContainerName, body, path.Join(dir, skillHashFile), "644", path.Join(dir, skillFileName)); err != nil {
@@ -262,7 +241,7 @@ func (in *Installer) removeSkills(ctx context.Context, spec svc.InstallSpec) {
 		return
 	}
 	for _, name := range spec.Application.Skills {
-		_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout, "rm", "-rf", path.Join(containerSkillsRoot, name))
+		_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "rm", "-rf", path.Join(containerSkillsRoot, name))
 	}
 }
 
@@ -314,7 +293,7 @@ func (in *Installer) runInstallScript(ctx context.Context, spec svc.InstallSpec)
 	if !ok {
 		return fmt.Errorf("no install script for application %q", spec.Application.ID)
 	}
-	out, err := in.execStdin(command.WithOutput(ctx, svc.InstallOutput(ctx)), spec.Instance.ContainerName, in.scriptEnv(spec), in.installTimeout,
+	out, err := in.execStdin(command.WithOutput(ctx, svc.InstallOutput(ctx)), spec.Instance.ContainerName, in.scriptEnv(spec), execTimeout,
 		strings.NewReader(string(script)), "bash", "-s")
 	if err != nil {
 		return fmt.Errorf("install %s: %w; output: %s", spec.Application.ID, err, tail(svc.RedactInstallText(ctx, out)))
@@ -353,7 +332,7 @@ func (in *Installer) installService(ctx context.Context, spec svc.InstallSpec) e
 	}
 
 	configDir := path.Join(serviceConfigRoot, service.Name)
-	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout,
+	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout,
 		"install", "-d", "-m", "755", configDir, workspaceIdleRoot); err != nil {
 		return fmt.Errorf("prepare service %s in %s: %w; output: %s",
 			service.Name, spec.Instance.ContainerName, err, tail(out))
@@ -374,15 +353,15 @@ func (in *Installer) installService(ctx context.Context, spec svc.InstallSpec) e
 		return fmt.Errorf("publish service %s idle declaration: %w", service.Name, err)
 	}
 
-	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout, "systemctl", "daemon-reload"); err != nil {
+	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "systemctl", "daemon-reload"); err != nil {
 		return fmt.Errorf("reload systemd for %s in %s: %w; output: %s",
 			service.Name, spec.Instance.ContainerName, err, tail(out))
 	}
-	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout, "systemctl", "enable", service.Name); err != nil {
+	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "systemctl", "enable", service.Name); err != nil {
 		return fmt.Errorf("enable %s in %s: %w; output: %s",
 			service.Name, spec.Instance.ContainerName, err, tail(out))
 	}
-	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout, "systemctl", "restart", service.Name); err != nil {
+	if out, err := in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "systemctl", "restart", service.Name); err != nil {
 		return fmt.Errorf("restart %s in %s: %w; output: %s",
 			service.Name, spec.Instance.ContainerName, err, tail(out))
 	}
@@ -465,10 +444,10 @@ func (in *Installer) removeServiceFiles(ctx context.Context, spec svc.InstallSpe
 		return
 	}
 	configDir := path.Join(serviceConfigRoot, service.Name)
-	_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout, "rm", "-f",
+	_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "rm", "-f",
 		serviceUnitPath(service.Name), path.Join(workspaceIdleRoot, service.Name))
-	_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout, "rm", "-rf", configDir)
-	_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, in.controlTimeout, "systemctl", "daemon-reload")
+	_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "rm", "-rf", configDir)
+	_, _ = in.exec(ctx, spec.Instance.ContainerName, nil, controlTimeout, "systemctl", "daemon-reload")
 }
 
 // ensureProxy (re)creates the host proxy device for an instance. It removes any
@@ -497,7 +476,7 @@ func (in *Installer) ensureProxy(ctx context.Context, inst svc.Instance) error {
 		"connect=" + connect,
 		"bind=host",
 	}
-	if out, err := command.RunWithTimeout(ctx, in.runner, in.controlTimeout, args...); err != nil {
+	if out, err := command.RunWithTimeout(ctx, in.runner, controlTimeout, args...); err != nil {
 		return fmt.Errorf("add proxy device %s (%s->%d): %w; output: %s",
 			inst.DeviceName, listen, inst.InternalPort, err, out)
 	}
@@ -508,7 +487,7 @@ func (in *Installer) removeDevice(ctx context.Context, container, device string)
 	if container == "" || device == "" {
 		return nil
 	}
-	out, err := command.RunWithTimeout(ctx, in.runner, in.controlTimeout, "config", "device", "remove", container, device)
+	out, err := command.RunWithTimeout(ctx, in.runner, controlTimeout, "config", "device", "remove", container, device)
 	if err != nil {
 		if isMissing(err, out) {
 			return nil
@@ -523,7 +502,7 @@ func (in *Installer) containerState(ctx context.Context, name string) (string, e
 	if strings.TrimSpace(name) == "" {
 		return "", fmt.Errorf("container name is required")
 	}
-	out, err := command.RunWithTimeout(ctx, in.runner, in.controlTimeout, "info", name)
+	out, err := command.RunWithTimeout(ctx, in.runner, controlTimeout, "info", name)
 	if err != nil {
 		if isMissing(err, out) {
 			return "missing", nil
@@ -544,7 +523,7 @@ func (in *Installer) containerState(ctx context.Context, name string) (string, e
 func (in *Installer) waitNetwork(ctx context.Context, name string) error {
 	deadline := time.Now().Add(60 * time.Second)
 	for {
-		out, _ := command.RunWithTimeout(ctx, in.runner, in.controlTimeout,
+		out, _ := command.RunWithTimeout(ctx, in.runner, controlTimeout,
 			"exec", name, "--", "sh", "-c", "ip -4 route get 1.1.1.1 >/dev/null 2>&1 && echo ok")
 		if strings.Contains(out, "ok") {
 			return nil

@@ -61,8 +61,7 @@ type ContainerStackOptions struct {
 	// DataDir is the server's state directory. An application that needs a host-side
 	// executable has it installed beneath this directory, never into the host's
 	// own package set.
-	DataDir      string
-	Applications ApplicationOptions
+	DataDir string
 }
 
 // ProjectDependencies exposes only the capabilities consumed by project
@@ -156,11 +155,7 @@ func NewContainerStack(
 	var appInstaller *containerapplications.Installer
 	var appPorts *containerapplications.HostPortAllocator
 	if options.AppRegistry != nil {
-		appInstaller = containerapplications.NewInstaller(runner, options.AppRegistry, options.DataDir,
-			containerapplications.InstallerOptions{
-				InstallTimeout: options.Applications.InstallTimeout,
-				ControlTimeout: options.Applications.ControlTimeout,
-			})
+		appInstaller = containerapplications.NewInstaller(runner, options.AppRegistry, options.DataDir)
 		appPorts = containerapplications.NewHostPortAllocator()
 	}
 

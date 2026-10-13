@@ -7,34 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	appapi "github.com/futrx-com/remote.futrx.com/pkg/applications"
 )
-
-type memoryInstallRuns struct {
-	mu      sync.Mutex
-	records map[installRunKey]InstallRun
-}
-
-func (s *memoryInstallRuns) Get(_ context.Context, scope Scope, project, app string) (InstallRun, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	run, ok := s.records[installRunKey{scope, project, app}]
-	return run, ok, nil
-}
-func (s *memoryInstallRuns) Put(_ context.Context, run InstallRun) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.records == nil {
-		s.records = map[installRunKey]InstallRun{}
-	}
-	s.records[installRunKey{run.Scope, run.ProjectID, run.ApplicationID}] = run
-	return nil
-}
 
 type observedTestInstaller struct {
 	recordingInstaller
@@ -61,12 +39,14 @@ func awaitInstallState(t *testing.T, service *Service, req InstallRequest, state
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		run, found, err := service.Installation(context.Background(), req.Scope, req.ProjectID, req.ApplicationID)
+		runs, err := service.Installations(context.Background(), req.Scope, req.ProjectID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if found && run.State == state {
-			return run
+		for _, run := range runs {
+			if run.ApplicationID == req.ApplicationID && run.State == state {
+				return run
+			}
 		}
 		time.Sleep(time.Millisecond)
 	}
@@ -83,7 +63,7 @@ func observedFixture(t *testing.T) (*Service, *observedTestInstaller, *fakeStore
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	service := New(&singleApplicationRegistry{application: app}, store, installer, nil, &countingAllocator{},
-		WithInstallRuns(ctx, &memoryInstallRuns{}))
+		WithInstallRuns(ctx))
 	req := InstallRequest{ApplicationID: app.ID, Scope: ScopeGlobal, Env: map[string]string{"PASSWORD": "super-secret"}}
 	return service, installer, store, req
 }
@@ -183,7 +163,7 @@ func TestBackendOnlyApplicationStaysInstallingUntilItsBackendIsReady(t *testing.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	service := New(&singleApplicationRegistry{application: app}, store, nil, nil, nil,
-		WithBackendHost(host), WithInstallRuns(ctx, nil))
+		WithBackendHost(host), WithInstallRuns(ctx))
 	req := InstallRequest{ApplicationID: app.ID, Scope: ScopeGlobal}
 	if _, err := service.StartInstall(context.Background(), req); err != nil {
 		t.Fatal(err)
@@ -204,12 +184,14 @@ func TestBackendOnlyApplicationStaysInstallingUntilItsBackendIsReady(t *testing.
 func TestInterruptedRunRecoversInstanceAndCanBeRetried(t *testing.T) {
 	app := serviceApplicationAt("1")
 	store := &fakeStore{global: []Instance{installedAt("old", "", "1", StatusInstalling)}}
-	runs := &memoryInstallRuns{}
-	_ = runs.Put(context.Background(), InstallRun{ID: "old-run", ApplicationID: app.ID, Scope: ScopeGlobal, State: "running", Log: "previous output"})
-	service := New(&singleApplicationRegistry{application: app}, store, &recordingInstaller{}, nil, &countingAllocator{}, WithInstallRuns(context.Background(), runs))
-	run, found, err := service.Installation(context.Background(), ScopeGlobal, "", app.ID)
-	if err != nil || !found || run.State != "failed" || !strings.Contains(run.Error, "server restart") {
-		t.Fatalf("recovery=%+v %v", run, err)
+	service := New(&singleApplicationRegistry{application: app}, store, &recordingInstaller{}, nil, &countingAllocator{}, WithInstallRuns(context.Background()))
+	runs, err := service.Installations(context.Background(), ScopeGlobal, "")
+	if err != nil || len(runs) != 0 {
+		t.Fatalf("restarted server retained live logs: %+v %v", runs, err)
+	}
+	interrupted, _, _ := store.Get(context.Background(), "old")
+	if interrupted.Status != StatusError || !strings.Contains(interrupted.Error, "server restart") {
+		t.Fatalf("interrupted instance is not retryable: %+v", interrupted)
 	}
 	if _, err := service.StartInstall(context.Background(), InstallRequest{ApplicationID: app.ID, Scope: ScopeGlobal}); err != nil {
 		t.Fatal(err)
@@ -218,6 +200,27 @@ func TestInterruptedRunRecoversInstanceAndCanBeRetried(t *testing.T) {
 	instances, _ := store.ListGlobal(context.Background())
 	if len(instances) != 1 || instances[0].ID == "old" || instances[0].Status != StatusRunning {
 		t.Fatalf("recovered retry=%+v", instances)
+	}
+}
+
+func TestPollingDoesNotInterruptSynchronousInstall(t *testing.T) {
+	app := backendImage(nil)
+	host := &blockedInstallHost{entered: make(chan struct{}), release: make(chan struct{})}
+	service, store := backendService(app, nil, host)
+	done := make(chan error, 1)
+	go func() {
+		_, err := service.Install(context.Background(), InstallRequest{ApplicationID: app.ID, Scope: ScopeGlobal})
+		done <- err
+	}()
+	<-host.entered
+	runs, err := service.Installations(context.Background(), ScopeGlobal, "")
+	instances, _ := store.ListGlobal(context.Background())
+	close(host.release)
+	if installErr := <-done; installErr != nil {
+		t.Fatal(installErr)
+	}
+	if err != nil || len(runs) != 0 || len(instances) != 1 || instances[0].Status != StatusInstalling {
+		t.Fatalf("polling changed a live synchronous install: runs=%+v instances=%+v err=%v", runs, instances, err)
 	}
 }
 

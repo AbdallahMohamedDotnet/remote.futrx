@@ -13,7 +13,6 @@ type InstallProgress struct {
 	CurrentItem string `json:"currentItem,omitempty"`
 	Completed   int    `json:"completed,omitempty"`
 	Total       int    `json:"total,omitempty"`
-	UpdatedAt   int64  `json:"updatedAt"`
 }
 
 type installObserverKey struct{}

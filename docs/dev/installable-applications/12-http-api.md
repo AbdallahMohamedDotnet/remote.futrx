@@ -186,19 +186,19 @@ routes require membership in that project.
 |---|---|---|---|
 | `POST` | `/api/applications/installations` | `/api/projects/{projectID}/applications/installations` | Start an attempt; return `202` with its run |
 | `GET` | `/api/applications/installations` | `/api/projects/{projectID}/applications/installations` | List the latest runs in this scope |
-| `GET` | `/api/applications/installations/{applicationID}` | `/api/projects/{projectID}/applications/installations/{applicationID}` | Read the latest attempt, or `null` when none exists |
 
 A run has `id`, `applicationId`, `scope`, optional `projectId`, `state`
-(`running`, `succeeded`, `failed`), timestamps, an optional error, a bounded
+(`running`, `succeeded`, `failed`), an optional error, a bounded
 installer log, and `progress` containing the actual phase/message. Project counts
 and the current project are included for global placement inside project containers.
 The UI polls while running, keeps the terminal result, and issues another `POST`
 only when the user requests retry. A concurrent attempt returns `409`.
 
-Runs continue after the starting HTTP request closes. They are cancelled during
-server shutdown; persisted running records without a worker after restart become
-failed and retryable. The original synchronous `POST …/applications` routes stay
-available to tools and existing clients.
+Runs continue after the starting HTTP request closes. Run status and logs remain
+in memory for the current server process, and active work is cancelled during
+server shutdown. Incomplete installations become failed and retryable after a
+restart. The original synchronous `POST …/applications` routes stay available to
+tools and existing clients.
 
 ## Backend backend routes
 

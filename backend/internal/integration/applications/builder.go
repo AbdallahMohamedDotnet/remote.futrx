@@ -15,7 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	configconstants "github.com/futrx-com/remote.futrx.com/internal/config/constants"
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 	"github.com/futrx-com/remote.futrx.com/pkg/applications"
 )
@@ -29,11 +28,10 @@ import (
 // Compiling once per application build and caching by fingerprint keeps the cost off
 // every install: a cold build takes seconds, a warm one is a stat.
 type Builder struct {
-	root         string
-	goTool       string
-	buildTimeout time.Duration
-	pins         modulePins
-	locks        keyedLocks
+	root   string
+	goTool string
+	pins   modulePins
+	locks  keyedLocks
 	// shared holds the half of every fingerprint that no application can change.
 	// It is read and hashed once per process rather than once per build.
 	sharedOnce sync.Once
@@ -44,6 +42,9 @@ type Builder struct {
 	// what lets a test pin it.
 	calls atomic.Int64
 }
+
+// buildTimeout bounds one compile, including any module download it makes.
+const buildTimeout = 10 * time.Minute
 
 // sharedInputs are the build inputs that are the same for every application:
 // the SDK source, its generated go.mod, and the Go version pinning it. The
@@ -74,17 +75,12 @@ func (b *Builder) sharedInputs() (sharedInputs, error) {
 
 // NewBuilder returns a builder that keeps its cache, generated modules, and
 // build cache under root.
-func NewBuilder(root, goTool string, timeout ...time.Duration) *Builder {
-	budget := configconstants.ApplicationInstallTimeout
-	if len(timeout) > 0 && timeout[0] > 0 {
-		budget = timeout[0]
-	}
+func NewBuilder(root, goTool string) *Builder {
 	return &Builder{
-		root:         root,
-		goTool:       goTool,
-		buildTimeout: budget,
-		pins:         readModulePins(),
-		locks:        newKeyedLocks(),
+		root:   root,
+		goTool: goTool,
+		pins:   readModulePins(),
+		locks:  newKeyedLocks(),
 	}
 }
 
@@ -186,7 +182,7 @@ func (b *Builder) compile(ctx context.Context, plan buildPlan) error {
 	// connection and then goes quiet, say — would not just hang this launch but
 	// every later launch of the same application behind it. Bounding the toolchain
 	// bounds the lock.
-	ctx, cancel := context.WithTimeout(ctx, b.buildTimeout)
+	ctx, cancel := context.WithTimeout(ctx, buildTimeout)
 	defer cancel()
 	work := filepath.Join(b.buildDir(), fmt.Sprintf("%s-%s", plan.applicationID, plan.fingerprint))
 	if err := os.RemoveAll(work); err != nil {
@@ -224,7 +220,7 @@ func (b *Builder) compile(ctx context.Context, plan buildPlan) error {
 	if offlineErr != nil {
 		if ctx.Err() != nil {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return fmt.Errorf("compile backend %q: gave up after %s\n%s", plan.applicationID, b.buildTimeout, strings.TrimSpace(offlineOutput))
+				return fmt.Errorf("compile backend %q: gave up after %s\n%s", plan.applicationID, buildTimeout, strings.TrimSpace(offlineOutput))
 			}
 			return fmt.Errorf("compile backend %q: %w\n%s", plan.applicationID, ctx.Err(), strings.TrimSpace(offlineOutput))
 		}
@@ -237,7 +233,7 @@ func (b *Builder) compile(ctx context.Context, plan buildPlan) error {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				return fmt.Errorf(
 					"compile backend %q: gave up after %s\n%s",
-					plan.applicationID, b.buildTimeout, strings.TrimSpace(output))
+					plan.applicationID, buildTimeout, strings.TrimSpace(output))
 			}
 			return fmt.Errorf(
 				"compile backend %q:\n%s\n(offline attempt: %s)",

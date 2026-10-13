@@ -76,25 +76,3 @@ func TestPublicHostnameUsesInstalledDomain(t *testing.T) {
 		t.Fatalf("PublicHostname = %q, want remote.example.com", got)
 	}
 }
-
-func TestApplicationProvisioningBudgets(t *testing.T) {
-	for _, tc := range []struct {
-		value            string
-		install, control time.Duration
-	}{
-		{"", 30 * time.Minute, 2 * time.Minute},
-		{"45m", 45 * time.Minute, 45 * time.Minute},
-		{"0", 30 * time.Minute, 2 * time.Minute},
-		{"-1m", 30 * time.Minute, 2 * time.Minute},
-		{"invalid", 30 * time.Minute, 2 * time.Minute},
-	} {
-		t.Run(tc.value, func(t *testing.T) {
-			t.Setenv("APPLICATION_INSTALL_TIMEOUT", tc.value)
-			t.Setenv("APPLICATION_CONTROL_TIMEOUT", tc.value)
-			options := Load().Applications
-			if options.InstallTimeout != tc.install || options.ControlTimeout != tc.control {
-				t.Fatalf("budgets=%s/%s want=%s/%s", options.InstallTimeout, options.ControlTimeout, tc.install, tc.control)
-			}
-		})
-	}
-}

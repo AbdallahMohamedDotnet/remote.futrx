@@ -35,24 +35,36 @@ func TestProjectInstallationReturnsAcceptedAndKeepsScopeBoundaries(t *testing.T)
 		t.Fatalf("accepted=%+v", started)
 	}
 	for _, project := range []string{"p1", "p2"} {
-		request := httptest.NewRequest(http.MethodGet, "/api/projects/"+project+"/applications/installations/test-ui", nil)
+		request := httptest.NewRequest(http.MethodGet, "/api/projects/"+project+"/applications/installations", nil)
 		response := httptest.NewRecorder()
-		handler.HandleProject(response, request, project, []string{project, "applications", "installations/test-ui"})
+		handler.HandleProject(response, request, project, []string{project, "applications", "installations"})
 		if response.Code != http.StatusOK {
 			t.Fatalf("status=%d", response.Code)
 		}
-		if project == "p2" && strings.TrimSpace(response.Body.String()) != "null" {
+		var runs []svc.InstallRun
+		if err := json.Unmarshal(response.Body.Bytes(), &runs); err != nil {
+			t.Fatal(err)
+		}
+		if project == "p2" && len(runs) != 0 {
 			t.Fatalf("cross-project log exposed: %s", response.Body.String())
 		}
-		if project == "p1" && !strings.Contains(response.Body.String(), started.ID) {
+		if project == "p1" && (len(runs) != 1 || runs[0].ID != started.ID) {
 			t.Fatal("owner cannot read installation")
 		}
+	}
+	removed := httptest.NewRecorder()
+	handler.HandleProject(removed, httptest.NewRequest(http.MethodGet, "/api/projects/p1/applications/installations/test-ui", nil), "p1", []string{"p1", "applications", "installations/test-ui"})
+	if removed.Code != http.StatusNotFound {
+		t.Fatalf("removed single-run endpoint status=%d", removed.Code)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	for ctx.Err() == nil {
-		run, _, _ := service.Installation(ctx, svc.ScopeProject, "p1", app.ID)
-		if run.State == "succeeded" {
+		runs, err := service.Installations(ctx, svc.ScopeProject, "p1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(runs) == 1 && runs[0].State == "succeeded" {
 			return
 		}
 		time.Sleep(time.Millisecond)

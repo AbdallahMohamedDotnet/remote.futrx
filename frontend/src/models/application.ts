@@ -308,17 +308,13 @@ export interface AppInstallRun {
   scope: AppScope;
   projectId?: string;
   state: "running" | "succeeded" | "failed";
-  startedAt: number;
-  finishedAt?: number;
   error?: string;
   log?: string;
-  logUpdatedAt?: number;
   progress: {
     phase: string;
     message: string;
     currentItem?: string;
     completed?: number;
     total?: number;
-    updatedAt: number;
   };
 }

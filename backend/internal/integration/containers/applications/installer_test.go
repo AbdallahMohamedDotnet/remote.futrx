@@ -105,37 +105,20 @@ func TestContainerStateRejectsAnEmptyNameWithoutCallingLXD(t *testing.T) {
 	}
 }
 
-type provisioningBudgetRunner struct {
-	*fakeRunner
-	minimumBudget time.Duration
-	block         bool
+type cancelledInstallRunner struct{ *fakeRunner }
+
+func (r *cancelledInstallRunner) RunStdin(ctx context.Context, _ io.Reader, _ ...string) (string, error) {
+	<-ctx.Done()
+	return "partial build output", errors.New("exit status 143")
 }
 
-func (r *provisioningBudgetRunner) RunStdin(ctx context.Context, stdin io.Reader, args ...string) (string, error) {
-	if r.block {
-		<-ctx.Done()
-		return "partial build output", errors.New("exit status 143")
-	}
-	deadline, ok := ctx.Deadline()
-	if !ok || time.Until(deadline) < r.minimumBudget {
-		return "", context.DeadlineExceeded
-	}
-	return r.fakeRunner.RunStdin(ctx, stdin, args...)
-}
-
-func TestColdInstallHasEnoughBudgetForSlowBuild(t *testing.T) {
-	runner := &provisioningBudgetRunner{fakeRunner: newFakeRunner("project"), minimumBudget: 20 * time.Minute}
+func TestInstallDeadlineReportsCancellation(t *testing.T) {
+	runner := &cancelledInstallRunner{newFakeRunner("project")}
 	installer := NewInstaller(runner, testRegistry(t), t.TempDir())
-	if err := installer.runInstallScript(context.Background(), serviceSpec(svc.ScopeProject, "project")); err != nil {
-		t.Fatalf("cold build cut short by the old eight-minute limit: %v", err)
-	}
-}
-
-func TestConfiguredInstallDeadlineReportsCancellation(t *testing.T) {
-	runner := &provisioningBudgetRunner{fakeRunner: newFakeRunner("project"), block: true}
-	installer := NewInstaller(runner, testRegistry(t), t.TempDir(), InstallerOptions{InstallTimeout: time.Millisecond})
-	err := installer.runInstallScript(context.Background(), serviceSpec(svc.ScopeProject, "project"))
-	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "limit 1ms") || !strings.Contains(err.Error(), "partial build output") {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	err := installer.runInstallScript(ctx, serviceSpec(svc.ScopeProject, "project"))
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "partial build output") {
 		t.Fatalf("cancellation lost its deadline or build output: %v", err)
 	}
 }

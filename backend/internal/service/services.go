@@ -98,9 +98,7 @@ type Dependencies struct {
 	// AppBackends runs the application backends applications ship in their backend/ directory.
 	// Leaving it nil keeps every other application capability working and
 	// reports backend calls as unavailable.
-	AppBackends       serviceapplications.BackendHost
-	AppInstallTimeout time.Duration
-	AppInstalls       serviceapplications.InstallRunStore
+	AppBackends serviceapplications.BackendHost
 	// AppPackages is the writable half of the application catalog: the store
 	// of packages an administrator uploaded. Nil leaves the catalog to whatever
 	// the binary was built with.
@@ -335,8 +333,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			projectContainersAdapter{projects: projectService},
 			deps.AppPorts,
 			serviceapplications.WithBackendHost(deps.AppBackends),
-			serviceapplications.WithBackendStartTimeout(deps.AppInstallTimeout),
-			serviceapplications.WithInstallRuns(ctx, deps.AppInstalls),
+			serviceapplications.WithInstallRuns(ctx),
 			serviceapplications.WithPackageCatalog(deps.AppPackages),
 			serviceapplications.WithLifecyclePublisher(deps.ApplicationLifecycle),
 			serviceapplications.WithEventSource(ctx, deps.ApplicationEvents),
