@@ -155,23 +155,30 @@ func (a *LocalAdminAuthenticator) setCredential(credential *LocalAdminCredential
 	a.mu.Unlock()
 }
 
-func (a *LocalAdminAuthenticator) login(email, password string) (User, error) {
+// resolveCredential returns the credential owning email, or nil on a miss,
+// plus the hash a password must be verified against. The hash is a real one
+// even on a miss (the configured credential's, else the dummy) so a miss costs
+// the same as a hit.
+func (a *LocalAdminAuthenticator) resolveCredential(email string) (*LocalAdminCredential, string) {
 	a.mu.RLock()
-	credential := a.credential
-	hash := a.dummyHash
-	if credential != nil {
-		copy := *credential
-		credential = &copy
-		hash = copy.PasswordHash
+	defer a.mu.RUnlock()
+	if a.credential == nil {
+		return nil, a.dummyHash
 	}
-	a.mu.RUnlock()
+	if a.credential.Email != normalizeEmail(email) {
+		return nil, a.credential.PasswordHash
+	}
+	credential := *a.credential
+	return &credential, credential.PasswordHash
+}
 
+func (a *LocalAdminAuthenticator) login(email, password string) (User, error) {
+	credential, hash := a.resolveCredential(email)
 	passwordOK, err := VerifyPassword(hash, password)
 	if err != nil {
 		return User{}, ErrInvalidCredentials
 	}
-	emailOK := credential != nil && normalizeEmail(email) == credential.Email
-	if !emailOK || !passwordOK {
+	if credential == nil || !passwordOK {
 		return User{}, ErrInvalidCredentials
 	}
 	return localAdminUser(credential.Email), nil
@@ -186,18 +193,15 @@ func (a *LocalAdminAuthenticator) configured() bool {
 // verifyPassword snapshots and verifies the password credential. The caller
 // holds claimMu across verification and replacement to serialize changes.
 func (a *LocalAdminAuthenticator) verifyPassword(email, password string) (LocalAdminCredential, error) {
-	a.mu.RLock()
-	if a.credential == nil || a.credential.Email != normalizeEmail(email) {
-		a.mu.RUnlock()
+	credential, hash := a.resolveCredential(email)
+	if credential == nil {
 		return LocalAdminCredential{}, ErrPasswordSignInUnavailable
 	}
-	credential := *a.credential
-	a.mu.RUnlock()
-	ok, err := VerifyPassword(credential.PasswordHash, password)
+	ok, err := VerifyPassword(hash, password)
 	if err != nil || !ok {
 		return LocalAdminCredential{}, ErrCurrentPasswordIncorrect
 	}
-	return credential, nil
+	return *credential, nil
 }
 
 // replacePassword requires claimMu held by the workflow; durable replacement
