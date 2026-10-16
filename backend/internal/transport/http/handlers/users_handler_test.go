@@ -9,6 +9,8 @@ import (
 	"time"
 
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
+	serviceemail "github.com/futrx-com/remote.futrx.com/internal/service/email"
+	serviceinvitation "github.com/futrx-com/remote.futrx.com/internal/service/invitation"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileauth"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filesessions"
@@ -43,11 +45,32 @@ func (d usersTestDirectory) FirstAdmin(ctx context.Context) (*serviceauth.UserDi
 	return nil, nil
 }
 
+// usersTestCleanup is what the real removal cleanup does for invited
+// credentials; the auth service is bound once it exists.
+type usersTestCleanup struct{ auth *serviceauth.Service }
+
+func (c *usersTestCleanup) CleanupRemovedUser(ctx context.Context, email string) error {
+	if c.auth == nil {
+		return nil
+	}
+	return c.auth.DeleteAccountCredential(ctx, email)
+}
+
 type usersFixture struct {
-	t     *testing.T
-	auth  *serviceauth.Service
-	users *serviceuser.Service
-	mux   *http.ServeMux
+	t           *testing.T
+	auth        *serviceauth.Service
+	users       *serviceuser.Service
+	invitations *serviceinvitation.Service
+	oauth       *usersTestOAuth
+	mux         *http.ServeMux
+}
+
+// usersTestOAuth answers the Google callback with whichever user the test set.
+type usersTestOAuth struct{ user serviceauth.User }
+
+func (*usersTestOAuth) AuthCodeURL(string) string { return "https://accounts.example.com" }
+func (o *usersTestOAuth) ExchangeUser(context.Context, string) (serviceauth.User, error) {
+	return o.user, nil
 }
 
 func newUsersFixture(t *testing.T, google bool) *usersFixture {
@@ -57,7 +80,9 @@ func newUsersFixture(t *testing.T, google bool) *usersFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	users := serviceuser.New(repo)
+	cleanup := &usersTestCleanup{}
+	oauth := &usersTestOAuth{}
+	users := serviceuser.New(repo, serviceuser.WithRemovalCleanup(cleanup))
 	factors, err := filetwofactor.New(root)
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +92,7 @@ func newUsersFixture(t *testing.T, google bool) *usersFixture {
 		t.Fatal(err)
 	}
 	auth, err := serviceauth.New(context.Background(), fileauth.New(root), usersTestDirectory{users},
-		func(string, string, string) serviceauth.OAuthProvider { return twoFactorTestOAuth{} },
+		func(string, string, string) serviceauth.OAuthProvider { return oauth },
 		"https://remote.example.com", []byte("test-session-key"), factors, registry, accountCredentialStoreForTest(t),
 		serviceauth.Options{PendingLoginTTL: 5 * time.Minute, EnrollmentTTL: 10 * time.Minute, RecoveryCodeCount: 10, SessionHistoryLimit: 20, SetupTokenTTL: 30 * time.Minute})
 	if err != nil {
@@ -78,9 +103,17 @@ func newUsersFixture(t *testing.T, google bool) *usersFixture {
 			t.Fatal(err)
 		}
 	}
+	cleanup.auth = auth
+	// A nil mailer reports SMTP as not configured.
+	invitations := serviceinvitation.New(serviceinvitation.Dependencies{
+		Users: users, Credentials: auth, Policy: auth,
+		Mailer: (*serviceemail.Mailer)(nil), BaseURL: "https://remote.example.com",
+	})
 	mux := http.NewServeMux()
-	NewUsersHandler(users, auth).RegisterRoutes(mux)
-	return &usersFixture{t: t, auth: auth, users: users, mux: mux}
+	NewUsersHandler(users, invitations, auth).RegisterRoutes(mux)
+	NewAuthHandler(auth, nil).RegisterRoutes(mux)
+	NewSecurityHandler(auth).RegisterRoutes(mux)
+	return &usersFixture{t: t, auth: auth, users: users, invitations: invitations, oauth: oauth, mux: mux}
 }
 
 // session adds email with role and returns a signed session cookie for it.
