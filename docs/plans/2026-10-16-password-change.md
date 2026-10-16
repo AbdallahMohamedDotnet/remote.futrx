@@ -1,7 +1,7 @@
 # Change password and sign out other sessions
 
 **Issue:** [#374](https://github.com/futrx-com/remote.futrx/issues/374)
-**Status:** in-progress (preflight amendments approved by requester on 2026-10-16)
+**Status:** in-progress — implementation complete; required live QA deployment/acceptance blocked by SSH timeout (2026-10-16)
 **Tier:** structural, small. It adds one API route, one field on an existing persisted record, and one store method. New files within existing packages only; no new package, dependency or `infra/` change, so it is a PATCH-class release.
 **Blocks:** [#372](https://github.com/futrx-com/remote.futrx/issues/372). Plan: `docs/plans/2026-10-16-email-invitations.md`. It reuses the change rules and session revocation built here.
 
@@ -156,7 +156,7 @@ Every backend step ends with `gofmt -l backend` (empty), then `cd backend && go 
 
 Read-only delegated preflight checked the reference implementations and all step verification commands at base `37672a53`. Requester approved the following design amendments: error-propagating 2FA loading, truthful post-save errors, serialized password-change workflows, and protection against stale registry cache publication. The IsActive error result is necessary to express the specified sentinels. No dependency or infrastructure changes are needed. Preserve existing fail-open registry reads, the accepted same-second window, and current login behavior.
 
-**Baseline:** backend `go vet ./... && go test ./...`, root `go test ./...`, frontend `npm test` (101 tests) and `npm run build` passed. Backend tests required local sockets unavailable under the initial sandbox; rerunning outside it passed. Existing Vite configuration/chunk-size warnings remain.
+**Baseline:** backend `go vet ./... && go test ./...`, root `go test ./...`, frontend `npm test` (101 test-file results under the initial runner; independently comparable Node 24 baseline: 555 cases) and `npm run build` passed. Backend tests required local sockets unavailable under the initial sandbox; rerunning outside it passed. Existing Vite configuration/chunk-size warnings remain.
 
 **Additional follow-up:** pending 2FA login tokens issued before a change can still complete afterward; invalidating pending login proofs is outside this session-cookie scope.
 
@@ -169,8 +169,64 @@ Read-only delegated preflight checked the reference implementations and all step
 - [x] 4. HTTP — `verified`: full status matrix, limiter/reset/isolation, cookie attributes, middleware old401/fresh200, Google409, recovery use, real-store restart and plaintext scans pass; backend vet/internal suite and HTTP race check pass.
 - [x] 5. Frontend — `verified`: 561 frontend cases and production build pass; real isolated Chrome checks validation/proof/exact payload, double submission, success/error, detached-node unmount clearing, visibility gate and mobile width. Screenshot inspected; independent source review passed.
 - [x] 6. Documentation — `verified`: architecture/auth/API/threat-model references contain sessionsValidAfter or the new route; README user guide updated, rollback and residual limits documented, diff check clean.
-- [ ] 7. Full verification and QA deployment
+- [ ] 7. Full verification and QA deployment — `blocked`: all local full suites, focused race checks, browser checks and independent adversarial checks passed. The pushed, locally checked-out, tracked-clean full candidate SHA passed deploy ref validation, then SSH timed out before remote mutation; live acceptance/journal/public health remain unverified. See QA Round 1.
 
 ## Outcome
 
-<!-- filled after implementation -->
+**Deviations from the plan:** The requester approved error-propagating 2FA loading, truthful post-save session errors, serialization of the password-change workflow and safe cold-cache publication. Independent review found the same stale cold-load race in 2FA enrollment state; its cache now uses the same recheck, with a deterministic regression test. The dedicated HTTP limiter is constructed inside `NewSecurityHandler` because `newLocalLoginLimiter` is private to that package, so transport composition needed no edit. Focused backend tests use additional test files within existing packages; the frontend maximum-byte constant lives alongside its existing minimum in `config/auth.ts`.
+
+**Plan defects:** Initial preflight lacked a recorded verification gate, omitted post-save renewal failure, assumed a boolean session check could express separate error sentinels, and described the password maximum as characters rather than the existing 1024-byte rule. Those details were corrected before the affected implementation. No new dependencies, interfaces, packages, generated/lock edits or infrastructure changes were introduced.
+
+**Steps not fully verified:** Step 7 is locally verified but live QA is blocked. `bash infra/qa/deploy-app.sh d4dd36533c114820b4a4b84d57ecd8e186bd6fac` validated the pushed clean candidate then exited 255 because the configured QA host's SSH port timed out. Independent read-only strict SSH verification confirmed the timeout. No deployment was made and no host-key protections were weakened. Restore QA connectivity and run the exact pushed candidate plus acceptance 1–7 before release. The final report commit changes this plan only; the independently tested source is candidate `d4dd36533c114820b4a4b84d57ecd8e186bd6fac`.
+
+**Left behind:** Accepted same-second token survival, fail-open registry reads, pending 2FA proof survival, existing WebSocket connections and recovery-code alert behavior are documented follow-ups. Unrelated pre-existing untracked `.agents/` content was preserved and excluded from commits. No release/tag or infrastructure update was performed.
+
+**For the next plan in this area:** Keep cache publication safe against concurrent mutations, distinguish every partial-write outcome, and test persisted credentials and cutoffs after service restart. The deployment wrapper fetches remote refs and requires the full SHA rather than an abbreviated commit ID. Keep live QA status separate from passing local tests.
+
+## QA
+
+### Round 1 — 2026-10-16
+
+**Verdict:** blocked — all local checks passed and no feature defect found; the required deployment and live acceptance remain blocked by QA connectivity.
+**Independence:** delegated — this reviewer did not implement the feature or fixes.
+**Tested at tier:** structural, small.
+**Candidate:** `d4dd36533c114820b4a4b84d57ecd8e186bd6fac`; reviewed the entire diff from base `37672a53e3594b50dce269a12aff07faffad1278`.
+**Baseline:** independently verified in `/tmp/password-change-qa-base-37672a53`: backend `go vet ./... && go test ./...`, root `go test ./...`, frontend `npm test` and `npm run build` all exited 0. Node `v24.20.0`, npm `11.19.1`, Go `1.26.8`; baseline frontend reported 555 test cases, candidate 561, all passed. The earlier 101 figure used a different Node runner/reporting environment and is not the comparable case count. Existing Vite configuration and chunk-size warnings occur at baseline and candidate.
+
+**Ran:** independently repeated the same full suites on the candidate (all exit 0), `gofmt -l backend` (empty), `git diff --check` (empty), and `go test -race ./internal/service/auth ./internal/transport/http/handlers ./internal/stores/fileauth -run 'PasswordChange|ChangePassword|Revocation|ColdLoad|ReplaceLocalAdmin|SecurityDisableTwoFactor|IsActiveExistingBehavior' -count=2 -v` (pass). Independently ran `/tmp/password-change-ui-harness.mjs` against the actual components in headless Chrome; every assertion passed and the mobile screenshot was inspected. Additional QA-only tests ran in `/tmp/password-change-qa-candidate`, leaving repository source/tests untouched.
+
+#### Acceptance results
+
+1. **Local pass; live blocked.** `TestPasswordChangeHTTPSuccessAndDurability` exercises the real file stores and auth middleware: historical cookie accepted before change, old cookie 401 afterward, replacement cookie 200, same result after service restart. The Chrome harness verifies success and form clearing. Existing `requestJson` reloads on 401; two actual browser sessions against QA could not be exercised.
+2. **Local pass; live blocked.** Service and HTTP missing/wrong/replayed 2FA cases return the specified 400/403 without replacing the password or revoking sessions; recovery-code and TOTP success/replay cases pass. Chrome verifies the required code field and visible server error.
+3. **Local pass; live blocked.** `TestPasswordChangeHTTPRateLimit` observes five 403 failures followed by 429 and `Retry-After: 300`. Separate tests pass for invalid-2FA counting, independent IP buckets, validation not counting, successful reset, and separation from login limiting.
+4. **Local pass; live blocked.** Service and real-store HTTP/restart tests reject the old password and complete login with the replacement password.
+5. **Local pass; live blocked.** Google-only summary reports `passwordSignIn: false`, API returns 409, and Chrome asserts the Password card is absent while other Security settings render.
+6. **Partial local pass; live blocked.** Capturing-log/error tests contain neither fabricated password; real-store success recursively scans temporary DATA_DIR files and finds neither plaintext. No new flow logs password values. Live service journal and deployed DATA_DIR were inaccessible; this criterion is not claimed passed on QA.
+7. **Local pass; live blocked.** Full regression suites and existing no-record/single-session/history tests pass against the verified base. Revocation-only state leaves tracking off; preference/logout updates preserve the cutoff.
+
+#### Adversarial and seam coverage
+
+- Empty/missing/null/wrong-type bodies, malformed JSON, absent session and wrong HTTP method pass. Independent tests also assert invalid input performs no registry write and preserves durable login.
+- Independent HTTP tests reject 11 supplementary Unicode characters, accept 12, accept exactly 1024 ASCII/UTF-8 bytes, reject 1028 bytes, and preserve a 12-space password through durable login. Frontend tests cover corresponding Unicode/byte and confirmation boundaries.
+- Authorization/account isolation passes for no session, Google-only accounts, ignored body identity and another account's unaffected cookie. Independent forward-auth test observes old-cookie 200 before change, redirect 302 after change, and replacement-cookie 200.
+- Repetition/concurrency, proof replay, one-winner changes, cold-cache races, dependency read/write failures, revoke-before-save ordering, failed save and failed reissue all pass under the focused race run. UI double-submit and detached-node credential clearing pass.
+- Pre-existing missing-cutoff records retain prior behavior. The persisted change is additive with no migration/down command; independent legacy-shape decoding accepts the field and demonstrates the documented loss of revocation on older readers. An actual older-binary deployment rollback was not run.
+- Volume: no bulk query/fetch or per-session scan was introduced; the changed request handles one credential and one bounded account record. Existing bounded-history tests pass. Load benchmarking was not performed.
+- Caller search checked the changed `IsActive` interface and `LocalAdminStore` implementation/fake coverage. `CurrentSession` remains the shared gate for API, forward-auth and new WebSocket authentication; an actual WebSocket upgrade after a change was not separately exercised.
+- All changed hunks map to the plan or its recorded amendments; no new dependency, infrastructure change, migration, debug scaffolding, secret, or unexplained generated-file change was found. Existing fail-open reads and same-second survival are preserved and documented.
+
+#### Findings
+
+No blocker, major or minor feature defect found locally. The deployment gate remains open: the implementer reports `deploy-app.sh` against the full pushed candidate SHA exited 255 at SSH before mutation. This reviewer independently ran a read-only SSH `true` using the configured QA connection and strict host checking: exit 255, `Connection timed out`. Credentials, host details and `.qa.env` values were not added to this report.
+
+#### Not tested
+
+- Required QA deployment, live two-browser acceptance, public health, `journalctl -u remote.futrx`, and deployed DATA_DIR plaintext checks. Restore connectivity to the configured QA host, deploy the exact pushed clean candidate using `infra/qa/deploy-app.sh`, then run acceptance 1–7 there before release.
+- Existing WebSocket connections remaining open, pending 2FA login proof survival, fail-open registry errors and same-second token survival remain the accepted documented limitations, not newly claimed protections.
+
+#### Evidence and next check
+
+Independent logs: `/tmp/password-change-qa-base-{backend,root,frontend,build}.log`, `/tmp/password-change-qa-candidate-{backend,root,frontend,build}.log`, `/tmp/password-change-qa-focused.log`, `/tmp/password-change-qa-adversarial.log`, `/tmp/password-change-qa-ui.log`; screenshot `/tmp/password-change-ui.png`. QA-only adversarial tests are in `/tmp/password-change-qa-candidate/backend/internal/transport/http/handlers/password_change_independent_qa_test.go`.
+
+Before shipping, prioritize the required live two-browser session-revocation and journal/DATA_DIR checks after QA connectivity is restored. A future plan should retain the distinction between local evidence and a completed deployment gate.
