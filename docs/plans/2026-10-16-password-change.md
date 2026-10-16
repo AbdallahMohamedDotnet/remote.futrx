@@ -116,10 +116,10 @@ Every backend step ends with `gofmt -l backend` (empty), then `cd backend && go 
    - failed reissue returns the changed-password sentinel; concurrent changes with the same current password have exactly one winner and keep its fresh session valid;
    - a capturing `slog` handler and every error string contain neither password.
 
-4. **HTTP.** Files: `handlers/security_handler.go` (route, limiter field, error mapping), `security_handler_test.go`, `transport.go:122` (pass a `newLocalLoginLimiter()`).
+4. **HTTP.** Files: `handlers/security_handler.go` (route, limiter field, error mapping), `security_handler_test.go`, `NewSecurityHandler` (construct a dedicated `newLocalLoginLimiter()` internally, matching existing handler ownership; the helper is unexported).
    Verify: each status in the error contract through `httptest`; a successful change sets `remote_session` with the same attributes as `setSessionCookie`; the old cookie then gets 401 on `/api/projects` through the real middleware; `/api/me/security` returns `passwordSignIn: true` for the local admin and `false` for a Google user.
 
-5. **Frontend.** Files: `config/routes.ts`, `api/securityApi.ts` (`changePassword`), `models/security` type (`passwordSignIn`), `state/hooks/auth/passwordChangeFormState.ts` + `.test.ts`, `state/hooks/auth/useSecuritySettings.ts` (expose `changePassword`), `ui/settings/security/PasswordChangeForm.tsx` (new), `ui/settings/SecuritySettings.tsx` (render when `passwordSignIn`).
+5. **Frontend.** Files: `config/auth.ts` (central maximum-byte rule alongside existing minimum), `config/routes.ts`, `api/securityApi.ts` (`changePassword`), `models/security` type (`passwordSignIn`), `state/hooks/auth/passwordChangeFormState.ts` + `.test.ts`, `state/hooks/auth/useSecuritySettings.ts` (expose `changePassword`), `ui/settings/security/PasswordChangeForm.tsx` (new), `ui/settings/SecuritySettings.tsx` (render when `passwordSignIn`).
    The form has current password, new password, confirmation, and a code field shown only when `twoFactorEnabled`. Use `autocomplete` values `current-password`, `new-password`, `one-time-code`. Show success text after the change. Errors show the server message. Clear the fields on success and on unmount.
    Verify: form-state tests cover length < 12, mismatch, same-as-current, and the code required when 2FA is on; `npm run build`.
 
@@ -166,7 +166,7 @@ Read-only delegated preflight checked the reference implementations and all step
 - [x] 1. Session registry — `verified`: cutoff boundaries, monotonic preservation, failure paths, untracked issuance and controlled stale-load races pass; focused race tests ×10, backend vet/internal suite, gofmt pass.
 - [x] 2. Credential store — `verified`: normalized CAS success, missing/mismatch rejection with byte preservation, 0600 mode, cancellation and incomplete input tests pass; backend vet/internal suite and formatting pass.
 - [x] 3. Authenticator and service — `verified`: ordered success/error matrix, durable/cache login consistency, revocation, recovery/TOTP/replay, sanitized logs/errors and concurrent winner tests pass; backend vet/internal suite and focused race tests ×2 pass. Independent review found and verified the fix for stale 2FA cold-load publication.
-- [ ] 4. HTTP
+- [x] 4. HTTP — `verified`: full status matrix, limiter/reset/isolation, cookie attributes, middleware old401/fresh200, Google409, recovery use, real-store restart and plaintext scans pass; backend vet/internal suite and HTTP race check pass.
 - [ ] 5. Frontend
 - [ ] 6. Documentation
 - [ ] 7. Full verification and QA deployment
