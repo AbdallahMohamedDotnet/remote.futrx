@@ -164,7 +164,7 @@ Read-only delegated preflight checked the reference implementations and all step
 
 - [x] 0. Characterization tests — `verified`: new HTTP and registry tests pass unchanged; gofmt empty, backend vet and internal suite pass.
 - [x] 1. Session registry — `verified`: cutoff boundaries, monotonic preservation, failure paths, untracked issuance and controlled stale-load races pass; focused race tests ×10, backend vet/internal suite, gofmt pass.
-- [ ] 2. Credential store
+- [x] 2. Credential store — `verified`: normalized CAS success, missing/mismatch rejection with byte preservation, 0600 mode, cancellation and incomplete input tests pass; backend vet/internal suite and formatting pass.
 - [ ] 3. Authenticator and service
 - [ ] 4. HTTP
 - [ ] 5. Frontend
