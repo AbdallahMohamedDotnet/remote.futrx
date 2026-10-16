@@ -167,7 +167,7 @@ Read-only delegated preflight checked the reference implementations and all step
 - [x] 2. Credential store — `verified`: normalized CAS success, missing/mismatch rejection with byte preservation, 0600 mode, cancellation and incomplete input tests pass; backend vet/internal suite and formatting pass.
 - [x] 3. Authenticator and service — `verified`: ordered success/error matrix, durable/cache login consistency, revocation, recovery/TOTP/replay, sanitized logs/errors and concurrent winner tests pass; backend vet/internal suite and focused race tests ×2 pass. Independent review found and verified the fix for stale 2FA cold-load publication.
 - [x] 4. HTTP — `verified`: full status matrix, limiter/reset/isolation, cookie attributes, middleware old401/fresh200, Google409, recovery use, real-store restart and plaintext scans pass; backend vet/internal suite and HTTP race check pass.
-- [ ] 5. Frontend
+- [x] 5. Frontend — `verified`: 561 frontend cases and production build pass; real isolated Chrome checks validation/proof/exact payload, double submission, success/error, detached-node unmount clearing, visibility gate and mobile width. Screenshot inspected; independent source review passed.
 - [ ] 6. Documentation
 - [ ] 7. Full verification and QA deployment
 
