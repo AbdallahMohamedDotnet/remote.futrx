@@ -37,7 +37,7 @@ func TestIsActiveExistingBehavior(t *testing.T) {
 				store = failingSessionRegistryReadStore{memory}
 			}
 			registry := newSessionRegistry(store, authTestOptions().SessionHistoryLimit)
-			if got := registry.IsActive(context.Background(), email, "session-under-test"); got != tc.want {
+			if got := (registry.IsActive(context.Background(), Session{Email: email, SID: "session-under-test"}) == nil); got != tc.want {
 				t.Fatalf("IsActive = %v, want %v", got, tc.want)
 			}
 		})
@@ -59,7 +59,7 @@ func TestSingleSessionEnabledSupersedesEarlierSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("IssueForAccount (1st): %v", err)
 	}
-	if !r.IsActive(context.Background(), email, sidA) {
+	if r.IsActive(context.Background(), Session{Email: email, SID: sidA}) != nil {
 		t.Fatal("first session should be active immediately after issuance")
 	}
 
@@ -67,10 +67,10 @@ func TestSingleSessionEnabledSupersedesEarlierSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("IssueForAccount (2nd): %v", err)
 	}
-	if r.IsActive(context.Background(), email, sidA) {
+	if r.IsActive(context.Background(), Session{Email: email, SID: sidA}) == nil {
 		t.Fatal("first session should be superseded by the second")
 	}
-	if !r.IsActive(context.Background(), email, sidB) {
+	if r.IsActive(context.Background(), Session{Email: email, SID: sidB}) != nil {
 		t.Fatal("second session should be active")
 	}
 }
@@ -87,7 +87,7 @@ func TestSingleSessionDisabledKeepsBothSessionsActive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("IssueForAccount (2nd): %v", err)
 	}
-	if !r.IsActive(context.Background(), email, sidA) || !r.IsActive(context.Background(), email, sidB) {
+	if r.IsActive(context.Background(), Session{Email: email, SID: sidA}) != nil || r.IsActive(context.Background(), Session{Email: email, SID: sidB}) != nil {
 		t.Fatal("both sessions should remain active when single-session is off")
 	}
 }
@@ -105,10 +105,10 @@ func TestRevokeInvalidatesActiveAndLegacyEmptySessions(t *testing.T) {
 	if err := r.Revoke(context.Background(), email); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
-	if r.IsActive(context.Background(), email, sid) {
+	if r.IsActive(context.Background(), Session{Email: email, SID: sid}) == nil {
 		t.Fatal("session should be inactive after Revoke")
 	}
-	if r.IsActive(context.Background(), email, "") {
+	if r.IsActive(context.Background(), Session{Email: email, SID: ""}) == nil {
 		t.Fatal("legacy empty-SID session should remain inactive after Revoke")
 	}
 }
