@@ -121,15 +121,22 @@ type Status struct {
 	SecurityAlert        *SecurityAlert `json:"securityAlert,omitempty"`
 }
 
-// subjectLocalAdmin is the session subject of the password-only local
-// administrator. Every other subject is a Google account identifier.
-const subjectLocalAdmin = "local-admin"
+const (
+	// subjectLocalAdmin is the session subject of the password-only local
+	// administrator.
+	subjectLocalAdmin = "local-admin"
+	// subjectPassword is the session subject of an invited account signed in
+	// with its own password. Every other subject is a Google account
+	// identifier, which is numeric and so can never collide with these.
+	subjectPassword = "password"
+)
 
 // signInMethodForSubject infers how a session's owner signed in when no fresh
-// credential check is available: the local administrator uses a password and
-// every other subject came through Google.
+// credential check is available: the local administrator and invited
+// password accounts used a password and every other subject came through
+// Google.
 func signInMethodForSubject(subject string) SignInMethod {
-	if subject == subjectLocalAdmin {
+	if subject == subjectLocalAdmin || subject == subjectPassword {
 		return SignInMethodPassword
 	}
 	return SignInMethodGoogle

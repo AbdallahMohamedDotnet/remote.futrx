@@ -68,7 +68,7 @@ func newUsersFixture(t *testing.T, google bool) *usersFixture {
 	}
 	auth, err := serviceauth.New(context.Background(), fileauth.New(root), usersTestDirectory{users},
 		func(string, string, string) serviceauth.OAuthProvider { return twoFactorTestOAuth{} },
-		"https://remote.example.com", []byte("test-session-key"), factors, registry,
+		"https://remote.example.com", []byte("test-session-key"), factors, registry, accountCredentialStoreForTest(t),
 		serviceauth.Options{PendingLoginTTL: 5 * time.Minute, EnrollmentTTL: 10 * time.Minute, RecoveryCodeCount: 10, SessionHistoryLimit: 20, SetupTokenTTL: 30 * time.Minute})
 	if err != nil {
 		t.Fatal(err)

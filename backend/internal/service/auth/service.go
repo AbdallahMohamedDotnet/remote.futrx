@@ -82,6 +82,7 @@ func (o Options) validate() error {
 type Service struct {
 	users             UserDirectory
 	local             *LocalAdminAuthenticator
+	accounts          *accountPasswordAuthenticator
 	google            *GoogleAuthenticator
 	setupTokenIssuer  *SetupTokenIssuer
 	baseURL           string
@@ -95,6 +96,12 @@ type Service struct {
 	// It shares the session key but not the session: a share pass proves one
 	// slug and port were once granted, never who the caller is.
 	sharePasses *sharePassCodec
+	// verifyPassword is VerifyPassword; tests count its calls to prove a
+	// login costs exactly one verification whichever credential answers.
+	verifyPassword func(encoded, password string) (bool, error)
+	// temporaryPassword is GenerateTemporaryPassword; tests fix it to know
+	// the plaintext they must prove never leaks.
+	temporaryPassword func() (string, error)
 }
 
 func NormalizeBaseURL(baseURL string) (string, error) {
@@ -113,6 +120,7 @@ func New(
 	sessionKey []byte,
 	twoFactorStore TwoFactorStore,
 	sessionRegistryStore SessionRegistryStore,
+	accountCredentialStore AccountCredentialStore,
 	options Options,
 ) (*Service, error) {
 	if store == nil {
@@ -126,6 +134,9 @@ func New(
 	}
 	if sessionRegistryStore == nil {
 		return nil, errors.New("session registry store is required")
+	}
+	if accountCredentialStore == nil {
+		return nil, errors.New("account credential store is required")
 	}
 	if err := options.validate(); err != nil {
 		return nil, fmt.Errorf("auth options: %w", err)
@@ -153,6 +164,10 @@ func New(
 		return nil, err
 	}
 	local.setDummyHash(dummyHash)
+	accounts, err := newAccountPasswordAuthenticator(ctx, accountCredentialStore)
+	if err != nil {
+		return nil, err
+	}
 
 	cookieDomain := ""
 	if u, err := url.Parse(baseURL); err == nil {
@@ -160,13 +175,16 @@ func New(
 	}
 
 	service := &Service{
-		users:            users,
-		local:            local,
-		setupTokenIssuer: setupTokenIssuer,
-		google:           google,
-		baseURL:          baseURL,
-		cookieDomain:     cookieDomain,
-		codec:            newSessionCodec(sessionKey),
+		users:             users,
+		local:             local,
+		accounts:          accounts,
+		verifyPassword:    VerifyPassword,
+		temporaryPassword: GenerateTemporaryPassword,
+		setupTokenIssuer:  setupTokenIssuer,
+		google:            google,
+		baseURL:           baseURL,
+		cookieDomain:      cookieDomain,
+		codec:             newSessionCodec(sessionKey),
 		twoFactor: newTwoFactorAuthenticator(
 			twoFactorStore,
 			"remote.futrx",
@@ -232,8 +250,19 @@ func (s *Service) ClaimLocalAdmin(ctx context.Context, req ClaimRequest) (User, 
 	return s.local.claim(ctx, req)
 }
 
-func (s *Service) LoginLocal(_ context.Context, email, password string) (User, error) {
-	return s.local.login(email, password)
+// LoginLocal checks an email and password against the local administrator's
+// credential or an invited account's. An account that still holds a temporary
+// password proves its owner with it but may not sign in yet, so it is told to
+// change it instead.
+func (s *Service) LoginLocal(ctx context.Context, email, password string) (User, error) {
+	credential, err := s.authenticatePassword(ctx, email, password)
+	if err != nil {
+		return User{}, err
+	}
+	if credential.mustChange() {
+		return User{}, ErrPasswordChangeRequired
+	}
+	return credential.user(), nil
 }
 
 func (s *Service) ConfigureGoogleOAuth(ctx context.Context, cfg OAuthConfig) error {

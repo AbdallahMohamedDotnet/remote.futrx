@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -181,6 +182,62 @@ func (s *authTestSessionRegistryStore) Delete(_ context.Context, email string) e
 	return nil
 }
 
+// authTestAccountCredentialStore is the AccountCredentialStore fake.
+// saveErr injects a failure without disturbing recorded state.
+type authTestAccountCredentialStore struct {
+	mu         sync.Mutex
+	records    map[string]AccountCredential
+	saveErr    error
+	listErr    error
+	saveCalls  int
+	beforeSave func(email string, credential AccountCredential)
+}
+
+func newAuthTestAccountCredentialStore() *authTestAccountCredentialStore {
+	return &authTestAccountCredentialStore{records: map[string]AccountCredential{}}
+}
+
+func (s *authTestAccountCredentialStore) Get(_ context.Context, email string) (*AccountCredential, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.records[normalizeEmail(email)]
+	if !ok {
+		return nil, nil
+	}
+	return &record, nil
+}
+func (s *authTestAccountCredentialStore) Save(_ context.Context, email string, credential AccountCredential) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.saveCalls++
+	if s.beforeSave != nil {
+		s.beforeSave(email, credential)
+	}
+	if s.saveErr != nil {
+		return s.saveErr
+	}
+	s.records[normalizeEmail(email)] = credential
+	return nil
+}
+func (s *authTestAccountCredentialStore) Delete(_ context.Context, email string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.records, normalizeEmail(email))
+	return nil
+}
+func (s *authTestAccountCredentialStore) List(context.Context) (map[string]AccountCredential, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	out := make(map[string]AccountCredential, len(s.records))
+	for email, record := range s.records {
+		out[email] = record
+	}
+	return out, nil
+}
+
 type authTestUsers struct {
 	roles                map[string]bool
 	isRegisteredErr      error
@@ -261,6 +318,7 @@ func newAuthTestServiceWithOptions(
 		[]byte("test-session-key"),
 		newAuthTestTwoFactorStore(),
 		newAuthTestSessionRegistryStore(),
+		newAuthTestAccountCredentialStore(),
 		options,
 	)
 	if err != nil {
@@ -300,6 +358,7 @@ func TestNewRejectsNonPositiveSetupTokenTTL(t *testing.T) {
 			[]byte("test-session-key"),
 			newAuthTestTwoFactorStore(),
 			newAuthTestSessionRegistryStore(),
+			newAuthTestAccountCredentialStore(),
 			options,
 		)
 		if err == nil {

@@ -255,6 +255,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		deps.AuthBaseURL,
 		deps.TwoFactor,
 		deps.SessionRegistry,
+		deps.AccountCredentials,
 		deps.AuthOptions,
 	)
 	if err != nil {

@@ -179,7 +179,7 @@ func (s *Service) SecuritySummary(ctx context.Context, email string) (SecuritySu
 		return SecuritySummary{}, err
 	}
 	return SecuritySummary{
-		PasswordSignIn:           s.local.isLocalAdmin(email),
+		PasswordSignIn:           s.hasPasswordCredential(email),
 		TwoFactorEnabled:         s.twoFactor.Enabled(ctx, email),
 		RecoveryCodesRemaining:   s.twoFactor.RecoveryCodesRemaining(ctx, email),
 		SingleSessionEnabled:     prefs.SingleSessionEnabled,
@@ -199,4 +199,14 @@ func (s *Service) SecuritySummary(ctx context.Context, email string) (SecuritySu
 // isn't a fresh credential check.
 func (s *Service) ReissueTrackedSession(ctx context.Context, user User, ip, userAgent string) (string, error) {
 	return s.IssueSession(ctx, user, signInMethodForSubject(user.Sub), ip, userAgent)
+}
+
+// hasPasswordCredential reports whether email has a password to sign in or
+// change with: the local administrator's, or an invited account's.
+func (s *Service) hasPasswordCredential(email string) bool {
+	if s.local.isLocalAdmin(email) {
+		return true
+	}
+	_, ok := s.accounts.credential(email)
+	return ok
 }

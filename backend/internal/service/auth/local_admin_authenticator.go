@@ -172,18 +172,6 @@ func (a *LocalAdminAuthenticator) resolveCredential(email string) (*LocalAdminCr
 	return &credential, credential.PasswordHash
 }
 
-func (a *LocalAdminAuthenticator) login(email, password string) (User, error) {
-	credential, hash := a.resolveCredential(email)
-	passwordOK, err := VerifyPassword(hash, password)
-	if err != nil {
-		return User{}, ErrInvalidCredentials
-	}
-	if credential == nil || !passwordOK {
-		return User{}, ErrInvalidCredentials
-	}
-	return localAdminUser(credential.Email), nil
-}
-
 func (a *LocalAdminAuthenticator) configured() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()

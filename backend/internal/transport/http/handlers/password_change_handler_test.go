@@ -109,7 +109,7 @@ func newPasswordHTTPFixture(t *testing.T) *passwordHTTPFixture {
 }
 func (f *passwordHTTPFixture) newService(t *testing.T) *serviceauth.Service {
 	t.Helper()
-	auth, err := serviceauth.New(context.Background(), f.store, twoFactorTestDirectory{}, func(string, string, string) serviceauth.OAuthProvider { return twoFactorTestOAuth{} }, "https://remote.example.com", []byte("test-session-key"), f.factors, f.registry, serviceauth.Options{PendingLoginTTL: 5 * time.Minute, EnrollmentTTL: 10 * time.Minute, RecoveryCodeCount: 10, SessionHistoryLimit: 20, SetupTokenTTL: 30 * time.Minute})
+	auth, err := serviceauth.New(context.Background(), f.store, twoFactorTestDirectory{}, func(string, string, string) serviceauth.OAuthProvider { return twoFactorTestOAuth{} }, "https://remote.example.com", []byte("test-session-key"), f.factors, f.registry, accountCredentialStoreForTest(t), serviceauth.Options{PendingLoginTTL: 5 * time.Minute, EnrollmentTTL: 10 * time.Minute, RecoveryCodeCount: 10, SessionHistoryLimit: 20, SetupTokenTTL: 30 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -64,7 +64,7 @@ func (h *SecurityHandler) handlePasswordChange(w http.ResponseWriter, r *http.Re
 		switch {
 		case errors.Is(err, serviceauth.ErrPasswordSignInUnavailable):
 			status, message = http.StatusConflict, serviceauth.ErrPasswordSignInUnavailable.Error()
-		case errors.Is(err, serviceauth.ErrLocalAdminCredentialChanged):
+		case errors.Is(err, serviceauth.ErrLocalAdminCredentialChanged), errors.Is(err, serviceauth.ErrAccountCredentialChanged):
 			status, message = http.StatusConflict, "password was changed elsewhere; reload and try again"
 		case errors.Is(err, serviceauth.ErrCurrentPasswordIncorrect):
 			h.passwordChanges.Failure(key)
