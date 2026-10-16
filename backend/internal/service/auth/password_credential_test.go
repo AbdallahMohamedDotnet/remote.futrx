@@ -229,7 +229,8 @@ func TestTemporaryPasswordBlocksSignInUntilChanged(t *testing.T) {
 		t.Fatalf("LoginLocal = %v, want ErrPasswordChangeRequired", err)
 	}
 	result, err := f.service.CompletePasswordLogin(ctx, invitedEmail, invitedTemp, "", "")
-	if !errors.Is(err, ErrPasswordChangeRequired) || result.Completed || result.CookieValue != "" || result.PendingToken != "" {
+	if err != nil || !result.PasswordChangeRequired || result.PasswordChangeToken == "" ||
+		result.Completed || result.CookieValue != "" || result.PendingToken != "" {
 		t.Fatalf("CompletePasswordLogin = %+v, %v", result, err)
 	}
 	if len(f.registry.records) != 1 {
