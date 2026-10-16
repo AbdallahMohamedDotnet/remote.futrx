@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import type { User, UserRole } from "../../models/user";
+import type { DirectoryUser, UserRole } from "../../models/user";
 import { Check, X } from "../primitives/icons";
 
 export function UserRow({
@@ -8,7 +8,7 @@ export function UserRow({
   onRemove,
   onSetRole,
 }: {
-  user: User;
+  user: DirectoryUser;
   isSelf: boolean;
   onRemove: () => Promise<void>;
   onSetRole: (role: UserRole) => Promise<void>;

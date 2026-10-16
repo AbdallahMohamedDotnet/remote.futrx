@@ -1,10 +1,10 @@
 import { useState } from "preact/hooks";
-import type { UserRole } from "../../models/user";
+import type { InviteInput, UserRole } from "../../models/user";
 
 export function AddUserForm({
   onAdd,
 }: {
-  onAdd: (email: string, role: UserRole) => Promise<void>;
+  onAdd: (input: InviteInput) => Promise<unknown>;
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>("member");
@@ -25,7 +25,7 @@ export function AddUserForm({
     setErr(null);
     setSubmitting(true);
     try {
-      await onAdd(em, role);
+      await onAdd({ email: em, role, method: "google", sendEmail: false });
       setEmail("");
       setRole("member");
     } catch (e) {

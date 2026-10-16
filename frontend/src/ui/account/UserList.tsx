@@ -1,4 +1,4 @@
-import type { User, UserRole } from "../../models/user";
+import type { DirectoryUser, UserRole } from "../../models/user";
 import { UserRow } from "./UserRow";
 
 export function UserList({
@@ -8,7 +8,7 @@ export function UserList({
   onRemove,
   onSetRole,
 }: {
-  users: User[];
+  users: DirectoryUser[];
   loading: boolean;
   currentEmail: string;
   onRemove: (email: string) => Promise<void>;

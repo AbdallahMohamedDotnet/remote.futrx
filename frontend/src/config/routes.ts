@@ -17,6 +17,10 @@ function backendSuffix(path: string): string {
 export const API_ROUTES = {
   authSession: "/auth/me",
   googleOAuth: "/api/admin/auth/google",
+  localPassword: {
+    initial: "/auth/local/password/initial",
+    cancel: "/auth/local/password/cancel",
+  },
   email: {
     settings: "/api/admin/email",
     test: "/api/admin/email/test",
@@ -182,6 +186,8 @@ export const API_ROUTES = {
       `/api/admin/users/${encodeURIComponent(email)}`,
     role: (email: string) =>
       `/api/admin/users/${encodeURIComponent(email)}/role`,
+    temporaryPassword: (email: string) =>
+      `/api/admin/users/${encodeURIComponent(email)}/temporary-password`,
   },
 } as const;
 

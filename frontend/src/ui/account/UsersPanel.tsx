@@ -1,4 +1,4 @@
-import type { User, UserRole } from "../../models/user";
+import type { DirectoryUser, InviteInput, UserRole } from "../../models/user";
 import { useConfirm } from "../../state/context/ConfirmContext";
 import { AlertCircle, Loader } from "../primitives/icons";
 import { AddUserForm } from "./AddUserForm";
@@ -7,11 +7,11 @@ import { UserList } from "./UserList";
 interface UsersPanelProps {
   currentEmail: string;
   isAdmin: boolean;
-  users: User[] | null;
+  users: DirectoryUser[] | null;
   loading: boolean;
   error: string | null;
   canAddUsers: boolean;
-  onAdd: (email: string, role: UserRole) => Promise<void>;
+  onAdd: (input: InviteInput) => Promise<unknown>;
   onRemove: (email: string) => Promise<void>;
   onSetRole: (email: string, role: UserRole) => Promise<void>;
 }
