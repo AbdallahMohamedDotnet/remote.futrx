@@ -191,6 +191,7 @@ type SessionRegistryRecord struct {
 // GET /api/me/security endpoint) renders: 2FA status, the three independent
 // SecurityPreferences flags, sign-in history, and any pending alert.
 type SecuritySummary struct {
+	PasswordSignIn           bool            `json:"passwordSignIn"`
 	TwoFactorEnabled         bool            `json:"twoFactorEnabled"`
 	RecoveryCodesRemaining   int             `json:"recoveryCodesRemaining"`
 	SingleSessionEnabled     bool            `json:"singleSessionEnabled"`

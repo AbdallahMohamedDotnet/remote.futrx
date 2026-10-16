@@ -103,7 +103,7 @@ Every backend step ends with `gofmt -l backend` (empty), then `cd backend && go 
    Use the same normalization and incomplete-credential checks as `DeleteLocalAdmin`. If the file is missing or doesn't match `expected`, return `ErrLocalAdminCredentialChanged`. Write with `writeJSONLocked` (0600, temp + rename).
    Verify: success; mismatch → sentinel and the file is unchanged byte for byte; missing → sentinel; mode stays 0600.
 
-3. **Authenticator + service.** Files: `local_admin_authenticator.go` (`verifyPassword(email, password) (credential, error)` and `replacePassword(ctx, expected, hash)` with the workflow holding `claimMu`), `password_change.go` (new: `PasswordChange`, `ChangePassword`, sentinels `ErrPasswordSignInUnavailable`, `ErrCurrentPasswordIncorrect`, `ErrTwoFactorCodeRequired`, `ErrPasswordReuse`) + `password_change_test.go`, and `security.go` (`SecuritySummary.PasswordSignIn`).
+3. **Authenticator + service.** Files: `twofactor.go` (protect cold-load publication against concurrently completed enrollment), `local_admin_authenticator.go` (`verifyPassword(email, password) (credential, error)` and `replacePassword(ctx, expected, hash)` with the workflow holding `claimMu`), `password_change.go` (new: `PasswordChange`, `ChangePassword`, sentinels `ErrPasswordSignInUnavailable`, `ErrCurrentPasswordIncorrect`, `ErrTwoFactorCodeRequired`, `ErrPasswordReuse`) + `password_change_test.go`, and `security.go` (`SecuritySummary.PasswordSignIn`).
    Verify, table-driven, with fakes that record call order:
    - each error row above;
    - the exact order revoke → save → reissue;
@@ -165,7 +165,7 @@ Read-only delegated preflight checked the reference implementations and all step
 - [x] 0. Characterization tests — `verified`: new HTTP and registry tests pass unchanged; gofmt empty, backend vet and internal suite pass.
 - [x] 1. Session registry — `verified`: cutoff boundaries, monotonic preservation, failure paths, untracked issuance and controlled stale-load races pass; focused race tests ×10, backend vet/internal suite, gofmt pass.
 - [x] 2. Credential store — `verified`: normalized CAS success, missing/mismatch rejection with byte preservation, 0600 mode, cancellation and incomplete input tests pass; backend vet/internal suite and formatting pass.
-- [ ] 3. Authenticator and service
+- [x] 3. Authenticator and service — `verified`: ordered success/error matrix, durable/cache login consistency, revocation, recovery/TOTP/replay, sanitized logs/errors and concurrent winner tests pass; backend vet/internal suite and focused race tests ×2 pass. Independent review found and verified the fix for stale 2FA cold-load publication.
 - [ ] 4. HTTP
 - [ ] 5. Frontend
 - [ ] 6. Documentation
