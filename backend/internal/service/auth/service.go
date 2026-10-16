@@ -371,7 +371,7 @@ func (s *Service) CurrentSession(ctx context.Context, cookieValue string) (*Sess
 	// Once the local administrator exists, invalidate any older Google-backed
 	// sessions for that email. The owner account must remain password-only;
 	// invited users may continue using Google.
-	if s.IsLocalAdmin(session.Email) && session.Sub != "local-admin" {
+	if s.IsLocalAdmin(session.Email) && session.Sub != subjectLocalAdmin {
 		return nil, ErrLocalAdminPasswordOnly
 	}
 	// The registry owns password-change revocation and the optional

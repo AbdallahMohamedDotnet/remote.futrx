@@ -195,13 +195,8 @@ func (s *Service) SecuritySummary(ctx context.Context, email string) (SecuritySu
 // right after a Security-tab change (enabling 2FA, single-session, etc.) so
 // the browser that just made the change is immediately recognized as the
 // account's active/tracked session, instead of waiting for its next login.
-// The SignInMethod recorded is inferred from the session's Sub (local-admin
-// implies password; anything else implies Google) since this isn't a fresh
-// credential check.
+// The SignInMethod recorded is inferred from the session's Sub since this
+// isn't a fresh credential check.
 func (s *Service) ReissueTrackedSession(ctx context.Context, user User, ip, userAgent string) (string, error) {
-	method := SignInMethodGoogle
-	if user.Sub == "local-admin" {
-		method = SignInMethodPassword
-	}
-	return s.IssueSession(ctx, user, method, ip, userAgent)
+	return s.IssueSession(ctx, user, signInMethodForSubject(user.Sub), ip, userAgent)
 }

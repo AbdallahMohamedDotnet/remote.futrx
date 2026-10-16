@@ -109,6 +109,20 @@ type Status struct {
 	SecurityAlert        *SecurityAlert `json:"securityAlert,omitempty"`
 }
 
+// subjectLocalAdmin is the session subject of the password-only local
+// administrator. Every other subject is a Google account identifier.
+const subjectLocalAdmin = "local-admin"
+
+// signInMethodForSubject infers how a session's owner signed in when no fresh
+// credential check is available: the local administrator uses a password and
+// every other subject came through Google.
+func signInMethodForSubject(subject string) SignInMethod {
+	if subject == subjectLocalAdmin {
+		return SignInMethodPassword
+	}
+	return SignInMethodGoogle
+}
+
 // SignInMethod records which factor(s) completed a login. The recovery-code
 // variants are the precise, buildable signal for "someone bypassed the
 // authenticator app" that the recovery-code alert fires on.

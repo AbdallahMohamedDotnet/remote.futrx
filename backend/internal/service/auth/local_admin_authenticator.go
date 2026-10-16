@@ -227,7 +227,7 @@ func (a *LocalAdminAuthenticator) adminEmail() (string, bool) {
 }
 
 func localAdminUser(email string) User {
-	return User{Email: normalizeEmail(email), Sub: "local-admin"}
+	return User{Email: normalizeEmail(email), Sub: subjectLocalAdmin}
 }
 
 func normalizeEmail(email string) string {
