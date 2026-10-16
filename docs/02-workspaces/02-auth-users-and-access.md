@@ -47,10 +47,10 @@ have opted into TOTP 2FA (see below); every other account skips straight from
 | Identity | Sign-in | Scope |
 | --- | --- | --- |
 | Local administrator | Email and a password of at least 12 Unicode characters, at most 1024 UTF-8 bytes | Cannot be removed or demoted; manages host-wide setup |
-| Invited administrator | Google OAuth | Admin routes and all projects |
-| Invited member | Google OAuth | Only projects where their email is a member, plus loose chats |
+| Invited administrator | Google OAuth, or email and an emailed or shown temporary password | Admin routes and all projects |
+| Invited member | Google OAuth, or email and an emailed or shown temporary password | Only projects where their email is a member, plus loose chats |
 
-Sessions are signed in the `remote_session` secure, HTTP-only cookie and last 30 days. Passwords use a salted, one-way hash. Google OAuth is optional until the admin wants to invite users.
+Sessions are signed in the `remote_session` secure, HTTP-only cookie and last 30 days. Passwords use a salted, one-way hash. Google OAuth is optional: an admin can invite users by password without it.
 
 ## First administrator flow
 
@@ -128,12 +128,39 @@ flowchart LR
     Session --> Projects["Show permitted projects and chats"]
 ```
 
+## Invite by password
+
+Instead of Google, an admin can invite a user by password. In Settings → Users, choose the sign-in method (Password is the default when Google is not configured; Google is offered only when it is) and the role. Remote generates a temporary password of 20 characters from a 31-symbol set without look-alikes (`XXXXX-XXXXX-XXXXX-XXXXX`, about 99 bits). Only its argon2id hash is stored, in `DATA_DIR/account-credentials.json` (0600, absent until the first password invite) with a `mustChangePassword` flag and a `version` counter.
+
+`POST /api/admin/users` takes `{email, role, method?, sendEmail?}`; a missing `method` means `google`, as before. When SMTP is configured and "Email the credentials" is ticked (the default), the credentials are mailed synchronously, with a 20-second limit. The response reports `delivery` as `sent`, `failed` (with a fixed, safe `deliveryError`), `not_configured` or `not_requested`, and carries the temporary password with `Cache-Control: no-store` in every state. The account exists in every state. If it cannot be created completely, the user is removed again and the request fails.
+
+The card shown after the invite offers Copy and Download PDF while it is open; Done discards the password from the browser. The PDF button is disabled for an address with non-ASCII characters, because the PDF writer refuses text it cannot reproduce faithfully; Copy still works. After the card is closed, **Reset temporary password** on the user row issues a new one and invalidates the old one. Reset is refused for your own account and for the local administrator. A Google-only user can also be given a password by reset.
+
+```mermaid
+flowchart LR
+    Login["Password or Google sign-in with a temporary password"] --> Pending["passwordChangeRequired + remote_password_change cookie"]
+    Pending --> Change["POST /auth/local/password/initial: new password"]
+    Change --> TwoFactor{"2FA enabled?"}
+    TwoFactor -->|"No"| Session["Issue platform session"]
+    TwoFactor -->|"Yes"| Challenge["2FA challenge, then session"]
+```
+
+The account cannot get a session until its owner sets a new password, whether it signs in with the password or with Google. The new password must have 12 to 1024 characters and differ from the temporary one. Saving it revokes the account's earlier sessions, the same way as a password change. The step has no skip, and "Back to sign-in" abandons it.
+
+`remote_password_change` is a signed token bound to the credential's `version` and a fingerprint of its stored hash, so it works once: any change, reset, or removal and re-invite of the account invalidates it. It is host-only (no `Domain`), `Path=/auth/local/password`, `HttpOnly; Secure; SameSite=Strict`, and valid for 15 minutes. The browser therefore never sends it to project or application hosts or to other endpoints. With only this cookie, the API, WebSockets and forward-auth reject the request. An expired or superseded token returns 400, not 401, so the SPA shows the message instead of treating it as signed out.
+
+Password login resolves the credential (local admin, else an invited account's credential if the email is still registered, else a dummy hash) and then performs exactly one password verification, so timing does not reveal which emails exist. A credential left behind for an unregistered email is ignored. Removing a user deletes the credential, and removal, invite and reset of one email share a lock. A Google invite deletes any leftover credential. Invited password accounts get Settings → Security → Password like the local administrator.
+
+Temporary passwords do not expire. They end only when the owner changes the password or an admin resets it; the users list shows a "Password change pending" badge so stale invites are visible.
+
+**Rollback note:** an older binary ignores `account-credentials.json`, so invited password users cannot sign in until the server is upgraded again. Google users and the local administrator are unaffected.
+
 User guardrails:
 
-- Google sign-in must be configured before users can be added.
+- Google sign-in must be configured before users can be added with Google. Password invites do not need it.
 - Only admins can add users, remove users, or change roles.
 - The last administrator cannot be removed or demoted.
-- The local administrator cannot be removed or demoted.
+- The local administrator cannot be removed or demoted, and its password cannot be reset by anyone else.
 
 ## Agent-provider authentication
 
