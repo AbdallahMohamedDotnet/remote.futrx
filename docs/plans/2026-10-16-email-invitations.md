@@ -1,188 +1,287 @@
 # Email invitations with temporary credentials
 
 **Issue:** [#372](https://github.com/futrx-com/remote.futrx/issues/372)
-**Status:** planned
-**Tier:** structural. It adds a password credential for invited accounts, a forced first-login password change, a new `DATA_DIR` file, and a new admin flow. It adds no dependency and changes nothing under `infra/`, so it is a PATCH-class release.
-**Scope:** An administrator creates an account from an email address and an existing role. Remote generates a temporary password and emails it when SMTP is configured, or shows it with a PDF download when SMTP is not. The invited user must replace that password before any session exists. Google OAuth keeps working as before.
-**Out of scope:**
-- Self-signup, password reset by email ("forgot password"), and changing an existing user's sign-in method in bulk.
-- New roles. The invite form uses the existing `admin` and `member` roles.
-- Changes to the local-admin claim flow, setup token, Google OAuth configuration, or 2FA.
-- Encrypting `DATA_DIR` at rest. The new file uses the existing plaintext, mode 0600 posture (threat model finding 18). It holds only argon2id hashes.
-- Anything under `infra/`.
+**Status:** ready-for-implementation (requirements confirmed with the requester on 2026-10-16; see *Requirements record*)
+**Depends on:** [#374](https://github.com/futrx-com/remote.futrx/issues/374) / PR #375, plan `docs/plans/2026-10-16-password-change.md`. This plan reuses its session revocation (`RevokeSessionsBefore`, `ErrSessionRevoked`), its change rules, and `ChangePassword`. Start implementing only after #375 merges into `qa`, and rebase this branch onto it.
+**Tier:** structural. One new service package, one new `DATA_DIR` file, new routes, and a new first-login step. No dependency and no `infra/` change, so it is a PATCH-class release.
+
+**Scope (one sentence):** An administrator creates an account from an email address and an existing role. Remote issues a temporary password, which is emailed when SMTP is configured and the admin leaves "email it" ticked, or shown with copy and PDF download otherwise. The account cannot get a session until its owner sets a new password.
+
+**Out of scope:** forgot-password by email; new roles; changes to the local-admin claim, the setup token, the Google OAuth configuration, or 2FA enrolment; encrypting `DATA_DIR` at rest; magic-link sign-in; fixing the pre-existing Google re-invite session issue (see *Deliberately not done*).
 
 ---
 
-## Orientation
+## Requirements record
 
-- **Base branch.** PRs target `qa` (`.github/PULL_REQUEST_TEMPLATE.md`). This plan was written against `upstream/qa` at `175891e3`. Local `qa` was identical to it.
-- **Backend.** Go `1.25.13`, `golang.org/x/crypto` already provides argon2id (`service/auth/password.go`). No new module.
-- **Frontend.** Preact + zustand. PDF output reuses the dependency-free writer in `frontend/src/services/auth/recoveryCodeFileService.ts`. No new package.
-- **Persistence.** Flat JSON under `DATA_DIR`, written with temp file + rename under an in-process mutex. There is no migration tooling. A missing file means "no invited credentials yet".
-- **Checks.** `gofmt -l backend`, `cd backend && go vet ./... && go test ./...`, `go test ./...` from the repo root (catalog), `cd frontend && npm test && npm run build`. Commits use Conventional Commits with an area scope and `git commit -s`.
+### Confirmed decisions (requester, 2026-10-16)
 
-## Code this change builds on
-
-| Concern | Existing code | How it is reused |
+| # | Decision | Consequence |
 | --- | --- | --- |
-| Password hashing | `service/auth/password.go` (`HashPassword`, `VerifyPassword`, argon2id, 12–1024 chars) | Unchanged. Used for temporary and permanent passwords. |
-| Password login | `service/auth/local_admin_authenticator.go` (`login`, dummy hash for constant-time miss) and `Service.CompletePasswordLogin` (`service.go:283`) | Extended so `LoginLocal` (`service.go:235`) falls through to invited credentials after the local admin. |
-| Short-lived pre-session state | `pendingLogin` + `signedPayload` (`service.go:33`, `signed_payload.go`), cookie `remote_2fa_pending` (`handlers/auth_cookie.go`) | Same pattern for a new `remote_password_change` cookie. |
-| Session checks | `Service.CurrentSession` (`service.go:354`), `middleware/auth.go` `Wrap`, `AccessVerifier.Verify` (`access.go:31`) | No session is issued before the password change, so every gate already rejects. One extra check in `CurrentSession` adds defence in depth. |
-| User directory | `service/user` (`Add`, `Remove`, roles), `UsersHandler` (`handlers/users_handler.go`) | `Add` stays the single place users are created. The handler's POST gains a sign-in-method field. |
-| Identity cleanup | `service/user_removal_cleanup.go` | Also deletes the invited credential. |
-| Email | `Services.Mailer` (`service/email/mailer.go`), builder `Required()` / `Send` (`builder.go:101`, `:288`), `Mailer.Enabled` | Invitation mail is `Required()` and sent synchronously, so the handler knows whether it was delivered. |
-| Download as PDF | `recoveryCodeFileService.ts` (hand-written PDF) + `platform/fileDownloadService` | The PDF writer is moved into a shared helper and used by both files. |
+| D1 | **Credentials can be retrieved in the dialog, and later via Reset.** Right after an invite, the admin can view, copy or download the credentials while the card is open. After it is closed, **Reset temporary password** issues a new one and invalidates the old one. Nothing recoverable is stored. | It satisfies "retrieve without another invitation" and "never persist plaintext" together. |
+| D2 | **Google sign-in is also forced through the set-password step** while the account has a pending temporary password. | The Google callback needs a new branch. |
+| D3 | **Temporary passwords do not expire.** They end only when changed or reset. | No TTL option. See Risks R1. |
+| D4 | **Self-service password change for everyone.** This ships separately as #374, which this plan depends on. | Invited accounts get Settings → Security → Change password for free once `ChangePassword` knows the second credential source (step 4). |
+| D5 | **A password change or an admin reset signs out every other session** of the account. | Reuses #374's `RevokeSessionsBefore`. |
+| D6 | **Change needs the current password, plus 2FA if it is on.** | Handled by #374. Not relevant to the first-login step, since the user just proved the temporary password. |
+| D7 | **Admins may give a password to a Google-only user** through Reset. | Reset works whether or not the user already has a credential. Because of D2, their next Google sign-in also goes through the set-password step. |
+| D8 | **Non-ASCII email addresses:** invite and email work, the PDF button is disabled with a reason, and copy still works. | The PDF writer must refuse rather than garble the text. |
+| D9 | **Two stacked PRs**: #374 / #375 first, then this one (#373). | — |
+| D10 | **"Email the credentials" checkbox**, ticked by default when SMTP is configured. Unticked, the result looks like the no-SMTP case. | Adds a fourth delivery state, `not_requested`. |
+| D11 | **Reset scope:** any other member or admin. An admin cannot reset their own account (they use Change password) and nobody can reset the local administrator. | Three guards. |
+| D12 | **Password rule unchanged:** 12–1024 characters, must differ from the temporary password. | Reuses `HashPassword`. |
+
+### Evidence about existing behaviour (frozen unless a decision above changes it)
+
+- `POST /api/admin/users` refuses with 409 when Google OAuth is not configured (`transport/http/handlers/users_handler.go:53`). Invites are Google-only today.
+- `user.Service.Add` is atomic against duplicates. The file store re-checks under its mutex (`stores/fileusers/store.go:135-150`).
+- Password login is local-admin-only (`service/auth/local_admin_authenticator.go:158`). Its constant-time miss path uses a dummy hash.
+- The login handler maps every login error to 401 `invalid email or password` (`handlers/auth_local_handler.go:101-105`).
+- The Google callback already hands a pending step to the SPA through `?twoFactorRequired=1` plus a pending cookie (`handlers/auth_google_login_handler.go:95-96`). The SPA reads it in `useLocalAuthController.ts:41-44`.
+- **Caddy strips only named cookies** before proxying to project containers: `remote_session|remote_2fa_pending|remote_oauth_state|return_to` (`infra/templates/Caddyfile.tmpl:91`). A new cookie scoped to the base domain would be sent into every user's container. That would be a leak, and fixing it would need an `infra/` change and a MINOR release.
+- The SPA treats any 401 as signed out (`frontend/src/api/apiRequest.ts:12`).
+- The PDF writer replaces every non-ASCII character with `-` (`frontend/src/services/auth/recoveryCodeFileService.ts:135-141`).
+- `Mailer.Mail().ToUser(..).Required().Send(ctx)` reports `ErrNotConfigured` and delivery errors synchronously. `Mailer.Enabled(ctx)` reports configuration (`service/email/mailer.go:69,106`).
+- There are **no tests** for `users_handler.go` or `security_handler.go`.
+
+---
+
+## Refactor findings (code-refactorer pass)
+
+These are behaviour-preserving moves done **before** the feature commits, each in its own `refactor(...)` commit and each verified by existing or step-0 characterization tests. Every one earns its place by giving one owner to a responsibility this feature touches a second time.
+
+| # | Smell → principle | Evidence | Move |
+| --- | --- | --- | --- |
+| R1 | Account-creation **policy in transport** (SRP, layering): the handler decides Google is required. | `users_handler.go:53-56` | Move the check into the new `invitation.Service.Invite` for the `google` method. The handler only maps errors. Same status and text. |
+| R2 | **Sign-in method inferred from a magic `Sub` string** in three places (one owner per domain decision). | `local_admin_authenticator.go:202` (`"local-admin"`), `service.go:365`, `security.go:201-203` (anything not local-admin is treated as Google) | Add named subject constants and one `signInMethodForSubject` in `auth`. Behaviour stays identical for the two existing subjects. This is needed before a third subject (`"password"`) exists, otherwise `ReissueTrackedSession` would record invited password users as Google. |
+| R3 | **Password verification belongs to one credential type** and has no seam for a second (OCP, for a demonstrated second variant). | `local_admin_authenticator.go:158-185` | Split it into "resolve the password credential for this email" (local admin, or dummy on a miss) and one `VerifyPassword`. Timing and results are unchanged. Step 4 then adds the invited source to the resolver. |
+| R4 | **PDF document assembly locked inside a recovery-code service** (SRP, reuse). | `recoveryCodeFileService.ts:59-141` | Extract `services/files/pdfDocument.ts` (lines, content stream, xref, escaping). The recovery-code service delegates to it. `recoveryCodeFileService.test.ts` must pass unchanged. |
+| R5 | **Four components in one 290-line file** that is about to gain a fifth (cohesion). | `ui/account/UsersPanel.tsx:23,94,164,206` | Move `AddUserForm`, `UserList` and `UserRow` into their own files under `ui/account/`, with no JSX change. Checked by `npm run build`. |
+
+**Rejected:** splitting the `auth.Service` facade, which is large but out of scope; a generic "credential provider" interface package, since an unexported resolver inside `auth` is enough for two sources; a client-side PDF library (D8).
+
+---
 
 ## Design
 
-### Decisions
+### Responsibilities
 
-1. **No session until the password is changed.** Signing in with a temporary password does not issue `remote_session`. The response is `{"passwordChangeRequired": true}` and sets an HttpOnly, 15-minute `remote_password_change` cookie. The cookie is signed with the session key and holds `{email, credentialVersion, exp}`. `/api/*`, `/ws*`, `/auth/verify` and the application gateway see no session, so they reject the user. No route list has to be maintained.
-2. **Defence in depth in `CurrentSession`.** If the email has an invited credential with `MustChangePassword=true`, a password-method session for it is rejected. A cached in-memory set keeps this lookup off the hot path for everyone else.
-3. **One credential store for invited accounts, kept apart from `local-admin.json`.** Use a new `DATA_DIR/account-credentials.json`, a map from email to `{passwordHash, mustChangePassword, temporaryExpiresAt, version, updatedAt}`. The single-owner rules for the local admin are left alone.
-4. **The temporary password exists in plaintext once.** It is generated in the service, hashed, emailed (if SMTP is on) and returned once in the HTTP response. It is never stored, logged, or put in an error. 20 characters from a 32-symbol alphabet with no look-alikes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789` + `-` grouping) gives about 100 bits. The alphabet contains no PDF-special characters.
-5. **Temporary passwords expire** after 7 days (`AuthOptions.TemporaryPasswordTTL`). After that, login fails with the generic invalid-credentials error. The admin can issue a new one.
-6. **"View credentials later" means re-issue, not recall.** The issue asks the admin to be able to "retrieve the credentials when requested without requiring another invitation". It also forbids plaintext persistence. Both cannot hold literally. The plan:
-   - After an SMTP invite, the dialog asks "Also view or download the credentials?". The plaintext stays in that dialog's memory until it closes, so the admin can view or download it without sending a new invitation.
-   - After the dialog closes, **Reset temporary password** on the user row creates a new password. It bumps `version`, which invalidates the old password and any pending change cookie, and shows the new password the same way. It does not re-add the user or change the role. It sends mail only if the admin ticks "email it".
-   - *Rejected:* keeping the plaintext encrypted server-side for N minutes. It adds a key-management problem and a second copy of a secret for little gain.
-7. **Delivery outcome is explicit.** `POST` returns `delivery: "sent" | "not_configured" | "failed"` with a safe `deliveryError`. The account is created in all three cases. The UI never says "emailed" unless the value is `sent`.
-8. **Google stays an option.** A Google login for an invited-password account works as it does today, because Google proves the email. Password login keeps working too. An invited account created with `method: "google"` keeps today's behaviour exactly and still requires Google OAuth to be configured. `method: "password"` does not need Google.
+| Responsibility | Owner |
+| --- | --- |
+| Invited-account password credentials (hash, `mustChangePassword`, `version`) | `auth`: new unexported `accountPasswordAuthenticator` behind a new `AccountCredentialStore` port, with an in-memory cache loaded at startup |
+| The file `DATA_DIR/account-credentials.json` (0600) | `stores/fileaccountcredentials` (new) |
+| Login, first-login change, self-service change, reset | `auth.Service` facade methods (`CompletePasswordLogin`, `CompleteGoogleLogin`, new `CompleteInitialPasswordChange`, #374's `ChangePassword`, new `IssueTemporaryPassword`) |
+| Orchestration of invite, reset **and removal**: users, credentials, revocation, mail, compensation, per-email lock | `service/invitation` (new). `DELETE /api/admin/users/{email}` moves from `users.Remove` to `invitation.Remove` (same lock, then `users.Remove`; same responses), so invite, reset and removal of one email never interleave. It depends on narrow ports (user adder/remover/getter, credential issuer, session revoker, mailer, base URL) and is wired in `service/services.go` |
+| Temporary password generation | `auth.GenerateTemporaryPassword` (crypto/rand) |
+| Removing the credential when a user is removed | `service/user_removal_cleanup.go` (extend) |
+| HTTP mapping, cookies, `no-store` | `UsersHandler`, `localAuthHandler`, Google login handler, `auth_cookie.go` |
+| Credential card, PDF, invite form, reset action | frontend `ui/account/*`, `services/users/invitationCredentialFileService.ts`, `state/hooks/users/*` |
+| First-login step | frontend `ui/auth/InitialPasswordStep.tsx`, `useLocalAuthController.ts` |
+
+**Why a new `service/invitation` package instead of extending `user` or `auth`:** inviting composes the user directory, credentials, session revocation and email. Putting it in `user` would make the directory change whenever mail wording or credential policy changes, and `auth` must not import `user` (`service/auth/service.go:12-14`). The package exists because there are two real use cases (invite and reset) with the same compensation and locking needs.
+
+### Persisted record
+
+`account-credentials.json` maps a normalized email to `{passwordHash, mustChangePassword, version, updatedAt}`. The file is absent until the first password invite. The hash format is the existing argon2id string. `version` grows by one on every set (invite, reset, first change, self-change). Pending change tokens carry it, which makes them single-use.
+
+### Cookies
+
+New cookie `remote_password_change`:
+- **host-only** (no `Domain`), `Path=/auth/local/password`, `HttpOnly`, `Secure`, `SameSite=Strict`, `Max-Age` 15 minutes;
+- value: `signedPayload{email, sub, method, version, exp}` signed with the session key, like `pendingLogin`.
+
+Because it has no `Domain`, the browser never sends it to `*.dev.<host>` or application hosts, so the Caddy strip list does not need to change. Because of the `Path`, only the two endpoints that use it ever receive it. *Rejected:* a base-domain cookie, which leaks into containers or else needs an `infra/` change.
 
 ### Flows
 
-**Create (admin):** `POST /api/admin/users` `{email, role, method: "password"}`
-1. Handler: `requireAdmin`, validate input.
-2. `InvitationService.Invite` (new, `service/invitation`):
-   1. `users.Add(email, role, caller)`. A duplicate returns `ErrUserExists` → 409 and no credential is written.
-   2. Generate the password, then `auth.SetTemporaryPassword(email, plain)`. That hashes it and stores `{mustChange: true, expires, version+1}`. On failure it calls `users.Remove` (compensation) and returns 500. Nothing reports success.
-   3. If `mailer.Enabled`: `Mail().To(email).Required()…Send(ctx)` with a 20s context. The mail holds the login URL (`auth.BaseURL()`), the email, the temporary password in a `Code` block, the expiry, and first-login steps. An error gives `delivery=failed`. The error is reduced to a fixed message such as "SMTP server rejected the message" and never includes the body.
-   4. Return `{user, delivery, temporaryPassword, expiresAt}`.
-3. The response sets `Cache-Control: no-store`.
+**Invite:** `POST /api/admin/users {email, role, method: "google"|"password", sendEmail?: bool}`. If `method` is missing it means `"google"`, which keeps today's frontend and scripts working.
+1. The handler checks `requireAdmin` and parses the body (`sendEmail` defaults to `true`), then calls `invitation.Invite`.
+2. `Invite` takes the per-email lock, then:
+   - `google`: Google must be configured (R1, same 409) → `users.Add` → return `{user}`. This is today's behaviour. As defence in depth, any credential left behind for that email is deleted, so a Google re-invite can never inherit an old temporary password.
+   - `password`:
+     1. `users.Add`. A duplicate gives `ErrUserExists` → 409, and nothing else happens.
+     2. `auth.IssueTemporaryPassword(email)`: generate, hash, save `{mustChange: true, version+1}`, revoke sessions before now, return the plaintext. On failure → compensate with `users.Remove(email)` → 500 "account was not created". If compensation also fails → 500 that names both failures (`errors.Join`) and is logged with a masked email, so the admin sees the half-created user and can remove it.
+     3. Delivery:
+        - `sendEmail=false` → `not_requested`;
+        - `!mailer.Enabled` → `not_configured`;
+        - otherwise `Mail().ToUser(email).Required()…Send(ctx)` with a 20-second timeout → `sent`, or `failed` with a fixed safe `deliveryError` ("The SMTP server rejected the message", "Could not reach the SMTP server", or a generic message). Never the raw error text.
+     4. Return `{user, method: "password", delivery, deliveryError?, temporaryPassword}` with `Cache-Control: no-store`. The status is 201 in every delivery state.
 
-**First login (invited user):**
-1. `POST /auth/local/login` → `CompletePasswordLogin` → `LoginLocal` checks the local admin first, then invited credentials. Every path runs the same argon2 cost, using the dummy hash on a miss.
-2. If the credential is `mustChange` and not expired: set the `remote_password_change` cookie and return `{passwordChangeRequired: true}`.
-3. The SPA shows the "Set a new password" step, built the same way as `TwoFactorChallengeStep`.
-4. `POST /auth/local/password/initial` `{newPassword}`. It is rate-limited with `localLoginLimiter` and needs the change cookie. The service checks the cookie signature, expiry, and that the cookie's `version` still matches the stored one. It also checks that the new password is not the temporary password, then `HashPassword` (≥12 chars). It saves `{mustChange: false, version+1}` and clears the cookie.
-5. It then goes through `completeLogin(user, SignInMethodPassword)`, so 2FA, session registry and history behave as for any other login. It sets `remote_session` and returns `Status`.
+**Reset:** `POST /api/admin/users/{email}/temporary-password {sendEmail?: bool}`. The guards (D11) give 404 for an unknown user, 409 for your own account ("use Change password") and 409 for the local admin. Then it takes the same per-email lock and does `IssueTemporaryPassword` plus delivery as above. A Google-only user gains a credential (D7). The response has the same shape.
 
-**Removal:** `userRemovalCleanup` deletes the credential, so a re-invited email starts clean.
+**Mail content:** heading "You've been invited to Remote" (on reset: "Your Remote password was reset"); a short text; `KeyValues` with the sign-in URL (`auth.BaseURL()`) and the email; `Code(temporaryPassword)`; `Button("Sign in", baseURL)`; and a `Note` saying "You'll be asked to choose a new password the first time you sign in. If you didn't expect this, ignore this email."
+
+**Password login:** `POST /auth/local/login`. The local admin is unchanged.
+1. R3 resolver: local admin credential, else an invited credential **for a registered user** (an orphan credential is ignored), else the dummy. Then **one** `VerifyPassword`.
+2. If the credential is invited and `mustChange` → set the change cookie and return `200 {passwordChangeRequired: true}`. Otherwise run the normal `completeLogin`, where 2FA works as before. A wrong password gives the same 401 text as today.
+
+**Google login with a pending change (D2):** in `CompleteGoogleLogin`, after authorization, if the account has an invited credential with `mustChange` → return `LoginResult{PasswordChangeRequired, Token}`. The callback sets the change cookie and redirects to `/?passwordChangeRequired=1`, mirroring the 2FA redirect.
+
+**First-login change:** `POST /auth/local/password/initial {newPassword}`. It needs the change cookie, and is rate-limited per IP with the local-login limiter.
+1. Verify the token signature, expiry, and that `version` matches the stored version. Otherwise `ErrInvalidPasswordChange` → **400** "this sign-in step expired, sign in again" (not 401, see Evidence). Clear the cookie.
+2. The new password must differ from the temporary one (`ErrPasswordReuse`) and pass `HashPassword`.
+3. Revoke sessions before now, then save `{mustChange: false, version+1}`. This is the same order as #374.
+4. `completeLogin(user from the token, its original method)`. If the account has 2FA (possible for a reset Google user) → the 2FA pending cookie and the `{twoFactorRequired: true}` response. Otherwise → `remote_session` and `Status`.
+
+`POST /auth/local/password/cancel` clears the cookie. "Back to sign-in" in the UI calls it.
+
+**Self-service change for invited users:** #374's `ChangePassword` uses the R3 resolver for "has a password credential" and gets its compare-and-swap from the source that owns the credential. Step 4 extends the resolver and adds an invited-credential replace.
+
+**Removal:** `invitation.Remove` takes the per-email lock, then `users.Remove`, whose cleanup deletes the credential. Combined with the revocation that every `IssueTemporaryPassword` does, a re-invited password user cannot bring back sessions from before the removal.
+
+**Users list:** `GET /api/admin/users` items gain `passwordSignIn: bool` and `passwordChangePending: bool`. The handler joins `users.List` with `auth.PasswordStates(ctx)` (a map read from the cache). That is a presentation join only, with no policy in it.
 
 ### API summary
 
-| Method & path | Auth | Body → Response |
+| Method & path | Auth | Request → Response |
 | --- | --- | --- |
-| `POST /api/admin/users` | admin | `{email, role, method?: "google"\|"password"}`. If `method` is missing, it is `"google"` when Google is configured, else `"password"`. `"google"` → `User` (unchanged). `"password"` → `{user, delivery, deliveryError?, temporaryPassword, expiresAt}` |
-| `POST /api/admin/users/{email}/temporary-password` | admin | `{sendEmail: bool}` → same shape. Refused (409) for the local admin and for Google-only users with no credential. |
-| `GET /api/admin/users` | admin | `User` gains `signInMethods: ["google"\|"password"]` and `passwordChangePending: bool` |
-| `POST /auth/local/login` | public | adds the `{passwordChangeRequired: true}` outcome |
-| `POST /auth/local/password/initial` | change cookie | `{newPassword}` → `Status`, `{twoFactorRequired: true}`, or 400/401/429 |
-| `GET /api/admin/email` | admin | already exists. The invite form uses `configured` to choose its wording. |
+| `POST /api/admin/users` | admin | `{email, role, method?, sendEmail?}` → 201 `User` (google) or `InviteResult` (password); 400 / 409 |
+| `POST /api/admin/users/{email}/temporary-password` | admin | `{sendEmail?}` → 200 `InviteResult`; 404 / 409 |
+| `GET /api/admin/users` | admin | `User & {passwordSignIn, passwordChangePending}` |
+| `POST /auth/local/login` | public | adds 200 `{passwordChangeRequired: true}` |
+| `GET /auth/google/callback` | public | adds a redirect to `/?passwordChangeRequired=1` |
+| `POST /auth/local/password/initial` | change cookie | `{newPassword}` → 200 `Status`, 200 `{twoFactorRequired: true}`, 400, 429 |
+| `POST /auth/local/password/cancel` | — | 204 |
+| `POST /api/me/security/password` | session | from #374, now also for invited users |
 
-### Security checklist
+### Security invariants (each has a test)
 
-- The plaintext password appears only in the service's local variables, the mail body, and the single HTTP response. Tests check it is absent from logs, `account-credentials.json`, `users.json`, and every error string.
-- `Cache-Control: no-store` on responses that carry a password. The SPA holds it in component state only, never in zustand persistence, localStorage, or the URL.
-- Login timing is equal for every combination of unknown email, local admin, invited user, wrong password and expired temp password. The dummy-hash pattern is extended, and the expiry check runs after the hash check.
-- Rate limiting covers the change endpoint. The change cookie is `HttpOnly; Secure; SameSite=Strict`, signed and versioned, so it is single-use in practice.
-- The invite route keeps `requireAdmin`. The middleware gate is not authorization.
-- A duplicate email, a credential-store failure (with rollback), and an SMTP failure (account kept, reported as not sent) each have a test.
+1. The plaintext temporary password exists only in: the generator's return value, the mail body, and one HTTP response body. It never appears in logs, in errors, in `account-credentials.json`, `users.json`, or the session registry.
+2. No session for a `mustChange` account before the change. Revocation on issue plus no session issue until the change enforces it. There is no separate allow-list of routes to keep up to date.
+3. The change cookie never leaves the main host and never reaches other paths.
+4. A password login does exactly one argon2 verification on every path (local admin, invited, unknown email, orphan credential).
+5. A change or reset invalidates earlier change tokens (`version`) and earlier sessions (revocation).
+6. Responses that carry a password send `Cache-Control: no-store`. The SPA keeps the password only in component state and wipes it when the card closes or the component unmounts. Never in zustand, storage, or the URL.
+7. Admin-only routes check `requireAdmin` themselves, because the middleware gate is not authorization.
+
+### Frontend behaviour
+
+- **Invite form:** email, role (`admin`/`member`), and sign-in method. "Password" is the default when Google is not configured; "Google" is offered only when it is. "Email the credentials to the user" is shown and ticked only when SMTP is configured; otherwise a hint reads "SMTP is not configured; you'll share the credentials yourself". SMTP state comes from the existing `GET /api/admin/email`.
+- **Result card** (inline, like `TwoFactorRecoveryCodes`, not a new modal):
+  - `sent`: "Invitation emailed to …", then `ConfirmDialog` asking "View or download the credentials too?". Yes reveals them.
+  - `not_requested`: credentials shown.
+  - `not_configured`: credentials shown, with a warning: "Not emailed: SMTP is not configured".
+  - `failed`: credentials shown, with an error: "The email could not be sent: <deliveryError>. The account was created."
+  - Every state where the credentials are visible has Copy and Download PDF (disabled with a reason for non-ASCII emails, D8), plus Done, which clears the state.
+- **User rows:** a "Password change pending" badge, and a **Reset temporary password** action (hidden for self and the local admin) with an email checkbox, using the same result card.
+- **Login:** the copy at `LoginScreen.tsx:55` changes to "Sign in with your email and password, or with Google if your administrator set that up." The password form shows whenever the local admin is configured. After `passwordChangeRequired` (from the JSON reply or the `?passwordChangeRequired=1` redirect), `InitialPasswordStep` shows new password + confirm, with a back link that calls cancel. It has no skip.
+- Loading, error and disabled states follow the existing `AddUserForm` and `TwoFactor*` patterns. No new UI library.
+
+---
 
 ## Steps
 
-Each backend step finishes with `gofmt -l backend` returning nothing and `cd backend && go vet ./... && go test ./internal/...`.
+Each backend step ends with `gofmt -l backend` (empty), then `cd backend && go vet ./... && go test ./internal/...`. Each frontend step ends with `cd frontend && npm test && npm run build`. Commit after each step with `git commit -s`, with **no** co-author trailer. Use `refactor(...)` for steps 1–2 and `feat(...)` or `test(...)` for the rest.
 
-1. **Auth model and port.** Files: `service/auth/model.go`, `ports.go`.
-   Add `AccountCredential{Email, PasswordHash string; MustChangePassword bool; TemporaryExpiresAt int64; Version uint64; UpdatedAt int64}`, an `AccountCredentialStore` port (`Get` returns `(nil, nil)` when absent; `Save`; `Delete`; `List`), and errors `ErrPasswordChangeRequired`, `ErrInvalidPasswordChange`, `ErrPasswordReuse`. Add `SignInMethod` values only if history must tell them apart. The default is to reuse `password`.
-   Verify: `go build ./...`.
+0. **Rebase and characterize.** After #375 merges: `git fetch upstream && git rebase upstream/qa`. Add `handlers/users_handler_test.go` pinning current behaviour: 401, 403, 409 without Google, 409 duplicate, 201, role change, last-admin and local-admin guards.
+   Verify: the new tests pass on the unchanged code.
 
-2. **File store.** Files: `stores/fileaccountcredentials/store.go` + `_test.go` (new), `stores/stores.go`, `service/services.go` (`Dependencies`), `cmd/remote/main.go`.
-   Write `account-credentials.json` at mode 0600 with the temp+rename pattern from `fileauth.writeJSONLocked`, behind a mutex, with emails normalized. Wire it through all three composition literals.
-   Verify: round-trip, `(nil,nil)` on absence, idempotent delete, `Perm()==0o600`, and `grep -n AccountCredentials` hits `stores.go`, `services.go` and `main.go`.
+1. **Backend refactors R1–R3** (no behaviour change).
+   Verify: step-0 tests, `service/auth` tests (`local_admin_claim_test.go`, `service_security_features_test.go`, `security_deep_test.go`) and `go vet` all pass. `git diff --stat` touches only the files named in R1–R3.
 
-3. **Temporary password generator.** File: `service/auth/temporary_password.go` + test.
-   `GenerateTemporaryPassword() (string, error)` uses `crypto/rand` with rejection sampling and outputs `XXXXX-XXXXX-XXXXX-XXXXX`.
-   Verify: length, alphabet, `HashPassword` accepts it, and 10k samples give no duplicates.
+2. **Frontend refactors R4–R5** (no behaviour change).
+   Verify: `recoveryCodeFileService.test.ts` is unchanged and passes; `npm run build`.
 
-4. **Invited-account authenticator.** File: `service/auth/account_password_authenticator.go` + test. `service.go` gains a field, wiring in `New`, and an `Options.TemporaryPasswordTTL` with validation.
-   Methods: `setTemporary(email, plain)`, `login(email, password) (User, mustChange bool, err)`, `completeChange(email, version, newPassword)`, `delete(email)`. Add a cached `mustChange` set loaded at startup.
-   `LoginLocal` order: local admin, then invited credential, then dummy. The `User.Sub` for invited password users is `"password"`.
-   Verify: correct, wrong and expired passwords, wrong email, and constant work (the dummy hash runs on a miss, checked through a counting hasher seam in the test).
+3. **Credential store + port.** Files: `service/auth/model.go` and `ports.go` (`AccountCredential`, `AccountCredentialStore{Get, Save, Delete, List}`), `stores/fileaccountcredentials/` + test, and the wiring in `stores/stores.go`, `service/services.go` and `cmd/remote/main.go`.
+   Verify: round trip; `(nil, nil)` on absence; idempotent delete; mode 0600; `grep -n AccountCredentials` hits all three wiring files.
 
-5. **Login and password-change service flow.** Files: `service/auth/service.go`, `password_change.go` + test.
-   `CompletePasswordLogin` returns `LoginResult{PasswordChangeRequired: true, PendingToken}` when `mustChange` is set. `CompleteInitialPasswordChange(ctx, token, newPassword, ip, ua)` verifies the token, checks the version, rejects reuse, saves, then calls `completeLogin`. `CurrentSession` adds the step-2 defence check from *Decisions*.
-   Verify: a pending token can't be replayed after a change or after a reset (version bump); an expired token gives `ErrInvalidPasswordChange`; 2FA-enabled users still get the 2FA step; a forged password-method session for a `mustChange` account is rejected by `CurrentSession`.
+4. **Invited credentials in auth.** Files: `temporary_password.go` + test (20 symbols from a 31-character set with no look-alike characters, grouped `XXXXX-XXXXX-XXXXX-XXXXX`, about 99 bits, rejection sampling), `account_password_authenticator.go` + test, the R3 resolver extension, `IssueTemporaryPassword`, `PasswordStates`, and `ChangePassword` (#374) extended to invited credentials.
+   Verify: invariant 4 with a counting-hasher seam; an orphan credential is ignored; `version` increments; issuing revokes earlier sessions; a self-change works for an invited user.
 
-6. **Invitation service.** Files: `service/invitation/service.go`, `model.go`, `service_test.go` (new) and `service/services.go`.
-   Depends on narrow ports: user adder/remover, credential setter, mailer (`Enabled`, `Mail`), base URL. `Invite` and `ResetTemporaryPassword` follow *Flows*. `userRemovalCleanup` gains `credentials.Delete`.
-   Verify, with fakes: duplicate → `ErrUserExists` and no credential; credential failure → user removed; SMTP disabled → `not_configured` with the password returned; SMTP error → `failed`, account exists, error has no password; success → `sent`; the mail body contains the URL, email and password; a log-capture test finds no password in any log line.
+5. **Forced first-login change in auth.** Files: `password_change_initial.go` + test, `service.go` (`LoginResult.PasswordChangeRequired`, the `CompleteGoogleLogin` branch).
+   Verify: a token is invalid after a reset or a change; it is rejected when expired or forged; reusing the temporary password is rejected; the 2FA hand-off works; for both password and Google sign-in, no `remote_session` exists before completion.
 
-7. **HTTP.** Files: `handlers/users_handler.go`, `auth_local_handler.go`, `auth_cookie.go`, tests; route registration in `auth_handler.go` and `transport.go`.
-   - The users POST takes `method`. The `GoogleOAuthEnabled` 409 (`users_handler.go:53`) now applies only to `method=google`. Add the `/temporary-password` subroute. Set `no-store` on password responses. `List` gains `signInMethods` and `passwordChangePending`.
-   - `/auth/local/login` handles the new result. `/auth/local/password/initial` is new, and a `cancel` route clears the cookie.
-   Verify: 401/403 for non-admins; 409 duplicate; 201 with each `delivery` value; with a change cookie but no session, `/api/projects`, `/ws/...` and `/auth/verify` all give 401; a successful change sets `remote_session` and `/auth/me` reports authenticated with the right `isAdmin`.
+6. **Invitation service.** Files: `service/invitation/{model,service,service_test}.go`, `service/services.go`, `service/user_removal_cleanup.go`.
+   Verify with fakes:
+   - every delivery state;
+   - a duplicate writes no credential;
+   - a credential failure leads to `users.Remove`, and a double failure is reported;
+   - the per-email lock serializes invite, reset and removal (a reset racing a removal leaves no credential);
+   - a Google invite deletes a leftover credential;
+   - the reset guards (D11);
+   - a Google-only user gains a credential;
+   - the mail body contains the URL, email and password and no expiry text;
+   - a capturing `slog` handler and every returned error contain no password (invariant 1).
 
-8. **Frontend: API + state.** Files: `config/routes.ts`, `api/authApi.ts`, `api/userApi.ts`, `models/auth.ts`, `state/hooks/auth/useLocalAuthController.ts` + `*.test.ts`.
-   Add the `passwordChangeRequired` login outcome, `submitInitialPassword`, the invite/reset calls, and types.
-   Verify: `npm test` with new pure-state tests (form rules: ≥12 chars, confirmation match, not equal to the temp password).
+7. **HTTP.** Files: `users_handler.go` (method, `sendEmail`, reset subroute, DELETE through `invitation.Remove`, `no-store`, list join), `auth_local_handler.go` (new outcome, `/auth/local/password/initial`, `/cancel`), `auth_google_login_handler.go` (redirect), `auth_cookie.go` (set and clear the host-only, path-scoped cookie), and route registration.
+   Verify through `httptest`:
+   - every status in the API summary;
+   - the cookie has no `Domain` and has `Path=/auth/local/password`;
+   - with only the change cookie, `/api/projects`, `/ws/...`, `/auth/verify` and an application-gateway request are all rejected;
+   - after the change, `/auth/me` shows the right `isAdmin`;
+   - a request without `method` behaves exactly as before (step-0 tests stay green).
 
-9. **Frontend: first-login UI.** Files: `ui/auth/PasswordChangeStep.tsx` (new), `ui/auth/LoginScreen.tsx`.
-   After `passwordChangeRequired`, render the change step, which has no way to skip it. Change the login copy "Invited users sign in with Google." so it covers both methods. Show the password form even when Google is configured.
-   Verify: `npm run build`. Manual QA in criteria 6–8.
+8. **Frontend API, models, state.** Files: `config/routes.ts`, `api/userApi.ts`, `api/authApi.ts`, `models/users.ts` (`InviteResult` discriminated on `method` and `delivery`), `models/auth.ts`, `state/hooks/users/useUserDirectory.ts`, `state/hooks/auth/useLocalAuthController.ts`, pure `initialPasswordFormState.ts` + test, and `invitationDeliveryCopy.ts` (delivery → message) + test.
+   Verify: `npm test` covers the form rules and the copy for all four delivery states.
 
-10. **Frontend: admin UI + PDF.** Files: `ui/account/UsersPanel.tsx` (+ `InviteCredentialsDialog.tsx`), `services/files/simplePdf.ts` (extracted from `recoveryCodeFileService.ts`), `services/auth/invitationCredentialFileService.ts` + tests.
-    - The add form gets a sign-in method choice. Google is offered only if configured; password is the default otherwise. It shows a note on whether SMTP is configured.
-    - Result dialog:
-      - `sent`: "Invitation emailed" plus "View / download credentials?"
-      - `not_configured`: the credentials are shown at once with a warning: "Not emailed: SMTP is not configured".
-      - `failed`: the credentials are shown with "Email could not be sent".
-      - All three have Copy, Download PDF, and Done. Done clears the state.
-    - User rows show "Password change pending" and a **Reset temporary password** action.
-    - The PDF holds the product name, login URL, email, temporary password (monospaced), expiry, and first-login steps.
-    Verify: `recoveryCodeFileService.test.ts` still passes unchanged after the extraction; the new PDF test checks the header, `%%EOF`, a valid xref, and that the content stream contains the email and password; `npm run build`.
+9. **Frontend UI and PDF.** Files: `ui/account/AddUserForm.tsx`, `UserRow.tsx`, `IssuedCredentialsCard.tsx` (new), `ui/auth/InitialPasswordStep.tsx` (new), `ui/auth/LoginScreen.tsx`, `services/users/invitationCredentialFileService.ts` + test.
+   Verify:
+   - the PDF test checks `%PDF-1.4`, `%%EOF`, a consistent xref, and that the email and password are present unescaped for an ASCII input;
+   - the builder **refuses** non-ASCII input and the UI disables the button;
+   - `npm run build`;
+   - screenshots of the four card states, the reset flow and the first-login step for the PR.
 
-11. **Docs.** Files: `ARCHITECTURE.md` ("Platform identity": invited accounts may use email + password; `account-credentials.json`), `docs/02-workspaces/02-auth-users-and-access.md`, `docs/03-platform/08-api-and-realtime.md` (new routes), `docs/threat-model.md` (new file, temp password in email, cookie), `README.md` user guide.
-    Verify: `grep -rn account-credentials.json ARCHITECTURE.md docs/` shows each file updated.
+10. **Docs.** `ARCHITECTURE.md` "Platform identity" (invited users may use email + password; `account-credentials.json`; the change cookie), `docs/02-workspaces/02-auth-users-and-access.md`, `docs/03-platform/08-api-and-realtime.md`, `docs/threat-model.md` (a temporary password in email; no expiry, D3; host-only cookie; orphan credential handling), and the README user guide.
+    Verify: `grep -rn "account-credentials.json\|passwordChangeRequired" ARCHITECTURE.md docs/ README.md` hits each file.
 
-12. **Full verification + PR.** Run every check in *Orientation*. Commit per step (`feat(auth): …`, `feat(users): …`, `docs(auth): …`) with `-s`. Update this PR's description with test output, and add screenshots of the three dialog states and the change step.
+11. **Full verification + QA.** All checks in the step header plus `go test ./...` at the repo root; `bash infra/qa/deploy-app.sh <sha>`; the acceptance criteria below on QA with a throwaway SMTP account that is never committed. Update the PR body with the output and screenshots.
 
 ## Data / migrations
 
-- New file `DATA_DIR/account-credentials.json`, mode 0600. When it is absent, there are no invited password accounts. Existing installs need no migration.
-- `users.json` is unchanged. Sign-in methods are derived from it and the credential file.
-- Rollback: an older binary ignores the new file. Invited password users can't sign in under it, but Google users and the local admin are unaffected.
+- New file `DATA_DIR/account-credentials.json`, mode 0600. When it is absent there are no invited password accounts. No migration.
+- `users.json` and `local-admin.json` are unchanged. Session registry records get `sessionsValidAfter` from #374.
+- **Rollback:** an older binary ignores the new file. Invited password users cannot sign in until it is upgraded again. Google users and the local admin are unaffected. Say so in the release note.
 
-## Risks & open questions
+## Risks
 
-| # | Item | Mitigation / proposal |
+| # | Risk | Mitigation |
 | --- | --- | --- |
-| R1 | Emailing a password is weaker than a magic link. | The issue requires it. The password is temporary, expires in 7 days, and the user must change it before any session. A magic-link flow could be a follow-up issue. |
-| R2 | An attacker reading the mailbox before the user does. | Same as R1. A reset invalidates the old password. |
-| R3 | The SMTP send blocks the request for up to 20 seconds. | A bounded context plus a spinner in the dialog. The account is already created, so a timeout is reported as `failed`, not lost. |
-| Q1 | Is "retrieve credentials later" satisfied by an in-dialog view + **Reset temporary password**, as in *Decisions 6*? | **Needs the issue owner's confirmation.** This is the only design that keeps "never persisted in plaintext". |
-| Q2 | Should a `mustChange` account be allowed to finish a Google login before setting a password? | Proposed: yes, because Google proves ownership. The temporary password stays valid until it expires or is changed. Alternative: Google login also redirects to the change step. |
-| Q3 | 7-day expiry? | Proposed default, set in `AuthOptions` and not shown in the UI. |
+| R1 | A non-expiring temporary password (D3) sitting in a mailbox. | The requester accepted it. Mitigations: the forced change on first use, Reset invalidates it, and the users list shows "Password change pending" so admins can see stale invites. Recorded in the threat model. |
+| R2 | Emailing a password is weaker than a link. | Required by the issue. Revisit with a magic-link follow-up issue. |
+| R3 | The synchronous SMTP send holds the request for up to 20 seconds. | A bounded context and a spinner. The account already exists, so a timeout becomes `failed`, not lost. |
+| R4 | Compensation (`users.Remove`) runs the full removal cleanup on a brand-new user. | Harmless (it is idempotent and the user has no projects). Double failure is reported. |
+| R5 | A token's `version` check and the save could race with a concurrent reset. | Both go through the per-account lock in `accountPasswordAuthenticator`, and the save re-checks `version`. |
 
-## Acceptance criteria (QA)
+## Deliberately not done
 
-1. Admin invites `a@example.com` as member with SMTP configured → the email arrives with the URL, email, password and instructions; the UI says "emailed".
-2. Same with SMTP not configured → the credentials are shown at once with the not-emailed warning; the PDF downloads and opens.
-3. Same with SMTP configured but broken (wrong app password) → the account exists and the UI says the email was **not** sent and shows the credentials.
-4. Inviting an existing email → 409, no change to the existing user, no email.
-5. `grep -rF "$TEMP_PW" /opt/remote.futrx/data /var/log journalctl -u remote.futrx` → no matches.
-6. Invited user logs in with the temp password → change step shown; `curl` to `/api/projects` and a preview host with the browser's cookies → 401.
-7. The new password must be ≥12 chars and not the temp password → after the change the user lands in the workspace with member rights (no admin settings).
-8. A second login with the temp password fails; the new password works.
-9. Reset temporary password → the old temp password and an open change step both stop working; the new one works.
-10. Removing the user and re-inviting gives a fresh credential.
-11. Google-only invite and the local-admin login behave exactly as before.
-12. An expired temp password (set the TTL low on QA) is rejected with the generic message.
+- **A pre-existing bug, reported rather than fixed:** user removal deletes the session-registry record (`service/user_removal_cleanup.go:64-68`). Re-inviting the same email as a **Google** user makes that user's old cookies (up to 30 days) valid again. Password invites are covered by the revocation in `IssueTemporaryPassword`, but changing the Google path is a separate behaviour change. Proposed follow-up issue: "revoke sessions when a user is removed".
+- The `auth.Service` facade size (R-rejected).
+- The recovery-code alert on password change (see #374 R4).
+
+## Acceptance criteria (Given / When / Then)
+
+1. **Given** SMTP is configured, **when** an admin invites `a@example.com` as member with "email" ticked, **then** the mail arrives with the sign-in URL, email, password and instructions; the UI says "emailed" and offers to view the credentials.
+2. **Given** SMTP is configured, **when** "email" is unticked, **then** no mail is sent and the credentials are shown.
+3. **Given** SMTP is not configured, **then** the credentials are shown with the not-emailed warning, and the PDF downloads and opens with the right email and password.
+4. **Given** a broken SMTP configuration, **then** the account exists, the UI says the email was **not** sent and why, and the credentials are shown.
+5. **Given** an existing email, **when** invited again, **then** 409, the existing user is unchanged, and no mail is sent.
+6. **Given** a password invite, **when** the user signs in with the temporary password, **then** the set-password step shows, and `curl` with that browser's cookies to `/api/projects` and to a preview host gets 401 or a redirect to login.
+7. **Given** the same user signs in with Google first, **then** they also land on the set-password step.
+8. **Given** a new password under 12 characters or equal to the temporary one, **then** it is rejected; a valid one lands the user in the workspace with their role's rights only.
+9. **Given** a completed change, **then** the temporary password fails and the new one works.
+10. **When** an admin resets a user, **then** the old temporary password, any open set-password step, and the user's existing sessions all stop working; the reset is refused for self and for the local admin.
+11. **Given** a Google-only member, **when** reset, **then** they can sign in with the temporary password and must change it.
+12. **When** a user is removed and re-invited with a password, **then** they get a new credential and their old sessions don't come back.
+13. **Given** `josé@exemple.fr`, **then** the invite and the mail work, and the PDF button is disabled with a reason.
+14. **Given** any of the above, **then** `grep -rF "$TEMP_PW" /opt/remote.futrx/data` and `journalctl -u remote.futrx | grep -F "$TEMP_PW"` find nothing.
+15. **Given** a Google invite without `method`, and a local-admin login, **then** both behave exactly as before.
+
+## Self-review log
+
+The plan was reviewed adversarially before it was marked ready. Defects found in earlier drafts and fixed here:
+
+1. A base-domain change cookie would have leaked into every project container, because Caddy strips only named cookies. Fixed with a host-only, path-scoped cookie and no `infra/` change.
+2. The PDF writer silently turned non-ASCII into `-`, so a downloaded credential could be wrong. Fixed with refusal plus a disabled button (D8).
+3. `ReissueTrackedSession` would have recorded invited password users as Google sign-ins (magic `Sub`). Fixed by R2.
+4. A login falling through two verifiers would have spent different amounts of time depending on the account type. Fixed by R3 (one resolver, one verification).
+5. An expired first-login token would have returned 401 and dropped the user to the login screen. Changed to 400.
+6. The first draft's extra `mustChange` check in `CurrentSession` is redundant once issuing a password revokes sessions and no session exists before the change. Removed (YAGNI).
+7. Re-inviting a removed user could have brought back their old sessions. Fixed for password invites. The Google case is reported, not folded in.
+8. An orphan credential (a reset racing a removal) could have let someone through password login, including after a later Google re-invite. Fixed on three layers: removal now goes through the same per-email lock as invite and reset; the resolver ignores credentials for unregistered emails; and a Google invite deletes any leftover credential. The second review pass caught that the first fix claimed a lock removal never took.
+9. The first draft offered expiry and "Google allowed while pending". Replaced by the confirmed D2 and D3.
 
 ## Progress
 
-- [ ] 1–12 (not started)
+- [ ] 0–11 not started (blocked on #375)
 
 ## Outcome
 
