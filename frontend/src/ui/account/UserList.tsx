@@ -5,14 +5,20 @@ export function UserList({
   users,
   loading,
   currentEmail,
+  localAdminEmail,
+  smtpConfigured,
   onRemove,
   onSetRole,
+  onResetPassword,
 }: {
   users: DirectoryUser[];
   loading: boolean;
   currentEmail: string;
+  localAdminEmail: string;
+  smtpConfigured: boolean;
   onRemove: (email: string) => Promise<void>;
   onSetRole: (email: string, role: UserRole) => Promise<void>;
+  onResetPassword: (email: string, sendEmail: boolean) => Promise<void>;
 }) {
   if (loading) {
     return (
@@ -30,15 +36,22 @@ export function UserList({
   }
   return (
     <div class="space-y-2">
-      {users.map((u) => (
-        <UserRow
-          key={u.email}
-          user={u}
-          isSelf={u.email === currentEmail.toLowerCase()}
-          onRemove={() => onRemove(u.email)}
-          onSetRole={(r) => onSetRole(u.email, r)}
-        />
-      ))}
+      {users.map((u) => {
+        const isSelf = u.email === currentEmail.toLowerCase();
+        const isLocalAdmin = localAdminEmail !== "" && u.email === localAdminEmail.toLowerCase();
+        return (
+          <UserRow
+            key={u.email}
+            user={u}
+            isSelf={isSelf}
+            canResetPassword={!isSelf && !isLocalAdmin}
+            smtpConfigured={smtpConfigured}
+            onRemove={() => onRemove(u.email)}
+            onSetRole={(r) => onSetRole(u.email, r)}
+            onResetPassword={(sendEmail) => onResetPassword(u.email, sendEmail)}
+          />
+        );
+      })}
     </div>
   );
 }

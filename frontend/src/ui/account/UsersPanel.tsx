@@ -1,7 +1,15 @@
-import type { DirectoryUser, InviteInput, UserRole } from "../../models/user";
+import type {
+  DirectoryUser,
+  InviteInput,
+  InviteResult,
+  PasswordInviteResult,
+  UserRole,
+} from "../../models/user";
+import { useIssuedCredentials } from "../../state/hooks/users/useIssuedCredentials";
 import { useConfirm } from "../../state/context/ConfirmContext";
 import { AlertCircle, Loader } from "../primitives/icons";
 import { AddUserForm } from "./AddUserForm";
+import { IssuedCredentialsCard } from "./IssuedCredentialsCard";
 import { UserList } from "./UserList";
 
 interface UsersPanelProps {
@@ -10,8 +18,12 @@ interface UsersPanelProps {
   users: DirectoryUser[] | null;
   loading: boolean;
   error: string | null;
-  canAddUsers: boolean;
-  onAdd: (input: InviteInput) => Promise<unknown>;
+  googleConfigured: boolean;
+  smtpConfigured: boolean;
+  /** The local administrator's email: the one account whose password cannot be reset here. */
+  localAdminEmail: string;
+  onAdd: (input: InviteInput) => Promise<InviteResult>;
+  onResetPassword: (email: string, sendEmail: boolean) => Promise<PasswordInviteResult>;
   onRemove: (email: string) => Promise<void>;
   onSetRole: (email: string, role: UserRole) => Promise<void>;
 }
@@ -27,12 +39,16 @@ export function UsersPanel({
   users,
   loading,
   error,
-  canAddUsers,
+  googleConfigured,
+  smtpConfigured,
+  localAdminEmail,
   onAdd,
+  onResetPassword,
   onRemove,
   onSetRole,
 }: UsersPanelProps) {
   const confirm = useConfirm();
+  const credentials = useIssuedCredentials({ add: onAdd, resetTemporaryPassword: onResetPassword });
 
   const removeUser = async (email: string) => {
     await confirm({
@@ -73,19 +89,27 @@ export function UsersPanel({
             <div class="text-accent-red break-words">{error}</div>
           </div>
         )}
-        {canAddUsers ? (
-          <AddUserForm onAdd={onAdd} />
-        ) : (
-          <div class="rounded-md border border-accent-yellow/25 bg-accent-yellow/[0.08] px-3 py-2.5 text-[12.5px] text-accent-yellow">
-            Configure Google sign-in above before adding users.
-          </div>
+        <AddUserForm
+          googleConfigured={googleConfigured}
+          smtpConfigured={smtpConfigured}
+          onAdd={credentials.invite}
+        />
+        {credentials.issued && (
+          <IssuedCredentialsCard
+            key={credentials.issued.serial}
+            result={credentials.issued.result}
+            onDone={credentials.dismiss}
+          />
         )}
         <UserList
           users={users ?? []}
           loading={loading && users == null}
           currentEmail={currentEmail}
+          localAdminEmail={localAdminEmail}
+          smtpConfigured={smtpConfigured}
           onRemove={removeUser}
           onSetRole={onSetRole}
+          onResetPassword={credentials.reset}
         />
       </div>
     </section>
