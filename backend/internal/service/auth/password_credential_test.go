@@ -604,3 +604,51 @@ func TestNewRejectsAMissingOrUnreadableCredentialStore(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestDeleteAccountCredentialRemovesItFromStoreAndMemory(t *testing.T) {
+	f := newInvitedFixture(t)
+	f.settle(t)
+	ctx := context.Background()
+
+	if err := f.service.DeleteAccountCredential(ctx, " Invitee@Example.com "); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.creds.records[invitedEmail]; ok {
+		t.Fatal("credential left in the store")
+	}
+	if _, ok := f.service.accounts.credential(invitedEmail); ok {
+		t.Fatal("credential left in memory")
+	}
+	// Still registered, as after a Google re-invite: the old password is dead.
+	if _, err := f.service.LoginLocal(ctx, invitedEmail, invitedChosen); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("old password after the delete = %v", err)
+	}
+	if len(f.service.PasswordStates(ctx)) != 0 {
+		t.Fatalf("states = %+v", f.service.PasswordStates(ctx))
+	}
+	// Idempotent.
+	if err := f.service.DeleteAccountCredential(ctx, invitedEmail); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type deleteFailingCredentialStore struct {
+	*authTestAccountCredentialStore
+}
+
+func (deleteFailingCredentialStore) Delete(context.Context, string) error {
+	return errors.New("disk full")
+}
+
+func TestDeleteAccountCredentialKeepsMemoryWhenTheStoreFails(t *testing.T) {
+	f := newInvitedFixture(t)
+	f.settle(t)
+	f.service.accounts.store = deleteFailingCredentialStore{f.creds}
+
+	if err := f.service.DeleteAccountCredential(context.Background(), invitedEmail); err == nil {
+		t.Fatal("delete reported success")
+	}
+	if _, ok := f.service.accounts.credential(invitedEmail); !ok {
+		t.Fatal("cache dropped a credential the store still holds")
+	}
+}

@@ -19,6 +19,7 @@ import (
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	serviceemail "github.com/futrx-com/remote.futrx.com/internal/service/email"
+	serviceinvitation "github.com/futrx-com/remote.futrx.com/internal/service/invitation"
 	servicepresence "github.com/futrx-com/remote.futrx.com/internal/service/presence"
 	serviceproject "github.com/futrx-com/remote.futrx.com/internal/service/project"
 	"github.com/futrx-com/remote.futrx.com/internal/service/prompt"
@@ -144,15 +145,18 @@ type Services struct {
 	Workspace         *workspacehub.Hub
 	Auth              *serviceauth.Service
 	Users             *serviceuser.Service
-	UserSettings      *serviceusersettings.Service
-	Skills            *serviceskills.Catalog
-	Tmux              *servicetmux.Service
-	Access            *serviceauth.AccessVerifier
-	Applications      *serviceapplications.Service
-	Push              *servicepush.Service
-	Presence          *servicepresence.Service
-	Usage             *serviceusage.Service
-	Email             *serviceemail.Service
+	// Invitations creates, resets and removes accounts under one per-email
+	// lock; user removal from the admin API goes through it.
+	Invitations  *serviceinvitation.Service
+	UserSettings *serviceusersettings.Service
+	Skills       *serviceskills.Catalog
+	Tmux         *servicetmux.Service
+	Access       *serviceauth.AccessVerifier
+	Applications *serviceapplications.Service
+	Push         *servicepush.Service
+	Presence     *servicepresence.Service
+	Usage        *serviceusage.Service
+	Email        *serviceemail.Service
 	// Mailer is the entry point every other service uses to send email. It
 	// hides credentials, MIME and HTML email markup behind a builder; see
 	// service/email.Mail.
@@ -239,6 +243,9 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	)
 	chatAccessService := servicechat.NewAccessService(chatService, projectService)
 	pushService := newPush(deps.Push, deps.AuthBaseURL)
+	// The auth service is built from the user service, so the cleanup that
+	// removes a user's password credential is bound to it afterwards.
+	credentialRemoval := &accountCredentialRemoval{}
 	userService := serviceuser.New(
 		deps.Users,
 		serviceuser.WithRemovalCleanup(userRemovalCleanup{
@@ -246,6 +253,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			subscriptions:   deps.Push,
 			twoFactor:       deps.TwoFactor,
 			sessionRegistry: deps.SessionRegistry,
+			credentials:     credentialRemoval,
 		}),
 	)
 	authService, err := newAuth(
@@ -261,6 +269,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if err != nil {
 		return Services{}, err
 	}
+	credentialRemoval.auth = authService
 	var usageService *serviceusage.Service
 	promptOptions := []prompt.Option{
 		prompt.WithAgentPolicy(agentRuntime),
@@ -363,6 +372,13 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	// composition needs no adapter between the two.
 	emailService := serviceemail.New(deps.Email, smtp.New(constants.SMTPDialTimeout))
 	mailer := serviceemail.NewMailer(emailService, emailDirectory{users: userService})
+	invitationService := serviceinvitation.New(serviceinvitation.Dependencies{
+		Users:       userService,
+		Credentials: authService,
+		Policy:      authService,
+		Mailer:      mailer,
+		BaseURL:     authService.BaseURL(),
+	})
 
 	return Services{
 		Chats:             chatService,
@@ -376,6 +392,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Workspace:         workspace,
 		Auth:              authService,
 		Users:             userService,
+		Invitations:       invitationService,
 		UserSettings:      userSettingsService,
 		Skills:            skillCatalog,
 		Tmux:              tmuxService,
