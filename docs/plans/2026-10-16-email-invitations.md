@@ -1,7 +1,7 @@
 # Email invitations with temporary credentials
 
 **Issue:** [#372](https://github.com/futrx-com/remote.futrx/issues/372)
-**Status:** ready-for-implementation (requirements confirmed with the requester on 2026-10-16; see *Requirements record*)
+**Status:** implemented, live QA pending (requirements confirmed with the requester on 2026-10-16; see *Requirements record*)
 **Depends on:** [#374](https://github.com/futrx-com/remote.futrx/issues/374) / PR #375, plan `docs/plans/2026-10-16-password-change.md`. This plan reuses its session revocation (`RevokeSessionsBefore`, `ErrSessionRevoked`), its change rules, and `ChangePassword`. Start implementing only after #375 merges into `qa`, and rebase this branch onto it.
 **Tier:** structural. One new service package, one new `DATA_DIR` file, new routes, and a new first-login step. No dependency and no `infra/` change, so it is a PATCH-class release.
 
@@ -281,8 +281,32 @@ The plan was reviewed adversarially before it was marked ready. Defects found in
 
 ## Progress
 
-- [ ] 0–11 not started (blocked on #375)
+- [x] 0. Characterization tests for the admin users handler (`f4da4684`)
+- [x] 1. Backend refactors R1-R3 (`5541051e`, `96e9978a`, `4c7ed072`)
+- [x] 2. Frontend refactors R4-R5 (`d258f83c`, `65e62b75`)
+- [x] 3. Credential store and port (`9243afed`)
+- [x] 4. Invited credentials in auth (`118516de`)
+- [x] 5. Forced first-login change in auth (`4a7bf8a0`)
+- [x] 6. Invitation service (`4581d766`)
+- [x] 7. HTTP (`e5b6c299`, `9b9b25b8`)
+- [x] 8. Frontend API, models, state (`9a555920`)
+- [x] 9. Frontend UI and PDF (`58153efc`, `81ea8f1d`)
+- [x] 10. Docs (this commit)
+- [ ] 11. Full verification and live QA: **not run.** `infra/qa/deploy-app.sh` was not executed against the QA server, no throwaway SMTP account was used, and none of the acceptance criteria were exercised live. They are covered only by the unit and `httptest` tests of steps 3-9.
 
 ## Outcome
 
-<!-- filled after implementation -->
+Steps 0-10 are implemented and committed on `feat/email-invitations-impl`. Step 11 (live QA) is still to do, and the PR screenshots (four card states, the reset flow, the first-login step) were not produced. Nothing in the acceptance criteria has been verified on a real server or with real mail.
+
+Deviations from the plan, as built:
+
+- **The change token also binds a hash fingerprint.** `pendingPasswordChange` carries a fingerprint of the stored password hash besides `version`. Removing a user deletes the credential and its counter, so a re-invite restarts at version 1 and would have accepted a token minted for the previous account.
+- **`IssueTemporaryPassword` revokes sessions before saving the credential**, so a failure never leaves a new credential next to live old sessions.
+- **Unknown `/api/admin/users/{email}/<x>` sub-resources return 404** (only `role` and `temporary-password` exist).
+- **Order of checks for a Google invite:** a request without `method`, or with invalid JSON, still gets the 409 "Google must be configured" before the body is validated, to keep today's behaviour exactly.
+- **First-login change keeps the token after a rejected password** (too short, or the temporary one) so the owner can retry; only a saved change, a reset or expiry ends it. A failed token check counts as a failure for the rate limiter.
+- **Distinct post-save errors:** the first-login change can report that the password was not changed, not changed with sessions revoked, or changed but the session could not be issued, mirroring the self-service change.
+- **Directory errors in the password resolver** are returned together with a verifiable miss, so login still performs exactly one hash verification.
+- **Extra files not named in the plan:** `service/auth/account_credential_removal.go` and frontend helpers `useIssuedCredentials`, `useSmtpConfigured`, `userDirectoryState`.
+
+Documented limits carried over rather than fixed: the one-second session issue-time resolution inherited from the password change (a cookie issued in the same second as an invite, reset or first change can survive), temporary passwords that never expire (D3), and the pre-existing Google re-invite session issue (proposed follow-up: "revoke sessions when a user is removed"). Rollback: an older binary ignores `account-credentials.json`, so invited password users cannot sign in until it is upgraded again; say so in the release note.
