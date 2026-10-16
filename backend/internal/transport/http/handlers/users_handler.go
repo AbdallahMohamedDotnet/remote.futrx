@@ -50,8 +50,8 @@ func (h *UsersHandler) HandleCollection(w http.ResponseWriter, r *http.Request) 
 		httptransport.SendJSON(w, http.StatusOK, list)
 
 	case http.MethodPost:
-		if !h.auth.GoogleOAuthEnabled() {
-			httptransport.SendErr(w, http.StatusConflict, "configure Google sign-in before adding users")
+		if err := h.auth.RequireGoogleSignIn(); err != nil {
+			httptransport.SendErr(w, http.StatusConflict, err.Error())
 			return
 		}
 		var body struct {

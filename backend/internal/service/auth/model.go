@@ -27,6 +27,7 @@ var (
 	ErrPasswordTooLong             = errors.New("password is too long")
 	ErrInvalidOAuthConfig          = errors.New("Google OAuth client ID and client secret are required")
 	ErrGoogleOAuthDisabled         = errors.New("Google sign-in is not configured")
+	ErrGoogleSignInRequired        = errors.New("configure Google sign-in before adding users")
 	ErrLocalAdminPasswordOnly      = errors.New("the local administrator must sign in with a password")
 )
 

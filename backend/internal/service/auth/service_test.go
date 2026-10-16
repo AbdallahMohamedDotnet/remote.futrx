@@ -451,6 +451,9 @@ func TestConfigureGoogleOAuthAtRuntime(t *testing.T) {
 	if service.GoogleOAuthEnabled() {
 		t.Fatal("Google OAuth started enabled")
 	}
+	if err := service.RequireGoogleSignIn(); !errors.Is(err, ErrGoogleSignInRequired) {
+		t.Fatalf("RequireGoogleSignIn before configuration = %v", err)
+	}
 	if err := service.ConfigureGoogleOAuth(context.Background(), OAuthConfig{
 		GoogleClientID: "client-id", GoogleClientSecret: "client-secret",
 	}); err != nil {
@@ -458,6 +461,9 @@ func TestConfigureGoogleOAuthAtRuntime(t *testing.T) {
 	}
 	if !service.GoogleOAuthEnabled() || service.GoogleClientID() != "client-id" {
 		t.Fatal("Google OAuth was not enabled at runtime")
+	}
+	if err := service.RequireGoogleSignIn(); err != nil {
+		t.Fatalf("RequireGoogleSignIn after configuration = %v", err)
 	}
 }
 

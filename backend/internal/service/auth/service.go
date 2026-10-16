@@ -244,6 +244,15 @@ func (s *Service) GoogleOAuthEnabled() bool {
 	return s.google.enabled()
 }
 
+// RequireGoogleSignIn is the policy that new users can only be added while
+// Google sign-in is configured, since Google is how they authenticate.
+func (s *Service) RequireGoogleSignIn() error {
+	if !s.GoogleOAuthEnabled() {
+		return ErrGoogleSignInRequired
+	}
+	return nil
+}
+
 func (s *Service) GoogleClientID() string {
 	return s.google.clientID()
 }
