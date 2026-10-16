@@ -66,6 +66,18 @@ type SessionRegistryStore interface {
 	Delete(ctx context.Context, email string) error
 }
 
+// AccountCredentialStore persists the password credential of every invited
+// account, keyed by normalized email. Get returns (nil, nil) when the account
+// has none - that absence is the correct "no invited password" state, not an
+// error. Delete is idempotent. List returns every credential, keyed by email,
+// so the authenticator can load them all at startup.
+type AccountCredentialStore interface {
+	Get(ctx context.Context, email string) (*AccountCredential, error)
+	Save(ctx context.Context, email string, credential AccountCredential) error
+	Delete(ctx context.Context, email string) error
+	List(ctx context.Context) (map[string]AccountCredential, error)
+}
+
 type OAuthProvider interface {
 	AuthCodeURL(state string) string
 	ExchangeUser(ctx context.Context, code string) (User, error)

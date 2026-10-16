@@ -41,6 +41,18 @@ type LocalAdminCredential struct {
 	PasswordHash string `json:"passwordHash"`
 }
 
+// AccountCredential is the password credential of an invited account, keyed
+// by normalized email in an AccountCredentialStore. MustChangePassword stays
+// true from the moment a temporary password is issued until its owner picks a
+// new one. Version grows by one on every set, which is what makes a pending
+// password-change token single-use.
+type AccountCredential struct {
+	PasswordHash       string    `json:"passwordHash"`
+	MustChangePassword bool      `json:"mustChangePassword"`
+	Version            int64     `json:"version"`
+	UpdatedAt          time.Time `json:"updatedAt"`
+}
+
 // ClaimRequest carries the inputs of a local-admin claim. They are all
 // strings, so grouping them keeps a call site from silently transposing two
 // of them - a mistake the compiler cannot catch on a positional list.

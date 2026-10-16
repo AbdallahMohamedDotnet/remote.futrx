@@ -62,31 +62,32 @@ type PushStore interface {
 }
 
 type Dependencies struct {
-	Chats             ChatStore
-	Projects          serviceproject.Repository
-	ProjectSecrets    serviceproject.SecretsRepository
-	ProjectAccess     serviceproject.AccessRepository
-	ProjectShares     serviceshare.Repository
-	Auth              AuthStore
-	Users             serviceuser.Repository
-	UserSettings      serviceusersettings.Repository
-	TwoFactor         serviceauth.TwoFactorStore
-	SessionRegistry   serviceauth.SessionRegistryStore
-	Push              PushStore
-	Usage             serviceusage.Repository
-	Email             emailoutbound.ConfigurationStore
-	AgentQuota        agentquota.Repository
-	AuthBaseURL       string
-	ProjectContainers serviceproject.ContainerDependencies
-	AgentContainers   provisioning.ContainerDependencies
-	AgentModules      *agentmodule.Catalog
-	AgentAPIKeys      agentauth.APIKeyStore
-	AgentAccounts     agentauth.AccountStore
-	AgentOptions      AgentOptions
-	AuthOptions       AuthOptions
-	TmuxClient        TmuxClient
-	ValidTmuxName     func(string) bool
-	PromptStartGate   prompt.StartGate
+	Chats              ChatStore
+	Projects           serviceproject.Repository
+	ProjectSecrets     serviceproject.SecretsRepository
+	ProjectAccess      serviceproject.AccessRepository
+	ProjectShares      serviceshare.Repository
+	Auth               AuthStore
+	Users              serviceuser.Repository
+	UserSettings       serviceusersettings.Repository
+	TwoFactor          serviceauth.TwoFactorStore
+	AccountCredentials serviceauth.AccountCredentialStore
+	SessionRegistry    serviceauth.SessionRegistryStore
+	Push               PushStore
+	Usage              serviceusage.Repository
+	Email              emailoutbound.ConfigurationStore
+	AgentQuota         agentquota.Repository
+	AuthBaseURL        string
+	ProjectContainers  serviceproject.ContainerDependencies
+	AgentContainers    provisioning.ContainerDependencies
+	AgentModules       *agentmodule.Catalog
+	AgentAPIKeys       agentauth.APIKeyStore
+	AgentAccounts      agentauth.AccountStore
+	AgentOptions       AgentOptions
+	AuthOptions        AuthOptions
+	TmuxClient         TmuxClient
+	ValidTmuxName      func(string) bool
+	PromptStartGate    prompt.StartGate
 
 	// Installable-application capabilities. When AppStore and
 	// AppRegistry are set the Applications service is enabled.
