@@ -1,8 +1,8 @@
 # Change password and sign out other sessions
 
 **Issue:** [#374](https://github.com/futrx-com/remote.futrx/issues/374)
-**Status:** ready-for-implementation (requirements confirmed with the requester on 2026-10-16)
-**Tier:** structural, small. It adds one API route, one field on an existing persisted record, and one store method. No new file, package, dependency or `infra/` change, so it is a PATCH-class release.
+**Status:** in-progress (preflight amendments approved by requester on 2026-10-16)
+**Tier:** structural, small. It adds one API route, one field on an existing persisted record, and one store method. New files within existing packages only; no new package, dependency or `infra/` change, so it is a PATCH-class release.
 **Blocks:** [#372](https://github.com/futrx-com/remote.futrx/issues/372). Plan: `docs/plans/2026-10-16-email-invitations.md`. It reuses the change rules and session revocation built here.
 
 **Scope (one sentence):** An account that signs in with a password can change it from Settings → Security after proving the current password, plus 2FA if enabled. Every other session of that account then stops working, while the browser that made the change stays signed in.
@@ -20,7 +20,7 @@
 | D1 | Self-service password change applies to **every account that has a password**: the local administrator now, and invited accounts once #372 lands. |
 | D2 | The user must enter the **current password**. If 2FA is enabled, they must **also** enter an authenticator code or recovery code, the same as disabling 2FA today. |
 | D3 | A password change **signs out every other session** of the account. The browser that made the change gets a fresh session. |
-| D4 | The password rule is unchanged: 12–1024 characters, no composition rules. The new password must differ from the current one. |
+| D4 | The password rule is unchanged: at least 12 Unicode characters and at most 1024 bytes, no composition rules. The new password must differ from the current one. |
 | D5 | It ships as its own PR, ahead of #372. |
 
 ### Evidence about existing behaviour (unchanged unless listed above)
@@ -55,17 +55,17 @@ No new interfaces, packages or layers. `LocalAdminStore` gains one method. That 
 `POST /api/me/security/password` with body `{currentPassword, newPassword, code?}`, behind a session:
 
 1. The handler resolves the session (401 if none) and rate-limits on the key `<clientIP>|<email>|password-change`. It allows 5 failures per 5 minutes and returns 429 with `Retry-After` when exceeded, using the same limiter type as login.
-2. `auth.Service.ChangePassword(ctx, user, PasswordChange{Current, New, Code}, ip, ua)`:
+2. `auth.Service.ChangePassword(ctx, user, PasswordChange{Current, New, Code}, ip, ua)` holds the local authenticator claim lock across verification, revocation, replacement and reissue, so a concurrent loser cannot revoke the winner’s fresh session:
    1. The account has no password credential (a Google-only account) → `ErrPasswordSignInUnavailable` → **409**.
    2. Verify `Current` against the stored hash. A mismatch gives `ErrCurrentPasswordIncorrect` → **403**, which counts as a failure. It must not be 401, because `frontend/src/api/apiRequest.ts:12` treats any 401 as "signed out" and would drop the user to the login screen. The password is checked before the 2FA code, so the 2FA state of the account is revealed only to someone who already knows the password.
-   3. If 2FA is enabled: an empty `Code` gives `ErrTwoFactorCodeRequired` → **400**. Otherwise call `VerifyChallenge`. A failure gives **403** and counts as a failure. A recovery code used here is consumed, the same as when disabling 2FA.
+   3. Load 2FA state with error propagation (a read failure returns 500 `password not changed`, never treating 2FA as disabled). If 2FA is enabled: an empty `Code` gives `ErrTwoFactorCodeRequired` → **400**. Otherwise call `VerifyChallenge`. An invalid or replayed proof gives **403** and counts as a failure; persistence errors give **500** `password not changed`. A recovery code used here is consumed, the same as when disabling 2FA.
    4. `New == Current` → `ErrPasswordReuse` → **400**. `HashPassword(New)` returns the existing too-short or too-long errors → **400**.
    5. **Revoke first:** `registry.RevokeSessionsBefore(email, now)` sets `SessionsValidAfter = now.Unix()`. On failure, return **500** "password not changed". Nothing else has happened yet.
    6. **Then save:** `local.replacePassword(expected, newHash)` does a compare-and-swap on disk, then updates the in-memory copy. If a concurrent change won, return `ErrLocalAdminCredentialChanged` → **409**. On another failure → **500** "password not changed; your other sessions were signed out". That is true and safe: the old password still works and the user can sign in again.
-   7. **Then reissue:** `IssueSession(user, SignInMethodPassword, ip, ua)`. Its `iat` is `now`, which is ≥ `SessionsValidAfter`, so it passes.
+   7. **Then reissue:** `IssueSession(user, SignInMethodPassword, ip, ua)`. Its `iat` is at least the cut-off, so it passes. If reissue fails after replacement, return **500** `password changed; sign in again with your new password`, never claiming the password is unchanged.
 3. The handler sets `remote_session` and returns **200** with `Status`.
 
-`CurrentSession` → `registry.IsActive(ctx, *session)` (the signature changes from `(email, sid)` to the session value). The order is: record missing → active; `session.Iat < record.SessionsValidAfter` → `ErrSessionRevoked`; then the existing single-session rule. Accounts whose record has `SessionsValidAfter == 0` behave exactly as today.
+`CurrentSession` → `registry.IsActive(ctx, *session) error` (nil means active; separate sentinels distinguish revoked and superseded sessions). Cold registry loads must recheck the cache under its write lock before publishing their result, so a stale load cannot overwrite a newer revocation. The order is: record missing → active; `session.Iat < record.SessionsValidAfter` → `ErrSessionRevoked`; then the existing single-session rule. Accounts whose record has `SessionsValidAfter == 0` behave exactly as today.
 
 `SecuritySummary` gains `passwordSignIn bool`, which is true when the account has a password credential. The frontend shows the card only when it is true.
 
@@ -83,6 +83,8 @@ No new interfaces, packages or layers. `LocalAdminStore` gains one method. That 
 | Concurrent change | 409 | `password was changed elsewhere; reload and try again` |
 | Revoke failed | 500 | `password not changed` |
 | Save failed after revoke | 500 | `password not changed; other sessions were signed out` |
+| 2FA load/save failed before revoke | 500 | `password not changed` |
+| Reissue failed after save | 500 | `password changed; sign in again with your new password` |
 
 ---
 
@@ -95,13 +97,13 @@ Every backend step ends with `gofmt -l backend` (empty), then `cd backend && go 
 
 1. **Session registry: revoke-before.** Files: `service/auth/model.go` (`SessionRegistryRecord.SessionsValidAfter int64 \`json:"sessionsValidAfter,omitempty"\``, `ErrSessionRevoked`), `session_registry.go` (`RevokeSessionsBefore`, `IsActive(ctx, Session)`), `service.go` (`CurrentSession` call site).
    `RevokeSessionsBefore` takes the account lock, loads or creates the record (keeping preferences, history and alert), sets the field only if the new value is larger, saves, then updates the cache.
-   Verify: step-0 tests still pass. New cases: a session with `iat` before the cut-off gives `ErrSessionRevoked`; `iat` equal to it is accepted; a record created only by revocation leaves `Preferences` all false, so `IssueSession` still skips the registry; logout `Revoke` and `SetPreferences` keep `SessionsValidAfter`.
+   Verify: step-0 tests still pass. New cases: a session with `iat` before the cut-off gives `ErrSessionRevoked`; `iat` equal to it is accepted; a record created only by revocation leaves `Preferences` all false, so `IssueSession` still skips the registry; logout `Revoke` and `SetPreferences` keep `SessionsValidAfter`; a controlled cold-load/revoke race cannot restore stale cached data.
 
 2. **Store: replace the local admin credential.** Files: `service/auth/ports.go` (`ReplaceLocalAdmin(ctx, expected, next LocalAdminCredential) error` on `LocalAdminStore`), `stores/fileauth/store.go` + test, and every fake implementing `LocalAdminStore` (`grep -rn "DeleteLocalAdmin(" backend --include=*_test.go`).
    Use the same normalization and incomplete-credential checks as `DeleteLocalAdmin`. If the file is missing or doesn't match `expected`, return `ErrLocalAdminCredentialChanged`. Write with `writeJSONLocked` (0600, temp + rename).
    Verify: success; mismatch → sentinel and the file is unchanged byte for byte; missing → sentinel; mode stays 0600.
 
-3. **Authenticator + service.** Files: `local_admin_authenticator.go` (`verifyPassword(email, password) (credential, error)` and `replacePassword(ctx, expected, hash)` under `claimMu`), `password_change.go` (new: `PasswordChange`, `ChangePassword`, sentinels `ErrPasswordSignInUnavailable`, `ErrCurrentPasswordIncorrect`, `ErrTwoFactorCodeRequired`, `ErrPasswordReuse`) + `password_change_test.go`, and `security.go` (`SecuritySummary.PasswordSignIn`).
+3. **Authenticator + service.** Files: `local_admin_authenticator.go` (`verifyPassword(email, password) (credential, error)` and `replacePassword(ctx, expected, hash)` with the workflow holding `claimMu`), `password_change.go` (new: `PasswordChange`, `ChangePassword`, sentinels `ErrPasswordSignInUnavailable`, `ErrCurrentPasswordIncorrect`, `ErrTwoFactorCodeRequired`, `ErrPasswordReuse`) + `password_change_test.go`, and `security.go` (`SecuritySummary.PasswordSignIn`).
    Verify, table-driven, with fakes that record call order:
    - each error row above;
    - the exact order revoke → save → reissue;
@@ -110,6 +112,8 @@ Every backend step ends with `gofmt -l backend` (empty), then `cd backend && go 
    - the old password fails and the new one works through `CompletePasswordLogin`;
    - a session issued before the change gets `ErrSessionRevoked` from `CurrentSession`, and the reissued one passes;
    - a recovery code is consumed;
+   - 2FA load/save failures never skip proof or revoke sessions;
+   - failed reissue returns the changed-password sentinel; concurrent changes with the same current password have exactly one winner and keep its fresh session valid;
    - a capturing `slog` handler and every error string contain neither password.
 
 4. **HTTP.** Files: `handlers/security_handler.go` (route, limiter field, error mapping), `security_handler_test.go`, `transport.go:122` (pass a `newLocalLoginLimiter()`).
@@ -133,7 +137,7 @@ Every backend step ends with `gofmt -l backend` (empty), then `cd backend && go 
 
 | # | Risk | Mitigation |
 | --- | --- | --- |
-| R1 | `iat` has 1-second resolution. A session issued in the same second as the change, before it, survives. | Accepted and documented. An attacker would have to sign in during that exact second, and would already need the old password. |
+| R1 | `iat` has 1-second resolution. A session issued in the same second as the change, before it, survives. | Accepted and documented. This includes stolen existing cookies issued in that same second, regardless of how the attacker obtained them. |
 | R2 | A revoke is written but the save fails, so the user is signed out everywhere and the password is unchanged. | Safe failure, and the message says so. |
 | R3 | `IsActive` fails open on a registry read error, so a revoked session could pass while the disk errors. | This existing behaviour is frozen here and noted in the threat model. Changing it would affect every request and needs its own decision. |
 | R4 | Using a recovery code to change the password doesn't raise the recovery-code alert. | Out of scope. Noted as a follow-up. |
@@ -148,9 +152,24 @@ Every backend step ends with `gofmt -l backend` (empty), then `cd backend && go 
 6. **Given** any attempt, **then** `journalctl -u remote.futrx` and `DATA_DIR` contain neither password in plain text.
 7. **Given** an account that never changed its password, **then** the sign-in flow, single-session and history behave as before.
 
+## Verification gate
+
+Read-only delegated preflight checked the reference implementations and all step verification commands at base `37672a53`. Requester approved the following design amendments: error-propagating 2FA loading, truthful post-save errors, serialized password-change workflows, and protection against stale registry cache publication. The IsActive error result is necessary to express the specified sentinels. No dependency or infrastructure changes are needed. Preserve existing fail-open registry reads, the accepted same-second window, and current login behavior.
+
+**Baseline:** backend `go vet ./... && go test ./...`, root `go test ./...`, frontend `npm test` (101 tests) and `npm run build` passed. Backend tests required local sockets unavailable under the initial sandbox; rerunning outside it passed. Existing Vite configuration/chunk-size warnings remain.
+
+**Additional follow-up:** pending 2FA login tokens issued before a change can still complete afterward; invalidating pending login proofs is outside this session-cookie scope.
+
 ## Progress
 
-- [ ] 0–7 not started
+- [x] 0. Characterization tests — `verified`: new HTTP and registry tests pass unchanged; gofmt empty, backend vet and internal suite pass.
+- [ ] 1. Session registry
+- [ ] 2. Credential store
+- [ ] 3. Authenticator and service
+- [ ] 4. HTTP
+- [ ] 5. Frontend
+- [ ] 6. Documentation
+- [ ] 7. Full verification and QA deployment
 
 ## Outcome
 

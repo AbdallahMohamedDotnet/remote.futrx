@@ -2,8 +2,47 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
+
+type failingSessionRegistryReadStore struct {
+	*authTestSessionRegistryStore
+}
+
+func (failingSessionRegistryReadStore) Get(context.Context, string) (*SessionRegistryRecord, error) {
+	return nil, errors.New("registry unavailable")
+}
+
+func TestIsActiveExistingBehavior(t *testing.T) {
+	const email = "user@example.com"
+	for _, tc := range []struct {
+		name   string
+		record *SessionRegistryRecord
+		failed bool
+		want   bool
+	}{
+		{name: "missing record", want: true},
+		{name: "single-session off", record: &SessionRegistryRecord{ActiveSessionID: "another-session"}, want: true},
+		{name: "superseded session", record: &SessionRegistryRecord{Preferences: SecurityPreferences{SingleSessionEnabled: true}, ActiveSessionID: "another-session"}},
+		{name: "store read error fails open", failed: true, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			memory := newAuthTestSessionRegistryStore()
+			if tc.record != nil {
+				memory.records[email] = *tc.record
+			}
+			var store SessionRegistryStore = memory
+			if tc.failed {
+				store = failingSessionRegistryReadStore{memory}
+			}
+			registry := newSessionRegistry(store, authTestOptions().SessionHistoryLimit)
+			if got := registry.IsActive(context.Background(), email, "session-under-test"); got != tc.want {
+				t.Fatalf("IsActive = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
 
 func newTestSessionRegistry() *sessionRegistry {
 	return newSessionRegistry(newAuthTestSessionRegistryStore(), authTestOptions().SessionHistoryLimit)
