@@ -24,6 +24,10 @@ if ! command -v code-server >/dev/null 2>&1 \
     apt-get -o DPkg::Lock::Timeout=300 install -y -qq "$deb"
 fi
 
+# The .deb bundles Node and does not use the workspace's /usr/bin/node. This
+# check also runs when the requested Code Server package is already installed.
+bash "${APP_PACKAGE_DIR:?Missing application payload}/infra/node-runtime.sh" /usr/lib/code-server "$ARCH"
+
 # Remote stages infra/payload.tar.gz in APP_PACKAGE_DIR before running this script.
 install -m 0644 "${APP_PACKAGE_DIR:?Missing application payload}/infra/remote-open.html" \
     /usr/lib/code-server/remote-open.html

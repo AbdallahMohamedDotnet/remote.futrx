@@ -68,6 +68,9 @@ jobs:
       - name: Go build (application catalog)
         working-directory: .
         run: go build ./...
+      - name: Code Server installer tests
+        working-directory: .
+        run: node --test applications/code-server/infra/*.test.mjs
 
   frontend:
     name: frontend (npm test/build)
