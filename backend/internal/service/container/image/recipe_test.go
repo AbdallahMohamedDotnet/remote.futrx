@@ -1,51 +1,11 @@
 package image
 
 import (
-	"os"
-	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent/provisioning"
 )
-
-func TestWorkspaceImageRequiresSupportedNode(t *testing.T) {
-	script, err := InstallScript([]provisioning.Profile{{
-		ID: "alpha", CLI: provisioning.CLISpec{Binary: "alpha", PackageName: "alpha"},
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Execute the generated Node installation section with package/network
-	// commands stubbed. A successful APT install must still satisfy the floor.
-	nodeSection, _, found := strings.Cut(script, "\n# Official GitHub CLI repo.")
-	if !found {
-		t.Fatal("missing end of Node installation section")
-	}
-	for _, tc := range []struct {
-		version string
-		wantOK  bool
-	}{
-		{provisioning.MustCLIVersion("NODE_MIN_VERSION"), true},
-		{"22.23.5", true},
-		{"22.23.3", false},
-		{"24.22.1", false},
-		{"", false},
-	} {
-		t.Run(tc.version, func(t *testing.T) {
-			cmd := exec.Command("bash", "-c", `
-apt-get() { :; }
-curl() { :; }
-node() { printf '%s\n' "$FAKE_NODE_VERSION"; }
-`+nodeSection)
-			cmd.Env = append(os.Environ(), "FAKE_NODE_VERSION="+tc.version)
-			output, err := cmd.CombinedOutput()
-			if (err == nil) != tc.wantOK {
-				t.Fatalf("Node %q: error = %v, output = %s", tc.version, err, output)
-			}
-		})
-	}
-}
 
 func TestRecipeUsesConfiguredProfiles(t *testing.T) {
 	profiles := []provisioning.Profile{
@@ -185,10 +145,7 @@ func TestInstallScriptPreservesPlanOrderAndExactShellRendering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.NewReplacer(
-		"__NODE_MAJOR__", provisioning.MustPin("NODE_MAJOR"),
-		"__NODE_MIN_VERSION__", provisioning.MustCLIVersion("NODE_MIN_VERSION"),
-	).Replace(baseImageInstallPreamble) +
+	want := strings.ReplaceAll(baseImageInstallPreamble, "__NODE_MAJOR__", provisioning.MustPin("NODE_MAJOR")) +
 		"\n\n# Agent CLIs.\nnpm install -g '@example/alpha cli@1.2.3' @example/gamma --silent 2>&1 | tail -8" +
 		"\n\n# Script-installed agent CLI.\n(\ncurl -fsSL https://example.test/beta | bash\ninstall beta\n)" +
 		"\n\n# Sanity check the full toolchain.\nwhich 'alpha cli' beta git gh jq node npm python3 ssh\n" +
