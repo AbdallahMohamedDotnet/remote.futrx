@@ -229,7 +229,6 @@ The upload access check happens when the random upload URL is created. Later chu
 | `/ws/terminal?chat={id}` | Both | PTY binary data; JSON input and resize control |
 | `/ws/agent-auth/{provider}` | Server to client | Normalized auth snapshots for an available managed auth binding |
 | `/ws/{provider}/auth-status` | Server to client | Legacy provider-specific auth status payloads |
-| `/ws?session={name}` | Both | Auxiliary tmux PTY binary data and control messages |
 
 Chat and project-terminal membership is checked before the WebSocket upgrade. Removing a member prevents future checked connections, but the backend does not currently close or reauthorize that member's already-open sockets.
 

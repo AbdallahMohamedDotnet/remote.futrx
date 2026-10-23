@@ -37,7 +37,6 @@ type Handlers struct {
 	BrowserInspector  RouteRegistrar
 	AgentApplications RouteRegistrar
 	Uploads           RouteRegistrar
-	TmuxWS            WebSocketRegistrar
 	TerminalWS        WebSocketRegistrar
 	ChatWS            WebSocketRegistrar
 	WorkspaceWS       WebSocketRegistrar
@@ -79,9 +78,6 @@ func NewHandler(handlers Handlers) http.Handler {
 	register(handlers.Uploads)
 
 	upgrader := NewUpgrader()
-	if handlers.TmuxWS != nil {
-		handlers.TmuxWS.RegisterRoutes(mux, upgrader)
-	}
 	if handlers.TerminalWS != nil {
 		handlers.TerminalWS.RegisterRoutes(mux, upgrader)
 	}

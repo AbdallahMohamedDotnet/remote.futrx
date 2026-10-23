@@ -30,7 +30,7 @@ state. See [Scheduled tasks](02-workspaces/06-scheduled-tasks.md).
 | # | Threat | Boundary | STRIDE | Severity | Verified |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Loose (project-less) chat → root code execution on the host, reachable by any invited user | Agent / Web | Elevation of privilege | **Critical** | ✓ |
-| 2 | Host tmux WebSocket / `/api/sessions` → host shell as root, no admin gate | Web | Elevation of privilege | **Critical** | ✓ (direct) |
+| 2 | Host tmux `/api/sessions` → host shell as root, no admin gate | Web | Elevation of privilege | **Critical** | ✓ (direct) |
 | 3 | Operator-selected update ref executes as root without commit/tag signature verification | Supply chain | Elevation of privilege | **High** | cited |
 | 4 | Any invited user reaches another project's application web service | Web | Elevation of privilege | **Resolved at edge** | ✓ |
 | 5 | Cross-container lateral movement over the unsegmented LXD bridge | Container | Elevation of privilege | **High** | ✓ |
@@ -60,9 +60,9 @@ External users reach only Caddy, which terminates TLS and forwards to the loopba
 
 ### 2. Host tmux WebSocket grants a root host shell to any invited user — **Critical** ✓
 
-**Elevation of privilege.** `/ws?session=<name>` ([`transport/ws/tmux_socket.go`](../backend/internal/transport/ws/tmux_socket.go)) attaches a PTY to a host tmux session, and `/api/sessions` + `/api/sessions/{name}/send` ([`tmux_handler.go`](../backend/internal/transport/http/handlers/tmux_handler.go)) create sessions and inject keystrokes. These run on the **host** as the backend's service user — root. The only gate is the global middleware (registered user); there is **no admin or membership check**. Any invited member can open `/ws?session=x` and get an interactive root shell on the host.
+**Elevation of privilege.** `/api/sessions` + `/api/sessions/{name}/send` ([`tmux_handler.go`](../backend/internal/transport/http/handlers/tmux_handler.go)) create host tmux sessions and inject keystrokes. These run on the **host** as the backend's service user — root. The only gate is the global middleware (registered user); there is **no admin or membership check**. Any invited member can create a session and send it shell commands.
 
-- **Existing mitigations:** session names are validated (`^[a-zA-Z0-9_-]{1,32}$`); the main UI does not surface this route.
+- **Existing mitigations:** session names are validated (`^[a-zA-Z0-9_-]{1,32}$`); the main UI does not surface this route. The unused `/ws?session=<name>` interactive PTY bridge has been removed.
 - **Residual gap:** no authorization beyond "registered." This is a full host compromise available to any non-admin invited user. Directly verified.
 
 ### 4. Any invited user reaches another project's application web service — resolved at edge
@@ -300,7 +300,7 @@ project secret once an operator applies it.
 
 Roughly in order of risk reduction per unit effort:
 
-1. **Gate the host-shell and loose-chat paths** (findings 1, 2). At minimum require admin for `/ws?session=`, `/api/sessions/*`, and loose-chat runs; better, run loose chats in a disposable container. These are any-invited-user → host-root.
+1. **Gate the host-shell and loose-chat paths** (findings 1, 2). At minimum require admin for `/api/sessions/*` and loose-chat runs; better, run loose chats in a disposable container. These are any-invited-user → host-root.
 2. **Isolate application web origins** (finding 20) — keep project-controlled scripts away from the main Remote API origin.
 3. **Segment the container bridge** (finding 5) — LXD network ACLs or per-container nftables default-deny on peer ingress to application and browser service ports.
 4. **Add a default disk quota** (finding 13) — move workspaces to a quota-capable pool or apply a project quota on the bind-mount source.

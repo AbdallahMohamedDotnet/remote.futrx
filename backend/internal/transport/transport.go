@@ -19,13 +19,8 @@ import (
 	wstransport "github.com/futrx-com/remote.futrx.com/internal/transport/ws"
 )
 
-type TmuxClient interface {
-	wstransport.TmuxSessionClient
-}
-
 type Dependencies struct {
 	Services       service.Services
-	TmuxClient     TmuxClient
 	Static         fs.FS
 	DataDir        string
 	PublicHostname string
@@ -136,7 +131,6 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		Usage:             usageHandler,
 		AgentQuota:        agentQuotaHandler,
 		Uploads:           uploads,
-		TmuxWS:            wstransport.NewTmuxSocket(deps.TmuxClient),
 		TerminalWS:        terminalSocket,
 		ChatWS:            chatSocket,
 		WorkspaceWS:       workspaceSocket,
