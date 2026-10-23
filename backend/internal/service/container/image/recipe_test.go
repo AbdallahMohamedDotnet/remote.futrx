@@ -188,7 +188,6 @@ func TestInstallScriptPreservesPlanOrderAndExactShellRendering(t *testing.T) {
 	want := strings.NewReplacer(
 		"__NODE_MAJOR__", provisioning.MustPin("NODE_MAJOR"),
 		"__NODE_MIN_VERSION__", provisioning.MustCLIVersion("NODE_MIN_VERSION"),
-		"__NODE_TOOLCHAIN__", provisioning.NodeToolchainScript,
 	).Replace(baseImageInstallPreamble) +
 		"\n\n# Agent CLIs.\nnpm install -g '@example/alpha cli@1.2.3' @example/gamma --silent 2>&1 | tail -8" +
 		"\n\n# Script-installed agent CLI.\n(\ncurl -fsSL https://example.test/beta | bash\ninstall beta\n)" +

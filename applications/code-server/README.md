@@ -153,31 +153,11 @@ the embedded settings writer.
 The selected Code Server version is saved with the installation. Application
 updates preserve that choice; changing the manifest default affects new installs.
 
-### Bundled Node runtime
-
-Code Server uses `/usr/lib/code-server/lib/node`, independently of workspace
-Node. Every installation, retry, upgrade and container restoration checks that
-binary, even when the requested Code Server version is already installed.
-The installer updates Node 22 to at least 22.23.4 and Node 24 to at least
-24.22.1. It keeps newer patches and the saved Code Server version. Other Node
-majors require an update to the supported runtime list before installation.
-
-An older bundled runtime is replaced with the official same-major Linux Node
-binary for amd64 or arm64. The download has a pinned SHA-256 checksum; the
-version and native-module ABI are checked before atomic replacement. Download,
-checksum or compatibility failures fail installation without replacing the old
-binary. Remote starts the editor only after installation succeeds.
-
-Application version 13 triggers this check for existing instances when they
-are next provisioned. Ship it through the full infrastructure updater so
-running applications are restored after workspace recycling. Busy workspaces
-skipped by that updater still need a later maintenance run. Stopped applications
-remain stopped and upgrade on their next Start. An application-only backend
-deployment does not reprovision running installations.
-
-Verify both runtimes in each workspace: `node --version` and
-`/usr/lib/code-server/lib/node --version`. Rebuilding the workspace base image
-does not change existing containers or Code Server's bundled runtime.
+The installer also updates Code Server's bundled Node independently of workspace
+Node: at least 22.23.4 for Node 22 or 24.22.1 for Node 24. It preserves the
+configured editor version and newer runtime patches. Official amd64/arm64
+archives are checksum-verified and checked for native-module compatibility
+before atomic replacement; unsupported Node majors fail installation.
 
 ### Installer assets
 

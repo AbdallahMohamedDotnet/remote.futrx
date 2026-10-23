@@ -68,6 +68,9 @@ jobs:
       - name: Go build (application catalog)
         working-directory: .
         run: go build ./...
+      - name: Code Server installer tests
+        working-directory: .
+        run: node --test applications/code-server/infra/*.test.mjs
 
   frontend:
     name: frontend (npm test/build)
@@ -101,7 +104,6 @@ jobs:
           set -euo pipefail
           bash infra/tests/health-check-test.sh
           bash infra/tests/go-toolchain-test.sh
-          bash infra/tests/node-toolchain-test.sh
           bash infra/tests/host-agent-install-test.sh
           bash infra/tests/host-apt-test.sh
           bash infra/tests/caddy-package-test.sh
@@ -116,8 +118,3 @@ jobs:
           bash infra/tests/release-entrypoints-test.sh
           bash infra/tests/qa-scripts-test.sh
           bash .github/scripts/classify-release-test.sh
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Code Server installer tests
-        run: node --test applications/code-server/infra/*.test.mjs

@@ -23,11 +23,15 @@ apt-get install -y -qq \
     jq build-essential python3-pip
 
 # Node __NODE_MAJOR__ (provides node + npm + npx for agent CLIs and JS tooling).
-__NODE_TOOLCHAIN__
 NODE_MAJOR=__NODE_MAJOR__
 curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null 2>&1
 apt-get install -y -qq nodejs
-require_node_version "$NODE_MAJOR" "__NODE_MIN_VERSION__"
+NODE_VERSION="$(node -p 'process.versions.node' 2>/dev/null || true)"
+if [[ ! "$NODE_VERSION" =~ ^${NODE_MAJOR}\.[0-9]+\.[0-9]+$ ]] \
+   || ! dpkg --compare-versions "$NODE_VERSION" ge "__NODE_MIN_VERSION__"; then
+    printf 'Node %s.x >=%s is required; installed runtime is missing, incompatible, or below the required version\n' "$NODE_MAJOR" "__NODE_MIN_VERSION__" >&2
+    exit 1
+fi
 
 # Official GitHub CLI repo. Auth comes from $GITHUB_TOKEN at runtime,
 # pushed per-project from the Secrets UI.
@@ -149,7 +153,6 @@ func renderInstallScript(plan cliInstallPlan) string {
 	script.WriteString(strings.NewReplacer(
 		"__NODE_MAJOR__", provisioning.MustPin("NODE_MAJOR"),
 		"__NODE_MIN_VERSION__", provisioning.MustCLIVersion("NODE_MIN_VERSION"),
-		"__NODE_TOOLCHAIN__", provisioning.NodeToolchainScript,
 	).Replace(baseImageInstallPreamble))
 	if len(plan.npmPackages) > 0 {
 		script.WriteString("\n\n# Agent CLIs.\nnpm install -g ")

@@ -57,9 +57,18 @@ for v in NODE_MAJOR NODE_MIN_VERSION GO_VERSION; do
 done
 
 # ───────────────── Node (pinned major) ─────────────────
-# shellcheck source=../lib/node-toolchain.sh
-. "$INFRA_DIR/lib/node-toolchain.sh"
-ensure_node_toolchain "$NODE_MAJOR" "$NODE_MIN_VERSION"
+CURRENT_NODE_VERSION="$(node -p 'process.versions.node' 2>/dev/null || true)"
+if [[ ! "$CURRENT_NODE_VERSION" =~ ^${NODE_MAJOR}\.[0-9]+\.[0-9]+$ ]] \
+   || ! dpkg --compare-versions "$CURRENT_NODE_VERSION" ge "$NODE_MIN_VERSION"; then
+    printf 'Installing Node %s.x (>=%s) from NodeSource\n' "$NODE_MAJOR" "$NODE_MIN_VERSION"
+    install_nodesource_node "$NODE_MAJOR" || return 1
+fi
+CURRENT_NODE_VERSION="$(node -p 'process.versions.node' 2>/dev/null || true)"
+if [[ ! "$CURRENT_NODE_VERSION" =~ ^${NODE_MAJOR}\.[0-9]+\.[0-9]+$ ]] \
+   || ! dpkg --compare-versions "$CURRENT_NODE_VERSION" ge "$NODE_MIN_VERSION"; then
+    printf 'Node %s.x >=%s is required; installed runtime is missing, incompatible, or below the required version\n' "$NODE_MAJOR" "$NODE_MIN_VERSION" >&2
+    return 1
+fi
 ok "node $(node -v)  npm $(npm -v)"
 
 # ───────────────── Go (pinned, official tarball) ─────────────────
