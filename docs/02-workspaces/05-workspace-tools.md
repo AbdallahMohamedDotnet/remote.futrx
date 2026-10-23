@@ -118,7 +118,7 @@ keeps the socket, shell, and unsubmitted input alive. Switching chats,
 reloading or closing the page, or losing the socket tears the PTY down; it is
 not a persistent tmux session.
 
-The backend also retains lower-level tmux session APIs. These are not used by the current main workspace UI, but chats can still carry a `tmuxSession` and resolve their working directory from it.
+Chats can still carry a `tmuxSession` and resolve their working directory from it; the backend no longer exposes routes to create, attach to, or send input to host tmux sessions.
 
 ## Git history
 

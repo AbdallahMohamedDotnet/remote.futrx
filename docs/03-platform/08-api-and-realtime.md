@@ -213,10 +213,6 @@ and [agent runtime guide](../dev/installable-applications/25-application-agent-r
 | --- | --- | --- |
 | POST, HEAD, PATCH, GET, DELETE | `/api/uploads[/<upload-id>]` | tus resumable upload lifecycle |
 | GET | `/__remote_inspector` | Same-origin preview inspection wrapper |
-| GET, POST | `/api/sessions` | List or create host tmux sessions |
-| DELETE | `/api/sessions/{name}` | Delete tmux session |
-| POST | `/api/sessions/{name}/send` | Send text into tmux session |
-| POST | `/api/sessions/{name}/upload` | Multipart upload into tmux working directory |
 
 The upload access check happens when the random upload URL is created. Later chunk requests rely on possession of that URL.
 

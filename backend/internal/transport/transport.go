@@ -95,8 +95,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	).WithWebHost(deps.PublicHostname)
 
 	handler := httptransport.NewHandler(httptransport.Handlers{
-		Sessions: httphandlers.NewTmuxHandler(deps.Services.Tmux),
-		Chats:    chatHandler,
+		Chats: chatHandler,
 		Projects: httphandlers.NewProjectHandler(
 			deps.Services.Projects,
 			deps.Services.Users,

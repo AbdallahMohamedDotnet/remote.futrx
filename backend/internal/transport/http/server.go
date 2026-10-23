@@ -20,7 +20,6 @@ type Middleware interface {
 }
 
 type Handlers struct {
-	Sessions          RouteRegistrar
 	Chats             RouteRegistrar
 	Projects          RouteRegistrar
 	Applications      RouteRegistrar
@@ -57,7 +56,6 @@ func NewHandler(handlers Handlers) http.Handler {
 		}
 	}
 
-	register(handlers.Sessions)
 	register(handlers.Chats)
 	register(handlers.Projects)
 	register(handlers.Applications)
