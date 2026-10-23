@@ -145,7 +145,6 @@ type Services struct {
 	Users             *serviceuser.Service
 	UserSettings      *serviceusersettings.Service
 	Skills            *serviceskills.Catalog
-	Tmux              *servicetmux.Service
 	Access            *serviceauth.AccessVerifier
 	Applications      *serviceapplications.Service
 	Push              *servicepush.Service
@@ -319,11 +318,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			}),
 		)
 	}
-	var tmuxService *servicetmux.Service
-	if deps.TmuxClient != nil {
-		tmuxService = servicetmux.NewSessions(deps.TmuxClient)
-	}
-
 	var applicationsService *serviceapplications.Service
 	if deps.AppStore != nil && deps.AppRegistry != nil {
 		applicationsService = serviceapplications.New(
@@ -375,7 +369,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Users:             userService,
 		UserSettings:      userSettingsService,
 		Skills:            skillCatalog,
-		Tmux:              tmuxService,
 		Access:            accessVerifier,
 		Applications:      applicationsService,
 		Push:              pushService,

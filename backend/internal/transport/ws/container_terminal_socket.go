@@ -17,6 +17,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type clientMsg struct {
+	Type string `json:"type"`
+	Data string `json:"data,omitempty"`
+	Cols uint16 `json:"cols,omitempty"`
+	Rows uint16 `json:"rows,omitempty"`
+}
+
 type TerminalChatGetter interface {
 	Get(ctx context.Context, id servicechat.ID) (servicechat.Meta, error)
 }
