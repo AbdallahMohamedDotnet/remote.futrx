@@ -213,10 +213,6 @@ and [agent runtime guide](../dev/installable-applications/25-application-agent-r
 | --- | --- | --- |
 | POST, HEAD, PATCH, GET, DELETE | `/api/uploads[/<upload-id>]` | tus resumable upload lifecycle |
 | GET | `/__remote_inspector` | Same-origin preview inspection wrapper |
-| GET, POST | `/api/sessions` | List or create host tmux sessions |
-| DELETE | `/api/sessions/{name}` | Delete tmux session |
-| POST | `/api/sessions/{name}/send` | Send text into tmux session |
-| POST | `/api/sessions/{name}/upload` | Multipart upload into tmux working directory |
 
 The upload access check happens when the random upload URL is created. Later chunk requests rely on possession of that URL.
 
@@ -229,7 +225,6 @@ The upload access check happens when the random upload URL is created. Later chu
 | `/ws/terminal?chat={id}` | Both | PTY binary data; JSON input and resize control |
 | `/ws/agent-auth/{provider}` | Server to client | Normalized auth snapshots for an available managed auth binding |
 | `/ws/{provider}/auth-status` | Server to client | Legacy provider-specific auth status payloads |
-| `/ws?session={name}` | Both | Auxiliary tmux PTY binary data and control messages |
 
 Chat and project-terminal membership is checked before the WebSocket upgrade. Removing a member prevents future checked connections, but the backend does not currently close or reauthorize that member's already-open sockets.
 
