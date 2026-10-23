@@ -23,9 +23,11 @@ apt-get install -y -qq \
     jq build-essential python3-pip
 
 # Node __NODE_MAJOR__ (provides node + npm + npx for agent CLIs and JS tooling).
+__NODE_TOOLCHAIN__
 NODE_MAJOR=__NODE_MAJOR__
 curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null 2>&1
 apt-get install -y -qq nodejs
+require_node_version "$NODE_MAJOR" "__NODE_MIN_VERSION__"
 
 # Official GitHub CLI repo. Auth comes from $GITHUB_TOKEN at runtime,
 # pushed per-project from the Secrets UI.
@@ -144,8 +146,11 @@ func (c versionCommand) render() string {
 
 func renderInstallScript(plan cliInstallPlan) string {
 	var script strings.Builder
-	script.WriteString(strings.ReplaceAll(
-		baseImageInstallPreamble, "__NODE_MAJOR__", provisioning.MustPin("NODE_MAJOR")))
+	script.WriteString(strings.NewReplacer(
+		"__NODE_MAJOR__", provisioning.MustPin("NODE_MAJOR"),
+		"__NODE_MIN_VERSION__", provisioning.MustCLIVersion("NODE_MIN_VERSION"),
+		"__NODE_TOOLCHAIN__", provisioning.NodeToolchainScript,
+	).Replace(baseImageInstallPreamble))
 	if len(plan.npmPackages) > 0 {
 		script.WriteString("\n\n# Agent CLIs.\nnpm install -g ")
 		writeShellWords(&script, plan.npmPackages)

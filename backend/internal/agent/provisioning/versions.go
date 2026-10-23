@@ -14,6 +14,12 @@ import (
 //go:embed versions.env
 var versionManifest string
 
+// NodeToolchainScript is shared by the host installer and workspace image so
+// both enforce the same major stream and minimum supported patch.
+//
+//go:embed node-toolchain.sh
+var NodeToolchainScript string
+
 var (
 	semanticVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
 	// Pins that are not semver: major streams ("22"), four-part Chrome

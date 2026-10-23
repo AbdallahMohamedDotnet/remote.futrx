@@ -57,17 +57,9 @@ for v in NODE_MAJOR NODE_MIN_VERSION GO_VERSION; do
 done
 
 # ───────────────── Node (pinned major) ─────────────────
-CURRENT_NODE_MAJOR=""
-CURRENT_NODE_VERSION=""
-if command -v node >/dev/null; then
-    CURRENT_NODE_VERSION="$(node -v | sed 's/^v//')"
-    CURRENT_NODE_MAJOR="${CURRENT_NODE_VERSION%%.*}"
-fi
-if [ "$CURRENT_NODE_MAJOR" != "$NODE_MAJOR" ] \
-   || dpkg --compare-versions "${CURRENT_NODE_VERSION:-0}" lt "$NODE_MIN_VERSION"; then
-    log "Installing Node ${NODE_MAJOR}.x (>=${NODE_MIN_VERSION}) from NodeSource (was ${CURRENT_NODE_VERSION:-missing})"
-    install_nodesource_node "$NODE_MAJOR"
-fi
+# shellcheck source=../lib/node-toolchain.sh
+. "$INFRA_DIR/lib/node-toolchain.sh"
+ensure_node_toolchain "$NODE_MAJOR" "$NODE_MIN_VERSION"
 ok "node $(node -v)  npm $(npm -v)"
 
 # ───────────────── Go (pinned, official tarball) ─────────────────
