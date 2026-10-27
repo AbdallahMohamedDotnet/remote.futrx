@@ -162,6 +162,7 @@ type eventRecord struct {
 	T                    int64                 `json:"t"`
 	Type                 string                `json:"type"`
 	TurnID               string                `json:"turnId,omitempty"`
+	UserEmail            string                `json:"userEmail,omitempty"`
 	Text                 string                `json:"text,omitempty"`
 	MessageID            string                `json:"messageId,omitempty"`
 	ID                   string                `json:"id,omitempty"`
@@ -181,6 +182,8 @@ type eventRecord struct {
 	Usage                json.RawMessage       `json:"usage,omitempty"`
 	Message              string                `json:"message,omitempty"`
 	Running              bool                  `json:"running,omitempty"`
+	ApplicationID        string                `json:"applicationId,omitempty"`
+	ApplicationRequestID string                `json:"applicationRequestId,omitempty"`
 	ScheduledTaskID      string                `json:"scheduledTaskId,omitempty"`
 	Native               *agent.NativeEnvelope `json:"native,omitempty"`
 	InteractionID        string                `json:"interactionId,omitempty"`
@@ -194,6 +197,7 @@ func eventRecordFromDomain(ev servicechat.Event) eventRecord {
 		T:                    ev.T,
 		Type:                 ev.Type,
 		TurnID:               ev.TurnID,
+		UserEmail:            ev.UserEmail,
 		Text:                 ev.Text,
 		MessageID:            ev.MessageID,
 		ID:                   ev.ID,
@@ -214,9 +218,10 @@ func eventRecordFromDomain(ev servicechat.Event) eventRecord {
 		Message:              ev.Message,
 		Running:              ev.Running,
 		ScheduledTaskID:      ev.ScheduledTaskID,
-		Native:               ev.Native,
-		InteractionID:        ev.InteractionID,
-		Status:               ev.Status,
+		ApplicationID:        ev.ApplicationID, ApplicationRequestID: ev.ApplicationRequestID,
+		Native:        ev.Native,
+		InteractionID: ev.InteractionID,
+		Status:        ev.Status,
 	}
 }
 
@@ -226,6 +231,7 @@ func (r eventRecord) toDomain() servicechat.Event {
 		T:                    r.T,
 		Type:                 r.Type,
 		TurnID:               r.TurnID,
+		UserEmail:            r.UserEmail,
 		Text:                 r.Text,
 		MessageID:            r.MessageID,
 		ID:                   r.ID,
@@ -246,9 +252,10 @@ func (r eventRecord) toDomain() servicechat.Event {
 		Message:              r.Message,
 		Running:              r.Running,
 		ScheduledTaskID:      r.ScheduledTaskID,
-		Native:               r.Native,
-		InteractionID:        r.InteractionID,
-		Status:               r.Status,
+		ApplicationID:        r.ApplicationID, ApplicationRequestID: r.ApplicationRequestID,
+		Native:        r.Native,
+		InteractionID: r.InteractionID,
+		Status:        r.Status,
 	}
 	event.NormalizeSession()
 	return event
