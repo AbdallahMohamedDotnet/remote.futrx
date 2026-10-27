@@ -57,16 +57,17 @@ for v in NODE_MAJOR NODE_MIN_VERSION GO_VERSION; do
 done
 
 # ───────────────── Node (pinned major) ─────────────────
-CURRENT_NODE_MAJOR=""
-CURRENT_NODE_VERSION=""
-if command -v node >/dev/null; then
-    CURRENT_NODE_VERSION="$(node -v | sed 's/^v//')"
-    CURRENT_NODE_MAJOR="${CURRENT_NODE_VERSION%%.*}"
+CURRENT_NODE_VERSION="$(node -p 'process.versions.node' 2>/dev/null || true)"
+if [[ ! "$CURRENT_NODE_VERSION" =~ ^${NODE_MAJOR}\.[0-9]+\.[0-9]+$ ]] \
+   || ! dpkg --compare-versions "$CURRENT_NODE_VERSION" ge "$NODE_MIN_VERSION"; then
+    printf 'Installing Node %s.x (>=%s) from NodeSource\n' "$NODE_MAJOR" "$NODE_MIN_VERSION"
+    install_nodesource_node "$NODE_MAJOR" || return 1
 fi
-if [ "$CURRENT_NODE_MAJOR" != "$NODE_MAJOR" ] \
-   || dpkg --compare-versions "${CURRENT_NODE_VERSION:-0}" lt "$NODE_MIN_VERSION"; then
-    log "Installing Node ${NODE_MAJOR}.x (>=${NODE_MIN_VERSION}) from NodeSource (was ${CURRENT_NODE_VERSION:-missing})"
-    install_nodesource_node "$NODE_MAJOR"
+CURRENT_NODE_VERSION="$(node -p 'process.versions.node' 2>/dev/null || true)"
+if [[ ! "$CURRENT_NODE_VERSION" =~ ^${NODE_MAJOR}\.[0-9]+\.[0-9]+$ ]] \
+   || ! dpkg --compare-versions "$CURRENT_NODE_VERSION" ge "$NODE_MIN_VERSION"; then
+    printf 'Node %s.x >=%s is required; installed runtime is missing, incompatible, or below the required version\n' "$NODE_MAJOR" "$NODE_MIN_VERSION" >&2
+    return 1
 fi
 ok "node $(node -v)  npm $(npm -v)"
 

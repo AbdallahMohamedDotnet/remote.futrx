@@ -123,7 +123,7 @@ the drawer is open and the service replays the most recent 256 KiB of output.
 A shell with no viewer is ended after 10 minutes, and every shell ends when the
 service stops. The gateway does not start a stopped project or installation.
 
-The backend also retains lower-level tmux session APIs and a `/ws` tmux PTY bridge. These are not used by the current main workspace UI, but chats can still carry a `tmuxSession` and resolve their working directory from it.
+Chats can still carry a `tmuxSession` and resolve their working directory from it; the backend no longer exposes routes to create, attach to, or send input to host tmux sessions.
 
 ## Git history
 
