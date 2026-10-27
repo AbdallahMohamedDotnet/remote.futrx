@@ -348,6 +348,25 @@ code, or resource data. Counts represent active reporting installations, not
 all installs: old, offline, cloned, and spoofed instances can make them
 incomplete or approximate.
 
+## Restoring project tools
+
+An executable `/workspace/setup.sh` runs as root inside its own project
+container, from `/workspace`, after the platform prepares the container. The
+project's stored environment values are passed to the script, including
+multiline secrets. Missing or non-executable scripts are skipped.
+
+Keep setup idempotent; `bash -e` propagates unhandled command failures. Each run
+has a 15-minute limit. Successful setup records the script checksum at
+`/var/lib/remote/user-setup.sha256` inside the replaceable container filesystem.
+The same script is skipped on later starts; a changed script or replacement
+container runs it again. Concurrent attempts serialize inside the container.
+
+A setup failure leaves the container available for repair and marks the
+project as errored with a bounded error message. Fix the script or credentials,
+then use Start or Restart to retry. Failed attempts never record success.
+Setup output capture retains at most 64 KiB; displayed failures retain at most
+4 KiB of output and redact supplied secret values.
+
 ## Container creation reliability
 
 Fresh installs and full infrastructure updates enable lingering for root's
