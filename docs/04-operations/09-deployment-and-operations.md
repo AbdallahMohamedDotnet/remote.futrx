@@ -348,6 +348,27 @@ code, or resource data. Counts represent active reporting installations, not
 all installs: old, offline, cloned, and spoofed instances can make them
 incomplete or approximate.
 
+## Container creation reliability
+
+Fresh installs and full infrastructure updates enable lingering for root's
+systemd user manager. This keeps snap-packaged LXD client commands alive when
+an SSH session logs out while a container is being created. If `loginctl` is
+unavailable or enabling linger fails, installation continues with a warning.
+Application-only deployments do not apply this host setting.
+
+`FUTRX_LAUNCH_TIMEOUT` bounds the `lxc init` image-unpack operation. It defaults
+to 10 minutes; starting the container retains its separate timeout. On slow
+storage, set a positive Go duration through `systemctl edit remote.futrx.service`:
+
+```ini
+[Service]
+Environment=FUTRX_LAUNCH_TIMEOUT=20m
+```
+
+Run `systemctl daemon-reload` and `systemctl restart remote.futrx.service` to
+apply it. Unset, invalid, zero, or negative values use the 10-minute default.
+An earlier deadline or cancellation from the caller still takes precedence.
+
 ## Agent capability discovery timeout
 
 Capability discovery probes all registered agents compatible with the selected

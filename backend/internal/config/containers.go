@@ -131,7 +131,7 @@ func NewContainerStack(
 	)
 	resources := containerresources.NewManager(runner)
 	lifecycle := servicelifecycle.NewService(
-		containerlifecycle.NewClient(runner),
+		containerlifecycle.NewClient(runner, envDuration("FUTRX_LAUNCH_TIMEOUT", 0)),
 		serviceimage.Alias,
 		hostfs.NewWorkspacePreparer(hostMappedUID, hostMappedUID),
 		resources,
