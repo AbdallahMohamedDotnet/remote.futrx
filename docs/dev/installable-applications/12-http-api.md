@@ -145,7 +145,7 @@ for loading.
 | Method | Path | Does |
 |---|---|---|
 | `GET` | `/api/applications` | List global instances |
-| `POST` | `/api/applications` | Install at global scope |
+| `POST` | `/api/applications` | Install at global scope — see [Global install placement](#global-install-placement) |
 | `GET` | `/api/applications/{id}` | One instance |
 | `DELETE` | `/api/applications/{id}` | Uninstall |
 | `GET` | `/api/applications/{id}/credentials` | Full connection detail, secrets included |
@@ -175,6 +175,30 @@ Identical set, under a project, available to any **member** of that project:
 Membership is checked by `project_handler.go` before delegating. The handler
 then verifies the instance actually belongs to *this* project, so a member of
 one project cannot control another's app by guessing its id.
+
+## Observed installations
+
+The browser uses an asynchronous install run, with the same request body as the
+synchronous install endpoints above. Global routes are admin-only; project
+routes require membership in that project.
+
+| Method | Global path | Project path | Does |
+|---|---|---|---|
+| `POST` | `/api/applications/installations` | `/api/projects/{projectID}/applications/installations` | Start an attempt; return `202` with its run |
+| `GET` | `/api/applications/installations` | `/api/projects/{projectID}/applications/installations` | List the latest runs in this scope |
+
+A run has `id`, `applicationId`, `scope`, optional `projectId`, `state`
+(`running`, `succeeded`, `failed`), an optional error, a bounded
+installer log, and `progress` containing the actual phase/message. Project counts
+and the current project are included for global placement inside project containers.
+The UI polls while running, keeps the terminal result, and issues another `POST`
+only when the user requests retry. A concurrent attempt returns `409`.
+
+Runs continue after the starting HTTP request closes. Run status and logs remain
+in memory for the current server process, and active work is cancelled during
+server shutdown. Incomplete installations become failed and retryable after a
+restart. The original synchronous `POST …/applications` routes stay available to
+tools and existing clients.
 
 ## Backend backend routes
 
@@ -320,6 +344,24 @@ Responds `201` with the instance view.
 
 For a `ui` application, `externalPort` and `bindAddress` are ignored — there is no
 port.
+
+#### Global install placement
+
+`POST /api/applications` creates a global instance only when the application
+declares `"globallyInstalledInsideContainers": false`. Otherwise — the default —
+it installs a project instance into every existing project, and the instances
+it creates are reached through the project routes, not the global ones.
+
+In that case the `201` body is the view of the last project copy installed,
+with `"scope": "project"` and that project's `projectId`. When there was
+nothing to install — no projects, or every project already holds the
+application — it is still `201`, with an empty view whose `id` is `""`. Treat
+the response as an acknowledgement and list the project instances to see the
+result.
+
+A project that already holds the application is skipped rather than reported
+as `409`. If any other project fails, the request fails with an error naming
+each one as `project <id>: …`; copies installed in the other projects remain.
 
 ### Change port
 

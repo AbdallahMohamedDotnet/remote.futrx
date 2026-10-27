@@ -19,8 +19,13 @@ if ! command -v code-server >/dev/null 2>&1 \
    || [ "$(code-server --version 2>/dev/null | head -1 | awk '{print $1}')" != "$CODE_SERVER_VERSION" ]; then
     deb="$(mktemp --suffix=.deb)"
     trap 'rm -f "$deb"' EXIT
-    curl -fsSL --retry 3 -o "$deb" \
-        "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb"
+    echo "Downloading Code Server ${CODE_SERVER_VERSION}"
+    if ! curl -fSL --connect-timeout 20 --speed-limit 1024 --speed-time 30 -o "$deb" \
+        "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb"; then
+        echo "Code Server download stopped: the connection failed or stalled. Retry the installation to try again." >&2
+        exit 1
+    fi
+    echo "Installing Code Server"
     apt-get -o DPkg::Lock::Timeout=300 install -y -qq "$deb"
 fi
 

@@ -1,5 +1,40 @@
 # 14 — Troubleshooting
 
+## Installation takes a long time or times out
+
+Cold installations download dependencies and compile application programs. A
+slow machine can legitimately take several minutes. The install dialog shows
+the actual provisioning phase and a live, bounded installer log, like the Remote
+update view. Closing it leaves the server-owned attempt running; **View progress**
+reopens it. A failed attempt retains its output and offers **Retry install**.
+Retry is explicit: connection failures never start a second attempt automatically.
+For global installs into project containers, the run also shows project counts;
+the first failure stops the run and retry skips copies already installed.
+
+The latest run per application/scope is held in server memory. Logs redact
+declared secret inputs, including generated passwords, before exposing output.
+Closing or refreshing the browser retains progress; restarting the server discards
+live logs. The next status read marks interrupted application records as failed
+so they can be retried.
+If the browser cannot refresh progress, it shows a connection message: the server
+may still be installing, so reconnect to check its state before trying again.
+
+Container Go bootstrap downloads the pinned toolchain ZIP directly from the
+official `proxy.golang.org`, verifies its pinned SHA-256, then restores executable
+permissions before installing it. Go and Code Server downloads have a 20-second
+connection timeout and stop after 30 seconds below 1 KiB/s; a failed transfer
+stops immediately and asks the user to retry. Application-declared host tool
+downloads stop after 30 seconds without headers or body data. A slow transfer
+that continues making progress can use its outer provisioning budget. An
+existing compiler is kept until its replacement is verified. Concurrent
+application installs in one container serialize compiler provisioning.
+
+When updating `ApplicationContainerGoVersion`, update `containerGoPins` for
+amd64 and arm64 too. Obtain module ZIPs with
+`GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org go mod download`
+for `golang.org/toolchain@v0.0.1-go<VERSION>.linux-<ARCH>`, then calculate their
+raw ZIP SHA-256 hashes after the Go checksum-database verification succeeds.
+
 ## The server will not start after I added an application
 
 `NewRegistry()` validates the whole catalog at startup and fails loudly. The

@@ -277,6 +277,7 @@ func (h *Host) ensure(ctx context.Context, instance applications.Instance) (*bac
 			// reach Backend.Init on the next call.
 			h.kill(instanceID)
 		}
+		svc.ReportInstallProgress(ctx, "starting", "Starting the application backend")
 		started, err := h.launch(ctx, instance, binary, configuration, generation)
 		unlock()
 		unlockApplication()

@@ -253,6 +253,8 @@ contract, so it depends on nothing but the standard library.
 | `app/extensions/extensionBackend.ts` | resolves which running backend a call reaches, and calls it |
 | `config/extensions.ts` | the closed set of slot names and their icon sizing |
 | `app/extensions/extensionPopup.ts` | the modal an extension can open |
+| `ui/chat/extensions/ExtensionDrawer.tsx` | the docked pane an extension can register, with its header and resize handle |
+| `state/hooks/chat/extensionDrawerState.ts` | a drawer's pane name, stored width and width limits |
 | `ui/primitives/ExtensionSlot.tsx` | renders a slot's contributions into plain DOM nodes |
 
 ## What installing does
@@ -284,14 +286,14 @@ sequenceDiagram
     alt application has infrastructure
         alt project scope
             Svc->>Proj: container name, and ready it
-        else global scope
+        else global scope, dedicated container
             Svc->>Svc: name a dedicated container
         end
         opt port.internal is declared
             Svc->>Svc: allocate a free host port, from defaultExternal up
         end
         Svc->>Store: persist as installing — a crash here stays recoverable
-        Inst->>LXD: launch the dedicated container (global scope only)
+        Inst->>LXD: launch the dedicated container (global instance only)
         Inst->>LXD: build/provision, materialize the manifest service, then run its healthcheck
         opt port.internal is declared
             Inst->>LXD: add the proxy device that maps the host port

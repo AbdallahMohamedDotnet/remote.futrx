@@ -3,11 +3,13 @@ package applications
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
@@ -100,6 +102,24 @@ func TestContainerStateRejectsAnEmptyNameWithoutCallingLXD(t *testing.T) {
 	}
 	if len(runner.calls) != 0 {
 		t.Fatalf("empty name reached LXD: %v", runner.calls)
+	}
+}
+
+type cancelledInstallRunner struct{ *fakeRunner }
+
+func (r *cancelledInstallRunner) RunStdin(ctx context.Context, _ io.Reader, _ ...string) (string, error) {
+	<-ctx.Done()
+	return "partial build output", errors.New("exit status 143")
+}
+
+func TestInstallDeadlineReportsCancellation(t *testing.T) {
+	runner := &cancelledInstallRunner{newFakeRunner("project")}
+	installer := NewInstaller(runner, testRegistry(t), t.TempDir())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	err := installer.runInstallScript(ctx, serviceSpec(svc.ScopeProject, "project"))
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "partial build output") {
+		t.Fatalf("cancellation lost its deadline or build output: %v", err)
 	}
 }
 

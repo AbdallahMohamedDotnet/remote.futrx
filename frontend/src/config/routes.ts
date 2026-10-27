@@ -104,6 +104,8 @@ export const API_ROUTES = {
       `/api/projects/${encodeURIComponent(id)}/access/${encodeURIComponent(email)}`,
     applications: (id: string) =>
       `/api/projects/${encodeURIComponent(id)}/applications`,
+    applicationInstallations: (id: string) =>
+      `/api/projects/${encodeURIComponent(id)}/applications/installations`,
     application: (id: string, appId: string) =>
       `/api/projects/${encodeURIComponent(id)}/applications/${encodeURIComponent(appId)}`,
     applicationAction: (id: string, appId: string, action: string) =>
@@ -126,6 +128,7 @@ export const API_ROUTES = {
         uninstallInstalled ? "?uninstall=true" : ""
       }`,
     collection: "/api/applications",
+    installations: "/api/applications/installations",
     item: (appId: string) => `/api/applications/${encodeURIComponent(appId)}`,
     action: (appId: string, action: string) =>
       `/api/applications/${encodeURIComponent(appId)}/${action}`,
@@ -191,8 +194,6 @@ export const WEB_SOCKET_ROUTES = {
       ? applicationPath(`${route}?since=${sinceSeq}`)
       : route;
   },
-  terminal: (chatId: string): ApplicationPath =>
-    applicationPath(`/ws/terminal?chat=${encodeURIComponent(chatId)}`),
 } as const;
 
 // The chat media-open URL is the only chat route an embedded image or link

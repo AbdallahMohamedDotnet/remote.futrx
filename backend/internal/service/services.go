@@ -327,6 +327,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			projectContainersAdapter{projects: projectService},
 			deps.AppPorts,
 			serviceapplications.WithBackendHost(deps.AppBackends),
+			serviceapplications.WithInstallRuns(ctx),
 			serviceapplications.WithPackageCatalog(deps.AppPackages),
 			serviceapplications.WithLifecyclePublisher(deps.ApplicationLifecycle),
 			serviceapplications.WithEventSource(ctx, deps.ApplicationEvents),
@@ -397,6 +398,18 @@ func (a projectContainersAdapter) ContainerName(ctx context.Context, projectID s
 func (a projectContainersAdapter) EnsureRunning(ctx context.Context, projectID string) error {
 	_, err := a.projects.Start(ctx, serviceproject.ID(projectID))
 	return err
+}
+
+func (a projectContainersAdapter) ListProjectIDs(ctx context.Context) ([]string, error) {
+	projects, err := a.projects.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(projects))
+	for _, project := range projects {
+		ids = append(ids, string(project.ID))
+	}
+	return ids, nil
 }
 
 // newPush builds the Web Push service. A deployment without a usable VAPID key
