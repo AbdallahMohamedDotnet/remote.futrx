@@ -1,4 +1,4 @@
-package http
+package httptransport_test
 
 import (
 	"archive/zip"
@@ -12,10 +12,14 @@ import (
 	"testing"
 
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/config"
+	model "futrx.local/catalog/applications/file-manager/backend/container/internal/model/files/application"
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/presentation/web"
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/repository/archives"
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/repository/workspace"
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/service/files"
+	httptransport "futrx.local/catalog/applications/file-manager/backend/container/internal/transport/http"
+	httphandlers "futrx.local/catalog/applications/file-manager/backend/container/internal/transport/http/handlers"
+	httpmiddleware "futrx.local/catalog/applications/file-manager/backend/container/internal/transport/http/middleware"
 )
 
 func TestFileManagerRoutes(t *testing.T) {
@@ -47,7 +51,7 @@ func TestFileManagerRoutes(t *testing.T) {
 	t.Run("listing", func(t *testing.T) {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest("GET", "/api/list", nil))
-		var listing listing
+		var listing model.Listing
 		if err := json.Unmarshal(response.Body.Bytes(), &listing); err != nil {
 			t.Fatal(err)
 		}
@@ -58,7 +62,7 @@ func TestFileManagerRoutes(t *testing.T) {
 	t.Run("search", func(t *testing.T) {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest("GET", "/api/search?q=app", nil))
-		var results searchResult
+		var results model.SearchResult
 		if err := json.Unmarshal(response.Body.Bytes(), &results); err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +89,7 @@ func TestFileManagerRoutes(t *testing.T) {
 func TestArchiveFailureIsReportedBeforeDownloadHeaders(t *testing.T) {
 	root, _ := setupWorkspace(t)
 	response := httptest.NewRecorder()
-	New(files.New(root, workspace.New(), archives.New(1, 4)), web.Files()).ServeHTTP(response, httptest.NewRequest("GET", "/api/archive?path=src", nil))
+	newHandlerWithSpool(root, archives.New(1, 4)).ServeHTTP(response, httptest.NewRequest("GET", "/api/archive?path=src", nil))
 	if response.Code != http.StatusRequestEntityTooLarge || response.Header().Get("Content-Type") == "application/zip" {
 		t.Fatalf("oversized response: %d %v", response.Code, response.Header())
 	}
@@ -113,5 +117,14 @@ func setupWorkspace(t *testing.T) (root, secret string) {
 
 func newHandler(root string) http.Handler {
 	spool := archives.New(config.MaxConcurrentArchives, config.MaxArchiveSpoolBytes)
-	return New(files.New(root, workspace.New(), spool), web.Files())
+	return newHandlerWithSpool(root, spool)
+}
+
+func newHandlerWithSpool(root string, spool *archives.Spool) http.Handler {
+	service := files.New(root, workspace.New(), spool)
+	return httptransport.NewHandler(httptransport.Handlers{
+		Files:      httphandlers.NewFileHandler(service),
+		Static:     http.FileServer(http.FS(web.Files())),
+		Middleware: httpmiddleware.PageHeaders{},
+	})
 }

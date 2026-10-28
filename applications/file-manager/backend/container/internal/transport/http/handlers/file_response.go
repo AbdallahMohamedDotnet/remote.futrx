@@ -1,7 +1,6 @@
-package http
+package httphandlers
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -33,11 +32,6 @@ func presentNodes(entries []*model.Node) []*node {
 		nodes = append(nodes, &node{Name: entry.Name, Path: entry.Path, IsDir: entry.IsDir, Size: entry.Size, ModTime: entry.ModTime})
 	}
 	return nodes
-}
-
-func sendJSON(w http.ResponseWriter, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(value)
 }
 
 func sendError(w http.ResponseWriter, err error) {

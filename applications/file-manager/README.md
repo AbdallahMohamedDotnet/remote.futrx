@@ -33,18 +33,22 @@ backend/container/
   internal/
     config/                       workspace, server settings, resource limits
     model/files/application/      application results and errors
-    port/files/inbound/           file operations exposed to presentation
+    port/files/inbound/           file operations exposed to HTTP handlers
     port/files/outbound/          filesystem and archive-spool contracts
     service/files/                listing/search policy and download workflows
     repository/workspace/         rooted filesystem, listing, search, ZIP I/O
     repository/archives/          bounded temporary files and admission slots
-    presentation/http/            routes, DTOs, headers and error mapping
+    transport/http/               server, mux and response serialization
+    transport/http/handlers/      RegisterRoutes, file handlers and error mapping
+    transport/http/middleware/    response security headers
     presentation/web/assets/      embedded browser page
 ```
 
 The command injects concrete repositories into the file service, then injects
-that service into HTTP presentation. Services do not depend on HTTP or concrete
-filesystem repositories. HTTP presentation maps application results into JSON
+that service into HTTP handlers. The transport composes their `RegisterRoutes`
+methods with the static page and middleware, matching Remote's own HTTP layout.
+Services do not depend on HTTP or concrete filesystem repositories. Handlers
+map application results into JSON
 and streams completed downloads. Archive preparation, spooling, and failure
 cleanup run behind the service contract. Each spool instance owns its limits
 and concurrency slots; request handlers do not mutate package globals.

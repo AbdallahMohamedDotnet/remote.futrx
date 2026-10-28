@@ -7,11 +7,13 @@ import (
 	"strconv"
 
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/config"
-	presentation "futrx.local/catalog/applications/file-manager/backend/container/internal/presentation/http"
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/presentation/web"
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/repository/archives"
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/repository/workspace"
 	"futrx.local/catalog/applications/file-manager/backend/container/internal/service/files"
+	httptransport "futrx.local/catalog/applications/file-manager/backend/container/internal/transport/http"
+	httphandlers "futrx.local/catalog/applications/file-manager/backend/container/internal/transport/http/handlers"
+	httpmiddleware "futrx.local/catalog/applications/file-manager/backend/container/internal/transport/http/middleware"
 )
 
 func main() {
@@ -22,11 +24,11 @@ func main() {
 	}
 	spool := archives.New(config.MaxConcurrentArchives, config.MaxArchiveSpoolBytes)
 	service := files.New(config.WorkspaceDirectory, workspace.New(), spool)
-	server := &http.Server{
-		Addr:              "0.0.0.0:" + strconv.Itoa(*port),
-		Handler:           presentation.New(service, web.Files()),
-		ReadHeaderTimeout: config.ReadHeaderTimeout,
-		IdleTimeout:       config.IdleTimeout,
-	}
+	handler := httptransport.NewHandler(httptransport.Handlers{
+		Files:      httphandlers.NewFileHandler(service),
+		Static:     http.FileServer(http.FS(web.Files())),
+		Middleware: httpmiddleware.PageHeaders{},
+	})
+	server := httptransport.NewServer("0.0.0.0:"+strconv.Itoa(*port), handler)
 	log.Fatal(server.ListenAndServe())
 }

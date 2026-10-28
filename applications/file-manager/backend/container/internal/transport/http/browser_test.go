@@ -1,4 +1,4 @@
-package http
+package httptransport_test
 
 import (
 	"net/http/httptest"
