@@ -54,6 +54,7 @@ remote.backend.describe(target?)                → Promise<descriptor>
 remote.backend.url(path, target?)               // string
 
 remote.files.registerOpener(open)                → dispose
+remote.files.open({ chatId, projectId, cwd, path }) → void
 
 remote.events.on(name, handler)                 → dispose
 
@@ -195,7 +196,7 @@ Use `mount` whenever the content needs wiring; use `html` for static markup.
 
 ## `remote.ui.registerDrawer(options)`
 
-Adds a pane on the right of the chat, alongside the built-in files, history
+Adds a pane on the right of the chat, alongside history
 and preview panes. Remote provides a toggle after the `chatHeaderActions`
 slot, a header with a close button, and a resize handle on the left edge.
 Your extension fills the body.
@@ -222,7 +223,7 @@ const dispose = remote.ui.registerDrawer({
 | Behaviour | Detail |
 |---|---|
 | Scope | A project installation's drawer appears only in that project's chats, following the same scope rules as slots. Use `when` to limit it further; it receives `{ chatId, projectId, cwd }`. If `when` throws, the drawer is hidden. |
-| One pane at a time | Opening a drawer closes any other open workspace pane. Opening files, history, preview or another drawer closes it. On a phone, the pane covers the chat. |
+| One pane at a time | Opening a drawer closes any other open workspace pane. Opening history, preview or another application drawer closes it. On a phone, the pane covers the chat. |
 | `mount` lifecycle | Runs the first time the drawer is opened for a chat. The body then **stays mounted while the pane is closed**, so a connection or an editor in it survives closing and reopening. The cleanup runs when the user switches chat, when `chatId`, `projectId` or `cwd` changes, or when the drawer is removed. |
 | Closed pane | A closed pane has zero width. Use a `ResizeObserver` to watch the body size if your content needs to pause while hidden. |
 | `setStatus` | `setStatus({ label, active })` puts a line under the title and a dot beside it, green when `active`. `setStatus(null)` removes both. |
@@ -564,14 +565,17 @@ its opener automatically; the returned disposer lets the extension remove it
 earlier. Do not rely on returning the disposer from `activate`: the current
 host awaits activation but does not consume its return value as a destructor.
 
-The Files drawer, Markdown links and attachment links use this API. Media
-keeps its viewer behavior and archives/unsupported media download. When no
-opener returns a URL, non-media files download.
-The generic workspace-link helper can fall back to a chat download URL when
-no supplied resolver handles the file. Markdown observes opener changes and
-active-project changes. The Files drawer currently also derives availability
-from the header-action slot; verify an extension
-that registers only an opener in that surface separately.
+The optional File Manager application calls `remote.files.open(request)` to
+use the same media viewer, project-scoped editor resolution, and download
+fallback as chat file links. The request includes `chatId`, `projectId`, `cwd`,
+and an absolute `/workspace/...` path, plus optional `line` and `column`.
+It rejects paths outside `/workspace` and explicit traversal segments. Media
+opens in the shared viewer; source/text files use a matching project opener;
+archives, unsupported media, and files with no matching opener download.
+The destination HTTP route still enforces filesystem and membership access.
+
+Markdown and attachment links continue to resolve registered openers without
+requiring File Manager. Markdown observes opener and active-project changes.
 
 Core does not provide an editor URL builder or sanitize the returned URL.
 An extension is trusted browser code; return only URLs appropriate to its

@@ -1,3 +1,4 @@
+import { openWorkspaceFile } from "../../services/files/openWorkspaceFile.ts";
 import {
   EXTENSION_API_VERSION,
   EXTENSION_SLOTS,
@@ -110,6 +111,7 @@ export function createExtensionApi(
     },
     assets: { url: assetUrl },
     files: {
+      open: openWorkspaceFile,
       registerOpener: (open) => fileOpenerStore.getState().register(application.id, [...visibility.projectIds], open),
     },
     backend: createBackendApi(application, backends),

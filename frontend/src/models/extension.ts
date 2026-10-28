@@ -316,6 +316,7 @@ export interface ExtensionApi {
     url: (assetPath: string) => string;
   };
   files: {
+    open: (request: FileOpenRequest & { chatId: string }) => void;
     registerOpener: (open: (request: FileOpenRequest) => string | null) => () => void;
   };
   backend: ExtensionBackendApi;
