@@ -298,7 +298,7 @@ function banner(kind, text) {
 }
 
 function blockedNotice({ path, url }) {
-  const notice = banner("warning", "Your browser blocked the editor tab. ");
+  const notice = banner("warning", "Your browser blocked the new tab. ");
   const link = element("a", "", `Open ${path.slice(path.lastIndexOf("/") + 1)}`);
   link.href = url;
   link.target = "_blank";
@@ -472,10 +472,6 @@ window.addEventListener("message", (event) => {
   ) {
     blocked = { path: event.data.path, url: event.data.url };
     render();
-    return;
-  }
-  if (event.data.type === "download" && typeof event.data.path === "string") {
-    window.location.assign(downloadUrl({ path: event.data.path, isDir: false }));
     return;
   }
   if (event.data.type !== "theme") return;

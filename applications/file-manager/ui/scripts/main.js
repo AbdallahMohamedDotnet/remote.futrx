@@ -1,4 +1,5 @@
 import { fileManagerUrl } from "./workspacePath.js";
+import { codeServerRunning, openFileWithoutCore } from "./fileOpening.js";
 
 const ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
@@ -100,6 +101,15 @@ export default function activate(remote) {
         attributes: true,
         attributeFilter: ["class", "data-theme", "style"],
       });
+      // Only Remote versions without `remote.files.open` need to know.
+      let codeServer = false;
+      const refreshCodeServer = () => {
+        if (remote.files?.open) return;
+        void codeServerRunning(context.projectId).then((running) => {
+          codeServer = running;
+        });
+      };
+      refreshCodeServer();
       const onMessage = (event) => {
         if (
           event.source !== frame.contentWindow ||
@@ -129,9 +139,11 @@ export default function activate(remote) {
           cwd: context.cwd,
           path: `/workspace/${path}`,
         };
-        // Hosts older than `remote.files.open` can only offer the download.
         if (!remote.files?.open) {
-          send({ type: "download", path });
+          const result = openFileWithoutCore(request, codeServer);
+          if (result.blocked) send({ type: "blocked", path, url: result.blocked });
+          // Pick up Code Server being installed or stopped for the next click.
+          refreshCodeServer();
           return;
         }
         // Remote opened the editor after the click in the iframe had ended,

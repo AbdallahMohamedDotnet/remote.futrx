@@ -13,17 +13,15 @@ export function workspaceLocation(cwd) {
   };
 }
 
-/** The file manager page for one chat, on the project's application origin. */
-export function fileManagerUrl(
+/** The project's origin for an application's web subdomain, or null. */
+export function applicationOrigin(
   cwd,
-  chatId,
   subdomain,
   origin = window.location.origin,
 ) {
   const location = workspaceLocation(cwd);
   if (
     !location ||
-    !chatId ||
     location.slug.length > 63 ||
     location.slug.endsWith("-") ||
     location.slug.includes("--")
@@ -42,6 +40,16 @@ export function fileManagerUrl(
   url.pathname = "/";
   url.search = "";
   url.hash = "";
+  return url;
+}
 
-  return url.toString();
+/** The file manager page for one chat, on the project's application origin. */
+export function fileManagerUrl(
+  cwd,
+  chatId,
+  subdomain,
+  origin = window.location.origin,
+) {
+  if (!chatId) return null;
+  return applicationOrigin(cwd, subdomain, origin)?.toString() ?? null;
 }

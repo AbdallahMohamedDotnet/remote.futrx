@@ -69,7 +69,7 @@ test(
       const page = await browser.newPage();
       await page.route("http://remote.test/**", async (route) => {
         const pathname = new URL(route.request().url()).pathname;
-        if (pathname === "/main.js" || pathname === "/workspacePath.js") {
+        if (["/main.js", "/workspacePath.js", "/fileOpening.js"].includes(pathname)) {
           await route.fulfill({
             contentType: "text/javascript",
             body: await readFile(

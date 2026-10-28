@@ -71,6 +71,14 @@ Remote's media viewer, source/text files use an installed application opener
 (Scratch Tab claims them inside Remote's page; otherwise Code Server opens in a
 new tab), and other files download. Both editors are optional. If the browser
 blocks the editor tab, the drawer shows a link to open it.
+
+Remote versions without `remote.files.open` give applications no access to
+other applications' openers. There, `ui/scripts/fileOpening.js` reproduces the
+former built-in drawer from Remote's page: it offers the file as a link click
+that Scratch Tab can claim, opens Code Server in a new tab when Remote's
+`/api/projects/{id}/applications` reports it running, opens media in a new tab,
+and downloads everything else. It mirrors Code Server's and Scratch Tab's link
+formats, so it is a stopgap until Remote ships `remote.files.open`.
 The iframe bridge checks both the sender window and exact application origin;
 project and chat context come from the drawer, not from iframe messages.
 
