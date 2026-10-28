@@ -303,6 +303,10 @@ ul {
   background: rgb(var(--accent-yellow) / 0.08);
   border: 1px solid rgb(var(--accent-yellow) / 0.25);
 }
+.banner a {
+  color: inherit;
+  font-weight: 600;
+}
 .empty {
   padding: 8px;
   font-size: 13px;

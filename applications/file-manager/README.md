@@ -68,7 +68,9 @@ individual files and folder ZIPs, including the workspace root through
 
 File clicks use the shared `remote.files.open` API: supported media opens in
 Remote's media viewer, source/text files use an installed application opener
-(such as Code Server), and other files download. Code Server is optional.
+(Scratch Tab claims them inside Remote's page; otherwise Code Server opens in a
+new tab), and other files download. Both editors are optional. If the browser
+blocks the editor tab, the drawer shows a link to open it.
 The iframe bridge checks both the sender window and exact application origin;
 project and chat context come from the drawer, not from iframe messages.
 

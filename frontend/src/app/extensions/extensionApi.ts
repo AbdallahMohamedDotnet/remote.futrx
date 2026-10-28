@@ -112,7 +112,6 @@ export function createExtensionApi(
     assets: { url: assetUrl },
     files: {
       open: openWorkspaceFile,
-      canEdit: (projectId) => fileOpenerStore.getState().canOpen(projectId),
       editorUrl: workspaceFileEditorUrl,
       registerOpener: (open) => fileOpenerStore.getState().register(application.id, [...visibility.projectIds], open),
     },

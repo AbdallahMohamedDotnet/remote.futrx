@@ -84,7 +84,7 @@ test(
           body: `<!doctype html><html style="--fg: 12 13 14;--fg-muted: 80 80 80;--bg-surface-rgb: 240 241 242;--bg-inset-rgb: 230 231 232;--accent-blue: 20 90 200;--accent-red: 200 20 20;--line: #ccc"><body><div id="drawer" style="width:560px;height:600px"></div><script type="module">
     import activate from '/main.js';
     window.opened=[];
-    activate({application:{web:{subdomain:'files'}},files:{open:request=>window.opened.push(request),canEdit:projectId=>window.canEdit&&projectId==='p1',editorUrl:request=>window.canEdit?'http://editor.test/open?file='+encodeURIComponent(request.path):null},ui:{registerDrawer:drawer=>{
+    activate({application:{web:{subdomain:'files'}},files:{open:request=>{window.opened.push(request);return window.blockTabs?'blocked':'editor'},editorUrl:request=>'http://editor.test/open?file='+encodeURIComponent(request.path)},ui:{registerDrawer:drawer=>{
      window.dispose=drawer.mount(document.querySelector('#drawer'),{chatId:'c1',projectId:'p1',cwd:'/var/lib/remote/projects/alpha/workspace',setStatus:status=>{window.drawerStatus=status},setActions:actions=>{window.actions=actions}});
     }}});
    </script></body></html>`,
@@ -127,19 +127,18 @@ test(
         cwd: "/var/lib/remote/projects/alpha/workspace",
         path: "/workspace/src/app.go",
       });
-      // With an editor installed, the tab opens inside the click and is then
-      // pointed at the editor, instead of Remote opening it after the click.
+      // A refused editor tab becomes a link the user can click through.
       await page.context().route("http://editor.test/**", (route) =>
         route.fulfill({ contentType: "text/html", body: "editor" }),
       );
       await page.evaluate(() => {
-        window.canEdit = true;
+        window.blockTabs = true;
       });
-      await frame.getByRole("button", { name: "src", exact: true }).click();
-      await frame.getByRole("button", { name: "src", exact: true }).click();
+      await frame.getByRole("button", { name: "app.go", exact: true }).click();
+      const link = frame.getByRole("link", { name: "Open app.go", exact: true });
       const [tab] = await Promise.all([
         page.context().waitForEvent("page"),
-        frame.getByRole("button", { name: "app.go", exact: true }).click(),
+        link.click(),
       ]);
       await tab.waitForURL("http://editor.test/**");
       assert.equal(
@@ -147,8 +146,9 @@ test(
         "/workspace/src/app.go",
       );
       assert.equal(await tab.evaluate(() => window.opener), null);
-      assert.equal(await page.evaluate(() => window.opened.length), 1);
       await tab.close();
+      await link.waitFor({ state: "detached" });
+      assert.equal(await page.evaluate(() => window.opened.length), 2);
       assert.equal(
         await frame
           .locator("body")
@@ -177,7 +177,7 @@ test(
           }),
         );
       });
-      assert.equal(await page.evaluate(() => window.opened.length), 1);
+      assert.equal(await page.evaluate(() => window.opened.length), 2);
       await page.evaluate(() => window.dispose());
       assert.equal(await page.locator("iframe").count(), 0);
     } finally {

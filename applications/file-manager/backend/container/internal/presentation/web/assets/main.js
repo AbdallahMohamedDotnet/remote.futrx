@@ -58,9 +58,6 @@ const CATEGORY_BY_EXTENSION = {
   txt: "text", md: "text", log: "text",
 };
 
-// Categories Remote downloads rather than opening in an editor.
-const DOWNLOADED = new Set(["archive", "image", "video", "audio"]);
-
 // Extensions Remote's media viewer renders inline.
 const VIEWABLE = new Set([
   "avif", "bmp", "gif", "ico", "jpeg", "jpg", "png", "svg", "tif", "tiff", "webp",
@@ -81,11 +78,8 @@ const childrenByDir = new Map();
 const errorByDir = new Map();
 const truncatedDirs = new Set();
 
-// Whether Remote has an editor for this project, and the blank tabs opened
-// for it that are waiting for the editor URL.
-let editorAvailable = false;
-let nextTab = 0;
-const pendingTabs = new Map();
+// A file whose editor tab the browser refused, offered as a link instead.
+let blocked = null;
 
 // Search state.
 let searchTimer;
@@ -205,39 +199,19 @@ function downloadLink(node) {
   return link;
 }
 
-// Mirrors Remote's choice for a click: view media, download what no editor
-// can open, and hand the rest to an editor.
-function opensInEditor(name) {
-  const ext = extension(name);
-  return !VIEWABLE.has(ext) && !DOWNLOADED.has(CATEGORY_BY_EXTENSION[ext]);
-}
-
 function openFile(node) {
   if (!embedded) {
     window.location.assign(downloadUrl(node));
     return;
   }
-  const message = { source: "remote-file-manager", type: "open", path: node.path };
-  // Remote opens the editor after this click has ended, when browsers block
-  // new tabs. Open the tab now and let Remote fill in its address.
-  if (editorAvailable && opensInEditor(node.name)) {
-    const tab = window.open("", "_blank");
-    if (tab) {
-      message.tab = ++nextTab;
-      pendingTabs.set(message.tab, tab);
-    }
+  if (blocked) {
+    blocked = null;
+    render();
   }
-  window.parent.postMessage(message, parentOrigin);
-}
-
-function fillTab(id, url) {
-  const tab = pendingTabs.get(id);
-  pendingTabs.delete(id);
-  if (!tab) return;
-  if (typeof url === "string" && /^https?:\/\//i.test(url)) {
-    tab.opener = null;
-    tab.location.replace(url);
-  } else tab.close();
+  window.parent.postMessage(
+    { source: "remote-file-manager", type: "open", path: node.path },
+    parentOrigin,
+  );
 }
 
 function fileIcon(node) {
@@ -323,11 +297,26 @@ function banner(kind, text) {
   return element("div", `banner ${kind}`, text);
 }
 
+function blockedNotice({ path, url }) {
+  const notice = banner("warning", "Your browser blocked the editor tab. ");
+  const link = element("a", "", `Open ${path.slice(path.lastIndexOf("/") + 1)}`);
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.addEventListener("click", () => {
+    blocked = null;
+    queueMicrotask(render);
+  });
+  notice.append(link);
+  return notice;
+}
+
 function render() {
   // Rebuilding the list loses focus; put it back on the same row.
   const focused = document.activeElement?.closest?.("li")?.dataset.path;
   const scroll = entries.scrollTop;
   const view = [];
+  if (blocked) view.push(blockedNotice(blocked));
   if (searchResults !== null) {
     if (searchError) view.push(banner("error", searchError));
     if (searchTruncated)
@@ -475,12 +464,14 @@ window.addEventListener("message", (event) => {
     reset();
     return;
   }
-  if (event.data.type === "editor") {
-    editorAvailable = Boolean(event.data.available);
-    return;
-  }
-  if (event.data.type === "tab") {
-    fillTab(event.data.tab, event.data.url);
+  if (
+    event.data.type === "blocked" &&
+    typeof event.data.path === "string" &&
+    typeof event.data.url === "string" &&
+    /^https?:\/\//i.test(event.data.url)
+  ) {
+    blocked = { path: event.data.path, url: event.data.url };
+    render();
     return;
   }
   if (event.data.type === "download" && typeof event.data.path === "string") {

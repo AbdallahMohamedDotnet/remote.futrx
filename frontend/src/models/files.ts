@@ -38,6 +38,10 @@ export interface MediaViewerStoreActions {
   close: () => void;
 }
 
+/** What opening a file did. `blocked` means the browser refused the editor
+ *  tab; the caller can offer the editor URL as a link instead. */
+export type FileOpenResult = "media" | "editor" | "blocked" | "download" | "ignored";
+
 export type FileOpener = (request: FileOpenRequest) => string | null;
 
 export interface FileOpenerEntry {
