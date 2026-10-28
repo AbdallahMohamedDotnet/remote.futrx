@@ -332,6 +332,10 @@ export interface ExtensionApi {
   };
   files: {
     open: (request: FileOpenRequest & { chatId: string }) => void;
+    /** Whether an installed editor handles files in the project. */
+    canEdit: (projectId?: string) => boolean;
+    /** The editor URL `open` would use for the file, or null. */
+    editorUrl: (request: FileOpenRequest & { chatId: string }) => string | null;
     registerOpener: (open: (request: FileOpenRequest) => string | null) => () => void;
   };
   backend: ExtensionBackendApi;

@@ -112,6 +112,11 @@ export default function activate(remote) {
             subtitle: String(event.data.subtitle ?? ""),
             loading: Boolean(event.data.loading),
           });
+          // Editors can be installed or stopped while the drawer is open.
+          send({
+            type: "editor",
+            available: Boolean(remote.files?.canEdit?.(context.projectId)),
+          });
           return;
         }
         if (event.data.type !== "open") return;
@@ -123,12 +128,23 @@ export default function activate(remote) {
           path.split("/").some((part) => part === ".." || part === ".")
         )
           return;
-        remote.files.open({
+        const request = {
           chatId: context.chatId,
           projectId: context.projectId,
           cwd: context.cwd,
           path: `/workspace/${path}`,
-        });
+        };
+        // The page opened a blank tab inside the click, where the browser
+        // allows it; point it at the editor, or let the page close it.
+        const tab = event.data.tab;
+        if (Number.isInteger(tab)) {
+          const url = remote.files?.editorUrl?.(request) ?? null;
+          send({ type: "tab", tab, url });
+          if (url) return;
+        }
+        // Hosts older than `remote.files.open` can only offer the download.
+        if (remote.files?.open) remote.files.open(request);
+        else send({ type: "download", path });
       };
       window.addEventListener("message", onMessage);
       body.append(frame);

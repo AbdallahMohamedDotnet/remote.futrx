@@ -58,6 +58,9 @@ const CATEGORY_BY_EXTENSION = {
   txt: "text", md: "text", log: "text",
 };
 
+// Categories Remote downloads rather than opening in an editor.
+const DOWNLOADED = new Set(["archive", "image", "video", "audio"]);
+
 // Extensions Remote's media viewer renders inline.
 const VIEWABLE = new Set([
   "avif", "bmp", "gif", "ico", "jpeg", "jpg", "png", "svg", "tif", "tiff", "webp",
@@ -77,6 +80,12 @@ const loadingDirs = new Set();
 const childrenByDir = new Map();
 const errorByDir = new Map();
 const truncatedDirs = new Set();
+
+// Whether Remote has an editor for this project, and the blank tabs opened
+// for it that are waiting for the editor URL.
+let editorAvailable = false;
+let nextTab = 0;
+const pendingTabs = new Map();
 
 // Search state.
 let searchTimer;
@@ -196,13 +205,39 @@ function downloadLink(node) {
   return link;
 }
 
+// Mirrors Remote's choice for a click: view media, download what no editor
+// can open, and hand the rest to an editor.
+function opensInEditor(name) {
+  const ext = extension(name);
+  return !VIEWABLE.has(ext) && !DOWNLOADED.has(CATEGORY_BY_EXTENSION[ext]);
+}
+
 function openFile(node) {
-  if (embedded)
-    window.parent.postMessage(
-      { source: "remote-file-manager", type: "open", path: node.path },
-      parentOrigin,
-    );
-  else window.location.assign(downloadUrl(node));
+  if (!embedded) {
+    window.location.assign(downloadUrl(node));
+    return;
+  }
+  const message = { source: "remote-file-manager", type: "open", path: node.path };
+  // Remote opens the editor after this click has ended, when browsers block
+  // new tabs. Open the tab now and let Remote fill in its address.
+  if (editorAvailable && opensInEditor(node.name)) {
+    const tab = window.open("", "_blank");
+    if (tab) {
+      message.tab = ++nextTab;
+      pendingTabs.set(message.tab, tab);
+    }
+  }
+  window.parent.postMessage(message, parentOrigin);
+}
+
+function fillTab(id, url) {
+  const tab = pendingTabs.get(id);
+  pendingTabs.delete(id);
+  if (!tab) return;
+  if (typeof url === "string" && /^https?:\/\//i.test(url)) {
+    tab.opener = null;
+    tab.location.replace(url);
+  } else tab.close();
 }
 
 function fileIcon(node) {
@@ -438,6 +473,18 @@ window.addEventListener("message", (event) => {
     return;
   if (event.data.type === "refresh") {
     reset();
+    return;
+  }
+  if (event.data.type === "editor") {
+    editorAvailable = Boolean(event.data.available);
+    return;
+  }
+  if (event.data.type === "tab") {
+    fillTab(event.data.tab, event.data.url);
+    return;
+  }
+  if (event.data.type === "download" && typeof event.data.path === "string") {
+    window.location.assign(downloadUrl({ path: event.data.path, isDir: false }));
     return;
   }
   if (event.data.type !== "theme") return;

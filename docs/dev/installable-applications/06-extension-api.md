@@ -55,6 +55,8 @@ remote.backend.url(path, target?)               // string
 
 remote.files.registerOpener(open)                → dispose
 remote.files.open({ chatId, projectId, cwd, path }) → void
+remote.files.canEdit(projectId)                  → boolean
+remote.files.editorUrl({ chatId, projectId, cwd, path }) → string | null
 
 remote.events.on(name, handler)                 → dispose
 
@@ -577,6 +579,14 @@ It rejects paths outside `/workspace` and explicit traversal segments. Media
 opens in the shared viewer; source/text files use a matching project opener;
 archives, unsupported media, and files with no matching opener download.
 The destination HTTP route still enforces filesystem and membership access.
+
+Browsers only let a page open a new tab while it is handling the user's click.
+A surface that forwards the click from a cross-origin iframe, as File Manager
+does, reaches `open` after that moment, and the editor tab can be blocked. Such
+a surface opens a blank tab inside the click instead, when
+`remote.files.canEdit(projectId)` reports a matching opener, and then points it
+at `remote.files.editorUrl(request)`. `editorUrl` returns the URL `open` would
+use, or `null` when the file would be viewed or downloaded instead.
 
 Markdown and attachment links continue to resolve registered openers without
 requiring File Manager. Markdown observes opener and active-project changes.

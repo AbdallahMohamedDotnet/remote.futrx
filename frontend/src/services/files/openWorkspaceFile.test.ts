@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openWorkspaceFile } from "./openWorkspaceFile.ts";
+import { openWorkspaceFile, workspaceFileEditorUrl } from "./openWorkspaceFile.ts";
 import { fileOpenerStore } from "../../state/stores/files/fileOpenerStore.ts";
 import { mediaViewerStore } from "../../state/stores/media/mediaViewerStore.ts";
 
@@ -48,5 +48,26 @@ test("application files use scoped openers, media previews and download fallback
     mediaViewerStore.getState().close();
     if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
     else Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
+test("the editor URL is only resolved for editable workspace files", () => {
+  const dispose = fileOpenerStore
+    .getState()
+    .register("test-editor", ["p1"], () => "https://editor.example/file");
+  const request = {
+    projectId: "p1",
+    chatId: "c1",
+    cwd: "/workspace",
+    path: "/workspace/src/app.go",
+  };
+  try {
+    assert.equal(workspaceFileEditorUrl(request), "https://editor.example/file");
+    assert.equal(workspaceFileEditorUrl({ ...request, projectId: "p2" }), null);
+    assert.equal(workspaceFileEditorUrl({ ...request, path: "/workspace/photo.png" }), null);
+    assert.equal(workspaceFileEditorUrl({ ...request, path: "/workspace/archive.zip" }), null);
+    assert.equal(workspaceFileEditorUrl({ ...request, path: "/workspace/../secret" }), null);
+  } finally {
+    dispose();
   }
 });
