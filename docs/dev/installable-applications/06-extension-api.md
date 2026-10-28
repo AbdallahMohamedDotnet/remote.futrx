@@ -212,8 +212,11 @@ const dispose = remote.ui.registerDrawer({
   minWidth: 420,                  // optional
   when: (target) => Boolean(target.projectId),   // optional
   mount: (body, context) => {
-    // context: { chatId, projectId, cwd, setStatus }
+    // context: { chatId, projectId, cwd, setStatus, setActions }
     context.setStatus({ label: "Connected", active: true });
+    context.setActions?.([
+      { id: "refresh", label: "Refresh", icon: '<svg viewBox="0 0 24 24">…</svg>', onClick: reload },
+    ]);
     body.append(…);
     return () => { /* cleanup */ };
   },
@@ -226,7 +229,8 @@ const dispose = remote.ui.registerDrawer({
 | One pane at a time | Opening a drawer closes any other open workspace pane. Opening history, preview or another application drawer closes it. On a phone, the pane covers the chat. |
 | `mount` lifecycle | Runs the first time the drawer is opened for a chat. The body then **stays mounted while the pane is closed**, so a connection or an editor in it survives closing and reopening. The cleanup runs when the user switches chat, when `chatId`, `projectId` or `cwd` changes, or when the drawer is removed. |
 | Closed pane | A closed pane has zero width. Use a `ResizeObserver` to watch the body size if your content needs to pause while hidden. |
-| `setStatus` | `setStatus({ label, active })` puts a line under the title and a dot beside it, green when `active`. `setStatus(null)` removes both. |
+| `setStatus` | `setStatus({ label, active })` puts a line under the title and a dot beside it, green when `active` and grey when `false`. Omit `active` for the line without a dot. `setStatus(null)` removes both. |
+| `setActions` | `setActions([{ id, label, icon, onClick, disabled, busy }])` draws icon buttons before the close button, styled like it. `busy` swaps the icon for a spinner and disables the button. Each call replaces the previous set; `setActions(null)` removes them. Buttons with an invalid or repeated `id` are skipped. Older hosts lack this method, so call it as `context.setActions?.(…)`. |
 | Width | The user's width is remembered per browser under `remote.futrx.extensionDrawerWidth.<applicationId>-<id>`, clamped between `minWidth` and 1100 px, and always leaves 360 px for the chat. |
 | `<iframe>` bodies | Remote disables pointer events on the body while resizing so an iframe cannot interrupt the drag. |
 | Errors | If `mount` or cleanup throws, Remote logs the error and continues rendering the pane and chat. |

@@ -3,7 +3,7 @@ import test from "node:test";
 
 const base = process.env.FUTRX_FILE_MANAGER_URL;
 test(
-  "browse, search, download, error recovery and mobile layout",
+  "browse, search, download and mobile layout",
   { skip: !base },
   async () => {
     const { chromium } = await import("playwright");
@@ -18,16 +18,12 @@ test(
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(base);
-      await page.getByRole("button", { name: "▸ src", exact: true }).click();
+      await page.getByRole("button", { name: "src", exact: true }).click();
       await page.getByRole("button", { name: "app.go", exact: true }).waitFor();
       await page.getByLabel("Search all files", { exact: true }).fill("app");
-      await page.waitForFunction(
-        () => document.querySelector("#status").textContent === "1 result",
-      );
-      assert.equal(
-        await page.locator("button.open").filter({ hasText: "app.go" }).count(),
-        1,
-      );
+      await page.locator(".detail .name", { hasText: "app.go" }).waitFor();
+      assert.equal(await page.locator(".detail").count(), 1);
+      assert.equal(await page.locator(".detail .dir").textContent(), "src/");
       const [download] = await Promise.all([
         page.waitForEvent("download"),
         page
@@ -36,28 +32,16 @@ test(
       ]);
       assert.equal(download.suggestedFilename(), "app.go");
       await page.getByLabel("Search all files", { exact: true }).fill("");
-      await page.getByRole("button", { name: "▸ src", exact: true }).waitFor();
+      await page.getByRole("button", { name: "src", exact: true }).waitFor();
+      // The tree kept its expanded folder while the search was showing.
+      await page.getByRole("button", { name: "app.go", exact: true }).waitFor();
       const [archive] = await Promise.all([
         page.waitForEvent("download"),
         page
-          .getByRole("link", { name: "Download src as ZIP", exact: true })
+          .getByRole("link", { name: "Download src as zip", exact: true })
           .click(),
       ]);
       assert.equal(archive.suggestedFilename(), "src.zip");
-      await page.route("**/api/list", (route) =>
-        route.fulfill({ status: 503, body: "Unavailable" }),
-      );
-      await page.getByRole("button", { name: "Refresh", exact: true }).click();
-      await page.waitForFunction(
-        () => document.querySelector("#status").className === "error",
-      );
-      assert.match(
-        await page.locator("#status").textContent(),
-        /Unable to load/,
-      );
-      await page.unroute("**/api/list");
-      await page.getByRole("button", { name: "Refresh", exact: true }).click();
-      await page.getByRole("button", { name: "▸ src", exact: true }).waitFor();
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
@@ -72,7 +56,7 @@ test(
 );
 
 test(
-  "application drawer bridges only its iframe and disposes cleanly",
+  "application drawer drives the header, bridges only its iframe and disposes cleanly",
   { skip: !base },
   async () => {
     const { chromium } = await import("playwright");
@@ -101,7 +85,7 @@ test(
     import activate from '/main.js';
     window.opened=[];
     activate({application:{web:{subdomain:'files'}},files:{open:request=>window.opened.push(request)},ui:{registerDrawer:drawer=>{
-     window.dispose=drawer.mount(document.querySelector('#drawer'),{chatId:'c1',projectId:'p1',cwd:'/var/lib/remote/projects/alpha/workspace',setStatus:()=>{}});
+     window.dispose=drawer.mount(document.querySelector('#drawer'),{chatId:'c1',projectId:'p1',cwd:'/var/lib/remote/projects/alpha/workspace',setStatus:status=>{window.drawerStatus=status},setActions:actions=>{window.actions=actions}});
     }}});
    </script></body></html>`,
         });
@@ -115,7 +99,26 @@ test(
       });
       await page.goto("http://remote.test/");
       const frame = page.frameLocator("iframe");
-      await frame.getByRole("button", { name: "▸ src", exact: true }).click();
+      await page.waitForFunction(() => window.drawerStatus?.label === "workspace");
+      assert.equal(await page.evaluate(() => window.drawerStatus.active), undefined);
+      assert.deepEqual(
+        await page.evaluate(() =>
+          window.actions.map(({ id, label, busy }) => ({ id, label, busy })),
+        ),
+        [{ id: "refresh", label: "Refresh files", busy: false }],
+      );
+      await frame.getByLabel("Search all files", { exact: true }).fill("app");
+      await page.waitForFunction(() => window.drawerStatus?.label === "1 result");
+      await frame.getByLabel("Search all files", { exact: true }).fill("");
+      await page.waitForFunction(() => window.drawerStatus?.label === "workspace");
+      await page.route("http://files--alpha.remote.test/api/list", (route) =>
+        route.fulfill({ status: 503, body: "Unavailable" }),
+      );
+      await page.evaluate(() => window.actions[0].onClick());
+      await frame.locator(".banner.error", { hasText: "Unable to load" }).waitFor();
+      await page.unroute("http://files--alpha.remote.test/api/list");
+      await page.evaluate(() => window.actions[0].onClick());
+      await frame.getByRole("button", { name: "src", exact: true }).click();
       await frame.getByRole("button", { name: "app.go", exact: true }).click();
       await page.waitForFunction(() => window.opened.length === 1);
       assert.deepEqual(await page.evaluate(() => window.opened[0]), {

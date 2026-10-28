@@ -1,16 +1,34 @@
 import { fileManagerUrl } from "./workspacePath.js";
 
 const ICON =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 4h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>';
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+const REFRESH_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+// Remote's theme tokens the page needs to look like the rest of the app.
 const TOKENS = [
+  "--fg-bright",
   "--fg",
+  "--fg-dim",
   "--fg-muted",
+  "--fg-subtle",
+  "--fg-faint",
   "--bg-surface-rgb",
   "--bg-inset-rgb",
-  "--accent-blue",
-  "--accent-red",
   "--line",
+  "--tint",
+  "--tint-strong",
+  "--accent-blue",
+  "--accent-green",
+  "--accent-red",
+  "--accent-yellow",
+  "--accent-orange",
+  "--accent-purple",
+  "--scrollbar-thumb",
+  "--scrollbar-thumb-hover",
+  "--selection-bg",
 ];
+// Remote pads its panes less below its `md` breakpoint.
+const COMPACT = "(max-width: 767px)";
 
 export default function activate(remote) {
   remote.ui.registerDrawer({
@@ -46,19 +64,37 @@ export default function activate(remote) {
       frame.src = url;
       frame.style.cssText =
         "display:block;width:100%;height:100%;border:0;background:transparent";
-      const theme = () => {
-        const styles = getComputedStyle(document.documentElement);
+      const send = (message) =>
         frame.contentWindow?.postMessage(
-          {
-            source: "remote-file-manager-theme",
-            tokens: Object.fromEntries(
-              TOKENS.map((name) => [name, styles.getPropertyValue(name)]),
-            ),
-          },
+          { source: "remote-file-manager-host", ...message },
           origin,
         );
+      const compact = window.matchMedia(COMPACT);
+      const theme = () => {
+        const styles = getComputedStyle(document.documentElement);
+        send({
+          type: "theme",
+          tokens: Object.fromEntries(
+            TOKENS.map((name) => [name, styles.getPropertyValue(name).trim()]),
+          ),
+          compact: compact.matches,
+        });
       };
+      const showState = ({ subtitle, loading }) => {
+        context.setStatus({ label: subtitle });
+        context.setActions?.([
+          {
+            id: "refresh",
+            label: "Refresh files",
+            icon: REFRESH_ICON,
+            busy: loading,
+            onClick: () => send({ type: "refresh" }),
+          },
+        ]);
+      };
+      showState({ subtitle: "Loading...", loading: true });
       frame.addEventListener("load", theme);
+      compact.addEventListener("change", theme);
       const observer = new MutationObserver(theme);
       observer.observe(document.documentElement, {
         attributes: true,
@@ -68,10 +104,17 @@ export default function activate(remote) {
         if (
           event.source !== frame.contentWindow ||
           event.origin !== origin ||
-          event.data?.source !== "remote-file-manager" ||
-          event.data.type !== "open"
+          event.data?.source !== "remote-file-manager"
         )
           return;
+        if (event.data.type === "state") {
+          showState({
+            subtitle: String(event.data.subtitle ?? ""),
+            loading: Boolean(event.data.loading),
+          });
+          return;
+        }
+        if (event.data.type !== "open") return;
         const path = event.data.path;
         if (
           typeof path !== "string" ||
@@ -91,6 +134,7 @@ export default function activate(remote) {
       body.append(frame);
       return () => {
         observer.disconnect();
+        compact.removeEventListener("change", theme);
         window.removeEventListener("message", onMessage);
         frame.removeEventListener("load", theme);
         frame.remove();

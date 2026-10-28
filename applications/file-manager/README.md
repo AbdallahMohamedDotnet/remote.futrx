@@ -72,6 +72,11 @@ Remote's media viewer, source/text files use an installed application opener
 The iframe bridge checks both the sender window and exact application origin;
 project and chat context come from the drawer, not from iframe messages.
 
+The drawer keeps the look of Remote's former built-in Files pane. Remote draws
+the header; the drawer sets its subtitle (`workspace`, `Loading...`, or the
+result count) and Refresh button from the page's `state` messages, and forwards
+Refresh and theme tokens back to the page.
+
 All file operations stay inside `/workspace`, including symlink resolution and
 rooted final opens. ZIPs skip special files and escaping symlinks, honor request
 cancellation, and bound source bytes, entry count, compressed spool size (1 GiB),
