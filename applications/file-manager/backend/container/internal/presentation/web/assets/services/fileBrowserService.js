@@ -1,4 +1,4 @@
-const SEARCH_DEBOUNCE_MS = 250;
+import { SEARCH_DEBOUNCE_MS } from "../config/files.js";
 
 export function createFileBrowser(api, changed) {
   const state = {

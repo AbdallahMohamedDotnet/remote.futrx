@@ -53,11 +53,27 @@ and streams completed downloads. Archive preparation, spooling, and failure
 cleanup run behind the service contract. Each spool instance owns its limits
 and concurrency slots; request handlers do not mutate package globals.
 
-The embedded page follows the same separation: `filesApi.js` owns HTTP calls
-and download URLs, `fileBrowser.js` owns tree/search state and request
-cancellation, and `fileBrowserView.js` renders that state and emits user intent.
-`main.js` composes them and handles the drawer's messages. The view has no
-network access, and the state/controller has no DOM dependency.
+The embedded page has its own frontend layers under
+`internal/presentation/web/assets/`:
+
+```text
+assets/
+  main.js                              dependency composition
+  api/filesApi.js                      HTTP calls and download URLs
+  controllers/filesPageController.js    search events and drawer-message handling
+  services/fileBrowserService.js        tree/search state and request cancellation
+  presentation/fileBrowserView.js       DOM rendering and theme application
+  transport/parentBridge.js             parent-window messages and origin checks
+  config/files.js                      icons, file categories and search timing
+  index.html
+  style.css
+```
+
+The controller delegates user intent to the service and renders its state
+through the view. The service receives its API dependency and has no DOM
+dependency; the view has no network access. The parent bridge owns the iframe
+protocol, and `main.js` supplies the concrete dependencies. The two frontend
+surfaces use the same layer vocabulary but remain independently served.
 
 A host API application, when needed, is a separate composition at
 `backend/main.go` with its own host packages, as in Code Server. Remote excludes
