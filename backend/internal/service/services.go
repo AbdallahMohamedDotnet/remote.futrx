@@ -301,7 +301,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	)
 	var accessVerifier *serviceauth.AccessVerifier
 	if authService != nil {
-		accessVerifier = serviceauth.NewAccessVerifier(authService, projectService)
+		accessVerifier = serviceauth.NewAccessVerifier(authService, projectService).WithWorkspaceAuthorizer(permissionService)
 	}
 	var shareService *serviceshare.Service
 	if deps.ProjectShares != nil {
@@ -334,6 +334,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			serviceapplications.WithEventSource(ctx, deps.ApplicationEvents),
 			serviceapplications.WithAgentRuntime(ctx, serviceapplications.AgentDependencies{Chats: chatService, Projects: projectService, Identities: authService, Prompts: promptService, Turns: deps.AppTurns}),
 			serviceapplications.WithAgentToolURL(deps.AuthBaseURL),
+			serviceapplications.WithWorkspaceAuthorizer(permissionService),
 		)
 		projectService.SetContainerRestorer(applicationsService.RestoreProject)
 	}

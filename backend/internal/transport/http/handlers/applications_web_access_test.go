@@ -2,7 +2,9 @@ package httphandlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/futrx-com/remote.futrx.com/internal/rbac"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -367,6 +369,82 @@ func TestNamedApplicationWebHostUsesWildcard(t *testing.T) {
 			handler.HandleTLSAsk(response, httptest.NewRequest("GET", "/internal/tls-ask?domain="+canonical, nil))
 			if response.Code != http.StatusNotFound {
 				t.Fatalf("TLS %s: stopped installation admitted, got %d", canonical, response.Code)
+			}
+		})
+	}
+}
+
+type webCapabilityPolicy struct {
+	denied bool
+	checks []rbac.Check
+}
+
+func (p *webCapabilityPolicy) Require(ctx context.Context, check rbac.Check) error {
+	actor, ok := rbac.ActorFromContext(ctx)
+	if !ok || actor.Email != "member@example.test" {
+		return rbac.ErrDenied
+	}
+	p.checks = append(p.checks, check)
+	if p.denied {
+		return rbac.ErrDenied
+	}
+	return nil
+}
+
+func TestCurrentIDEAndTerminalAdmissionAndRevocation(t *testing.T) {
+	for _, app := range []struct{ id, label, key string }{
+		{"code-server", "code", "workspace.ide.open"}, {"terminal", "terminal", "workspace.terminal.use"},
+	} {
+		t.Run(app.id, func(t *testing.T) {
+			f := newWebFixture(t, "https://remote.test")
+			f.registry.application.ID, f.registry.application.Web.Subdomain = app.id, app.label
+			f.instance.ApplicationID = app.id
+			if err := f.store.Put(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			policy := &webCapabilityPolicy{}
+			f.apps.apps = serviceapplications.New(f.registry, f.store, nil, nil, nil, serviceapplications.WithWorkspaceAuthorizer(policy))
+			called := false
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true; w.WriteHeader(200) }))
+			defer upstream.Close()
+			f.apps.webTransport = &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, strings.TrimPrefix(upstream.URL, "http://"))
+			}}
+			host := app.label + "--project.remote.test"
+			for _, denied := range []bool{false, true} {
+				policy.denied = denied
+				for _, route := range []string{"https://" + host + "/", "https://remote.test/apps/project/" + app.id} {
+					for _, socket := range []bool{false, true} {
+						if socket && strings.Contains(route, "/apps/") {
+							continue
+						}
+						called = false
+						req := httptest.NewRequest("GET", route, nil)
+						req.AddCookie(f.cookie(t, "member@example.test"))
+						if socket {
+							req.Header.Set("Upgrade", "websocket")
+							req.Header.Set("Connection", "Upgrade")
+							req.Header.Set("Origin", "https://"+host)
+						}
+						response := httptest.NewRecorder()
+						f.handler().ServeHTTP(response, req)
+						if denied && (response.Code != 403 || called) {
+							t.Fatalf("denied %s socket=%v status=%d proxy=%v", route, socket, response.Code, called)
+						}
+						if !denied && response.Code != 200 && response.Code != 302 {
+							t.Fatalf("allowed: %d %s", response.Code, response.Body)
+						}
+					}
+				}
+			}
+			for _, check := range policy.checks {
+				if check.Permission != rbac.Key(app.key) || check.Scope != rbac.ProjectScope("aaaa1111") {
+					t.Fatal(check)
+				}
+			}
+			policy.denied = false
+			if err := f.apps.apps.RequireWebAccess(context.Background(), f.instance.ID); !errors.Is(err, rbac.ErrDenied) {
+				t.Fatalf("anonymous service access: %v", err)
 			}
 		})
 	}

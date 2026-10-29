@@ -191,7 +191,9 @@ func TestActorConstructorsAreCalledOnlyFromReviewedEntryPoints(t *testing.T) {
 			"internal/rbac/actor.go",
 		},
 		"ContextWithActor": {
-			"internal/transport/http/middleware/auth.go", // attaches the authenticated session's actor
+			"internal/service/auth/access.go",                              // validates the forward-auth session
+			"internal/transport/http/handlers/applications_web_handler.go", // validates application-origin sessions
+			"internal/transport/http/middleware/auth.go",                   // attaches the authenticated session's actor
 			"internal/rbac/actor.go",
 		},
 	}

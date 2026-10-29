@@ -19,6 +19,7 @@ type permissionsRoutesFixture struct {
 	auth        *serviceauth.Service
 	permissions *servicepermission.Service
 	roleID      string
+	projectID   string
 }
 
 // newPermissionsRoutesFixture serves the real permission service behind the
@@ -42,6 +43,7 @@ func newPermissionsRoutesFixture(t *testing.T) permissionsRoutesFixture {
 		auth:        base.auth,
 		permissions: base.permissions,
 		roleID:      role.ID,
+		projectID:   base.projectID,
 	}
 }
 
@@ -242,7 +244,7 @@ func TestPermissionsDefinitionsAreReadOnly(t *testing.T) {
 func TestEffectivePermissionsHTTPUsesEncodedDecisionsAndScope(t *testing.T) {
 	f := newPermissionsRoutesFixture(t)
 	for _, email := range []string{"member@example.com", "admin@example.com"} {
-		response := f.do(t, email, "GET", permissionsBase+"/effective?projectId=proj1", "")
+		response := f.do(t, email, "GET", permissionsBase+"/effective?projectId="+f.projectID, "")
 		if response.Code != 200 {
 			t.Fatalf("%s: %d %s", email, response.Code, response.Body)
 		}

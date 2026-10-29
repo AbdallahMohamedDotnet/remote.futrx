@@ -42,7 +42,9 @@ import (
 	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
 	serviceuser "github.com/futrx-com/remote.futrx.com/internal/service/user"
 	serviceversiontelemetry "github.com/futrx-com/remote.futrx.com/internal/service/versiontelemetry"
+	"github.com/futrx-com/remote.futrx.com/internal/service/workspaceaccess"
 	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
+	"github.com/futrx-com/remote.futrx.com/internal/service/workspaceide"
 	"github.com/futrx-com/remote.futrx.com/internal/stores"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileproject"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileversiontelemetry"
@@ -322,6 +324,8 @@ func permissionDefinitions() [][]rbac.Definition {
 	return [][]rbac.Definition{
 		rbac.ManagementDefinitions(),
 		serviceproject.PermissionDefinitions(),
+		workspaceide.PermissionDefinitions(),
+		workspaceaccess.PermissionDefinitions(),
 		servicechat.PermissionDefinitions(),
 	}
 }

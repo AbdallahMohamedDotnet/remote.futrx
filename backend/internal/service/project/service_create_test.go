@@ -44,7 +44,7 @@ func TestProjectNameRejectsReservedSeparator(t *testing.T) {
 		if _, err := service.Create(rbac.ContextWithSystemActor(context.Background()), CreateInput{Name: name}, ""); !errors.Is(err, ErrReservedNameSeparator) {
 			t.Fatalf("Create(%q): %v", name, err)
 		}
-		if _, err := service.Update(context.Background(), "abcd", UpdateInput{Name: &name}); !errors.Is(err, ErrReservedNameSeparator) {
+		if _, err := service.Update(rbac.ContextWithSystemActor(context.Background()), "abcd", UpdateInput{Name: &name}); !errors.Is(err, ErrReservedNameSeparator) {
 			t.Fatalf("Update(%q): %v", name, err)
 		}
 		if repo.meta.Name != "original" || lifecycle.launchCalls != 0 {

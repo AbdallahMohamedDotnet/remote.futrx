@@ -70,7 +70,7 @@ func TestProjectSetupReceivesSecretsAfterContainerPreparation(t *testing.T) {
 			case "start":
 				result, err = service.Start(rbac.ContextWithSystemActor(context.Background()), "abcd")
 			case "upgrade":
-				result, err = service.Upgrade(context.Background(), "abcd", false)
+				result, err = service.Upgrade(rbac.ContextWithSystemActor(context.Background()), "abcd", false)
 			}
 			if err != nil || result.Status != StatusRunning {
 				t.Fatalf("%s = %+v, %v", operation, result, err)
