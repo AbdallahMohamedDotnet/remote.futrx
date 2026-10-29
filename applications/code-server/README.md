@@ -130,7 +130,8 @@ The trusted UI extension and settings backend remain privileged application
 code. The LXD bridge still permits direct connections from sibling containers
 to the editor socket; origin isolation does not provide container network isolation.
 
-Settings and launch regression checks: `node --test applications/code-server/infra/*.test.mjs`.
+Settings and launch regression checks:
+`node --test applications/code-server/infra/*.test.mjs applications/code-server/ui/scripts/*.test.mjs`.
 The application uses a regular service without idle shutdown and retains the
 subdomain-aware file-launch page without resetting settings.
 In a disposable project, change a setting directly in Code Server, upgrade the
@@ -153,10 +154,17 @@ the embedded settings writer.
 The selected Code Server version is saved with the installation. Application
 updates preserve that choice; changing the manifest default affects new installs.
 
+The installer also updates Code Server's bundled Node independently of workspace
+Node: at least 22.23.4 for Node 22 or 24.22.1 for Node 24. It preserves the
+configured editor version and newer runtime patches. Official amd64/arm64
+archives are checksum-verified and checked for native-module compatibility
+before atomic replacement; unsupported Node majors fail installation.
+
 ### Installer assets
 
 The file-launch page lives in `infra/remote-open.html`; settings migration lives
-in `infra/migrate-settings.cjs`. Remote stages both through its existing
+in `infra/migrate-settings.cjs`; the bundled Node patcher lives in
+`infra/node-runtime.sh`. Remote stages these through its existing
 `infra/payload.tar.gz` support. `install.sh` copies the page and runs the migration.
 After changing an asset, run `bash applications/code-server/infra/build-payload.sh`
 from the repository checkout. Payload tests compare the shipped archive with
@@ -164,3 +172,6 @@ its reviewable sources so an outdated archive fails validation.
 
 Editor URL parsing and validation live in `ui/scripts/editorUrls.js`;
 `ui/scripts/main.js` registers the editor actions and file opener.
+`ui/scripts/ideWindow.js` opens the editor under a stable window name, so the
+IDE icon focuses the editor that is already open instead of opening another
+copy of it in a new tab.

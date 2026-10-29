@@ -20,7 +20,6 @@ type Middleware interface {
 }
 
 type Handlers struct {
-	Sessions          RouteRegistrar
 	Chats             RouteRegistrar
 	Projects          RouteRegistrar
 	Applications      RouteRegistrar
@@ -37,8 +36,6 @@ type Handlers struct {
 	BrowserInspector  RouteRegistrar
 	AgentApplications RouteRegistrar
 	Uploads           RouteRegistrar
-	TmuxWS            WebSocketRegistrar
-	TerminalWS        WebSocketRegistrar
 	ChatWS            WebSocketRegistrar
 	WorkspaceWS       WebSocketRegistrar
 	AgentAuthWS       WebSocketRegistrar
@@ -59,7 +56,6 @@ func NewHandler(handlers Handlers) http.Handler {
 		}
 	}
 
-	register(handlers.Sessions)
 	register(handlers.Chats)
 	register(handlers.Projects)
 	register(handlers.Applications)
@@ -81,12 +77,6 @@ func NewHandler(handlers Handlers) http.Handler {
 	register(handlers.Uploads)
 
 	upgrader := NewUpgrader()
-	if handlers.TmuxWS != nil {
-		handlers.TmuxWS.RegisterRoutes(mux, upgrader)
-	}
-	if handlers.TerminalWS != nil {
-		handlers.TerminalWS.RegisterRoutes(mux, upgrader)
-	}
 	if handlers.ChatWS != nil {
 		handlers.ChatWS.RegisterRoutes(mux, upgrader)
 	}

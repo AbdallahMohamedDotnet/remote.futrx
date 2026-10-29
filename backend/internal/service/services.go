@@ -147,7 +147,6 @@ type Services struct {
 	Permissions       *servicepermission.Service
 	UserSettings      *serviceusersettings.Service
 	Skills            *serviceskills.Catalog
-	Tmux              *servicetmux.Service
 	Access            *serviceauth.AccessVerifier
 	Applications      *serviceapplications.Service
 	Push              *servicepush.Service
@@ -319,11 +318,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			}),
 		)
 	}
-	var tmuxService *servicetmux.Service
-	if deps.TmuxClient != nil {
-		tmuxService = servicetmux.NewSessions(deps.TmuxClient)
-	}
-
 	var applicationsService *serviceapplications.Service
 	if deps.AppStore != nil && deps.AppRegistry != nil {
 		applicationsService = serviceapplications.New(
@@ -333,6 +327,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			projectContainersAdapter{projects: projectService},
 			deps.AppPorts,
 			serviceapplications.WithBackendHost(deps.AppBackends),
+			serviceapplications.WithInstallRuns(ctx),
 			serviceapplications.WithPackageCatalog(deps.AppPackages),
 			serviceapplications.WithLifecyclePublisher(deps.ApplicationLifecycle),
 			serviceapplications.WithEventSource(ctx, deps.ApplicationEvents),
@@ -376,7 +371,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Permissions:       permissionService,
 		UserSettings:      userSettingsService,
 		Skills:            skillCatalog,
-		Tmux:              tmuxService,
 		Access:            accessVerifier,
 		Applications:      applicationsService,
 		Push:              pushService,
@@ -468,7 +462,14 @@ type chatProjectResolver struct {
 }
 
 func (r chatProjectResolver) WorkspaceForProject(ctx context.Context, id servicechat.ProjectID) (string, error) {
-	return r.projects.WorkspaceForProject(ctx, serviceproject.ID(id))
+	cwd, err := r.projects.WorkspaceForProject(ctx, serviceproject.ID(id))
+	// The chat service has its own name for a project that is gone, so it can
+	// tell that apart from a workspace it failed to read without importing the
+	// project package.
+	if errors.Is(err, serviceproject.ErrNotFound) {
+		return "", servicechat.ErrProjectNotFound
+	}
+	return cwd, err
 }
 
 type chatTmuxResolver struct {

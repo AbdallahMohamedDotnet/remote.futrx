@@ -7,7 +7,7 @@ import test from "node:test";
 test("shipped installer payload matches the reviewable source files", () => {
   const payload = fileURLToPath(new URL("./payload.tar.gz", import.meta.url));
   const entries = execFileSync("tar", ["-tzf", payload], { encoding: "utf8" }).trim().split("\n");
-  assert.deepEqual(entries, ["infra/remote-open.html", "infra/migrate-settings.cjs"]);
+  assert.deepEqual(entries, ["infra/remote-open.html", "infra/migrate-settings.cjs", "infra/node-runtime.sh"]);
   for (const entry of entries) {
     const packed = execFileSync("tar", ["-xOzf", payload, entry]);
     const source = fs.readFileSync(new URL(`../${entry}`, import.meta.url));
