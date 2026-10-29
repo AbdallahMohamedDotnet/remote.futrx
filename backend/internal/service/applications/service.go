@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/futrx-com/remote.futrx.com/internal/service/audit"
 	"github.com/futrx-com/remote.futrx.com/internal/service/workspaceaccess"
 	"sync"
 	"time"
@@ -44,6 +45,7 @@ type Clock func() int64
 
 // Service is the policy layer for installable applications.
 type Service struct {
+	audit               audit.Recorder
 	workspaceAuthorizer workspaceaccess.Authorizer
 	registry            Registry
 	store               Store

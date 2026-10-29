@@ -1,6 +1,7 @@
 import type { ProjectMeta } from "../../models/project";
 import type { AppearanceTheme } from "../../models/settings";
 import type { UserDirectory } from "../../state/hooks/users/useUserDirectory";
+import type { AuditLog } from "../../state/hooks/admin/useAuditLog";
 import type { ServerInfo } from "../../models/serverInfo";
 import type { SelfUpdateStatus } from "../../models/selfUpdate";
 import type { SecuritySettingsController } from "../../state/hooks/auth/useSecuritySettings";
@@ -24,6 +25,7 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { AgentAuthSettingsList } from "./AgentAuthSettings";
 import { EmailSettings } from "./email/EmailSettings";
+import { AuditLogSettings } from "./AuditLogSettings";
 import { GoogleOAuthSettings } from "./GoogleOAuthSettings";
 import { PermissionsSettings } from "./PermissionsSettings";
 import { SecuritySettings } from "./SecuritySettings";
@@ -84,6 +86,12 @@ const tabs: Array<{
     Icon: ShieldCheck,
   },
   {
+    id: "audit",
+    label: "Audit log",
+    description: "Review who did what on this server.",
+    Icon: Activity,
+  },
+  {
     id: "security",
     label: "Security",
     description: "Manage two-factor authentication, sessions, and sign-in history.",
@@ -132,6 +140,7 @@ export function SettingsPage({
   selfUpdateRestarting,
   selfUpdateError,
   userDirectory,
+  auditLog,
   usageDashboard,
   usageRebuilding,
   usageRebuildMessage,
@@ -169,6 +178,7 @@ export function SettingsPage({
   selfUpdateRestarting: boolean;
   selfUpdateError: string | null;
   userDirectory: UserDirectory;
+  auditLog: AuditLog;
   usageDashboard: UsageDashboard;
   usageRebuilding: boolean;
   usageRebuildMessage: string | null;
@@ -309,6 +319,26 @@ export function SettingsPage({
                 />
               </div>
             )}
+
+            {activeTab === "audit" &&
+              (isAdmin ? (
+                <AuditLogSettings
+                  entries={auditLog.entries}
+                  filters={auditLog.filters}
+                  loading={auditLog.loading}
+                  loadingMore={auditLog.loadingMore}
+                  hasMore={auditLog.hasMore}
+                  error={auditLog.error}
+                  exportUrl={auditLog.exportUrl}
+                  onFiltersChange={auditLog.setFilters}
+                  onRefresh={auditLog.refresh}
+                  onLoadMore={auditLog.loadMore}
+                />
+              ) : (
+                <SettingsNotice>
+                  The audit log is visible to server administrators only.
+                </SettingsNotice>
+              ))}
 
             {activeTab === "security" && <SecuritySettings controller={security} />}
 

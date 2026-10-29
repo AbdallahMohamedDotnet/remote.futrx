@@ -46,6 +46,7 @@ type Handlers struct {
 	Usage             RouteRegistrar
 	AgentQuota        RouteRegistrar
 	Permissions       RouteRegistrar
+	Audit             RouteRegistrar
 }
 
 func NewHandler(handlers Handlers) http.Handler {
@@ -75,6 +76,7 @@ func NewHandler(handlers Handlers) http.Handler {
 	register(handlers.Usage)
 	register(handlers.AgentQuota)
 	register(handlers.Permissions)
+	register(handlers.Audit)
 	register(handlers.Uploads)
 
 	upgrader := NewUpgrader()

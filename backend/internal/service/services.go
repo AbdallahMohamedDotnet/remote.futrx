@@ -18,6 +18,7 @@ import (
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	agentquota "github.com/futrx-com/remote.futrx.com/internal/service/agent/quota"
 	serviceapplications "github.com/futrx-com/remote.futrx.com/internal/service/applications"
+	serviceaudit "github.com/futrx-com/remote.futrx.com/internal/service/audit"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	serviceemail "github.com/futrx-com/remote.futrx.com/internal/service/email"
@@ -73,6 +74,8 @@ type Dependencies struct {
 	Auth              *serviceauth.Service
 	Users             serviceuser.Repository
 	UserSettings      serviceusersettings.Repository
+	Audit             serviceaudit.Store
+	AuditRetention    int
 	TwoFactor         serviceauth.TwoFactorStore
 	SessionRegistry   serviceauth.SessionRegistryStore
 	Push              PushStore
@@ -160,6 +163,7 @@ type Services struct {
 	// service/email.Mail.
 	Mailer     *serviceemail.Mailer
 	AgentQuota *agentquota.Service
+	Audit      *serviceaudit.Service
 }
 
 func New(ctx context.Context, deps Dependencies) (Services, error) {
@@ -179,6 +183,14 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		return Services{}, errors.New("permission service is required")
 	}
 
+	// The audit recorder is built first so every other service can take it.
+	auditRetention := deps.AuditRetention
+	if auditRetention == 0 {
+		auditRetention = serviceaudit.DefaultRetentionMonths
+	}
+	auditLog := serviceaudit.New(deps.Audit, serviceaudit.WithRetentionMonths(auditRetention))
+	auditLog.StartJanitor(ctx, 24*time.Hour)
+
 	workspace := workspacehub.New()
 	var runs *runhub.Hub
 	// The notifier needs services that are built further down, so it is
@@ -197,6 +209,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	// Authentication and authorization are built by the composition root and
 	// injected, so this layer knows neither their stores nor their adapters.
 	authService := deps.Auth
+	serviceauth.WithAudit(auditLog)(authService)
 	permissionService := deps.Permissions
 	projects := notifyingProjectRepository{Repository: deps.Projects, workspace: workspace}
 	projectService := serviceproject.New(
@@ -205,6 +218,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		deps.ProjectSecrets,
 		deps.ProjectAccess,
 		serviceproject.WithAuthorizer(permissionService),
+		serviceproject.WithAudit(auditLog),
 		serviceproject.WithChatCleanup(projectChatCleanup{
 			chats: chats,
 			cancel: func(ctx context.Context, id servicechat.ID) error {
@@ -219,7 +233,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Projects:              agentProjectResolver{projects: projectService},
 		Containers:            deps.AgentContainers,
 		APIKeys:               deps.AgentAPIKeys,
-		Accounts:              agentauth.NewAccountVault(deps.AgentAccounts, permissionService),
+		Accounts:              agentauth.NewAccountVault(deps.AgentAccounts, permissionService).WithAudit(auditLog),
 		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,
 	})
 	if err != nil {
@@ -242,6 +256,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		chatProjectResolver{projects: projectService},
 		tmuxResolver,
 		runs,
+		servicechat.WithAudit(auditLog),
 		servicechat.WithTranscriptEventSource(deps.Chats),
 		servicechat.WithTranscriptEventWindowSource(deps.Chats),
 		servicechat.WithTranscriptProjectionSource(deps.Chats),
@@ -255,6 +270,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	pushService := newPush(deps.Push, deps.AuthBaseURL)
 	userService := serviceuser.New(
 		deps.Users,
+		serviceuser.WithAudit(auditLog),
 		serviceuser.WithRemovalCleanup(userRemovalCleanup{
 			projects:        projectService,
 			permissions:     permissionService,
@@ -265,6 +281,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	)
 	var usageService *serviceusage.Service
 	promptOptions := []prompt.Option{
+		prompt.WithAudit(auditLog),
 		prompt.WithAgentPolicy(agentRuntime),
 	}
 	if deps.PromptStartGate != nil {
@@ -340,6 +357,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			serviceapplications.WithAgentRuntime(ctx, serviceapplications.AgentDependencies{Chats: chatService, Projects: projectService, Identities: authService, Prompts: promptService, Turns: deps.AppTurns}),
 			serviceapplications.WithAgentToolURL(deps.AuthBaseURL),
 			serviceapplications.WithWorkspaceAuthorizer(permissionService),
+			serviceapplications.WithAudit(auditLog),
 		)
 		projectService.SetContainerRestorer(applicationsService.RestoreProject)
 	}
@@ -387,6 +405,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Email:             emailService,
 		Mailer:            mailer,
 		AgentQuota:        agentQuotaService,
+		Audit:             auditLog,
 	}, nil
 }
 

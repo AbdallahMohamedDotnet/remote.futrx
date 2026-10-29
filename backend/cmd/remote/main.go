@@ -150,13 +150,6 @@ func main() {
 	defer unsubscribeApplicationCatalog()
 	unsubscribeApplicationInstances := applicationLifecycle.SubscribeInstances(applicationEventBridge)
 	defer unsubscribeApplicationInstances()
-	selfUpdateService := serviceselfupdate.New(
-		version.Version,
-		cfg.InstallDir,
-		cfg.DataDir,
-		updatecli.New(),
-		updateLifecycle,
-	)
 
 	tmuxClient := tmuxcli.New()
 
@@ -189,6 +182,8 @@ func main() {
 		Auth:              authService,
 		Users:             storeSet.Users,
 		UserSettings:      storeSet.UserSettings,
+		Audit:             storeSet.Audit,
+		AuditRetention:    cfg.Audit.RetentionMonths,
 		TwoFactor:         storeSet.TwoFactor,
 		SessionRegistry:   storeSet.SessionRegistry,
 		Push:              storeSet.Push,
@@ -231,6 +226,14 @@ func main() {
 	}
 	// Terminal self-update events are reconciled from disk so a backend
 	// replacement can deliver the completion started by its predecessor.
+	selfUpdateService := serviceselfupdate.New(
+		version.Version,
+		cfg.InstallDir,
+		cfg.DataDir,
+		updatecli.New(),
+		updateLifecycle,
+		serviceselfupdate.WithAudit(serviceSet.Audit),
+	)
 	if err := selfUpdateService.StartLifecycleReconciler(ctx); err != nil {
 		log.Printf("self-update: lifecycle reconcile warning: %v", err)
 	}
