@@ -92,6 +92,9 @@ The drawer keeps the look of Remote's former built-in Files pane. Remote draws
 the header; the drawer sets its subtitle (`workspace`, `Loading...`, or the
 result count) and Refresh button from the page's `state` messages, and forwards
 Refresh and theme tokens back to the page.
+The drawer entrypoint validates iframe messages, `drawerTheme.js` owns theme
+subscriptions and cleanup, and `fileOpener.js` selects Remote's file API or the
+older-Remote fallback and owns its cached Code Server availability.
 
 All file operations stay inside `/workspace`, including symlink resolution and
 rooted final opens. ZIPs skip special files and escaping symlinks, honor request
