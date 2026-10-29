@@ -3,7 +3,7 @@
   "name": "File Manager",
   "description": "Browse, search, and download files from a project workspace.",
   "category": "development",
-  "version": "2",
+  "version": "3",
   "icon": "folder",
   "scopes": ["project"],
   "uninstall": "infra/uninstall.sh",
