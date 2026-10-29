@@ -74,11 +74,11 @@ test(
       const page = await browser.newPage();
       await page.route("http://remote.test/**", async (route) => {
         const pathname = new URL(route.request().url()).pathname;
-        if (/^\/[A-Za-z][A-Za-z0-9]*\.js$/.test(pathname)) {
+        if (/^\/(?:[A-Za-z][A-Za-z0-9]*\/)*[A-Za-z][A-Za-z0-9]*\.js$/.test(pathname)) {
           await route.fulfill({
             contentType: "text/javascript",
             body: await readFile(
-              new URL(`.${pathname}`, import.meta.url),
+              new URL(`../scripts${pathname}`, import.meta.url),
               "utf8",
             ),
           });
@@ -255,8 +255,8 @@ test("older Remote prefers Scratch Tab, then Code Server, then downloads", { ski
             );
             await page.route("http://remote.test/**", async (route) => {
               const pathname = new URL(route.request().url()).pathname;
-              if (/^\/[A-Za-z][A-Za-z0-9]*\.js$/.test(pathname)) {
-                await route.fulfill({ contentType: "text/javascript", body: await readFile(new URL(`.${pathname}`, import.meta.url), "utf8") });
+              if (/^\/(?:[A-Za-z][A-Za-z0-9]*\/)*[A-Za-z][A-Za-z0-9]*\.js$/.test(pathname)) {
+                await route.fulfill({ contentType: "text/javascript", body: await readFile(new URL(`../scripts${pathname}`, import.meta.url), "utf8") });
               } else if (pathname === "/api/projects/p1/applications") {
                 await route.fulfill({ json: code ? [{ applicationId: "code-server", status: "running" }] : [] });
               } else if (pathname === "/api/chats/c1/files/download") {

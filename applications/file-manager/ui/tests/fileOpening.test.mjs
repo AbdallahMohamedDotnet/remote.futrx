@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  codeServerFileUrl,
-  codeServerRunning,
-  fileAction,
-  scratchFileUrl,
-} from "./fileOpening.js";
+import { codeServerFileUrl, scratchFileUrl } from "../scripts/api/fileUrls.js";
+import { codeServerRunning } from "../scripts/api/projectApplicationsApi.js";
+import { fileAction } from "../scripts/services/fileAction.js";
 import { fileIdeUrl } from "../../../code-server/ui/scripts/editorUrls.js";
 
 const origin = "https://remote.example.com";

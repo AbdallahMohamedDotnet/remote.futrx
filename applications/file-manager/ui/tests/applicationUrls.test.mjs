@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fileManagerUrl } from "./workspacePath.js";
-import activate from "./main.js";
+import { fileManagerUrl } from "../scripts/api/applicationUrls.js";
+import activate from "../scripts/main.js";
 
 const cwd = "/var/lib/remote/projects/alpha/workspace/src";
 test("routes only a project workspace to its named file-manager origin", () => {

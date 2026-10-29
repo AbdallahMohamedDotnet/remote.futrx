@@ -79,7 +79,7 @@ new tab), and other files download. Both editors are optional. If the browser
 blocks the editor tab, the drawer shows a link to open it.
 
 Remote versions without `remote.files.open` give applications no access to
-other applications' openers. There, `ui/scripts/fileOpening.js` reproduces the
+other applications' openers. There, the file-opening service reproduces the
 former built-in drawer from Remote's page: it offers the file as a link click
 that Scratch Tab can claim, opens Code Server in a new tab when Remote's
 `/api/projects/{id}/applications` reports it running, opens media in a new tab,
@@ -92,9 +92,42 @@ The drawer keeps the look of Remote's former built-in Files pane. Remote draws
 the header; the drawer sets its subtitle (`workspace`, `Loading...`, or the
 result count) and Refresh button from the page's `state` messages, and forwards
 Refresh and theme tokens back to the page.
-The drawer entrypoint validates iframe messages, `drawerTheme.js` owns theme
-subscriptions and cleanup, and `fileOpener.js` selects Remote's file API or the
-older-Remote fallback and owns its cached Code Server availability.
+
+## Remote extension layers
+
+The extension runs in Remote's page; the container-served files page above is
+a separate browser surface. The extension uses these layers:
+
+```text
+ui/
+  scripts/
+    main.js                         dependency composition and registration
+    controllers/
+      filesDrawerController.js      drawer lifecycle, header and iframe messages
+    services/
+      fileOpeningService.js         core/fallback workflow and cached availability
+      fileAction.js                 extension-based media/editor/download policy
+    api/
+      remoteFilesApi.js             optional Remote file-opening API
+      projectApplicationsApi.js     running Code Server check over HTTP
+      applicationUrls.js            project application origins and drawer URL
+      fileUrls.js                   editor, Scratch Tab, media and download URLs
+    transport/
+      browserNavigation.js          link dispatch, new tabs and browser downloads
+    presentation/
+      drawerTheme.js                theme subscriptions and cleanup
+    config/
+      drawer.js                     header icons, theme tokens and breakpoint
+      files.js                      Code Server identity and file-type catalogs
+  tests/                            unit and browser checks
+```
+
+`main.js` constructs the concrete dependencies and supplies them to the
+controller and service. The controller validates iframe messages and delegates
+file clicks to the service. The service depends only on injected capabilities
+and the file-type policy; it does not import API or transport implementations
+or access `window`, `document` or `fetch`. It retains the original synchronous
+opening sequence, cached availability, and status refresh after each click.
 
 All file operations stay inside `/workspace`, including symlink resolution and
 rooted final opens. ZIPs skip special files and escaping symlinks, honor request
@@ -114,8 +147,8 @@ and its Chromium installation):
 ```bash
 go test ./applications/file-manager/backend/container/...
 go vet ./applications/file-manager/backend/container/...
-node --test applications/file-manager/ui/scripts/*.test.mjs
-FUTRX_BROWSER_TEST=1 go test ./applications/file-manager/backend/container/... -run TestFileManagerBrowser -v
+node --test applications/file-manager/ui/tests/*.test.mjs
+FUTRX_BROWSER_TEST=1 go test -count=1 ./applications/file-manager/backend/container/... -run TestFileManagerBrowser -v
 ```
 
 After a real project installation, check the Files drawer, search, nested folder
