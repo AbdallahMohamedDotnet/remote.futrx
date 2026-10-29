@@ -12,6 +12,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/integration/smtp"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/webpush"
 	servicepermission "github.com/futrx-com/remote.futrx.com/internal/rbac"
+	agentaccountaccess "github.com/futrx-com/remote.futrx.com/internal/service/agent/accountaccess"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	agentcapability "github.com/futrx-com/remote.futrx.com/internal/service/agent/capability"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
@@ -133,6 +134,7 @@ type AuthOptions struct {
 }
 
 type Services struct {
+	AccountAccess     *agentaccountaccess.Service
 	Chats             *servicechat.Service
 	ChatAccess        *servicechat.AccessService
 	Projects          *serviceproject.Service
@@ -217,12 +219,13 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Projects:              agentProjectResolver{projects: projectService},
 		Containers:            deps.AgentContainers,
 		APIKeys:               deps.AgentAPIKeys,
-		Accounts:              agentauth.NewAccountVault(deps.AgentAccounts),
+		Accounts:              agentauth.NewAccountVault(deps.AgentAccounts, permissionService),
 		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,
 	})
 	if err != nil {
 		return Services{}, fmt.Errorf("build agent modules: %w", err)
 	}
+	accountAccess := agentaccountaccess.New(permissionService, agentRuntime.Bindings())
 	projectService.StartAgentBrowserReaper(ctx, deps.AgentOptions.BrowserIdleTTL)
 	runs = runhub.New(chats)
 	runs.SetRunningSubscriber(func(id servicechat.ID, _ bool) {
@@ -246,6 +249,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		servicechat.WithSessionPolicy(agentRuntime),
 		servicechat.WithProviderPolicy(agentRuntime),
 		servicechat.WithAuthorizer(permissionService),
+		servicechat.WithAccountAccess(accountAccess),
 	)
 	chatAccessService := servicechat.NewAccessService(chatService, projectService)
 	pushService := newPush(deps.Push, deps.AuthBaseURL)
@@ -274,6 +278,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	// the life of the process, they just do not survive a restart.
 	agentQuotaService := agentquota.New(ctx, deps.AgentQuota, agentRuntime.PlanUsageReaders()...)
 	promptOptions = append(promptOptions, prompt.WithQuotaRecorder(agentQuotaService))
+	promptOptions = append(promptOptions, prompt.WithAccountAccess(accountAccess))
 	promptService := prompt.New(
 		chats,
 		deps.TmuxClient,
@@ -359,6 +364,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	mailer := serviceemail.NewMailer(emailService, emailDirectory{users: userService})
 
 	return Services{
+		AccountAccess:     accountAccess,
 		Chats:             chatService,
 		ChatAccess:        chatAccessService,
 		Projects:          projectService,

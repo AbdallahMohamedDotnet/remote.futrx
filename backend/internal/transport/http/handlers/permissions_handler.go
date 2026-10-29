@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	agentaccountaccess "github.com/futrx-com/remote.futrx.com/internal/service/agent/accountaccess"
 	"io"
 	"net/http"
 	"net/url"
@@ -36,6 +37,7 @@ type PermissionsService interface {
 }
 
 type PermissionsHandler struct {
+	accounts    *agentaccountaccess.Service
 	permissions PermissionsService
 }
 
@@ -44,6 +46,7 @@ func NewPermissionsHandler(permissions PermissionsService) *PermissionsHandler {
 }
 
 func (h *PermissionsHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/admin/permissions/accounts", h.HandleAccounts)
 	mux.HandleFunc("/api/admin/permissions/effective", h.HandleEffective)
 	mux.HandleFunc("/api/admin/permissions/definitions", h.HandleDefinitions)
 	mux.HandleFunc(permissionsRolesPath, h.HandleRoles)
@@ -326,4 +329,25 @@ func (h *PermissionsHandler) HandleEffective(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	httptransport.SendJSON(w, 200, decisions)
+}
+
+func (h *PermissionsHandler) WithAccounts(a *agentaccountaccess.Service) *PermissionsHandler {
+	h.accounts = a
+	return h
+}
+func (h *PermissionsHandler) HandleAccounts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httptransport.SendErr(w, 405, "method not allowed")
+		return
+	}
+	if h.accounts == nil {
+		httptransport.SendErr(w, 503, "accounts unavailable")
+		return
+	}
+	targets, err := h.accounts.Targets(r.Context())
+	if err != nil {
+		sendPermissionsError(w, err)
+		return
+	}
+	httptransport.SendJSON(w, 200, targets)
 }

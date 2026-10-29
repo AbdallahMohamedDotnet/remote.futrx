@@ -1,3 +1,6 @@
+import { useEffect, useId, useState } from "preact/hooks";
+import { permissionsApi } from "../../../api/permissions";
+import type { RbacAccountTarget } from "../../../models/rbac";
 import type { ProjectMeta } from "../../../models/project";
 import type { RbacScopeKind } from "../../../models/rbac";
 
@@ -22,6 +25,16 @@ export function ScopeFields({
   onKindChange: (kind: RbacScopeKind) => void;
   onProjectChange: (projectId: string) => void;
 }) {
+  const accountListId = useId();
+  const [accounts, setAccounts] = useState<RbacAccountTarget[]>([]);
+  useEffect(() => {
+    let disposed = false;
+    if (kind === "provider-account") void permissionsApi.listAccountTargets().then(
+      (targets) => { if (!disposed) setAccounts(targets); },
+      () => { if (!disposed) setAccounts([]); }
+    );
+    return () => { disposed = true; };
+  }, [kind]);
   return (
     <>
       <select
@@ -35,6 +48,7 @@ export function ScopeFields({
           <option key={offeredKind} value={offeredKind}>{offeredKind}</option>
         ))}
       </select>
+      {kind === "provider-account" && (<><input list={accountListId} value={projectId} onInput={(e) => onProjectChange((e.target as HTMLInputElement).value)} class={INPUT_CLASS} aria-label="Provider account" placeholder="claude:account-id or codex:default" spellcheck={false} /><datalist id={accountListId}>{accounts.map((account) => (<option value={account.scope.id}>{account.provider}: {account.label}</option>))}</datalist></>)}
       {kind === "project" && (
         <select
           value={projectId}

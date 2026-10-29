@@ -103,3 +103,13 @@ test("a 409 on delete offers the unbind option; other errors pass through", () =
   assert.equal(permissionForms.isRoleStillBound(other), false);
   assert.equal(permissionForms.deleteRoleErrorMessage(other), "boom");
 });
+
+
+test("provider-account grants preserve exact scope and reject malformed identifiers", () => {
+  const definitions = [{ key: "agents.account.use", scopes: ["provider-account"], description: "Use account", baseline: "none", delegable: true }] as RbacDefinition[];
+  const draft = {userEmail: "member@example.com", permission: "agents.account.use", effect: "allow" as const, scopeKind: "provider-account" as const, projectId: "codex:team"};
+  const result = permissionForms.validateAssignment(draft, definitions);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.deepEqual(result.input.scope, {kind: "provider-account", id: "codex:team"});
+  assert.equal(permissionForms.validateAssignment({...draft, projectId:"../bad"}, definitions).ok, false);
+});

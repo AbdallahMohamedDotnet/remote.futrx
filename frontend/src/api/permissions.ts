@@ -1,5 +1,6 @@
 import { requestJson } from "./apiRequest";
 import type {
+  RbacAccountTarget,
   RbacAssignment,
   RbacAssignmentInput,
   RbacAssignmentTarget,
@@ -14,6 +15,7 @@ import { API_ROUTES } from "../config/routes";
 
 // Canonical administration contract: api/permissions.contract.md.
 export const permissionsApi = {
+ listAccountTargets: () => requestJson<RbacAccountTarget[]>("GET", "/api/admin/permissions/accounts"),
   listDefinitions: async () =>
     (await requestJson<{ definitions: RbacDefinition[] }>("GET", API_ROUTES.permissions.definitions))
       .definitions,

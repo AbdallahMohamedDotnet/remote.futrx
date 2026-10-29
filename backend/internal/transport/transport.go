@@ -77,7 +77,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	}
 	agentApplicationsHandler := httphandlers.NewAgentApplicationsHandler(agentApplications)
 	usageHandler := httphandlers.NewUsageHandler(deps.Services.Usage, deps.Services.Auth)
-	agentQuotaHandler := httphandlers.NewAgentQuotaHandler(deps.Services.AgentQuota, deps.Services.Auth)
+	agentQuotaHandler := httphandlers.NewAgentQuotaHandler(deps.Services.AgentQuota, deps.Services.Auth).WithAccountAccess(deps.Services.AccountAccess)
 	chatHandler := httphandlers.NewChatHandler(
 		deps.Services.Chats,
 		deps.Services.ChatAccess,
@@ -107,7 +107,7 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 			agentAuthBindings,
 			deps.Services.Auth,
 			deps.Services.Agents,
-		),
+		).WithAccountAccess(deps.Services.AccountAccess),
 		AgentCapabilities: httphandlers.NewAgentCapabilitiesHandler(deps.Services.AgentCapabilities),
 		UserSettings: httphandlers.NewUserSettingsHandler(
 			deps.Services.UserSettings,
@@ -125,13 +125,13 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 		Skills:            httphandlers.NewSkillHandler(deps.Services.Skills),
 		BrowserInspector:  httphandlers.NewBrowserInspectorHandler(),
 		AgentApplications: agentApplicationsHandler,
-		Permissions:       httphandlers.NewPermissionsHandler(deps.Services.Permissions),
+		Permissions:       httphandlers.NewPermissionsHandler(deps.Services.Permissions).WithAccounts(deps.Services.AccountAccess),
 		Usage:             usageHandler,
 		AgentQuota:        agentQuotaHandler,
 		Uploads:           uploads,
 		ChatWS:            chatSocket,
 		WorkspaceWS:       workspaceSocket,
-		AgentAuthWS:       wstransport.NewAgentAuthSocket(agentAuthBindings),
+		AgentAuthWS:       wstransport.NewAgentAuthSocket(agentAuthBindings).WithAccountAccess(deps.Services.AccountAccess),
 		Auth:              auth,
 		Workspace:         httpmiddleware.Workspace{Authorizer: deps.Services.Permissions, Chats: deps.Services.Chats},
 		Middleware:        middleware,

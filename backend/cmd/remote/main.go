@@ -33,6 +33,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/lifecycle"
 	"github.com/futrx-com/remote.futrx.com/internal/rbac"
 	service "github.com/futrx-com/remote.futrx.com/internal/service"
+	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	serviceauth "github.com/futrx-com/remote.futrx.com/internal/service/auth"
 	servicechat "github.com/futrx-com/remote.futrx.com/internal/service/chat"
 	servicegithistory "github.com/futrx-com/remote.futrx.com/internal/service/githistory"
@@ -327,6 +328,7 @@ func permissionDefinitions() [][]rbac.Definition {
 		workspaceide.PermissionDefinitions(),
 		workspaceaccess.PermissionDefinitions(),
 		servicechat.PermissionDefinitions(),
+		agentauth.PermissionDefinitions(),
 	}
 }
 

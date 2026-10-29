@@ -1,5 +1,5 @@
 export type RbacEffect = "allow" | "deny";
-export type RbacScopeKind = "platform" | "project";
+export type RbacScopeKind = "platform" | "project" | "provider-account";
 export type RbacBaseline = "none" | "admin" | "project-member" | "authenticated";
 
 export interface RbacScope {
@@ -75,3 +75,5 @@ export interface RbacBindingInput {
 }
 
 export type RbacBindingTarget = RbacBindingInput;
+
+export interface RbacAccountTarget { provider: string; accountId: string; label: string; scope: RbacScope; }

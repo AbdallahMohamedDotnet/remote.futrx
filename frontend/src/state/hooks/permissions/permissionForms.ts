@@ -62,7 +62,7 @@ class PermissionFormLogic {
   }
 
   buildScope(kind: RbacScopeKind, projectId: string): RbacScope {
-    return kind === "project" ? { kind, id: projectId } : { kind };
+    return kind === "platform" ? { kind } : { kind, id: projectId };
   }
 
   validateAssignment(
@@ -76,6 +76,7 @@ class PermissionFormLogic {
     const offered = this.scopeKindsForPermission(definitions, draft.permission);
     const kind = this.effectiveScopeKind(offered, draft.scopeKind);
     if (!offered.includes(kind)) return { ok: false, message: "That permission is not registered." };
+    if (kind === "provider-account" && !/^[a-z0-9][a-z0-9_-]{0,63}:[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.projectId)) return { ok: false, message: "Enter a provider:account scope, such as claude:default." };
     if (kind === "project" && !draft.projectId) return { ok: false, message: "Choose a project." };
     return {
       ok: true,
@@ -103,6 +104,7 @@ class PermissionFormLogic {
     if (!offered.includes(kind)) {
       return { ok: false, message: "This role's rules share no scope kind." };
     }
+    if (kind === "provider-account" && !/^[a-z0-9][a-z0-9_-]{0,63}:[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.projectId)) return { ok: false, message: "Enter a provider:account scope, such as claude:default." };
     if (kind === "project" && !draft.projectId) return { ok: false, message: "Choose a project." };
     return {
       ok: true,
