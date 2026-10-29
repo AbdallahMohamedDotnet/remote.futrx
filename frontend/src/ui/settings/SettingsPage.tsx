@@ -35,7 +35,7 @@ import { PLATFORM_SCOPE } from "../../config/constants/user-roles";
 import type { UsageDashboard } from "../../state/hooks/usage/useUsageDashboard";
 import { ApplicationsSection } from "../applications/ApplicationsSection";
 import type { ApplicationsController } from "../../state/hooks/applications/useApplications";
-import type { PermissionsController } from "../../state/hooks/permissions/usePermissions";
+import type { PermissionsController } from "../../state/hooks/permissions/usePermissionAdministration";
 
 import type { SettingsTab } from "../../models/workspace";
 import type { ReleaseNotesController } from "../../state/hooks/server/useReleaseNotes";

@@ -238,3 +238,35 @@ func TestPermissionsDefinitionsAreReadOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestEffectivePermissionsHTTPUsesEncodedDecisionsAndScope(t *testing.T) {
+	f := newPermissionsRoutesFixture(t)
+	for _, email := range []string{"member@example.com", "admin@example.com"} {
+		response := f.do(t, email, "GET", permissionsBase+"/effective?projectId=proj1", "")
+		if response.Code != 200 {
+			t.Fatalf("%s: %d %s", email, response.Code, response.Body)
+		}
+		var decisions map[string]bool
+		if err := json.Unmarshal(response.Body.Bytes(), &decisions); err != nil {
+			t.Fatal(err)
+		}
+		if !decisions["projects.lifecycle.manage"] {
+			t.Fatalf("missing project baseline: %v", decisions)
+		}
+		if _, ok := decisions["permissions.roles.manage"]; ok {
+			t.Fatal("platform decision leaked into project scope")
+		}
+	}
+	response := f.do(t, "member@example.com", "GET", permissionsBase+"/effective?projectId=other", "")
+	var decisions map[string]bool
+	if err := json.Unmarshal(response.Body.Bytes(), &decisions); err != nil {
+		t.Fatal(err)
+	}
+	if decisions["projects.lifecycle.manage"] {
+		t.Fatal("scope isolation lost")
+	}
+	response = f.do(t, "", "GET", permissionsBase+"/effective", "")
+	if response.Code != 401 {
+		t.Fatalf("anonymous: %d", response.Code)
+	}
+}

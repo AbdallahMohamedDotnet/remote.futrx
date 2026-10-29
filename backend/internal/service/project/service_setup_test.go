@@ -66,7 +66,7 @@ func TestProjectSetupReceivesSecretsAfterContainerPreparation(t *testing.T) {
 			var err error
 			switch operation {
 			case "create":
-				result, err = service.Create(context.Background(), CreateInput{Name: "project"}, "")
+				result, err = service.Create(rbac.ContextWithSystemActor(context.Background()), CreateInput{Name: "project"}, "")
 			case "start":
 				result, err = service.Start(rbac.ContextWithSystemActor(context.Background()), "abcd")
 			case "upgrade":

@@ -12,8 +12,7 @@ import type {
 } from "../models/rbac";
 import { API_ROUTES } from "../config/routes";
 
-// Mirrors api/permissions.contract.md. Every route here is a proposal until
-// the backend implements it.
+// Canonical administration contract: api/permissions.contract.md.
 export const permissionsApi = {
   listDefinitions: async () =>
     (await requestJson<{ definitions: RbacDefinition[] }>("GET", API_ROUTES.permissions.definitions))
@@ -39,4 +38,9 @@ export const permissionsApi = {
     requestJson<RbacRole>("PUT", API_ROUTES.permissions.role(id), input),
   deleteRole: (id: string, unbind: boolean) =>
     requestJson<void>("DELETE", API_ROUTES.permissions.role(id, unbind)),
+};
+
+export const effectivePermissionsApi = {
+  effective: (projectId?: string) => requestJson<Record<string, boolean>>("GET",
+    "/api/admin/permissions/effective" + (projectId ? "?projectId=" + encodeURIComponent(projectId) : "")),
 };

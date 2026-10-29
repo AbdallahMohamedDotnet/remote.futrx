@@ -30,7 +30,7 @@ export interface PermissionsController {
   deleteRole: (id: string, unbind: boolean) => Promise<void>;
 }
 
-export function usePermissions(enabled: boolean): PermissionsController {
+export function usePermissionAdministration(enabled: boolean): PermissionsController {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [definitions, setDefinitions] = useState<RbacDefinition[]>([]);
@@ -68,6 +68,7 @@ export function usePermissions(enabled: boolean): PermissionsController {
   const addAssignment = useCallback(
     async (input: RbacAssignmentInput) => {
       await permissionsApi.addAssignment(input);
+      window.dispatchEvent(new Event("permissions-changed"));
       await refresh();
     },
     [refresh]
@@ -76,6 +77,7 @@ export function usePermissions(enabled: boolean): PermissionsController {
   const removeAssignment = useCallback(
     async (target: RbacAssignmentTarget) => {
       await permissionsApi.removeAssignment(target);
+      window.dispatchEvent(new Event("permissions-changed"));
       await refresh();
     },
     [refresh]
@@ -84,6 +86,7 @@ export function usePermissions(enabled: boolean): PermissionsController {
   const addBinding = useCallback(
     async (input: RbacBindingInput) => {
       await permissionsApi.addBinding(input);
+      window.dispatchEvent(new Event("permissions-changed"));
       await refresh();
     },
     [refresh]
@@ -92,6 +95,7 @@ export function usePermissions(enabled: boolean): PermissionsController {
   const removeBinding = useCallback(
     async (target: RbacBindingTarget) => {
       await permissionsApi.removeBinding(target);
+      window.dispatchEvent(new Event("permissions-changed"));
       await refresh();
     },
     [refresh]
@@ -100,6 +104,7 @@ export function usePermissions(enabled: boolean): PermissionsController {
   const createRole = useCallback(
     async (input: RbacRoleInput) => {
       await permissionsApi.createRole(input);
+      window.dispatchEvent(new Event("permissions-changed"));
       await refresh();
     },
     [refresh]
@@ -108,6 +113,7 @@ export function usePermissions(enabled: boolean): PermissionsController {
   const updateRole = useCallback(
     async (id: string, input: RbacRoleInput) => {
       await permissionsApi.updateRole(id, input);
+      window.dispatchEvent(new Event("permissions-changed"));
       await refresh();
     },
     [refresh]
@@ -116,6 +122,7 @@ export function usePermissions(enabled: boolean): PermissionsController {
   const deleteRole = useCallback(
     async (id: string, unbind: boolean) => {
       await permissionsApi.deleteRole(id, unbind);
+      window.dispatchEvent(new Event("permissions-changed"));
       await refresh();
     },
     [refresh]

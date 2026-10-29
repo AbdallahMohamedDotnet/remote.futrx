@@ -44,6 +44,7 @@ func NewPermissionsHandler(permissions PermissionsService) *PermissionsHandler {
 }
 
 func (h *PermissionsHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/admin/permissions/effective", h.HandleEffective)
 	mux.HandleFunc("/api/admin/permissions/definitions", h.HandleDefinitions)
 	mux.HandleFunc(permissionsRolesPath, h.HandleRoles)
 	mux.HandleFunc(permissionsRolesPath+"/", h.HandleRole)
@@ -300,4 +301,29 @@ func sendPermissionsError(w http.ResponseWriter, err error) {
 	default:
 		httptransport.SendErr(w, http.StatusInternalServerError, err.Error())
 	}
+}
+
+// HandleEffective exposes only the authenticated actor's current decisions.
+func (h *PermissionsHandler) HandleEffective(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httptransport.SendErr(w, 405, "method not allowed")
+		return
+	}
+	service, ok := h.permissions.(interface {
+		Effective(context.Context, servicepermission.Scope) (map[servicepermission.Key]bool, error)
+	})
+	if !ok {
+		httptransport.SendErr(w, 503, "permissions unavailable")
+		return
+	}
+	scope := servicepermission.PlatformScope()
+	if id := r.URL.Query().Get("projectId"); id != "" {
+		scope = servicepermission.ProjectScope(id)
+	}
+	decisions, err := service.Effective(r.Context(), scope)
+	if err != nil {
+		sendPermissionsError(w, err)
+		return
+	}
+	httptransport.SendJSON(w, 200, decisions)
 }

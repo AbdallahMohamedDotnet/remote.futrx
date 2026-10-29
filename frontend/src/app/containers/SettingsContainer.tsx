@@ -7,7 +7,7 @@ import { useWorkspaceContext } from "../../state/context/WorkspaceContext";
 import { useAuthContext } from "../../state/context/AuthContext";
 import { useUserSettingsContext } from "../../state/context/UserSettingsContext";
 import { useUserDirectory } from "../../state/hooks/users/useUserDirectory";
-import { usePermissions } from "../../state/hooks/permissions/usePermissions";
+import { usePermissionAdministration } from "../../state/hooks/permissions/usePermissionAdministration";
 import { useSecuritySettings } from "../../state/hooks/auth/useSecuritySettings";
 import { useServerInfo } from "../../state/hooks/server/useServerInfo";
 import type { SelfUpdateController } from "../../state/hooks/server/useSelfUpdate";
@@ -41,7 +41,7 @@ export function SettingsContainer({
     selfUpdate.status?.lastCheck?.latestTag,
   );
   const security = useSecuritySettings(activeTab === "security");
-  const permissions = usePermissions(
+  const permissions = usePermissionAdministration(
     (activeTab === "permissions" || activeTab === "users") && auth.isAdmin
   );
   const applications = useGlobalApplications({

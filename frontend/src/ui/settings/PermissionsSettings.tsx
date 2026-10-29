@@ -1,5 +1,5 @@
 import type { ProjectMeta } from "../../models/project";
-import type { PermissionsController } from "../../state/hooks/permissions/usePermissions";
+import type { PermissionsController } from "../../state/hooks/permissions/usePermissionAdministration";
 import { permissionsViewState } from "../../state/hooks/permissions/permissionsView";
 import { AlertCircle, Loader } from "../primitives/icons";
 import { AssignmentsList } from "./permissions/AssignmentsList";
