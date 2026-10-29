@@ -7,6 +7,7 @@ import type {
   AppCredentials,
   AppApplication,
   AppInstallRequest,
+  AppInstallRun,
   AppInstance,
   AppPackage,
   AppScope,
@@ -21,6 +22,7 @@ export interface ApplicationsController {
   catalog: AppApplication[];
   catalogLoading: boolean;
   instances: AppInstance[];
+  installRuns: AppInstallRun[];
   loading: boolean;
   error?: string;
   /**
@@ -56,7 +58,8 @@ export interface ApplicationsController {
 // backend bindings differ only by scope; the UI logic below is shared.
 interface Bindings {
   list: () => Promise<AppInstance[]>;
-  install: (req: AppInstallRequest) => Promise<AppInstance>;
+  install: (req: AppInstallRequest) => Promise<AppInstallRun>;
+  installations: () => Promise<AppInstallRun[]>;
   start: (appId: string) => Promise<AppInstance>;
   stop: (appId: string) => Promise<AppInstance>;
   setPort: (appId: string, port: number) => Promise<AppInstance>;
@@ -99,6 +102,11 @@ function useApplicationsCore({
   const [catalog, setCatalog] = useState<AppApplication[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [instances, setInstances] = useState<AppInstance[]>([]);
+  const [installRuns, setInstallRuns] = useState<AppInstallRun[]>([]);
+  const runsRef = useRef<AppInstallRun[]>([]);
+  const bindingsRef = useRef(bindings);
+  const reloadSequence = useRef(0);
+  bindingsRef.current = bindings;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [packages, setPackages] = useState<AppPackage[]>([]);
@@ -111,18 +119,41 @@ function useApplicationsCore({
   const notifySettled = useCallback(() => settledRef.current?.(), []);
 
   const reload = useCallback(async () => {
-    if (!enabled || !bindings) return;
+    if (!enabled || !bindings || bindingsRef.current !== bindings) return;
+    const sequence = ++reloadSequence.current;
     setLoading(true);
     setError(undefined);
     try {
+      // Reading run status may recover an interrupted instance after restart.
+      // Read instances afterwards so the catalog's Retry state agrees with it.
+      const runs = await bindings.installations();
       const data = await bindings.list();
+      if (bindingsRef.current !== bindings || sequence !== reloadSequence.current) return;
+      const completed = runs.some((run) => run.state !== "running" &&
+        runsRef.current.some((previous) => previous.id === run.id && previous.state === "running"));
       setInstances(data ?? []);
+      runsRef.current = runs;
+      setInstallRuns(runs);
+      if (completed) notifySettled();
     } catch (err) {
-      setError((err as Error).message);
+      if (bindingsRef.current === bindings && sequence === reloadSequence.current) setError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (bindingsRef.current === bindings && sequence === reloadSequence.current) setLoading(false);
     }
-  }, [enabled, bindings]);
+  }, [enabled, bindings, notifySettled]);
+
+  const hasRunningInstall = installRuns.some((run) => run.state === "running");
+  useEffect(() => {
+    if (!enabled || !hasRunningInstall) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      await reload();
+      if (!stopped) timer = setTimeout(() => void poll(), 1000);
+    };
+    timer = setTimeout(() => void poll(), 1000);
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [enabled, hasRunningInstall, reload]);
 
   const loadCatalog = useCallback(async () => {
     if (!enabled) return;
@@ -215,11 +246,20 @@ function useApplicationsCore({
   const install = useCallback(
     async (req: AppInstallRequest) => {
       if (!bindings) return;
-      const inst = await bindings.install(req);
-      upsert(inst);
-      notifySettled();
+      try {
+        const run = await bindings.install(req);
+        if (bindingsRef.current !== bindings) return;
+        reloadSequence.current++;
+        runsRef.current = [...runsRef.current.filter((previous) => previous.applicationId !== run.applicationId), run];
+        setInstallRuns(runsRef.current);
+      } finally {
+        // Accepted attempts start background work. Reconcile any prior failed
+        // row now; polling reconciles its final state and global project copies.
+        await reload();
+        notifySettled();
+      }
     },
-    [bindings, upsert, notifySettled],
+    [bindings, notifySettled, reload],
   );
 
   const start = useCallback(
@@ -272,6 +312,7 @@ function useApplicationsCore({
     catalog,
     catalogLoading,
     instances,
+    installRuns,
     loading,
     error,
     packages,
@@ -311,6 +352,7 @@ export function useGlobalApplications({
     () => ({
       list: applicationsApi.listGlobal,
       install: applicationsApi.install,
+      installations: applicationsApi.installations,
       start: applicationsApi.start,
       stop: applicationsApi.stop,
       setPort: applicationsApi.setPort,
@@ -347,6 +389,7 @@ export function useProjectApplications({
         ? {
             list: () => projectApi.listApplications(id),
             install: (req) => projectApi.installApplication(id, req),
+            installations: () => projectApi.applicationInstallations(id),
             start: (appId) => projectApi.startApplication(id, appId),
             stop: (appId) => projectApi.stopApplication(id, appId),
             setPort: (appId, port) => projectApi.setApplicationPort(id, appId, port),

@@ -28,33 +28,17 @@ func containerBuildScript(applicationID, buildVersion string, commands []string)
 export APP_CONTAINER_SOURCE
 
 if [ "$(cat "$APP_BUILD_MARKER" 2>/dev/null || true)" != "$APP_BUILD_VERSION" ]; then
-  GOROOT_DIR=/usr/local/go
-  if ! "$GOROOT_DIR/bin/go" version 2>/dev/null | grep -q 'go` + configconstants.ApplicationContainerGoVersion + ` '; then
-    ARCH="$(dpkg --print-architecture)"
-    case "$ARCH" in
-      amd64 | arm64) ;;
-      *)
-        echo "install: unsupported container architecture: $ARCH" >&2
-        exit 1
-        ;;
-    esac
-    if ! command -v curl >/dev/null 2>&1; then
-      apt-get -o DPkg::Lock::Timeout=300 update -qq
-      apt-get -o DPkg::Lock::Timeout=300 install -y -qq --no-install-recommends curl ca-certificates
-    fi
-    curl -fsSL -o /tmp/remote-go.tgz "https://go.dev/dl/go` + configconstants.ApplicationContainerGoVersion + `.linux-${ARCH}.tar.gz"
-    rm -rf "$GOROOT_DIR"
-    tar -C /usr/local -xzf /tmp/remote-go.tgz
-    rm -f /tmp/remote-go.tgz
-  fi
-
+`)
+	out.WriteString(containerGoBootstrap("/usr/local/go", containerGoPins))
+	out.WriteString(`
   APP_BUILD_DIR="$(mktemp -d)"
   trap 'rm -rf -- "$APP_BUILD_DIR"' EXIT
 `)
 	for _, build := range containerBuildTargets(applicationID, commands) {
 		output := `"$APP_BUILD_DIR"/` + shellQuote(build.command)
+		fmt.Fprintf(&out, "  printf 'Building application program %%s\\n' %s\n", shellQuote(build.command))
 		fmt.Fprintf(&out,
-			"  (cd \"$APP_CONTAINER_SOURCE\" && CGO_ENABLED=0 \"$GOROOT_DIR/bin/go\" build"+
+			"  (cd \"$APP_CONTAINER_SOURCE\" && CGO_ENABLED=0 \"$GOROOT_DIR/bin/go\" build -v"+
 				" -mod=mod -buildvcs=false -trimpath"+
 				" -ldflags \"-s -w -X main.version=$APP_BUILD_VERSION\""+
 				" -o %s %s)\n",

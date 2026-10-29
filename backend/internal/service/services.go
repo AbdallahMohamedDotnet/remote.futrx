@@ -24,8 +24,6 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/service/prompt"
 	servicepush "github.com/futrx-com/remote.futrx.com/internal/service/push"
 	"github.com/futrx-com/remote.futrx.com/internal/service/runhub"
-	serviceschedule "github.com/futrx-com/remote.futrx.com/internal/service/schedule"
-	"github.com/futrx-com/remote.futrx.com/internal/service/schedulecapability"
 	serviceshare "github.com/futrx-com/remote.futrx.com/internal/service/share"
 	serviceskills "github.com/futrx-com/remote.futrx.com/internal/service/skills"
 	servicetmux "github.com/futrx-com/remote.futrx.com/internal/service/tmux"
@@ -69,7 +67,6 @@ type Dependencies struct {
 	ProjectSecrets    serviceproject.SecretsRepository
 	ProjectAccess     serviceproject.AccessRepository
 	ProjectShares     serviceshare.Repository
-	Schedules         serviceschedule.Repository
 	Auth              AuthStore
 	Users             serviceuser.Repository
 	UserSettings      serviceusersettings.Repository
@@ -89,11 +86,11 @@ type Dependencies struct {
 	AuthOptions       AuthOptions
 	TmuxClient        TmuxClient
 	ValidTmuxName     func(string) bool
-	ScheduleLimits    ScheduleLimits
 	PromptStartGate   prompt.StartGate
 
 	// Installable-application capabilities. When AppStore and
 	// AppRegistry are set the Applications service is enabled.
+	AppTurns     serviceapplications.AgentTurnRepository
 	AppStore     serviceapplications.Store
 	AppRegistry  serviceapplications.Registry
 	AppInstaller serviceapplications.Installer
@@ -112,15 +109,6 @@ type Dependencies struct {
 	// ApplicationEvents is the process-wide validated event stream routed to
 	// subscribed application backends.
 	ApplicationEvents serviceapplications.EventSource
-}
-
-// ScheduleLimits mirrors the deployment's scheduled-task guardrails without
-// coupling the service layer to the config package. Zero values disable a
-// limit.
-type ScheduleLimits struct {
-	MinInterval        time.Duration
-	MaxConcurrentRuns  int
-	MaxTasksPerProject int
 }
 
 // AgentOptions mirrors application-wide agent policy without coupling the
@@ -149,8 +137,6 @@ type Services struct {
 	Projects          *serviceproject.Service
 	Shares            *serviceshare.Service
 	Prompt            *prompt.Service
-	Schedules         *serviceschedule.Service
-	ScheduleCaps      *schedulecapability.Registry
 	Agents            *agentmodule.Runtime
 	AgentCapabilities *agentcapability.Service
 	Runs              *runhub.Hub
@@ -159,7 +145,6 @@ type Services struct {
 	Users             *serviceuser.Service
 	UserSettings      *serviceusersettings.Service
 	Skills            *serviceskills.Catalog
-	Tmux              *servicetmux.Service
 	Access            *serviceauth.AccessVerifier
 	Applications      *serviceapplications.Service
 	Push              *servicepush.Service
@@ -184,9 +169,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		if err := deps.AgentModules.ValidateAccessGate(); err != nil {
 			return Services{}, fmt.Errorf("agent module catalog: %w", err)
 		}
-	}
-	if deps.Schedules == nil {
-		return Services{}, errors.New("scheduled task repository is required")
 	}
 
 	workspace := workspacehub.New()
@@ -276,10 +258,8 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 	if err != nil {
 		return Services{}, err
 	}
-	scheduleCaps := schedulecapability.New(deps.AuthBaseURL)
 	var usageService *serviceusage.Service
 	promptOptions := []prompt.Option{
-		prompt.WithScheduleToolIssuer(scheduleCaps),
 		prompt.WithAgentPolicy(agentRuntime),
 	}
 	if deps.PromptStartGate != nil {
@@ -301,19 +281,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		agentRuntime,
 		promptOptions...,
 	)
-	scheduleService := serviceschedule.New(
-		deps.Schedules,
-		chatService,
-		projectService,
-		authService,
-		scheduledPromptExecutor{prompts: promptService},
-		serviceschedule.WithMinInterval(deps.ScheduleLimits.MinInterval),
-		serviceschedule.WithMaxConcurrentRuns(deps.ScheduleLimits.MaxConcurrentRuns),
-		serviceschedule.WithMaxTasksPerProject(deps.ScheduleLimits.MaxTasksPerProject),
-	)
-	if err := scheduleService.Start(ctx); err != nil {
-		return Services{}, fmt.Errorf("start scheduled tasks: %w", err)
-	}
 	userSettingsService := serviceusersettings.New(
 		deps.UserSettings,
 		serviceusersettings.WithProviderCatalog(agentRuntime),
@@ -351,11 +318,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			}),
 		)
 	}
-	var tmuxService *servicetmux.Service
-	if deps.TmuxClient != nil {
-		tmuxService = servicetmux.NewSessions(deps.TmuxClient)
-	}
-
 	var applicationsService *serviceapplications.Service
 	if deps.AppStore != nil && deps.AppRegistry != nil {
 		applicationsService = serviceapplications.New(
@@ -365,11 +327,22 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 			projectContainersAdapter{projects: projectService},
 			deps.AppPorts,
 			serviceapplications.WithBackendHost(deps.AppBackends),
+			serviceapplications.WithInstallRuns(ctx),
 			serviceapplications.WithPackageCatalog(deps.AppPackages),
 			serviceapplications.WithLifecyclePublisher(deps.ApplicationLifecycle),
 			serviceapplications.WithEventSource(ctx, deps.ApplicationEvents),
+			serviceapplications.WithAgentRuntime(ctx, serviceapplications.AgentDependencies{Chats: chatService, Projects: projectService, Identities: authService, Prompts: promptService, Turns: deps.AppTurns}),
+			serviceapplications.WithAgentToolURL(deps.AuthBaseURL),
 		)
 		projectService.SetContainerRestorer(applicationsService.RestoreProject)
+	}
+
+	if applicationsService != nil {
+		if host, ok := deps.AppBackends.(serviceapplications.AgentRuntimeHost); ok {
+			host.SetAgentTurns(applicationsService)
+		}
+		promptService.SetApplicationToolIssuer(applicationsService)
+		applicationsService.StartBackground(ctx)
 	}
 
 	pushNotifier.push = pushService
@@ -389,8 +362,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Projects:          projectService,
 		Shares:            shareService,
 		Prompt:            promptService,
-		Schedules:         scheduleService,
-		ScheduleCaps:      scheduleCaps,
 		Agents:            agentRuntime,
 		AgentCapabilities: agentCapabilities,
 		Runs:              runs,
@@ -399,7 +370,6 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Users:             userService,
 		UserSettings:      userSettingsService,
 		Skills:            skillCatalog,
-		Tmux:              tmuxService,
 		Access:            accessVerifier,
 		Applications:      applicationsService,
 		Push:              pushService,
@@ -428,6 +398,18 @@ func (a projectContainersAdapter) ContainerName(ctx context.Context, projectID s
 func (a projectContainersAdapter) EnsureRunning(ctx context.Context, projectID string) error {
 	_, err := a.projects.Start(ctx, serviceproject.ID(projectID))
 	return err
+}
+
+func (a projectContainersAdapter) ListProjectIDs(ctx context.Context) ([]string, error) {
+	projects, err := a.projects.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(projects))
+	for _, project := range projects {
+		ids = append(ids, string(project.ID))
+	}
+	return ids, nil
 }
 
 // newPush builds the Web Push service. A deployment without a usable VAPID key
@@ -469,61 +451,6 @@ func (s Services) Reconcile(ctx context.Context) error {
 		return nil
 	}
 	return s.Projects.Reconcile(ctx)
-}
-
-type scheduledPromptExecutor struct {
-	prompts *prompt.Service
-}
-
-func (e scheduledPromptExecutor) StartScheduledPrompt(
-	ctx context.Context,
-	task serviceschedule.Task,
-	text string,
-) (serviceschedule.RunHandle, error) {
-	if e.prompts == nil {
-		return nil, errors.New("prompt service is unavailable")
-	}
-	run, err := e.prompts.Start(prompt.StartInput{
-		ChatID: task.ChatID,
-		Prompt: text,
-		Actor: prompt.Actor{
-			Email: task.OwnerEmail,
-		},
-		ScheduledTaskID: string(task.ID),
-		ScheduledRunID:  task.ActiveRunID,
-		ParentContext:   ctx,
-	}, nil)
-	if errors.Is(err, prompt.ErrPromptAlreadyRunning) || errors.Is(err, prompt.ErrMaintenance) {
-		return nil, serviceschedule.ErrExecutorBusy
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	done := make(chan serviceschedule.RunResult, 1)
-	go func() {
-		defer close(done)
-		result, ok := <-run.Done
-		if !ok {
-			done <- serviceschedule.RunResult{
-				Err: errors.New("prompt completion channel closed without a result"),
-			}
-			return
-		}
-		done <- serviceschedule.RunResult{
-			Output: result.Output,
-			Err:    result.Err,
-		}
-	}()
-	return scheduledPromptHandle{done: done}, nil
-}
-
-type scheduledPromptHandle struct {
-	done <-chan serviceschedule.RunResult
-}
-
-func (h scheduledPromptHandle) Done() <-chan serviceschedule.RunResult {
-	return h.done
 }
 
 type chatProjectResolver struct {

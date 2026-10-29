@@ -4,7 +4,7 @@
 // Backend serves:
 //   - Static SPA (Preact/Vite bundle) embedded via go:embed
 //   - HTTP APIs for users, agents, chats, projects, files, and operations
-//   - WebSockets for workspace state, agent runs, auth status, and terminals
+//   - WebSockets for workspace state, agent runs, and auth status
 
 package main
 
@@ -38,7 +38,6 @@ import (
 	serviceserverinfo "github.com/futrx-com/remote.futrx.com/internal/service/serverinfo"
 	serviceversiontelemetry "github.com/futrx-com/remote.futrx.com/internal/service/versiontelemetry"
 	serviceworkspacefiles "github.com/futrx-com/remote.futrx.com/internal/service/workspacefiles"
-	serviceworkspaceide "github.com/futrx-com/remote.futrx.com/internal/service/workspaceide"
 	"github.com/futrx-com/remote.futrx.com/internal/stores"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileproject"
 	"github.com/futrx-com/remote.futrx.com/internal/stores/fileversiontelemetry"
@@ -158,7 +157,6 @@ func main() {
 		ProjectSecrets:    storeSet.ProjectSecrets,
 		ProjectAccess:     storeSet.ProjectAccess,
 		ProjectShares:     storeSet.ProjectShares,
-		Schedules:         storeSet.Schedules,
 		Auth:              storeSet.Auth,
 		Users:             storeSet.Users,
 		UserSettings:      storeSet.UserSettings,
@@ -188,14 +186,10 @@ func main() {
 			SessionHistoryLimit: cfg.Auth.SessionHistoryLimit,
 			SetupTokenTTL:       cfg.Auth.SetupTokenTTL,
 		},
-		TmuxClient:    tmuxClient,
-		ValidTmuxName: tmuxcli.ValidName,
-		ScheduleLimits: service.ScheduleLimits{
-			MinInterval:        cfg.Schedule.MinInterval,
-			MaxConcurrentRuns:  cfg.Schedule.MaxConcurrentRuns,
-			MaxTasksPerProject: cfg.Schedule.MaxTasksPerProject,
-		},
+		TmuxClient:           tmuxClient,
+		ValidTmuxName:        tmuxcli.ValidName,
 		AppStore:             storeSet.Applications,
+		AppTurns:             storeSet.ApplicationTurns,
 		AppRegistry:          appRegistry,
 		AppInstaller:         containerStack.AppInstaller,
 		AppPorts:             containerStack.AppPorts,
@@ -245,14 +239,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	codeServerBaseURL, err := config.CodeServerBaseURL(cfg.BaseURL)
-	if err != nil {
-		log.Fatalf("configure IDE URL: %v", err)
-	}
-
 	handler, err := transport.NewHTTPHandler(transport.Dependencies{
 		Services:       serviceSet,
-		TmuxClient:     tmuxClient,
 		Static:         static,
 		DataDir:        cfg.DataDir,
 		PublicHostname: publicHostname,
@@ -265,7 +253,6 @@ func main() {
 		SelfUpdate: selfUpdateService,
 		Files:      serviceworkspacefiles.New(hostfs.NewWorkspaceFileStore()),
 		GitHistory: servicegithistory.New(gitcli.NewHistoryClient()),
-		IDE:        serviceworkspaceide.New(codeServerBaseURL, fileproject.WorkspaceRoot),
 	})
 	if err != nil {
 		log.Fatalf("init http handler: %v", err)

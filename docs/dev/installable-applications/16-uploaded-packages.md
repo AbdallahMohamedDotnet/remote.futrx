@@ -119,8 +119,10 @@ on every upload, because none of it lives in a container:
 - the catalog entry — name, version, env fields, scopes;
 - the `ui/` the browser loads;
 - the source the `backend/` is compiled from. Backend processes for instances of
-  that application are stopped, so the next call to one rebuilds and relaunches
-  against the new source.
+  that application are stopped, so the next call, event, or eligible background
+  recovery rebuilds and relaunches against the new source. Background recovery
+  requires `backend.background` and a running installation; see
+  [Application agent runtime](25-application-agent-runtime.md).
 
 The container side is governed by **`version`**: if the package's version
 differs from the one an installed copy recorded, its `install.sh` is run again

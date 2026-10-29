@@ -300,3 +300,21 @@ export interface AppPackage {
    */
   error?: string;
 }
+
+/** Latest installation attempt, with observed progress and a redacted log. */
+export interface AppInstallRun {
+  id: string;
+  applicationId: string;
+  scope: AppScope;
+  projectId?: string;
+  state: "running" | "succeeded" | "failed";
+  error?: string;
+  log?: string;
+  progress: {
+    phase: string;
+    message: string;
+    currentItem?: string;
+    completed?: number;
+    total?: number;
+  };
+}

@@ -16,13 +16,14 @@ import (
 // portless app to change its port, say — must not arrive as one.
 func TestSendAppErrorMapsServiceErrorsToStatuses(t *testing.T) {
 	cases := map[error]int{
-		serviceapplications.ErrNotFound:         http.StatusNotFound,
-		serviceapplications.ErrBackendAccess:    http.StatusForbidden,
-		serviceapplications.ErrAlreadyInstalled: http.StatusConflict,
-		serviceapplications.ErrNotSupported:     http.StatusUnprocessableEntity,
-		serviceapplications.ErrScope:            http.StatusBadRequest,
-		serviceapplications.ErrUnavailable:      http.StatusServiceUnavailable,
-		errors.New("disk on fire"):              http.StatusInternalServerError,
+		serviceapplications.ErrNotFound:          http.StatusNotFound,
+		serviceapplications.ErrBackendAccess:     http.StatusForbidden,
+		serviceapplications.ErrAlreadyInstalled:  http.StatusConflict,
+		serviceapplications.ErrInstallInProgress: http.StatusConflict,
+		serviceapplications.ErrNotSupported:      http.StatusUnprocessableEntity,
+		serviceapplications.ErrScope:             http.StatusBadRequest,
+		serviceapplications.ErrUnavailable:       http.StatusServiceUnavailable,
+		errors.New("disk on fire"):               http.StatusInternalServerError,
 	}
 	for err, want := range cases {
 		// Wrapped, because that is how the service returns them: the sentinel

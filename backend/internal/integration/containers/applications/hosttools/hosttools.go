@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -129,6 +128,7 @@ func (in *Installer) ensureOne(ctx context.Context, tool svc.HostTool) error {
 	defer unlock()
 	target := filepath.Join(Dir(in.dataDir), tool.Name, tool.Version, tool.Name)
 	if _, err := os.Stat(target); err != nil {
+		svc.ReportInstallProgress(ctx, "host-download", "Downloading host dependency "+tool.Name)
 		download, ok := tool.Downloads[in.arch]
 		if !ok {
 			return fmt.Errorf("no download for host architecture %s", in.arch)
@@ -137,6 +137,7 @@ func (in *Installer) ensureOne(ctx context.Context, tool svc.HostTool) error {
 			return err
 		}
 	}
+	svc.ReportInstallProgress(ctx, "host-verify", "Verifying host dependency "+tool.Name)
 	if err := in.verify(ctx, target, versionArgs(tool)); err != nil {
 		return fmt.Errorf("installed copy does not run: %w", err)
 	}
@@ -293,24 +294,6 @@ func versionArgs(tool svc.HostTool) []string {
 		return tool.VersionArgs
 	}
 	return []string{"version"}
-}
-
-func fetchHTTPS(ctx context.Context, rawURL string) (io.ReadCloser, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		// The URL can carry no credentials (Validate rejects those), so it is
-		// safe to report which download failed.
-		return nil, fmt.Errorf("download %s: %w", rawURL, err)
-	}
-	if response.StatusCode != http.StatusOK {
-		response.Body.Close()
-		return nil, fmt.Errorf("download %s: HTTP %d", rawURL, response.StatusCode)
-	}
-	return response.Body, nil
 }
 
 func runVersion(ctx context.Context, path string, args []string) error {

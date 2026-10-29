@@ -44,6 +44,8 @@ export interface UsageRecord {
   chatId: string;
   runId?: string;
   userEmail?: string;
+  applicationId?: string;
+  applicationRequestId?: string;
   provider: string;
   model?: string;
   inputTokens: number;
@@ -55,6 +57,7 @@ export interface UsageRecord {
   estimated?: boolean;
   durationMs?: number;
   turns?: number;
+  /** Legacy usage from the retired core scheduler. */
   scheduled?: boolean;
 }
 

@@ -1,8 +1,9 @@
 # 12 — HTTP API
 
-Every endpoint below sits behind the platform's session middleware: a valid
-session for a registered user is required before any of them are reached.
-Handlers then re-check authorization per route.
+Browser endpoints under `/api/` sit behind the platform's session middleware:
+a valid session for a registered user is required. Handlers then re-check
+authorization per route. The separate `/agent-api/applications/` route uses a
+temporary bearer grant for an agent turn, as described below.
 
 Routes are registered in
 [`applications_handler.go`](../../../backend/internal/transport/http/handlers/applications_handler.go);
@@ -144,7 +145,7 @@ for loading.
 | Method | Path | Does |
 |---|---|---|
 | `GET` | `/api/applications` | List global instances |
-| `POST` | `/api/applications` | Install at global scope |
+| `POST` | `/api/applications` | Install at global scope — see [Global install placement](#global-install-placement) |
 | `GET` | `/api/applications/{id}` | One instance |
 | `DELETE` | `/api/applications/{id}` | Uninstall |
 | `GET` | `/api/applications/{id}/credentials` | Full connection detail, secrets included |
@@ -174,6 +175,30 @@ Identical set, under a project, available to any **member** of that project:
 Membership is checked by `project_handler.go` before delegating. The handler
 then verifies the instance actually belongs to *this* project, so a member of
 one project cannot control another's app by guessing its id.
+
+## Observed installations
+
+The browser uses an asynchronous install run, with the same request body as the
+synchronous install endpoints above. Global routes are admin-only; project
+routes require membership in that project.
+
+| Method | Global path | Project path | Does |
+|---|---|---|---|
+| `POST` | `/api/applications/installations` | `/api/projects/{projectID}/applications/installations` | Start an attempt; return `202` with its run |
+| `GET` | `/api/applications/installations` | `/api/projects/{projectID}/applications/installations` | List the latest runs in this scope |
+
+A run has `id`, `applicationId`, `scope`, optional `projectId`, `state`
+(`running`, `succeeded`, `failed`), an optional error, a bounded
+installer log, and `progress` containing the actual phase/message. Project counts
+and the current project are included for global placement inside project containers.
+The UI polls while running, keeps the terminal result, and issues another `POST`
+only when the user requests retry. A concurrent attempt returns `409`.
+
+Runs continue after the starting HTTP request closes. Run status and logs remain
+in memory for the current server process, and active work is cancelled during
+server shutdown. Incomplete installations become failed and retryable after a
+restart. The original synchronous `POST …/applications` routes stay available to
+tools and existing clients.
 
 ## Backend backend routes
 
@@ -219,7 +244,8 @@ before delegation as everywhere else.
 The request is forwarded with its method, path, query, body, and headers. Two
 things are **not** forwarded: `Cookie` and `Authorization`. The caller is
 supplied separately, resolved from the session, so a backend can authorize a
-caller without being able to act as them.
+caller without being able to act as them. Ordinary browser calls always receive
+`Request.Agent == nil`, even when the body includes fields named `agent`.
 
 Request bodies are capped at 1 MiB.
 
@@ -240,6 +266,62 @@ Content-Type: application/json
 ```
 
 The full contract is [15 — Application backends](15-application-backends.md).
+
+## Agent-to-application routes
+
+### `/agent-api/applications/<application-id>/<path>`
+
+An agent tool calls an eligible application's own backend routes through this
+generic endpoint. The application must declare `backend.agentTools: true` and
+have a running installation visible to the turn. Supported providers receive:
+
+| Runtime environment | Meaning |
+|---|---|
+| `REMOTE_APPLICATION_API` | Base URL ending in `/agent-api/applications` |
+| `REMOTE_APPLICATION_GRANT` | Bearer grant sent as `Authorization: Bearer <grant>` |
+
+Remote selects the installed copy from the grant, not from a caller-supplied
+instance ID. Interactive turns can reach eligible global and same-project
+installations; a project copy takes precedence over a global copy of the same
+application. Application-started turns can reach only their own installation.
+An `access: "admin"` backend requires a current administrator in either case.
+
+The handler forwards method, relative path, query, and body, with no incoming
+HTTP headers. It stamps `Request.Caller` from the grant's owner and rechecks
+current registration, project/chat access, installation status, and manifest
+opt-in. It also stamps `Request.Agent.ChatID`. Application-started turns carry
+`Background: true`, the accepted `RequestID`, and its opaque JSON `Context`.
+The application decides which routes and actions this context permits.
+
+Bodies are capped at 64 KiB. Backend responses use the same status/header/body
+handling as browser calls. Grants expire after four hours and are revoked when
+the provider run ends; do not persist them as application or project secrets.
+
+| Transport status | When |
+|---|---|
+| `400` | body exceeds 64 KiB |
+| `401` | missing, malformed, invalid, expired, or revoked bearer grant |
+| `403` | application is outside the grant, installation is inaccessible/stopped, or current owner authority is insufficient |
+| `503` | application tools unavailable or another host/backend failure |
+
+An admitted call returns the application's own response status. Implementation:
+[`agent_applications_handler.go`](../../../backend/internal/transport/http/handlers/agent_applications_handler.go).
+
+## Application-to-agent controls
+
+Applications start and inspect turns through the Go backend SDK, with
+`backend.agentTurns: true` and `rpc.ServeWithRuntime`:
+
+| SDK method | Purpose |
+|---|---|
+| `Runtime.AgentTurns.Start(request)` | Submit a prompt to an existing chat, attributed to a captured owner and stable installation-scoped request ID |
+| `Runtime.AgentTurns.Read(query)` | Read that request's status, output, error, and paginated transcript events |
+| `Runtime.AgentTurns.Forget(requestID)` | Remove an inactive execution receipt after saving the result; retains chat history |
+
+These are reverse calls over the backend RPC connection, not new browser HTTP
+routes. The UI can call its application's routes through the existing
+`remote.backend` API. See [25 — Application agent runtime](25-application-agent-runtime.md)
+for inputs, result fields, current-authority checks, and retry behavior.
 
 ## Payloads
 
@@ -262,6 +344,24 @@ Responds `201` with the instance view.
 
 For a `ui` application, `externalPort` and `bindAddress` are ignored — there is no
 port.
+
+#### Global install placement
+
+`POST /api/applications` creates a global instance only when the application
+declares `"globallyInstalledInsideContainers": false`. Otherwise — the default —
+it installs a project instance into every existing project, and the instances
+it creates are reached through the project routes, not the global ones.
+
+In that case the `201` body is the view of the last project copy installed,
+with `"scope": "project"` and that project's `projectId`. When there was
+nothing to install — no projects, or every project already holds the
+application — it is still `201`, with an empty view whose `id` is `""`. Treat
+the response as an acknowledgement and list the project instances to see the
+result.
+
+A project that already holds the application is skipped rather than reported
+as `409`. If any other project fails, the request fails with an error naming
+each one as `project <id>: …`; copies installed in the other projects remain.
 
 ### Change port
 
@@ -308,6 +408,9 @@ has authorized:
 ```
 
 ## Errors
+
+These statuses describe the browser API. Agent transport errors are listed in
+[Agent-to-application routes](#agent-to-application-routes).
 
 | Status | When |
 |---|---|

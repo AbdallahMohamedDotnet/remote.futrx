@@ -191,6 +191,33 @@ The local administrator cannot be removed or demoted. Remote also prevents remov
 
 Removal blocks future authenticated requests for that email. Sessions are stateless 30-day tokens and have no individual revocation UI; deleting a user is the practical access-control lever.
 
+## Updates
+
+Administrators see an **Update available** notice near the sidebar's settings
+controls when a newer release is found. The notice remains accessible as a
+download icon when the sidebar is collapsed, and appears in the mobile drawer.
+Select it to open **Settings → Updates** directly.
+
+![Update available notice above the sidebar account footer](../assets/update-available-notice.png)
+
+Remote checks when an administrator opens the workspace and hourly while the
+page is visible. Returning to a hidden tab or reconnecting also checks if the
+previous attempt was at least an hour ago. Members do not run these checks or
+see the notice. Failed checks are shown in **Updates** without interrupting chats.
+
+Use **Check for updates** for an immediate check. Installing still requires an
+administrator to select the update action; discovery never starts an update.
+The notice is hidden while an update is running.
+
+The Updates screen displays the release notes recorded in the offered
+version's tagged commit—the same text used by the release workflow. Opening
+the screen reads that commit locally, fetching the tag from the installation's
+origin if needed using its existing Git credentials. No additional API or
+token is needed. If the notes cannot be loaded, use **Retry release notes**;
+checking for and installing updates still work independently.
+
+![Release notes shown before the update action](../assets/update-release-notes.png)
+
 ## Info
 
 Use **Info** to inspect the parent host rather than one project container.

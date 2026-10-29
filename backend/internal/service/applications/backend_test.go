@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/futrx-com/remote.futrx.com/pkg/applications"
 )
@@ -31,6 +32,24 @@ func (h *recordingHost) Ensure(_ context.Context, instance applications.Instance
 		return applications.Descriptor{}, h.ensureErr
 	}
 	return applications.Descriptor{Name: instance.ApplicationID, APIVersion: applications.APIVersion}, nil
+}
+
+type coldStartupHost struct{ *recordingHost }
+
+func (h *coldStartupHost) Ensure(ctx context.Context, instance applications.Instance) (applications.Descriptor, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok || time.Until(deadline) < 10*time.Minute {
+		return applications.Descriptor{}, context.DeadlineExceeded
+	}
+	return h.recordingHost.Ensure(ctx, instance)
+}
+
+func TestColdBackendInstallAllowsCompilerBudget(t *testing.T) {
+	app := backendImage(nil)
+	service, _ := backendService(app, nil, &coldStartupHost{&recordingHost{}})
+	if _, err := service.Install(context.Background(), InstallRequest{ApplicationID: app.ID, Scope: ScopeGlobal}); err != nil {
+		t.Fatalf("backend startup cut short the ten-minute compiler budget: %v", err)
+	}
 }
 
 func (h *recordingHost) Call(
@@ -490,5 +509,22 @@ func TestInstallingOverAWorkingInstanceIsStillRefused(t *testing.T) {
 	}
 	if len(host.removed) != 0 {
 		t.Errorf("a running instance was torn down: %v", host.removed)
+	}
+}
+
+func TestRestoreBackendStartsRunningInstanceAndRefusesStoppedInstance(t *testing.T) {
+	host := &recordingHost{}
+	instance := runningInstance()
+	service, _ := withInstance(backendImage(nil), instance, host)
+	if err := service.RestoreBackend(context.Background(), instance.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(host.ensured) != 1 {
+		t.Fatalf("restore ensure calls=%d", len(host.ensured))
+	}
+	instance.Status = StatusStopped
+	stopped, _ := withInstance(backendImage(nil), instance, &recordingHost{})
+	if err := stopped.RestoreBackend(context.Background(), instance.ID); !errors.Is(err, ErrNotRunning) {
+		t.Fatalf("stopped restore=%v", err)
 	}
 }

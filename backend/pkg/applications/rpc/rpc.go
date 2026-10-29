@@ -33,7 +33,7 @@ const BackendName = "backend"
 // version a backend was compiled against is reported separately in its
 // Descriptor.
 var Handshake = goplugin.HandshakeConfig{
-	ProtocolVersion:  3,
+	ProtocolVersion:  4,
 	MagicCookieKey:   "REMOTE_FUTRX_APPLICATION_BACKEND",
 	MagicCookieValue: "b0f2b4b6-remote-futrx-application-backend",
 }
@@ -55,14 +55,19 @@ func Serve(backend applications.Backend) {
 // needs to emit them.
 func ServeWithRuntime(build func(applications.Runtime) applications.Backend) {
 	events := &runtimeEvents{}
-	serve(build(applications.Runtime{Events: events}), events)
+	turns := &runtimeAgentTurns{}
+	serveRuntime(build(applications.Runtime{Events: events, AgentTurns: turns}), events, turns)
 }
 
 func serve(backend applications.Backend, events *runtimeEvents) {
+	serveRuntime(backend, events, nil)
+}
+
+func serveRuntime(backend applications.Backend, events *runtimeEvents, turns *runtimeAgentTurns) {
 	goplugin.Serve(&goplugin.ServeConfig{
 		HandshakeConfig: Handshake,
 		Plugins: goplugin.PluginSet{
-			BackendName: &Adapter{Impl: backend, events: events},
+			BackendName: &Adapter{Impl: backend, events: events, turns: turns},
 		},
 	})
 }
@@ -106,12 +111,13 @@ func (events *runtimeEvents) bind(emitter applications.EventEmitter) error {
 type Adapter struct {
 	Impl   applications.Backend
 	events *runtimeEvents
+	turns  *runtimeAgentTurns
 }
 
 var _ goplugin.Plugin = (*Adapter)(nil)
 
 func (p *Adapter) Server(broker *goplugin.MuxBroker) (any, error) {
-	return &server{impl: p.Impl, events: p.events, broker: broker}, nil
+	return &server{impl: p.Impl, events: p.events, turns: p.turns, broker: broker}, nil
 }
 
 func (p *Adapter) Client(broker *goplugin.MuxBroker, client *rpc.Client) (any, error) {

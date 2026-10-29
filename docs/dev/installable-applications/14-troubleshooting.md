@@ -1,5 +1,40 @@
 # 14 — Troubleshooting
 
+## Installation takes a long time or times out
+
+Cold installations download dependencies and compile application programs. A
+slow machine can legitimately take several minutes. The install dialog shows
+the actual provisioning phase and a live, bounded installer log, like the Remote
+update view. Closing it leaves the server-owned attempt running; **View progress**
+reopens it. A failed attempt retains its output and offers **Retry install**.
+Retry is explicit: connection failures never start a second attempt automatically.
+For global installs into project containers, the run also shows project counts;
+the first failure stops the run and retry skips copies already installed.
+
+The latest run per application/scope is held in server memory. Logs redact
+declared secret inputs, including generated passwords, before exposing output.
+Closing or refreshing the browser retains progress; restarting the server discards
+live logs. The next status read marks interrupted application records as failed
+so they can be retried.
+If the browser cannot refresh progress, it shows a connection message: the server
+may still be installing, so reconnect to check its state before trying again.
+
+Container Go bootstrap downloads the pinned toolchain ZIP directly from the
+official `proxy.golang.org`, verifies its pinned SHA-256, then restores executable
+permissions before installing it. Go and Code Server downloads have a 20-second
+connection timeout and stop after 30 seconds below 1 KiB/s; a failed transfer
+stops immediately and asks the user to retry. Application-declared host tool
+downloads stop after 30 seconds without headers or body data. A slow transfer
+that continues making progress can use its outer provisioning budget. An
+existing compiler is kept until its replacement is verified. Concurrent
+application installs in one container serialize compiler provisioning.
+
+When updating `ApplicationContainerGoVersion`, update `containerGoPins` for
+amd64 and arm64 too. Obtain module ZIPs with
+`GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org go mod download`
+for `golang.org/toolchain@v0.0.1-go<VERSION>.linux-<ARCH>`, then calculate their
+raw ZIP SHA-256 hashes after the Go checksum-database verification succeeds.
+
 ## The server will not start after I added an application
 
 `NewRegistry()` validates the whole catalog at startup and fails loudly. The
@@ -226,8 +261,28 @@ is pruned on a successful build.
 ## My backend lost its data
 
 `DataDir` survives stop and start and is deleted on **uninstall**. In-memory
-state is not durable at all: the host restarts a backend lazily after a crash or
-a server restart, so anything that must survive belongs in `DataDir`.
+state is not durable: a backend can restart after a crash or server restart,
+either lazily or through background recovery. Anything that must survive
+belongs in `DataDir`; agent receipts do not store application workflow state.
+
+## Agent runtime and tools
+
+| Symptom | Check or fix |
+|---|---|
+| `ErrAgentUnavailable` | Declare `backend.agentTurns: true`, use `rpc.ServeWithRuntime`, and retain its `Runtime.AgentTurns` handle; an unbound runtime cannot execute work |
+| `ErrAgentAccess` on start/read | Check that the installation is running and opted in, the captured owner is still registered and authorized, and a project installation targets a chat in its own project |
+| `ErrAgentBusy` | Retry later with the same request ID and input; the chat, maintenance, a lifecycle transition, or the shared two-turn limit may block admission. `Forget` also refuses active work |
+| `ErrAgentRequestChanged` | Reusing an accepted request ID requires identical owner, chat, prompt, and JSON context bytes; use a new ID for a different operation |
+| `ErrAgentTurnNotFound` | Read with the original request ID from the same installation; check whether it was forgotten or the instance was uninstalled |
+| An interrupted receipt after a server restart | Retry `Start` with the same input if the workflow permits it; host-crash delivery is at least once, so external side effects must tolerate retries |
+| `401` from `/agent-api/applications/…` | Use the current turn's bearer grant from `REMOTE_APPLICATION_GRANT`; grants expire, are revoked after the run, and must not be persisted |
+| `403` from that route | Check `backend.agentTools`, running installation, owner access, and `access: admin`; application-started turns can call only their own installation |
+| Background work does not recover until another call | Opt into `backend.background`; recovery runs at startup and every 15 seconds for running installations, while stopped ones remain stopped |
+| A browser call has no `Request.Agent` | Expected: Remote clears agent context on browser calls. Only grant-authenticated agent calls receive it |
+
+These flags are independent. Enabling agent tools does not bind the start/read
+SDK, and enabling background recovery alone does not grant either agent
+capability. See [25 — Application agent runtime](25-application-agent-runtime.md).
 
 ## The self-test reports a failure
 

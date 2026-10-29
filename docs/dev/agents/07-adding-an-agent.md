@@ -151,7 +151,7 @@ func NewFactory() (module.Factory, error) {
             Sessions:       module.SessionSupport{Resume: true},
             Skills:         module.SkillsInstructions,
             BrowserTools:   true,
-            ScheduledTools: true,
+            ApplicationTools: true,
         },
     }, &profile, func(
         deps module.Dependencies,

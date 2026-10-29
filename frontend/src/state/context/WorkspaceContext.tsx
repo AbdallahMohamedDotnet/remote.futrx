@@ -28,7 +28,7 @@ interface WorkspaceContextValue {
   openSidebar: () => void;
   closeSidebar: () => void;
   showChat: () => void;
-  showSettings: () => void;
+  showSettings: (tab?: SettingsTab) => void;
   selectSettingsTab: (tab: SettingsTab) => void;
   showProjectContainers: (projectId: string | null) => void;
   openCreateProject: () => void;

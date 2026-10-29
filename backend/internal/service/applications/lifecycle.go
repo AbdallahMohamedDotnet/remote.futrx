@@ -78,6 +78,14 @@ func (s *Service) uninstallLocked(ctx context.Context, id string) (Instance, err
 	if err := s.store.Delete(ctx, id); err != nil {
 		return Instance{}, err
 	}
+	if r := s.agentRuntime; r != nil && r.Turns != nil {
+		r.mu.Lock()
+		err := r.Turns.Remove(ctx, id)
+		r.mu.Unlock()
+		if err != nil {
+			return Instance{}, err
+		}
+	}
 	return inst, nil
 }
 

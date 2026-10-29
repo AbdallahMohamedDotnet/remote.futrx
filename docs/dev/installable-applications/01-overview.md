@@ -88,13 +88,17 @@ optional and independent:
 | Infrastructure | `infra/install.sh`, an `install` path inside `infra/`, `backend/container/`, or a manifest `service` | Provisions software in a container |
 | Network exposure | infrastructure plus `port.internal` | Allocates a host port and adds an LXD proxy device |
 | Backend | `backend/main.go`; optional imported child packages such as `backend/api/` and `backend/lifecycle/` | Generates one host module, builds its root, and runs one backend process |
+| Background backend | `backend.background: true` | Restores running backend processes after server restarts and child crashes |
+| Agent execution | `backend.agentTurns: true` | Binds installation-scoped `Start`, `Read`, and `Forget` controls |
+| Agent tools | `backend.agentTools: true` | Lets eligible agent turns call the application's backend with trusted caller and turn context |
 | Backend event lifecycle | manifest `publishers` / `subscriptions` plus `backend/main.go`; business event behavior conventionally lives in `backend/lifecycle/` | Builds a core-owned runtime from the manifest, validates emissions, and routes matching events |
 | UI | `ui/` | Loads the browser extension |
 | Skills | `skills/*/SKILL.md` | Publishes skills to the target project |
 
 An application may provide one capability or combine all of them. Adding or
-removing a capability means adding or removing its folder; there is no manifest
-discriminator to keep synchronized with the package layout.
+removing a capability means changing its folder or manifest declaration. The
+three agent/background flags are independent and default to `false`; a backend
+can expose tools without starting turns, or start turns without exposing tools.
 
 | Application | Infrastructure | Backend | UI | Skills | Result |
 |---|---|---|---|---|---|
@@ -102,11 +106,36 @@ discriminator to keep synchronized with the package layout.
 | `mysql` | yes | no | yes | no | provisions a database and adds a Connect action |
 | `ui-playground` | no | no | yes | no | extends only the browser UI |
 | `backend-playground` | no | yes | yes | no | runs a host backend and exposes its actions in the UI |
+| `scheduled-tasks` | yes | yes | yes | yes | owns scheduling and uses the shared agent runtime to execute work |
 
 The layout supplies these capabilities directly — see
 [03 — Application capabilities](03-application-capabilities.md). `backend/` is covered in full by
 [15 — Application backends](15-application-backends.md), including its optional
 [event contract](18-application-events.md).
+
+## Applications and agents
+
+An application backend can call `Runtime.AgentTurns.Start` to submit a prompt
+to an existing chat, `Read` to poll its status, result, and transcript, and
+`Forget` after saving the result in application state. Each request belongs to
+one installation and uses a persistent request ID so retries can reconnect to
+accepted work. The turn uses the chat's selected provider, model, and settings.
+Remote checks the captured owner's current authority and the installation's
+project scope before executing or returning results.
+
+In the other direction, an agent can call the application's own backend routes
+through `/agent-api/applications/<application-id>/<path>`. Remote supplies a
+temporary bearer grant and stamps the caller and `Request.Agent`. The
+application decides which actions that context permits. An application-started
+turn can use only its own installation's tools.
+
+This supports schedulers, build monitors, and other workflows through one
+contract. The application owns when to run, its job state, retries, and what
+counts as completion. The applications service owns execution authority,
+receipts, tool grants, and background process recovery; the existing prompt
+service and provider integrations execute the turn. See
+[25 — Application agent runtime](25-application-agent-runtime.md) for the API,
+limits, and restart behavior.
 
 ## The moving parts
 
@@ -224,6 +253,8 @@ contract, so it depends on nothing but the standard library.
 | `app/extensions/extensionBackend.ts` | resolves which running backend a call reaches, and calls it |
 | `config/extensions.ts` | the closed set of slot names and their icon sizing |
 | `app/extensions/extensionPopup.ts` | the modal an extension can open |
+| `ui/chat/extensions/ExtensionDrawer.tsx` | the docked pane an extension can register, with its header and resize handle |
+| `state/hooks/chat/extensionDrawerState.ts` | a drawer's pane name, stored width and width limits |
 | `ui/primitives/ExtensionSlot.tsx` | renders a slot's contributions into plain DOM nodes |
 
 ## What installing does
@@ -255,14 +286,14 @@ sequenceDiagram
     alt application has infrastructure
         alt project scope
             Svc->>Proj: container name, and ready it
-        else global scope
+        else global scope, dedicated container
             Svc->>Svc: name a dedicated container
         end
         opt port.internal is declared
             Svc->>Svc: allocate a free host port, from defaultExternal up
         end
         Svc->>Store: persist as installing — a crash here stays recoverable
-        Inst->>LXD: launch the dedicated container (global scope only)
+        Inst->>LXD: launch the dedicated container (global instance only)
         Inst->>LXD: build/provision, materialize the manifest service, then run its healthcheck
         opt port.internal is declared
             Inst->>LXD: add the proxy device that maps the host port

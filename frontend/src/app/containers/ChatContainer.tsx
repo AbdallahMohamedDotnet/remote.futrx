@@ -2,25 +2,26 @@ import type { ChatMeta } from "../../models/chat";
 import type { ProjectMeta } from "../../models/project";
 import { useEffect, useRef } from "preact/hooks";
 import { BrowserDrawer } from "../../ui/chat/browser/BrowserDrawer";
+import { ExtensionDrawer } from "../../ui/chat/extensions/ExtensionDrawer";
 import { ChatThread } from "../../ui/chat/ChatThread";
 import { MediaViewerOverlay } from "../../ui/chat/files/MediaViewerOverlay";
 import type { ChatComposerProps } from "../../ui/chat/composer/ChatComposer";
 import { WorkspaceActions } from "../../ui/chat/header/WorkspaceActions";
 import { HistoryDrawer } from "../../ui/chat/history/HistoryDrawer";
 import { FileManagerDrawer } from "../../ui/chat/files/FileManagerDrawer";
-import { ScheduleDrawer } from "../../ui/chat/schedules/ScheduleDrawer";
 import { chatAttachmentService } from "../../services/chat/chatAttachmentService.ts";
 import { useChat } from "../../state/hooks/chat/useChat";
 import { useChatBrowserController } from "../../state/hooks/chat/useChatBrowserController";
 import { useChatComposerController } from "../../state/hooks/chat/useChatComposerController";
 import { useChatDrawerController } from "../../state/hooks/chat/useChatDrawerController";
+import { extensionDrawerState } from "../../state/hooks/chat/extensionDrawerState";
+import { useExtensionDrawers } from "../../state/hooks/extensions/useExtensionDrawers";
 import { useChatFind } from "../../state/hooks/chat/useChatFind";
 import { useChatPreferences } from "../../state/hooks/chat/useChatPreferences";
 import { useAgentCapabilities } from "../../state/hooks/chat/useAgentCapabilities";
 import { streamingPresentationFor } from "../../services/chat/streamingPresentation";
 import { useChatReadMarker } from "../../state/hooks/chat/useChatReadMarker";
 import { useDismissShortcut } from "../../state/hooks/shared/useDismissShortcut.ts";
-import { useTerminalOverlayController } from "../../ui/chat/terminal/useTerminalOverlayController";
 import { useWorkspaceGitRepos } from "../../state/hooks/chat/useWorkspaceGitRepos";
 
 export function ChatContainer({
@@ -84,7 +85,16 @@ export function ChatContainer({
     showBrowser: browser.openBrowserDrawer,
     hideBrowser: browser.closeBrowserDrawer,
   });
-  const terminal = useTerminalOverlayController(drawers.terminalOpen);
+  const extensionDrawerTarget = {
+    chatId: chat.id,
+    projectId: displayMeta.projectId,
+    cwd: displayMeta.cwd,
+  };
+  const extensionDrawers = useExtensionDrawers(extensionDrawerTarget);
+  // A drawer whose application was uninstalled while it was open is closed.
+  const openExtensionDrawer = extensionDrawers.find(
+    (drawer) => drawer.id === drawers.extensionDrawerId,
+  );
 
   // `eventCount` stands in for "the thread changed": find re-reads the rendered
   // messages on it, so a match list cannot go stale against a streaming reply.
@@ -104,27 +114,29 @@ export function ChatContainer({
     cwd: displayMeta.cwd || "~",
     chatId: chat.id,
     projectId: displayMeta.projectId,
-    onToggleTerminal: drawers.terminalOpen ? drawers.closeTerminal : drawers.openTerminal,
+    extensionDrawers: extensionDrawers.map((drawer) => ({
+      id: drawer.id,
+      label: drawer.label,
+      icon: drawer.icon,
+      open: drawer === openExtensionDrawer,
+      onToggle: drawer === openExtensionDrawer
+        ? drawers.closeExtensionDrawer
+        : () => drawers.openExtensionDrawer(drawer.id),
+    })),
     onToggleBrowser: browser.browserOpen ? browser.closeBrowserDrawer : drawers.openBrowser,
     onToggleHistory: drawers.historyOpen ? drawers.closeHistory : drawers.openHistory,
     onToggleFiles: drawers.filesOpen ? drawers.closeFiles : drawers.openFiles,
-    onToggleSchedules: drawers.schedulesOpen ? drawers.closeSchedules : drawers.openSchedules,
-    terminalOpen: drawers.terminalOpen,
     browserOpen: browser.browserOpen,
     historyOpen: drawers.historyOpen,
     filesOpen: drawers.filesOpen,
-    schedulesOpen: drawers.schedulesOpen,
     showHistory: hasRepos,
-    showSchedules: !!displayMeta.projectId,
   };
   const activePane = drawers.historyOpen
     ? "history"
     : drawers.filesOpen
       ? "files"
-      : drawers.schedulesOpen
-        ? "schedules"
-        : drawers.terminalOpen
-          ? "terminal"
+        : openExtensionDrawer
+          ? extensionDrawerState.paneName(openExtensionDrawer.id)
           : browser.browserOpen
             ? "browser"
             : null;
@@ -240,11 +252,6 @@ export function ChatContainer({
           open={drawers.filesOpen}
           onClose={drawers.closeFiles}
         />
-        <ScheduleDrawer
-          chatId={chat.id}
-          open={drawers.schedulesOpen}
-          onClose={drawers.closeSchedules}
-        />
         <BrowserDrawer
           open={browser.browserOpen}
           projectId={browser.browserProject?.id || ""}
@@ -258,36 +265,15 @@ export function ChatContainer({
           onCaptureElement={browser.insertBrowserElementContext}
           onClose={browser.closeBrowserDrawer}
         />
-        {terminal.TerminalOverlay ? (
-          <terminal.TerminalOverlay
-            chat={displayMeta}
-            open={drawers.terminalOpen}
-            onClose={drawers.closeTerminal}
+        {extensionDrawers.map((drawer) => (
+          <ExtensionDrawer
+            key={drawer.id}
+            drawer={drawer}
+            target={extensionDrawerTarget}
+            open={drawer === openExtensionDrawer}
+            onClose={drawers.closeExtensionDrawer}
           />
-        ) : (
-          drawers.terminalOpen && (
-            <aside
-              id="workspace-terminal-pane"
-              class="workspace-pane workspace-terminal-pane relative z-20 h-full flex-none overflow-hidden bg-surface border-l border-line"
-              aria-label="Terminal"
-            >
-              <div class="flex h-full flex-col items-start justify-center gap-2 p-4">
-                <div class="text-[13px] font-medium text-ink-100">
-                  {terminal.overlayError ?? "Loading terminal…"}
-                </div>
-                {terminal.overlayError && (
-                  <button
-                    type="button"
-                    onClick={terminal.retryTerminalOverlay}
-                    class="h-8 rounded-control border border-line-strong px-3 text-[11px] font-medium text-ink-200 hover:bg-tint-strong"
-                  >
-                    Retry
-                  </button>
-                )}
-              </div>
-            </aside>
-          )
-        )}
+        ))}
       </div>
       <MediaViewerOverlay />
     </div>

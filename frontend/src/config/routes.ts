@@ -37,8 +37,6 @@ export const API_ROUTES = {
       `/api/chats/${encodeURIComponent(id)}/files/download-folder${path ? `?path=${encodeURIComponent(path)}` : ""}`,
     mediaOpen: (id: string, path: string) =>
       `/api/chats/${encodeURIComponent(id)}/media-open?path=${encodeURIComponent(path)}`,
-    ideOpen: (id: string, path: string) =>
-      `/api/chats/${encodeURIComponent(id)}/ide-open?path=${encodeURIComponent(path)}`,
     transcript: (id: string, query: string) =>
       `/api/chats/${encodeURIComponent(id)}/transcript${query ? `?${query}` : ""}`,
     transcriptContent: (id: string, query: string) =>
@@ -52,12 +50,6 @@ export const API_ROUTES = {
       `/api/chats/${encodeURIComponent(id)}/history/diff?${query}`,
     historyCheckout: (id: string) =>
       `/api/chats/${encodeURIComponent(id)}/history/checkout`,
-    schedules: (id: string) =>
-      `/api/chats/${encodeURIComponent(id)}/schedules`,
-  },
-  schedules: {
-    item: (id: string) => `/api/schedules/${encodeURIComponent(id)}`,
-    run: (id: string) => `/api/schedules/${encodeURIComponent(id)}/run`,
   },
   agentAuth: {
     catalog: "/api/agent-auth",
@@ -112,6 +104,8 @@ export const API_ROUTES = {
       `/api/projects/${encodeURIComponent(id)}/access/${encodeURIComponent(email)}`,
     applications: (id: string) =>
       `/api/projects/${encodeURIComponent(id)}/applications`,
+    applicationInstallations: (id: string) =>
+      `/api/projects/${encodeURIComponent(id)}/applications/installations`,
     application: (id: string, appId: string) =>
       `/api/projects/${encodeURIComponent(id)}/applications/${encodeURIComponent(appId)}`,
     applicationAction: (id: string, appId: string, action: string) =>
@@ -134,6 +128,7 @@ export const API_ROUTES = {
         uninstallInstalled ? "?uninstall=true" : ""
       }`,
     collection: "/api/applications",
+    installations: "/api/applications/installations",
     item: (appId: string) => `/api/applications/${encodeURIComponent(appId)}`,
     action: (appId: string, action: string) =>
       `/api/applications/${encodeURIComponent(appId)}/${action}`,
@@ -172,6 +167,7 @@ export const API_ROUTES = {
   serverInfo: "/api/server/info",
   selfUpdate: {
     status: "/api/admin/update/status",
+    releaseNotes: (tag: string) => `/api/admin/update/release-notes?tag=${encodeURIComponent(tag)}`,
     check: "/api/admin/update/check",
     apply: "/api/admin/update/apply",
   },
@@ -198,8 +194,6 @@ export const WEB_SOCKET_ROUTES = {
       ? applicationPath(`${route}?since=${sinceSeq}`)
       : route;
   },
-  terminal: (chatId: string): ApplicationPath =>
-    applicationPath(`/ws/terminal?chat=${encodeURIComponent(chatId)}`),
 } as const;
 
 // The chat media-open URL is the only chat route an embedded image or link

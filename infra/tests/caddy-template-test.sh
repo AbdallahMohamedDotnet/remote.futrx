@@ -9,9 +9,9 @@ fail() {
     exit 1
 }
 
-code_block="$({
-    awk '
-        /^code[.]\$\{HOSTNAME\} \{/ { in_block = 1 }
+site_block() {
+    awk -v site="$1" '
+        $0 == site " {" { in_block = 1 }
         in_block {
             print
             opens += gsub(/\{/, "{")
@@ -19,12 +19,17 @@ code_block="$({
             if (opens > 0 && opens == closes) exit
         }
     ' "$TEMPLATE"
-})"
+}
 
-[ -n "$code_block" ] || fail 'code hostname block is missing'
-printf '%s\n' "$code_block" | grep -Fq 'tls {' || \
-    fail 'code hostname is not assigned an explicit TLS policy'
-printf '%s\n' "$code_block" | grep -Fq 'on_demand' || \
-    fail 'code hostname does not share the wildcard on-demand TLS policy'
+[ -z "$(site_block 'code.${HOSTNAME}')" ] || fail 'removed shared code hostname block is still present'
+
+for site in '*.${HOSTNAME}' '*.dev.${HOSTNAME}'; do
+    block="$(site_block "$site")"
+    [ -n "$block" ] || fail "$site block is missing"
+    printf '%s\n' "$block" | grep -Fq 'tls {' || \
+        fail "$site is not assigned an explicit TLS policy"
+    printf '%s\n' "$block" | grep -Fq 'on_demand' || \
+        fail "$site does not use the on-demand TLS policy"
+done
 
 echo 'Caddy template TLS policy tests passed'

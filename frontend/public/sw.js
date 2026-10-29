@@ -1,7 +1,7 @@
 // Service worker for remote.futrx.
 //
 // Its main job is Web Push: showing a notification when an agent asks a
-// question, finishes a turn, fails, or a scheduled task runs. There is
+// question, finishes a turn, fails, or an application-started turn finishes. There is
 // deliberately no app-shell caching — this app is a live control plane for
 // running agents, and a stale cached shell would be worse than an honest
 // network error. The one exception is a static offline page, shown only when

@@ -454,7 +454,6 @@ func buildAgentBrowserURL(r *http.Request, slug string, port int) string {
 	if splitHost, _, err := net.SplitHostPort(host); err == nil {
 		host = splitHost
 	}
-	host = strings.TrimPrefix(host, "code.")
 	scheme := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
 	if scheme == "" {
 		if r.TLS != nil {
@@ -468,8 +467,8 @@ func buildAgentBrowserURL(r *http.Request, slug string, port int) string {
 	return fmt.Sprintf("%s://%s--%d.dev.%s/vnc.html?autoconnect=1&resize=scale&reconnect=1", scheme, slug, port, host)
 }
 
-// HandleTLSAsk lets Caddy issue on-demand certificates only for preview and application
-// subdomains belonging to projects that currently exist.
+// HandleTLSAsk admits certificates for existing project previews and running
+// project web installations.
 func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -478,13 +477,6 @@ func (h *ProjectHandler) HandleTLSAsk(w http.ResponseWriter, r *http.Request) {
 	domain := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("domain")))
 	if domain == "" {
 		http.Error(w, "missing domain", http.StatusBadRequest)
-		return
-	}
-	// The shared code-server origin overlaps the application wildcard in the
-	// Caddy config, so it belongs to the same on-demand TLS policy. It is a
-	// single configured platform hostname, not a user-controlled subdomain.
-	if domain == "code."+h.publicHostname {
-		w.WriteHeader(http.StatusOK)
 		return
 	}
 	if httptransport.IsApplicationHost(domain, h.publicHostname) {

@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	ErrUpdateInProgress = errors.New("an update is already running")
-	ErrNoReleaseTag     = errors.New("no release tags found on origin")
-	ErrUnknownTag       = errors.New("tag does not exist on origin")
+	ErrUpdateInProgress  = errors.New("an update is already running")
+	ErrNoReleaseTag      = errors.New("no release tags found on origin")
+	ErrUnknownTag        = errors.New("tag does not exist on origin")
+	ErrInvalidReleaseTag = errors.New("invalid release tag")
 )
 
 const lifecycleReconcileInterval = time.Second
@@ -62,6 +63,16 @@ func (s *Service) Status(context.Context) Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.statusLocked()
+}
+
+// ReleaseNotes reads the tagged commit's body, which is also the source used
+// by the release workflow. Notes failures never change update availability.
+func (s *Service) ReleaseNotes(ctx context.Context, tag string) (ReleaseNotes, error) {
+	if _, ok := parseReleaseTag(tag); !ok {
+		return ReleaseNotes{}, ErrInvalidReleaseTag
+	}
+	body, err := s.host.ReadReleaseNotes(ctx, s.installDir, tag)
+	return ReleaseNotes{Tag: tag, Body: body}, err
 }
 
 // Check queries origin for release tags and records whether one is newer

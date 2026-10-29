@@ -134,11 +134,6 @@ func (p *Preparer) prepareContainer(
 			return fmt.Errorf("start browser core: %w", err)
 		}
 	}
-	if request.EnableScheduleTools {
-		if err := p.containers.ScheduleTools.Ensure(ctx, containerName); err != nil {
-			return fmt.Errorf("provision scheduled-task tools: %w", err)
-		}
-	}
 	if err := p.containers.Lifecycle.EnsureBootAutostart(ctx, containerName); err != nil {
 		return fmt.Errorf("set container boot.autostart: %w", err)
 	}

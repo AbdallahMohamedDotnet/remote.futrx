@@ -25,6 +25,11 @@ func notificationText(
 		return projectName + " - Agent finished", completionBody(event, "Open the chat to see the result.")
 	case servicepush.KindError:
 		return projectName + " - Agent encountered an error", errorBody(event.Message)
+	case servicepush.KindApplication:
+		if event.Type == "error" {
+			return projectName + " - Agent encountered an error", errorBody(event.Message)
+		}
+		return projectName + " - Agent finished", completionBody(event, "An application-started turn finished.")
 	case servicepush.KindScheduled:
 		if event.Type == "error" {
 			return projectName + " - Agent encountered an error", errorBody(event.Message)

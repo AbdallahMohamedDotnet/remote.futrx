@@ -261,8 +261,8 @@ type Event struct {
 
 An event handler has no browser caller and no `Request.Caller`; authorization
 must be based on the declared publisher, trusted source metadata, scope, and
-validated payload. The manifest backend `access` setting governs browser calls,
-not machine-to-machine event delivery.
+validated payload. The manifest backend `access` setting governs browser and
+agent tool calls, not machine-to-machine event delivery.
 
 Remote does not know the meaning of application-defined payload fields and
 does not redact them. Never publish a password, token, or other secret unless
@@ -271,9 +271,9 @@ every scope-eligible subscriber is intentionally allowed to receive it.
 synchronize shared state. An error or panic affects only that delivery and is
 logged by Remote. Delivery uses the smaller of the manifest backend
 `timeoutMs` and 30 seconds. A timeout also terminates that unresponsive backend
-process so its uncancellable RPC cannot accumulate; a later request or event
-restores the process lazily. None of these outcomes fails publication or
-prevents later recipients from being attempted.
+process so its uncancellable RPC cannot accumulate; a later request/event or
+eligible background recovery restores the process. None of these outcomes
+fails publication or prevents later recipients from being attempted.
 
 ## Scope routing
 
@@ -293,8 +293,11 @@ project instance that subscribed.
 Only installed copies whose persisted state is `running` are considered.
 Successful install and start make their declared subscriptions eligible;
 successful stop and uninstall remove that eligibility. After a server restart,
-an eligible backend is restored lazily and completes `Describe`, `Init`, and
-any event-capability initialization before delivery.
+an eligible backend completes `Describe`, `Init`, and any event-capability
+initialization before delivery, whether restored by a later call/event or by
+the independent `backend.background` opt-in. Background recovery starts
+running installations at server startup and checks them every 15 seconds;
+stopped copies stay stopped. See [Application agent runtime](25-application-agent-runtime.md).
 
 ## Remote's `remote.applications` publisher
 
@@ -409,6 +412,6 @@ different lifecycle and failure semantics.
 ## Related
 
 - [02 — application.json reference](02-application-json.md#publishers) — declaration fields and validation.
-- [15 — Application backends](15-application-backends.md#optional-event-capabilities) — composing the lifecycle owner into the required API backend.
+- [15 — Application backends](15-application-backends.md#application-events) — composing the lifecycle owner into the required API backend.
 - [13 — Security model](13-security-model.md#backend-event-security) — trust boundaries and review checklist.
 - [Lifecycle publishers and subscribers](../lifecycle-events.md) — the typed core publishers and bridge.

@@ -15,7 +15,7 @@ func TestContainerBuildScriptBuildsCommandsAndUsesMarker(t *testing.T) {
 		"./cmd/worker",
 		"/usr/local/bin/agent",
 		"/usr/local/bin/worker",
-		"go" + configconstants.ApplicationContainerGoVersion,
+		"GO_VERSION=" + shellQuote(configconstants.ApplicationContainerGoVersion),
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("generated script does not contain %q", want)

@@ -29,7 +29,7 @@ func NewFactory() (agentmodule.Factory, error) {
 			Sessions:              agentmodule.SessionSupport{Resume: true, Fork: true},
 			Skills:                agentmodule.SkillsSlashCommand,
 			BrowserTools:          true,
-			ScheduledTools:        true,
+			ApplicationTools:      true,
 			StreamingPresentation: agentmodule.StreamingBlocks,
 		},
 	}, &profile, func(deps agentmodule.Dependencies, validatedProfile *provisioning.Profile) (agentmodule.Components, error) {

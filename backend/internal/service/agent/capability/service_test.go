@@ -207,7 +207,7 @@ func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
 		Features: agentmodule.Features{
 			Sessions:          agentmodule.SessionSupport{Resume: true},
 			Skills:            agentmodule.SkillsInstructions,
-			ScheduledTools:    true,
+			ApplicationTools:  true,
 			ExecutionPolicies: true,
 		},
 	}}
@@ -229,7 +229,7 @@ func TestListUsesModuleIdentityAndPublishesDefensiveMetadata(t *testing.T) {
 	if got.Provider != "future-agent" || got.Label != "Future Agent" || !got.Default ||
 		len(got.ExecutionScopes) != 1 || got.ExecutionScopes[0] != "host" ||
 		got.Authentication.Mode != "external" || got.Authentication.Instructions != "Run future-agent login." ||
-		!got.Features.Sessions.Resume || got.Features.Skills != "instructions" || !got.Features.ScheduledTools ||
+		!got.Features.Sessions.Resume || got.Features.Skills != "instructions" || !got.Features.ApplicationTools ||
 		!got.Features.ExecutionPolicies || got.Features.StreamingPresentation != "tokens" {
 		t.Fatalf("decorated capabilities = %#v", got)
 	}

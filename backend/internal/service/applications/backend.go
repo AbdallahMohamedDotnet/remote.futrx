@@ -57,6 +57,10 @@ func (s *Service) CallBackend(
 	request applications.Request,
 	caller applications.Caller,
 ) (applications.Response, error) {
+	request.Agent = nil
+	return s.callBackend(ctx, id, request, caller)
+}
+func (s *Service) callBackend(ctx context.Context, id string, request applications.Request, caller applications.Caller) (applications.Response, error) {
 	unlock := s.instanceLocks.rlock(id)
 	defer unlock()
 
@@ -122,6 +126,7 @@ func (s *Service) startBackend(ctx context.Context, application Application, ins
 	if application.Backend == nil || s.backends == nil {
 		return nil
 	}
+	ReportInstallProgress(ctx, "backend", "Preparing the application backend")
 	ctx, cancel := context.WithTimeout(ctx, backendStartTimeout)
 	defer cancel()
 	if _, err := s.backends.Ensure(ctx, backendInstanceDetails(application, instance)); err != nil {
@@ -147,10 +152,8 @@ func (s *Service) removeBackend(ctx context.Context, application Application, in
 	return s.backends.Remove(ctx, instance.ID)
 }
 
-// backendStartTimeout bounds the first launch, which may include compiling the
-// application's source. It is generous because a cold build resolves modules; every
-// later start hits the binary cache and takes milliseconds.
-const backendStartTimeout = 5 * time.Minute
+// backendStartTimeout allows the ten-minute cold build and its startup handshake.
+const backendStartTimeout = 11 * time.Minute
 
 func backendInstanceDetails(application Application, instance Instance) applications.Instance {
 	return applications.Instance{
@@ -158,6 +161,7 @@ func backendInstanceDetails(application Application, instance Instance) applicat
 		ApplicationID:      instance.ApplicationID,
 		ApplicationName:    application.Name,
 		ApplicationVersion: application.Version,
+		AgentTurns:         application.Backend != nil && application.Backend.AgentTurns,
 		Publishers:         application.Publishers,
 		Subscriptions:      application.Subscriptions,
 		Service:            application.ServiceName(),
@@ -177,4 +181,20 @@ func (s *Service) moveBackend(ctx context.Context, application Application, inst
 		return s.startBackend(ctx, application, instance)
 	}
 	return s.stopBackend(ctx, application, instance)
+}
+
+// RestoreBackend restores an already-running installation after a host restart
+// or child crash. It uses the normal startup deadline, which includes a cold
+// generated-module build, rather than the shorter per-request API deadline.
+func (s *Service) RestoreBackend(ctx context.Context, id string) error {
+	unlock := s.instanceLocks.rlock(id)
+	defer unlock()
+	instance, application, err := s.load(ctx, id)
+	if err != nil {
+		return err
+	}
+	if instance.Status != StatusRunning {
+		return ErrNotRunning
+	}
+	return s.startBackend(ctx, application, instance)
 }

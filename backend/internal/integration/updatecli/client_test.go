@@ -45,6 +45,75 @@ func TestListRemoteTagsForCommitResolvesLightweightAndAnnotatedTags(t *testing.T
 	}
 }
 
+func TestReadReleaseNotesFetchesExactTagWithoutChangingCheckout(t *testing.T) {
+	originDir := filepath.Join(t.TempDir(), "origin.git")
+	seedDir := filepath.Join(t.TempDir(), "seed")
+	installDir := filepath.Join(t.TempDir(), "install")
+	runGit(t, "", "init", "--bare", "--quiet", originDir)
+	runGit(t, originDir, "symbolic-ref", "HEAD", "refs/heads/main")
+	runGit(t, "", "init", "--quiet", seedDir)
+	runGit(t, seedDir, "config", "user.name", "Update Test")
+	runGit(t, seedDir, "config", "user.email", "update-test@example.invalid")
+	runGit(t, seedDir, "commit", "--allow-empty", "--quiet", "-m", "0.25.0")
+	runGit(t, seedDir, "tag", "0.25.0")
+	runGit(t, seedDir, "remote", "add", "origin", originDir)
+	runGit(t, seedDir, "push", "--quiet", "origin", "HEAD:refs/heads/main", "--tags")
+	runGit(t, "", "clone", "--quiet", originDir, installDir)
+	runGit(t, installDir, "fetch", "--quiet", "origin", "main")
+	// A branch with the same short name must not supply the release notes.
+	runGit(t, installDir, "branch", "0.25.1")
+	head := runGit(t, installDir, "rev-parse", "HEAD")
+	fetchHead, err := os.ReadFile(filepath.Join(installDir, ".git", "FETCH_HEAD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	localFile := filepath.Join(installDir, "local-change")
+	if err := os.WriteFile(localFile, []byte("staged"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, installDir, "add", "local-change")
+	if err := os.WriteFile(localFile, []byte("unstaged"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	staged := runGit(t, installDir, "diff", "--cached")
+	unstaged := runGit(t, installDir, "diff")
+	notes := "## Fixes\n\n- Preserve project files.\n- Keep updates reliable."
+	runGit(t, seedDir, "commit", "--allow-empty", "--quiet", "-m", "0.25.1", "-m", notes)
+	runGit(t, seedDir, "tag", "0.25.1")
+	runGit(t, seedDir, "tag", "-a", "0.25.2", "-m", "Tag annotation is not the release commit body")
+	runGit(t, seedDir, "tag", "0.25.3")
+	runGit(t, seedDir, "push", "--quiet", "origin", "HEAD:refs/heads/main", "--tags")
+
+	for _, tag := range []string{"0.25.1", "0.25.2"} {
+		got, err := (Client{}).ReadReleaseNotes(context.Background(), installDir, tag)
+		if err != nil || got != notes {
+			t.Fatalf("%s notes = %q, error = %v", tag, got, err)
+		}
+	}
+	if err := exec.Command("git", "-C", installDir, "rev-parse", "--verify", "--quiet", "refs/tags/0.25.3").Run(); err == nil {
+		t.Fatal("fetched an unrelated release tag")
+	}
+	if runGit(t, installDir, "rev-parse", "HEAD") != head || runGit(t, installDir, "diff", "--cached") != staged || runGit(t, installDir, "diff") != unstaged {
+		t.Fatal("reading notes changed the checkout or index")
+	}
+	afterFetchHead, err := os.ReadFile(filepath.Join(installDir, ".git", "FETCH_HEAD"))
+	if err != nil || string(afterFetchHead) != string(fetchHead) {
+		t.Fatal("reading notes replaced FETCH_HEAD")
+	}
+
+	// Already fetched notes and releases without notes remain readable offline.
+	runGit(t, installDir, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "unreachable"))
+	for tag, want := range map[string]string{"0.25.0": "", "0.25.1": notes} {
+		got, err := (Client{}).ReadReleaseNotes(context.Background(), installDir, tag)
+		if err != nil || got != want {
+			t.Fatalf("offline %s notes = %q, error = %v", tag, got, err)
+		}
+	}
+	if _, err := (Client{}).ReadReleaseNotes(context.Background(), installDir, "0.99.0"); err == nil {
+		t.Fatal("unavailable release was reported as having empty notes")
+	}
+}
+
 func TestStartUpdaterSelectsReleaseScript(t *testing.T) {
 	installDir := t.TempDir()
 	infraDir := filepath.Join(installDir, "infra")

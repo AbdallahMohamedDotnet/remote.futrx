@@ -50,6 +50,16 @@ func (s *Service) startEventRouter() {
 // children so an already accepted event cannot lazily launch a child after the
 // host has taken its shutdown snapshot. It is safe to call more than once.
 func (s *Service) Close() {
+	if s.background != nil {
+		s.background.cancel()
+		<-s.background.done
+	}
+	if s.agentRuntime != nil {
+		s.agentRuntime.mu.Lock()
+		s.agentRuntime.cancel()
+		s.agentRuntime.mu.Unlock()
+		s.agentRuntime.wait.Wait()
+	}
 	if s.eventRouter != nil {
 		s.eventRouter.Close()
 	}

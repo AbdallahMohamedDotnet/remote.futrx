@@ -237,7 +237,7 @@ func (c *Service) decorate(capabilities *agent.Capabilities) {
 		},
 		Skills:                string(descriptor.Features.Skills),
 		BrowserTools:          descriptor.Features.BrowserTools,
-		ScheduledTools:        descriptor.Features.ScheduledTools,
+		ApplicationTools:      descriptor.Features.ApplicationTools,
 		ExecutionPolicies:     descriptor.Features.ExecutionPolicies,
 		StreamingPresentation: string(descriptor.Features.StreamingPresentation),
 	}

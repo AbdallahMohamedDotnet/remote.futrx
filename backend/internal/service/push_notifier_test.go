@@ -42,6 +42,30 @@ func TestNotificationKindSelectsOnlyEventsWorthInterrupting(t *testing.T) {
 			wantOK:   true,
 		},
 		{
+			name:     "application turn finishes",
+			event:    servicechat.Event{Type: "complete", ApplicationID: "build-monitor"},
+			wantKind: servicepush.KindApplication,
+			wantOK:   true,
+		},
+		{
+			name:     "application turn fails",
+			event:    servicechat.Event{Type: "error", ApplicationID: "build-monitor"},
+			wantKind: servicepush.KindApplication,
+			wantOK:   true,
+		},
+		{
+			name:     "scheduled tasks uses the application contract",
+			event:    servicechat.Event{Type: "complete", ApplicationID: "scheduled-tasks"},
+			wantKind: servicepush.KindApplication,
+			wantOK:   true,
+		},
+		{
+			name:     "application identity takes precedence over legacy marker",
+			event:    servicechat.Event{Type: "complete", ApplicationID: "build-monitor", ScheduledTaskID: "old-task"},
+			wantKind: servicepush.KindApplication,
+			wantOK:   true,
+		},
+		{
 			name:     "scheduled run finishes",
 			event:    servicechat.Event{Type: "complete", ScheduledTaskID: "task-1"},
 			wantKind: servicepush.KindScheduled,
@@ -107,6 +131,27 @@ func TestNotificationTextFallsBackWithoutSummaryOrProject(t *testing.T) {
 	title, body := notificationText(servicepush.KindComplete, "   ", servicechat.Event{})
 	if title != "Remote - Agent finished" || body != "Open the chat to see the result." {
 		t.Fatalf("notification = %q / %q", title, body)
+	}
+}
+
+func TestApplicationNotificationTextUsesNeutralFallbackAndResults(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		event servicechat.Event
+		title string
+		body  string
+	}{
+		{"success without summary", servicechat.Event{Type: "complete"}, "Remote - Agent finished", "An application-started turn finished."},
+		{"success with summary", servicechat.Event{Type: "complete", NotificationSummary: "Build passed"}, "Remote - Agent finished", "Build passed"},
+		{"failure without detail", servicechat.Event{Type: "error"}, "Remote - Agent encountered an error", "Open the chat to review the error."},
+		{"failure with detail", servicechat.Event{Type: "error", Message: "build failed"}, "Remote - Agent encountered an error", "build failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			title, body := notificationText(servicepush.KindApplication, "Remote", tc.event)
+			if title != tc.title || body != tc.body {
+				t.Fatalf("application notification = %q / %q, want %q / %q", title, body, tc.title, tc.body)
+			}
+		})
 	}
 }
 

@@ -35,3 +35,13 @@ test("restores chat and selected settings tab from browser history", () => {
   assert.equal(restored.view, "chat");
   assert.equal(restored.activeChatId, "deadbeef");
 });
+
+test("the update notice opens Updates and closes the mobile sidebar in one transition", () => {
+  const current = { ...workspaceUiState.createInitial("abcdef12"), sidebarOpen: true };
+  const next = workspaceUiState.reduce(current, { type: "show-settings", tab: "updates" });
+  assert.equal(next.view, "settings");
+  assert.equal(next.settingsTab, "updates");
+  assert.equal(next.sidebarOpen, false);
+  assert.equal(next.activeChatId, "abcdef12");
+  assert.equal(workspaceUiState.reduce(next, { type: "show-settings" }).settingsTab, "updates");
+});

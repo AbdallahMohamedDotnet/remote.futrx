@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -42,19 +43,25 @@ type Clock func() int64
 
 // Service is the policy layer for installable applications.
 type Service struct {
-	registry      Registry
-	store         Store
-	installer     Installer
-	projects      ProjectContainers
-	ports         PortAllocator
-	backends      BackendHost
-	packages      PackageCatalog
-	lifecycle     ApplicationLifecyclePublisher
-	eventSource   EventSource
-	eventContext  context.Context
-	eventRouter   *applicationEventRouter
-	instanceLocks instanceLockSet
-	now           Clock
+	registry       Registry
+	store          Store
+	installer      Installer
+	projects       ProjectContainers
+	ports          PortAllocator
+	backends       BackendHost
+	packages       PackageCatalog
+	lifecycle      ApplicationLifecyclePublisher
+	eventSource    EventSource
+	eventContext   context.Context
+	eventRouter    *applicationEventRouter
+	agentRuntime   *agentRuntime
+	agentTools     *applicationTools
+	backgroundOnce sync.Once
+	background     *backgroundBackends
+	instanceLocks  instanceLockSet
+	installSlots   instanceLockSet
+	installRuns    installRuns
+	now            Clock
 }
 
 // Option configures optional service dependencies. Backend backend hosting is
@@ -199,7 +206,10 @@ func (s *Service) Credentials(ctx context.Context, id string) (Credentials, erro
 // saveStatus stamps status/error/updatedAt on an instance and persists it.
 func (s *Service) saveStatus(ctx context.Context, inst *Instance, status InstanceStatus, errMsg string) error {
 	inst.Status = status
-	inst.Error = boundedInstanceError(errMsg)
+	application, _ := s.registry.Get(inst.ApplicationID)
+	protected := installLog{}
+	protected.protect(application, inst.Env)
+	inst.Error = protected.redactInstanceError(errMsg)
 	inst.UpdatedAt = s.now()
 	return s.store.Put(ctx, *inst)
 }
@@ -224,8 +234,10 @@ func (s *Service) view(inst Instance) View {
 	application, _ := s.registry.Get(inst.ApplicationID)
 	// Old records may predate the write-side bound. Never make an applications
 	// page carry an arbitrarily large command dump just because one is still on
-	// disk; the retained prefix and tail preserve the useful failure context.
-	inst.Error = boundedInstanceError(inst.Error)
+	// disk. Redact before bounding so a cut cannot expose part of a secret.
+	protected := installLog{}
+	protected.protect(application, inst.Env)
+	inst.Error = protected.redactInstanceError(inst.Error)
 	pub := map[string]string{}
 	for _, variable := range application.Env {
 		if !variable.Secret {

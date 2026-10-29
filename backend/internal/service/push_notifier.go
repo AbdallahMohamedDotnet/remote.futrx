@@ -24,7 +24,7 @@ const audienceTimeout = 5 * time.Second
 
 // chatPushNotifier turns persisted chat events into push notifications. It
 // hangs off the chat repository so every path that appends an event —
-// interactive prompts, scheduled runs, recovery — is covered by construction.
+// interactive prompts, application turns, recovery — is covered by construction.
 type chatPushNotifier struct {
 	push     *servicepush.Service
 	chats    servicechat.Repository
@@ -169,10 +169,10 @@ func (n *chatPushNotifier) ChatDeleted(chatID servicechat.ID) {
 }
 
 // trackUserPrompt treats a prompt the user typed as having seen the chat, so
-// the run it starts may notify again. A scheduled prompt has no one behind it
-// and leaves the chat unread.
+// the run it starts may notify again. An application or legacy scheduled prompt
+// does not indicate that the user has seen the chat and leaves it unread.
 func (n *chatPushNotifier) trackUserPrompt(chatID servicechat.ID, event servicechat.Event) {
-	if event.Type != "user" || strings.TrimSpace(event.ScheduledTaskID) != "" {
+	if event.Type != "user" || strings.TrimSpace(event.ScheduledTaskID) != "" || event.ApplicationID != "" {
 		return
 	}
 	n.mu.Lock()
@@ -217,7 +217,8 @@ func (n *chatPushNotifier) trackParkedRun(
 // event is not worth interrupting anyone for. Streaming deltas, tool traffic,
 // and session bookkeeping all fall through.
 func notificationKind(event servicechat.Event) (kind servicepush.Kind, urgent, ok bool) {
-	scheduled := strings.TrimSpace(event.ScheduledTaskID) != ""
+	application := event.ApplicationID != ""
+	legacyScheduled := strings.TrimSpace(event.ScheduledTaskID) != ""
 	switch event.Type {
 	case "tool_use_start":
 		if event.Name != askUserQuestionTool {
@@ -226,12 +227,18 @@ func notificationKind(event servicechat.Event) (kind servicepush.Kind, urgent, o
 		// The run is now parked waiting on a human, so this one is urgent.
 		return servicepush.KindQuestion, true, true
 	case "complete":
-		if scheduled {
+		if application {
+			return servicepush.KindApplication, false, true
+		}
+		if legacyScheduled {
 			return servicepush.KindScheduled, false, true
 		}
 		return servicepush.KindComplete, false, true
 	case "error":
-		if scheduled {
+		if application {
+			return servicepush.KindApplication, false, true
+		}
+		if legacyScheduled {
 			return servicepush.KindScheduled, false, true
 		}
 		return servicepush.KindError, false, true

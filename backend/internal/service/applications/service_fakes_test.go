@@ -115,6 +115,15 @@ func (f *fakeStore) Delete(_ context.Context, id string) error {
 		}
 	}
 	f.global = kept
+	for project, instances := range f.byProject {
+		kept := instances[:0]
+		for _, candidate := range instances {
+			if candidate.ID != id {
+				kept = append(kept, candidate)
+			}
+		}
+		f.byProject[project] = kept
+	}
 	return nil
 }
 

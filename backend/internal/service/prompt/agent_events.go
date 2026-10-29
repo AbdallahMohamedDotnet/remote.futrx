@@ -136,12 +136,13 @@ func agentEventMessageID(event agent.Event) string {
 // ledgerRun is the run-scoped context a usage entry needs. It is captured
 // once per prompt so the per-event hook stays allocation free.
 type ledgerRun struct {
-	runID     string
-	chatID    servicechat.ID
-	projectID string
-	userEmail string
-	model     string
-	scheduled bool
+	runID                string
+	chatID               servicechat.ID
+	projectID            string
+	userEmail            string
+	model                string
+	applicationID        string
+	applicationRequestID string
 }
 
 // recordQuota files a subscription window the CLI mentioned mid-run under the
@@ -174,15 +175,16 @@ func (rnr *Service) recordRunUsage(ctx context.Context, run ledgerRun, ev agent.
 	// The turn is over, so a cancelled request context must not stop the
 	// ledger write that describes it.
 	rnr.usage.RecordRun(context.WithoutCancel(ctx), serviceusage.RunEvent{
-		At:        at,
-		ChatID:    string(run.chatID),
-		ProjectID: run.projectID,
-		RunID:     run.runID,
-		UserEmail: run.userEmail,
-		Provider:  string(ev.Provider),
-		Model:     run.model,
-		Usage:     ev.Usage,
-		Scheduled: run.scheduled,
+		At:                   at,
+		ChatID:               string(run.chatID),
+		ProjectID:            run.projectID,
+		RunID:                run.runID,
+		UserEmail:            run.userEmail,
+		ApplicationID:        run.applicationID,
+		ApplicationRequestID: run.applicationRequestID,
+		Provider:             string(ev.Provider),
+		Model:                run.model,
+		Usage:                ev.Usage,
 	})
 }
 

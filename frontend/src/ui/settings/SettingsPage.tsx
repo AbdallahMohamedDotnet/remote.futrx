@@ -34,6 +34,7 @@ import { ApplicationsSection } from "../applications/ApplicationsSection";
 import type { ApplicationsController } from "../../state/hooks/applications/useApplications";
 
 import type { SettingsTab } from "../../models/workspace";
+import type { ReleaseNotesController } from "../../state/hooks/server/useReleaseNotes";
 export type { SettingsTab } from "../../models/workspace";
 
 const tabs: Array<{
@@ -114,6 +115,7 @@ export function SettingsPage({
   serverInfoRefreshing,
   serverInfoError,
   selfUpdate,
+  releaseNotes,
   selfUpdateLoading,
   selfUpdateChecking,
   selfUpdateApplying,
@@ -148,6 +150,7 @@ export function SettingsPage({
   serverInfoRefreshing: boolean;
   serverInfoError: string | null;
   selfUpdate: SelfUpdateStatus | null;
+  releaseNotes: ReleaseNotesController;
   selfUpdateLoading: boolean;
   selfUpdateChecking: boolean;
   selfUpdateApplying: boolean;
@@ -299,6 +302,7 @@ export function SettingsPage({
             {activeTab === "updates" &&
               (isAdmin ? (
                 <UpdatesSettings
+                  releaseNotes={releaseNotes}
                   status={selfUpdate}
                   loading={selfUpdateLoading}
                   checking={selfUpdateChecking}

@@ -91,10 +91,12 @@ type Event struct {
 	// ScheduledTaskID marks events produced by a scheduled run rather than an
 	// interactive one, so consumers can tell "your turn finished" from "a task
 	// ran while you were away".
-	ScheduledTaskID string                `json:"scheduledTaskId,omitempty"`
-	Native          *agent.NativeEnvelope `json:"native,omitempty"`
-	InteractionID   string                `json:"interactionId,omitempty"`
-	Status          string                `json:"status,omitempty"`
+	ApplicationID        string                `json:"applicationId,omitempty"`
+	ApplicationRequestID string                `json:"applicationRequestId,omitempty"`
+	ScheduledTaskID      string                `json:"scheduledTaskId,omitempty"`
+	Native               *agent.NativeEnvelope `json:"native,omitempty"`
+	InteractionID        string                `json:"interactionId,omitempty"`
+	Status               string                `json:"status,omitempty"`
 }
 
 // NormalizeSessions makes the provider-keyed session map authoritative while

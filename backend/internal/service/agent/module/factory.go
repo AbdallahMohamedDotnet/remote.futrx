@@ -59,7 +59,7 @@ type Features struct {
 	Sessions          SessionSupport
 	Skills            SkillStrategy
 	BrowserTools      bool
-	ScheduledTools    bool
+	ApplicationTools  bool
 	ExecutionPolicies bool
 	// Empty selects token streaming for modules that do not opt into block reveal.
 	StreamingPresentation StreamingPresentation

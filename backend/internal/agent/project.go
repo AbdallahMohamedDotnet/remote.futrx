@@ -46,10 +46,9 @@ type ProjectResolver interface {
 // ProjectPreparationRequest contains only the provider-neutral run state used
 // to reconcile and prepare a project workspace.
 type ProjectPreparationRequest struct {
-	ProjectID           ProjectID
-	ConversationID      string
-	EnableBrowser       bool
-	EnableScheduleTools bool
+	ProjectID      ProjectID
+	ConversationID string
+	EnableBrowser  bool
 	// Credentials overrides the provider profile's canonical credential
 	// locations for this run. Account-aware providers use it to seed a private
 	// per-chat home instead of changing one shared container login.

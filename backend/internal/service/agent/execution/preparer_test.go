@@ -31,10 +31,9 @@ func TestPreparerAppliesSharedWorkflowInOrder(t *testing.T) {
 
 	var events []string
 	prepared, err := preparer.Prepare(context.Background(), agent.ProjectPreparationRequest{
-		ProjectID:           "project-id",
-		ConversationID:      "conversation-id",
-		EnableBrowser:       true,
-		EnableScheduleTools: true,
+		ProjectID:      "project-id",
+		ConversationID: "conversation-id",
+		EnableBrowser:  true,
 	}, func(event agent.Event) {
 		events = append(events, string(event.Provider)+":"+event.ConversationID+":"+event.Subtype)
 	})
@@ -44,7 +43,7 @@ func TestPreparerAppliesSharedWorkflowInOrder(t *testing.T) {
 	wantCalls := []string{
 		"get", "start", "cli:future", "before-credentials", "credentials",
 		"instructions", "runtime-assets", "skill-links", "browser-skill", "browser-script",
-		"browser-mcp", "browser-core", "schedule", "lifecycle", "secrets",
+		"browser-mcp", "browser-core", "lifecycle", "secrets",
 	}
 	if !slices.Equal(recorder.calls, wantCalls) {
 		t.Fatalf("preparation calls\n got: %v\nwant: %v", recorder.calls, wantCalls)
@@ -226,13 +225,6 @@ func (p preparationBrowser) EnsureCore(context.Context, string) error {
 	return nil
 }
 
-type preparationSchedule struct{ recorder *preparationRecorder }
-
-func (p preparationSchedule) Ensure(context.Context, string) error {
-	p.recorder.calls = append(p.recorder.calls, "schedule")
-	return nil
-}
-
 type preparationLifecycle struct{ recorder *preparationRecorder }
 
 func (p preparationLifecycle) EnsureBootAutostart(context.Context, string) error {
@@ -247,7 +239,6 @@ func preparationDependencies(recorder *preparationRecorder) provisioning.Contain
 		Workspace:     preparationWorkspace{recorder},
 		RuntimeAssets: preparationRuntimeAssets{recorder},
 		Browser:       preparationBrowser{recorder},
-		ScheduleTools: preparationSchedule{recorder},
 		Lifecycle:     preparationLifecycle{recorder},
 	}
 }

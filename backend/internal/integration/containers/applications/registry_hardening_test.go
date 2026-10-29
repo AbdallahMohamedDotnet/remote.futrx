@@ -350,3 +350,17 @@ func mutateEveryApplicationReference(application *svc.Application) {
 	application.Container.Commands[0] = "changed"
 	application.Skills[0] = "changed"
 }
+
+func TestLegacyBackendDoesNotActivateNewRuntimeFlags(t *testing.T) {
+	var application svc.Application
+	raw := []byte(`{"ID":"legacy","name":"Legacy","scopes":["global"],"backend":{"access":"admin","timeoutMs":10000,"background":true,"agentTurns":true,"agentTools":true},"oldUnknownField":true}`)
+	if err := decodePersistedApplicationManifest(raw, &application); err != nil {
+		t.Fatal(err)
+	}
+	if application.Backend == nil || application.Backend.Access != svc.BackendAccessAdmin || application.Backend.TimeoutMS != 10000 {
+		t.Fatal("legacy backend settings lost")
+	}
+	if application.Backend.Background || application.Backend.AgentTurns || application.Backend.AgentTools {
+		t.Fatal("legacy unknown fields activated new capabilities")
+	}
+}

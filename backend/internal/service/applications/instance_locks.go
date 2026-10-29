@@ -76,3 +76,15 @@ func (s *instanceLockSet) release(id string, entry *instanceLock) {
 	}
 	s.mu.Unlock()
 }
+
+// tryRLock fences reverse runtime callbacks against lifecycle changes without
+// waiting behind a writer. The host may already hold a read lock while it
+// waits for that callback, so a blocking nested RLock would deadlock.
+func (s *instanceLockSet) tryRLock(id string) (func(), bool) {
+	entry := s.retain(id)
+	if !entry.mu.TryRLock() {
+		s.release(id, entry)
+		return nil, false
+	}
+	return func() { entry.mu.RUnlock(); s.release(id, entry) }, true
+}

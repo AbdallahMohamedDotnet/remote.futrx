@@ -11,6 +11,7 @@ import (
 type server struct {
 	impl   applications.Backend
 	events *runtimeEvents
+	turns  *runtimeAgentTurns
 	broker *goplugin.MuxBroker
 }
 

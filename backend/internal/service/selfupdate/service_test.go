@@ -15,6 +15,9 @@ type fakeHost struct {
 	commitErr   error
 	commitQuery string
 	commitCalls int
+	notesBody   string
+	notesErr    error
+	notesCalls  int
 	started     []string
 	kinds       []string
 	pid         int
@@ -71,6 +74,11 @@ func (f *fakeHost) ListRemoteTagsForCommit(_ context.Context, _, commitPrefix st
 	return f.commitTags, f.commitErr
 }
 
+func (f *fakeHost) ReadReleaseNotes(context.Context, string, string) (string, error) {
+	f.notesCalls++
+	return f.notesBody, f.notesErr
+}
+
 func (f *fakeHost) StartUpdater(launch UpdaterLaunch) (int, error) {
 	if f.beforeStart != nil {
 		f.beforeStart()
@@ -84,6 +92,38 @@ func (f *fakeHost) StartUpdater(launch UpdaterLaunch) (int, error) {
 }
 
 func (f *fakeHost) ProcessAlive(int) bool { return f.alive }
+
+func TestReleaseNotesDoesNotChangeUpdateAvailability(t *testing.T) {
+	host := &fakeHost{tags: []string{"0.25.1"}, notesErr: errors.New("origin unavailable")}
+	svc := newTestService("0.25.0", "/opt/remote", t.TempDir(), host)
+	before := svc.Check(context.Background())
+	if _, err := svc.ReleaseNotes(context.Background(), "0.25.1"); err == nil {
+		t.Fatal("expected notes read failure")
+	}
+	after := svc.Status(context.Background())
+	if after.LastCheck != before.LastCheck || !after.LastCheck.UpdateAvailable {
+		t.Fatal("notes failure changed update availability")
+	}
+	host.notesErr = nil
+	host.notesBody = "## Fixes\n- Preserve project files."
+	notes, err := svc.ReleaseNotes(context.Background(), "0.25.1")
+	if err != nil || notes.Tag != "0.25.1" || notes.Body != host.notesBody {
+		t.Fatalf("retry notes = %+v, error = %v", notes, err)
+	}
+}
+
+func TestReleaseNotesRejectsInvalidTagsBeforeReading(t *testing.T) {
+	host := &fakeHost{}
+	svc := newTestService("0.25.0", "/opt/remote", t.TempDir(), host)
+	for _, tag := range []string{"", "main", "../main", "--help", "v0.25.1/other", "0.25.1:refs/heads/main"} {
+		if _, err := svc.ReleaseNotes(context.Background(), tag); !errors.Is(err, ErrInvalidReleaseTag) {
+			t.Errorf("tag %q: error = %v", tag, err)
+		}
+	}
+	if host.notesCalls != 0 {
+		t.Fatalf("reader called %d times for invalid tags", host.notesCalls)
+	}
+}
 
 func TestParseReleaseTag(t *testing.T) {
 	cases := []struct {

@@ -8,7 +8,6 @@ import (
 	containerbaseimage "github.com/futrx-com/remote.futrx.com/internal/integration/containers/baseimage"
 	containerbrowser "github.com/futrx-com/remote.futrx.com/internal/integration/containers/browser"
 	containercli "github.com/futrx-com/remote.futrx.com/internal/integration/containers/cli"
-	containercodeserver "github.com/futrx-com/remote.futrx.com/internal/integration/containers/codeserver"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/containers/command"
 	containercredentials "github.com/futrx-com/remote.futrx.com/internal/integration/containers/credentials"
 	containerenvironment "github.com/futrx-com/remote.futrx.com/internal/integration/containers/environment"
@@ -18,7 +17,6 @@ import (
 	containernetwork "github.com/futrx-com/remote.futrx.com/internal/integration/containers/network"
 	containerresources "github.com/futrx-com/remote.futrx.com/internal/integration/containers/resources"
 	containerruntimeassets "github.com/futrx-com/remote.futrx.com/internal/integration/containers/runtimeassets"
-	containerscheduletools "github.com/futrx-com/remote.futrx.com/internal/integration/containers/scheduletools"
 	containerworkspace "github.com/futrx-com/remote.futrx.com/internal/integration/containers/workspace"
 	"github.com/futrx-com/remote.futrx.com/internal/integration/hostfs"
 	servicebrowser "github.com/futrx-com/remote.futrx.com/internal/service/container/browser"
@@ -43,7 +41,6 @@ type ContainerStack struct {
 	Environment   *containerenvironment.Client
 	CLI           *servicecli.Provisioner
 	Browser       *servicebrowser.Service
-	ScheduleTools *containerscheduletools.Adapter
 	Listeners     *containerlisteners.Scanner
 	Network       *containernetwork.Repairer
 	Workspace     *containerworkspace.Provisioner
@@ -90,7 +87,6 @@ func (s ContainerStack) AgentDependencies() provisioning.ContainerDependencies {
 		Workspace:     s.Workspace,
 		RuntimeAssets: s.RuntimeAssets,
 		Browser:       s.Browser,
-		ScheduleTools: s.ScheduleTools,
 		Lifecycle:     s.Lifecycle,
 	}
 }
@@ -115,8 +111,6 @@ func NewContainerStack(
 		Runtime:     browserAdapter,
 		Tooling:     browserAdapter,
 	}, configconstants.ProjectPreviewAgentBrowserPort)
-	codeServer := containercodeserver.NewProvisioner(runner)
-	scheduleTools := containerscheduletools.NewAdapter(runner, publisher)
 	workspace := containerworkspace.NewProvisioner(
 		runner,
 		profiles,
@@ -128,15 +122,12 @@ func NewContainerStack(
 		containerbaseimage.NewClient(runner),
 		profiles,
 		containerbrowser.InstallScript(),
-		containercodeserver.InstallScript(),
 		options.ImageBuildProgress,
 	)
 	launchProvisioner := containerlaunch.NewProvisioner(
 		credentials,
 		workspace,
 		browser,
-		codeServer,
-		scheduleTools,
 	)
 	resources := containerresources.NewManager(runner)
 	lifecycle := servicelifecycle.NewService(
@@ -175,7 +166,6 @@ func NewContainerStack(
 		Environment:   environment,
 		CLI:           cli,
 		Browser:       browser,
-		ScheduleTools: scheduleTools,
 		Listeners:     listeners,
 		Network:       network,
 		Workspace:     workspace,

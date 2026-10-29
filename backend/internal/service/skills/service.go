@@ -112,16 +112,6 @@ func (s *Service) List(ctx context.Context, provider Provider, projectWorkspace 
 				skills = append(skills, skill)
 			}
 		}
-		scheduledTools := s.providers == nil || descriptor.Features.ScheduledTools
-		if scheduledTools && !hasSkillCommand(skills, "scheduled-tasks") {
-			skills = append(skills, Skill{
-				Name:        "Scheduled Tasks",
-				Command:     "scheduled-tasks",
-				Description: "Create and manage persistent one-time or recurring tasks that return to this chat.",
-				Provider:    provider,
-				Source:      "remote",
-			})
-		}
 	}
 	if skills == nil {
 		skills = []Skill{}
