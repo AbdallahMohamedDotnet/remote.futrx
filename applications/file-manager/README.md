@@ -53,6 +53,12 @@ and streams completed downloads. Archive preparation, spooling, and failure
 cleanup run behind the service contract. Each spool instance owns its limits
 and concurrency slots; request handlers do not mutate package globals.
 
+The embedded page follows the same separation: `filesApi.js` owns HTTP calls
+and download URLs, `fileBrowser.js` owns tree/search state and request
+cancellation, and `fileBrowserView.js` renders that state and emits user intent.
+`main.js` composes them and handles the drawer's messages. The view has no
+network access, and the state/controller has no DOM dependency.
+
 A host API application, when needed, is a separate composition at
 `backend/main.go` with its own host packages, as in Code Server. Remote excludes
 `backend/container/` from that host build. File Manager's existing behavior uses
