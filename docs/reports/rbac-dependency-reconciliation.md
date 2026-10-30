@@ -145,8 +145,12 @@ security regression tests. #333 was a selective reference only.
 - Real HTTP creation, management, scope isolation and wire-casing checks passed.
   Real WebSocket admission/revocation and actual composed-server registration
   regression checks passed.
-- Modified Go formatting, conflict-marker scans, unmerged-file checks and
-  `git diff --check`: clean.
+- Modified Go formatting, conflict-marker scans and unmerged-file checks: clean.
+  Working-tree `git diff --check` and `git diff --check a8eb4dbc HEAD` for the
+  repair delta are clean. `git diff --check upstream/qa HEAD` reports inherited
+  trailing whitespace in `.claude/skills/code-refactorer/SKILL.md` and its
+  `references/workflow/commits.md`, already present in #223. These unrelated
+  foundation documents were preserved, not silently rewritten.
 
 Local logs: `/tmp/stack-final-backend-recheck.log`,
 `/tmp/stack-final-catalog.log`, `/tmp/stack-final-vet-backend.log`,
