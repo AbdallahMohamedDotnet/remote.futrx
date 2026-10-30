@@ -2,6 +2,9 @@ package transport
 
 import (
 	"context"
+	"errors"
+	"github.com/futrx-com/remote.futrx.com/internal/rbac"
+	"github.com/futrx-com/remote.futrx.com/internal/service/workspaceaccess"
 	"io/fs"
 	"net/http"
 
@@ -58,6 +61,9 @@ func NewHTTPHandler(deps Dependencies) (http.Handler, error) {
 	}
 
 	gate := newAccessGate(deps.Services.Auth, deps.Services.Projects, deps.Services.Chats)
+	if gate != nil {
+		gate.authorizer = deps.Services.Permissions
+	}
 
 	uploads, err := httptransport.NewUploadHandlerWithGate(deps.Services.Chats, deps.DataDir, gate)
 	if err != nil {
@@ -157,10 +163,11 @@ func NewHTTPServer(addr string, handler http.Handler) *http.Server {
 // reach this project?" lookups so each socket / upload site doesn't have
 // to wire up the auth + project + chat services itself.
 type accessGate struct {
-	auth      *serviceauth.Service
-	principal *httptransport.PrincipalResolver
-	projects  *serviceproject.Service
-	chats     chatProjectFinder
+	authorizer workspaceaccess.Authorizer
+	auth       *serviceauth.Service
+	principal  *httptransport.PrincipalResolver
+	projects   *serviceproject.Service
+	chats      chatProjectFinder
 }
 
 type chatProjectFinder interface {
@@ -204,9 +211,6 @@ func (g *accessGate) CanUploadToChat(ctx context.Context, r *http.Request, chatI
 	if err != nil || email == "" {
 		return false, err
 	}
-	if isAdmin {
-		return true, nil
-	}
 	if g.chats == nil {
 		return false, nil
 	}
@@ -214,8 +218,15 @@ func (g *accessGate) CanUploadToChat(ctx context.Context, r *http.Request, chatI
 	if err != nil {
 		return false, err
 	}
-	if meta.ProjectID == "" {
-		return true, nil
+	if !isAdmin && meta.ProjectID != "" {
+		allowed, err := g.HasAccess(ctx, serviceproject.ID(meta.ProjectID), email)
+		if err != nil || !allowed {
+			return false, err
+		}
 	}
-	return g.HasAccess(ctx, serviceproject.ID(meta.ProjectID), email)
+	err = workspaceaccess.Require(ctx, g.authorizer, "files", string(meta.ProjectID))
+	if errors.Is(err, rbac.ErrDenied) || errors.Is(err, rbac.ErrActorRequired) {
+		return false, nil
+	}
+	return err == nil, err
 }

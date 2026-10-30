@@ -48,11 +48,13 @@ func TestPromptAccountChecksKeepScheduledActorAndPinResolvedAccount(t *testing.T
 	for _, scheduled := range []bool{false, true} {
 		provider := &accountRecordingProvider{}
 		access := &promptAccountCheck{}
-		service, _, meta := newUsagePromptService(t, provider, &recordingLedger{}, WithAccountAccess(access), WithApplicationToolIssuer(stubApplicationTools{}))
+		recorder := &runAuditRecorder{}
+		service, _, meta := newUsagePromptService(t, provider, &recordingLedger{}, WithAccountAccess(access), WithApplicationToolIssuer(stubApplicationTools{}), WithAudit(recorder))
 		input := StartInput{ChatID: meta.ID, Prompt: "hello", Actor: Actor{Email: "owner@example.com", IsAdmin: true}}
 		if scheduled {
 			input.ApplicationInstanceID = "scheduled-tasks-one"
 			input.ApplicationID = "scheduled-tasks"
+			input.ApplicationRequestID = "scheduled-run-one"
 		}
 		handle, err := service.Start(input, nil)
 		if err != nil {
@@ -63,6 +65,14 @@ func TestPromptAccountChecksKeepScheduledActorAndPinResolvedAccount(t *testing.T
 		}
 		if len(provider.requests) != 1 || provider.requests[0].AccountID != "team" || provider.actors[0] != "owner@example.com" {
 			t.Fatalf("provider request: %+v actors=%v", provider.requests, provider.actors)
+		}
+		for _, entry := range recorder.entries {
+			if entry.Actor.Email != "owner@example.com" || entry.Meta["accountId"] != "team" {
+				t.Fatalf("audit correlation: %+v", entry)
+			}
+			if scheduled && (entry.Meta["applicationInstanceId"] != "scheduled-tasks-one" || entry.Meta["applicationRequestId"] != "scheduled-run-one") {
+				t.Fatalf("scheduled audit correlation: %+v", entry)
+			}
 		}
 		access.mu.Lock()
 		if len(access.ids) < 3 || access.ids[len(access.ids)-1] != "team" {
