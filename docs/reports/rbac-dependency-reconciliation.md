@@ -187,7 +187,18 @@ Publication destination: the new
 `AbdallahMohamedDotnet/remote.futrx:review/rbac-dependency-reconciliation` branch,
 using a normal push through the previously verified SSH credential. No PR is
 opened, closed or merged. No original PR branch, upstream qa or main is updated.
-The final chat report records the verified publication status and full head SHA.
+Publication is **blocked**: automatic approval review rejected the push because
+publishing repository history to this external fork/destination requires explicit
+user authorization; the task's conditional push wording was not accepted as that
+authorization. No push occurred. The complete integration remains in local
+commits. After explicit approval, the exact normal push command is:
+
+```bash
+git -c core.sshCommand='ssh -o BatchMode=yes -o StrictHostKeyChecking=yes' push -u git@github.com:AbdallahMohamedDotnet/remote.futrx.git HEAD:refs/heads/review/rbac-dependency-reconciliation
+```
+
+The final chat report records the full local head SHA. Original PR branches and
+upstream qa/main are unchanged.
 
 ## Remaining limits and owner actions
 
