@@ -154,12 +154,73 @@ import auth, user, project, chat, stores, or transport, enforcing services do
 not import concrete auth, transport, or stores, only allowlisted files mint
 actors, and nothing creates a permission definition at runtime.
 
+## Integrated capabilities and administration
+
+The canonical policy API is `/api/admin/permissions/*`, with lowercase JSON
+fields. It includes definitions, roles, assignments, bindings, `accounts`
+(manager-only account targets), and `effective` (the current actor's decisions
+at platform scope or `?projectId=<id>`). Effective decisions never expose policy
+records or another actor's decisions. The frontend uses
+`usePermissionAdministration` for policy edits and `useEffectivePermissions`
+for action hints; services always enforce authorization again.
+
+The registry now also owns project and host-chat creation, project-chat creation
+and forks, project controls/secrets, workspace files/Git/browser/Terminal, IDE
+access, provider account management and provider account use. The current
+Code Server and Terminal application gateway gates launch redirects, direct
+requests and WebSocket admission. Preview access to their ports (8842 and 8843),
+and browser ports (6080 and 9222), uses the same permissions and cannot use public
+preview grants to bypass those checks. Project membership remains required.
+The removed core host shell and core scheduler are not restored.
+
+## Provider account grant provisioning and rollback
+
+`agents.account.use` has **no member baseline**. Administrators retain recovery
+access; members must receive explicit assignments or role bindings for exact
+`provider-account` scopes such as `claude:work`, `codex:team`, or
+`codex:default`. `default` means legacy host login when no saved default exists.
+When a saved active account exists, an empty account selection resolves to that
+account's ID and requires its grant; granting `default` does not grant every
+account. A denied explicit account never falls back to another login. Denies
+continue to outrank member grants under the canonical evaluator's existing
+administrator recovery rule. The administration form lists available account
+scopes and accepts validated scope identifiers.
+
+Before deploying, provision grants for each intended user/account pairing.
+Inventory direct assignments and role bindings, including scheduled-task owners.
+Do not mass-grant all members access to all accounts. Current Scheduled Tasks
+remain an application: the platform revalidates its captured owner and membership
+at execution, and prompt/credential admission checks that owner's account grant.
+Audit entries correlate application instance/request, run, project and account.
+
+An older binary does not recognize these permission keys or the
+`provider-account` scope and can refuse to load the persisted policy. Before a
+rollback, back up the policy and its mandatory mutation audit, then remove newer
+assignments/bindings and affected role rules using a binary that understands
+them. Confirm that every remaining key and scope exists in the target binary.
+Do not hand-edit a live policy or weaken validation to force an old binary to
+start. Restoring an older policy snapshot also discards subsequent revocations;
+reconcile those revocations before restoration.
+
+## Audit contracts
+
+The operational trail is separate from `permission-audit.jsonl`. Operational
+recording is best effort: storage failure is logged and does not reject an
+otherwise valid business operation. Permission mutations retain the foundation's
+required audit-before-publication contract: failure rejects the policy mutation.
+Operational audit filtering and export support actor, action, target, time and
+project. Instrumentation records identifiers and outcomes rather than prompt
+content or credential bytes; agent/account errors use fixed audit messages.
+
 ## Known limitations
 
-- A service-level `ErrDenied` currently surfaces as a generic `500`, not `403`.
-- Handler-level admin gates still apply ahead of the service.
-- No management API or UI yet; policy changes go through `Services.Permissions`.
-- Only `projects.lifecycle.manage` and `projects.access.manage` are enforced.
-  Agent runs, the agent browser, and installed applications start containers
-  under their own capability.
+- Existing WebSockets are not terminated when a grant is revoked. New requests
+  and subsequent handshakes re-evaluate current policy. An active editor or shell
+  session can continue until its connection ends.
+- Upload capability and membership are checked at admission. Existing tus upload
+  IDs retain the upstream in-flight upload behavior; chunk requests are not
+  retroactively revoked.
+- Handler-level administrator gates still apply ahead of some service checks.
 - Project existence is not validated when assigning at `project:<id>`.
+- Permission hints in the frontend refresh on focus, mutations and a 30-second
+  interval. They are not an enforcement boundary.

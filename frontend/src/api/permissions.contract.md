@@ -12,7 +12,7 @@ casing below is the wire casing: lowerCamelCase of the Go field names
 
 | Type        | Fields                                                                                  |
 |-------------|-----------------------------------------------------------------------------------------|
-| Scope       | `kind` ("platform" \| "project"), `id?` (platform takes no id; project id `^[a-z0-9][a-z0-9_-]{0,63}$`) |
+| Scope       | `kind` ("platform" \| "project" \| "provider-account"), `id?` (platform takes no id; project id `^[a-z0-9][a-z0-9_-]{0,63}$`) |
 | Definition  | `key`, `description`, `scopes: ScopeKind[]`, `baseline` ("none" \| "admin" \| "project-member" \| "authenticated"), `delegable` |
 | RoleRule    | `permission`, `effect` ("allow" \| "deny")                                              |
 | Role        | `id`, `name`, `description`, `rules: RoleRule[]`, `createdBy`, `createdAt`, `updatedAt` |
@@ -101,3 +101,18 @@ Behaviour verified in `backend/internal/rbac`:
 Corrections from the first proposal: DELETE by `{id}` became natural-key query
 parameters (the service removes by natural key); create and duplicate both return
 200 instead of 201/200.
+
+## Actor decisions and provider-account targets
+
+`GET /api/admin/permissions/effective[?projectId=<id>]` returns a JSON object
+mapping registered permission keys to booleans for exactly that scope and the
+current authenticated actor. It never returns management policy. Missing actors
+receive 401, invalid project scope IDs receive 400. UI hints fail closed on
+request errors and discard responses from earlier scopes.
+
+`GET /api/admin/permissions/accounts` returns manager-only target records with
+`provider`, `accountId`, `label`, and `scope: {kind: "provider-account", id}`.
+Scope IDs have the form `provider:account`; both components match
+`^[a-z0-9][a-z0-9_-]{0,63}$`. Empty account selection resolves the active saved
+account, or the literal `default` when no saved default exists. Assignments and
+role bindings use the same existing POST and DELETE contracts for this scope.
