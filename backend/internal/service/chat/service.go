@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/futrx-com/remote.futrx.com/internal/agent"
+	permission "github.com/futrx-com/remote.futrx.com/internal/rbac"
 	agentmodule "github.com/futrx-com/remote.futrx.com/internal/service/agent/module"
 	"github.com/futrx-com/remote.futrx.com/internal/service/audit"
 )
@@ -83,7 +84,7 @@ func New(
 ) *Service {
 	service := &Service{
 		repo:       repo,
-		authorizer: systemOnlyAuthorizer{},
+		authorizer: permission.SystemOnlyAuthorizer{},
 		projects:   projects,
 		tmux:       tmux,
 		runs:       runs,

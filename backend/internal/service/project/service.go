@@ -73,7 +73,7 @@ func New(
 		containerNetwork:   containers.Network,
 		containerListeners: containers.Listeners,
 		containerSetup:     containers.Setup,
-		authorizer:         systemOnlyAuthorizer{},
+		authorizer:         permission.SystemOnlyAuthorizer{},
 		access:             newAccessList(access),
 		secrets:            newSecretStore(secrets, containers.Environment),
 		browsers:           newAgentBrowsers(containers.Browser, repo),

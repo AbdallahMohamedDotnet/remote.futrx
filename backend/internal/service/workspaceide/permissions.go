@@ -25,14 +25,7 @@ type Authorizer interface {
 // No authorizer is fail-closed except for explicitly trusted system callers.
 func RequireAccess(ctx context.Context, authorizer Authorizer, projectID string) error {
 	if authorizer == nil {
-		actor, ok := rbac.ActorFromContext(ctx)
-		if !ok {
-			return rbac.ErrActorRequired
-		}
-		if actor.IsSystem() {
-			return nil
-		}
-		return rbac.ErrDenied
+		authorizer = rbac.SystemOnlyAuthorizer{}
 	}
 	check := rbac.Check{Permission: PermissionHostOpen, Scope: rbac.PlatformScope()}
 	if projectID != "" {

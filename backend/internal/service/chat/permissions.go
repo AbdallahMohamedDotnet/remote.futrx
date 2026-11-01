@@ -29,18 +29,6 @@ func WithAuthorizer(authorizer Authorizer) Option {
 	}
 }
 
-type systemOnlyAuthorizer struct{}
-
-func (systemOnlyAuthorizer) Require(ctx context.Context, _ permission.Check) error {
-	actor, ok := permission.ActorFromContext(ctx)
-	if !ok {
-		return permission.ErrActorRequired
-	}
-	if !actor.IsSystem() {
-		return permission.ErrDenied
-	}
-	return nil
-}
 func (s *Service) requireCreate(ctx context.Context, projectID ProjectID) error {
 	check := permission.Check{Permission: PermissionHostCreate, Scope: permission.PlatformScope()}
 	if projectID != "" {

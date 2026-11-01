@@ -62,21 +62,6 @@ func WithAuthorizer(authorizer Authorizer) Option {
 	}
 }
 
-// systemOnlyAuthorizer is the fail-closed default for a Service built without
-// an authorizer.
-type systemOnlyAuthorizer struct{}
-
-func (systemOnlyAuthorizer) Require(ctx context.Context, _ permission.Check) error {
-	actor, ok := permission.ActorFromContext(ctx)
-	if !ok {
-		return permission.ErrActorRequired
-	}
-	if !actor.IsSystem() {
-		return permission.ErrDenied
-	}
-	return nil
-}
-
 // projectAuthorizer checks one bound permission for a project.
 type projectAuthorizer func(ctx context.Context, id ID) error
 
