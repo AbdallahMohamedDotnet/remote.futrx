@@ -1,4 +1,5 @@
 import { useCallback, useState } from "preact/hooks";
+import { createPermissionAdministration } from "../permissions";
 import {
   SettingsPage,
   type SettingsTab,
@@ -43,8 +44,10 @@ export function SettingsContainer({
     selfUpdate.status?.lastCheck?.latestTag,
   );
   const security = useSecuritySettings(activeTab === "security");
+  const [permissionAdministration] = useState(createPermissionAdministration);
   const permissions = usePermissionAdministration(
-    (activeTab === "permissions" || activeTab === "users") && auth.isAdmin
+    (activeTab === "permissions" || activeTab === "users") && auth.isAdmin,
+    permissionAdministration,
   );
   const applications = useGlobalApplications({
     enabled: activeTab === "applications" && auth.isAdmin,

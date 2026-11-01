@@ -77,3 +77,17 @@ export interface RbacBindingInput {
 export type RbacBindingTarget = RbacBindingInput;
 
 export interface RbacAccountTarget { provider: string; accountId: string; label: string; scope: RbacScope; }
+
+/** One mounted administration view; refreshed collections always arrive together. */
+export interface PermissionAdministrationSnapshot {
+  definitions: RbacDefinition[];
+  roles: RbacRole[];
+  assignments: RbacAssignment[];
+  bindings: RbacBinding[];
+}
+
+export interface PermissionAdministrationState extends PermissionAdministrationSnapshot {
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+}

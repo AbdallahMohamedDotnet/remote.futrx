@@ -1,148 +1,41 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
-import { permissionsApi } from "../../../api/permissions";
+import { useEffect } from "preact/hooks";
+import { useStore } from "zustand";
+import type { StoreApi } from "zustand/vanilla";
+import type { PermissionAdministrationState } from "../../../models/rbac";
 import type {
-  RbacAssignment,
-  RbacAssignmentInput,
-  RbacAssignmentTarget,
-  RbacBinding,
-  RbacBindingInput,
-  RbacBindingTarget,
-  RbacDefinition,
-  RbacRole,
-  RbacRoleInput,
-} from "../../../models/rbac";
+  PermissionAdministrationCommands, PermissionAdministrationStateActions,
+} from "../../../port/permissions";
 
-export interface PermissionsController {
-  loading: boolean;
-  loaded: boolean;
-  definitions: RbacDefinition[];
-  roles: RbacRole[];
-  assignments: RbacAssignment[];
-  bindings: RbacBinding[];
-  error: string | null;
-  refresh: () => Promise<void>;
-  addAssignment: (input: RbacAssignmentInput) => Promise<void>;
-  removeAssignment: (target: RbacAssignmentTarget) => Promise<void>;
-  addBinding: (input: RbacBindingInput) => Promise<void>;
-  removeBinding: (target: RbacBindingTarget) => Promise<void>;
-  createRole: (input: RbacRoleInput) => Promise<void>;
-  updateRole: (id: string, input: RbacRoleInput) => Promise<void>;
-  deleteRole: (id: string, unbind: boolean) => Promise<void>;
-}
+export interface PermissionsController
+  extends PermissionAdministrationState, PermissionAdministrationCommands {}
 
-export function usePermissionAdministration(enabled: boolean): PermissionsController {
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [definitions, setDefinitions] = useState<RbacDefinition[]>([]);
-  const [roles, setRoles] = useState<RbacRole[]>([]);
-  const [assignments, setAssignments] = useState<RbacAssignment[]>([]);
-  const [bindings, setBindings] = useState<RbacBinding[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextDefinitions, nextRoles, nextAssignments, nextBindings] = await Promise.all([
-        permissionsApi.listDefinitions(),
-        permissionsApi.listRoles(),
-        permissionsApi.listAssignments(),
-        permissionsApi.listBindings(),
-      ]);
-      setDefinitions(nextDefinitions);
-      setRoles(nextRoles);
-      setAssignments(nextAssignments);
-      setBindings(nextBindings);
-      setLoaded(true);
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+export function usePermissionAdministration(
+  enabled: boolean,
+  administration: {
+    store: StoreApi<PermissionAdministrationState & PermissionAdministrationStateActions>;
+    commands: PermissionAdministrationCommands;
+  },
+): PermissionsController {
+  const { store, commands } = administration;
+  const loading = useStore(store, (state) => state.loading);
+  const loaded = useStore(store, (state) => state.loaded);
+  const definitions = useStore(store, (state) => state.definitions);
+  const roles = useStore(store, (state) => state.roles);
+  const assignments = useStore(store, (state) => state.assignments);
+  const bindings = useStore(store, (state) => state.bindings);
+  const error = useStore(store, (state) => state.error);
+  const {
+    refresh, addAssignment, removeAssignment, addBinding, removeBinding,
+    createRole, updateRole, deleteRole,
+  } = commands;
 
   useEffect(() => {
     if (enabled) void refresh();
   }, [enabled, refresh]);
 
-  const addAssignment = useCallback(
-    async (input: RbacAssignmentInput) => {
-      await permissionsApi.addAssignment(input);
-      window.dispatchEvent(new Event("permissions-changed"));
-      await refresh();
-    },
-    [refresh]
-  );
-
-  const removeAssignment = useCallback(
-    async (target: RbacAssignmentTarget) => {
-      await permissionsApi.removeAssignment(target);
-      window.dispatchEvent(new Event("permissions-changed"));
-      await refresh();
-    },
-    [refresh]
-  );
-
-  const addBinding = useCallback(
-    async (input: RbacBindingInput) => {
-      await permissionsApi.addBinding(input);
-      window.dispatchEvent(new Event("permissions-changed"));
-      await refresh();
-    },
-    [refresh]
-  );
-
-  const removeBinding = useCallback(
-    async (target: RbacBindingTarget) => {
-      await permissionsApi.removeBinding(target);
-      window.dispatchEvent(new Event("permissions-changed"));
-      await refresh();
-    },
-    [refresh]
-  );
-
-  const createRole = useCallback(
-    async (input: RbacRoleInput) => {
-      await permissionsApi.createRole(input);
-      window.dispatchEvent(new Event("permissions-changed"));
-      await refresh();
-    },
-    [refresh]
-  );
-
-  const updateRole = useCallback(
-    async (id: string, input: RbacRoleInput) => {
-      await permissionsApi.updateRole(id, input);
-      window.dispatchEvent(new Event("permissions-changed"));
-      await refresh();
-    },
-    [refresh]
-  );
-
-  const deleteRole = useCallback(
-    async (id: string, unbind: boolean) => {
-      await permissionsApi.deleteRole(id, unbind);
-      window.dispatchEvent(new Event("permissions-changed"));
-      await refresh();
-    },
-    [refresh]
-  );
-
   return {
-    loading,
-    loaded,
-    definitions,
-    roles,
-    assignments,
-    bindings,
-    error,
-    refresh,
-    addAssignment,
-    removeAssignment,
-    addBinding,
-    removeBinding,
-    createRole,
-    updateRole,
-    deleteRole,
+    loading, loaded, definitions, roles, assignments, bindings, error,
+    refresh, addAssignment, removeAssignment, addBinding, removeBinding,
+    createRole, updateRole, deleteRole,
   };
 }
