@@ -143,7 +143,7 @@ func (s *Service) BindRole(ctx context.Context, in BindingInput) (RoleBinding, e
 		if !ok {
 			return ErrRoleNotFound
 		}
-		if err := s.requireRulesSupportScope(role.Rules, in.Scope); err != nil {
+		if err := m.registry.requireRulesSupportScope(role.Rules, in.Scope.Kind); err != nil {
 			return err
 		}
 		if err := m.requireDelegableRules(by, role.Rules, in.Scope); err != nil {
@@ -247,19 +247,4 @@ func (s *Service) RemoveUserPolicy(ctx context.Context, email string) error {
 		m.state.Bindings = keptBindings
 		return nil
 	})
-}
-
-// requireRulesSupportScope keeps a project role from becoming platform-wide:
-// every rule's permission must be declared for the binding's scope kind.
-func (s *Service) requireRulesSupportScope(rules []RoleRule, scope Scope) error {
-	for _, rule := range rules {
-		definition, ok := s.registry.Lookup(rule.Permission)
-		if !ok {
-			return fmt.Errorf("%w: %q", ErrUnknownPermission, rule.Permission)
-		}
-		if !definition.SupportsScope(scope.Kind) {
-			return fmt.Errorf("%w: %s does not apply to %s scope", ErrInvalidScope, rule.Permission, scope.Kind)
-		}
-	}
-	return nil
 }

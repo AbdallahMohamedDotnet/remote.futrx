@@ -126,7 +126,7 @@ func (s *Service) UpdateRole(ctx context.Context, id string, in RoleInput) (Role
 			if binding.RoleID != id {
 				continue
 			}
-			if err := s.requireRulesSupportScope(valid.Rules, binding.Scope); err != nil {
+			if err := m.registry.requireRulesSupportScope(valid.Rules, binding.Scope.Kind); err != nil {
 				return err
 			}
 			if err := m.requireDelegableRules(by, existing.Rules, binding.Scope); err != nil {

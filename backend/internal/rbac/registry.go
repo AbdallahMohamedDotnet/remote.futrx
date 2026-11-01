@@ -1,9 +1,12 @@
 package rbac
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 )
+
+var errNilDefinitions = errors.New("no definitions")
 
 // Registry is the immutable, code-owned catalog of permission definitions. It
 // stores no assignments and decides no access; the Evaluator does that.
@@ -79,35 +82,31 @@ func (r *Registry) resolve(check Check) (Definition, error) {
 	if err := check.Scope.Validate(); err != nil {
 		return Definition{}, err
 	}
-	if !definition.SupportsScope(check.Scope.Kind) {
-		return Definition{}, fmt.Errorf("%w: %s does not apply to %s scope",
-			ErrInvalidScope, check.Permission, check.Scope.Kind)
+	if err := requireScopeSupport(definition, check.Scope.Kind); err != nil {
+		return Definition{}, err
 	}
 	return definition, nil
 }
 
-// Management permissions gate the permission service itself.
-const (
-	PermissionAssignmentsManage Key = "permissions.assignments.manage"
-	PermissionRolesManage       Key = "permissions.roles.manage"
-)
-
-// ManagementDefinitions declares the permissions that authorize changing
-// policy. They are not delegable: only administrators hand them out, so a
-// manager can never widen who else may manage policy.
-func ManagementDefinitions() []Definition {
-	return []Definition{
-		{
-			Key:         PermissionAssignmentsManage,
-			Description: "Create, change, and remove permission assignments and role bindings.",
-			Scopes:      []ScopeKind{ScopePlatform},
-			Baseline:    BaselineNone,
-		},
-		{
-			Key:         PermissionRolesManage,
-			Description: "Create, change, and delete custom roles.",
-			Scopes:      []ScopeKind{ScopePlatform},
-			Baseline:    BaselineNone,
-		},
+// requireRulesSupportScope keeps a project role from becoming platform-wide:
+// every rule's permission must be declared for the binding's scope kind.
+func (r *Registry) requireRulesSupportScope(rules []RoleRule, kind ScopeKind) error {
+	for _, rule := range rules {
+		definition, ok := r.Lookup(rule.Permission)
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrUnknownPermission, rule.Permission)
+		}
+		if err := requireScopeSupport(definition, kind); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+// requireScopeSupport is shared by individual checks and role binding rules.
+func requireScopeSupport(definition Definition, kind ScopeKind) error {
+	if !definition.SupportsScope(kind) {
+		return fmt.Errorf("%w: %s does not apply to %s scope", ErrInvalidScope, definition.Key, kind)
+	}
+	return nil
 }

@@ -1,8 +1,6 @@
 package rbac
 
 import (
-	"errors"
-
 	"github.com/futrx-com/remote.futrx.com/internal/rbac/evaluator"
 	"github.com/futrx-com/remote.futrx.com/internal/rbac/models"
 )
@@ -52,8 +50,6 @@ type RoleBinding = models.RoleBinding
 type State = models.State
 
 func NormalizeEmail(email string) string { return models.NormalizeEmail(email) }
-
-var errNilDefinitions = errors.New("no definitions")
 
 type Reason = evaluator.Reason
 
