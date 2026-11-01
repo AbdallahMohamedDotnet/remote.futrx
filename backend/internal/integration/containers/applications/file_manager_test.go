@@ -13,7 +13,7 @@ import (
 	svc "github.com/futrx-com/remote.futrx.com/internal/service/applications"
 )
 
-func TestFileManagerIsAnOptionalProjectApplication(t *testing.T) {
+func TestFileManagerSupportsProjectAndGlobalContainerInstalls(t *testing.T) {
 	registry, err := NewRegistry(EmbeddedCatalog(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -22,8 +22,11 @@ func TestFileManagerIsAnOptionalProjectApplication(t *testing.T) {
 	if !ok {
 		t.Fatal("missing File Manager catalog entry")
 	}
-	if !app.SupportsScope(svc.ScopeProject) || app.SupportsScope(svc.ScopeGlobal) {
+	if !app.SupportsScope(svc.ScopeProject) || !app.SupportsScope(svc.ScopeGlobal) {
 		t.Fatalf("unexpected scopes: %v", app.Scopes)
+	}
+	if !app.GloballyInstalledInsideContainers {
+		t.Fatal("global installs must place File Manager in each project container")
 	}
 	if !app.NeedsContainer() || app.Container == nil || app.Container.SourceDigest == "" || !slices.Equal(app.Container.Commands, []string{"file-manager"}) {
 		t.Fatalf("missing container build: %+v", app.Container)

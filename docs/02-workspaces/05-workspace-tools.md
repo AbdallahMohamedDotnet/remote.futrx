@@ -62,7 +62,10 @@ Important behavior:
 ## File manager
 
 Install the [File Manager application](../../applications/file-manager/README.md)
-in the project to add its Files drawer. It appears only while installed and running.
+in the project to add its Files drawer, or install it globally from
+**Settings → Applications** to add a copy to every existing project. Repeat the
+global install to include projects created later. The drawer appears only while
+that project's copy is installed and running.
 Its service runs in the project container and is reached through Remote's
 authenticated application web gateway.
 

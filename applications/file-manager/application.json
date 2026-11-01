@@ -5,7 +5,8 @@
   "category": "development",
   "version": "4",
   "icon": "folder",
-  "scopes": ["project"],
+  "scopes": ["project", "global"],
+  "globallyInstalledInsideContainers": true,
   "uninstall": "infra/uninstall.sh",
   "service": {
     "name": "remote-file-manager",

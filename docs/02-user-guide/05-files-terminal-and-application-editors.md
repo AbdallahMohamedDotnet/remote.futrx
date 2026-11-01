@@ -4,7 +4,9 @@ File Manager and Terminal are optional applications over the same project
 workspace. Install them in the projects where you need browsing or shell
 commands. Editor applications can add editing actions and file openers.
 
-Install **File Manager** from the project's Applications tab before browsing.
+Install **File Manager** from the project's Applications tab before browsing,
+or install it globally from **Settings → Applications** to add it to every
+existing project. Repeat the global install for projects created later.
 The Files action is available only in projects with a running installation.
 Stopping or uninstalling the application removes the drawer and leaves workspace
 files intact. Chat attachment previews and file links remain available.

@@ -1,8 +1,12 @@
 # File Manager
 
-Optional, project-scoped workspace browsing. Install **File Manager** from a
-project's Applications tab; its Files drawer appears beside the chat only while
-that installation is running. New projects do not inherit it.
+Optional workspace browsing. Install **File Manager** from a project's
+Applications tab, or install it globally from **Settings → Applications** to add
+it to every existing project. Global installs use each project's container
+because `globallyInstalledInsideContainers` is `true`. Each copy is managed from
+its project's Applications tab, and its Files drawer appears beside the chat
+only while that copy is running. New projects do not inherit it; run the global
+install again to add missing copies without replacing existing installations.
 
 ## Package
 
@@ -169,7 +173,10 @@ FUTRX_BROWSER_TEST=1 go test -count=1 ./applications/file-manager/backend/contai
 
 After a real project installation, check the Files drawer, search, nested folder
 ZIPs, media previews, and Code Server opening. Confirm another project has no
-Files action until installed. Check stop/start/uninstall and container recovery.
+Files action until installed. Then install globally and confirm each existing
+project gets its own copy and browses only its own workspace. Create another
+project and repeat the global install to add its copy, preserving existing ones.
+Check stop/start/uninstall per project and container recovery.
 Inside the target container, verify `systemctl status remote-file-manager` and
 `curl -fsS http://127.0.0.1:8844/health`. Container provisioning and authenticated
 web-gateway routing need a live Remote/LXD installation; unit tests do not prove
