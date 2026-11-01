@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/futrx-com/remote.futrx.com/internal/service/audit"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -21,8 +22,12 @@ func TestAuditRunPreservesOwnerAndCorrelationWithoutPromptText(t *testing.T) {
 		}
 		for range handle.Done {
 		}
-		if len(recorder.entries) < 4 {
-			t.Fatal(recorder.entries)
+		actions := make([]string, 0, len(recorder.entries))
+		for _, entry := range recorder.entries {
+			actions = append(actions, entry.Action)
+		}
+		if want := []string{"agent.run.start", "prompt.submit", "agent.account.use", "agent.run.complete"}; !reflect.DeepEqual(actions, want) {
+			t.Fatalf("audit actions = %v, want %v", actions, want)
 		}
 		var runID any
 		for _, e := range recorder.entries {
@@ -43,6 +48,13 @@ func TestAuditRunPreservesOwnerAndCorrelationWithoutPromptText(t *testing.T) {
 		last := recorder.entries[len(recorder.entries)-1]
 		if last.Action != "agent.run.complete" || last.OK == fail {
 			t.Fatal(last)
+		}
+		wantError := ""
+		if fail {
+			wantError = "agent run failed"
+		}
+		if last.Error != wantError {
+			t.Fatalf("completion error = %q, want %q", last.Error, wantError)
 		}
 	}
 }
