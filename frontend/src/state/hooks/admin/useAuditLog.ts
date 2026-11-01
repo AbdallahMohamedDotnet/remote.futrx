@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { auditApi } from "../../../api/auditApi";
 import { DEFAULT_AUDIT_LOG_LIMIT } from "../../../config/api";
 import {
-  EMPTY_AUDIT_FILTERS,
   type AuditEntry,
   type AuditFilters,
 } from "../../../models/audit";
-import { auditLogState } from "../../admin/auditLogState";
+import { EMPTY_AUDIT_FILTERS } from "../../../config/constants/audit";
+import { auditPageService } from "../../../services/admin/auditPageService";
 
 export interface AuditLog {
   entries: AuditEntry[];
@@ -65,7 +65,7 @@ export function useAuditLog(enabled: boolean): AuditLog {
         cursor,
       });
       if (seq !== requestSeq.current) return;
-      setEntries((current) => auditLogState.appendPage(current, page));
+      setEntries((current) => auditPageService.appendPage(current, page));
       setCursor(page.nextCursor ?? "");
     } catch (cause) {
       if (seq !== requestSeq.current) return;

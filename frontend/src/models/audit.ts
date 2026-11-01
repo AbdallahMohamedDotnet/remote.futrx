@@ -38,10 +38,3 @@ export interface AuditFilters {
   from: string;
   to: string;
 }
-
-export const EMPTY_AUDIT_FILTERS: AuditFilters = {
-  actor: "",
-  action: "",
-  from: "",
-  to: "",
-};
