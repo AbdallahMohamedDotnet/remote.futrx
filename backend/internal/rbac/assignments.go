@@ -71,13 +71,13 @@ func (s *Service) SetAssignment(ctx context.Context, in AssignmentInput) (Assign
 			return nil
 		}
 
-		id, err := m.service.newID()
+		id, err := m.newID()
 		if err != nil {
 			return err
 		}
 		result = Assignment{
 			ID: id, UserEmail: email, Permission: in.Permission, Effect: in.Effect, Scope: in.Scope,
-			CreatedBy: m.actor.Name(), CreatedAt: m.service.now().UnixMilli(),
+			CreatedBy: m.actor.Name(), CreatedAt: m.now().UnixMilli(),
 		}
 		m.state.Assignments = append(m.state.Assignments, result)
 		m.record(AuditEvent{
@@ -143,7 +143,7 @@ func (s *Service) BindRole(ctx context.Context, in BindingInput) (RoleBinding, e
 		if !ok {
 			return ErrRoleNotFound
 		}
-		if err := m.service.requireRulesSupportScope(role.Rules, in.Scope); err != nil {
+		if err := s.requireRulesSupportScope(role.Rules, in.Scope); err != nil {
 			return err
 		}
 		if err := m.requireDelegableRules(by, role.Rules, in.Scope); err != nil {
@@ -159,13 +159,13 @@ func (s *Service) BindRole(ctx context.Context, in BindingInput) (RoleBinding, e
 				return nil
 			}
 		}
-		id, err := m.service.newID()
+		id, err := m.newID()
 		if err != nil {
 			return err
 		}
 		result = RoleBinding{
 			ID: id, RoleID: in.RoleID, UserEmail: email, Scope: in.Scope,
-			CreatedBy: m.actor.Name(), CreatedAt: m.service.now().UnixMilli(),
+			CreatedBy: m.actor.Name(), CreatedAt: m.now().UnixMilli(),
 		}
 		m.state.Bindings = append(m.state.Bindings, result)
 		m.record(AuditEvent{

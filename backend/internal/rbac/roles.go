@@ -75,11 +75,11 @@ func (s *Service) CreateRole(ctx context.Context, in RoleInput) (Role, error) {
 		if err := m.requireRoleContentHeld(by, valid.Rules); err != nil {
 			return err
 		}
-		id, err := m.service.newID()
+		id, err := m.newID()
 		if err != nil {
 			return err
 		}
-		now := m.service.now().UnixMilli()
+		now := m.now().UnixMilli()
 		result = Role{
 			ID: id, Name: valid.Name, Description: valid.Description, Rules: valid.Rules,
 			CreatedBy: m.actor.Name(), CreatedAt: now, UpdatedAt: now,
@@ -138,7 +138,7 @@ func (s *Service) UpdateRole(ctx context.Context, id string, in RoleInput) (Role
 		}
 		updated := existing
 		updated.Name, updated.Description, updated.Rules = valid.Name, valid.Description, valid.Rules
-		updated.UpdatedAt = m.service.now().UnixMilli()
+		updated.UpdatedAt = m.now().UnixMilli()
 		m.state.Roles[index] = updated
 		m.record(AuditEvent{Operation: AuditRoleUpdated, RoleID: id, Detail: describeRole(updated)})
 		result = updated
