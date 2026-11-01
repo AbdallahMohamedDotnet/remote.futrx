@@ -3,6 +3,7 @@ package fileaudit
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	serviceaudit "github.com/futrx-com/remote.futrx.com/internal/service/audit"
 	"strings"
 	"testing"
@@ -36,7 +37,10 @@ func TestProjectActorActionAndDateFiltersSurviveReopenAndExport(t *testing.T) {
 		t.Fatal(page.Entries[0])
 	}
 	var out bytes.Buffer
-	if err := svc.ExportQuery(ctx, query, &out); err != nil {
+	encoder := json.NewEncoder(&out)
+	if err := svc.VisitQuery(ctx, query, func(entry serviceaudit.Entry) error {
+		return encoder.Encode(entry)
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Count(out.String(), "\n") != 1 || strings.Contains(out.String(), "cafe") || strings.Contains(out.String(), "secret.set") {

@@ -1,6 +1,7 @@
 package httphandlers
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -67,8 +68,8 @@ func (h *AuditHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	httptransport.SendJSON(w, http.StatusOK, page)
 }
 
-// handleExport streams the stored JSONL for a range straight to the client, so
-// an operator can archive or grep the raw trail without paging the UI.
+// handleExport streams matching entries as JSONL, so an operator can archive
+// or grep the trail without paging the UI.
 func (h *AuditHandler) handleExport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httptransport.SendErr(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -92,7 +93,19 @@ func (h *AuditHandler) handleExport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	w.Header().Set("Content-Disposition", `attachment; filename="audit-log.jsonl"`)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if err := h.audit.ExportQuery(r.Context(), serviceaudit.Query{From: from, To: to, Actor: r.URL.Query().Get("actor"), Action: r.URL.Query().Get("action"), Project: r.URL.Query().Get("project"), Target: r.URL.Query().Get("target")}, w); err != nil && r.Context().Err() == nil {
+	query := serviceaudit.Query{
+		From:    from,
+		To:      to,
+		Actor:   r.URL.Query().Get("actor"),
+		Action:  r.URL.Query().Get("action"),
+		Project: r.URL.Query().Get("project"),
+		Target:  r.URL.Query().Get("target"),
+	}
+	encoder := json.NewEncoder(w)
+	err = h.audit.VisitQuery(r.Context(), query, func(entry serviceaudit.Entry) error {
+		return encoder.Encode(entry)
+	})
+	if err != nil && r.Context().Err() == nil {
 		// A streamed response cannot change its status once bytes are on the
 		// wire, so a mid-export failure shows up as a truncated download plus
 		// this log line.

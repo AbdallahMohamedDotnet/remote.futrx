@@ -2,7 +2,6 @@ package audit
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log"
@@ -232,10 +231,10 @@ func (s *Service) StartJanitor(ctx context.Context, interval time.Duration) {
 	}()
 }
 
-// ExportQuery applies the same filters as the table, using bounded pages.
-func (s *Service) ExportQuery(ctx context.Context, query Query, dst io.Writer) error {
+// VisitQuery visits matching entries newest-first, using bounded pages. The
+// caller owns how entries are consumed; a visitor error stops traversal.
+func (s *Service) VisitQuery(ctx context.Context, query Query, visit func(Entry) error) error {
 	query.Limit = maxQueryLimit
-	enc := json.NewEncoder(dst)
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -245,7 +244,7 @@ func (s *Service) ExportQuery(ctx context.Context, query Query, dst io.Writer) e
 			return err
 		}
 		for _, entry := range page.Entries {
-			if err := enc.Encode(entry); err != nil {
+			if err := visit(entry); err != nil {
 				return err
 			}
 		}
