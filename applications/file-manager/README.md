@@ -3,8 +3,10 @@
 Optional workspace browsing. Install **File Manager** from a project's
 Applications tab, or install it globally from **Settings → Applications** to add
 it to every existing project. Global installs use each project's container
-because `globallyInstalledInsideContainers` is `true`. Each copy is managed from
-its project's Applications tab, and its Files drawer appears beside the chat
+because `globallyInstalledInsideContainers` defaults to `true` when omitted from
+the manifest. The `scopes` list still explicitly enables both `project` and
+`global` installation. Each copy is managed from its project's Applications tab,
+and its Files drawer appears beside the chat
 only while that copy is running. New projects do not inherit it; run the global
 install again to add missing copies without replacing existing installations.
 

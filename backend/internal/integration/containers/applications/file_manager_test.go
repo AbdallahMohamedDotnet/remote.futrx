@@ -22,6 +22,8 @@ func TestFileManagerSupportsProjectAndGlobalContainerInstalls(t *testing.T) {
 	if !ok {
 		t.Fatal("missing File Manager catalog entry")
 	}
+	// Both scopes must be declared; globallyInstalledInsideContainers defaults
+	// to true when omitted, placing global installs in each project container.
 	if !app.SupportsScope(svc.ScopeProject) || !app.SupportsScope(svc.ScopeGlobal) {
 		t.Fatalf("unexpected scopes: %v", app.Scopes)
 	}
