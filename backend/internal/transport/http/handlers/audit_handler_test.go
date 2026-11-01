@@ -7,6 +7,7 @@ import (
 	"github.com/futrx-com/remote.futrx.com/internal/stores/filetwofactor"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -212,6 +213,65 @@ func TestAuditExportStreamsJSONLAttachment(t *testing.T) {
 	}
 	if strings.Count(body, "\n") != 0 {
 		t.Fatalf("export returned %d lines, want exactly one", strings.Count(body, "\n")+1)
+	}
+}
+
+func TestAuditExportPreservesFiltersAndOrderAcrossPages(t *testing.T) {
+	mux, auth, auditLog := newAuditTestHandler(t)
+	start := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+	const count = 501
+	for i := 0; i < count; i++ {
+		entry := serviceaudit.Success("agent.run.start", serviceaudit.Target{Type: "chat", ID: "chat-a"}, serviceaudit.Meta{
+			"projectId": "project-a",
+			"accountId": "<&>",
+		})
+		entry.At = start.Add(time.Duration(i) * time.Second)
+		entry.Actor = serviceaudit.Actor{Email: "admin@example.com"}
+		auditLog.Record(context.Background(), entry)
+	}
+	for _, excluded := range []serviceaudit.Entry{
+		{ProjectID: "project-b", Actor: serviceaudit.Actor{Email: "admin@example.com"}, Action: "agent.run.start", Target: serviceaudit.Target{ID: "chat-a"}},
+		{ProjectID: "project-a", Actor: serviceaudit.Actor{Email: "member@example.com"}, Action: "agent.run.start", Target: serviceaudit.Target{ID: "chat-a"}},
+		{ProjectID: "project-a", Actor: serviceaudit.Actor{Email: "admin@example.com"}, Action: "project.secret.set", Target: serviceaudit.Target{ID: "chat-a"}},
+		{ProjectID: "project-a", Actor: serviceaudit.Actor{Email: "admin@example.com"}, Action: "agent.run.start", Target: serviceaudit.Target{ID: "chat-b"}},
+		{ProjectID: "project-a", At: start.Add(-time.Second), Actor: serviceaudit.Actor{Email: "admin@example.com"}, Action: "agent.run.start", Target: serviceaudit.Target{ID: "chat-a"}},
+		{ProjectID: "project-a", At: start.Add(count * time.Second), Actor: serviceaudit.Actor{Email: "admin@example.com"}, Action: "agent.run.start", Target: serviceaudit.Target{ID: "chat-a"}},
+	} {
+		if excluded.At.IsZero() {
+			excluded.At = start
+		}
+		auditLog.Record(context.Background(), excluded)
+	}
+	query := url.Values{
+		"project": {" project-a "},
+		"actor":   {" ADMIN@example.com "},
+		"action":  {" agent. "},
+		"target":  {" chat-a "},
+		"from":    {start.Format(time.RFC3339)},
+		"to":      {start.Add(count * time.Second).Format(time.RFC3339)},
+		// An export controls its own paging and ignores table pagination.
+		"limit":  {"1"},
+		"cursor": {"invalid"},
+	}
+	rec := auditRequest(t, mux, auth, http.MethodGet, "/api/admin/audit/export?"+query.Encode(), "admin@example.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (%s)", rec.Code, rec.Body.String())
+	}
+	lines := strings.Split(strings.TrimSuffix(rec.Body.String(), "\n"), "\n")
+	if len(lines) != count {
+		t.Fatalf("exported %d entries, want %d", len(lines), count)
+	}
+	for i, line := range lines {
+		var entry serviceaudit.Entry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatal(err)
+		}
+		if want := start.Add(time.Duration(count-1-i) * time.Second); !entry.At.Equal(want) {
+			t.Fatalf("entry %d timestamp = %s, want %s", i, entry.At, want)
+		}
+		if !strings.Contains(line, `"accountId":"\u003c\u0026\u003e"`) {
+			t.Fatalf("entry %d lost JSON escaping: %s", i, line)
+		}
 	}
 }
 
