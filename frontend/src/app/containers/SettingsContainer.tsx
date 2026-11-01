@@ -1,5 +1,6 @@
 import { useCallback, useState } from "preact/hooks";
 import { createPermissionAdministration } from "../permissions";
+import { createAuditLog } from "../audit";
 import {
   SettingsPage,
   type SettingsTab,
@@ -38,7 +39,8 @@ export function SettingsContainer({
   const userSettings = useUserSettingsContext();
   const userDirectory = useUserDirectory(auth.isAdmin);
   const serverInfo = useServerInfo(activeTab === "info");
-  const auditLog = useAuditLog(activeTab === "audit" && auth.isAdmin);
+  const [auditLogDependencies] = useState(createAuditLog);
+  const auditLog = useAuditLog(activeTab === "audit" && auth.isAdmin, auditLogDependencies);
   const releaseNotes = useReleaseNotes(
     activeTab === "updates" && auth.isAdmin && !selfUpdate.status?.lastCheck?.error,
     selfUpdate.status?.lastCheck?.latestTag,

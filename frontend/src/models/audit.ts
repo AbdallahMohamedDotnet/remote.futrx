@@ -38,3 +38,12 @@ export interface AuditFilters {
   from: string;
   to: string;
 }
+
+export interface AuditLogState {
+  entries: AuditEntry[];
+  filters: AuditFilters;
+  cursor: string;
+  loading: boolean;
+  loadingMore: boolean;
+  error: string | null;
+}

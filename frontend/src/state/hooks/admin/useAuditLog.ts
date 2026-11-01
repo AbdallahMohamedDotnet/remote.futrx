@@ -1,12 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { auditApi } from "../../../api/auditApi";
-import { DEFAULT_AUDIT_LOG_LIMIT } from "../../../config/api";
-import {
-  type AuditEntry,
-  type AuditFilters,
-} from "../../../models/audit";
-import { EMPTY_AUDIT_FILTERS } from "../../../config/constants/audit";
-import { auditPageService } from "../../../services/admin/auditPageService";
+import { useCallback, useEffect } from "preact/hooks";
+import { useStore } from "zustand";
+import type { StoreApi } from "zustand/vanilla";
+import type { AuditEntry, AuditFilters, AuditLogState } from "../../../models/audit";
+import type { AuditLogCommands, AuditLogStateActions } from "../../../port/audit";
 
 export interface AuditLog {
   entries: AuditEntry[];
@@ -21,76 +17,39 @@ export interface AuditLog {
   loadMore: () => Promise<void>;
 }
 
-// useAuditLog owns one filtered view of the admin audit log. Filters are held
-// here rather than applied client-side: the log can span months of monthly
-// files, so narrowing happens on the server and paging resumes from the cursor
-// it returns.
-export function useAuditLog(enabled: boolean): AuditLog {
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [filters, setFilters] = useState<AuditFilters>(EMPTY_AUDIT_FILTERS);
-  const [cursor, setCursor] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Every request gets a sequence number. A response is applied only if no
-  // newer request started meanwhile, so quickly re-filtering cannot leave the
-  // table showing a superseded page.
-  const requestSeq = useRef(0);
+export function useAuditLog(
+  enabled: boolean,
+  dependencies: {
+    store: StoreApi<AuditLogState & AuditLogStateActions>;
+    commands: AuditLogCommands;
+    exportUrl: (filters: AuditFilters) => string;
+  },
+): AuditLog {
+  const { store, commands, exportUrl } = dependencies;
+  const entries = useStore(store, (state) => state.entries);
+  const filters = useStore(store, (state) => state.filters);
+  const cursor = useStore(store, (state) => state.cursor);
+  const loading = useStore(store, (state) => state.loading);
+  const loadingMore = useStore(store, (state) => state.loadingMore);
+  const error = useStore(store, (state) => state.error);
+  const setFilters = useStore(store, (state) => state.setFilters);
 
-  const refresh = useCallback(async () => {
-    const seq = ++requestSeq.current;
-    setLoading(true);
-    setError(null);
-    try {
-      const page = await auditApi.list(filters, { limit: DEFAULT_AUDIT_LOG_LIMIT });
-      if (seq !== requestSeq.current) return;
-      setEntries(page.entries);
-      setCursor(page.nextCursor ?? "");
-    } catch (cause) {
-      if (seq !== requestSeq.current) return;
-      setError((cause as Error).message);
-    } finally {
-      if (seq === requestSeq.current) setLoading(false);
-    }
-  }, [filters]);
+  const refresh = useCallback(() => commands.refresh(filters), [commands, filters]);
+  const loadMore = useCallback(
+    () => commands.loadMore(filters, cursor, loadingMore),
+    [commands, cursor, filters, loadingMore],
+  );
 
-  const loadMore = useCallback(async () => {
-    if (!cursor || loadingMore) return;
-    const seq = ++requestSeq.current;
-    setLoadingMore(true);
-    setError(null);
-    try {
-      const page = await auditApi.list(filters, {
-        limit: DEFAULT_AUDIT_LOG_LIMIT,
-        cursor,
-      });
-      if (seq !== requestSeq.current) return;
-      setEntries((current) => auditPageService.appendPage(current, page));
-      setCursor(page.nextCursor ?? "");
-    } catch (cause) {
-      if (seq !== requestSeq.current) return;
-      setError((cause as Error).message);
-    } finally {
-      if (seq === requestSeq.current) setLoadingMore(false);
-    }
-  }, [cursor, filters, loadingMore]);
-
-  // Changing a filter restarts paging: a cursor is a position inside one
-  // filtered range and means nothing in another.
+  // Filter changes and enabling the view start a request from the same effect
+  // as before; changing filters alone does not invalidate a pending response.
   useEffect(() => {
     if (enabled) void refresh();
   }, [enabled, refresh]);
 
   return {
-    entries,
-    filters,
-    loading,
-    loadingMore,
+    entries, filters, loading, loadingMore, error,
     hasMore: Boolean(cursor),
-    error,
-    exportUrl: auditApi.exportUrl(filters),
-    setFilters,
-    refresh,
-    loadMore,
+    exportUrl: exportUrl(filters),
+    setFilters, refresh, loadMore,
   };
 }
