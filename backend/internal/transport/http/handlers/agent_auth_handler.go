@@ -200,10 +200,10 @@ func (h *AgentAuthHandler) handleCatalog(w http.ResponseWriter, r *http.Request)
 	httptransport.SendJSON(w, http.StatusOK, agentAuthCatalogResponse{Providers: providers})
 }
 
-// Status remains open to every registered user. The outer authentication
-// middleware owns that registration gate when user auth is enabled.
+// Raw status is reserved for account managers; the catalog exposes filtered
+// snapshots to other registered users.
 func (h *AgentAuthHandler) handleStatus(binding agentauth.Binding, w http.ResponseWriter, r *http.Request) {
-	if h.accountAccess != nil && agentauth.RestrictedProvider(binding.ID()) {
+	if h.accountAccess != nil {
 		if err := h.accountAccess.RequireManage(r.Context()); err != nil {
 			sendPermissionsError(w, err)
 			return
@@ -315,7 +315,9 @@ func (h *AgentAuthHandler) handleAPIKey(binding agentauth.Binding, w http.Respon
 	}
 	if err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, agentauth.ErrAPIKeyRequired) || errors.Is(err, agentauth.ErrAPIKeyRejected) ||
+		if errors.Is(err, rbac.ErrDenied) || errors.Is(err, rbac.ErrActorRequired) {
+			status = http.StatusForbidden
+		} else if errors.Is(err, agentauth.ErrAPIKeyRequired) || errors.Is(err, agentauth.ErrAPIKeyRejected) ||
 			errors.Is(err, agentauth.ErrAccountLabelRequired) || errors.Is(err, agentauth.ErrAccountLabelInvalid) ||
 			errors.Is(err, agentauth.ErrAccountLabelConflict) || errors.Is(err, agentauth.ErrAccountNotFound) {
 			status = http.StatusBadRequest

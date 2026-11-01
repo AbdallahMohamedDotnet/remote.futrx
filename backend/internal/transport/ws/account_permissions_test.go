@@ -10,20 +10,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/futrx-com/remote.futrx.com/internal/agent"
 	"github.com/futrx-com/remote.futrx.com/internal/rbac"
 	accountaccess "github.com/futrx-com/remote.futrx.com/internal/service/agent/accountaccess"
 	agentauth "github.com/futrx-com/remote.futrx.com/internal/service/agent/auth"
 	"github.com/gorilla/websocket"
 )
 
-type streamAccountPolicy struct{ revoked atomic.Bool }
+type streamAccountPolicy struct {
+	revoked  atomic.Bool
+	provider agent.ProviderID
+}
 
 func (p *streamAccountPolicy) Require(ctx context.Context, check rbac.Check) error {
 	actor, ok := rbac.ActorFromContext(ctx)
 	if !ok || actor.Email != "member@example.com" {
 		return rbac.ErrActorRequired
 	}
-	if check.Permission == agentauth.PermissionAccountUse && check.Scope.ID == "claude:team" && !p.revoked.Load() {
+	if check.Permission == agentauth.PermissionAccountUse && check.Scope.ID == string(p.provider)+":team" && !p.revoked.Load() {
 		return nil
 	}
 	return rbac.ErrDenied
@@ -35,9 +39,21 @@ func (streamAccounts) AccountsSnapshot() agentauth.AccountsSnapshot {
 	return agentauth.AccountsSnapshot{ActiveAccountID: "private", Items: []agentauth.Account{{ID: "private", Label: "Private label"}, {ID: "team", Label: "Team"}}}
 }
 func TestAccountStatusStreamsFilterAndRefreshRevocationWithoutProviderEvents(t *testing.T) {
+	for _, provider := range []agent.ProviderID{agent.ProviderClaude, agent.ProviderCodex, agent.ProviderMiniMax, agent.ProviderKimi} {
+		t.Run(string(provider), func(t *testing.T) {
+			t.Parallel()
+			testAccountStatusStream(t, provider)
+		})
+	}
+}
+func testAccountStatusStream(t *testing.T, provider agent.ProviderID) {
 	bindings, _ := newSocketTestBindings()
-	bindings[0] = bindings[0].WithAccounts(streamAccounts{})
-	policy := &streamAccountPolicy{}
+	for i := range bindings {
+		if bindings[i].ID() == provider {
+			bindings[i] = bindings[i].WithAccounts(streamAccounts{})
+		}
+	}
+	policy := &streamAccountPolicy{provider: provider}
 	access := accountaccess.New(policy, bindings)
 	mux := http.NewServeMux()
 	NewAgentAuthSocket(bindings).WithAccountAccess(access).RegisterRoutes(mux, websocket.Upgrader{})
@@ -45,14 +61,14 @@ func TestAccountStatusStreamsFilterAndRefreshRevocationWithoutProviderEvents(t *
 		mux.ServeHTTP(w, r.WithContext(rbac.ContextWithActor(r.Context(), rbac.UserActor("member@example.com"))))
 	}))
 	defer server.Close()
-	raw, response, err := websocket.DefaultDialer.Dial(webSocketURL(server.URL, "/ws/claude/auth-status"), nil)
+	raw, response, err := websocket.DefaultDialer.Dial(webSocketURL(server.URL, "/ws/"+string(provider)+"/auth-status"), nil)
 	if raw != nil {
 		raw.Close()
 	}
 	if err == nil || response == nil || response.StatusCode != 403 {
 		t.Fatalf("raw status must require management: %v %v", response, err)
 	}
-	conn, _, err := websocket.DefaultDialer.Dial(webSocketURL(server.URL, "/ws/agent-auth/claude"), nil)
+	conn, _, err := websocket.DefaultDialer.Dial(webSocketURL(server.URL, "/ws/agent-auth/"+string(provider)), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

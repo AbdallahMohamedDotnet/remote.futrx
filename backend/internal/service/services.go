@@ -234,6 +234,7 @@ func New(ctx context.Context, deps Dependencies) (Services, error) {
 		Containers:            deps.AgentContainers,
 		APIKeys:               deps.AgentAPIKeys,
 		Accounts:              agentauth.NewAccountVault(deps.AgentAccounts, permissionService).WithAudit(auditLog),
+		AccountAuthorizer:     permissionService,
 		CredentialSyncTimeout: deps.AgentOptions.CredentialSyncTimeout,
 	})
 	if err != nil {

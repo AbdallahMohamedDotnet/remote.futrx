@@ -7,6 +7,9 @@ test("permission hints keep their scope and account suggestions retain server or
   const values = { "projects.create": true };
   const accounts: RbacAccountTarget[] = [
     { provider: "codex", accountId: "team", label: "Team", scope: { kind: "provider-account", id: "codex:team" } },
+    { provider: "minimax", accountId: "default", label: "Default", scope: { kind: "provider-account", id: "minimax:default" } },
+    { provider: "kimi", accountId: "team", label: "Team", scope: { kind: "provider-account", id: "kimi:team" } },
+    { provider: "antigravity", accountId: "default", label: "Default", scope: { kind: "provider-account", id: "antigravity:default" } },
   ];
   const service = new PermissionLookupService({
     effective: async (projectId) => { assert.equal(projectId, "p1"); return values; },

@@ -39,7 +39,7 @@ export function ScopeFields({
           <option key={offeredKind} value={offeredKind}>{offeredKind}</option>
         ))}
       </select>
-      {kind === "provider-account" && (<><input list={accountListId} value={projectId} onInput={(e) => onProjectChange((e.target as HTMLInputElement).value)} class={INPUT_CLASS} aria-label="Provider account" placeholder="claude:account-id or codex:default" spellcheck={false} /><datalist id={accountListId}>{accounts.map((account) => (<option value={account.scope.id}>{account.provider}: {account.label}</option>))}</datalist></>)}
+      {kind === "provider-account" && (<><input list={accountListId} value={projectId} onInput={(e) => onProjectChange((e.target as HTMLInputElement).value)} class={INPUT_CLASS} aria-label="Provider account" placeholder="provider:account-id or provider:default" spellcheck={false} /><datalist id={accountListId}>{accounts.map((account) => (<option value={account.scope.id}>{account.provider}: {account.label}</option>))}</datalist></>)}
       {kind === "project" && (
         <select
           value={projectId}

@@ -57,7 +57,7 @@ func (s *AgentAuthSocket) handleSubscription(
 			return
 		}
 
-		if s.accountAccess != nil && !normalized && agentauth.RestrictedProvider(binding.ID()) {
+		if s.accountAccess != nil && !normalized {
 			if err := s.accountAccess.RequireManage(r.Context()); err != nil {
 				http.Error(w, "permission denied", 403)
 				return
@@ -88,10 +88,8 @@ func (s *AgentAuthSocket) handleSubscription(
 			if normalized {
 				return s.accountAccess.Visible(streamCtx, binding.ID(), binding.Snapshot())
 			}
-			if agentauth.RestrictedProvider(binding.ID()) {
-				if err := s.accountAccess.RequireManage(streamCtx); err != nil {
-					return nil, err
-				}
+			if err := s.accountAccess.RequireManage(streamCtx); err != nil {
+				return nil, err
 			}
 			return binding.Status(), nil
 		})

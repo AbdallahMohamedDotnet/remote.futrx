@@ -259,7 +259,7 @@ func (s *AccountService) captureRunCredentialLocked(ctx context.Context, run Run
 // active account.
 func (s *AccountService) ImportCurrent(ctx context.Context, label string) (resultErr error) {
 	defer func() { s.recordAccount(ctx, "agent.account.import", "", resultErr) }()
-	if err := RequireAccountManagement(ctx, s.authorizer, s.config.Provider); err != nil {
+	if err := RequireAccountManagement(ctx, s.authorizer); err != nil {
 		return err
 	}
 
@@ -305,7 +305,7 @@ func (s *AccountService) ImportCurrent(ctx context.Context, label string) (resul
 // saved account accountID. The finished login is saved by FinishLogin.
 func (s *AccountService) StartAccountLogin(ctx context.Context, label, accountID string) (result LoginSnapshot, resultErr error) {
 	defer func() { s.recordAccount(ctx, "agent.account.login", accountID, resultErr) }()
-	if err := RequireAccountManagement(ctx, s.authorizer, s.config.Provider); err != nil {
+	if err := RequireAccountManagement(ctx, s.authorizer); err != nil {
 		return LoginSnapshot{}, err
 	}
 
@@ -450,7 +450,7 @@ func (s *AccountService) FinishLogin(exitErr error, output string) (bool, error)
 // host login.
 func (s *AccountService) ActivateAccount(ctx context.Context, accountID string) (resultErr error) {
 	defer func() { s.recordAccount(ctx, "agent.account.activate", accountID, resultErr) }()
-	if err := RequireAccountManagement(ctx, s.authorizer, s.config.Provider); err != nil {
+	if err := RequireAccountManagement(ctx, s.authorizer); err != nil {
 		return err
 	}
 
@@ -495,7 +495,7 @@ func (s *AccountService) ActivateAccount(ctx context.Context, accountID string) 
 // DeleteAccount removes a saved account other than the active one.
 func (s *AccountService) DeleteAccount(ctx context.Context, accountID string) (resultErr error) {
 	defer func() { s.recordAccount(ctx, "agent.account.delete", accountID, resultErr) }()
-	if err := RequireAccountManagement(ctx, s.authorizer, s.config.Provider); err != nil {
+	if err := RequireAccountManagement(ctx, s.authorizer); err != nil {
 		return err
 	}
 

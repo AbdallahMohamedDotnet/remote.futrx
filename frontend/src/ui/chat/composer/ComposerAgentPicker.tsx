@@ -372,7 +372,7 @@ function ProviderList({
 
         {unavailable.length > 0 && (
           <div class={connected.length > 0 ? "mt-2 border-t border-line pt-2" : ""}>
-            <ProviderSectionLabel>Sign in to use</ProviderSectionLabel>
+            <ProviderSectionLabel>Unavailable</ProviderSectionLabel>
             {unavailable.map((option) => (
               <div
                 key={option.value}
@@ -493,7 +493,7 @@ function ModelList({
       <div class="flex min-h-44 items-center justify-center p-5 text-center">
         <div class="max-w-[18rem]">
           <Lock class="mx-auto h-5 w-5 text-accent-yellow" />
-          <div class="mt-2 text-[13px] font-semibold text-ink-100">Sign in to {viewedProvider.label}</div>
+          <div class="mt-2 text-[13px] font-semibold text-ink-100">{viewedProvider.label} unavailable</div>
           <p class="mt-1 text-[11px] leading-4 text-ink-400">
             {viewedProvider.disabledReason || "Log in before selecting this provider."}
           </p>

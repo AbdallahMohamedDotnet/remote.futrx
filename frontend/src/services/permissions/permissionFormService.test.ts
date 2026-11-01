@@ -105,3 +105,30 @@ test("provider-account grants preserve exact scope and reject malformed identifi
   if (result.ok) assert.deepEqual(result.input.scope, {kind: "provider-account", id: "codex:team"});
   assert.equal(permissionFormService.validateAssignment({...draft, projectId:"../bad"}, definitions).ok, false);
 });
+
+for (const provider of ["minimax", "kimi", "antigravity"]) {
+  test(`${provider} scopes work for direct assignments and account role bindings`, () => {
+    const definitions: RbacDefinition[] = [{
+      key: "agents.account.use", scopes: ["provider-account"],
+      description: "Use account", baseline: "none", delegable: true,
+    }];
+    const accountRole = role(["agents.account.use"]);
+    for (const accountId of ["default", "team-account"]) {
+      const scope = { kind: "provider-account" as const, id: `${provider}:${accountId}` };
+      assert.deepEqual(permissionFormService.validateAssignment({
+        userEmail: "member@example.com", permission: "agents.account.use",
+        effect: "allow", scopeKind: scope.kind, projectId: scope.id,
+      }, definitions), {
+        ok: true,
+        input: { userEmail: "member@example.com", permission: "agents.account.use", effect: "allow", scope },
+      });
+      assert.deepEqual(permissionFormService.validateBinding({
+        userEmail: "member@example.com", roleId: accountRole.id,
+        scopeKind: scope.kind, projectId: scope.id,
+      }, [accountRole], definitions), {
+        ok: true,
+        input: { userEmail: "member@example.com", roleId: accountRole.id, scope },
+      });
+    }
+  });
+}

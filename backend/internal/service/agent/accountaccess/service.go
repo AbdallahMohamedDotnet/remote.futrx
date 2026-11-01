@@ -15,12 +15,14 @@ import (
 type Service struct {
 	authorizer agentauth.AccountAuthorizer
 	bindings   map[agent.ProviderID]agentauth.Binding
+	providers  []agent.ProviderID
 }
 
 func New(authorizer agentauth.AccountAuthorizer, bindings []agentauth.Binding) *Service {
 	s := &Service{authorizer: authorizer, bindings: map[agent.ProviderID]agentauth.Binding{}}
 	for _, binding := range bindings {
 		s.bindings[binding.ID()] = binding
+		s.providers = append(s.providers, binding.ID())
 	}
 	return s
 }
@@ -59,9 +61,6 @@ func (s *Service) canUse(ctx context.Context, provider agent.ProviderID, id stri
 // for a run; the credential owner also re-checks under its account lock.
 func (s *Service) Resolve(ctx context.Context, provider agent.ProviderID, id string) (string, error) {
 	id = strings.TrimSpace(id)
-	if !agentauth.RestrictedProvider(provider) {
-		return id, nil
-	}
 	if s == nil {
 		return "", rbac.ErrDenied
 	}
@@ -100,9 +99,6 @@ func (s *Service) Resolve(ctx context.Context, provider agent.ProviderID, id str
 
 // Visible hides all unauthorized account metadata and login-flow details.
 func (s *Service) Visible(ctx context.Context, provider agent.ProviderID, snapshot agentauth.Snapshot) (agentauth.Snapshot, error) {
-	if !agentauth.RestrictedProvider(provider) {
-		return snapshot, nil
-	}
 	manage, err := s.CanManage(ctx)
 	if err != nil {
 		return agentauth.Snapshot{}, err
@@ -121,7 +117,7 @@ func (s *Service) Visible(ctx context.Context, provider agent.ProviderID, snapsh
 	}
 	visible.Authenticated = defaultAllowed && snapshot.Authenticated
 	{
-		accounts := agentauth.AccountsSnapshot{Items: []agentauth.Account{}, DefaultAllowed: &defaultAllowed}
+		accounts := agentauth.AccountsSnapshot{Items: []agentauth.Account{}, DefaultAllowed: &defaultAllowed, DefaultOnly: snapshot.Accounts == nil}
 		var items []agentauth.Account
 		if snapshot.Accounts != nil {
 			items = snapshot.Accounts.Items
@@ -144,9 +140,6 @@ func (s *Service) Visible(ctx context.Context, provider agent.ProviderID, snapsh
 	return visible, nil
 }
 func (s *Service) CanViewAccount(ctx context.Context, provider agent.ProviderID, id string) (bool, error) {
-	if !agentauth.RestrictedProvider(provider) {
-		return true, nil
-	}
 	return s.canUse(ctx, provider, id)
 }
 
@@ -178,12 +171,9 @@ func (s *Service) Targets(ctx context.Context) ([]Target, error) {
 		return nil, rbac.ErrDenied
 	}
 	out := []Target{}
-	for _, provider := range []agent.ProviderID{agent.ProviderClaude, agent.ProviderCodex} {
-		b, ok := s.bindings[provider]
-		if !ok {
-			continue
-		}
-		out = append(out, Target{Provider: provider, Label: "Default host login", Scope: rbac.ProviderAccountScope(string(provider), "")})
+	for _, provider := range s.providers {
+		b := s.bindings[provider]
+		out = append(out, Target{Provider: provider, Label: "Default login", Scope: rbac.ProviderAccountScope(string(provider), "")})
 		snapshot := b.Snapshot()
 		if snapshot.Accounts != nil {
 			for _, a := range snapshot.Accounts.Items {

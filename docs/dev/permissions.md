@@ -177,14 +177,24 @@ The removed core host shell and core scheduler are not restored.
 
 `agents.account.use` has **no member baseline**. Administrators retain recovery
 access; members must receive explicit assignments or role bindings for exact
-`provider-account` scopes such as `claude:work`, `codex:team`, or
-`codex:default`. `default` means legacy host login when no saved default exists.
+`provider-account` scopes such as `claude:work`, `codex:team`,
+`minimax:team`, `kimi:default`, or `antigravity:default`. Every registered
+provider follows the same account policy, independently of its harness.
+Claude, Codex, and MiniMax support saved accounts; Kimi and Antigravity use
+their default login. `default` means the provider's existing login when no
+saved default exists; Antigravity's login remains external to Remote.
 When a saved active account exists, an empty account selection resolves to that
 account's ID and requires its grant; granting `default` does not grant every
 account. A denied explicit account never falls back to another login. Denies
 continue to outrank member grants under the canonical evaluator's existing
 administrator recovery rule. The administration form lists available account
 scopes and accepts validated scope identifiers.
+
+Account checks apply to chat selection, prompt admission, each run/retry, and
+credential acquisition or provider launch. MiniMax resolves and authorizes
+the active saved account under the credential lock before releasing its key.
+Raw login status requires account-management permission; normalized HTTP and
+WebSocket snapshots and quota responses expose only authorized accounts.
 
 Before deploying, provision grants for each intended user/account pairing.
 Inventory direct assignments and role bindings, including scheduled-task owners.

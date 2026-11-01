@@ -21,22 +21,27 @@ func (permissionAccountSource) AccountsSnapshot() agentauth.AccountsSnapshot {
 	return agentauth.AccountsSnapshot{ActiveAccountID: "private", Items: []agentauth.Account{{ID: "private", Label: "private label", Email: "private@example.com"}, {ID: "team", Label: "Team"}}}
 }
 
-type permissionQuota struct{}
+type permissionQuota struct{ provider agent.ProviderID }
 
 func (permissionQuota) Refresh(context.Context) {}
-func (permissionQuota) View() []agentquota.AccountView {
-	return []agentquota.AccountView{{AccountQuota: agentquota.AccountQuota{Provider: "codex", AccountID: "private"}}, {AccountQuota: agentquota.AccountQuota{Provider: "codex", AccountID: "team"}}}
+func (q permissionQuota) View() []agentquota.AccountView {
+	return []agentquota.AccountView{{AccountQuota: agentquota.AccountQuota{Provider: string(q.provider), AccountID: "private"}}, {AccountQuota: agentquota.AccountQuota{Provider: string(q.provider), AccountID: "team"}}}
 }
 func TestAccountMetadataRoutesFilterWithRealMiddlewareAndPolicy(t *testing.T) {
+	for _, provider := range []agent.ProviderID{agent.ProviderClaude, agent.ProviderCodex, agent.ProviderMiniMax, agent.ProviderKimi, agent.ProviderAntigravity} {
+		t.Run(string(provider), func(t *testing.T) { testAccountMetadataRoutes(t, provider) })
+	}
+}
+func testAccountMetadataRoutes(t *testing.T, provider agent.ProviderID) {
 	f := newMembershipRoutesFixture(t)
-	binding := agentauth.NewExternalBinding(agent.ProviderCodex).WithAccounts(permissionAccountSource{})
+	binding := agentauth.NewExternalBinding(provider).WithAccounts(permissionAccountSource{})
 	access := accountaccess.New(f.permissions, []agentauth.Binding{binding})
 	mux := http.NewServeMux()
-	NewAgentAuthHandler([]agentauth.Binding{binding}, f.auth, agentAuthTestModules{{ID: agent.ProviderCodex, Label: "Codex", Auth: agentmodule.AuthExternal}}).WithAccountAccess(access).RegisterRoutes(mux)
-	NewAgentQuotaHandler(permissionQuota{}, f.auth).WithAccountAccess(access).RegisterRoutes(mux)
+	NewAgentAuthHandler([]agentauth.Binding{binding}, f.auth, agentAuthTestModules{{ID: provider, Label: string(provider), Auth: agentmodule.AuthExternal}}).WithAccountAccess(access).RegisterRoutes(mux)
+	NewAgentQuotaHandler(permissionQuota{provider: provider}, f.auth).WithAccountAccess(access).RegisterRoutes(mux)
 	NewPermissionsHandler(f.permissions).WithAccounts(access).RegisterRoutes(mux)
 	f.handler = httpmiddleware.NewAuth(f.auth).Wrap(mux)
-	if _, err := f.permissions.SetAssignment(adminContext(), rbac.AssignmentInput{UserEmail: "member@example.com", Permission: agentauth.PermissionAccountUse, Effect: rbac.Allow, Scope: rbac.ProviderAccountScope("codex", "team")}); err != nil {
+	if _, err := f.permissions.SetAssignment(adminContext(), rbac.AssignmentInput{UserEmail: "member@example.com", Permission: agentauth.PermissionAccountUse, Effect: rbac.Allow, Scope: rbac.ProviderAccountScope(string(provider), "team")}); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"/api/agent-auth", "/api/agent-quota"} {
@@ -45,7 +50,7 @@ func TestAccountMetadataRoutesFilterWithRealMiddlewareAndPolicy(t *testing.T) {
 			t.Fatalf("%s: %d %s", path, r.Code, r.Body)
 		}
 	}
-	for _, path := range []string{"/api/codex/auth-status", "/api/admin/permissions/accounts"} {
+	for _, path := range []string{"/api/" + string(provider) + "/auth-status", "/api/admin/permissions/accounts"} {
 		if r := f.do(t, "member@example.com", "GET", path, ""); r.Code != 403 {
 			t.Fatalf("%s must require management: %d %s", path, r.Code, r.Body)
 		}
@@ -53,7 +58,7 @@ func TestAccountMetadataRoutesFilterWithRealMiddlewareAndPolicy(t *testing.T) {
 	if r := f.do(t, "admin@example.com", "GET", "/api/admin/permissions/accounts", ""); r.Code != 200 || !strings.Contains(r.Body.String(), "private label") {
 		t.Fatalf("admin targets: %d %s", r.Code, r.Body)
 	}
-	if _, err := f.permissions.SetAssignment(adminContext(), rbac.AssignmentInput{UserEmail: "member@example.com", Permission: agentauth.PermissionAccountUse, Effect: rbac.Deny, Scope: rbac.ProviderAccountScope("codex", "team")}); err != nil {
+	if _, err := f.permissions.SetAssignment(adminContext(), rbac.AssignmentInput{UserEmail: "member@example.com", Permission: agentauth.PermissionAccountUse, Effect: rbac.Deny, Scope: rbac.ProviderAccountScope(string(provider), "team")}); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"/api/agent-auth", "/api/agent-quota"} {

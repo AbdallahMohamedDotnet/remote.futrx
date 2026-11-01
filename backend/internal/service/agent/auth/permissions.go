@@ -21,23 +21,14 @@ type AccountAuthorizer interface {
 	Require(context.Context, rbac.Check) error
 }
 
-func RestrictedProvider(provider agent.ProviderID) bool {
-	return provider == agent.ProviderClaude || provider == agent.ProviderCodex
-}
 func RequireAccountUse(ctx context.Context, authorizer AccountAuthorizer, provider agent.ProviderID, accountID string) error {
-	if !RestrictedProvider(provider) {
-		return nil
-	}
 	if authorizer == nil {
 		return rbac.ErrDenied
 	}
 	return authorizer.Require(ctx, rbac.Check{Permission: PermissionAccountUse, Scope: rbac.ProviderAccountScope(string(provider), accountID)})
 }
 
-func RequireAccountManagement(ctx context.Context, authorizer AccountAuthorizer, provider agent.ProviderID) error {
-	if !RestrictedProvider(provider) {
-		return nil
-	}
+func RequireAccountManagement(ctx context.Context, authorizer AccountAuthorizer) error {
 	if authorizer == nil {
 		return rbac.ErrDenied
 	}
