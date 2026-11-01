@@ -98,7 +98,7 @@ func (s *Store) Query(query serviceaudit.Query) (serviceaudit.Page, error) {
 	sort.Sort(sort.Reverse(sort.StringSlice(months)))
 
 	entries := make([]serviceaudit.Entry, 0, limit)
-	positions := make([]string, 0, limit)
+	lastCursor := ""
 	for _, month := range months {
 		if len(entries) >= limit {
 			break
@@ -113,19 +113,19 @@ func (s *Store) Query(query serviceaudit.Query) (serviceaudit.Page, error) {
 		if month == cursorMonth {
 			stopBefore = cursorLine
 		}
-		found, lines, err := s.tailMatches(month, query, limit-len(entries), stopBefore)
+		found, err := s.tailMatches(month, query, limit-len(entries), stopBefore)
 		if err != nil {
 			return serviceaudit.Page{}, err
 		}
 		for i := len(found) - 1; i >= 0; i-- {
-			entries = append(entries, found[i])
-			positions = append(positions, formatCursor(month, lines[i]))
+			entries = append(entries, found[i].entry)
+			lastCursor = formatCursor(month, found[i].line)
 		}
 	}
 
 	page := serviceaudit.Page{Entries: entries}
-	if len(entries) == limit && len(positions) == len(entries) {
-		page.NextCursor = positions[len(positions)-1]
+	if len(entries) == limit {
+		page.NextCursor = lastCursor
 	}
 	return page, nil
 }
@@ -221,13 +221,13 @@ func (s *Store) tailMatches(
 	query serviceaudit.Query,
 	limit int,
 	stopBefore int,
-) ([]serviceaudit.Entry, []int, error) {
+) ([]positionedEntry, error) {
 	file, err := os.Open(s.pathForMonth(month))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil, nil
+			return nil, nil
 		}
-		return nil, nil, fmt.Errorf("open audit log %s: %w", month, err)
+		return nil, fmt.Errorf("open audit log %s: %w", month, err)
 	}
 	defer file.Close()
 
@@ -253,10 +253,9 @@ func (s *Store) tailMatches(
 		ring.push(entry, lineNumber)
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, nil, fmt.Errorf("read audit log %s: %w", month, err)
+		return nil, fmt.Errorf("read audit log %s: %w", month, err)
 	}
-	entries, lines := ring.drain()
-	return entries, lines, nil
+	return ring.drain(), nil
 }
 
 func (s *Store) exportMonth(
@@ -388,11 +387,16 @@ func parseCursor(cursor string) (string, int, error) {
 	return month, line, nil
 }
 
+// positionedEntry keeps each decoded entry with its stable line position.
+type positionedEntry struct {
+	entry serviceaudit.Entry
+	line  int
+}
+
 // entryRing keeps the most recent size pushes so scanning a huge monthly file
 // costs a fixed amount of memory.
 type entryRing struct {
-	entries []serviceaudit.Entry
-	lines   []int
+	entries []positionedEntry
 	next    int
 	filled  bool
 }
@@ -401,12 +405,11 @@ func newEntryRing(size int) *entryRing {
 	if size < 1 {
 		size = 1
 	}
-	return &entryRing{entries: make([]serviceaudit.Entry, size), lines: make([]int, size)}
+	return &entryRing{entries: make([]positionedEntry, size)}
 }
 
 func (r *entryRing) push(entry serviceaudit.Entry, line int) {
-	r.entries[r.next] = entry
-	r.lines[r.next] = line
+	r.entries[r.next] = positionedEntry{entry: entry, line: line}
 	r.next = (r.next + 1) % len(r.entries)
 	if r.next == 0 {
 		r.filled = true
@@ -414,19 +417,17 @@ func (r *entryRing) push(entry serviceaudit.Entry, line int) {
 }
 
 // drain returns the buffered entries oldest-first.
-func (r *entryRing) drain() ([]serviceaudit.Entry, []int) {
+func (r *entryRing) drain() []positionedEntry {
 	count := r.next
 	start := 0
 	if r.filled {
 		count = len(r.entries)
 		start = r.next
 	}
-	entries := make([]serviceaudit.Entry, 0, count)
-	lines := make([]int, 0, count)
+	entries := make([]positionedEntry, 0, count)
 	for i := 0; i < count; i++ {
 		index := (start + i) % len(r.entries)
 		entries = append(entries, r.entries[index])
-		lines = append(lines, r.lines[index])
 	}
-	return entries, lines
+	return entries
 }
