@@ -37,8 +37,11 @@ const (
 	ActionChatCreate = "chat.create"
 	ActionChatDelete = "chat.delete"
 
-	ActionAgentRunStart  = "agent.run.start"
-	ActionAgentRunCancel = "agent.run.cancel"
+	ActionAgentRunStart    = "agent.run.start"
+	ActionAgentRunCancel   = "agent.run.cancel"
+	ActionAgentRunComplete = "agent.run.complete"
+	ActionAgentAccountUse  = "agent.account.use"
+	ActionPromptSubmit     = "prompt.submit"
 
 	ActionScheduleCreate = "schedule.create"
 	ActionScheduleUpdate = "schedule.update"

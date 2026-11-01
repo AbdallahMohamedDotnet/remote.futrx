@@ -152,13 +152,6 @@ func WithAgentPolicy(policy AgentPolicy) Option {
 	}
 }
 
-// WithAudit records the start and cancellation of every agent run.
-func WithAudit(recorder audit.Recorder) Option {
-	return func(service *Service) {
-		service.audit = audit.RecorderOrNop(recorder)
-	}
-}
-
 type Service struct {
 	accountAccess    AccountAccess
 	store            servicechat.Repository
@@ -275,49 +268,8 @@ func (rnr *Service) Start(input StartInput, emitTransient func(ChatEvent)) (RunH
 
 func (rnr *Service) CancelPrompt(ctx context.Context, id servicechat.ID) bool {
 	canceled := rnr.hub.CancelRun(id)
-	if rnr.audit != nil {
-		rnr.audit.Record(ctx, audit.Result(
-			audit.ActionAgentRunCancel,
-			audit.Target{Type: audit.TargetChat, ID: string(id)},
-			audit.Meta{"canceled": canceled},
-			nil,
-		))
-	}
+	rnr.recordRunCancellation(ctx, id, canceled)
 	return canceled
-}
-
-// recordRun writes one agent-run line. The provider and project come from the
-// chat record, so a run is attributable even though the audit log never sees
-// the prompt text.
-func (rnr *Service) recordRun(ctx context.Context, action string, input StartInput, err error) {
-	if rnr.audit == nil {
-		return
-	}
-	meta := audit.Meta{"chatId": string(input.ChatID)}
-	if chat, chatErr := rnr.store.Get(ctx, input.ChatID); chatErr == nil {
-		meta["provider"] = string(providerIDFromChatProvider(chat.Provider))
-		if chat.ProjectID != "" {
-			meta["projectId"] = string(chat.ProjectID)
-		}
-	}
-	if input.ApplicationInstanceID != "" {
-		meta["applicationId"] = input.ApplicationID
-		meta["applicationInstanceId"] = input.ApplicationInstanceID
-		meta["applicationRequestId"] = input.ApplicationRequestID
-	}
-	entry := audit.Result(
-		action,
-		audit.Target{Type: audit.TargetChat, ID: string(input.ChatID)},
-		meta,
-		err,
-	)
-	if input.Actor.Email != "" {
-		entry.Actor = audit.Actor{
-			Email:   audit.NormalizeActorEmail(input.Actor.Email),
-			IsAdmin: input.Actor.IsAdmin,
-		}
-	}
-	rnr.audit.Record(ctx, entry)
 }
 
 func (rnr *Service) RespondInteraction(id servicechat.ID, response agent.InteractionResponse) error {
@@ -378,22 +330,8 @@ func (rnr *Service) runPromptAs(
 
 	ctx = audit.WithProject(audit.EnsureCaller(ctx, audit.Caller{Actor: audit.Actor{Email: input.Actor.Email, IsAdmin: input.Actor.IsAdmin}}), string(meta.ProjectID))
 	if rnr.audit != nil {
-		detail := audit.Meta{"runId": ledgerRunID, "provider": string(meta.Provider), "accountId": meta.AccountID, "projectId": string(meta.ProjectID), "applicationId": input.ApplicationID, "applicationInstanceId": input.ApplicationInstanceID, "applicationRequestId": input.ApplicationRequestID}
-		entry := audit.Success("agent.run.start", audit.Target{Type: audit.TargetChat, ID: string(id)}, detail)
-		entry.Actor = audit.Actor{Email: input.Actor.Email, IsAdmin: input.Actor.IsAdmin}
-		rnr.audit.Record(ctx, entry)
-		submitted := entry
-		submitted.Action = "prompt.submit"
-		rnr.audit.Record(ctx, submitted)
-		defer func() {
-			completed := entry
-			completed.Action = "agent.run.complete"
-			completed.OK = resultErr == nil
-			if resultErr != nil {
-				completed.Error = "agent run failed"
-			}
-			rnr.audit.Record(ctx, completed)
-		}()
+		entry := rnr.recordStartedRun(ctx, input, meta, ledgerRunID)
+		defer func() { rnr.recordCompletedRun(ctx, entry, resultErr) }()
 	}
 
 	// Auto-title from first user prompt if still default.
@@ -518,11 +456,7 @@ func (rnr *Service) runPromptAs(
 				return err
 			}
 		}
-		if rnr.audit != nil {
-			entry := audit.Success("agent.account.use", audit.Target{Type: audit.TargetChat, ID: string(id)}, audit.Meta{"runId": ledgerRunID, "projectId": string(meta.ProjectID), "provider": string(providerID), "accountId": meta.AccountID, "applicationInstanceId": input.ApplicationInstanceID, "applicationRequestId": input.ApplicationRequestID})
-			entry.Actor = audit.Actor{Email: input.Actor.Email, IsAdmin: input.Actor.IsAdmin}
-			rnr.audit.Record(ctx, entry)
-		}
+		rnr.recordAccountUse(ctx, input, meta, providerID, ledgerRunID)
 		relay := runEventRelay{
 			service: rnr, ctx: ctx, chatID: id, providerID: providerID,
 			ledger: ledger, emit: emit,
