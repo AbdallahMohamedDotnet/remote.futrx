@@ -2,7 +2,7 @@ import { useEffectivePermissions } from "../../../state/hooks/permissions/useEff
 import type { ComponentChildren } from "preact";
 import { useId, useState } from "preact/hooks";
 import { useDismissKeyDown } from "../../../state/hooks/shared/useDismissKeyDown.ts";
-import { Clock, Folder, Monitor } from "../../primitives/icons";
+import { Clock, Monitor } from "../../primitives/icons";
 import { ExtensionSlot } from "../../primitives/ExtensionSlot";
 import { workspaceActionTooltipClass } from "../../primitives/workspaceActionTooltip.ts";
 import { EXTENSION_SLOTS } from "../../../config/extensions";
@@ -37,10 +37,8 @@ export function WorkspaceActions({
   extensionDrawers,
   onToggleBrowser,
   onToggleHistory,
-  onToggleFiles,
   browserOpen,
   historyOpen,
-  filesOpen,
   showHistory,
   orientation,
 }: {
@@ -50,10 +48,8 @@ export function WorkspaceActions({
   extensionDrawers: ExtensionDrawerAction[];
   onToggleBrowser: () => void;
   onToggleHistory: () => void;
-  onToggleFiles: () => void;
   browserOpen: boolean;
   historyOpen: boolean;
-  filesOpen: boolean;
   showHistory: boolean;
   orientation: "horizontal" | "vertical";
 }) {
@@ -101,17 +97,6 @@ export function WorkspaceActions({
           action="history"
           tooltipPlacement={tooltipPlacement}
         />
-      )}
-      {permissions[permissionPrefix + "files.use"] && (<WorkspaceAction
-        icon={<Folder aria-hidden="true" focusable="false" class={actionIcon} />}
-        onClick={onToggleFiles}
-        label={filesOpen ? "Close workspace files" : "Workspace files"}
-        tooltip={filesOpen ? "Close workspace files" : "Browse workspace files"}
-        expanded={filesOpen}
-        controls="workspace-files-pane"
-        action="files"
-        tooltipPlacement={tooltipPlacement}
-      />
       )}
       {permissions[permissionPrefix + "browser.use"] && (<WorkspaceAction
         icon={<Monitor aria-hidden="true" focusable="false" class={actionIcon} />}
