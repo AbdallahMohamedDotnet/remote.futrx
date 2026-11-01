@@ -1,47 +1,19 @@
-import { ApiError } from "../../../api/apiError.ts";
+import { ROLE_NAME_MAX, ROLE_DESCRIPTION_MAX } from "../../config/constants/permissions.ts";
 import type {
+  FormResult, AssignmentDraft, BindingDraft, RoleDraft,
   RbacAssignmentInput,
   RbacBindingInput,
   RbacDefinition,
-  RbacEffect,
   RbacRole,
   RbacRoleInput,
-  RbacRoleRule,
   RbacScope,
   RbacScopeKind,
-} from "../../../models/rbac";
-import { permissionBranches } from "./permissionBranches.ts";
-
-export type FormResult<T> = { ok: true; input: T } | { ok: false; message: string };
-
-export interface AssignmentDraft {
-  userEmail: string;
-  permission: string;
-  effect: RbacEffect;
-  scopeKind: RbacScopeKind;
-  projectId: string;
-}
-
-export interface BindingDraft {
-  userEmail: string;
-  roleId: string;
-  scopeKind: RbacScopeKind;
-  projectId: string;
-}
-
-export interface RoleDraft {
-  name: string;
-  description: string;
-  rules: RbacRoleRule[];
-}
-
-// Mirrors the limits in backend/internal/rbac/roles.go.
-const ROLE_NAME_MAX = 80;
-const ROLE_DESCRIPTION_MAX = 500;
+} from "../../models/rbac.ts";
+import { permissionBranchService } from "./permissionBranchService.ts";
 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-class PermissionFormLogic {
+class PermissionFormService {
   /** Scope kinds the permission is registered for; the definitions list is the only source. */
   scopeKindsForPermission(definitions: RbacDefinition[], key: string): RbacScopeKind[] {
     return definitions.find((definition) => definition.key === key)?.scopes ?? [];
@@ -61,7 +33,15 @@ class PermissionFormLogic {
     return offered.includes(chosen) ? chosen : offered[0] ?? chosen;
   }
 
-  buildScope(kind: RbacScopeKind, projectId: string): RbacScope {
+  private scopeError(kind: RbacScopeKind, id: string): string | null {
+    if (kind === "provider-account" && !/^[a-z0-9][a-z0-9_-]{0,63}:[a-z0-9][a-z0-9_-]{0,63}$/.test(id)) {
+      return "Enter a provider:account scope, such as claude:default.";
+    }
+    if (kind === "project" && !id) return "Choose a project.";
+    return null;
+  }
+
+  private buildScope(kind: RbacScopeKind, projectId: string): RbacScope {
     return kind === "platform" ? { kind } : { kind, id: projectId };
   }
 
@@ -76,8 +56,8 @@ class PermissionFormLogic {
     const offered = this.scopeKindsForPermission(definitions, draft.permission);
     const kind = this.effectiveScopeKind(offered, draft.scopeKind);
     if (!offered.includes(kind)) return { ok: false, message: "That permission is not registered." };
-    if (kind === "provider-account" && !/^[a-z0-9][a-z0-9_-]{0,63}:[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.projectId)) return { ok: false, message: "Enter a provider:account scope, such as claude:default." };
-    if (kind === "project" && !draft.projectId) return { ok: false, message: "Choose a project." };
+    const scopeError = this.scopeError(kind, draft.projectId);
+    if (scopeError) return { ok: false, message: scopeError };
     return {
       ok: true,
       input: {
@@ -104,8 +84,8 @@ class PermissionFormLogic {
     if (!offered.includes(kind)) {
       return { ok: false, message: "This role's rules share no scope kind." };
     }
-    if (kind === "provider-account" && !/^[a-z0-9][a-z0-9_-]{0,63}:[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.projectId)) return { ok: false, message: "Enter a provider:account scope, such as claude:default." };
-    if (kind === "project" && !draft.projectId) return { ok: false, message: "Choose a project." };
+    const scopeError = this.scopeError(kind, draft.projectId);
+    if (scopeError) return { ok: false, message: scopeError };
     return {
       ok: true,
       input: { userEmail, roleId: role.id, scope: this.buildScope(kind, draft.projectId) },
@@ -145,7 +125,7 @@ class PermissionFormLogic {
       if (!definition) {
         return { ok: false, message: `${rule.permission} is not a registered permission.` };
       }
-      if (!permissionBranches.canWrite(definition, rule, savedRules, grantAll)) {
+      if (!permissionBranchService.canWrite(definition, rule, savedRules, grantAll)) {
         return { ok: false, message: `${rule.permission} cannot be granted from here.` };
       }
       if (seen.has(rule.permission)) {
@@ -156,17 +136,7 @@ class PermissionFormLogic {
     return { ok: true, input: { name, description, rules: draft.rules } };
   }
 
-  /** A 409 means the role is still bound; every other failure is reported as the server sent it. */
-  deleteRoleErrorMessage(cause: unknown): string {
-    if (cause instanceof ApiError && cause.status === 409) {
-      return "This role is still bound to users. Tick “Also remove its bindings” to delete it anyway.";
-    }
-    return (cause as Error).message || "Something went wrong.";
-  }
 
-  isRoleStillBound(cause: unknown): boolean {
-    return cause instanceof ApiError && cause.status === 409;
-  }
 }
 
-export const permissionForms = new PermissionFormLogic();
+export const permissionFormService = new PermissionFormService();

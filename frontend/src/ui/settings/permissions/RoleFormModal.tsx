@@ -1,7 +1,6 @@
 import { useState } from "preact/hooks";
 import type { RbacDefinition, RbacRole, RbacRoleInput, RbacRoleRule } from "../../../models/rbac";
-import { permissionBranches } from "../../../state/hooks/permissions/permissionBranches";
-import { permissionForms } from "../../../state/hooks/permissions/permissionForms";
+import { usePermissionEditor } from "../../../state/hooks/permissions/usePermissionEditor";
 import { Loader } from "../../primitives/icons";
 import { BranchConfigurator } from "./BranchConfigurator";
 import { BranchOverviewCard } from "./BranchOverviewCard";
@@ -26,6 +25,7 @@ export function RoleFormModal({
   onSubmit: (input: RbacRoleInput) => Promise<void>;
   onClose: () => void;
 }) {
+  const { forms: permissionForms, branches: permissionBranches } = usePermissionEditor();
   const [name, setName] = useState(role?.name ?? "");
   const [description, setDescription] = useState(role?.description ?? "");
   const [rules, setRules] = useState<RbacRoleRule[]>(role?.rules ?? []);

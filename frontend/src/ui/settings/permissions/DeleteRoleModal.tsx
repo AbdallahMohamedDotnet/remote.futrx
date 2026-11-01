@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import type { RbacRole } from "../../../models/rbac";
-import { permissionForms } from "../../../state/hooks/permissions/permissionForms";
+import { usePermissionEditor } from "../../../state/hooks/permissions/usePermissionEditor";
 import { Loader } from "../../primitives/icons";
 import { PermissionModalShell } from "./PermissionModalShell";
 
@@ -15,6 +15,7 @@ export function DeleteRoleModal({
   onDelete: (unbind: boolean) => Promise<void>;
   onClose: () => void;
 }) {
+  const { errors: permissionErrors } = usePermissionEditor();
   const [typed, setTyped] = useState("");
   const [unbind, setUnbind] = useState(false);
   const [showUnbind, setShowUnbind] = useState(bindingCount > 0);
@@ -30,8 +31,8 @@ export function DeleteRoleModal({
       await onDelete(unbind);
       onClose();
     } catch (cause) {
-      if (permissionForms.isRoleStillBound(cause)) setShowUnbind(true);
-      setErr(permissionForms.deleteRoleErrorMessage(cause));
+      if (permissionErrors.isRoleStillBound(cause)) setShowUnbind(true);
+      setErr(permissionErrors.deleteRoleErrorMessage(cause));
       setBusy(false);
     }
   };

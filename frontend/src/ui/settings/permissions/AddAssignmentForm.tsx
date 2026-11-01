@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { ProjectMeta } from "../../../models/project";
 import type { RbacAssignmentInput, RbacDefinition, RbacEffect, RbacScopeKind } from "../../../models/rbac";
-import { permissionForms } from "../../../state/hooks/permissions/permissionForms";
+import { usePermissionEditor } from "../../../state/hooks/permissions/usePermissionEditor";
 import { INPUT_CLASS, SELECT_CLASS, ScopeFields } from "./PermissionFormFields";
 
 export function AddAssignmentForm({
@@ -13,6 +13,7 @@ export function AddAssignmentForm({
   projects: ProjectMeta[];
   onAdd: (input: RbacAssignmentInput) => Promise<void>;
 }) {
+  const { forms: permissionForms } = usePermissionEditor();
   const [userEmail, setUserEmail] = useState("");
   const [permission, setPermission] = useState("");
   const [effect, setEffect] = useState<RbacEffect>("allow");

@@ -1,4 +1,5 @@
-import { permissionsApi } from "../api/permissions";
+import { PermissionLookupService } from "../services/permissions/permissionLookupService";
+import { effectivePermissionsApi, permissionsApi } from "../api/permissions";
 import { PERMISSIONS_CHANGED_EVENT } from "../config/constants/permissions";
 import { PermissionAdministrationService } from "../services/permissions/permissionAdministrationService";
 import { createPermissionAdministrationStore } from "../state/stores/permissions/permissionAdministrationStore";
@@ -13,3 +14,8 @@ export function createPermissionAdministration() {
   );
   return { store, commands };
 }
+
+export const permissionLookup = new PermissionLookupService({
+  effective: effectivePermissionsApi.effective,
+  listAccountTargets: permissionsApi.listAccountTargets,
+});

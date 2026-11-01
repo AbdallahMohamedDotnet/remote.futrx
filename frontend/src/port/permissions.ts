@@ -1,5 +1,5 @@
 import type {
-  PermissionAdministrationSnapshot,
+  EffectivePermissionSnapshot, PermissionAdministrationSnapshot, RbacAccountTarget,
   RbacAssignment, RbacAssignmentInput, RbacAssignmentTarget,
   RbacBinding, RbacBindingInput, RbacBindingTarget,
   RbacDefinition, RbacRole, RbacRoleInput,
@@ -40,4 +40,14 @@ export interface PermissionAdministrationCommands {
   createRole(input: RbacRoleInput): Promise<void>;
   updateRole(id: string, input: RbacRoleInput): Promise<void>;
   deleteRole(id: string, unbind: boolean): Promise<void>;
+}
+
+export interface PermissionLookupApi {
+  effective(projectId?: string): Promise<Record<string, boolean>>;
+  listAccountTargets(): Promise<RbacAccountTarget[]>;
+}
+
+export interface PermissionLookup {
+  effectiveSnapshot(projectId?: string): Promise<EffectivePermissionSnapshot>;
+  accountTargets(): Promise<RbacAccountTarget[]>;
 }

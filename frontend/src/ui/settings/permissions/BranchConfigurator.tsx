@@ -1,10 +1,10 @@
+import { usePermissionEditor } from "../../../state/hooks/permissions/usePermissionEditor";
 import { useState } from "preact/hooks";
-import {
-  permissionBranches,
-  type PermissionBranch,
-  type PermissionEntry,
-  type RuleState,
-} from "../../../state/hooks/permissions/permissionBranches";
+import type {
+  PermissionBranch,
+  PermissionEntry,
+  RuleState,
+} from "../../../models/rbac";
 import { ChevronLeft, Lock, Search } from "../../primitives/icons";
 
 const STATE_OPTIONS: { state: RuleState; label: string; active: string }[] = [
@@ -62,6 +62,7 @@ function EntryRow({
   disabled: boolean;
   onChange: (state: RuleState) => void;
 }) {
+  const { branches: permissionBranches } = usePermissionEditor();
   const edge =
     entry.state === "allow" ? "border-l-accent-green" : entry.state === "deny" ? "border-l-accent-red" : "border-l-transparent";
   return (

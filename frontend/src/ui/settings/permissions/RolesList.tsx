@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import type { RbacBinding, RbacDefinition, RbacRole, RbacRoleInput } from "../../../models/rbac";
-import { PERMISSIONS_EMPTY_COPY } from "../../../state/hooks/permissions/permissionsView";
+import { PERMISSIONS_EMPTY_COPY } from "../../../config/constants/permissions";
 import { Empty } from "../../projects/project-containers/ProjectContainerPrimitives";
 import { X } from "../../primitives/icons";
 import { DeleteRoleModal } from "./DeleteRoleModal";

@@ -3,7 +3,7 @@ import type { RbacBinding, RbacBindingInput, RbacBindingTarget, RbacDefinition, 
 import { useConfirm } from "../../../state/context/ConfirmContext";
 import { X } from "../../primitives/icons";
 import { AddBindingForm } from "./AddBindingForm";
-import { PERMISSIONS_EMPTY_COPY } from "../../../state/hooks/permissions/permissionsView";
+import { PERMISSIONS_EMPTY_COPY } from "../../../config/constants/permissions";
 import { Empty } from "../../projects/project-containers/ProjectContainerPrimitives";
 import { PermissionBadge, PermissionsRow, PermissionsSection, ScopeBadge } from "./PermissionsPrimitives";
 

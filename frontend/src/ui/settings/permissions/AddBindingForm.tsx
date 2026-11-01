@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { ProjectMeta } from "../../../models/project";
 import type { RbacBindingInput, RbacDefinition, RbacRole, RbacScopeKind } from "../../../models/rbac";
-import { permissionForms } from "../../../state/hooks/permissions/permissionForms";
+import { usePermissionEditor } from "../../../state/hooks/permissions/usePermissionEditor";
 import { INPUT_CLASS, SELECT_CLASS, ScopeFields } from "./PermissionFormFields";
 
 export function AddBindingForm({
@@ -15,6 +15,7 @@ export function AddBindingForm({
   projects: ProjectMeta[];
   onAdd: (input: RbacBindingInput) => Promise<void>;
 }) {
+  const { forms: permissionForms } = usePermissionEditor();
   const [userEmail, setUserEmail] = useState("");
   const [roleId, setRoleId] = useState("");
   const [scopeKind, setScopeKind] = useState<RbacScopeKind>("platform");

@@ -1,6 +1,5 @@
-import { useEffect, useId, useState } from "preact/hooks";
-import { permissionsApi } from "../../../api/permissions";
-import type { RbacAccountTarget } from "../../../models/rbac";
+import { useId } from "preact/hooks";
+import { usePermissionAccountTargets } from "../../../state/hooks/permissions/usePermissionAccountTargets";
 import type { ProjectMeta } from "../../../models/project";
 import type { RbacScopeKind } from "../../../models/rbac";
 
@@ -26,15 +25,7 @@ export function ScopeFields({
   onProjectChange: (projectId: string) => void;
 }) {
   const accountListId = useId();
-  const [accounts, setAccounts] = useState<RbacAccountTarget[]>([]);
-  useEffect(() => {
-    let disposed = false;
-    if (kind === "provider-account") void permissionsApi.listAccountTargets().then(
-      (targets) => { if (!disposed) setAccounts(targets); },
-      () => { if (!disposed) setAccounts([]); }
-    );
-    return () => { disposed = true; };
-  }, [kind]);
+  const accounts = usePermissionAccountTargets(kind);
   return (
     <>
       <select

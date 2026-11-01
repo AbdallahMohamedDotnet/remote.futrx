@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PERMISSIONS_EMPTY_COPY, permissionsViewState } from "./permissionsView.ts";
+import { permissionsViewState } from "./permissionsView.ts";
+import { PERMISSIONS_EMPTY_COPY } from "../../../config/constants/permissions.ts";
 
 test("a failed load renders the error state, never empty lists", () => {
   assert.equal(

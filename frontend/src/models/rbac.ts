@@ -91,3 +91,59 @@ export interface PermissionAdministrationState extends PermissionAdministrationS
   loaded: boolean;
   error: string | null;
 }
+
+/** `inherit` = no rule in the role; the permission falls back to its baseline. */
+export type RuleState = "inherit" | "allow" | "deny";
+
+export interface PermissionEntry {
+  definition: RbacDefinition;
+  /** Last segment of the key, e.g. `manage`. */
+  action: string;
+  state: RuleState;
+  /** True when the state differs from what the role currently has saved. */
+  customized: boolean;
+  /** False when the role already holds it but the editor may not change it. */
+  editable: boolean;
+}
+
+export interface PermissionCategory {
+  name: string;
+  entries: PermissionEntry[];
+}
+
+export interface PermissionBranch {
+  id: string;
+  categories: PermissionCategory[];
+  total: number;
+  allowed: number;
+  denied: number;
+  customized: number;
+}
+
+export type FormResult<T> = { ok: true; input: T } | { ok: false; message: string };
+
+export interface AssignmentDraft {
+  userEmail: string;
+  permission: string;
+  effect: RbacEffect;
+  scopeKind: RbacScopeKind;
+  projectId: string;
+}
+
+export interface BindingDraft {
+  userEmail: string;
+  roleId: string;
+  scopeKind: RbacScopeKind;
+  projectId: string;
+}
+
+export interface RoleDraft {
+  name: string;
+  description: string;
+  rules: RbacRoleRule[];
+}
+
+export interface EffectivePermissionSnapshot {
+  scope?: string;
+  values: Record<string, boolean>;
+}

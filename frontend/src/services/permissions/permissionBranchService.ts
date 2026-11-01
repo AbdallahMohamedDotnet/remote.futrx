@@ -1,57 +1,23 @@
-import type { RbacDefinition, RbacRoleRule } from "../../../models/rbac";
+import { DEFAULT_PERMISSION_CATEGORY, PERMISSION_BASELINE_LABELS } from "../../config/constants/permissions.ts";
+import type {
+  PermissionBranch, PermissionEntry, RuleState, RbacDefinition, RbacRoleRule,
+} from "../../models/rbac.ts";
 
-/** `inherit` = no rule in the role; the permission falls back to its baseline. */
-export type RuleState = "inherit" | "allow" | "deny";
-
-export interface PermissionEntry {
-  definition: RbacDefinition;
-  /** Last segment of the key, e.g. `manage`. */
-  action: string;
-  state: RuleState;
-  /** True when the state differs from what the role currently has saved. */
-  customized: boolean;
-  /** False when the role already holds it but the editor may not change it. */
-  editable: boolean;
-}
-
-export interface PermissionCategory {
-  name: string;
-  entries: PermissionEntry[];
-}
-
-export interface PermissionBranch {
-  id: string;
-  categories: PermissionCategory[];
-  total: number;
-  allowed: number;
-  denied: number;
-  customized: number;
-}
-
-const DEFAULT_CATEGORY = "general";
-
-const BASELINE_LABELS: Record<string, string> = {
-  none: "no default access",
-  admin: "administrators by default",
-  "project-member": "project members by default",
-  authenticated: "everyone by default",
-};
-
-class PermissionBranchLogic {
+class PermissionBranchService {
   /**
    * The single policy for what a role editor may hand out, mirroring the
    * server's delegation rule: only delegable permissions can be added.
    */
-  isGrantable(definition: RbacDefinition, grantAll: boolean): boolean {
+  private isGrantable(definition: RbacDefinition, grantAll: boolean): boolean {
     return grantAll || definition.delegable;
   }
 
   /** Registered baselines get friendly copy; one added later still renders as its own name. */
   baselineLabel(baseline: string): string {
-    return BASELINE_LABELS[baseline] ?? baseline;
+    return PERMISSION_BASELINE_LABELS[baseline] ?? baseline;
   }
 
-  stateOf(rules: RbacRoleRule[], key: string): RuleState {
+  private stateOf(rules: RbacRoleRule[], key: string): RuleState {
     return rules.find((rule) => rule.permission === key)?.effect ?? "inherit";
   }
 
@@ -103,7 +69,7 @@ class PermissionBranchLogic {
       if (!grantable && saved === "inherit") continue;
       const [branchId, ...rest] = definition.key.split(".");
       const action = rest.pop() ?? definition.key;
-      const category = rest.join(".") || DEFAULT_CATEGORY;
+      const category = rest.join(".") || DEFAULT_PERMISSION_CATEGORY;
       const categories = branches.get(branchId) ?? new Map<string, PermissionEntry[]>();
       const entries = categories.get(category) ?? [];
       entries.push({ definition, action, state, customized: state !== saved, editable: grantable });
@@ -127,4 +93,4 @@ class PermissionBranchLogic {
   }
 }
 
-export const permissionBranches = new PermissionBranchLogic();
+export const permissionBranchService = new PermissionBranchService();

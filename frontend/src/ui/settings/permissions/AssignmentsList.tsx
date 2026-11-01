@@ -3,7 +3,7 @@ import type { RbacAssignment, RbacAssignmentInput, RbacAssignmentTarget, RbacDef
 import { useConfirm } from "../../../state/context/ConfirmContext";
 import { X } from "../../primitives/icons";
 import { AddAssignmentForm } from "./AddAssignmentForm";
-import { PERMISSIONS_EMPTY_COPY } from "../../../state/hooks/permissions/permissionsView";
+import { PERMISSIONS_EMPTY_COPY } from "../../../config/constants/permissions";
 import { Empty } from "../../projects/project-containers/ProjectContainerPrimitives";
 import { EffectBadge, PermissionsRow, PermissionsSection, ScopeBadge } from "./PermissionsPrimitives";
 

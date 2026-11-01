@@ -1,4 +1,4 @@
-import type { PermissionBranch } from "../../../state/hooks/permissions/permissionBranches";
+import type { PermissionBranch } from "../../../models/rbac";
 
 export function BranchOverviewCard({ branch, onOpen }: { branch: PermissionBranch; onOpen: () => void }) {
   const enabledShare = branch.total === 0 ? 0 : (branch.allowed / branch.total) * 100;
